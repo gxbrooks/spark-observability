@@ -1,0 +1,45 @@
+{
+	"index_patterns": ["logs-*"],
+	"data_stream": { },
+	"template": {
+		"settings": {
+		"number_of_shards": 1
+	},
+    "mappings": {
+        "properties": {
+            "@timestamp": {
+                "type": "date"
+            },
+            "json": {
+                "properties": {
+                    "Properties": {
+                        "properties": {
+                            "spark": {
+                                "properties": {
+                                    "rdd": {
+                                        "properties": {
+                                            "compress": {
+                                                "type": "keyword",
+                                                "ignore_above": 1024
+                                            },
+                                            "scope": {
+                                                "properties": {
+                                                    "noOverride": {
+                                                        "type": "keyword",
+                                                        "ignore_above": 1024
+                                                    }
+                                                },
+                                                "type": "text",
+                                                "ignore_above": 1024
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
