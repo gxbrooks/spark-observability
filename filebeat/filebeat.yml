@@ -1,0 +1,13 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    # - /usr/share/filebeat/json/app*
+    - /usr/share/filebeat/json/*
+  # json.keys_under_root: true
+  json.add_error_key: true
+  json.add_error_key: false
+  json.message_key: message
+
+output.logstash:
+  hosts: ["${SPARK_LS_HOST}:${SPARK_LS_PORT}"]
