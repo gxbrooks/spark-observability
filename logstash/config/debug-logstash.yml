@@ -1,0 +1,21 @@
+xpack.monitoring.enabled: false
+
+# Set the logging level. Options are: fatal, error, warn, info, debug, trace
+log.level: debug
+
+# Enable logging to a file
+path.logs: /var/log/logstash
+
+# Optional: Rotate log files
+log.rotation.size: 100mb
+log.rotation.age: 7d
+log.rotation.keep: 10
+
+# Optional: Define log file names
+log.format: plain
+log.file.name: logstash-plain.log
+
+# Optional: Configure logging format (e.g., json for structured logs)
+log.format: json
+
+

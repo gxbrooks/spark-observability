@@ -1,0 +1,47 @@
+{
+  "index_patterns": [ "logs-spark-spark*" ],
+  "data_stream": {},
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "json": {
+          "properties": {
+            "Task Info": {
+              "properties": {
+                "Accumulables": {
+                  "type": "nested",
+                  "properties": {
+                    "Count Failed Values": {
+                      "type": "boolean"
+                    },
+                    "ID": {
+                      "type": "long"
+                    },
+                    "Internal": {
+                      "type": "boolean"
+                    },
+                    "Metadata": {
+                      "type": "keyword"
+                    },
+                    "Name": {
+                      "type": "keyword"
+                    },
+                    "Update": {
+                      "type": "long"
+                    },
+                    "Value": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }          
+            }
+          }
+        }
+      }
+    }
+  }
+}
