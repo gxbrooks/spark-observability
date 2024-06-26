@@ -28,6 +28,10 @@ services:
     volumes:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs
+      # only needed for debugging initializations
+      #   docker exec -it <Container-ID> bash
+      # or through the Docker Desktop console
+      - ./init:/usr/share/elasticsearch/init
     ports:
       - ${ES_PORT}:9200
     environment:
@@ -64,12 +68,12 @@ services:
       retries: 120
 
 
-  init:
+  init-kibana:
     image: cert-es-base
     volumes:
       - ./init:/usr/share/elasticsearch/init
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/init.sh 
+    command: bash -f ./init/init-kibana.sh 
     environment:
       # do we need any of this? Taken from logstash
       # - xpack.monitoring.enabled=false
@@ -81,12 +85,30 @@ services:
     depends_on:
       es01:
         condition: service_healthy
-        
+
+  init-index:
+    image: cert-es-base
+    volumes:
+      - ./init:/usr/share/elasticsearch/init
+      - certs:/usr/share/elasticsearch/config/certs
+    command: bash -f ./init/init-index.sh 
+    environment:
+      # do we need any of this? Taken from logstash
+      # - xpack.monitoring.enabled=false
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTIC_HOSTS=https://es01:9200}
+      # dubious we need kibana here
+      - KIBANA_PASSWORD=${KIBANA_PASSWORD}
+    depends_on:
+      es01:
+        condition: service_healthy
+
   kibana:
     depends_on:
       es01:
         condition: service_healthy
-      init:
+      init-kibana:
         condition: service_completed_successfully
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
     labels:
@@ -121,7 +143,7 @@ services:
     depends_on:
       es01:
         condition: service_healthy
-      init:
+      init-index:
         condition: service_completed_successfully
     image: docker.elastic.co/logstash/logstash:${STACK_VERSION}    
     container_name: spark-logstash01
@@ -129,11 +151,15 @@ services:
       co.elastic.logs/module: logstash
     user: root
     ports: 
-        - ${SPARK_LS_PORT}:${SPARK_LS_PORT}
+        - "${SPARK_LS_PORT}:${SPARK_LS_PORT}"
         - "9600:9600"
     volumes:
-      - certs:/usr/share/logstash/certs
-      - "./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf"
+      - "certs:/usr/share/logstash/certs"
+      # - "./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf"
+      # - "./logstash/pipeline/debug-logstash.conf:/usr/share/logstash/pipeline/debug-logstash.conf"
+      - "./logstash/pipeline:/usr/share/logstash/pipeline"
+      - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+      - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
     environment:
       - xpack.monitoring.enabled=false
       - ELASTIC_USER=elastic
@@ -160,10 +186,10 @@ services:
     container_name: spark-filebeat01
     # user: root
     volumes:
-      #mine
-      # - "/home/gxbrooks/GitHub/pyspark-playground/spark-events:/usr/share/filebeat/json:ro"
-      - "./examples:/usr/share/filebeat/json:ro" 
       - "./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
+      # For testing purposes
+      - "./spark-events:/usr/share/filebeat/spark-events:ro" 
+      # - "/home/gxbrooks/GitHub/pyspark-playground/spark-events:/usr/share/filebeat/json:ro"
     # environment:
       # - ELASTIC_USER=elastic
       # - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}

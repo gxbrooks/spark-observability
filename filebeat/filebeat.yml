@@ -1,13 +1,53 @@
+
+logging.level: info  # Set the logging level. Options are debug, info, warning, error, critical.
+logging.to_files: true
+logging.files:
+  path: /usr/share/filebeat/logs  # Directory where log files are saved.
+  name: filebeat.log  # Base name of the log file.
+  keepfiles: 10  # Number of rotated log files to keep.
+  permissions: 0644  # File permissions for the log files.
+  rotateeverybytes: 10485760  # Rotate log files after reaching this size in bytes (10 MB here).
+  
+
 filebeat.inputs:
-- type: log
+- type: filestream
+  id: spark-reader
   enabled: true
   paths:
-    # - /usr/share/filebeat/json/app*
-    - /usr/share/filebeat/json/*
-  # json.keys_under_root: true
-  json.add_error_key: true
-  json.add_error_key: false
-  json.message_key: message
+    - /usr/share/filebeat/spark-events/app-*
+
+  # Reference https://www.elastic.co/guide/en/beats/filebeat/7.x/filebeat-input-log.html
+  # https://github.com/elastic/beats/issues/3025#issuecomment-645505793
+  tags: ["json", "spark"]
+  
+  # If this option is set to true, the custom fields are stored as top-level fields in the output document instead of being grouped under a fields sub-dictionary.
+  fields_under_root: false
+  
+  # Optional fields that you can specify to add additional information to the output.
+  # fields:
+    # event.dataset: app
+    # service.type: app
+    
+  json:
+    # An optional configuration setting that specifies a JSON key on which to apply the line filtering and multiline settings. If specified the key must be at the top level in the JSON object and the value associated with the key must be a string, otherwise no filtering or multiline aggregation will occur.
+    #message_key: message
+
+    # By default, the decoded JSON is placed under a "json" key in the output document. If you enable this setting, the keys are copied top level in the output document. The default is false.
+    keys_under_root: false
+
+    # If keys_under_root and this setting are enabled, then the values from the decoded JSON object overwrite the fields that Filebeat normally adds (type, source, offset, etc.) in case of conflicts.
+    overwrite_keys: false
+
+    # If this setting is enabled, Filebeat adds a "error.message" and "error.type: json" key in case of JSON unmarshalling errors or when a message_key is defined in the configuration but cannot be used.
+    add_error_key: true
+
+    # An optional configuration setting that specifies if JSON decoding errors should be logged or not. If set to true, errors will not be logged. The default is false.
+    # ignore_decoding_error: false
+
+  parsers:
+    - ndjson:
+        target: "spark"  
 
 output.logstash:
   hosts: ["${SPARK_LS_HOST}:${SPARK_LS_PORT}"]
+  
