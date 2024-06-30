@@ -24,9 +24,9 @@ filebeat.inputs:
   fields_under_root: false
   
   # Optional fields that you can specify to add additional information to the output.
-  # fields:
-    # event.dataset: app
-    # service.type: app
+  fields:
+    event.dataset: app
+    service.type: app
     
   json:
     # An optional configuration setting that specifies a JSON key on which to apply the line filtering and multiline settings. If specified the key must be at the top level in the JSON object and the value associated with the key must be a string, otherwise no filtering or multiline aggregation will occur.
