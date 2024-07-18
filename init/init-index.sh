@@ -11,15 +11,61 @@
 #
 echo "Creating Index Template"
 curl --no-progress-meter \
-  --request PUT "https://es01:9200/_index_template/spark-logs"\
+  --request PUT "https://es01:9200/_index_template/spark-active-index"\
   --cacert config/certs/ca/ca.crt \
   -u "elastic:${ELASTIC_PASSWORD}" \
   -H "Content-Type: application/json"\
-  -d '@init/sparkActiveIndexTemplate.json'
-result=$?
-echo -e "\nResult is $result"
-if [ $result -ne 0 ]; then
+  -d '@init/spark-active-index.template.json'
+status=$?
+echo -e "\nstatus is $status"
+if [ $status -ne 0 ]; then
     echo "Error: curl failed with code $?" >&2
-    exit $result
+    exit $status
   fi
 
+echo "PUT _index_template/spark-log-ds init/spark-log-ds.template.json"
+curl --no-progress-meter \
+  --request PUT "https://es01:9200/_index_template/spark-log-ds"\
+  --cacert config/certs/ca/ca.crt \
+  -u "elastic:${ELASTIC_PASSWORD}" \
+  -H "Content-Type: application/json"\
+  -d '@init/spark-log-ds.template.json'
+status=$?
+echo -e "\nstatus is $status"
+if [ $status -ne 0 ]; then
+    echo "Error: curl failed with code $?" >&2
+    exit $status
+  fi
+
+echo "api PUT _index_template/spark-log-ds init/data-pipeline-ds.template.json"
+curl --no-progress-meter \
+  --request PUT "https://es01:9200/_index_template/data-pipeline-ds"\
+  --cacert config/certs/ca/ca.crt \
+  -u "elastic:${ELASTIC_PASSWORD}" \
+  -H "Content-Type: application/json"\
+  -d '@init/data-pipeline-ds.template.json'
+status=$?
+echo -e "\nstatus is $status"
+if [ $status -ne 0 ]; then
+    echo "Error: curl failed with code $?" >&2
+    exit $status
+  fi
+
+echo "POST _license/start_trial?acknowledge=true"
+curl --no-progress-meter \
+  --request POST "https://es01:9200/_license/start_trial?acknowledge=true"\
+  --cacert config/certs/ca/ca.crt \
+  -u "elastic:${ELASTIC_PASSWORD}" \
+  -H "Content-Type: application/json"
+status=$?
+echo -e "\nstatus is $status"
+if [ $status -ne 0 ]; then
+    echo "Error: curl failed with code $?" >&2
+    exit $status
+  fi
+
+
+# Need full license to run watchers
+./init/bin/rapi.sh POST _license/start_trial?acknowledge=true
+
+init/bin/rapi.sh PUT _watcher/watch/spark_batch_watcher init/spark.batch_info.watcher.json

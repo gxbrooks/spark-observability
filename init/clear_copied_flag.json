@@ -1,0 +1,4 @@
+{
+  "query": {"term": {"batch_info.copied": true}},
+  "script": {"source": "ctx._source.batch_info.copied = false"}
+}
