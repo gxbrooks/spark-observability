@@ -11,8 +11,12 @@ RUN echo "version is  ${STACK_VERSION}"
 
 # run with docker run --env-file ../.env [...]
 
-RUN echo "Directory is"; pwd
-RUN echo "User is:"; whoami
+RUN echo "Directory is; `pwd`"
+RUN echo "User is:; `whoami`"
+
+CMD ["/bin/bash"]
+USER root
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends jq
 
 USER elasticsearch:root
 RUN mkdir config/certs
@@ -34,5 +38,10 @@ RUN find ./config/certs -type f -exec chmod 640 \{\} \;;
 
 # expose the same ports as per the original Dockerfile build
 EXPOSE 9200
+
+#Do we need 9300? It's seems to be a standard port for Elasticsearch
 EXPOSE 9300
 
+CMD ["eswrapper"]
+
+USER elasticsearch:root

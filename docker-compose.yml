@@ -154,7 +154,7 @@ services:
         - "${SPARK_LS_PORT}:${SPARK_LS_PORT}"
         - "9600:9600"
     volumes:
-      - "certs:/usr/share/logstash/certs"
+      - certs:/usr/share/logstash/certs
       # - "./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf"
       # - "./logstash/pipeline/debug-logstash.conf:/usr/share/logstash/pipeline/debug-logstash.conf"
       - "./logstash/pipeline:/usr/share/logstash/pipeline"

@@ -1,0 +1,1178 @@
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 0,
+    "Stage Attempt ID": 0,
+    "Stage Name": "showString at NativeMethodAccessorImpl.java:0",
+    "Number of Tasks": 2,
+    "RDD Info": [
+      {
+        "RDD ID": 11,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"8\",\"name\":\"Exchange\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          10
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 1,
+        "Name": "PythonRDD",
+        "Callsite": "RDD at PythonRDD.scala:53",
+        "Parent IDs": [
+          0
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 2,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"1\",\"name\":\"mapPartitions\"}",
+        "Callsite": "mapPartitions at SerDeUtil.scala:117",
+        "Parent IDs": [
+          1
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 4,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"3\",\"name\":\"mapPartitions\"}",
+        "Callsite": "applySchemaToPythonRDD at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          3
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 0,
+        "Name": "ParallelCollectionRDD",
+        "Scope": "{\"id\":\"0\",\"name\":\"parallelize\"}",
+        "Callsite": "readRDDFromFile at PythonRDD.scala:289",
+        "Parent IDs": [],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 3,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"2\",\"name\":\"map\"}",
+        "Callsite": "map at SerDeUtil.scala:69",
+        "Parent IDs": [
+          2
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 10,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"9\",\"name\":\"WholeStageCodegen (1)\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          4
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [],
+    "Details": "org.apache.spark.sql.Dataset.showString(Dataset.scala:315)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\njava.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\njava.base/java.lang.reflect.Method.invoke(Method.java:566)\npy4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)\npy4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)\npy4j.Gateway.invoke(Gateway.java:282)\npy4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)\npy4j.commands.CallCommand.execute(CallCommand.java:79)\npy4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)\npy4j.ClientServerConnection.run(ClientServerConnection.java:106)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984612343,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.master": "spark://spark-master:7077",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"8\",\"name\":\"Exchange\"}",
+    "spark.rdd.compress": "True",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.id": "0",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.execution.root.id": "0",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.rdd.scope.noOverride": "true"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 1,
+    "Stage Attempt ID": 0,
+    "Stage Name": "showString at NativeMethodAccessorImpl.java:0",
+    "Number of Tasks": 12,
+    "RDD Info": [
+      {
+        "RDD ID": 13,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"12\",\"name\":\"Exchange\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          12
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 7,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"5\",\"name\":\"mapPartitions\"}",
+        "Callsite": "mapPartitions at SerDeUtil.scala:117",
+        "Parent IDs": [
+          6
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 8,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"6\",\"name\":\"map\"}",
+        "Callsite": "map at SerDeUtil.scala:69",
+        "Parent IDs": [
+          7
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 12,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"13\",\"name\":\"WholeStageCodegen (2)\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          9
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 9,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"7\",\"name\":\"mapPartitions\"}",
+        "Callsite": "applySchemaToPythonRDD at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          8
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 6,
+        "Name": "PythonRDD",
+        "Callsite": "RDD at PythonRDD.scala:53",
+        "Parent IDs": [
+          5
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 5,
+        "Name": "ParallelCollectionRDD",
+        "Scope": "{\"id\":\"4\",\"name\":\"parallelize\"}",
+        "Callsite": "readRDDFromFile at PythonRDD.scala:289",
+        "Parent IDs": [],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [],
+    "Details": "org.apache.spark.sql.Dataset.showString(Dataset.scala:315)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\njava.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\njava.base/java.lang.reflect.Method.invoke(Method.java:566)\npy4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)\npy4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)\npy4j.Gateway.invoke(Gateway.java:282)\npy4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)\npy4j.commands.CallCommand.execute(CallCommand.java:79)\npy4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)\npy4j.ClientServerConnection.run(ClientServerConnection.java:106)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984612539,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.master": "spark://spark-master:7077",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"12\",\"name\":\"Exchange\"}",
+    "spark.rdd.compress": "True",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.id": "0",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.execution.root.id": "0",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.rdd.scope.noOverride": "true"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 3,
+    "Stage Attempt ID": 0,
+    "Stage Name": "$anonfun$withThreadLocalCaptured$1 at FutureTask.java:264",
+    "Number of Tasks": 1,
+    "RDD Info": [
+      {
+        "RDD ID": 15,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"16\",\"name\":\"BroadcastExchange\"}",
+        "Callsite": "$anonfun$withThreadLocalCaptured$1 at FutureTask.java:264",
+        "Parent IDs": [
+          14
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 14,
+        "Name": "ShuffledRowRDD",
+        "Scope": "{\"id\":\"17\",\"name\":\"AQEShuffleRead\"}",
+        "Callsite": "$anonfun$withThreadLocalCaptured$1 at FutureTask.java:264",
+        "Parent IDs": [
+          13
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [
+      2
+    ],
+    "Details": "org.apache.spark.sql.execution.SQLExecution$.$anonfun$withThreadLocalCaptured$1(SQLExecution.scala:219)\njava.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\njava.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\njava.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984615053,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"16\",\"name\":\"BroadcastExchange\"}",
+    "spark.rdd.compress": "True",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "spark.sql.execution.id": "0",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.rdd.scope.noOverride": "true",
+    "spark.master": "spark://spark-master:7077",
+    "spark.job.interruptOnCancel": "true",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.eventLog.enabled": "true",
+    "spark.job.tags": "broadcast exchange (runId b54993ee-2d86-453c-8501-d47a503af525)",
+    "__fetch_continuous_blocks_in_batch_enabled": "true",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.root.id": "0",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 5,
+    "Stage Attempt ID": 0,
+    "Stage Name": "showString at NativeMethodAccessorImpl.java:0",
+    "Number of Tasks": 1,
+    "RDD Info": [
+      {
+        "RDD ID": 18,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"35\",\"name\":\"mapPartitionsInternal\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          17
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 16,
+        "Name": "ShuffledRowRDD",
+        "Scope": "{\"id\":\"34\",\"name\":\"AQEShuffleRead\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          11
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 17,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"27\",\"name\":\"WholeStageCodegen (3)\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          16
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [
+      4
+    ],
+    "Details": "org.apache.spark.sql.Dataset.showString(Dataset.scala:315)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\njava.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\njava.base/java.lang.reflect.Method.invoke(Method.java:566)\npy4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)\npy4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)\npy4j.Gateway.invoke(Gateway.java:282)\npy4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)\npy4j.commands.CallCommand.execute(CallCommand.java:79)\npy4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)\npy4j.ClientServerConnection.run(ClientServerConnection.java:106)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984615497,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.master": "spark://spark-master:7077",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"36\",\"name\":\"collect\"}",
+    "spark.rdd.compress": "True",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "__fetch_continuous_blocks_in_batch_enabled": "true",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.id": "0",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.execution.root.id": "0",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.rdd.scope.noOverride": "true"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 6,
+    "Stage Attempt ID": 0,
+    "Stage Name": "showString at NativeMethodAccessorImpl.java:0",
+    "Number of Tasks": 2,
+    "RDD Info": [
+      {
+        "RDD ID": 20,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"47\",\"name\":\"Exchange\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          19
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 1,
+        "Name": "PythonRDD",
+        "Callsite": "RDD at PythonRDD.scala:53",
+        "Parent IDs": [
+          0
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 19,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"48\",\"name\":\"WholeStageCodegen (1)\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          4
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 2,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"1\",\"name\":\"mapPartitions\"}",
+        "Callsite": "mapPartitions at SerDeUtil.scala:117",
+        "Parent IDs": [
+          1
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 4,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"3\",\"name\":\"mapPartitions\"}",
+        "Callsite": "applySchemaToPythonRDD at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          3
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 0,
+        "Name": "ParallelCollectionRDD",
+        "Scope": "{\"id\":\"0\",\"name\":\"parallelize\"}",
+        "Callsite": "readRDDFromFile at PythonRDD.scala:289",
+        "Parent IDs": [],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 3,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"2\",\"name\":\"map\"}",
+        "Callsite": "map at SerDeUtil.scala:69",
+        "Parent IDs": [
+          2
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 2,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [],
+    "Details": "org.apache.spark.sql.Dataset.showString(Dataset.scala:315)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\njava.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\njava.base/java.lang.reflect.Method.invoke(Method.java:566)\npy4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)\npy4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)\npy4j.Gateway.invoke(Gateway.java:282)\npy4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)\npy4j.commands.CallCommand.execute(CallCommand.java:79)\npy4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)\npy4j.ClientServerConnection.run(ClientServerConnection.java:106)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984616678,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.master": "spark://spark-master:7077",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"47\",\"name\":\"Exchange\"}",
+    "spark.rdd.compress": "True",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "__fetch_continuous_blocks_in_batch_enabled": "true",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.id": "1",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.execution.root.id": "1",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.rdd.scope.noOverride": "true"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 7,
+    "Stage Attempt ID": 0,
+    "Stage Name": "showString at NativeMethodAccessorImpl.java:0",
+    "Number of Tasks": 12,
+    "RDD Info": [
+      {
+        "RDD ID": 22,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"51\",\"name\":\"Exchange\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          21
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 7,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"5\",\"name\":\"mapPartitions\"}",
+        "Callsite": "mapPartitions at SerDeUtil.scala:117",
+        "Parent IDs": [
+          6
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 8,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"6\",\"name\":\"map\"}",
+        "Callsite": "map at SerDeUtil.scala:69",
+        "Parent IDs": [
+          7
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 9,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"7\",\"name\":\"mapPartitions\"}",
+        "Callsite": "applySchemaToPythonRDD at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          8
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 6,
+        "Name": "PythonRDD",
+        "Callsite": "RDD at PythonRDD.scala:53",
+        "Parent IDs": [
+          5
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 21,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"52\",\"name\":\"WholeStageCodegen (2)\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          9
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 5,
+        "Name": "ParallelCollectionRDD",
+        "Scope": "{\"id\":\"4\",\"name\":\"parallelize\"}",
+        "Callsite": "readRDDFromFile at PythonRDD.scala:289",
+        "Parent IDs": [],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "DETERMINATE",
+        "Number of Partitions": 12,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [],
+    "Details": "org.apache.spark.sql.Dataset.showString(Dataset.scala:315)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\njava.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\njava.base/java.lang.reflect.Method.invoke(Method.java:566)\npy4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)\npy4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)\npy4j.Gateway.invoke(Gateway.java:282)\npy4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)\npy4j.commands.CallCommand.execute(CallCommand.java:79)\npy4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)\npy4j.ClientServerConnection.run(ClientServerConnection.java:106)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984616692,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.master": "spark://spark-master:7077",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"51\",\"name\":\"Exchange\"}",
+    "spark.rdd.compress": "True",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "__fetch_continuous_blocks_in_batch_enabled": "true",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.id": "1",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.execution.root.id": "1",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.rdd.scope.noOverride": "true"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 9,
+    "Stage Attempt ID": 0,
+    "Stage Name": "$anonfun$withThreadLocalCaptured$1 at FutureTask.java:264",
+    "Number of Tasks": 1,
+    "RDD Info": [
+      {
+        "RDD ID": 24,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"55\",\"name\":\"BroadcastExchange\"}",
+        "Callsite": "$anonfun$withThreadLocalCaptured$1 at FutureTask.java:264",
+        "Parent IDs": [
+          23
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 23,
+        "Name": "ShuffledRowRDD",
+        "Scope": "{\"id\":\"56\",\"name\":\"AQEShuffleRead\"}",
+        "Callsite": "$anonfun$withThreadLocalCaptured$1 at FutureTask.java:264",
+        "Parent IDs": [
+          22
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [
+      8
+    ],
+    "Details": "org.apache.spark.sql.execution.SQLExecution$.$anonfun$withThreadLocalCaptured$1(SQLExecution.scala:219)\njava.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\njava.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\njava.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984617344,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"55\",\"name\":\"BroadcastExchange\"}",
+    "spark.rdd.compress": "True",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "spark.sql.execution.id": "1",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.rdd.scope.noOverride": "true",
+    "spark.master": "spark://spark-master:7077",
+    "spark.job.interruptOnCancel": "true",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.eventLog.enabled": "true",
+    "__fetch_continuous_blocks_in_batch_enabled": "true",
+    "spark.job.tags": "broadcast exchange (runId 7b2ef674-2767-42a7-964f-f4e5ebbb0da5)",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.root.id": "1",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false"
+  }
+}
+{
+  "Event": "SparkListenerStageSubmitted",
+  "Stage Info": {
+    "Stage ID": 11,
+    "Stage Attempt ID": 0,
+    "Stage Name": "showString at NativeMethodAccessorImpl.java:0",
+    "Number of Tasks": 1,
+    "RDD Info": [
+      {
+        "RDD ID": 27,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"72\",\"name\":\"mapPartitionsInternal\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          26
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 26,
+        "Name": "MapPartitionsRDD",
+        "Scope": "{\"id\":\"62\",\"name\":\"WholeStageCodegen (3)\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          25
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      },
+      {
+        "RDD ID": 25,
+        "Name": "ShuffledRowRDD",
+        "Scope": "{\"id\":\"71\",\"name\":\"AQEShuffleRead\"}",
+        "Callsite": "showString at NativeMethodAccessorImpl.java:0",
+        "Parent IDs": [
+          20
+        ],
+        "Storage Level": {
+          "Use Disk": false,
+          "Use Memory": false,
+          "Use Off Heap": false,
+          "Deserialized": false,
+          "Replication": 1
+        },
+        "Barrier": false,
+        "DeterministicLevel": "UNORDERED",
+        "Number of Partitions": 1,
+        "Number of Cached Partitions": 0,
+        "Memory Size": 0,
+        "Disk Size": 0
+      }
+    ],
+    "Parent IDs": [
+      10
+    ],
+    "Details": "org.apache.spark.sql.Dataset.showString(Dataset.scala:315)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\njava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\njava.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\njava.base/java.lang.reflect.Method.invoke(Method.java:566)\npy4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)\npy4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)\npy4j.Gateway.invoke(Gateway.java:282)\npy4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)\npy4j.commands.CallCommand.execute(CallCommand.java:79)\npy4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)\npy4j.ClientServerConnection.run(ClientServerConnection.java:106)\njava.base/java.lang.Thread.run(Thread.java:829)",
+    "Submission Time": 1717984617519,
+    "Accumulables": [],
+    "Resource Profile Id": 0,
+    "Shuffle Push Enabled": false,
+    "Shuffle Push Mergers Count": 0
+  },
+  "Properties": {
+    "spark.driver.port": "34995",
+    "spark.master": "spark://spark-master:7077",
+    "spark.submit.pyFiles": "",
+    "spark.app.startTime": "1717984607830",
+    "spark.rdd.scope": "{\"id\":\"73\",\"name\":\"collect\"}",
+    "spark.rdd.compress": "True",
+    "spark.executor.id": "driver",
+    "spark.app.name": "ex5_4",
+    "spark.submit.deployMode": "client",
+    "spark.driver.host": "736917bc1a2f",
+    "spark.app.id": "app-20240610015648-0000",
+    "spark.app.submitTime": "1717984607224",
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "/opt/spark/spark-events",
+    "__fetch_continuous_blocks_in_batch_enabled": "true",
+    "spark.executor.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.sql.execution.id": "1",
+    "spark.history.fs.logDirectory": "/opt/spark/spark-events",
+    "spark.sql.execution.root.id": "1",
+    "spark.sql.warehouse.dir": "file:/opt/spark/spark-warehouse",
+    "spark.serializer.objectStreamReset": "100",
+    "spark.driver.extraJavaOptions": "-Djava.net.preferIPv6Addresses=false -XX:+IgnoreUnrecognizedVMOptions --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.nio.cs=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED -Djdk.reflect.useDirectMethodHandle=false",
+    "spark.rdd.scope.noOverride": "true"
+  }
+}
