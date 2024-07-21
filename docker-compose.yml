@@ -79,7 +79,7 @@ services:
       # - xpack.monitoring.enabled=false
       - ELASTIC_USER=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - ELASTIC_HOSTS=https://es01:9200}
+      - ELASTIC_HOSTS=https://es01:9200
       # dubious we need kibana here
       - KIBANA_PASSWORD=${KIBANA_PASSWORD}
     depends_on:
@@ -97,7 +97,7 @@ services:
       # - xpack.monitoring.enabled=false
       - ELASTIC_USER=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - ELASTIC_HOSTS=https://es01:9200}
+      - ELASTIC_HOSTS=https://es01:9200
       # dubious we need kibana here
       - KIBANA_PASSWORD=${KIBANA_PASSWORD}
     depends_on:
@@ -145,7 +145,7 @@ services:
         condition: service_healthy
       init-index:
         condition: service_completed_successfully
-    image: docker.elastic.co/logstash/logstash:${STACK_VERSION}    
+    image: docker.elastic.co/logstash/logstash:8.14.3 #${STACK_VERSION} 
     container_name: spark-logstash01
     labels:
       co.elastic.logs/module: logstash
@@ -190,18 +190,14 @@ services:
       - "./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
       # For testing purposes
       - "./spark-events:/usr/share/filebeat/spark-events:ro" 
-      # - "/home/gxbrooks/GitHub/pyspark-playground/spark-events:/usr/share/filebeat/json:ro"
-    # environment:
-      # - ELASTIC_USER=elastic
-      # - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      # - ELASTIC_HOSTS=https://es01:9200
-      # - KIBANA_HOSTS=http://kibana:5601
-      # - LOGSTASH_HOSTS=http://logstash01:9600
     # command:
       # - --strict.perms=false
     environment:
     # mine
       - SPARK_LS_PORT=${SPARK_LS_PORT}
       - SPARK_LS_HOST=${SPARK_LS_HOST}
-    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 

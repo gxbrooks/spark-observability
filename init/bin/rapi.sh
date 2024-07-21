@@ -67,7 +67,7 @@ fi
 
 
 
-echo "Executing $method on $url_path with body $body" >&2 
+echo "Executing $method on $url_path with body '$body'" >&2 
 
 if [ "$method" == "GET" ]
 then
