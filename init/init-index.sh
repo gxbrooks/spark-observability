@@ -11,11 +11,11 @@
 #
 echo "Creating Index Template"
 curl --no-progress-meter \
-  --request PUT "https://es01:9200/_index_template/spark-active-index"\
+  --request PUT "https://es01:9200/_index_template/batch-active-index"\
   --cacert config/certs/ca/ca.crt \
   -u "elastic:${ELASTIC_PASSWORD}" \
   -H "Content-Type: application/json"\
-  -d '@init/spark-active-index.template.json'
+  -d '@init/batch-active-index.template.json'
 status=$?
 echo -e "\nstatus is $status"
 if [ $status -ne 0 ]; then
@@ -23,13 +23,13 @@ if [ $status -ne 0 ]; then
     exit $status
   fi
 
-echo "PUT _index_template/spark-log-ds init/spark-log-ds.template.json"
+echo "PUT _index_template/logs-spark-spark init/logs-spark-spark.template.json"
 curl --no-progress-meter \
-  --request PUT "https://es01:9200/_index_template/spark-log-ds"\
+  --request PUT "https://es01:9200/_index_template/logs-spark-spark"\
   --cacert config/certs/ca/ca.crt \
   -u "elastic:${ELASTIC_PASSWORD}" \
   -H "Content-Type: application/json"\
-  -d '@init/spark-log-ds.template.json'
+  -d '@init/logs-spark-spark.template.json'
 status=$?
 echo -e "\nstatus is $status"
 if [ $status -ne 0 ]; then
@@ -66,6 +66,8 @@ if [ $status -ne 0 ]; then
 
 
 # Need full license to run watchers
-./init/bin/rapi.sh POST _license/start_trial?acknowledge=true
+init/bin/rapi.sh POST _license/start_trial?acknowledge=true
 
-init/bin/rapi.sh PUT _watcher/watch/spark_batch_watcher init/spark.batch_info.watcher.json
+# init/bin/rapi.sh PUT _ingest/pipeline/spark-pipeline init/spark-pipeline.json
+
+# init/bin/rapi.sh PUT _watcher/watch/spark_batch_watcher init/spark.batch_info.watcher.json

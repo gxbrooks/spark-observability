@@ -1,0 +1,236 @@
+{
+  "docs": [
+    {
+      "_index": ".ds-logs-spark-spark-2024.07.22-000001",
+      "_id": "Q6NI2pABsKSCvq8jg2mv",
+      "_source": {
+        "input": {"type": "filestream"},
+        "agent": {
+          "name": "281deee9a027",
+          "id": "dbb8e980-13db-4de5-8911-9eb058038015",
+          "type": "filebeat",
+          "ephemeral_id": "236e36bf-4bc5-4559-a9a1-2a3544010a9d",
+          "version": "8.7.1"
+        },
+        "batch_info": {
+          "log_timestamp": "2024-07-22T11:51:42.054Z",
+          "milliseconds": 1717984607830,
+          "event_kind": "Start",
+          "uid": "Start:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000",
+          "batch_class": "App",
+          "@timestamp": "2024-06-10T01:56:47.829999923Z",
+          "copied": false,
+          "_index": "batch_active_index",
+          "source_app": "Spark",
+          "matched": false
+        },
+        "@timestamp": "2024-06-10T01:56:47.829999923Z",
+        "ecs": {"version": "8.0.0"},
+        "log": {
+          "file": {
+            "path": "/usr/share/filebeat/spark-events/app-20240610015648-0000"
+          },
+          "offset": 79791
+        },
+        "spark": {
+          "App ID": "app-20240610015648-0000",
+          "User": "root",
+          "App Name": "ex5_4",
+          "Event": "SparkListenerApplicationStart",
+          "Timestamp": 1717984607830
+        },
+        "data_stream": {
+          "namespace": "spark",
+          "type": "logs",
+          "dataset": "spark"
+        },
+        "@version": "1",
+        "host": {"name": "281deee9a027"},
+        "fields": {"service": {"type": "app"}, "event": {"dataset": "app"}},
+        "tags": ["json", "spark", "beats_input_raw_event"]
+      },
+      "fields": {
+        "agent.version.keyword": ["8.7.1"],
+        "fields.event.dataset.keyword": ["app"],
+        "spark.Event.keyword": ["SparkListenerApplicationStart"],
+        "fields.service.type": ["app"],
+        "host.name.keyword": ["281deee9a027"],
+        "data_stream.namespace.keyword": ["spark"],
+        "batch_info.event_kind.keyword": ["Start"],
+        "ecs.version.keyword": ["8.0.0"],
+        "agent.name": ["281deee9a027"],
+        "batch_info._index.keyword": ["batch_active_index"],
+        "host.name": ["281deee9a027"],
+        "batch_info.log_timestamp": ["2024-07-22T11:51:42.054Z"],
+        "spark.App ID": ["app-20240610015648-0000"],
+        "agent.id.keyword": ["dbb8e980-13db-4de5-8911-9eb058038015"],
+        "input.type": ["filestream"],
+        "@version.keyword": ["1"],
+        "log.offset": [79791],
+        "data_stream.type": ["logs"],
+        "tags": ["json", "spark", "beats_input_raw_event"],
+        "batch_info.uid": [
+          "Start:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.id": ["dbb8e980-13db-4de5-8911-9eb058038015"],
+        "ecs.version": ["8.0.0"],
+        "agent.version": ["8.7.1"],
+        "batch_info.event_kind": ["Start"],
+        "batch_info.source_app": ["Spark"],
+        "fields.service.type.keyword": ["app"],
+        "input.type.keyword": ["filestream"],
+        "tags.keyword": ["json", "spark", "beats_input_raw_event"],
+        "data_stream.dataset.keyword": ["spark"],
+        "spark.App ID.keyword": ["app-20240610015648-0000"],
+        "batch_info.matched": [false],
+        "spark.App Name.keyword": ["ex5_4"],
+        "spark.User": ["root"],
+        "batch_info._index": ["batch_active_index"],
+        "agent.type": ["filebeat"],
+        "batch_info.batch_class.keyword": ["App"],
+        "batch_info.source_app.keyword": ["Spark"],
+        "@version": ["1"],
+        "batch_info.uid.keyword": [
+          "Start:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "spark.App Name": ["ex5_4"],
+        "log.file.path.keyword": [
+          "/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.type.keyword": ["filebeat"],
+        "agent.ephemeral_id.keyword": ["236e36bf-4bc5-4559-a9a1-2a3544010a9d"],
+        "agent.name.keyword": ["281deee9a027"],
+        "data_stream.namespace": ["spark"],
+        "spark.Event": ["SparkListenerApplicationStart"],
+        "@timestamp": ["2024-06-10T01:56:47.829Z"],
+        "batch_info.@timestamp": ["2024-06-10T01:56:47.829Z"],
+        "data_stream.dataset": ["spark"],
+        "log.file.path": [
+          "/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.ephemeral_id": ["236e36bf-4bc5-4559-a9a1-2a3544010a9d"],
+        "fields.event.dataset": ["app"],
+        "batch_info.milliseconds": [1717984607830],
+        "batch_info.copied": [false],
+        "batch_info.batch_class": ["App"],
+        "spark.Timestamp": [1717984607830],
+        "spark.User.keyword": ["root"]
+      }
+    },
+    {
+      "_index": ".ds-logs-spark-spark-2024.07.22-000001",
+      "_id": "qaNI2pABsKSCvq8jhGla",
+      "_source": {
+        "input": {"type": "filestream"},
+        "agent": {
+          "name": "281deee9a027",
+          "id": "dbb8e980-13db-4de5-8911-9eb058038015",
+          "type": "filebeat",
+          "ephemeral_id": "236e36bf-4bc5-4559-a9a1-2a3544010a9d",
+          "version": "8.7.1"
+        },
+        "batch_info": {
+          "log_timestamp": "2024-07-22T11:51:42.072Z",
+          "milliseconds": 1717984617833,
+          "event_kind": "End",
+          "uid": "End:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000",
+          "batch_class": "App",
+          "@timestamp": "2024-06-10T01:56:57.832999944Z",
+          "copied": false,
+          "_index": "batch_active_index",
+          "source_app": "Spark",
+          "start_uid": "Start:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000",
+          "matched": false
+        },
+        "@timestamp": "2024-06-10T01:56:57.832999944Z",
+        "ecs": {"version": "8.0.0"},
+        "log": {
+          "file": {
+            "path": "/usr/share/filebeat/spark-events/app-20240610015648-0000"
+          },
+          "offset": 464412
+        },
+        "spark": {
+          "Event": "SparkListenerApplicationEnd",
+          "Timestamp": 1717984617833
+        },
+        "data_stream": {
+          "namespace": "spark",
+          "type": "logs",
+          "dataset": "spark"
+        },
+        "@version": "1",
+        "host": {"name": "281deee9a027"},
+        "fields": {"service": {"type": "app"}, "event": {"dataset": "app"}},
+        "tags": ["json", "spark", "beats_input_raw_event"]
+      },
+      "fields": {
+        "agent.version.keyword": ["8.7.1"],
+        "fields.event.dataset.keyword": ["app"],
+        "spark.Event.keyword": ["SparkListenerApplicationEnd"],
+        "fields.service.type": ["app"],
+        "host.name.keyword": ["281deee9a027"],
+        "data_stream.namespace.keyword": ["spark"],
+        "batch_info.event_kind.keyword": ["End"],
+        "ecs.version.keyword": ["8.0.0"],
+        "agent.name": ["281deee9a027"],
+        "batch_info._index.keyword": ["batch_active_index"],
+        "host.name": ["281deee9a027"],
+        "batch_info.log_timestamp": ["2024-07-22T11:51:42.072Z"],
+        "batch_info.start_uid": [
+          "Start:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.id.keyword": ["dbb8e980-13db-4de5-8911-9eb058038015"],
+        "input.type": ["filestream"],
+        "@version.keyword": ["1"],
+        "batch_info.start_uid.keyword": [
+          "Start:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "log.offset": [464412],
+        "data_stream.type": ["logs"],
+        "tags": ["json", "spark", "beats_input_raw_event"],
+        "batch_info.uid": [
+          "End:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.id": ["dbb8e980-13db-4de5-8911-9eb058038015"],
+        "ecs.version": ["8.0.0"],
+        "agent.version": ["8.7.1"],
+        "batch_info.event_kind": ["End"],
+        "batch_info.source_app": ["Spark"],
+        "fields.service.type.keyword": ["app"],
+        "input.type.keyword": ["filestream"],
+        "tags.keyword": ["json", "spark", "beats_input_raw_event"],
+        "data_stream.dataset.keyword": ["spark"],
+        "batch_info.matched": [false],
+        "batch_info._index": ["batch_active_index"],
+        "agent.type": ["filebeat"],
+        "batch_info.batch_class.keyword": ["App"],
+        "batch_info.source_app.keyword": ["Spark"],
+        "@version": ["1"],
+        "batch_info.uid.keyword": [
+          "End:App:281deee9a027:/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "log.file.path.keyword": [
+          "/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.type.keyword": ["filebeat"],
+        "agent.ephemeral_id.keyword": ["236e36bf-4bc5-4559-a9a1-2a3544010a9d"],
+        "agent.name.keyword": ["281deee9a027"],
+        "data_stream.namespace": ["spark"],
+        "spark.Event": ["SparkListenerApplicationEnd"],
+        "@timestamp": ["2024-06-10T01:56:57.832Z"],
+        "batch_info.@timestamp": ["2024-06-10T01:56:57.832Z"],
+        "data_stream.dataset": ["spark"],
+        "log.file.path": [
+          "/usr/share/filebeat/spark-events/app-20240610015648-0000"
+        ],
+        "agent.ephemeral_id": ["236e36bf-4bc5-4559-a9a1-2a3544010a9d"],
+        "fields.event.dataset": ["app"],
+        "batch_info.milliseconds": [1717984617833],
+        "batch_info.copied": [false],
+        "batch_info.batch_class": ["App"],
+        "spark.Timestamp": [1717984617833]
+      }
+    }
+  ]
+}
