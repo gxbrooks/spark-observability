@@ -1,16 +1,12 @@
 {
   "index_patterns": [
-    "spark-log-ds"
+    "batch-active-index"
   ],
-  "data_stream": {},
   "priority": 200,
   "template": {
     "settings": {
       "index.number_of_shards": 1,
-      "number_of_replicas": 1,
-      "index.mapping.depth.limit": 50,
-      "index.mapping.nested_objects.limit": 100,
-      "refresh_interval": "30s"
+      "number_of_replicas": 1
     },
     "mappings": {
       "properties": {
