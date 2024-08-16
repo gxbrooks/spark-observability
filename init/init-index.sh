@@ -15,6 +15,8 @@ until curl --no-progress-meter --cacert config/certs/ca/ca.crt https://es01:9200
 
 init/bin/rapi.sh PUT _ilm/policy/batch-active init/batch-active/batch-active.ilm.json
 init/bin/rapi.sh PUT _index_template/batch-active-index init/batch-active/batch-active-index.template.json
+init/bin/rapi.sh PUT batch-active-index-000001 init/batch-active/batch-active-index.index.json
+
 
 init/bin/rapi.sh PUT _ilm/policy/spark-logs init/spark/spark-logs.ilm.json
 init/bin/rapi.sh PUT _index_template/logs-spark-spark init/spark/logs-spark-spark.template.json

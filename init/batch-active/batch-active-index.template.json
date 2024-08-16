@@ -1,12 +1,12 @@
 {
-  "index_patterns": ["batch-active-index"],
+  "index_patterns": ["batch-active-index-*"],
   "priority": 200,
   "template": {
     "settings": {
       "index.number_of_shards": 1,
       "number_of_replicas": 1,
       "index.lifecycle.name": "batch-active",
-      "index.lifecycle.rollover_alias": "batch-active-alias"
+      "index.lifecycle.rollover_alias": "batch-active-index"
     },
     "mappings": {
       "properties": {
