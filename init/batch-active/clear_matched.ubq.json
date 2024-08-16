@@ -1,0 +1,5 @@
+{
+  "query": {"term": {"matched": true}},
+  "script": {"source": "ctx._source.matched = false"}
+}
+

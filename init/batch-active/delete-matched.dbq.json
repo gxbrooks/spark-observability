@@ -1,0 +1,11 @@
+{
+  "size": 100,
+  "query": {
+    "dis_max": {
+      "queries": [
+        {"term": {"matched": true}},
+        {"term": {"event_kind": "Point"}}
+      ]
+    }
+  }
+}

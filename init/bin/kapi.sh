@@ -58,34 +58,36 @@ else
 fi
 
 if [ -f /usr/bin/docker ]; then
-  . .env # source in environment variables, especiall passwords
-  command="docker compose exec -it es01 curl"
+  . .env # source in environment variables, especially passwords
+  command="docker compose exec -it kibana curl"
 else
   command="curl"
 fi
 
 
 
-echo "Executing $method on $url_path with body '$body'" >&2 
+echo "Executing $method on port ${KIBANA_PORT} with $url_path and body '$body'" >&2 
 
 if [ "$body_line" == "" ]
 then
   # docker compose exec -it init-index curl 
   result=$($command \
             --no-progress-meter \
-            --request $method "https://es01:9200/$url_path" \
+            --request $method "http://kibana:${KIBANA_PORT}/$url_path" \
             --cacert config/certs/ca/ca.crt \
-            -u "elastic:${ELASTIC_PASSWORD}" 
+            -u "elastic:${KIBANA_PASSWORD}" \
+            -H 'kbn-xsrf: true'
           )
   status=$?
 else
   result=$($command \
             --no-progress-meter \
-            --request $method "https://es01:9200/$url_path" \
+            --request $method "http://kibana:${KIBANA_PORT}/$url_path" \
             --cacert config/certs/ca/ca.crt \
-            -u "elastic:${ELASTIC_PASSWORD}" \
+            -u "elastic:${KIBANA_PASSWORD}" \
+            -H 'kbn-xsrf: true' \
             -H "Content-Type: application/json"\
-            $body_line \
+            $body_line 
           )
   status=$?
 fi
