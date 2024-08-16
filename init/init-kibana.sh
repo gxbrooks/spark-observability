@@ -8,21 +8,16 @@
 # from a poorly structured JSON schema for Spark events.
 #
 
-if [ x${ELASTIC_PASSWORD} == x ]; then
-  echo "Set the ELASTIC_PASSWORD environment variable in the .env file"; 
-  exit 1; 
-fi;
 
-if [ x${KIBANA_PASSWORD} == x ]; then 
-  echo "Set the KIBANA_PASSWORD environment variable in the .env file"; 
-  exit 1; 
-fi;
+# Kibana availability is enforced via depenencies in the docker-compose file.
 
-echo "Waiting for Elasticsearch availability";
-# This readiness test was from the original 
-until curl --no-progress-meter --cacert config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+# the dataview output is too voliminous so we redirect to files
+init/bin/kapi.sh POST api/data_views/data_view init/batch-active/batch-active.dataview.json \
+  > init/outputs/batch-active.dataview.out.json
+init/bin/kapi.sh POST api/data_views/data_view init/spark/spark-logs.dataview.json \
+  > init/outputs/spark-logs.dataview.out.json
+init/bin/kapi.sh POST api/data_views/data_view init/data-pipeline/data-pipeline-ds.dataview.json \
+  > init/outputs/data-pipeline.dataview.out.json
+  
 
-echo "Setting kibana_system password"
-until curl --no-progress-meter -X POST --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
-
-echo "Security initialization all done!"
+  

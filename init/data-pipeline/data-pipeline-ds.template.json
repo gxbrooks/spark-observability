@@ -1,0 +1,31 @@
+{
+  "index_patterns": ["data-pipeline-ds"],
+  "data_stream": {},
+  "priority": 300,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "data-pipeline",
+      "index.lifecycle.rollover_alias": "data-pipeline-alias"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "start_time": {"type": "date"},
+        "end_time": {"type": "date"},
+        "start_millis": {"type": "unsigned_long"},
+        "end_millis": {"type": "unsigned_long"},
+        "duration": {"type": "long"},
+        "realm": {"type": "keyword"},
+        "class": {"type": "keyword"},
+        "name" : {"type": "keyword"},
+        "id" : {"type": "keyword"},
+        "start_uid" : {"type": "keyword"},
+        "end_uid"  : {"type": "keyword"},
+        "parent_key" : {"type": "keyword"},
+        "child_key" : {"type": "keyword"}
+      }
+    }
+  }
+}

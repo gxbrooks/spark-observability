@@ -1,0 +1,28 @@
+{
+  "index_patterns": [
+    "logs-spark-spark"
+  ],
+  "data_stream": {},
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.mapping.depth.limit": 50,
+      "index.mapping.nested_objects.limit": 100,
+      "index.lifecycle.name": "spark-logs",
+      "index.lifecycle.rollover_alias": "spark-logs-alias"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "logs-mappings",
+    "logs-settings"
+  ]
+}

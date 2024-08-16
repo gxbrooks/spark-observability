@@ -1,0 +1,39 @@
+{
+  "override": true,
+  "refresh_fields" : true,
+  "data_view": {
+    "title": "batch-active-index",
+    "name": "Batch Active",
+    "allowNoIndex" : true,
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "realm": {"customLabel": "Realm"},
+      "batch_class": {"customLabel": "Batch Operation Class"},
+      "event_kind": {"customLabel": "Event Kind"},
+      "event_name": {"customLabel": "Event Name"},
+      "event_id": {"customLabel": "Event ID"},
+      "event_kind": {"customLabel": "Event Kind"},
+      "matched": {"customLabel": "Matched?"},
+      "log_timestamp": {"customLabel": "Filebeat Timestamp"},
+      "start_millis": {"customLabel": "Start Time (millis)"},
+      "duration": {"customLabel": "Duration"},
+      "uid": {"customLabel": "UID"},
+      "start_uid": {"customLabel": "Start Event UID"},
+      "parent_key": {"customLabel": "Parent Key"},
+      "child_key": {"customLabel": "Child Key"}
+    },
+    "fieldFormats": {
+      "start_time": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "end_time": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "start_millis": {"id": "number", "params": {"pattern": "0,0"}},
+      "end_millis": {"id": "number"},
+      "duration": {"id": "number", "params": {"pattern": "0,0"}}
+    }
+  }
+}
