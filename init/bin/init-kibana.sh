@@ -12,11 +12,11 @@
 # Kibana availability is enforced via depenencies in the docker-compose file.
 
 # the dataview output is too voliminous so we redirect to files
-init/bin/kapi.sh POST api/data_views/data_view init/batch-active/batch-active.dataview.json \
+init/bin/kapi.sh POST /api/data_views/data_view init/batch-active/batch-active.dataview.json \
   > init/outputs/batch-active.dataview.out.json
-init/bin/kapi.sh POST api/data_views/data_view init/spark/spark-logs.dataview.json \
+init/bin/kapi.sh POST /api/data_views/data_view init/spark/spark-logs.dataview.json \
   > init/outputs/spark-logs.dataview.out.json
-init/bin/kapi.sh POST api/data_views/data_view init/data-pipeline/data-pipeline-ds.dataview.json \
+init/bin/kapi.sh POST /api/data_views/data_view init/data-pipeline/data-pipeline-ds.dataview.json \
   > init/outputs/data-pipeline.dataview.out.json
   
 

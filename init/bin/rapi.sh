@@ -24,8 +24,15 @@ body=$3
 if [ "$method" == "" ] || [ "$url_path" == "" ]
 then 
   echo "both the method and url_path path must be supplied"  >&2 
-  echo "method=$method" >&2 
-  echo "url_path=$url_path" >&2 
+  echo "Method=$method" >&2 
+  echo "URL Path=$url_path" >&2 
+  exit 1
+fi
+
+
+if [[ "${url_path:0:1}" != "/" ]]; 
+then
+  echo "The URL path '$url_path' must begin with a '/'"  >&2 
   exit 1
 fi
 
@@ -81,7 +88,7 @@ then
 else
   result=$($command \
             --no-progress-meter \
-            --request $method "https://es01:9200/$url_path" \
+            --request $method "https://es01:9200$url_path" \
             --cacert config/certs/ca/ca.crt \
             -u "elastic:${ELASTIC_PASSWORD}" \
             -H "Content-Type: application/json"\
