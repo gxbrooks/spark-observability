@@ -1,6 +1,4 @@
 
-
-
 #
 # System dependencies
 # 
@@ -49,7 +47,6 @@ services:
       # only needed for debugging initializations
       #   docker exec -it <Container-ID> bash
       # or through the Docker Desktop console
-      - ./init:/usr/share/elasticsearch/init
     ports:
       - ${ES_PORT}:9200
     environment:
@@ -93,7 +90,7 @@ services:
     volumes:
       - ./init:/usr/share/elasticsearch/init
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/init-kibana-password.sh 
+    command: bash -f ./init/bin/init-kibana-password.sh 
     environment:
       # do we need any of this? Taken from logstash
       # - xpack.monitoring.enabled=false
@@ -144,7 +141,7 @@ services:
     volumes:
       - ./init:/usr/share/elasticsearch/init
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/init-kibana.sh
+    command: bash -f ./init/bin/init-kibana.sh
     env_file:
       - .env
     # environment:
@@ -163,7 +160,7 @@ services:
     volumes:
       - ./init:/usr/share/elasticsearch/init
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/init-index.sh 
+    command: bash -f ./init/bin/init-index.sh 
     environment:
       # do we need any of this? Taken from logstash
       # - xpack.monitoring.enabled=false
