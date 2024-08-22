@@ -1,5 +1,5 @@
 {
-  "trigger": {"schedule": {"interval": "1m"}},
+  "trigger": {"schedule": {"interval": "5s"}},
   "input": {
     "chain": {
       "inputs": [
@@ -9,7 +9,7 @@
               "request": {
                 "indices": ["batch-active-index"],
                 "body": {
-                  "size": 100,
+                  "size": 400,
                   "query": {
                     "bool": {
                       "filter": [
@@ -36,7 +36,7 @@
               "request": {
                 "indices": ["batch-active-index"],
                 "template": {
-                  "source": "{\"size\": 100, \"query\": {\"terms\": {\"uid\": {{#toJson}}ctx.payload.start_uids._value{{/toJson}}}}}",
+                  "source": "{\"size\": 400, \"query\": {\"terms\": {\"uid\": {{#toJson}}ctx.payload.start_uids._value{{/toJson}}}}}",
                   "lang": "mustache"
                 }
               }

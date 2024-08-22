@@ -1,0 +1,55 @@
+###################### Agent Configuration Example #########################
+
+# This file is an example configuration file highlighting only the most common
+# options. The elastic-agent.reference.yml file from the same directory contains all the
+# supported options with more comments. You can use it as a reference.
+
+######################################
+# Fleet configuration
+######################################
+outputs:
+  default:
+    type: elasticsearch
+    hosts: ["https://es01:9200"]
+    username: "elastic"
+    password: "changeme"
+    processors:
+      - add_cloud_metadata:
+          enabled: false
+    ssl:
+      certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
+      verification_mode: full
+    # api_key: "example-key"
+    # preset: balanced  
+# Spark outputs for events
+  spark-events:
+    type: logstash
+    hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
+
+# Here you can configure your list of inputs. You can either configure all the inputs as a list of arrays
+# or create an "inputs.d" directory containing your input configurations.
+# See https://www.elastic.co/guide/en/fleet/current/elastic-agent-configuration.html for how to structure the "inputs.d" directory.
+inputs:
+  # Collecting system metrics
+  - type: system/metrics
+    # Each input must have a unique ID.
+    id: unique-system-metrics-input
+    # Namespace name must conform to the naming conventions for Elasticsearch indices, cannot contain dashes (-), and cannot exceed 100 bytes
+    # For index naming restrictions, see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
+    data_stream.namespace: spark_worker
+    use_output: default
+    streams:
+      - metricsets:
+        - cpu
+        # Dataset name must conform to the naming conventions for Elasticsearch indices, cannot contain dashes (-), and cannot exceed 100 bytes
+        data_stream.dataset: system.cpu
+      - metricsets:
+        - memory
+        data_stream.dataset: system.memory
+      - metricsets:
+        - network
+        data_stream.dataset: system.network
+      - metricsets:
+        - filesystem
+        data_stream.dataset: system.filesystem
+

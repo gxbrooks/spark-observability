@@ -42,8 +42,12 @@ EXPOSE 9200
 #Do we need 9300? It's seems to be a standard port for Elasticsearch
 EXPOSE 9300
 
-ENV PATH="/usr/share/elasticsearch/init/bin:${PATH}"
-
 CMD ["eswrapper"]
 
 USER elasticsearch:root
+
+RUN echo PWD=`pwd`
+RUN ls -l ~/.bashrc
+ENV PATH="/usr/share/elasticsearch/init/bin:${PATH}"
+#RUN echo 'export PATH=$PATH:/usr/share/elasticsearch/init/bin' >> ~/.bashrc
+RUN echo PATH=$PATH
