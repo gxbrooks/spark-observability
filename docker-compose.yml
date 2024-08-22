@@ -10,9 +10,9 @@
 # es01 --> init-kibana-password --|
 #    \                            v
 #     \ 
-#      \--> init-index ---> spark-logstash01 ---------------> 
+#      \--> init-index ---> logstash01 ---------------> 
 #                       |          \
-#                       v           \ --> spark-filebeat01 ->
+#                       v           \ --> spark-* ->
 #
 
 volumes:
@@ -22,10 +22,10 @@ volumes:
     driver: local
   kibanadata:
     driver: local
-  spark-logstash01:
+  logstash01:
     driver: local
-  spark-filebeat01:
-    driver: local
+  spark-logs:
+
 
 networks:
   default:
@@ -45,6 +45,7 @@ services:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs
       # only needed for debugging initializations
+      - ./init:/usr/share/elasticsearch/init
       #   docker exec -it <Container-ID> bash
       # or through the Docker Desktop console
     ports:
@@ -175,19 +176,18 @@ services:
 
 # mine
 
-  spark-logstash01:
+  logstash01:
     image: docker.elastic.co/logstash/logstash:8.14.3 #${STACK_VERSION} 
-    container_name: spark-logstash01
+    container_name: logstash01
     labels:
       co.elastic.logs/module: logstash
     user: root
     ports: 
-        - "${SPARK_LS_PORT}:${SPARK_LS_PORT}"
+        - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
+        - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"
         - "9600:9600"
     volumes:
       - certs:/usr/share/logstash/certs
-      # - "./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf"
-      # - "./logstash/pipeline/debug-logstash.conf:/usr/share/logstash/pipeline/debug-logstash.conf"
       - "./logstash/pipeline:/usr/share/logstash/pipeline"
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
@@ -197,9 +197,9 @@ services:
       - ELASTIC_USER=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - ELASTIC_HOSTS=https://es01:9200
-    # mine
-      - SPARK_LS_PORT=${SPARK_LS_PORT}
-      - SPARK_LS_HOST=${SPARK_LS_HOST}
+      - LS_HOST=${LS_HOST}
+      - LS_SPARK_EVENTS_PORT=${LS_SPARK_EVENTS_PORT}
+      - LS_DOCKER_METRICS_PORT=${LS_DOCKER_METRICS_PORT}
     depends_on:
       es01:
         condition: service_healthy
@@ -214,26 +214,68 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
-      
-  spark-filebeat01:
-    depends_on:
-      spark-logstash01:
-        condition: service_healthy
-    image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
-    container_name: spark-filebeat01
-    # user: root
+ 
+  spark-master:
+    container_name: da-spark-master
+    build: ./spark
+    image: da-spark-image
+    entrypoint: ['./entrypoint.sh', 'master']
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
     volumes:
-      - "./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
-      # For testing purposes
-      - "./spark-events:/usr/share/filebeat/spark-events:ro" 
-    # command:
-      # - --strict.perms=false
-    environment:
-    # mine
-      - SPARK_LS_PORT=${SPARK_LS_PORT}
-      - SPARK_LS_HOST=${SPARK_LS_HOST}
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
+      - ./spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark-events:/opt/spark/spark-events
+      - ./elastic-agent/elastic-agent-master.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - certs:/opt/Elastic/certs
+    env_file:
+      - spark/.env.spark
+      - .env
+    depends_on:
+      logstash01:
+        condition: service_healthy
+    ports:
+      - '9090:8080'
+      - '7077:7077'
 
+  spark-history-server:
+    container_name: da-spark-history
+    image: da-spark-image
+    entrypoint: ['./entrypoint.sh', 'history']
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      logstash01:
+        condition: service_healthy
+    env_file:
+      - spark/.env.spark
+      - .env
+    volumes:
+      - ./spark-events:/opt/spark/spark-events
+      - ./elastic-agent/elastic-agent-history.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - certs:/opt/Elastic/certs
+    ports:
+      - '18080:18080'
+
+  spark-worker:
+#    container_name: da-spark-worker
+    image: da-spark-image
+    entrypoint: ['./entrypoint.sh', 'worker']
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      logstash01:
+        condition: service_healthy
+    env_file:
+      - spark/.env.spark
+      - .env
+    volumes:
+      - ./spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      # - spark-logs:/opt/spark/spark-events
+      - ./spark-events:/opt/spark/spark-events
+      - ./elastic-agent/elastic-agent-worker.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - certs:/opt/Elastic/certs
