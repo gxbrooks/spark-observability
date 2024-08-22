@@ -45,7 +45,7 @@ services:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs
       # only needed for debugging initializations
-      - ./init:/usr/share/elasticsearch/init
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       #   docker exec -it <Container-ID> bash
       # or through the Docker Desktop console
     ports:
@@ -89,9 +89,9 @@ services:
   init-kibana-password:   
     image: cert-es-base
     volumes:
-      - ./init:/usr/share/elasticsearch/init
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/bin/init-kibana-password.sh 
+    command: bash -f ./elasticsearch/bin/init-kibana-password.sh 
     environment:
       # do we need any of this? Taken from logstash
       # - xpack.monitoring.enabled=false
@@ -108,7 +108,7 @@ services:
     container_name: kibana
     volumes:
       - certs:/usr/share/kibana/config/certs
-      - ./init:/usr/share/kibana/init
+      - ./elasticsearch:/usr/share/kibana/elasticsearch
       - kibanadata:/usr/share/kibana/data
     labels:
       co.elastic.logs/module: kibana
@@ -140,9 +140,9 @@ services:
   init-kibana:
     image: cert-es-base
     volumes:
-      - ./init:/usr/share/elasticsearch/init
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/bin/init-kibana.sh
+    command: bash -f ./elasticsearch/bin/init-kibana.sh
     env_file:
       - .env
     # environment:
@@ -159,9 +159,9 @@ services:
   init-index:
     image: cert-es-base
     volumes:
-      - ./init:/usr/share/elasticsearch/init
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./init/bin/init-index.sh 
+    command: bash -f ./elasticsearch/bin/init-index.sh 
     environment:
       # do we need any of this? Taken from logstash
       # - xpack.monitoring.enabled=false
