@@ -48,6 +48,6 @@ USER elasticsearch:root
 
 RUN echo PWD=`pwd`
 RUN ls -l ~/.bashrc
-ENV PATH="/usr/share/elasticsearch/init/bin:${PATH}"
-#RUN echo 'export PATH=$PATH:/usr/share/elasticsearch/init/bin' >> ~/.bashrc
+ENV PATH="/usr/share/elasticsearch/elasticsearch/bin:${PATH}"
+#RUN echo 'export PATH=$PATH:/usr/share/elasticsearch/elasticsearch/bin' >> ~/.bashrc
 RUN echo PATH=$PATH
