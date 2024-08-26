@@ -1,0 +1,24 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "batch-metrics-ds",
+    "id": "batch-metrics-ds",
+    "name": "Open Batch Metrics",
+    "allowNoIndex": true,
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "realm": {"customLabel": "Realm"},
+      "class": {"customLabel": "Class"},
+      "count": {"customLabel": "Count"}
+    },
+    "sourceFilters": [{"value": "parent_uid"}],
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "count": {"id": "number", "params": {"pattern": "0,0"}}
+    }
+  }
+}

@@ -13,9 +13,6 @@ outputs:
     hosts: ["https://es01:9200"]
     username: "elastic"
     password: "changeme"
-    processors:
-      - add_cloud_metadata:
-          enabled: false
     ssl:
       certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
       verification_mode: full
@@ -36,7 +33,7 @@ inputs:
     id: unique-system-metrics-input
     # Namespace name must conform to the naming conventions for Elasticsearch indices, cannot contain dashes (-), and cannot exceed 100 bytes
     # For index naming restrictions, see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
-    data_stream.namespace: spark_master
+    data_stream.namespace: default
     use_output: default
     streams:
       - metricsets:
@@ -52,3 +49,11 @@ inputs:
       - metricsets:
         - filesystem
         data_stream.dataset: system.filesystem
+
+
+processors:
+  - add_cloud_metadata:
+      enabled: false
+  - add_fields:
+      target: ''
+      role: spark_master

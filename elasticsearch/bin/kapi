@@ -23,22 +23,22 @@ body=$3
 
 if [ "$method" == "" ] || [ "$url_path" == "" ]
 then 
-  echo "both the method and url_path path must be supplied"  >&2 
-  echo "method=$method" >&2 
-  echo "url_path=$url_path" >&2 
+  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Both the method and url_path path must be supplied"  >&2 
+  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | method=$method" >&2 
+  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | url_path=$url_path" >&2 
   exit 1
 fi
 
 if ! ( [ "$method" == "PUT" ] || [ "$method" == "GET" ] || [ "$method" == "POST" ] )
 then
-  echo "Method must be one of PUT, GET, or POST and not $method"  >&2 
+  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Method must be one of PUT, GET, or POST and not $method"  >&2 
   exit 1
 fi
 
 if [ "$method" == "PUT" ]
 then
   if ! [ -f $body ] ;  then 
-    echo "PUT body must be a file that exists. \"$body\" does not exist" >&2 
+    echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | PUT body must be a file that exists. \"$body\" does not exist" >&2 
     exit 1
   else
     body_line="--data-binary @$body"
@@ -49,7 +49,7 @@ else
     body_line=""
   else 
     if ! [ -f $body ] ;  then 
-      echo "GET or POST body must be a file that exists. \"$body\" does not exist"  >&2 
+      echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | GET or POST body must be a file that exists. \"$body\" does not exist"  >&2 
       exit 1 
     else
       body_line="--data-binary @$body"
@@ -66,7 +66,7 @@ fi
 
 
 
-echo "Executing $method on port ${KIBANA_PORT} with $url_path and body '$body'" >&2 
+echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Executing $method on port ${KIBANA_PORT} with $url_path and body '$body'" >&2 
 
 if [ "$body_line" == "" ]
 then
@@ -95,17 +95,10 @@ fi
 #echo -e "Status is $status\nResult is: $result"
 
 if [ $status -ne 0 ]; then
-    echo "Error: curl failed with code $?" >&2
+    echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Error: curl failed with code $status" >&2
     exit $status
 else 
-  # see if HTTP request errored
-  hstatus=$(echo $result | jq -r .status)
-  if [ "$hstatus" == "200" ] || [ "$hstatus" == "null" ]; then
-    status=0
-  else 
-    echo "HTTP error: $hstatus" >&2
-    status=1
-  fi
+    echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | curl completed successfully" >&2
 fi
 echo $result
 exit $status

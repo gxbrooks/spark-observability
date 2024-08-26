@@ -55,13 +55,12 @@ inputs:
 
 # Spark sections
   - type: filestream
-    id: spark-events
-    paths:
-      - /opt/spark/spark-events/app-*
-    processors:
-      - ndjson:
-          keys_under_root: false
-          overwrite_keys: false
-          add_error_key: true
-          target: "spark"
+    id: spark-filestream
     use_output: spark-events
+    streams:
+      - id: spark-events-json-stream
+        data_stream:
+          dataset: spark
+          namespace: spark
+        paths:
+          - /opt/spark/spark-events/app-*

@@ -9,7 +9,7 @@
               "request": {
                 "indices": ["batch-active-index"],
                 "body": {
-                  "size": 400,
+                  "size": 500,
                   "query": {
                     "bool": {
                       "filter": [
@@ -36,7 +36,7 @@
               "request": {
                 "indices": ["batch-active-index"],
                 "template": {
-                  "source": "{\"size\": 400, \"query\": {\"terms\": {\"uid\": {{#toJson}}ctx.payload.start_uids._value{{/toJson}}}}}",
+                  "source": "{\"size\": 500, \"query\": {\"terms\": {\"uid\": {{#toJson}}ctx.payload.start_uids._value{{/toJson}}}}}",
                   "lang": "mustache"
                 }
               }

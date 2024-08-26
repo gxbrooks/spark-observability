@@ -1,0 +1,47 @@
+{
+  "trigger": {"schedule": {"interval": "5s"}},
+  "input": {
+    "search": {
+      "request": {
+        "indices": ["batch-active-index"],
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {"term": {"event_kind": "Start"}},
+                {"term": {"matched": false}}
+              ]
+            }
+          },
+          "aggs": {
+            "by_realm": {
+              "terms": {"field": "realm"},
+              "aggs": {
+                "by_class": {
+                  "terms": {"field": "batch_class"},
+                  "aggs": {"_doc": {"value_count": {"field": "uid"}}}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {"compare": {"ctx.payload.hits.total": {"gt": 0}}},
+  "actions": {
+    "index_payload": {
+      "transform": {
+        "script": {
+          "source": "def recs = []; for (realms in ctx.payload.aggregations.by_realm.buckets) { for (classes in realms.by_class.buckets) { recs.add([ '@timestamp': ctx.execution_time, 'realm': realms.key, 'class': classes.key, 'count': classes.doc_count ]);  } } return ['_doc': recs];"
+        }
+      },
+      "index": {
+        "index": "batch-metrics-ds",
+        "op_type": "create",
+        "execution_time_field": "@timestamp"
+      }
+    }
+  }
+}

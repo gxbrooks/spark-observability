@@ -1,0 +1,15 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-metrics-ds\"}"
+    },
+    "title": "Batch Counts",
+    "sort": [["@timestamp", "desc"]],
+    "columns": ["@timestamp", "class", "count"],
+    "description": "The number of open batches at a point in time.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false
+  }
+}

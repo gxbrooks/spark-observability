@@ -28,4 +28,11 @@ rapi PUT /_index_template/data-pipeline-ds elasticsearch/data-pipeline/data-pipe
 rapi POST /_license/start_trial?acknowledge=true
 
 rapi PUT /_watcher/watch/batch-match elasticsearch/batch-active/match.watcher.json 
-rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-active/delete-matched.watcher.json
+# Hold on deletions until we can figure out why some end events are not matched
+#rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-active/delete-matched.watcher.json
+
+# batch metrics
+rapi PUT /_index_template/batch-metrics-ds elasticsearch/batch-metrics/batch-metrics.template.json
+rapi PUT /_data_stream/batch-metrics-ds
+rapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metrics.watcher.json
+
