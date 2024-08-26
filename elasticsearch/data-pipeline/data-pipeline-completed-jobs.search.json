@@ -1,0 +1,15 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"data-pipeline-ds\"}"
+    },
+    "title": "Completed Batch Jobs",
+    "sort": [["@timestamp", "asc"]],
+    "columns": ["@timestamp", "class", "name", "duration", "parent_key"],
+    "description": "A list of all the completed batch jobs along with their durations.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false
+  }
+}

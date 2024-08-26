@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["batch-metrics-ds"],
+  "data_stream": {},
+  "template": {
+    "mappings": {
+      "properties": {
+        "timestamp": {"type": "date", "format": "epoch_millis"},
+        "realm": {"type": "keyword"},
+        "class": {"type": "keyword"},
+        "count": {"type": "long"}
+      }
+    }
+  }
+}

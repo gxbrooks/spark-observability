@@ -25,6 +25,7 @@ volumes:
   logstash01:
     driver: local
   spark-logs:
+    driver: local
 
 
 networks:
@@ -228,14 +229,16 @@ services:
     volumes:
       - ./spark/data:/opt/spark/data
       - ./spark/apps:/opt/spark/apps
-      - ./spark-events:/opt/spark/spark-events
+      - spark-logs:/opt/spark/spark-events
+      # - ./spark-events:/opt/spark/spark-events
       - ./elastic-agent/elastic-agent-master.yml:/opt/Elastic/Agent/elastic-agent.yml
       - certs:/opt/Elastic/certs
     env_file:
       - spark/.env.spark
       - .env
     depends_on:
-      logstash01:
+      # for sending metrics to Elastic
+      es01:
         condition: service_healthy
     ports:
       - '9090:8080'
@@ -248,13 +251,20 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
+      # for sending metrics to Elastic
+      es01:
+        condition: service_healthy
+      # Make sure Logstash is running and all indicies are defined before starting Elastic Agent
       logstash01:
         condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
     env_file:
       - spark/.env.spark
       - .env
     volumes:
-      - ./spark-events:/opt/spark/spark-events
+      - spark-logs:/opt/spark/spark-events
+      # - ./spark-events:/opt/spark/spark-events
       - ./elastic-agent/elastic-agent-history.yml:/opt/Elastic/Agent/elastic-agent.yml
       - certs:/opt/Elastic/certs
     ports:
@@ -267,7 +277,8 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
-      logstash01:
+      # for sending metrics to Elastic
+      es01:
         condition: service_healthy
     env_file:
       - spark/.env.spark
@@ -275,7 +286,7 @@ services:
     volumes:
       - ./spark/data:/opt/spark/data
       - ./spark/apps:/opt/spark/apps
-      # - spark-logs:/opt/spark/spark-events
-      - ./spark-events:/opt/spark/spark-events
+      - spark-logs:/opt/spark/spark-events
+      # - ./spark-events:/opt/spark/spark-events
       - ./elastic-agent/elastic-agent-worker.yml:/opt/Elastic/Agent/elastic-agent.yml
       - certs:/opt/Elastic/certs

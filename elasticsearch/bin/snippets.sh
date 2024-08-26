@@ -39,3 +39,16 @@ rapi POST /_watcher/watch/batch-match/_execute?debug=true > mw.out.json
 
 rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-active/delete-matched.watcher.json
 rapi POST /_watcher/watch/delete-matched/_execute?debug=true > dmw.out.json
+
+
+rapi POST /_watcher/watch/delete-matched/_deactivate 
+rapi POST /_watcher/watch/batch-match/_deactivate
+rapi POST /_watcher/watch/batch-metrics/_deactivate
+
+rapi POST /_watcher/watch/delete-matched/_activate 
+rapi POST /_watcher/watch/batch-match/_activate
+
+rapi DELETE /_transform/batch-metrics | jq .
+
+rapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metrics.watcher.json
+rapi POST /_watcher/watch/batch-metrics/_execute?debug=true > bmw.out.json
