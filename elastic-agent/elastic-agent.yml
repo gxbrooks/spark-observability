@@ -13,9 +13,6 @@ outputs:
     hosts: ["https://es01:9200"]
     username: "elastic"
     password: "changeme"
-    processors:
-      - add_cloud_metadata:
-          enabled: false
     ssl:
       certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
       verification_mode: full
@@ -52,15 +49,50 @@ inputs:
       - metricsets:
         - filesystem
         data_stream.dataset: system.filesystem
-
-# Spark sections
-  - type: filestream
-    id: spark-filestream
-    use_output: spark-events
+  - type: docker/metrics
+    id: docker-metrics
+    data_stream.namespace: default
+    use_output: default
     streams:
-      - id: spark-events-json-stream
-        data_stream:
-          dataset: spark
-          namespace: spark
-        paths:
-          - /opt/spark/spark-events/app-*
+      - metricsets:
+        - container
+        data_stream.dataset: docker.container
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - cpu
+        data_stream.dataset: docker.cpu
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - diskio
+        data_stream.dataset: docker.diskio
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - healthcheck
+        data_stream.dataset: docker.healthcheck
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - info
+        data_stream.dataset: docker.info
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - memory
+        data_stream.dataset: docker.memory
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - network
+        data_stream.dataset: docker.network
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+
+providers:
+# Docker provides inventory information from Docker.
+  docker:
+    enabled: true
+    host: "unix:///var/run/docker.sock"
+    cleanup_timeout: 60

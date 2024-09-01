@@ -126,6 +126,8 @@ services:
       - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
     mem_limit: ${KB_MEM_LIMIT}
     depends_on:
+      es01:
+        condition: service_healthy 
       init-kibana-password:
         condition: service_completed_successfully
     healthcheck:
@@ -137,7 +139,22 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120    
-   
+
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+     - '3000:3000'
+    volumes:
+     - "./grafana/data:/var/lib/grafana/data"
+     - "./grafana/provisioning/data_sources/elastic.yml:/var/lib/grafana/provisioning/data_sources/elastic.yml"
+    depends_on:
+      es01:
+        condition: service_healthy 
+ 
   init-kibana:
     image: cert-es-base
     volumes:
@@ -233,6 +250,8 @@ services:
       # - ./spark-events:/opt/spark/spark-events
       - ./elastic-agent/elastic-agent-master.yml:/opt/Elastic/Agent/elastic-agent.yml
       - certs:/opt/Elastic/certs
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     env_file:
       - spark/.env.spark
       - .env
@@ -243,6 +262,8 @@ services:
     ports:
       - '9090:8080'
       - '7077:7077'
+    labels:
+      role: "Spark Master"
 
   spark-history-server:
     container_name: da-spark-history
@@ -267,8 +288,12 @@ services:
       # - ./spark-events:/opt/spark/spark-events
       - ./elastic-agent/elastic-agent-history.yml:/opt/Elastic/Agent/elastic-agent.yml
       - certs:/opt/Elastic/certs
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:
       - '18080:18080'
+    labels:
+      role: "Spark Historian"
 
   spark-worker:
 #    container_name: da-spark-worker
@@ -290,3 +315,7 @@ services:
       # - ./spark-events:/opt/spark/spark-events
       - ./elastic-agent/elastic-agent-worker.yml:/opt/Elastic/Agent/elastic-agent.yml
       - certs:/opt/Elastic/certs
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    labels:
+      role: "Spark Worker"

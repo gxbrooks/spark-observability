@@ -16,7 +16,6 @@
 kapi POST /api/data_views/data_view elasticsearch/spark/spark-logs.dataview.json \
   > elasticsearch/outputs/spark-logs.dataview.out.json
 
-
 # Enable watcher dataview
 kapi POST /api/data_views/data_view elasticsearch/batch-active/watcher.dataview.json \
   > elasticsearch/outputs/watcher.dataview.out.json
