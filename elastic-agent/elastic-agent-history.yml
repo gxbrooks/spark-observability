@@ -16,6 +16,7 @@ outputs:
     ssl:
       certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
       verification_mode: full
+      
     # api_key: "example-key"
     # preset: balanced  
 # Spark outputs for events
@@ -56,6 +57,47 @@ inputs:
         - filesystem
         data_stream.dataset: system.filesystem
 
+  - type: docker/metrics
+    id: docker-metrics
+    data_stream.namespace: default
+    use_output: default
+    streams:
+      - metricsets:
+        - container
+        data_stream.dataset: docker.container
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - cpu
+        data_stream.dataset: docker.cpu
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - diskio
+        data_stream.dataset: docker.diskio
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - healthcheck
+        data_stream.dataset: docker.healthcheck
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - info
+        data_stream.dataset: docker.info
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - memory
+        data_stream.dataset: docker.memory
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - metricsets:
+        - network
+        data_stream.dataset: docker.network
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+
 # Spark sections
   - type: filestream
     id: spark-filestream
@@ -69,9 +111,11 @@ inputs:
         paths:
           - /opt/spark/spark-events/app-*
 
-processors:
-  - add_cloud_metadata:
-      enabled: false
-  - add_fields:
-      target: ''
-      role: spark_history
+
+providers:
+# Docker provides inventory information from Docker.
+  docker:
+    enabled: true
+    host: "unix:///var/run/docker.sock"
+    cleanup_timeout: 60
+    
