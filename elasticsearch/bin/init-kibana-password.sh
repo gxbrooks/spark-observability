@@ -3,13 +3,8 @@
 # Elasticsearch API initializations are based of "Getting started with the Elastic Stack and Docker Compose: Part 1"
 # See https://www.elastic.co/blog/getting-started-with-the-elastic-stack-and-docker-compose
 #
-# Instead of initializing Elasticsearch via th setup Docker service, we build an image with the equisite certficates. 
-# This allows partial building of data streams required to avoide errors in the dynamic mappings resulting 
-# from a poorly structured JSON schema for Spark events.
-#
 
-# Need to update Kibana password in Elastisearch
-
+# Need to update Kibana password via Elastisearch
 if [ x${ELASTIC_PASSWORD} == x ]; then
   echo "Set the ELASTIC_PASSWORD environment variable in the .env file"; 
   exit 1; 

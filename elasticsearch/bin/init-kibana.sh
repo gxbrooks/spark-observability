@@ -3,11 +3,10 @@
 # Elasticsearch API initializations are based of "Getting started with the Elastic Stack and Docker Compose: Part 1"
 # See https://www.elastic.co/blog/getting-started-with-the-elastic-stack-and-docker-compose
 #
-# Instead of initializing Elasticsearch via th setup Docker service, we build an image with the equisite certficates. 
-# This allows partial building of data streams required to avoide errors in the dynamic mappings resulting 
-# from a poorly structured JSON schema for Spark events.
-#
 
+
+# this is the Spark on Elastic utility bin director and not Elasticsearch's bin directory
+PATH="/usr/share/elasticsearch/elasticsearch/bin:${PATH}"
 
 # Kibana availability is enforced via depenencies in the docker-compose file.
 
