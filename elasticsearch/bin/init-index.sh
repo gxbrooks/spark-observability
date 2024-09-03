@@ -5,6 +5,9 @@
 # good format 
 # curl --no-progress-meter -X PUT "https://es01:9200/_index_template/spark-template" --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" -d "@elasticsearch/cannot-merge-a-non-object-mapping-with-an-object-mapping.json"
 
+# this is the Spark on Elastic utility bin director and not Elasticsearch's bin directory
+PATH="/usr/share/elasticsearch/elasticsearch/bin:${PATH}"
+
 echo "Waiting for Elasticsearch availability";
 # This readiness test was from the original 
 until curl --no-progress-meter --cacert config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
