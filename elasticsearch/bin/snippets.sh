@@ -52,3 +52,20 @@ rapi DELETE /_transform/batch-metrics | jq .
 
 rapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metrics.watcher.json
 rapi POST /_watcher/watch/batch-metrics/_execute?debug=true > bmw.out.json
+
+
+
+rapi GET /.ds-.watcher-history\*/_search elasticsearch/batch-active/batch-match-watchers.runs.query.json  | jq . > q.json
+
+rapi GET /batch-active-index/_search?uid="Start:spark:Task:7449d6aeb0be:/opt/spark/spark-events/app-20240903164156-0007.inprogress:0:0:61:0" elasticsearch/batch-active/uid.query.json
+rapi GET /batch-active-index/_search?q="Start:spark:Task:7449d6aeb0be:/opt/spark/spark-events/app-20240903164156-0007.inprogress:0:0:61:0" elasticsearch/batch-active/uid.query.json
+
+# Get all watch results that had batch matches
+rapi GET /.ds-.watcher-history\*/_search elasticsearch/batch-active/batch-match-watches.query.json  | jq . > q.json
+
+# updates to emulate watcher updates
+PUT /<target>/_doc/<_id>
+
+POST /<target>/_doc/
+
+rapi POST /batch-active-index/_doc/8af6a0994b05ee4d53d963bd42a22c788ffcaf9b?routing=fc419eef43f4e80f5faf45b63349bf2d8e7256cb elasticsearch/inputs/match.watcher.mustache_with_join_field.input.json | jq . |less

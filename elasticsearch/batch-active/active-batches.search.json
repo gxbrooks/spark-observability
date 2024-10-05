@@ -1,9 +1,9 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-active-index\"}"
+      "searchSourceJSON": "{\"query\":{\"query\":\"not batch_class:\\\"ExecutorAdded\\\" and matched:false \",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-active-index\"}"
     },
-    "title": "All Batch Events",
+    "title": "Unmatched Batch Start Events",
     "sort": [["@timestamp", "asc"]],
     "columns": [
       "@timestamp",
@@ -11,9 +11,10 @@
       "batch_class",
       "matched",
       "uid",
+      "parent_key",
       "start_uid"
     ],
-    "description": "A list of the start, end, and point batch events.",
+    "description": "List out the active batches with key attributes.",
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,

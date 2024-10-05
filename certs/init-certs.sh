@@ -1,20 +1,17 @@
 #!/usr/bin/bash
 
-# This files runs as root
-set -x
+# This file runs as root
+
 # start clean
 rm -rf ./certs/ca ./certs/es01 ./certs/kibana ./certs/init ./certs/grafana ./certs/certs.zip ./certs/ca.zip
 
 echo "Creating Elastic Stack keys"
 mkdir ./certs/ca
-ls -lR ./certs
 
 echo "Creating CA"
 ./bin/elasticsearch-certutil ca --silent \
   --pem \
   --out ./certs/ca.zip
-
-ls -lR ./certs
 
 unzip ./certs/ca.zip -d ./certs
 	

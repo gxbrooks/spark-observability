@@ -58,7 +58,7 @@
     },
     "update-matches": {
       "transform": {
-        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.unmatched.hits.hits) {def e = h._source; e.put('matched', true); e.put('_id', h._id); recs.add(e)} return ['_doc': recs]; "
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.unmatched.hits.hits) {def e = h._source; e.matched = true; e._id = h._id; recs.add(e)} return ['_doc': recs]; "
       },
       "index": {"index": "batch-active-index", "op_type": "index"}
     },

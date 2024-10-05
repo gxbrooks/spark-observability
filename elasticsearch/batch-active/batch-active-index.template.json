@@ -18,15 +18,15 @@
         "event_id": {"type": "keyword"},
         "matched": {"type": "boolean"},
         "log_timestamp": {"type": "date"},
-        "start_millis": {"type": "unsigned_long"},
-        "end_millis": {"type": "unsigned_long"},
+        "start_millis": {"type": "long"},
+        "end_millis": {"type": "long"},
         "duration": {"type": "long"},
         "uid": {"type": "keyword"},
         "start_uid": {"type": "keyword"},
+        "start_end": {"type": "join", "relations": {"start": "end"}},
         "parent_key": {"type": "keyword"},
         "child_key": {"type": "keyword"}
       }
     }
-  },
-  "composed_of": ["logs-mappings", "logs-settings"]
+  }
 }

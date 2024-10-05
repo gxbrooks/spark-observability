@@ -1,0 +1,10 @@
+{
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {"watch_id": "batch-match"}},
+        {"term": {"result.condition.met": true}}
+      ]
+    }
+  }
+}
