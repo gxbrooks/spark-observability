@@ -37,3 +37,31 @@ for (h in ctx.payload.unmatched.hits.hits) {
 	}
 }
 return ['_doc': recs];
+
+
+Join version
+
+ArrayList recs = new ArrayList(); 
+for (h in ctx.payload.unmatched.hits.hits) { 
+	def e = h._source; 
+	def s = h.inner_hits.start.hits.hits[0]._source;
+	Map r = [ 
+		'@timestamp': s.get('@timestamp'), 
+		'realm' : e.realm, 
+		'class' : e.batch_class, 
+		'name' : s.event_name,
+		'id' : s.event_id,
+		'start_time': s.get('@timestamp'), 
+		'end_time' : e.get('@timestamp'), 
+		'start_millis' : s.start_millis, 
+		'end_millis' : e.start_millis, 
+		'duration' : e.start_millis - s.start_millis,
+		'end_uid' : e.uid, 
+		'start_uid' : s.uid,
+		'parent_key' : s.parent_key,
+		'child_key' : s.child_key
+		]; 
+	recs.add(r);
+}	
+return ['_doc': recs];
+

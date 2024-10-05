@@ -1,0 +1,21 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"watch_id:\\\"batch-match\\\" and result.condition.met:true \"},\"filter\":[],\"index\":\"watcher-dataview\"}"
+    },
+    "title": "Batch Mustache Match Watcher Runs",
+    "sort": [["@timestamp"]],
+    "columns": [
+      "result.execution_time",
+      "watch_id",
+      "result.condition.compare.resolved_values.ctx.payload.matching.hits.total",
+      "result.execution_duration"
+    ],
+    "description": "List of all the batch-active watcher runs",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "breakdownField": "watch_id"
+  }
+}

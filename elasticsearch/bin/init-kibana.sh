@@ -18,12 +18,14 @@ kapi POST /api/data_views/data_view elasticsearch/spark/spark-logs.dataview.json
 # Enable watcher dataview
 kapi POST /api/data_views/data_view elasticsearch/batch-active/watcher.dataview.json \
   > elasticsearch/outputs/watcher.dataview.out.json
-kapi POST /api/saved_objects/search/batch-active-watcher-runs?overwrite=true elasticsearch/batch-active/batch-active-watcher.search.json
+kapi POST /api/saved_objects/search/match-mustache-watcher-runs?overwrite=true elasticsearch/batch-active/match-mustache.watcher-runs.search.json
+kapi POST /api/saved_objects/search/match-join-watcher-runs?overwrite=true elasticsearch/batch-active/match-join.watcher-runs.search.json
 
 # List out the batch start and end events that still exist
 kapi POST /api/data_views/data_view elasticsearch/batch-active/batch-active.dataview.json \
   > elasticsearch/outputs/batch-active.dataview.out.json
 kapi POST /api/saved_objects/search/batch-active-events?overwrite=true elasticsearch/batch-active/batch-active-events.search.json
+kapi POST /api/saved_objects/search/active-batches?overwrite=true elasticsearch/batch-active/active-batches.search.json
   
 # show the count of different types of batch jobs at different points in time
 kapi POST /api/data_views/data_view elasticsearch/batch-metrics/batch-metrics.dataview.json \

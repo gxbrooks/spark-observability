@@ -1,0 +1,49 @@
+{
+  "trigger": {"schedule": {"interval": "5s"}},
+  "input": {
+    "search": {
+      "request": {
+        "indices": ["batch-active-index"],
+        "body": {
+          "size": 500,
+          "query": {
+            "bool": {
+              "filter": [
+                {"term": {"event_kind": "End"}},
+                {"bool": {"must_not": [{"term": {"matched": true}}]}},
+                {
+                  "has_parent": {
+                    "parent_type": "start",
+                    "query": {"match_all": {}},
+                    "inner_hits": {}
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {"compare": {"ctx.payload.hits.total": {"gt": 0}}},
+  "actions": {
+    "add-matches": {
+      "transform": {
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) { def e = h._source; def s = h.inner_hits.start.hits.hits[0]._source; Map r = [ '@timestamp': s.get('@timestamp'), 'realm' : e.realm, 'class': e.batch_class, 'name' : s.event_name, 'id': s.event_id, 'start_time': s.get('@timestamp'), 'end_time': e.get('@timestamp'), 'start_millis': s.start_millis, 'end_millis' : e.start_millis, 'duration': e.start_millis - s.start_millis, 'end_uid': e.uid, 'start_uid' : s.uid, 'parent_key': s.parent_key,'child_key': s.child_key]; recs.add(r); } return ['_doc': recs];"
+      },
+      "index": {"index": "data-pipeline-ds", "op_type": "create"}
+    },
+    "update-ends": {
+      "transform": {
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def e = h._source; e.put('matched', true); e.remove('start_end'); e._id = h._id; recs.add(e)} return ['_doc': recs]; "
+      },
+      "index": {"index": "batch-active-index", "op_type": "index"}
+    },
+    "update-starts": {
+      "transform": {
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def sh = h.inner_hits.start.hits.hits[0]; def s = sh._source; s.matched = true; recs.add(s); } return ['_doc': recs]; "
+      },
+      "index": {"index": "batch-active-index", "op_type": "index"}
+    }
+  }
+}

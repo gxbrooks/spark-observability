@@ -3,15 +3,15 @@
     "kibanaSavedObjectMeta": {
       "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"watch_id:\\\"batch-match\\\" and result.condition.met:true \"},\"filter\":[],\"index\":\"watcher-dataview\"}"
     },
-    "title": "Batch Match Watcher Runs",
+    "title": "Batch Join Match Watcher Runs",
     "sort": [["@timestamp"]],
     "columns": [
+      "result.execution_time",
       "watch_id",
-      "result.condition.compare.resolved_values.ctx.payload.matching.hits.total",
-      "result.input.chain.unmatched.payload.hits.total",
-      "result.input.chain.matching.payload.hits.total"
+      "result.condition.compare.resolved_values.ctx.payload.hits.total",
+      "result.execution_duration"
     ],
-    "description": "List of all the batch-active watcher runs",
+    "description": "List of all the batch join match watcher runs",
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,

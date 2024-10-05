@@ -228,10 +228,10 @@ services:
         - "9600:9600"
     volumes:
       - ./certs:/usr/share/logstash/certs
-      - "./logstash/pipeline:/usr/share/logstash/pipeline"
+      - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+      # not used
       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
-      - "./logstash/logs:/usr/share/logstash/logs"
     environment:
       - xpack.monitoring.enabled=false
       - ELASTIC_USER=elastic

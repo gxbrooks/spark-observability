@@ -1,0 +1,17 @@
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"event_kind": "End"}},
+        {"bool": {"must_not": [{"term": {"matched": true}}]}},
+        {
+          "has_parent": {
+            "parent_type": "start",
+            "query": {"match_all": {}},
+            "inner_hits": {}
+          }
+        }
+      ]
+    }
+  }
+}

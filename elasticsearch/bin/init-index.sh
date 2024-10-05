@@ -16,9 +16,9 @@ until curl --no-progress-meter --cacert config/certs/ca/ca.crt https://es01:9200
 # The sparkUnproccessedIndexTemplate.json file assumes the namespace of the index and the dataset are both
 # named 'spark'. These names are specified in the logstash.conf file. 
 
-rapi PUT /_ilm/policy/batch-active elasticsearch/batch-active/batch-active.ilm.json
-rapi PUT /_index_template/batch-active-index elasticsearch/batch-active/batch-active-index.template.json
-rapi PUT /batch-active-index-000001 elasticsearch/batch-active/batch-active-index.index.json
+rapi PUT /_ilm/policy/batch-active elasticsearch/batch-active/batch-active.ilm.json > elasticsearch/outputs/batch-active.ilm.out.json
+rapi PUT /_index_template/batch-active-index elasticsearch/batch-active/batch-active-index.template.json > elasticsearch/outputs/batch-active.template.out.json
+rapi PUT /batch-active-index-000001 elasticsearch/batch-active/batch-active-index.index.json > elasticsearch/outputs/batch-active.index.out.json
 
 
 rapi PUT /_ilm/policy/spark-logs elasticsearch/spark/spark-logs.ilm.json
@@ -30,7 +30,14 @@ rapi PUT /_index_template/data-pipeline-ds elasticsearch/data-pipeline/data-pipe
 # Need full license to run watchers
 rapi POST /_license/start_trial?acknowledge=true
 
-rapi PUT /_watcher/watch/batch-match elasticsearch/batch-active/match.watcher.json 
+# enable watcher to match start and end events and publish batch objects
+# there are two algorithms: a mustache-expansion based and a join based algorithms
+# only one can be active at time.
+
+#rapi PUT /_watcher/watch/batch-match-mustache elasticsearch/batch-active/match.mustache.watcher.json 
+rapi PUT /_watcher/watch/batch-match-join elasticsearch/batch-active/match.join.watcher.json 
+
+
 # Hold on deletions until we can figure out why some end events are not matched
 #rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-active/delete-matched.watcher.json
 
