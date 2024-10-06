@@ -69,3 +69,8 @@ PUT /<target>/_doc/<_id>
 POST /<target>/_doc/
 
 rapi POST /batch-active-index/_doc/8af6a0994b05ee4d53d963bd42a22c788ffcaf9b?routing=fc419eef43f4e80f5faf45b63349bf2d8e7256cb elasticsearch/inputs/match.watcher.mustache_with_join_field.input.json | jq . |less
+
+# find matching start and end events 
+
+rapi GET /batch-active-index/_search?
+rapi GET /batch-active-index/_search elasticsearch/batch-active/match-join.query.json  |jq .

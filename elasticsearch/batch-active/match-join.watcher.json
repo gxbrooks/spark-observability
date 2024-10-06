@@ -41,7 +41,7 @@
     },
     "update-starts": {
       "transform": {
-        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def sh = h.inner_hits.start.hits.hits[0]; def s = sh._source; s.matched = true; recs.add(s); } return ['_doc': recs]; "
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def sh = h.inner_hits.start.hits.hits[0]; def s = sh._source; s._id = sh._id; s.matched = true; recs.add(s); } return ['_doc': recs]; "
       },
       "index": {"index": "batch-active-index", "op_type": "index"}
     }
