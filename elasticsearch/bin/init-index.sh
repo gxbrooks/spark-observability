@@ -34,7 +34,7 @@ rapi POST /_license/start_trial?acknowledge=true
 # there are two algorithms: a mustache-expansion based and a join based algorithms
 # only one can be active at time.
 
-#rapi PUT /_watcher/watch/batch-match-mustache elasticsearch/batch-active/match.mustache.watcher.json 
+#rapi PUT /_watcher/watch/batch-match-mustache elasticsearch/batch-active/match-mustache.watcher.json
 rapi PUT /_watcher/watch/batch-match-join elasticsearch/batch-active/match-join.watcher.json
 
 
