@@ -34,6 +34,8 @@ services:
   init-certs:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
     container_name: init-certs
+    labels:
+      role: "Init Certs"
     volumes:
       - ./certs:/usr/share/elasticsearch/certs
     user: "0"
@@ -45,6 +47,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
     labels:
       co.elastic.logs/module: elasticsearch
+      role: Elasticsearch
     volumes:
       - esdata:/usr/share/elasticsearch/data
       - ./certs:/usr/share/elasticsearch/config/certs
@@ -98,6 +101,8 @@ services:
 
   init-kibana-password:   
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    labels:
+      role: "Init Kibana Password"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - ./certs:/usr/share/elasticsearch/config/certs
@@ -126,6 +131,7 @@ services:
       - kibanadata:/usr/share/kibana/data
     labels:
       co.elastic.logs/module: kibana
+      role: "Kibana"
     ports:
       - ${KIBANA_PORT}:5601
     environment:
@@ -155,6 +161,8 @@ services:
 
   grafana:
     image: grafana/grafana-enterprise
+    labels:
+      role: "Grafana"
     container_name: grafana
     restart: unless-stopped
     env_file:
@@ -163,7 +171,7 @@ services:
      - '3000:3000'
     volumes:
      - "./grafana/data:/var/lib/grafana/data"
-     - "./grafana/provisioning/data_sources/elastic.yml:/var/lib/grafana/provisioning/data_sources/elastic.yml"
+     - "./grafana/provisioning:/etc/grafana/provisioning"
      - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
     depends_on:
       es01:
@@ -194,10 +202,12 @@ services:
 
   init-index:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    command: bash -f ./elasticsearch/bin/init-index.sh 
+    labels:
+      role: "Init Index"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - ./certs:/usr/share/elasticsearch/config/certs
-    command: bash -f ./elasticsearch/bin/init-index.sh 
     env_file:
       - .env
     environment:
@@ -221,6 +231,7 @@ services:
     container_name: logstash01
     labels:
       co.elastic.logs/module: logstash
+      role: "Logstash"
     user: root
     ports: 
         - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
@@ -261,6 +272,8 @@ services:
     build: ./spark
     image: da-spark-image
     entrypoint: ['./entrypoint.sh', 'master']
+    labels:
+      role: "Spark Master"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
       interval: 5s
@@ -285,13 +298,13 @@ services:
     ports:
       - '9090:8080'
       - '7077:7077'
-    labels:
-      role: "Spark Master"
 
   spark-history-server:
     container_name: da-spark-history
     image: da-spark-image
     entrypoint: ['./entrypoint.sh', 'history']
+    labels:
+      role: "Spark Historian"
     depends_on:
       spark-master:
         condition: service_healthy
@@ -315,13 +328,13 @@ services:
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:
       - '18080:18080'
-    labels:
-      role: "Spark Historian"
 
   spark-worker:
 #    container_name: da-spark-worker
     image: da-spark-image
     entrypoint: ['./entrypoint.sh', 'worker']
+    labels:
+      role: "Spark Worker"
     depends_on:
       spark-master:
         condition: service_healthy
@@ -340,5 +353,3 @@ services:
       - ./certs:/opt/Elastic/certs
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-    labels:
-      role: "Spark Worker"
