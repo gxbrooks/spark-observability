@@ -2,7 +2,7 @@
   "query": {
     "bool": {
       "must": [
-        {"term": {"watch_id": "batch-match"}},
+        {"term": {"watch_id": "batch-match-mustache"}},
         {"term": {"result.condition.met": true}}
       ]
     }
