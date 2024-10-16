@@ -1,11 +1,11 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"data-pipeline-ds\"}"
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-traces\"}"
     },
-    "title": "Completed Batch Jobs",
+    "title": "Batch Traces",
     "sort": [["@timestamp", "asc"]],
-    "columns": ["@timestamp", "class", "name", "duration", "parent_key"],
+    "columns": ["@timestamp", "class", "serviceName", "duration", "traceID", "parentID"],
     "description": "A list of all the completed batch jobs along with their durations.",
     "hideChart": false,
     "isTextBasedQuery": false,

@@ -3,7 +3,7 @@
   "input": {
     "search": {
       "request": {
-        "indices": ["batch-active-index"],
+        "indices": ["batch-events"],
         "body": {
           "size": 0,
           "query": {
@@ -20,7 +20,7 @@
               "aggs": {
                 "by_class": {
                   "terms": {"field": "batch_class"},
-                  "aggs": {"_doc": {"value_count": {"field": "uid"}}}
+                  "aggs": {"_doc": {"value_count": {"field": "event_id"}}}
                 }
               }
             }

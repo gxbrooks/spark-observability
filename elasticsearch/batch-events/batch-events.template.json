@@ -1,0 +1,37 @@
+{
+  "index_patterns": ["batch-events-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "batch-events",
+      "index.lifecycle.rollover_alias": "batch-events"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "realm": {"type": "keyword"},
+        "class": {"type": "keyword"},
+        "event_kind": {"type": "keyword"},
+        "service_name": {"type": "text"},
+        "service_id": {"type": "keyword"},
+        "matched": {"type": "boolean"},
+        "log_timestamp": {"type": "date"},
+        "start_millis": {"type": "long"},
+        "trace_uid": {"type": "keyword"},
+        "event_uid": {"type": "keyword"},
+        "duration": {"type": "long"},
+        "start_event_uid": {"type": "keyword"},
+        "start_end": {"type": "join", "relations": {"start": "end"}},
+        "event_id": {"type": "keyword"},
+        "start_event_id": {"type": "keyword"},
+        "routing_uid": {"type": "keyword"},
+        "routing_id": {"type": "keyword"},
+        "trace_parent_uid": {"type": "keyword"},
+        "trace_parent_id": {"type": "keyword"},
+        "trace_id": {"type": "keyword"}
+      }
+    }
+  }
+}

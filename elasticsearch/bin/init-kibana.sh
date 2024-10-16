@@ -16,27 +16,27 @@ kapi POST /api/data_views/data_view elasticsearch/spark/spark-logs.dataview.json
   > elasticsearch/outputs/spark-logs.dataview.out.json
 
 # Enable watcher dataview
-kapi POST /api/data_views/data_view elasticsearch/batch-active/watcher.dataview.json \
+kapi POST /api/data_views/data_view elasticsearch/batch-events/watcher.dataview.json \
   > elasticsearch/outputs/watcher.dataview.out.json
-kapi POST /api/saved_objects/search/match-mustache-watcher-runs?overwrite=true elasticsearch/batch-active/match-mustache.watcher-runs.search.json
-kapi POST /api/saved_objects/search/match-join-watcher-runs?overwrite=true     elasticsearch/batch-active/match-join.watcher-runs.search.json
+kapi POST /api/saved_objects/search/match-mustache-watcher-runs?overwrite=true elasticsearch/batch-events/match-mustache.watcher-runs.search.json
+kapi POST /api/saved_objects/search/match-join-watcher-runs?overwrite=true     elasticsearch/batch-events/match-join.watcher-runs.search.json
 
 
 # List out the batch start and end events that still exist
-kapi POST /api/data_views/data_view elasticsearch/batch-active/batch-active.dataview.json \
-  > elasticsearch/outputs/batch-active.dataview.out.json
-kapi POST /api/saved_objects/search/batch-active-events?overwrite=true elasticsearch/batch-active/batch-active-events.search.json
-kapi POST /api/saved_objects/search/active-batches?overwrite=true elasticsearch/batch-active/active-batches.search.json
+kapi POST /api/data_views/data_view elasticsearch/batch-events/batch-events.dataview.json \
+  > elasticsearch/outputs/batch-events.dataview.out.json
+kapi POST /api/saved_objects/search/batch-events-events?overwrite=true elasticsearch/batch-events/batch-events.search.json
+kapi POST /api/saved_objects/search/active-batches?overwrite=true elasticsearch/batch-events/active-batches.search.json
   
 # show the count of different types of batch jobs at different points in time
 kapi POST /api/data_views/data_view elasticsearch/batch-metrics/batch-metrics.dataview.json \
   > elasticsearch/outputs/batch-metrics.dataview.out.json  
-kapi POST /api/saved_objects/search/batch-active-counts?overwrite=true elasticsearch/batch-metrics/batch-counts.search.json
+kapi POST /api/saved_objects/search/batch-events-counts?overwrite=true elasticsearch/batch-metrics/batch-counts.search.json
 
-# view the completed batch jobs in the data-pipeline datastream
-kapi POST /api/data_views/data_view elasticsearch/data-pipeline/data-pipeline-ds.dataview.json \
-  > elasticsearch/outputs/data-pipeline.dataview.out.json
-kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true elasticsearch/data-pipeline/data-pipeline-completed-jobs.search.json
+# view the completed batch jobs in the batch-traces datastream
+kapi POST /api/data_views/data_view elasticsearch/batch-traces/batch-traces.dataview.json \
+  > elasticsearch/outputs/batch-traces.dataview.out.json
+kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true elasticsearch/batch-traces/batch-traces.search.json
 
 
 

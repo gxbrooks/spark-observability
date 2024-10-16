@@ -3,7 +3,7 @@
   "input": {
     "search": {
       "request": {
-        "indices": ["batch-active-index"],
+        "indices": ["batch-events"],
         "body": {
           "size": 1,
           "query": {
@@ -23,7 +23,7 @@
     "delete_matched": {
       "webhook": {
         "method": "POST",
-        "url": "https://es01:9200/batch-active-index/_delete_by_query",
+        "url": "https://es01:9200/batch-events/_delete_by_query",
         "auth": {"basic": {"username": "elastic", "password": "changeme"}},
         "headers": {"Content-Type": "application/json"},
         "body": "{ \"size\": 100, \"query\": { \"dis_max\": { \"queries\": [ {\"term\": {\"matched\": true}}, {\"term\": {\"event_kind\": \"Point\"}} ] } } } "

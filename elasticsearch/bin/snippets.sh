@@ -15,29 +15,31 @@ rapi GET /_license/trial_status
 rapi GET /_license
 rapi POST /_license/start_trial?acknowledge=true
 
-rapi POST /_ingest/pipeline/spark-pipeline/_simulate elasticsearch/ingest/ingest.testjson |jq .|more
- 
+# batch-traces
+
+rapi GET /batch-traces/_search elasticsearch/batch-traces/batch-traces.query.json  |jq . > ~/scratch/batch-traces.out.json
+
 rapi PUT /_enrich/policy/match-policy elasticsearch/match/match.enrich-policy.json
 
-rapi PUT /_ilm/policy/batch-active elasticsearch/ILM/batch-active.ilm.json
+rapi PUT /_ilm/policy/batch-events elasticsearch/ILM/batch-events.ilm.json
 rapi PUT /_ilm/policy/spark-logs elasticsearch/ILM/spark-logs.ilm.json
 
 
 rapi PUT /_ilm/policy/spark-logs elasticsearch/ILM/spark-logs.ilm.json
 
-rapi GET /batch-active-index/_search elasticsearch/query.json  |jq . > q.json
+rapi GET /batch-events/_search elasticsearch/query.json  |jq . > q.json
 
 # Good with new directory structure
 
-rapi POST /batch-active-index/_update_by_query elasticsearch/batch-active/clear_matched.ubq.json | jq .
-rapi POST /batch-active-index/_delete_by_query elasticsearch/batch-active/delete-matched.dbq.json | jq .
+rapi POST /batch-events/_update_by_query elasticsearch/batch-events/clear_matched.ubq.json | jq .
+rapi POST /batch-events/_delete_by_query elasticsearch/batch-events/delete-matched.dbq.json | jq .
 
 # watchers
 
-rapi PUT /_watcher/watch/batch-match elasticsearch/batch-active/match.watcher.json 
+rapi PUT /_watcher/watch/batch-match elasticsearch/batch-events/match.watcher.json 
 rapi POST /_watcher/watch/batch-match/_execute?debug=true > mw.out.json
 
-rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-active/delete-matched.watcher.json
+rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-events/delete-matched.watcher.json
 rapi POST /_watcher/watch/delete-matched/_execute?debug=true > dmw.out.json
 
 
@@ -55,22 +57,27 @@ rapi POST /_watcher/watch/batch-metrics/_execute?debug=true > bmw.out.json
 
 
 
-rapi GET /.ds-.watcher-history\*/_search elasticsearch/batch-active/batch-match-watchers.runs.query.json  | jq . > q.json
+# get all "batch-match-join" watcher runs that met the condition
+rapi GET /.ds-.watcher-history\*/_search elasticsearch/batch-events/match-join.watcher-runs.query.json  | jq . > ~/scratch/match-join.watcher-runs.query.out.json
 
-rapi GET /batch-active-index/_search?uid="Start:spark:Task:7449d6aeb0be:/opt/spark/spark-events/app-20240903164156-0007.inprogress:0:0:61:0" elasticsearch/batch-active/uid.query.json
-rapi GET /batch-active-index/_search?q="Start:spark:Task:7449d6aeb0be:/opt/spark/spark-events/app-20240903164156-0007.inprogress:0:0:61:0" elasticsearch/batch-active/uid.query.json
+# batch-events
+
+rapi GET /batch-events/_search elasticsearch/batch-events/batch-events.query.json  |jq . > ~/outputs/batch-events.out.json
+
+rapi GET /batch-events/_search?event_uid="Start:spark:Task:7449d6aeb0be:/opt/spark/spark-events/app-20240903164156-0007.inprogress:0:0:61:0" elasticsearch/batch-events/event_uid.query.json
+rapi GET /batch-events/_search?q="Start:spark:Task:7449d6aeb0be:/opt/spark/spark-events/app-20240903164156-0007.inprogress:0:0:61:0" elasticsearch/batch-events/event_uid.query.json
 
 # Get all watch results that had batch matches
-rapi GET /.ds-.watcher-history\*/_search elasticsearch/batch-active/batch-match-watches.query.json  | jq . > q.json
+rapi GET /.ds-.watcher-history\*/_search elasticsearch/batch-events/batch-match-watches.query.json  | jq . > q.json
 
 # updates to emulate watcher updates
 PUT /<target>/_doc/<_id>
 
 POST /<target>/_doc/
 
-rapi POST /batch-active-index/_doc/8af6a0994b05ee4d53d963bd42a22c788ffcaf9b?routing=fc419eef43f4e80f5faf45b63349bf2d8e7256cb elasticsearch/inputs/match.watcher.mustache_with_join_field.input.json | jq . |less
+rapi POST /batch-events/_doc/8af6a0994b05ee4d53d963bd42a22c788ffcaf9b?routing=fc419eef43f4e80f5faf45b63349bf2d8e7256cb elasticsearch/inputs/match.watcher.mustache_with_join_field.input.json | jq . |less
 
 # find matching start and end events 
 
-rapi GET /batch-active-index/_search?
-rapi GET /batch-active-index/_search elasticsearch/batch-active/match-join.query.json  |jq .
+rapi GET /batch-events/_search?
+rapi GET /batch-events/_search elasticsearch/batch-events/match-join.query.json  |jq .

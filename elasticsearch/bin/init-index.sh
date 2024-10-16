@@ -16,16 +16,16 @@ until curl --no-progress-meter --cacert config/certs/ca/ca.crt https://es01:9200
 # The sparkUnproccessedIndexTemplate.json file assumes the namespace of the index and the dataset are both
 # named 'spark'. These names are specified in the logstash.conf file. 
 
-rapi PUT /_ilm/policy/batch-active elasticsearch/batch-active/batch-active.ilm.json > elasticsearch/outputs/batch-active.ilm.out.json
-rapi PUT /_index_template/batch-active-index elasticsearch/batch-active/batch-active-index.template.json > elasticsearch/outputs/batch-active.template.out.json
-rapi PUT /batch-active-index-000001 elasticsearch/batch-active/batch-active-index.index.json > elasticsearch/outputs/batch-active.index.out.json
+rapi PUT /_ilm/policy/batch-events elasticsearch/batch-events/batch-events.ilm.json > elasticsearch/outputs/batch-events.ilm.out.json
+rapi PUT /_index_template/batch-events elasticsearch/batch-events/batch-events.template.json > elasticsearch/outputs/batch-events.template.out.json
+rapi PUT /batch-events-000001 elasticsearch/batch-events/batch-events.index.json > elasticsearch/outputs/batch-events.index.out.json
 
 
 rapi PUT /_ilm/policy/spark-logs elasticsearch/spark/spark-logs.ilm.json
 rapi PUT /_index_template/logs-spark-spark elasticsearch/spark/logs-spark-spark.template.json
 
-rapi PUT /_ilm/policy/data-pipeline elasticsearch/data-pipeline/data-pipeline.ilm.json
-rapi PUT /_index_template/data-pipeline-ds elasticsearch/data-pipeline/data-pipeline-ds.template.json
+rapi PUT /_ilm/policy/batch-traces elasticsearch/batch-traces/batch-traces.ilm.json
+rapi PUT /_index_template/batch-traces elasticsearch/batch-traces/batch-traces.template.json
 
 # Need full license to run watchers
 rapi POST /_license/start_trial?acknowledge=true
@@ -34,12 +34,12 @@ rapi POST /_license/start_trial?acknowledge=true
 # there are two algorithms: a mustache-expansion based and a join based algorithms
 # only one can be active at time.
 
-#rapi PUT /_watcher/watch/batch-match-mustache elasticsearch/batch-active/match-mustache.watcher.json
-rapi PUT /_watcher/watch/batch-match-join elasticsearch/batch-active/match-join.watcher.json
+#rapi PUT /_watcher/watch/batch-match-mustache elasticsearch/batch-events/match-mustache.watcher.json
+rapi PUT /_watcher/watch/batch-match-join elasticsearch/batch-events/match-join.watcher.json
 
 
 # Hold on deletions until we can figure out why some end events are not matched
-#rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-active/delete-matched.watcher.json
+#rapi PUT /_watcher/watch/delete-matched elasticsearch/batch-events/delete-matched.watcher.json
 
 # batch metrics
 rapi PUT /_index_template/batch-metrics-ds elasticsearch/batch-metrics/batch-metrics.template.json
