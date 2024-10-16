@@ -1,17 +1,17 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-active-index\"}"
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-events\"}"
     },
     "title": "All Batch Events",
     "sort": [["@timestamp", "asc"]],
     "columns": [
       "@timestamp",
       "event_kind",
-      "batch_class",
+      "class",
       "matched",
-      "uid",
-      "start_uid"
+      "event_uid",
+      "start_event_uid"
     ],
     "description": "A list of the start, end, and point batch events.",
     "hideChart": false,

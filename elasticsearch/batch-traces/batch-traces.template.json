@@ -1,0 +1,30 @@
+{
+  "index_patterns": ["batch-traces"],
+  "data_stream": {},
+  "priority": 300,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "batch-traces",
+      "index.lifecycle.rollover_alias": "batch-traces-alias"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "realm": {"type": "keyword"},
+        "class": {"type": "keyword"},
+        "serviceName": {"type": "keyword"},
+        "traceID": {"type": "keyword"},
+        "parentID": {"type": "keyword"},
+        "start_time": {"type": "date"},
+        "end_time": {"type": "date"},
+        "start_millis": {"type": "long"},
+        "end_millis": {"type": "long"},
+        "duration": {"type": "long"},
+        "start_id": {"type": "keyword"},
+        "end_id": {"type": "keyword"}
+      }
+    }
+  }
+}

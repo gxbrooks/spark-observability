@@ -7,7 +7,7 @@
           "unmatched_ends": {
             "search": {
               "request": {
-                "indices": ["batch-active-index"],
+                "indices": ["batch-events"],
                 "body": {
                   "size": 500,
                   "query": {
@@ -26,7 +26,7 @@
         {
           "start_uids": {
             "transform": {
-              "script": "def uids = new ArrayList(); for (h in ctx.payload.unmatched_ends.hits.hits) { uids.add(h._source.start_uid)} return uids;"
+              "script": "def uids = new ArrayList(); for (h in ctx.payload.unmatched_ends.hits.hits) { uids.add(h._source.start_event_uid)} return uids;"
             }
           }
         },
@@ -34,9 +34,9 @@
           "starts": {
             "search": {
               "request": {
-                "indices": ["batch-active-index"],
+                "indices": ["batch-events"],
                 "template": {
-                  "source": "{\"size\": 500, \"query\": {\"terms\": {\"uid\": {{#toJson}}ctx.payload.start_uids._value{{/toJson}}}}}",
+                  "source": "{\"size\": 500, \"query\": {\"terms\": {\"event_uid\": {{#toJson}}ctx.payload.start_uids._value{{/toJson}}}}}",
                   "lang": "mustache"
                 }
               }
@@ -52,21 +52,21 @@
   "actions": {
     "add-matches": {
       "transform": {
-        "script": "ArrayList recs = new ArrayList(); def starts = ctx.payload.starts.hits.hits; for (h in ctx.payload.unmatched_ends.hits.hits) { def e = h._source; boolean guard = true; int i = 0; while ( guard ) { if ( i < starts.length) { def s = starts[i]._source; if ( e.start_uid == s.uid) { guard = false; Map r = [ '@timestamp': s.get('@timestamp'), 'realm' : e.realm, 'class' : e.batch_class, 'name' : s.event_name, 'id' : s.event_id,'start_time': s.get('@timestamp'), 'end_time' : e.get('@timestamp'), 'start_millis' : s.start_millis, 'end_millis' : e.start_millis, 'duration' : e.start_millis - s.start_millis, 'end_uid' : e.uid, 'start_uid' : s.uid,'parent_key' : s.parent_key, 'child_key' : s.child_key ]; recs.add(r) } else { i = i+1 }} else { guard = false }}} return ['_doc': recs]; "
+        "script": "ArrayList recs = new ArrayList(); def starts = ctx.payload.matching.hits.hits; for (h in ctx.payload.unmatched.hits.hits) { def e = h._source; boolean guard = true; int i = 0; while ( guard ) { if ( i < starts.length) { def s = starts[i]._source; if ( e.start_event_uid == s.event_uid) { guard = false; Map r = [ '@timestamp': s.get('@timestamp'), 'realm' : e.realm, 'class' : e.class, 'serviceName' : s.service_name, 'traceID' : s.trace_id, 'parentID' : s.trace_parent_id, 'startTime' : s.get('@timestamp'), 'duration' : e.start_millis - s.start_millis, 'start_time': s.get('@timestamp'), 'end_time' : e.get('@timestamp'), 'start_millis' : s.start_millis, 'end_millis' : e.start_millis, 'end_event_id' : e.event_id, 'start_event_id' : s.event_id ]; recs.add(r) } else { i = i+1 } } else { guard = false } } } return ['_doc': recs];"
       },
-      "index": {"index": "data-pipeline-ds", "op_type": "create"}
+      "index": {"index": "batch-traces", "op_type": "create"}
     },
     "update-ends": {
       "transform": {
         "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.unmatched_ends.hits.hits) {def e = h._source; e.remove('start_end'); e.matched = true; e._id = h._id; recs.add(e)} return ['_doc': recs]; "
       },
-      "index": {"index": "batch-active-index", "op_type": "index"}
+      "index": {"index": "batch-events", "op_type": "index"}
     },
     "update-starts": {
       "transform": {
         "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.starts.hits.hits) {def e = h._source; e.put('matched', true); e.put('_id', h._id); recs.add(e)} return ['_doc': recs]; "
       },
-      "index": {"index": "batch-active-index", "op_type": "index"}
+      "index": {"index": "batch-events", "op_type": "index"}
     }
   }
 }

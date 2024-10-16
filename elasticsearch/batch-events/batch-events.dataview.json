@@ -2,26 +2,29 @@
   "override": true,
   "refresh_fields" : true,
   "data_view": {
-    "title": "batch-active-index",
-    "id": "batch-active-index",
-    "name": "Batch Active",
+    "title": "batch-events",
+    "id": "batch-events",
+    "name": "Batch Events",
     "allowNoIndex" : true,
     "fieldAttrs": {
       "@timestamp": {"customLabel": "Timestamp"},
       "realm": {"customLabel": "Realm"},
-      "batch_class": {"customLabel": "Batch Operation Class"},
+      "class": {"customLabel": "Batch Operation Class"},
       "event_kind": {"customLabel": "Event Kind"},
-      "event_name": {"customLabel": "Event Name"},
-      "event_id": {"customLabel": "Event ID"},
-      "event_kind": {"customLabel": "Event Kind"},
+      "service_name": {"customLabel": "Event Name"},
+      "service_id": {"customLabel": "Event ID"},
       "matched": {"customLabel": "Matched?"},
+      "event_id": {"customLabel": "Event ID"},
+      "parent_id": {"customLabel": "Parent ID"},
       "log_timestamp": {"customLabel": "Filebeat Timestamp"},
       "start_millis": {"customLabel": "Start Time (millis)"},
       "duration": {"customLabel": "Duration"},
-      "uid": {"customLabel": "UID"},
-      "start_uid": {"customLabel": "Start Event UID"},
-      "parent_key": {"customLabel": "Parent Key"},
-      "child_key": {"customLabel": "Child Key"}
+      "event_uid": {"customLabel": "Event UID"},
+      "start_event_uid": {"customLabel": "Start Event UID"},
+      "trace_parent_uid": {"customLabel": "Trace Parent UID"},
+      "trace_parent_id": {"customLabel": "Trace Parent ID"},
+      "trace_uid": {"customLabel": "Trace UID"},
+      "trace_id": {"customLabel": "Trace ID"}
     },
     "fieldFormats": {
       "start_time": {
@@ -33,7 +36,6 @@
         "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
       },
       "start_millis": {"id": "number", "params": {"pattern": "0,0"}},
-      "end_millis": {"id": "number"},
       "duration": {"id": "number", "params": {"pattern": "0,0"}}
     }
   }

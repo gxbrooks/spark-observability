@@ -3,7 +3,7 @@
   "input": {
     "search": {
       "request": {
-        "indices": ["batch-active-index"],
+        "indices": ["batch-events"],
         "body": {
           "size": 500,
           "query": {
@@ -29,21 +29,21 @@
   "actions": {
     "add-matches": {
       "transform": {
-        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) { def e = h._source; def s = h.inner_hits.start.hits.hits[0]._source; Map r = [ '@timestamp': s.get('@timestamp'), 'realm' : e.realm, 'class': e.batch_class, 'name' : s.event_name, 'id': s.event_id, 'start_time': s.get('@timestamp'), 'end_time': e.get('@timestamp'), 'start_millis': s.start_millis, 'end_millis' : e.start_millis, 'duration': e.start_millis - s.start_millis, 'end_uid': e.uid, 'start_uid' : s.uid, 'parent_key': s.parent_key,'child_key': s.child_key]; recs.add(r); } return ['_doc': recs];"
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) { def e = h._source; def s = h.inner_hits.start.hits.hits[0]._source; Map r = [ '@timestamp': s.get('@timestamp'), 'realm' : e.realm, 'class': e.class, 'name' : s.service_name, 'id': s.service_id, 'start_time': s.get('@timestamp'), 'end_time': e.get('@timestamp'), 'start_millis': s.start_millis, 'end_millis' : e.start_millis, 'duration': e.start_millis - s.start_millis, 'end_event_id': e.event_uid, 'start_event_uid' : s.event_uid, 'trace_parent_id': s.trace_parent_id,'trace_uid': s.trace_uid]; recs.add(r); } return ['_doc': recs];"
       },
-      "index": {"index": "data-pipeline-ds", "op_type": "create"}
+      "index": {"index": "batch-traces", "op_type": "create"}
     },
     "update-ends": {
       "transform": {
-        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def e = h._source; e.put('matched', true); e.remove('start_end'); e._id = h._id; recs.add(e)} return ['_doc': recs]; "
+        "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def e = h._source; e.put('matched', true); e._routing = e.start_end.parent; e._id = h._id; recs.add(e)} return ['_doc': recs]; "
       },
-      "index": {"index": "batch-active-index", "op_type": "index"}
+      "index": {"index": "batch-events", "op_type": "index"}
     },
     "update-starts": {
       "transform": {
         "script": "ArrayList recs = new ArrayList(); for (h in ctx.payload.hits.hits) {def sh = h.inner_hits.start.hits.hits[0]; def s = sh._source; s._id = sh._id; s.matched = true; recs.add(s); } return ['_doc': recs]; "
       },
-      "index": {"index": "batch-active-index", "op_type": "index"}
+      "index": {"index": "batch-events", "op_type": "index"}
     }
   }
 }
