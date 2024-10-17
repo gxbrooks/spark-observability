@@ -12,6 +12,7 @@
     "mappings": {
       "properties": {
         "@timestamp": {"type": "date"},
+        "startTime": {"type": "date"},
         "realm": {"type": "keyword"},
         "class": {"type": "keyword"},
         "serviceName": {"type": "keyword"},
@@ -22,8 +23,8 @@
         "start_millis": {"type": "long"},
         "end_millis": {"type": "long"},
         "duration": {"type": "long"},
-        "start_id": {"type": "keyword"},
-        "end_id": {"type": "keyword"}
+        "start_event_id": {"type": "keyword"},
+        "end_event_id": {"type": "keyword"}
       }
     }
   }

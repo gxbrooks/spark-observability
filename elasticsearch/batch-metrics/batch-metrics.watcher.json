@@ -3,7 +3,7 @@
   "input": {
     "search": {
       "request": {
-        "indices": ["batch-events"],
+        "indices": ["batch-events-*"],
         "body": {
           "size": 0,
           "query": {
@@ -19,7 +19,7 @@
               "terms": {"field": "realm"},
               "aggs": {
                 "by_class": {
-                  "terms": {"field": "batch_class"},
+                  "terms": {"field": "class"},
                   "aggs": {"_doc": {"value_count": {"field": "event_id"}}}
                 }
               }
