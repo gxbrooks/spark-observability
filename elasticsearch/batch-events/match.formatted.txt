@@ -16,6 +16,8 @@ for (h in ctx.payload.unmatched.hits.hits) {
 				guard = false; 
 				Map r = [  
 					'@timestamp': s.get('@timestamp'), 
+					'startTime': s.get('@timestamp'),
+					'_id' : s.trace_id,
 					'realm' : e.realm, 
 					'class' : e.class, 
 					'serviceName' : s.service_name,
@@ -47,6 +49,7 @@ return ['_doc': recs];
 #
 # match-join.watcher.json
 
+# Eventually should add the parent-child relationship in elastic.
 
 ArrayList recs = new ArrayList(); 
 for (h in ctx.payload.hits.hits) { 
@@ -54,6 +57,8 @@ for (h in ctx.payload.hits.hits) {
 	def s = h.inner_hits.start.hits.hits[0]._source;
 	Map r = [ 
 		'@timestamp': s.get('@timestamp'), 
+		'startTime': s.get('@timestamp'), 
+		'_id' : s.trace_id,
 		'realm' : e.realm, 
 		'class' : e.class, 
 		'serviceName' : s.service_name,
@@ -71,5 +76,3 @@ for (h in ctx.payload.hits.hits) {
 	recs.add(r);
 }	
 return ['_doc': recs];
-
-.result.input.payload.hits.hits
