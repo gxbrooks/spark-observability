@@ -1,4 +1,4 @@
-FROM python:3.10-bullseye as spark-base
+FROM python:3.10-bullseye AS spark-base
 
 ARG SPARK_VERSION=3.5.1
 
@@ -30,9 +30,8 @@ RUN curl https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SP
  && tar xvzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
  && rm -rf spark-${SPARK_VERSION}-bin-hadoop3.tgz
 
-
-FROM spark-base as pyspark
-
+FROM spark-base AS pyspark
+ 
 # Install python deps
 COPY requirements/requirements.txt .
 RUN pip3 install -r requirements.txt
@@ -46,6 +45,7 @@ ENV PYSPARK_PYTHON python3
 
 # Copy the default configurations into $SPARK_HOME/conf
 COPY conf/spark-defaults.conf "$SPARK_HOME/conf"
+#COPY conf/log4j2.properties "$SPARK_HOME/conf"
 
 RUN chmod u+x /opt/spark/sbin/* && \
     chmod u+x /opt/spark/bin/*
