@@ -1,27 +1,8 @@
-###################### Agent Configuration Example #########################
+###################### Agent Configuration for Spark implementations #########################
+# 
+#
 
-# This file is an example configuration file highlighting only the most common
-# options. The elastic-agent.reference.yml file from the same directory contains all the
-# supported options with more comments. You can use it as a reference.
 
-######################################
-# Fleet configuration
-######################################
-outputs:
-  default:
-    type: elasticsearch
-    hosts: ["https://es01:9200"]
-    username: "elastic"
-    password: "changeme"
-    ssl:
-      certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
-      verification_mode: full
-    # api_key: "example-key"
-    # preset: balanced  
-# Spark outputs for events
-  spark-events:
-    type: logstash
-    hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
 
 # Here you can configure your list of inputs. You can either configure all the inputs as a list of arrays
 # or create an "inputs.d" directory containing your input configurations.
@@ -89,10 +70,158 @@ inputs:
         data_stream.dataset: docker.network
         hosts: ["unix:///var/run/docker.sock"]
         period: 10s
-
+  # For Spark Events which need to go through Logstash
+  - id: spark-events
+    type: filestream
+    use_output: "spark_events"
+    streams:
+      - id: spark-events-json-stream
+        data_stream:
+          dataset: spark
+          namespace: spark
+        paths:
+          - /opt/spark/spark-events/app-*
+  - id: spark-app-logs
+    type: filestream    
+    use_output: "default"
+    enabled: true
+    paths:
+      - /opt/spark/logs/spark.log
+    tags: ["spark-app"]
+    data_stream:
+      dataset: spark_app
+      namespace: default
+    ignore_older: 24h
+  - id: spark-gc
+    type: filestream
+    use_output: default
+    enabled: true
+    paths:
+      # Spark GC log rotation is specified in $SPARK_HOME/conf/spark-defaults.conf
+      # It's a little funky as the base filename is *.log and the rotated files have a 
+      # .<digit> added to the base filename
+      - /opt/spark/logs/executor.gc.log
+      - /opt/spark/logs/executor.gc.log.*
+    tags: ["spark-gc"]
+    data_stream:
+      dataset: spark_gc
+      namespace: default
+    processors:
+      - dissect:
+          # Apparently the GC fields come out in a specific order and not the order of the GC flags
+          # Even if the field order is specified as "utctime,uptime,level,tags,hostname,pid,tid", they still come out in the
+          # order below. 
+          tokenizer: "[%{log_timestamp}][%{uptime|float}s][%{hostname}][%{pid|integer}][%{tid|integer}][%{level}][%{tags}] GC(%{cycle}) %{message}"
+          field: message 
+          target_prefix: gc
+          # mainly for gc tags values
+          # for whatever reason trim_values is not timing the gc tags field
+          trim_values: 'all'
+      # the drop_fields is necessary in order to avoid the "Failed to copy fields in copy_fields processor" 
+      # One shouldn't have to do that
+      - drop_fields: 
+          fields: ["gc.ingest_time"]
+      - copy_fields:
+          fields:
+            - from: "@timestamp"
+              to: "gc.ingest_time"
+      - timestamp:
+          field: gc.log_timestamp
+          # target_field: gc.parsed_timestamp
+          layouts:
+            - '2006-01-02T15:04:05.999-0700'
+          test:
+            - '2025-01-07T16:24:15.331+0000'
+      # the following disects can be made more efficient and prices. 
+      # also need to look at what other metrics are indicators of poor GC performance
+      # for now we focuse on heap size and reclamation and pause times. 
+      # missing full gcs     
+      # To start with, we focuse only on gc info messages. Of those, for now we only 
+      # consider pause times in garbage collections. 
+      #   Pause Young (Concurrent Start) (G1 Humongous Allocation)
+      #   Pause Remark 495M->495M(880M) 4.284ms
+      #   Pause Cleanup 660M->660M(880M) 0.511ms
+      # we skip lines with  Concurrent Cycle and its childres
+      # we also have to avoid any gc lines that have a tag of "start" or any other tags
+      - if:
+          # for some reason equals: gc.tags: 'gc            ' doesn't work
+          # we construct the regex so that it works in case trim_values starts working
+          regexp:
+            gc.tags: "^gc *$"
+        then:
+          - dissect:
+              field: gc.message
+              target_prefix: gc
+              tokenizer: "%{first} %{rest_first}"
+              ignore_failure: true       
+          - if:
+              equals: 
+                gc.first: "Pause"
+            then: 
+              - dissect:
+                  field: gc.rest_first
+                  target_prefix: gc.paused
+                  tokenizer: "%{type} %{type_rest}"
+              - if:
+                  equals: 
+                    gc.paused.type: "Young"
+                then:
+                  - dissect:
+                      field: gc.paused.type_rest
+                      target_prefix: gc.paused
+                      #"type_rest": "(Normal) (G1 Evacuation Pause) 1161M->765M(1721M) 2.122ms",
+                      tokenizer: "(%{kind}) (%{reason}) %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+                else:
+                  - if:
+                      or:
+                        # process "Remark" and "Cleanup" GCs but not Concurrent
+                        - equals: 
+                            gc.paused.type: "Remark"
+                        - equals:
+                            gc.paused.type: "Cleanup"
+                    then:
+                      - dissect:
+                          field: gc.paused.type_rest
+                          target_prefix: gc.paused
+                          #gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
+                          tokenizer: "%%{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+              - drop_fields:
+                  fields: ["gc.paused.type_rest"]
+          # For some reason this drop_fields is not dropping the fields.
+          - drop_fields:
+              fields: 
+                - gc.first
+                - "gc.rest_first"
+                
+          
 providers:
 # Docker provides inventory information from Docker.
   docker:
     enabled: true
     host: "unix:///var/run/docker.sock"
     cleanup_timeout: 60
+    
+    
+outputs:
+  default:
+    type: elasticsearch
+    hosts: ["https://es01:9200"]
+    username: "elastic"
+    password: "myElastic2025"
+    ssl:
+      certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
+      verification_mode: full
+    # api_key: "example-key"
+    # preset: balanced  
+# Spark outputs for events
+  spark_events:
+    type: logstash
+    hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
+
+#####################################################
+#
+# logging
+agent.logging.level: debug
+agent.logging.to_files: true
+
+ 
