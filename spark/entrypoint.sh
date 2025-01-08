@@ -2,9 +2,12 @@
 
 SPARK_WORKLOAD=$1
 
-echo "Starting Elastic Agent in background"
+echo "Starting Elastic Agent"
+# "elastic-agent run" will not start a new agent if one is already running
+/usr/bin/elastic-agent run > /opt/Elastic/Agent/data/elastic-agent-8.15.0-25075f/logs/console.log 2>&1 &
 
-/usr/bin/elastic-agent run &
+
+# need to wrap Spark entrypoint.sh instead of copying it in
 
 echo "SPARK_WORKLOAD: $SPARK_WORKLOAD"
 

@@ -287,7 +287,8 @@ services:
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
       - spark-logs:/opt/spark/spark-events
       # - ./spark-events:/opt/spark/spark-events
-      - ./elastic-agent/elastic-agent-master.yml:/opt/Elastic/Agent/elastic-agent.yml
+      # - ./elastic-agent/elastic-agent-master.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - ./elastic-agent/elastic-agent.yml:/opt/Elastic/Agent/elastic-agent.yml
       - ./certs:/opt/Elastic/certs
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
@@ -302,7 +303,7 @@ services:
       - '9090:8080'
       - '7077:7077'
 
-  spark-history-server:
+  spark-history:
     container_name: da-spark-history
     image: da-spark-image
     entrypoint: ['./entrypoint.sh', 'history']
@@ -325,11 +326,12 @@ services:
     volumes:
       - spark-logs:/opt/spark/spark-events
       # - ./spark-events:/opt/spark/spark-events
-      - ./elastic-agent/elastic-agent-history.yml:/opt/Elastic/Agent/elastic-agent.yml
       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
       - ./certs:/opt/Elastic/certs
+      # - ./elastic-agent/elastic-agent-history.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - ./elastic-agent/elastic-agent.yml:/opt/Elastic/Agent/elastic-agent.yml
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:
@@ -358,7 +360,11 @@ services:
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
       - spark-logs:/opt/spark/spark-events
       # - ./spark-events:/opt/spark/spark-events
-      - ./elastic-agent/elastic-agent-worker.yml:/opt/Elastic/Agent/elastic-agent.yml
+      # - ./elastic-agent/elastic-agent-worker.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - ./elastic-agent/elastic-agent.yml:/opt/Elastic/Agent/elastic-agent.yml
       - ./certs:/opt/Elastic/certs
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    ports:
+      - '8081:8081'
+      
