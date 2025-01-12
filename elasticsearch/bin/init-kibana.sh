@@ -38,6 +38,15 @@ kapi POST /api/data_views/data_view elasticsearch/batch-traces/batch-traces.data
   > elasticsearch/outputs/batch-traces.dataview.out.json
 kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true elasticsearch/batch-traces/batch-traces.search.json
 
+# Spark GC views
+kapi POST /api/data_views/data_view elasticsearch/spark-gc/spark-gc.dataview.json \
+ > elasticsearch/outputs/spark-gc.dataview.out.json
+# strict dynamic mapping is preventing filter string in search.
+#   "filters": [{"query": {"match_phrase": {"gc.stats": "paused"}}}],
+kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true elasticsearch/spark-gc/spark-gc.search.json \
+  > elasticsearch/outputs/spark-gc.search.out.json
+
+
 
 
 

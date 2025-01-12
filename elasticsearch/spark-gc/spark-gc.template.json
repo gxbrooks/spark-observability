@@ -1,0 +1,37 @@
+{
+  "index_patterns": ["logs-sparc_gc-default"],
+  "data_stream": {},
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "spark-gc",
+      "index.lifecycle.rollover_alias": "spark-gc-alias"
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "gc.cycle": {"type": "long"},
+        "gc.pid": {"type": "long"},
+        "gc.tid": {"type": "long"},
+        "gc.paused.type": {"type": "keyword"},
+        "gc.paused.kind": {"type": "keyword"},
+        "gc.paused.before": {"type": "long"},
+        "gc.paused.after": {"type": "long"},
+        "gc.paused.heapsize": {"type": "long"},
+        "gc.paused.millis": {"type": "long"},
+        "gc.paused.reclaimed": {"type": "long"},
+        "gc.stats": {"type": "keyword"},
+        "gc.level": {"type": "keyword"},
+        "gc.tags": {"type": "keyword"},
+        "gc.uptime": {"type": "float"},
+        "gc.message": {"type": "text"},
+        "gc.hostname": {"type": "keyword"},
+        "gc.log_timestamp": {"type": "date"},
+        "gc.ingest_time": {"type": "date"}
+      }
+    }
+  }
+}
