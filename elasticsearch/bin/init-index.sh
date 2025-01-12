@@ -46,3 +46,8 @@ rapi PUT /_index_template/batch-metrics-ds elasticsearch/batch-metrics/batch-met
 rapi PUT /_data_stream/batch-metrics-ds
 rapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metrics.watcher.json
 
+# Spark gc logs
+rapi PUT /_ilm/policy/spark-gc elasticsearch/spark-gc/spark-gc.ilm.json > elasticsearch/outputs/spark-gc.ilm.out.json
+rapi PUT /_index_template/spark-gc-ds elasticsearch/spark-gc/spark-gc.template.json 
+
+

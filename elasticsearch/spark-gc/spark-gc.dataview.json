@@ -1,0 +1,39 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "logs-spark_gc-default",
+    "id": "spark-gc-dv",
+    "name": "Spark GCC",
+    "allowNoIndex": true,
+    "fields": {
+      "@timestamp": {"name": "@timestamp", "customLabel": "GC Timestamp"},
+      "gc.cycle": {"name": "gc.cycle", "customLabel": "GC Cycle"},
+      "gc.pid": {"name": "gc.pid", "customLabel": "PID"},
+      "gc.tid": {"name": "gc.tid", "customLabel": "TID"},
+      "gc.paused.type": {"name": "gc.paused.type", "customLabel": "GC Type"},
+      "gc.paused.kind": {"name": "gc.paused.kind", "customLabel": "GC Kind"},
+      "gc.paused.before": {
+        "name": "gc.paused.before",
+        "customLabel": "Heap Space Before (KB)"
+      },
+      "gc.paused.after": {
+        "name": "gc.paused.after",
+        "customLabel": "Heap Space After (KB)"
+      },
+      "gc.paused.heapsize": {
+        "name": "gc.paused.heapsize",
+        "customLabel": "Total Heap Size (KB)"
+      },
+      "gc.paused.millis": {
+        "name": "gc.paused.millis",
+        "customLabel": "Paused Time (ms)"
+      },
+      "gc.paused.reclaimed": {
+        "name": "gc.paused.reclaimed",
+        "customLabel": "Heap Space Reclaimed (KB)"
+      }
+    },
+    "sourceFilters": []
+  }
+}

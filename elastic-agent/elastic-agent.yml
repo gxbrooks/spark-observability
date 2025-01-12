@@ -171,6 +171,10 @@ inputs:
                       target_prefix: gc.paused
                       #"type_rest": "(Normal) (G1 Evacuation Pause) 1161M->765M(1721M) 2.122ms",
                       tokenizer: "(%{kind}) (%{reason}) %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+                  - add_fields:
+                      target: gc
+                      fields: 
+                        stats: "paused"
                 else:
                   - if:
                       or:
@@ -184,13 +188,30 @@ inputs:
                           field: gc.paused.type_rest
                           target_prefix: gc.paused
                           #gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
-                          tokenizer: "%%{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+                          tokenizer: "%{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+                      - add_fields:
+                          target: gc
+                          fields: 
+                            stats: "paused"
+              - if:
+                  equals:
+                    gc.stats: "paused"
+                then:
+                  - script:
+                      lang: javascript
+                      source: |
+                        function process(event) {
+                          var before = event.Get("gc.paused.before");
+                          var after = event.Get("gc.paused.after");
+                          event.Put("gc.paused.reclaimed", Number(before) - Number(after));
+                          return event;
+                        }
               - drop_fields:
                   fields: ["gc.paused.type_rest"]
           # For some reason this drop_fields is not dropping the fields.
           - drop_fields:
               fields: 
-                - gc.first
+                - "gc.first"
                 - "gc.rest_first"
                 
           

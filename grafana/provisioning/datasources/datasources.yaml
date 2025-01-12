@@ -13,7 +13,9 @@ datasources:
       esVersion: ${STACK_VERSION}
       timeField: "@timestamp"
       timeout: 300
+      # need to implement TLS
       tlsSkipVerify: true
       maxConcurrentShardRequests: 5
     secureJsonData:
-      basicAuthPassword: changeme
+      # password needs to be parametized and secured
+      basicAuthPassword: myElastic2025
