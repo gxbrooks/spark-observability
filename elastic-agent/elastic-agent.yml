@@ -227,6 +227,7 @@ outputs:
   default:
     type: elasticsearch
     hosts: ["https://es01:9200"]
+    # TODO: Move to API keys = https://www.elastic.co/guide/en/fleet/current/grant-access-to-elasticsearch.html
     username: "elastic"
     password: "myElastic2025"
     ssl:

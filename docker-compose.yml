@@ -269,9 +269,22 @@ services:
  
   spark-master:
     container_name: da-spark-master
-    build: ./spark
+    build: 
+      context: ./spark
+      dockerfile: Dockerfile
+      args:
+        SPARK_VERSION: ${SPARK_VERSION}
+        SPARK_MASTER: ${SPARK_MASTER}
+        SPARK_HOME: ${SPARK_HOME}
+        SPARK_MASTER_HOST: ${SPARK_MASTER_HOST}
+        SPARK_MASTER_PORT: ${SPARK_MASTER_PORT}
+        HADOOP_HOME: ${HADOOP_HOME}
+        PYSPARK_PYTHON: ${PYSPARK_PYTHON}
+        ELASTIC_AGENT_BASE: ${ELASTIC_AGENT_BASE}
+        ELASTIC_AGENT_STACK_VERSION: ${ELASTIC_AGENT_STACK_VERSION}
+      
     image: da-spark-image
-    entrypoint: ['./entrypoint.sh', 'master']
+    entrypoint: ["./entrypoint.sh", 'master']
     labels:
       role: "Spark Master"
     healthcheck:
@@ -286,13 +299,14 @@ services:
       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-      - ./elastic-agent/elastic-agent.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
       - ./certs:/opt/Elastic/certs
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     env_file:
-      - spark/.env.spark
       - .env
+      - .spark.env
     depends_on:
       # for sending metrics to Elastic
       es01:
@@ -304,7 +318,7 @@ services:
   spark-history:
     container_name: da-spark-history
     image: da-spark-image
-    entrypoint: ['./entrypoint.sh', 'history']
+    entrypoint: ["./entrypoint.sh", 'history']
     labels:
       role: "Spark Historian"
     depends_on:
@@ -319,7 +333,7 @@ services:
       init-index:
         condition: service_completed_successfully
     env_file:
-      - spark/.env.spark
+      - .spark.env
       - .env
     volumes:
       - spark-logs:/opt/spark/spark-events
@@ -328,7 +342,8 @@ services:
       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-      - ./elastic-agent/elastic-agent.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
       - ./certs:/opt/Elastic/certs
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
@@ -338,7 +353,7 @@ services:
   spark-worker:
 #    container_name: da-spark-worker
     image: da-spark-image
-    entrypoint: ['./entrypoint.sh', 'worker']
+    entrypoint: ["./entrypoint.sh", 'worker']
     labels:
       role: "Spark Worker"
     depends_on:
@@ -348,7 +363,7 @@ services:
       es01:
         condition: service_healthy
     env_file:
-      - spark/.env.spark
+      - .spark.env
       - .env
     volumes:
       - spark-logs:/opt/spark/spark-events
@@ -357,7 +372,8 @@ services:
       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-      - ./elastic-agent/elastic-agent.yml:/opt/Elastic/Agent/elastic-agent.yml
+      - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
       - ./certs:/opt/Elastic/certs
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
