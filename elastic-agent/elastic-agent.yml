@@ -229,7 +229,7 @@ outputs:
     hosts: ["https://es01:9200"]
     # TODO: Move to API keys = https://www.elastic.co/guide/en/fleet/current/grant-access-to-elasticsearch.html
     username: "elastic"
-    password: "myElastic2025"
+    password: "${ELASTIC_PASSWORD}"
     ssl:
       certificate_authorities: ["/opt/Elastic/certs/ca/ca.crt"]
       verification_mode: full

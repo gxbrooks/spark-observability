@@ -9,6 +9,9 @@ datasources:
     basicAuth: true
     basicAuthUser: elastic
     isDefault: false
+    # make UID constant across each instance of a Grafana container
+    # Needed for the dashboards that use the data source to load
+    uid: spark-elasticsearch
     jsonData:
       esVersion: ${STACK_VERSION}
       timeField: "@timestamp"
@@ -18,4 +21,4 @@ datasources:
       maxConcurrentShardRequests: 5
     secureJsonData:
       # password needs to be parametized and secured
-      basicAuthPassword: myElastic2025
+      basicAuthPassword: ${ELASTIC_PASSWORD}
