@@ -6,7 +6,7 @@
 
 
 # this is the Spark on Elastic utility bin director and not Elasticsearch's bin directory
-PATH="/usr/share/elasticsearch/elasticsearch/bin:${PATH}"
+PATH="/opt/shared/bin:${PATH}"
 
 # Kibana availability is enforced via depenencies in the docker-compose file.
 

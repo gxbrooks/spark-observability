@@ -6,7 +6,7 @@
 # curl --no-progress-meter -X PUT "https://es01:9200/_index_template/spark-template" --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" -d "@elasticsearch/cannot-merge-a-non-object-mapping-with-an-object-mapping.json"
 
 # this is the Spark on Elastic utility bin director and not Elasticsearch's bin directory
-PATH="/usr/share/elasticsearch/elasticsearch/bin:${PATH}"
+PATH="/opt/shared/bin:${PATH}"
 
 echo "Waiting for Elasticsearch availability";
 # This readiness test was from the original 
