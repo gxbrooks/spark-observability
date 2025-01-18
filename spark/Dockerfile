@@ -23,8 +23,8 @@ ENV PATH="${SPARK_HOME}/sbin:${SPARK_HOME}/bin:${PATH}"
 
 
 # Install tools required by the OS
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update  \
+    && apt-get install -y --no-install-recommends \
       sudo \
       curl \
       vim \
@@ -33,9 +33,10 @@ RUN apt-get update && \
       openjdk-11-jdk \
       build-essential \
       software-properties-common \
-      ssh && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+      ssh \
+	  ipython3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 
 # Setup the directories for our Spark and Hadoop installations
