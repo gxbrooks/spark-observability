@@ -82,7 +82,8 @@ services:
       # For using Watcher as an HTTPS client
       - xpack.http.ssl.certificate_authorities=["/usr/share/elasticsearch/config/certs/ca/ca.crt"]
       # https://handlers.sans.edu/gbruneau/elk/TLS_elasticsearch_configuration.pdf
-    mem_limit: ${ES_MEM_LIMIT}
+    # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...
+    # mem_limit: ${ES_MEM_LIMIT}
     ulimits:
       memlock:
         soft: -1
