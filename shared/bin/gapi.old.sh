@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 
-# RAPI = Run (Elastic) API
+# esapi = Run (Elastic) API
 
 # To run:
-#   rapi <method> <url_path> [ <body> ]
+#   esapi <method> <url_path> [ <body> ]
 #
 # This somewhat mimics the syntax of typical examples that specify the HTTP request and optional JSON 
 # body for the request.
@@ -21,18 +21,18 @@ body=$3
 # TODO
 # - check  for docker login
 
-if [ "$method" == "" ] || [ "$url_path" == "" ]
+if [ "$method" == "" ] || [ "${url_path}" == "" ]
 then 
   echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | both the method and url_path path must be supplied"  >&2 
   echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Method=$method" >&2 
-  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | URL Path=$url_path" >&2 
+  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | URL Path=${url_path}" >&2 
   exit 1
 fi
 
 
 if [[ "${url_path:0:1}" != "/" ]]; 
 then
-  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | The URL path '$url_path' must begin with a '/'"  >&2 
+  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | The URL path '${url_path}' must begin with a '/'"  >&2 
   exit 1
 fi
 
@@ -44,55 +44,62 @@ fi
 
 if [ "$method" == "PUT" ]
 then
-  if ! [ -f $body ] ;  then 
-    echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | PUT body must be a file that exists. \"$body\" does not exist" >&2 
+  if ! [ -f ${body} ] ;  then 
+    echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | PUT body must be a file that exists. \"${body}\" does not exist" >&2 
     exit 1
   else
-    body_line="--data-binary @$body"
+    body_line="--data-binary @/etc/${body}"
+	echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Executing $method on ${url_path} with body '/etc/${body}'" >&2 
   fi
 else 
   # for GET and POST bodies are optional - even GETs
-  if [ "$body" == "" ]; then
+  if [ "${body}" == "" ]; then
     body_line=""
+	echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Executing $method on ${url_path}" >&2 
   else 
-    if ! [ -f $body ] ;  then 
-      echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | GET or POST body must be a file that exists. \"$body\" does not exist"  >&2 
+    if ! [ -f ${body} ] ;  then 
+      echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | GET or POST body must be a file that exists. \"${body}\" does not exist"  >&2 
       exit 1 
     else
-      body_line="--data-binary @$body"
+      body_line="--data-binary @/etc/${body}"
+	  echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Executing $method on ${url_path} with body '/etc/${body}'" >&2 
     fi
   fi    
 fi
 
+echo body_line=${body_line} >&2
+
 if [ -f /usr/bin/docker ]; then
   . .env # source in environment variables, especiall passwords
-  command="docker compose exec -it es01 curl"
+  command="docker compose exec -it grafana curl"
 else
   command="curl"
 fi
 
+echo command=${command} >&2 
 
+url="http://localhost:3000${url_path}"
+echo url=$url >&2 
 
-echo `date -u +%Y-%m-%dT%H:%M:%S.%N` " | Executing $method on $url_path with body '$body'" >&2 
-
-if [ "$body_line" == "" ]
+if [ "${body}_line" == "" ]
 then
   # docker compose exec -it init-index curl 
-  result=$($command --write-out "%{http_code}"\
+  result=$($command #--write-out "%{http_code}"\
             --no-progress-meter \
-            --request $method "https://es01:9200$url_path" \
+            --request $method ${url} \
             --cacert config/certs/ca/ca.crt \
-            -u "elastic:${ELASTIC_PASSWORD}" 
+            -u "${GF_SECURITY_ADMIN_USER}:${GF_SECURITY_ADMIN_PASSWORD}" 
+            -H "Content-Type: application/json" \
           )
   status=$?
 else
   result=$($command \
             --no-progress-meter \
-            --request $method "https://es01:9200$url_path" \
+            --request $method ${url} \
             --cacert config/certs/ca/ca.crt \
-            -u "elastic:${ELASTIC_PASSWORD}" \
-            -H "Content-Type: application/json"\
-            $body_line \
+            -u "${GF_SECURITY_ADMIN_USER}:${GF_SECURITY_ADMIN_PASSWORD}" \
+            -H "Content-Type: application/json" \
+            ${body_line} \
           )
   status=$?
 fi
@@ -105,5 +112,3 @@ else
 fi
 echo $result
 exit $status
-
-

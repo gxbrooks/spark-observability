@@ -9,9 +9,9 @@ if [[ -f "/.dockerenv" ]]; then
     echo "PYTHONPATH not set in environment"
     exit 1
   fi
-  python3 ${PY_SCRIPTS}/api/kapi.py $@
+  python3 ${PY_SCRIPTS}/api/esapi.py $@
   exit $?
 else
-  docker compose exec es01 kapi $@
+  docker compose exec es01 esapi $@
   exit $?
 fi
