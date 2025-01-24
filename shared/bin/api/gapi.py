@@ -4,7 +4,6 @@ import sys
 import json
 
 import args
-import docker
 import api
 
 # NOT Debugged!!

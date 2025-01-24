@@ -2,7 +2,7 @@
 # From Chapter 2 Listing 2.20
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, split, explode, lower, regexp_extract, length, sum
+from pyspark.sql.functions  import col, split, explode, lower, regexp_extract, length, sum
 spark = SparkSession.builder.getOrCreate()
 
 books = [
@@ -126,7 +126,9 @@ import pyspark.sql.functions as F
 
 dir(F) #to list out the module
 
+
 # Listing 3.7 Removing intermediate variables by chaining transformation methods # Before
+# Before section of Listing3.7
 book = spark.read.text(books)
  
 lines = book.select(split(book.value, " ").alias("line"))
@@ -143,7 +145,7 @@ words_nonull = words_clean.where(col("word") != "")
  
 results = words_nonull.groupby("word").count()
  
-# After
+# After section of List 3.7
 import pyspark.sql.functions as F
  
 results = (
@@ -169,3 +171,172 @@ df = (
 
 # recommended formatter - not integrated with Notepad++
 # https://black.readthedocs.io/en/stable/
+
+
+#######################################################
+# Excercise 3.3
+
+# Part 1
+
+# If you need to read multiple text files, replace `1342-0` by `*`.
+results = (
+    spark.read.text("./data/gutenberg_books/*.txt")
+    .select(F.split(F.col("value"), " ").alias("line"))
+    .select(F.explode(F.col("line")).alias("word"))
+    .select(F.lower(F.col("word")).alias("word"))
+    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+    .groupby(F.col("word"))
+    .count()
+    .count()
+)
+
+print(results)
+
+all_results = (
+    spark.read.text("./data/gutenberg_books/*.txt")
+    .select(F.split(F.col("value"), " ").alias("line"))
+    .select(F.explode(F.col("line")).alias("word"))
+    .select(F.lower(F.col("word")).alias("word"))
+    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+    .groupby(F.col("word"))
+    .count()
+    .orderBy("count", ascending=False)
+)
+
+# verify answer is correct
+rows = all_results.collect()
+
+# part 2
+def countDistinctBookWords (dir):
+    
+    wordSpark = SparkSession.builder.appName(
+        "Counting word occurences from a book."
+        ).getOrCreate()
+    wordSpark.sparkContext.setLogLevel("WARN")
+    distinctWords = (
+        spark.read.text("./data/gutenberg_books/*.txt")
+        .select(F.split(F.col("value"), " ").alias("line"))
+        .select(F.explode(F.col("line")).alias("word"))
+        .select(F.lower(F.col("word")).alias("word"))
+        .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+        .where(F.col("word") != "")
+        .groupby(F.col("word"))
+        .count()
+        .collect())
+    print(f"Distinct words = {len(distinctWords)}")
+
+ countDistinctBookWords("./data/gutenberg_books/*.txt")
+
+
+######################################################
+# Excercise 3.4
+
+results = (
+    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    .select(F.split(F.col("value"), " ").alias("line"))
+    .select(F.explode(F.col("line")).alias("word"))
+    .select(F.lower(F.col("word")).alias("word"))
+    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+    .groupby(F.col("word"))
+    .count()
+    .where(F.col("count") == 1)
+    .select(F.col("word"))
+)
+
+results.show(5)
+
+######################################################
+# Excercise 3.5
+
+chars = (
+    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    .select(F.split(F.col("value"), " ").alias("line"))
+    .select(F.explode(F.col("line")).alias("word"))
+    .select(F.lower(F.col("word")).alias("word"))
+    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+    .select(F.substring(F.col("word"), 0, 1).alias("first_character"))
+    .groupby(F.col("first_character"))
+    .count()
+    .orderBy(F.col("count"), ascending=False)
+)
+
+chars = (
+    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    .select(F.split(F.col("value"), " ").alias("line"))
+    .select(F.explode(F.col("line")).alias("word"))
+    .select(F.lower(F.col("word")).alias("word"))
+    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+    .select(F.substring(F.col("word"), 1, 0).alias("first_character"))
+)
+
+######################################################
+# Excercise 3.6
+
+# essay questions why not .count().sum()
+#
+# count returns a dataframe and there is no shortcut function for sum aggregation
+
+sresults = (
+    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    .select(F.split(F.col("value"), " ").alias("line"))
+    .select(F.explode(F.col("line")).alias("word"))
+    .select(F.lower(F.col("word")).alias("word"))
+    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+    .groupby(F.col("word"))
+    .count()
+    .sum()
+)
+
+######################################################
+# Excercise self: Compare the word counts by file, sorting by the total number of words..
+
+
+# step 1: preprocess all the words
+df = (
+    spark.read.text("./data/gutenberg_books/*.txt")
+    .select(F.input_file_name().alias("filename"), F.col("value"))
+    .select(F.regexp_extract(F.col("filename"), r"([^/]+)$", 1).alias("basename"),
+        F.col("value"))
+    .select(F.col("basename"), F.split(F.col("value"), " ").alias("line"))
+    .select(F.col("basename"), F.explode(F.col("line")).alias("word"))
+    .select(F.col("basename"), F.lower(F.col("word")).alias("word"))
+    .select(F.col("basename"), F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
+    .where(F.col("word") != "")
+)
+
+# Step 2: generate an intermediate count by basename and file
+by_word_base_df = (
+    df
+    .groupBy(F.col("basename"), F.col("word"))
+    .agg(F.count("*").alias("word_count"))
+    )
+
+
+# Step 3: create columns for each basename 
+by_word_pivot_base_df = (
+    by_word_base_df
+    .groupBy(F.col("word"))
+    .pivot("basename")
+    .agg(F.sum(F.col("word_count")))
+    .fillna(0)
+    )
+
+# Step 3: create columns of each basename with the word counts
+by_word_df = (
+    by_word_base_df
+    .groupBy(F.col("word"))
+    .agg(F.sum(F.col("word_count")).alias("total"))
+    )
+
+# step 4: Merge in word counts by file and the total word counts into one df
+merged_df = (
+    by_word_df
+    .join(by_word_pivot_base_df, on=F.col("word"), how="left")
+    .orderBy(F.col("total"), ascending=False)
+    )
