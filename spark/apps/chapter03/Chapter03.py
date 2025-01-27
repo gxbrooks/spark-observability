@@ -94,7 +94,7 @@ from pyspark.sql.functions import (
     regexp_extract,
     split,
 )
- 
+spark.stop()
 spark = SparkSession.builder.appName(
     "Analyzing the vocabulary of Pride and Prejudice."
 ).getOrCreate()
@@ -226,8 +226,9 @@ def countDistinctBookWords (dir):
         .count()
         .collect())
     print(f"Distinct words = {len(distinctWords)}")
+    wordSpark.stop()
 
- countDistinctBookWords("./data/gutenberg_books/*.txt")
+countDistinctBookWords("./data/gutenberg_books/*.txt")
 
 
 ######################################################
@@ -340,3 +341,5 @@ merged_df = (
     .join(by_word_pivot_base_df, on=F.col("word"), how="left")
     .orderBy(F.col("total"), ascending=False)
     )
+
+spark.stop()
