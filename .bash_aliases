@@ -20,6 +20,10 @@ alias dcr='docker compose restart '
 alias dclog="docker compose logs "
 alias dccp="docker compose cp "
 
+alias dcipython='docker compose exec \
+	-e PYSPARK_DRIVER_PYTHON=ipython spark-master \
+	pyspark --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0'
+
 alias esapi="docker compose exec -it es01 esapi"
 alias kapi="docker compose exec -it es01 kapi"
 
