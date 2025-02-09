@@ -4,6 +4,7 @@ from functools import reduce
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 import pandas as pd
+from pyspark.sql.window import Window 
  
 spark = SparkSession.builder.appName(
     "Ch09 - Using UDFs"
@@ -639,25 +640,193 @@ each_year = Window.partitionBy("year")
     .show()
  )
 
+(
+    gsod
+    .withColumn("max_temp", F.max("temp").over(each_year))
+    .where("temp = max_temp")
+    .select("year", "mo", "da", "stn", "temp")
+    .orderBy("year", "mo", "da")
+    .show()
+ )
+# not clear on what the avergage should range over
+(
+    gsod
+    .withColumn("max_temp", F.max("temp").over(each_year))
+    .where("temp = max_temp")
+    .select("year", "mo", "da", "stn", "temp")
+    .groupBy(F.col("year"), F.col("mo"), F.col("da"), F.col("stn") )
+    .agg(F.avg("temp"))
+    .orderBy("year", "mo", "da")
+    .show()
+ )
+
+# It is odd that the highest temp was 110.0 across all the years
+
+#########################################################################################
+#
+# Exercise 10.5 
+# How would you create a rank that is full, meaning that each record within a the 
+# temp_per_month_asc has a unique rank, using the gsod_light data frame? For records
+# with an identical orderBy() value, the order of rank does not matter. 
+
+temp_per_month_asc = Window.partitionBy("mo").orderBy("count_temp")
+ 
+# gsod_light = spark.read.parquet("./data/window/gsod_light.parquet")
+gsod_light_book = spark.read.parquet("./data/gsod_light.parquet")
+gsod_light_book.withColumn(
+    "rank_tpm", F.rank().over(temp_per_month_asc)  #❶
+).show()
+
+# unclear how to meet (1) below
+gsod_light_book.withColumn(
+    "rank_tpm", F.dense_rank().over(temp_per_month_asc)  #❶
+).orderBy(F.col("mo"), F.col("count_temp")).show()
+
+# +------+----+---+---+----+----------+--------+
+# |   stn|year| mo| da|temp|count_temp|rank_tpm|
+# +------+----+---+---+----+----------+--------+
+# |949110|2019| 11| 23|54.9|        14|       1|
+# |996470|2018| 03| 12|55.6|        12|       1|   ❶
+# |998166|2019| 03| 20|34.8|        12|       1|   ❶
+# |998012|2017| 03| 02|31.4|        24|       3|
+# |041680|2019| 02| 19|16.1|        15|       1|
+# |076470|2018| 06| 07|65.0|        24|       1|
+# |719200|2017| 10| 09|60.5|        11|       1|
+# |994979|2017| 12| 11|21.3|        21|       1|
+# |917350|2018| 04| 21|82.6|         9|       1|
+# |998252|2019| 04| 18|44.7|        11|       2|
+# +------+----+---+---+----+----------+--------+ 
+# ❶ These records should be 1 and 2.
+
+#########################################################################################
+#
+# Exercise 10.6 
+# Take the gsod data frame (not the gsod_light) and create a new column that is True 
+# if the temperature at a given station is maximum
+
+# 7 days 
+SEVEN_DAYS = 7 * 60 * 60 * 24
+seven_days_plus_minus = (
+    Window
+    .partitionBy(F.col("stn"))
+    .orderBy(F.col("dt_num"))
+    .rangeBetween(- SEVEN_DAYS, SEVEN_DAYS)
+    )
+
+( gsod
+    .groupBy(F.col("stn"))
+    .agg(F.count("*").alias("count"))
+    .orderBy(F.col("count"), ascending=False)
+    .show()
+    )
+# station with most records is 720613
+(
+    gsod
+    .select(F.col("date"), F.col("stn"), F.col("temp"))
+    .withColumn("dt_num", F.unix_timestamp("date"))
+    .withColumn("max_temp", 
+        F.max(F.col("temp")).over(seven_days_plus_minus))
+    .withColumn("is_max", F.col("temp") == F.col("max_temp"))
+    .orderBy(F.col("stn"), F.col("dt_num"))
+    .where(F.col("stn") == "720613")
+    .show(100)
+    )
+
+#########################################################################################
+#
+# Exercise 10.7 
+# How would you create a window like the code that follows, but taking into 
+# account that months have different number of days? For instance, March has 31 days, but 
+# April has 30 days, so you can’t do a window spec over a set number of days. 
+# (Hint: My solution doesn’t use dt_num.) ONE_MONTH_ISH = 30 * 60 * 60 * 24  # or 2_592_000 seconds
+
+ONE_MONTH_ISH = 30 * 60 * 60 * 24  # or 2_592_000 seconds
+one_month_ish_before_and_after = (
+    Window.partitionBy("year")
+    .orderBy("dt_num")
+    .rangeBetween(-ONE_MONTH_ISH, ONE_MONTH_ISH)
+ )
+ 
+gsod_light_p = (
+    # gsod_light.withColumn("year", F.lit(2019))
+    gsod_light_book.withColumn("year", F.lit(2019))
+    .withColumn(
+        "dt",
+        F.to_date(
+            F.concat_ws("-", F.col("year"), F.col("mo"), F.col("da"))
+        ),
+    )
+    .withColumn("dt_num", F.unix_timestamp("dt"))
+)
+ 
+gsod_light_p.withColumn(
+    "avg_count", F.avg("count_temp").over(one_month_ish_before_and_after)
+).show()
+
+# +------+----+---+---+----+----------+----------+----------+-------------+
+# |   stn|year| mo| da|temp|count_temp|        dt|    dt_num|    avg_count|
+# +------+----+---+---+----+----------+----------+----------+-------------+
+# |041680|2019| 02| 19|16.1|        15|2019-02-19|1550552400|        15.75|
+# |998012|2019| 03| 02|31.4|        24|2019-03-02|1551502800|        15.75|
+# |996470|2019| 03| 12|55.6|        12|2019-03-12|1552363200|        15.75|
+# |998166|2019| 03| 20|34.8|        12|2019-03-20|1553054400|         14.8|
+# |998252|2019| 04| 18|44.7|        11|2019-04-18|1555560000|10.6666666666|
+# |917350|2019| 04| 21|82.6|         9|2019-04-21|1555819200|         10.0|
+# |076470|2019| 06| 07|65.0|        24|2019-06-07|1559880000|         24.0|
+# |719200|2019| 10| 09|60.5|        11|2019-10-09|1570593600|         11.0|
+# |949110|2019| 11| 23|54.9|        14|2019-11-23|1574485200|         17.5|
+# |994979|2019| 12| 11|21.3|        21|2019-12-11|1576040400|         17.5|
+# +------+----+---+---+----+----------+----------+----------+-------------+
+
+# answer
+
+one_month_ish_before_and_after = (
+    Window.partitionBy("year")
+    .orderBy(F.col("mo_num"))
+    .rangeBetween(-1, 1)
+ )
+
+gsod_light_p = (
+    gsod_light_book.withColumn("year", F.lit(2019))
+    .withColumn("mo_num",(F.col("year") * 12 + F.col("mo")).cast("int"))
+)
+
+(
+    gsod_light_p
+    .withColumn(
+        "avg_count", 
+        F.avg("count_temp").over(one_month_ish_before_and_after))
+    .orderBy("year", "mo", "da")
+    .show(40)
+)
+
+# result
+
+# +------+----+---+---+----+----------+-------+------------------+
+# |   stn|year| mo| da|temp|count_temp| mo_num|         avg_count|
+# +------+----+---+---+----+----------+-------+------------------+
+# |041680|2019| 02| 19|16.1|        15|24230.0|             15.75|
+# |998012|2019| 03| 02|31.4|        24|24231.0|13.833333333333334|
+# |996470|2019| 03| 12|55.6|        12|24231.0|13.833333333333334|
+# |998166|2019| 03| 20|34.8|        12|24231.0|13.833333333333334|
+# |998252|2019| 04| 18|44.7|        11|24232.0|              13.6|
+# |917350|2019| 04| 21|82.6|         9|24232.0|              13.6|
+# |076470|2019| 06| 07|65.0|        24|24234.0|              24.0|
+# |719200|2019| 10| 09|60.5|        11|24238.0|              12.5|
+# |949110|2019| 11| 23|54.9|        14|24239.0|15.333333333333334|
+# |994979|2019| 12| 11|21.3|        21|24240.0|              17.5|
+# +------+----+---+---+----+----------+-------+------------------+
+
 #########################################################################################
 #
 # 
-
-
-#########################################################################################
-#
-# 
-
-
-#########################################################################################
-#
-# 
-
-
-#########################################################################################
-#
-# 
-
+gsod_month = (
+    gsod
+    .select("stn", "year", "mo", "da", "temp")
+    .groupBy("stn", "year", "mo")
+    .agg(F.avg("temp").alias("temp"))
+    .orderBy("stn", "year", "mo")
+    )
 
 #########################################################################################
 #

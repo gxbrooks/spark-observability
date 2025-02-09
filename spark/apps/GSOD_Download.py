@@ -55,9 +55,30 @@ def get_noaa_gsod_data(year, noaa):
     return df
 
 # Create a SparkSession
+
+"""
+Do not use the config:
+    .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.30.0")
+
+As it does not work well with spark-submit even though it works with iPython. Instead you need to call 
+spark-submit and add the packages parameter:
+
+    --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0' 
+
+For this code, without the ocnfig (above) for spark.jar.packages, you need to set the 
+environment variable PYSPARK_DRIVER_PYTHON=ipython and then launch the pyspark script with the same 
+package parameter. For example:
+
+    docker compose exec \
+        -e PYSPARK_DRIVER_PYTHON=ipython spark-master \
+        pyspark --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0'
+
+For references see the source code of bin/pyspark 
+"""
 noaa = (
     SparkSession.builder 
     .appName("NOAA GSOD Data") 
+    #
     # Copilot's initial recommendation
     # .config("spark.jars", "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.23.2.jar") \
     # The books version
