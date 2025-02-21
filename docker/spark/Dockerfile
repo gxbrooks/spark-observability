@@ -1,26 +1,33 @@
 FROM python:3.10-bullseye AS spark-base
 
-
 # TODO: Need a service account for Spark
 
 ARG SPARK_VERSION
-ARG SPARK_MASTER
 ARG SPARK_HOME
 ARG SPARK_MASTER_HOST
 ARG SPARK_MASTER_PORT
+ARG SPARK_MASTER
 ARG PYSPARK_PYTHON
 ARG HADOOP_HOME
-ARG ELASTIC_AGENT_BASE
+ARG ELASTIC_AGENT_HOME
 ARG ELASTIC_AGENT_STACK_VERSION
 
+# setup the structure of the implementation
+ENV SPARK_HOME=${SPARK_HOME:-/opt/spark}
+ENV HADOOP_HOME=${HADOOP_HOME:-/opt/hadoop}
 
-ENV SPARK_MASTER=${SPARK_MASTER}
-ENV SPARK_MASTER_HOST=${SPARK_MASTER_HOST}
-ENV SPARK_MASTER_PORT=${SPARK_MASTER_HOST}
-ENV PYSPARK_PYTHON=${PYSPARK_PYTHON}
-ENV SPARK_HOME=${SPARK_HOME}
+ENV SPARK_MASTER_HOST=${SPARK_MASTER_HOST:-spark-master}
+ENV SPARK_MASTER_PORT=${SPARK_MASTER_PORT:-7077}
+
+# TODO: need to find all uses of SPARK_MASTER
+# and build it out of host and port like:
+# ENV SPARK_MASTER=spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}
+ENV SPARK_MASTER=${SPARK_MASTER:-spark://spark-master:7077}
+
+ENV PYSPARK_PYTHON=${PYSPARK_PYTHON:-python3}
+
 ENV PATH="${SPARK_HOME}/sbin:${SPARK_HOME}/bin:${PATH}"
-
+ENV GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS}"
 
 # Install tools required by the OS
 RUN apt-get update  \
@@ -40,9 +47,8 @@ RUN apt-get update  \
 
 
 # Setup the directories for our Spark and Hadoop installations
-ENV SPARK_HOME=${SPARK_HOME}
-ENV HADOOP_HOME=${HADOOP_HOME}
-
+# TODO: what is ${HADOOP_HOME} for? It does not seem to be used
+# Sourced from https://github.com/mrn-aglic/pyspark-playground/blob/main/Dockerfile
 RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME}
 WORKDIR ${SPARK_HOME}
 
@@ -54,8 +60,12 @@ RUN curl https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SP
 FROM spark-base AS pyspark
  
 # Install python deps
-COPY requirements/requirements.txt .
-RUN pip3 install -r requirements.txt
+# Gave up on pip-compile-multi and removed requirement.txt to install
+# requirements.in directly. We'll see if the latest versions break anything
+# TODO: Copying miscelaneous files into the base of an install does not 
+# seem appropriate. 
+COPY requirements/requirements.in .
+RUN pip3 install -r requirements.in
 
 # Copy the default configurations into $SPARK_HOME/conf
 COPY conf/spark-defaults.conf "$SPARK_HOME/conf"
@@ -78,7 +88,7 @@ ENV PYTHONPATH=$SPARK_HOME/python
 # keep the tar file and extracted directories outside the installation directory. 
 
 # Setup Spark related environment variables
-ENV ELASTIC_AGENT_HOME=${ELASTIC_AGENT_BASE}/elastic-agent
+ENV ELASTIC_AGENT_HOME=${ELASTIC_AGENT_HOME:-/usr/share/elastic-agent}
 ENV ELASTIC_AGENT_STACK_VERSION=${ELASTIC_AGENT_STACK_VERSION}
 
 RUN mkdir -p ${ELASTIC_AGENT_HOME}
