@@ -1,0 +1,35 @@
+- name: Install Elastic Agent on Windows and Ubuntu
+  hosts: all
+  tasks:
+    - name: Download Elastic Agent
+      win_get_url:
+        url: https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-7.13.1-windows-x86_64.zip
+        dest: C:\elastic-agent.zip
+      when: ansible_connection == "winrm"
+
+    - name: Unzip Elastic Agent
+      win_unzip:
+        src: C:\elastic-agent.zip
+        dest: C:\elastic-agent
+      when: ansible_connection == "winrm"
+
+    - name: Install Elastic Agent on Windows
+      win_command: C:\elastic-agent\elastic-agent.exe install
+      when: ansible_connection == "winrm"
+
+    - name: Download Elastic Agent on Ubuntu
+      get_url:
+        url: https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-7.13.1-linux-x86_64.tar.gz
+        dest: /tmp/elastic-agent.tar.gz
+      when: ansible_connection == "ssh"
+
+    - name: Extract Elastic Agent on Ubuntu
+      ansible.builtin.unarchive:
+        src: /tmp/elastic-agent.tar.gz
+        dest: /opt
+        remote_src: yes
+      when: ansible_connection == "ssh"
+
+    - name: Install Elastic Agent on Ubuntu
+      shell: /opt/elastic-agent/elastic-agent install
+      when: ansible_connection == "ssh"

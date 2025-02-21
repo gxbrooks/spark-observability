@@ -1,0 +1,47 @@
+
+# This files needs to be depoyed to: /etc/ssh/sshd_config
+
+# Port
+Port 22  # Change this to a non-standard port (e.g., above 1024) if extra obscurity is desired
+
+# ListenAddress
+# ListenAddress ::  # Uncomment if you want sshd to listen on all IPv6 interfaces
+
+# Logging
+SyslogFacility AUTHPRIV
+LogLevel INFO
+
+# Authentication
+# Allow passwords to start with. may need them for 
+PasswordAuthentication yes# Disable password authentication (SSH keys only)
+PermitRootLogin no        # Disallow root login directly (use sudo)
+AllowUsers gxbrooks  # Only allow connections from this user (replace with your Ansible user)
+# OR
+# AllowGroups <your_group> # Only allow connections from users in this group (replace with your Ansible group)
+PubkeyAuthentication yes  # Enable public key authentication
+AuthorizedKeysFile .ssh/authorized_keys  # Path to authorized keys file
+
+# Authorization
+# AllowAgentForwarding no  # Disable agent forwarding (unless needed)
+# AllowTcpForwarding no    # Disable TCP forwarding (unless needed)
+# X11Forwarding no         # Disable X11 forwarding (unless needed)
+
+# Ciphers and MACs
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr  # Use strong ciphers
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-ripemd160-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,hmac-ripemd160,umac-128  # Use strong MACs
+
+# Security Hardening
+MaxAuthTries 3           # Limit authentication attempts
+MaxSessions 10           # Limit concurrent sessions
+ClientAliveInterval 60   # Send keep-alive packets to prevent disconnects
+ClientAliveCountMax 3    # Number of keep-alive packets before timeout
+LoginGraceTime 30        # Time before server disconnects if user doesn't authenticate
+StrictModes yes          # Check file modes of user's home directory and .ssh files
+# for now no PAM complexities
+UsePAM no                # Enable PAM for additional authentication and authorization
+
+# Subsystems
+Subsystem sftp /usr/lib/openssh/sftp-server # Enable SFTP
+
+# Banner (Optional)
+# Banner /etc/issue.net  # Display a banner before login (for legal notices, etc.)
