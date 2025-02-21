@@ -312,8 +312,9 @@ services:
         SPARK_MASTER_PORT: ${SPARK_MASTER_PORT}
         HADOOP_HOME: ${HADOOP_HOME}
         PYSPARK_PYTHON: ${PYSPARK_PYTHON}
-        ELASTIC_AGENT_BASE: ${ELASTIC_AGENT_BASE}
+        ELASTIC_AGENT_HOME: ${ELASTIC_AGENT_HOME}
         ELASTIC_AGENT_STACK_VERSION: ${ELASTIC_AGENT_STACK_VERSION}
+        GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
       
     image: da-spark-image
     entrypoint: ["./entrypoint.sh", 'master']
@@ -334,13 +335,13 @@ services:
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
       - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
       - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      # TODO: unclear if certs are needed by Elastic Agent
       - ./certs:/opt/Elastic/certs
       - ./shared:/opt/shared
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     env_file:
       - .env
-      - .spark.env
     depends_on:
       # for sending metrics to Elastic
       es01:
