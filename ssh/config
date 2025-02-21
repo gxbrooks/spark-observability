@@ -1,0 +1,17 @@
+
+Host Lab1
+    HostName 192.168.1.76  # IP of Lab1's WINDOWS host
+    Port 2222  # Port forwarded on Lab1's Windows
+    User gxbrooks  # User in Lab1's WSL2
+    IdentityFile C:\Users\gxbro\.ssh\id_rsa  # Path to your Windows private key
+
+Host Lab2
+    HostName Lab2 # IP or hostname of your native Ubuntu machine
+    User gxbrooks
+    IdentityFile ~/.ssh/id_rsa
+
+Host GaryPC_wsl  # For managing GaryPC's WSL2 instance (if needed)
+    HostName localhost # Or 127.0.0.1
+    User gxbrooks
+    IdentityFile ~/.ssh/id_rsa
+
