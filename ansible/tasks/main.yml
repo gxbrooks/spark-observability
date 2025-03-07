@@ -1,0 +1,44 @@
+- name: Download Elastic Agent (Linux)
+  get_url:
+    url: "{{ elastic_agent_download_url }}"
+    dest: "/tmp/elastic-agent.{{ elastic_agent_extension }}"
+  when: ansible_os_family == "Debian"
+
+- name: Extract Elastic Agent (Linux)
+  unarchive:
+    src: "/tmp/elastic-agent.{{ elastic_agent_extension }}"
+    dest: /opt/
+    remote_src: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install Elastic Agent (Linux)
+  command: "/opt/elastic-agent/elastic-agent install -f --url={{ elastic_agent_enrollment_url }} --enrollment-token={{ elastic_agent_enrollment_token }}"
+  when: ansible_os_family == "Debian"
+
+- name: Start Elastic Agent (Linux)
+  service:
+    name: elastic-agent
+    state: started
+  when: ansible_os_family == "Debian"
+
+- name: Download Elastic Agent (Windows)
+  win_get_url:
+    url: "{{ elastic_agent_download_url }}"
+    dest: "C:\\Temp\\elastic-agent.{{ elastic_agent_extension }}"
+  when: ansible_os_family == "Windows"
+
+- name: Extract Elastic Agent (Windows)
+  win_unzip:
+    src: "C:\\Temp\\elastic-agent.{{ elastic_agent_extension }}"
+    dest: "C:\\Program Files"
+  when: ansible_os_family == "Windows"
+
+- name: Install Elastic Agent (Windows)
+  win_shell: "C:\\Program Files\\elastic-agent-{{ elastic_agent_version }}-windows-x86_64\\elastic-agent.exe install -f --url={{ elastic_agent_enrollment_url }} --enrollment-token={{ elastic_agent_enrollment_token }}"
+  when: ansible_os_family == "Windows"
+
+- name: Start Elastic Agent (Windows)
+  win_service:
+    name: elastic-agent
+    state: started
+  when: ansible_os_family == "Windows"

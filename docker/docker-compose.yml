@@ -37,8 +37,8 @@ services:
     labels:
       role: "Init Certs"
     volumes:
-      - ./certs:/usr/share/elasticsearch/config/certs
-      - ./docker/shared:/opt/shared
+      - ../certs:/usr/share/elasticsearch/config/certs
+      - ./shared:/opt/shared
     user: "0"
     command: bash -f ./config/certs/init-certs.sh
     # env_file:
@@ -58,9 +58,9 @@ services:
       role: Elasticsearch
     volumes:
       - esdata:/usr/share/elasticsearch/data
-      - ./certs:/usr/share/elasticsearch/config/certs
+      - ../certs:/usr/share/elasticsearch/config/certs
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - ./docker/shared:/opt/shared
+      - ./shared:/opt/shared
     ports:
       - "${ELASTIC_PORT}:${ELASTIC_PORT}"
     environment:
@@ -123,8 +123,8 @@ services:
       role: "Init Kibana Password"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - ./certs:/usr/share/elasticsearch/config/certs
-      - ./docker/shared:/opt/shared
+      - ../certs:/usr/share/elasticsearch/config/certs
+      - ./shared:/opt/shared
     command: bash -f ./elasticsearch/bin/init-kibana-password.sh 
     environment:
       # do we need any of this? Taken from logstash
@@ -148,8 +148,8 @@ services:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION} 
     container_name: kibana
     volumes:
-      - ./certs:/usr/share/kibana/certs
-      - ./docker/shared:/opt/shared
+      - ../certs:/usr/share/kibana/certs
+      - ./shared:/opt/shared
       - kibanadata:/usr/share/kibana/data
     labels:
       co.elastic.logs/module: kibana
@@ -190,10 +190,10 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - "./docker/grafana/data:/var/lib/grafana/data"
-      - "./docker/grafana/provisioning:/etc/grafana/provisioning"
-      - "./docker/grafana/grafana.ini:/etc/grafana/grafana.ini"
-      - ./docker/shared:/opt/shared
+      - "./grafana/data:/var/lib/grafana/data"
+      - "./grafana/provisioning:/etc/grafana/provisioning"
+      - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
+      - ./shared:/opt/shared
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "mysecretpassword"
@@ -210,9 +210,9 @@ services:
   init-kibana:
     image: elasticsearch-python
     volumes:
-      - ./docker/elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - ./certs:/usr/share/elasticsearch/config/certs
-      - ./docker/shared:/opt/shared
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
+      - ../certs:/usr/share/elasticsearch/config/certs
+      - ./shared:/opt/shared
     command: bash -f ./elasticsearch/bin/init-kibana.sh
     environment:
       # do we need any of this? Taken from logstash
@@ -240,9 +240,9 @@ services:
     labels:
       role: "Init Index"
     volumes:
-      - ./docker/elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - ./certs:/usr/share/elasticsearch/config/certs
-      - ./docker/shared:/opt/shared
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
+      - ../certs:/usr/share/elasticsearch/config/certs
+      - ./shared:/opt/shared
     environment:
       ELASTIC_HOST: ${ELASTIC_HOST}
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
@@ -269,8 +269,8 @@ services:
         - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"
         - "9600:9600"
     volumes:
-      - ./certs:/usr/share/logstash/certs
-      - ./docker/shared:/opt/shared
+      - ../certs:/usr/share/logstash/certs
+      - ./shared:/opt/shared
       - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
       # not used
@@ -302,7 +302,7 @@ services:
   spark-master:
     container_name: da-spark-master
     build: 
-      context: ./docker/spark
+      context: ./spark
       dockerfile: Dockerfile
       args:
         SPARK_VERSION: ${SPARK_VERSION}
@@ -327,17 +327,17 @@ services:
       retries: 3
     volumes:
       - spark-logs:/opt/spark/spark-events
-      - ./docker/spark/code:/opt/spark/code
-      - ./docker/spark/data:/opt/spark/data
-      - ./docker/spark/apps:/opt/spark/apps
-      - ./docker/spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
-      - ./docker/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-      - ./docker/spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-      - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
-      - ./docker/spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      - ./spark/code:/opt/spark/code
+      - ./spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
+      - ../elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
       # TODO: unclear if certs are needed by Elastic Agent
-      - ./certs:/opt/Elastic/certs
-      - ./docker/shared:/opt/shared
+      - ../certs:/opt/Elastic/certs
+      - ./shared:/opt/shared
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     env_file:
@@ -372,15 +372,15 @@ services:
       - .env
     volumes:
       - spark-logs:/opt/spark/spark-events
-      - ./docker/spark/data:/opt/spark/data
-      - ./docker/spark/apps:/opt/spark/apps
-      - ./docker/spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
-      - ./docker/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-      - ./docker/spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-      - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
-      - ./docker/spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
-      - ./certs:/opt/Elastic/certs
-      - ./docker/shared:/opt/shared
+      - ./spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
+      - ../elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      - ../certs:/opt/Elastic/certs
+      - ./shared:/opt/shared
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:
@@ -403,15 +403,15 @@ services:
       - .env
     volumes:
       - spark-logs:/opt/spark/spark-events
-      - ./docker/spark/data:/opt/spark/data
-      - ./docker/spark/apps:/opt/spark/apps
-      - ./docker/spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
-      - ./docker/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-      - ./docker/spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-      - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
-      - ./docker/spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
-      - ./certs:/opt/Elastic/certs
-      - ./docker/shared:/opt/shared
+      - ./spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
+      - ../elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      - ../certs:/opt/Elastic/certs
+      - ./shared:/opt/shared
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:

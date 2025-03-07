@@ -1,0 +1,49 @@
+all:
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    elastic_agent_version: 8.10.0 # Change to your desired version
+    elastic_agent_download_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
+    elastic_stack_containers: ['elasticsearch', 'kibana', 'logstash', 'your-application-container']
+    elasticsearch_host: GaryPC
+    elasticsearch_port: 9200 # Or your configured port
+    elasticsearch_protocol: https
+    elasticsearch_enrollment_token: "YOUR_ENROLLMENT_TOKEN" # Replace with your token
+
+windows_hosts:
+  hosts:
+    GaryPC:
+      ansible_host: garypc
+      ansible_user: Administrator
+      ansible_connection: ssh
+      ansible_port: 22
+    Lab1:
+      ansible_host: Lab1
+      ansible_user: Administrator #dddd dd  
+      ansible_connection: ssh
+      ansible_port: 22
+  vars:
+    elastic_agent_install_path: "C:\\Program Files\\Elastic\\Agent"
+
+wsl_hosts:
+  hosts:
+    GaryPC_WSL:
+      ansible_host: GaryPC
+      ansible_user: gxbrooks
+      ansible_port: 2222
+      ansible_connection: ssh
+    Lab1_WSL:
+      ansible_host: Lab1
+      ansible_user: gxbrooks
+      ansible_port: 2222
+      ansible_connection: ssh
+  vars:
+    elastic_agent_install_path: "/opt/Elastic/Agent"
+
+ubuntu_hosts:
+  hosts:
+    Lab2:
+      ansible_host: Lab2
+      ansible_user: gxbrooks
+      ansible_ssh_private_key_file: /
+  vars:
+    elastic_agent_install_path: "/opt/Elastic/Agent"
