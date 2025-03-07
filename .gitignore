@@ -4,9 +4,6 @@ logstash/logs
 *.pyc
 *.pyo
 spark-events
-elasticsearch/outputs/*
-elasticsearch/inputs/*
-spark/data/*
 # init-certs generates these files and directories from scratch.
 certs/ca
 certs/es01
@@ -14,3 +11,9 @@ certs/kibana
 certs/ca.zip
 certs/certs.zip
 certs/grafana
+
+
+# Data directories
+docker/spark/data/*
+elasticsearch/outputs/*
+elasticsearch/inputs/*
