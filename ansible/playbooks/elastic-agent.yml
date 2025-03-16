@@ -1,0 +1,25 @@
+---
+- name: Install and configure Elastic Agent
+  hosts: all
+  become: yes
+  tasks:
+    - name: Download Elastic Agent
+      get_url:
+        url: https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-7.10.0-linux-x86_64.tar.gz
+        dest: /tmp/elastic-agent.tar.gz
+
+    - name: Extract Elastic Agent
+      unarchive:
+        src: /tmp/elastic-agent.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Install Elastic Agent
+      command: /opt/elastic-agent-7.10.0-linux-x86_64/elastic-agent install -f --url=http://192.168.1.10:9200 --enrollment-token=<your-enrollment-token>
+
+    - name: Start Elastic Agent
+      service:
+        name: elastic-agent
+        state: started
+        enabled: yes
+

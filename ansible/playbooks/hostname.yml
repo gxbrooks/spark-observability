@@ -1,0 +1,12 @@
+---
+- name: Print hostname of each host
+  hosts: all
+  tasks:
+    - name: Print hostname
+      command: hostname
+      register: result
+
+    - name: Display hostname
+      debug:
+        msg: "Hostname: {{ result.stdout }}"
+

@@ -328,7 +328,7 @@ services:
     volumes:
       - spark-logs:/opt/spark/spark-events
       - ./docker/spark/code:/opt/spark/code
-      - ./docker/spark/data:/opt/spark/data
+      - ../spark-data:/opt/spark/data
       - ./docker/spark/apps:/opt/spark/apps
       - ./docker/spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./docker/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
@@ -372,7 +372,7 @@ services:
       - .env
     volumes:
       - spark-logs:/opt/spark/spark-events
-      - ./docker/spark/data:/opt/spark/data
+      - ../spark-data:/opt/spark/data
       - ./docker/spark/apps:/opt/spark/apps
       - ./docker/spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./docker/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
@@ -403,7 +403,7 @@ services:
       - .env
     volumes:
       - spark-logs:/opt/spark/spark-events
-      - ./docker/spark/data:/opt/spark/data
+      - ../spark-data:/opt/spark/data
       - ./docker/spark/apps:/opt/spark/apps
       - ./docker/spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
       - ./docker/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
