@@ -1,28 +1,46 @@
 all:
+  vars:
+    elastic_agent_version: "8.11.1" # Replace with your desired version
+    elastic_agent_download_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-{{ elastic_agent_os }}-{{ elastic_agent_arch }}.{{ elastic_agent_extension }}"
+    elastic_agent_enrollment_url: "http://your-enrollment-url" # Replace with your actual enrollment URL
+    elastic_agent_enrollment_token: "your-enrollment-token" # Replace with your actual enrollment token
   children:
     windows:
+      vars:
+        elastic_agent_os: "windows"
+        elastic_agent_arch: "x86_64"
+        elastic_agent_extension: "zip"
+        ansible_winrm_transport: basic
+        ansible_winrm_server_cert_validation: ignore
       hosts:
         GaryPC:
           ansible_host: GaryPC.lan
-          ansible_port: 22
-          ansible_user: gxbro
+          ansible_winrm_cert_pem: "{{ lookup('file', '~/.winrm/WinRM_Ssl_Cert_GaryPC.cer') }}"
         Lab1:
           ansible_host: Lab1.lan
-          ansible_port: 22
-          ansible_user: gxbro
-    ubuntu:
-      hosts:
-        Lab2:
-          ansible_host: Lab2.lan
-          ansible_port: 22
-          ansible_user: gxbrooks
-    wsl:
-      hosts:
-        GaryPC-WSL:
-          ansible_host: GaryPC.lan
-          ansible_port: 2222
-          ansible_user: gxbrooks
-        Lab1-WSL:
-          ansible_host: Lab1.lan
-          ansible_port: 2222
-          ansible_user: gxbrooks
+          ansible_winrm_cert_pem: "{{ lookup('file', '~/.winrm/WinRM_Ssl_Cert_Lab1.cer') }}"
+    linux:
+      vars:
+        elastic_agent_os: "linux"
+        elastic_agent_arch: "x86_64"
+        elastic_agent_extension: "tar.gz"
+        ansible_user: gxbrooks
+        ansible_connection: ssh
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+      children:
+        native:
+          vars:
+            ansible_port: 22
+          hosts:
+            Lab2:
+              ansible_host: Lab2.lan
+        wsl:
+          vars:
+            ansible_port: 2222
+          hosts:
+            GaryPC-WSL:
+              ansible_host: GaryPC.lan
+            Lab1-WSL:
+              ansible_host: Lab1.lan
+
