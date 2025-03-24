@@ -19,12 +19,16 @@ if [ ! -f "$PUBLIC_CERT_PATH" ]; then
     exit 1
 fi
 
-# Define the remote path where the certificate will be copied
-REMOTE_PATH="/home/${TARGET%@*}/.winrm/"
+# Define the remote path where the certificate will be copied (Windows path)
+# REMOTE_PATH="/C/Users/${TARGET%@*}/.winrm/"
+# Despite what you might read in some circles, the drive letter *must* be used in the path.
+# Either slashes or backslashes can be used as path separators.
+REMOTE_PATH="C:\\Users\\${TARGET%@*}\\.winrm\\"
+
 
 # Copy the certificate using scp
 echo "Copying public certificate to $TARGET:$REMOTE_PATH"
-scp "$PUBLIC_CERT_PATH" "$TARGET:$REMOTE_PATH"
+scp "$PUBLIC_CERT_PATH" $TARGET:"$REMOTE_PATH"
 if [ $? -eq 0 ]; then
     echo "Certificate successfully copied to $TARGET:$REMOTE_PATH"
 else
