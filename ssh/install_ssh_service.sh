@@ -128,7 +128,7 @@ else
 fi
 
 # Configure firewall rules
-if [ -z "$WSL_DISTRO_NAME" ]; then
+if [ uname -r | grep -qi "microsoft"; ]; then
     echo "Checking: Configuring firewall rules for non-WSL environment."
     if ! command -v ufw > /dev/null; then
         if [ "$CHECK" != true ]; then
