@@ -1,0 +1,17 @@
+
+[defaults]
+inventory = inventory.yml
+# remote_user = gxbrooks
+# private_key_file = /home/gxbrooks/ssh/id_rsa
+host_key_checking = False # set to True in production
+remote_tmp = $HOME/.ansible/tmp
+
+[ssh_connection]
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o LogLevel=ERROR -o MaxSessions=10
+
+[persistent_connection]
+debug = True
+winrm_ssl_cert = /home/gxbrooks/winrm/ansible_client_cert.pem
+winrm_ssl_key = /home/gxbrooks/winrm/ansible_client_private_key.pem
+winrm_transport = cert
+

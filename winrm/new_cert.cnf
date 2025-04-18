@@ -1,0 +1,15 @@
+[req]
+default_bits = 2048
+prompt = no
+default_keyfile = new_client.key
+distinguished_name = dn
+req_extensions = v3_req
+
+[dn]
+#CN = AnsibleUserCert  # Or try CN = ansible@localhost
+CN = ansible@localhost
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = clientAuth
+subjectAltName = otherName:1.3.6.1.4.1.311.20.2.3;UTF8:ansible@localhost

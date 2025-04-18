@@ -1,40 +1,49 @@
 all:
   vars:
-    elastic_agent_version: "8.11.1" # Replace with your desired version
-    elastic_agent_download_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-{{ elastic_agent_os }}-{{ elastic_agent_arch }}.{{ elastic_agent_extension }}"
-    elastic_agent_enrollment_url: "http://your-enrollment-url" # Replace with your actual enrollment URL
-    elastic_agent_enrollment_token: "your-enrollment-token" # Replace with your actual enrollment token
+    # elastic_agent_version: "8.11.1" 
+    # elastic_agent_download_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-{{ elastic_agent_os }}-{{ elastic_agent_arch }}.{{ elastic_agent_extension }}"
+    # elastic_agent_enrollment_url: "http://your-enrollment-url" 
+    # elastic_agent_enrollment_token: "your-enrollment-token" 
   children:
     windows:
       vars:
         elastic_agent_os: "windows"
         elastic_agent_arch: "x86_64"
         elastic_agent_extension: "zip"
-        ansible_winrm_transport: basic
-        ansible_winrm_server_cert_validation: ignore
+        # Ansible WinRM configuration for WinRM managed nodes
+        ansible_connection: winrm  # Overrides global 'ssh' default
+        ansible_user: ansible
+        ansible_winrm_scheme: https
+        ansible_port: 5986
+        # moved to ansible.cfg
+        # ansible_winrm_server_cert_validation: ignore
+        # ansible_winrm_server_cert_validation: validate 
+        ansible_winrm_cert_key_pem: "/home/gxbrooks/.winrm/ansible_client_private_key.pem"
+        ansible_winrm_cert_pem: "/home/gxbrooks/.winrm/ansible_client_cert.pem"
+        # moved to ansible.cfg
+        # ansible_winrm_transport: certificate
       hosts:
         GaryPC:
           ansible_host: GaryPC.lan
-          ansible_winrm_cert_pem: "{{ lookup('file', '~/.winrm/WinRM_Ssl_Cert_GaryPC.cer') }}"
+          
         Lab1:
           ansible_host: Lab1.lan
-          ansible_winrm_cert_pem: "{{ lookup('file', '~/.winrm/WinRM_Ssl_Cert_Lab1.cer') }}"
     linux:
       vars:
         elastic_agent_os: "linux"
         elastic_agent_arch: "x86_64"
         elastic_agent_extension: "tar.gz"
-        ansible_user: gxbrooks
-        ansible_connection: ssh
-        ansible_ssh_private_key_file: ~/.ssh/id_rsa
-        ansible_python_interpreter: /usr/bin/python3
+        ansible_python_interpreter: "/usr/bin/python3"
+        # SSH configuration
+        # Managed node communication configuration for ssh managed nodes
+
       children:
         native:
           vars:
             ansible_port: 22
           hosts:
             Lab2:
-              ansible_host: Lab2.lan
+              ansible_host: Lab2.lan 
         wsl:
           vars:
             ansible_port: 2222
@@ -43,4 +52,3 @@ all:
               ansible_host: GaryPC.lan
             Lab1-WSL:
               ansible_host: Lab1.lan
-
