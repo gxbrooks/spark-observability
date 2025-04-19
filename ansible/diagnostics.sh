@@ -19,6 +19,16 @@ curl -v \
 	--data "@status.xml" \
 	https://GaryPC.lan:5986/wsman
 
+curl -v \
+	--cert ~/.winrm/ansible_client_cert.pem \
+	--key ~/.winrm/ansible_client_private_key.pem \
+	--cacert ~/.winrm/WinRM_SSL_Cert@GaryPC.lan.pem \
+	-X POST \
+	-H "Content-Type: application/xml" \
+	--data "@status2.xml" \
+	https://GaryPC.lan:5986/wsman
+  
+
 # Simpler payload
 curl -v \
 	--cert ~/.winrm/ansible_client_cert.pem \

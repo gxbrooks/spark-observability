@@ -18,7 +18,7 @@ while [[ "$#" -gt 0 ]]; do
         -p) sshPort="$2"; shift ;;
         -i) identity_file="$2"; shift ;;
         --DebugLocal) DebugLocal=true ;;
-        --DebugRemote) DebugRemote=true ;;
+        --DebugRemote) DebugRemote="true" ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -41,9 +41,16 @@ log_message() {
 # Get remote PowerShell commands
 get_remote_powershell_commands() {
     local key="$1"
+
+    if [ $DebugRemote = true ]; then
+        ps_debug_remote='$true'
+    else
+        ps_debug_remote='$false'
+    fi
+
     cat <<EOL
 \$ProgressPreference = 'SilentlyContinue'
-\$Debug = \$$DebugRemote
+\$Debug = $ps_debug_remote
 if (\$Debug) {
     Write-Output "Remote: Starting Remote Script"
 }
@@ -57,7 +64,7 @@ if (\$Debug) {
 }
 if (-not (Test-Path \$sshDir)) {
     Write-Output 'Creating SSH directory'
-    New-Item -ItemType Directory -Force -Path \$sshDir
+    New-Item -ItemType Directory -Force -Path \$sshDir | Out-Null
 }
 \$authorizedKeysPath = [System.IO.Path]::Combine(\$sshDir, 'authorized_keys')
 if (\$Debug) {
@@ -65,7 +72,7 @@ if (\$Debug) {
 }
 if (-not (Test-Path \$authorizedKeysPath)) {
     Write-Output 'Remote: Creating authorized_keys file'
-    New-Item -ItemType File -Force -Path \$authorizedKeysPath
+    New-Item -ItemType File -Force -Path \$authorizedKeysPath | Out-Null
 }
 \$patternString = [Regex]::Escape("\$publicKey")
 if (\$Debug) {
@@ -74,7 +81,7 @@ if (\$Debug) {
 if (Select-String -Pattern \$patternString -Path \$authorizedKeysPath) {
     Write-Output "Remote: Public key already in authorized_keys"
 } else {
-    Add-Content -Path \$authorizedKeysPath -Value \$publicKey
+    Add-Content -Path \$authorizedKeysPath -Value \$publicKey | Out-Null
     Write-Output "Remote: Added public key to authorized_keys"
 }
 if (\$Debug) {
@@ -100,13 +107,10 @@ if [ "$DebugLocal" = true ]; then
     echo "$remoteCommands"
     echo "Local: -----------------------------------------------------------------------------------------"
 fi
-encodedScript=$(echo "$remoteCommands" | iconv -f UTF-8 -t UTF-16LE | base64 -w 0)
-# encodedScript=[Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($remoteCommands))\
 if [ "$DebugLocal" = true ]; then
     echo "Local: Before sshCommand execution: -p $sshPort $remoteConnection"
-    echo ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password -p $sshPort  "$remoteConnection" powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand "$encodedScript"
 fi
-output=$(ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password -p $sshPort  "$remoteConnection" powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand "$encodedScript")
+output=$(ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password -p $sshPort  "$remoteConnection" "$remoteCommands")
 result=$?
 
 if [ "$DebugLocal" = true ]; then

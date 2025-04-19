@@ -15,6 +15,11 @@ all:
         ansible_user: ansible
         ansible_winrm_scheme: https
         ansible_port: 5986
+        # ssh specific configs
+        ansible_connection: ssh
+        ansible_shell_type: powershell
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Path to your private key
+        # ansible_password: "{{ vaulted_password }}"  # Omit if using keys only
         # moved to ansible.cfg
         # ansible_winrm_server_cert_validation: ignore
         # ansible_winrm_server_cert_validation: validate 
