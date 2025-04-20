@@ -17,8 +17,8 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         -p) sshPort="$2"; shift ;;
         -i) identity_file="$2"; shift ;;
-        --DebugLocal) DebugLocal=true ;;
-        --DebugRemote) DebugRemote="true" ;;
+        --DebugLocal|-dl) DebugLocal=true ;;
+        --DebugRemote|-dr) DebugRemote="true" ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
