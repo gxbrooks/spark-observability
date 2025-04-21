@@ -100,11 +100,16 @@ fi
 
 # Configure firewall rules
 is_wsl() {
-    [[ -n "$WSL_DISTRO_NAME" ]] || 
-    grep -qi "microsoft\|wsl" /proc/version 2>/dev/null || 
-    uname -r | grep -qi "microsoft\|wsl"
+  if [[ -f /proc/version ]]; then
+    if grep -q Microsoft /proc/version; then
+      return 0 # Running on WSL
+    else
+      return 1 # Not running on WSL
+    fi
+  else
+    return 1 # /proc/version not found (highly unlikely on a standard Linux system)
+  fi
 }
-
 
 # Backup and replace sshd_config
 echo "Checking: Preparing to configure sshd_config."
@@ -245,7 +250,8 @@ if ! is_wsl; then
         echo "Result  : ufw is already enabled."
     fi
     # Check again in case ufw was just enabled
-    if ! sudo ufw status | grep -q "Status: active"; then
+    echo "Checking: ssh rule"
+    if sudo ufw status | grep -q "Status: active"; then
         if ! sudo ufw status | grep -q "22/tcp"; then
             if [ "$CHECK" != true ]; then
                 echo "Starting: Allowing SSH through ufw..."
@@ -257,6 +263,8 @@ if ! is_wsl; then
         else
             echo "Result  : SSH rule is already configured in ufw."
         fi
+    else
+        echo "Result  : ufw is not active and cannot check ssh rule."
     fi
 else
     echo "Result  : Running on WSL: Use Windows Defender for firewall configuration."
