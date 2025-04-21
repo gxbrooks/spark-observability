@@ -48,21 +48,17 @@
 #         sshd_config file.
 # -----------------------------------------------------------------------------
 
-# Ensure the script is run as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Error: This script must be run as root or with sudo."
-    exit 1
-fi
-
 # Parse flags
 CHECK=false
 DEBUG=false
 REINSTALL=false
+SSHD_CONFIG_SRC="./ssh/sshd_config.linux.cfg"
 
 for arg in "$@"; do
     case $arg in
         --Check|-c) CHECK=true ;;
         --Debug|-d) DEBUG=true ;;
+        --Config|-cf) SSHD_CONFIG_SRC=$2; shift ;;
         --Reinstall|-r) REINSTALL=true ;;
     esac
 done
@@ -74,44 +70,19 @@ if ! dpkg -l | grep -q openssh-server; then
         echo "Result  : OpenSSH server is not installed."
     else
         echo "Checking: Installing OpenSSH server..."
-        apt update
-        apt install -y openssh-server
+        sudo apt update
+        sudo apt install -y openssh-server
         echo "Result  : OpenSSH server installed."
     fi
 else
     echo "Result  : OpenSSH server is already installed."
     if [ "$REINSTALL" = true ]; then
         echo "Checking: Reinstalling OpenSSH server..."
-        apt install --reinstall -y openssh-server
+        sudo apt install --reinstall -y openssh-server
         echo "Result  : OpenSSH server reinstalled."
     fi
 fi
 
-# Enable and start SSH service
-echo "Checking: Checking if SSH service is running."
-if [ -n "$WSL_DISTRO_NAME" ]; then
-    # Running on WSL
-    if ! service ssh status > /dev/null 2>&1; then
-        echo "Starting: SSH service via 'service' commands as SSH service is not running."
-        # enable won't really do anything on WSL, but it's here for clarity
-        # An administrative user must manually start the service after a reboot of WSL
-        service ssh enable
-        service ssh start
-        echo "Result  : SSH service is enabled and running (WSL)."
-    else
-        echo "Result  : SSH service is already running (WSL)."
-    fi
-else
-    # Non-WSL environment
-    if ! systemctl is-active --quiet ssh; then
-        echo "Starting: SSH service via 'systemctl' commands as SSH service is not running."
-        systemctl enable ssh
-        systemctl start ssh
-        echo "Result  : SSH service is enabled and running."
-    else
-        echo "Result  : SSH service is already running."
-    fi
-fi
 
 # Create the sshuser group
 echo "Checking: Checking if 'sshuser' group exists."
@@ -120,7 +91,7 @@ if ! getent group sshuser > /dev/null; then
         echo "Result  : Group 'sshuser' does not exist."
     else
         echo "Checking: Creating group 'sshuser'..."
-        groupadd sshuser
+        sudo groupadd sshuser
         echo "Result  : Group 'sshuser' created."
     fi
 else
@@ -134,12 +105,121 @@ is_wsl() {
     uname -r | grep -qi "microsoft\|wsl"
 }
 
+
+# Backup and replace sshd_config
+echo "Checking: Preparing to configure sshd_config."
+SSHD_CONFIG_SRC="./ssh/sshd_config.linux.cfg"
+SSHD_CONFIG_DEST="/etc/ssh/sshd_config"
+SSHD_CONFIG_BACKUP="/etc/ssh/sshd_config.original"
+
+if [ ! -f "$SSHD_CONFIG_BACKUP" ]; then
+    if [ -f "$SSHD_CONFIG_DEST" ]; then
+        if [ "$CHECK" != true ]; then
+            echo "Starting: Backing up original sshd_config to $SSHD_CONFIG_BACKUP."
+            sudo cp "$SSHD_CONFIG_DEST" "$SSHD_CONFIG_BACKUP"
+        else
+            echo "Result  : Original sshd_config exists, but not backed up."
+        fi
+    else
+        echo "Result  : No existing sshd_config to back up."
+    fi
+else
+    echo "Result  : Original sshd_config backup already exists."
+fi
+
+# Process sshd_config file
+if [ -f "$SSHD_CONFIG_SRC" ]; then
+    echo "Checking: Processing $SSHD_CONFIG_SRC."
+    PORT="22"
+    if [ -n "$WSL_DISTRO_NAME" ]; then
+        PORT="2222"
+        echo "Result  : Detected WSL environment. Using port $PORT in ssh_config."
+    else
+        echo "Result  : Detected Native Linux environment. Using port $PORT in ssh_config."
+    fi
+
+    TEMP_CONFIG=$(mktemp)
+    sed "s/<PORT>/$PORT/g" "$SSHD_CONFIG_SRC" > "$TEMP_CONFIG"
+
+    cmp -s "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
+    IS_CONFIG_SAME=$?
+    if [ $IS_CONFIG_SAME = false ]; then
+        if [ "$CHECK" = true ]; then
+            echo "Result  : '$SSHD_CONFIG_DEST' needs to be updated."
+        else
+            sudo cp "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
+            echo "Result  : '$SSHD_CONFIG_DEST' updated."
+        fi
+    else
+        echo "Result  : '$SSHD_CONFIG_DEST'' is already up to date."
+    fi
+
+    # rm "$TEMP_CONFIG"
+else
+    echo "Error: $SSHD_CONFIG_SRC not found."
+    exit 1
+fi
+
+
+# Enable and start SSH service
+echo "Checking: Checking if SSH service is running."
+if [ -n "$WSL_DISTRO_NAME" ]; then
+    # Running on WSL
+    if ! service ssh status > /dev/null 2>&1; then
+        echo "Starting: SSH service via 'service' commands as SSH service is not running."
+        # enable won't really do anything on WSL, but it's here for clarity
+        # An administrative user must manually start the service after a reboot of WSL
+        if [ "$CHECK" = true ]; then 
+            echo "Result  : SSH service is not running (WSL)."
+        else
+            echo "Starting: Enabling SSH service..."
+            sudo service ssh enable
+            sudo service ssh start
+            echo "Result  : SSH service is enabled and running (WSL)."
+        fi
+    elsif [ "$IS_CONFIG_SAME" = false ]; 
+        if [ "$CHECK" = true ]; then 
+            echo "Result  : SSH service needs to be restarted (WSL)."
+        else
+            echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service..."
+            sudo service ssh restart
+            echo "Result  : SSH service restarted (WSL)."
+        fi
+    else  
+        echo "Result  : SSH service is already running (WSL)."
+    fi
+else
+    # Native Linux environment
+    if ! systemctl is-active --quiet ssh; then
+        echo "Starting: SSH service via 'systemctl' commands as SSH service is not running."
+        if [ "$CHECK" = true ]; then 
+            echo "Result  : SSH service is not running (WSL)."
+        else
+            echo "Starting: Enabling SSH service (native Linux)..."
+            sudo systemctl enable ssh
+            sudo systemctl start ssh
+            echo "Result  : SSH service was enabled and started (native Linux)."
+        fi
+    elsif [ "$IS_CONFIG_SAME" = false ]; 
+        if [ "$CHECK" = true ]; then 
+            echo "Result  : SSH service needs to be restarted (WSL)."
+        else
+            echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service (native Linux)..."
+            sudo systemctl ssh restart
+            echo "Result  : SSH service restarted (native Linux)."
+        fi
+    else  
+        echo "Result  : SSH service is already running (native Linux)."
+    fi
+fi
+
+# Configure firewall rules
 if ! is_wsl; then
     echo "Checking: Configuring firewall rules for non-WSL environment."
     if ! command -v ufw > /dev/null; then
         if [ "$CHECK" != true ]; then
             echo "Starting: Installing ufw..."
-            apt install -y ufw
+            sudo apt install -y ufw
             echo "Result  : ufw installed."
         else
             echo "Result  : ufw is not installed."
@@ -148,77 +228,36 @@ if ! is_wsl; then
         echo "Result  : ufw is already installed."
         if [ "$REINSTALL" = true ] && [ "$CHECK" != true ]; then
             echo "Starting: Reinstalling ufw..."
-            apt install --reinstall -y ufw
+            sudo apt install --reinstall -y ufw
             echo "Result  : ufw reinstalled."
         fi
     fi
-
-    if [ "$CHECK" != true ]; then
-        if ! ufw status | grep -q "Status: active"; then
+    
+    if ! sudo ufw status | grep -q "Status: active"; then
+        if [ "$CHECK" != true ]; then
             echo "Starting: Enabling ufw..."
-            ufw enable
+            sudo ufw enable
             echo "Result  : ufw enabled."
         else
-            echo "Result  : ufw is already enabled."
+            echo "Result  : ufw is not enabled."
         fi
-
-        if ! ufw status | grep -q "22/tcp"; then
-            echo "Starting: Allowing SSH through ufw..."
-            ufw allow ssh
-            echo "Result  : SSH rule added to ufw."
+    else
+        echo "Result  : ufw is already enabled."
+    fi
+    # Check again in case ufw was just enabled
+    if ! sudo ufw status | grep -q "Status: active"; then
+        if ! sudo ufw status | grep -q "22/tcp"; then
+            if [ "$CHECK" != true ]; then
+                echo "Starting: Allowing SSH through ufw..."
+                sudo ufw allow ssh
+                echo "Result  : SSH rule added to ufw."
+            else
+                echo "Result  : SSH rule is not configured in ufw."
+            fi
         else
             echo "Result  : SSH rule is already configured in ufw."
         fi
-    else
-        echo "Result  : Skipping firewall configuration due to --Check flag."
     fi
 else
     echo "Result  : Running on WSL: Use Windows Defender for firewall configuration."
-fi
-
-# Backup and replace sshd_config
-echo "Checking: Preparing to configure sshd_config."
-SSHD_CONFIG_SRC="sshd_config.linux.cfg"
-SSHD_CONFIG_DEST="/etc/ssh/sshd_config"
-SSHD_CONFIG_BACKUP="/etc/ssh/sshd_config.original"
-
-if [ ! -f "$SSHD_CONFIG_BACKUP" ]; then
-    if [ -f "$SSHD_CONFIG_DEST" ]; then
-        cp "$SSHD_CONFIG_DEST" "$SSHD_CONFIG_BACKUP"
-        echo "Result  : Original sshd_config backed up to $SSHD_CONFIG_BACKUP."
-    else
-        echo "Result  : No existing sshd_config to back up."
-    fi
-else
-    echo "Result  : Original sshd_config backup already exists."
-fi
-
-if [ -f "$SSHD_CONFIG_SRC" ]; then
-    echo "Checking: Processing $SSHD_CONFIG_SRC."
-    PORT="22"
-    if [ -n "$WSL_DISTRO_NAME" ]; then
-        PORT="2222"
-        echo "Result  : Detected WSL environment. Setting PORT to $PORT."
-    else
-        echo "Result  : Non-WSL environment detected. Setting PORT to $PORT."
-    fi
-
-    TEMP_CONFIG=$(mktemp)
-    sed "s/<PORT>/$PORT/g" "$SSHD_CONFIG_SRC" > "$TEMP_CONFIG"
-
-    if ! cmp -s "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"; then
-        if [ "$CHECK" = true ]; then
-            echo "Result  : sshd_config needs to be updated."
-        else
-            cp "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
-            echo "Result  : sshd_config updated."
-        fi
-    else
-        echo "Result  : sshd_config is already up to date."
-    fi
-
-    rm "$TEMP_CONFIG"
-else
-    echo "Error: $SSHD_CONFIG_SRC not found."
-    exit 1
 fi
