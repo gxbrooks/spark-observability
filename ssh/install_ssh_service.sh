@@ -145,18 +145,14 @@ if [ -f "$SSHD_CONFIG_SRC" ]; then
         echo "Result  : Detected Native Linux environment. Using port $PORT in ssh_config."
     fi
 
-    # check to see if $SSHD_CONFIG_SRC differs from $SSHD_CONFIG_DEST moduulo <PORT> 
-    TEMP_CONFIG="ssh/sshd_config.tmp"
-    sed "s/<PORT>/$PORT/g" "$SSHD_CONFIG_SRC" > "$TEMP_CONFIG"
-
-    cmp -s "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
+    cmp -s "$SSHD_CONFIG_SRC" "$SSHD_CONFIG_DEST"
     # cmp returns 0 if files are the same, 1 if different, and 2 if an error occurred
     if [ $? ]; then
-        echo "Result  : '$SSHD_CONFIG_DEST' and '$TEMP_CONFIG' are different."
+        echo "Result  : '$SSHD_CONFIG_DEST' and '$SSHD_CONFIG_SRC' are different."
         IS_CONFIG_SAME=false
     else
         IS_CONFIG_SAME=true
-        echo "Result  : '$SSHD_CONFIG_DEST' and '$TEMP_CONFIG' are the same."
+        echo "Result  : '$SSHD_CONFIG_DEST' and '$SSHD_CONFIG_SRC' are the same."
     fi
 
     if [ "$IS_CONFIG_SAME" = false ]; then
@@ -164,14 +160,14 @@ if [ -f "$SSHD_CONFIG_SRC" ]; then
             echo "Result  : '$SSHD_CONFIG_DEST' needs to be updated."
         else
             
-            sudo cp "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
+            sudo cp "$SSHD_CONFIG_SRC" "$SSHD_CONFIG_DEST"
             echo "Result  : '$SSHD_CONFIG_DEST' updated."
         fi
     else
         echo "Result  : '$SSHD_CONFIG_DEST'' is already up to date."
     fi
     # TODO: enable rm, but for now, keep it for debugging
-    # rm "$TEMP_CONFIG"
+    # rm "$SSHD_CONFIG_SRC"
 else
     echo "Error: $SSHD_CONFIG_SRC not found."
     exit 1
