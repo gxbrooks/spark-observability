@@ -100,14 +100,16 @@ fi
 
 # Configure firewall rules
 is_wsl() {
+  # return success (0) if running on WSL
+  # return failure (1) if running on native Linux
   if [[ -f /proc/version ]]; then
     if grep -q Microsoft /proc/version; then
-      return 0 # Running on WSL
+      return 1 # Running on WSL
     else
-      return 1 # Not running on WSL
+      return 0 # Not running on WSL
     fi
   else
-    return 1 # /proc/version not found (highly unlikely on a standard Linux system)
+    return 0 # /proc/version not found (highly unlikely on a standard Linux system)
   fi
 }
 
@@ -143,33 +145,42 @@ if [ -f "$SSHD_CONFIG_SRC" ]; then
         echo "Result  : Detected Native Linux environment. Using port $PORT in ssh_config."
     fi
 
-    TEMP_CONFIG=$(mktemp)
+    # check to see if $SSHD_CONFIG_SRC differs from $SSHD_CONFIG_DEST moduulo <PORT> 
+    TEMP_CONFIG="ssh/sshd_config.tmp"
     sed "s/<PORT>/$PORT/g" "$SSHD_CONFIG_SRC" > "$TEMP_CONFIG"
 
     cmp -s "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
-    IS_CONFIG_SAME=$?
-    if [ $IS_CONFIG_SAME = false ]; then
+    # cmp returns 0 if files are the same, 1 if different, and 2 if an error occurred
+    if [ $? ]; then
+        echo "Result  : '$SSHD_CONFIG_DEST' and '$TEMP_CONFIG' are different."
+        IS_CONFIG_SAME=false
+    else
+        IS_CONFIG_SAME=true
+        echo "Result  : '$SSHD_CONFIG_DEST' and '$TEMP_CONFIG' are the same."
+    fi
+
+    if [ "$IS_CONFIG_SAME" = false ]; then
         if [ "$CHECK" = true ]; then
             echo "Result  : '$SSHD_CONFIG_DEST' needs to be updated."
         else
+            
             sudo cp "$TEMP_CONFIG" "$SSHD_CONFIG_DEST"
             echo "Result  : '$SSHD_CONFIG_DEST' updated."
         fi
     else
         echo "Result  : '$SSHD_CONFIG_DEST'' is already up to date."
     fi
-
+    # TODO: enable rm, but for now, keep it for debugging
     # rm "$TEMP_CONFIG"
 else
     echo "Error: $SSHD_CONFIG_SRC not found."
     exit 1
 fi
 
-
 # Enable and start SSH service
 echo "Checking: Checking if SSH service is running."
 if [ -n "$WSL_DISTRO_NAME" ]; then
-    # Running on WSL
+    # Running on WSL: Use service commands
     if ! service ssh status > /dev/null 2>&1; then
         echo "Starting: SSH service via 'service' commands as SSH service is not running."
         # enable won't really do anything on WSL, but it's here for clarity
@@ -177,16 +188,16 @@ if [ -n "$WSL_DISTRO_NAME" ]; then
         if [ "$CHECK" = true ]; then 
             echo "Result  : SSH service is not running (WSL)."
         else
-            echo "Starting: Enabling SSH service..."
-            sudo service ssh enable
+            echo "Result  : Enabling SSH service..."
+            # sudo service ssh enable
             sudo service ssh start
             echo "Result  : SSH service is enabled and running (WSL)."
         fi
-    elsif [ "$IS_CONFIG_SAME" = false ]; 
+    elif [ "$IS_CONFIG_SAME" = false ]; then
         if [ "$CHECK" = true ]; then 
             echo "Result  : SSH service needs to be restarted (WSL)."
         else
-            echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service..."
+            echo "Result  : '$SSHD_CONFIG_DEST' changed, restarting SSH service..."
             sudo service ssh restart
             echo "Result  : SSH service restarted (WSL)."
         fi
@@ -194,7 +205,7 @@ if [ -n "$WSL_DISTRO_NAME" ]; then
         echo "Result  : SSH service is already running (WSL)."
     fi
 else
-    # Native Linux environment
+    # Native Linux environment: Use systemctl commands
     if ! systemctl is-active --quiet ssh; then
         echo "Starting: SSH service via 'systemctl' commands as SSH service is not running."
         if [ "$CHECK" = true ]; then 
@@ -205,7 +216,7 @@ else
             sudo systemctl start ssh
             echo "Result  : SSH service was enabled and started (native Linux)."
         fi
-    elsif [ "$IS_CONFIG_SAME" = false ]; 
+    elif [ "$IS_CONFIG_SAME" = false ]; then
         if [ "$CHECK" = true ]; then 
             echo "Result  : SSH service needs to be restarted (WSL)."
         else

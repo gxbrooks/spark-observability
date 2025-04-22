@@ -32,6 +32,17 @@ debug_log() {
     fi
 }
 
+SSH_GROUP_NAME="sshusers"
+
+# Check if the group exists
+if ! getent group "$SSH_GROUP_NAME" > /dev/null; then
+    echo "Group '$SSH_GROUP_NAME' does not exist. Creating it..."
+    sudo groupadd "$SSH_GROUP_NAME"
+    echo "Group '$SSH_GROUP_NAME' created successfully."
+else
+    echo "Group '$SSH_GROUP_NAME' already exists."
+fi
+
 # Check if the user exists
 if id "$USERNAME" &>/dev/null; then
     echo "User '$USERNAME' already exists."
@@ -88,7 +99,7 @@ else
 fi
 
 # Add the user to groups
-SERVICE_GROUPS=("sudo" "docker" "users")
+SERVICE_GROUPS=("sudo" "docker" "users" "sshusers")
 for group in "${SERVICE_GROUPS[@]}"; do
     if groups "$USERNAME" | grep -qw "$group"; then
         echo "User '$USERNAME' is already a member of the group '$group'."
