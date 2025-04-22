@@ -16,8 +16,6 @@
 #       - Provides debug output under --Debug flag control.
 #       - Checks the current configuration under --Check flag control.
 #       - Backs up the original sshd_config file if it hasn't been backed up yet.
-#       - Replaces the sshd_config file with a modified version of 
-#         sshd_config.linux.cfg, setting the port to 2222 for WSL or 22 otherwise.
 #       - Only updates the sshd_config file if the modified version differs 
 #         from the existing one.
 #
@@ -137,13 +135,6 @@ fi
 # Process sshd_config file
 if [ -f "$SSHD_CONFIG_SRC" ]; then
     echo "Checking: Processing $SSHD_CONFIG_SRC."
-    PORT="22"
-    if [ -n "$WSL_DISTRO_NAME" ]; then
-        PORT="2222"
-        echo "Result  : Detected WSL environment. Using port $PORT in ssh_config."
-    else
-        echo "Result  : Detected Native Linux environment. Using port $PORT in ssh_config."
-    fi
 
     cmp -s "$SSHD_CONFIG_SRC" "$SSHD_CONFIG_DEST"
     # cmp returns 0 if files are the same, 1 if different, and 2 if an error occurred
