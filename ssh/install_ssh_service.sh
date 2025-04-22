@@ -221,7 +221,7 @@ else
             echo "Result  : SSH service needs to be restarted (WSL)."
         else
             echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service (native Linux)..."
-            sudo systemctl ssh restart
+            sudo systemctl restart ssh 
             echo "Result  : SSH service restarted (native Linux)."
         fi
     else  
