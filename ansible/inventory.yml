@@ -4,6 +4,9 @@ all:
     # elastic_agent_download_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-{{ elastic_agent_os }}-{{ elastic_agent_arch }}.{{ elastic_agent_extension }}"
     # elastic_agent_enrollment_url: "http://your-enrollment-url" 
     # elastic_agent_enrollment_token: "your-enrollment-token" 
+    ansible_user: ansible
+    ansible_connection: ssh
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Path to your private key
   children:
     windows:
       vars:
@@ -11,22 +14,19 @@ all:
         elastic_agent_arch: "x86_64"
         elastic_agent_extension: "zip"
         # Ansible WinRM configuration for WinRM managed nodes
-        ansible_connection: winrm  # Overrides global 'ssh' default
-        ansible_user: ansible
-        ansible_winrm_scheme: https
-        ansible_port: 5986
-        # ssh specific configs
-        ansible_connection: ssh
-        ansible_shell_type: powershell
-        ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Path to your private key
-        # ansible_password: "{{ vaulted_password }}"  # Omit if using keys only
-        # moved to ansible.cfg
+        # WinRM is no longer in feature development. SSH is the future
+        # ansible_connection: winrm  # Overrides global 'ssh' default
+        # ansible_winrm_transport: certificate
         # ansible_winrm_server_cert_validation: ignore
         # ansible_winrm_server_cert_validation: validate 
-        ansible_winrm_cert_key_pem: "/home/gxbrooks/.winrm/ansible_client_private_key.pem"
-        ansible_winrm_cert_pem: "/home/gxbrooks/.winrm/ansible_client_cert.pem"
-        # moved to ansible.cfg
-        # ansible_winrm_transport: certificate
+        # ansible_winrm_cert_key_pem: "/home/gxbrooks/.winrm/ansible_client_private_key.pem"
+        # ansible_winrm_cert_pem: "/home/gxbrooks/.winrm/ansible_client_cert.pem"
+        # ansible_winrm_scheme: https
+        # ansible_port: 5986
+        # ssh specific configs
+        ansible_shell_type: powershell
+        # ansible_password: "{{ vaulted_password }}"  # Omit if using keys only
+        ansible_python_interpreter: C:\Program Files\Python313\python.exe"
       hosts:
         GaryPC:
           ansible_host: GaryPC.lan

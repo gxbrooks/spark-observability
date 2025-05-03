@@ -1,5 +1,12 @@
-- name: Test connectivity
+---
+- name: Test connectivity to all hosts
   hosts: all
+  gather_facts: true  # Ensure facts are gathered to determine OS family
   tasks:
-    - name: Ping the remote host
+    - name: Ping the remote host (Unix/Linux/WSL)
       ping:
+      when: ansible_os_family != "Windows"
+
+    - name: WinRM Ping Test (Windows)
+      win_ping:
+      when: ansible_os_family == "Windows"
