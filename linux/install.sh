@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# this script augments the current user's environment for Spark Observability
+
+
 # Set the 'dir' variable to the directory of this script
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -22,10 +25,6 @@ if grep -Fxq "$spark_bashrc_source" "$user_bashrc"; then
     echo "Info: Spark Observability .bashrc is already being sourced in $user_bashrc."
 else
     echo "$spark_bashrc_source" >> "$user_bashrc"
-    echo "Added Spark Observability .bashrc sourcing to $user_bashrc."
+    echo "Result  : Added Spark Observability .bashrc sourcing to $user_bashrc."
 fi
-
-
-
-
 

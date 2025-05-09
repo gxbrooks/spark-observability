@@ -1,35 +1,36 @@
 #!/bin/bash
 
-# Enable SSH access for a user by configuring their .ssh directory, authorized_keys file, and SSH keys.
+# Enable SSSSH access for a user by configuring their .ssh directory, authorized_keys file, and SSH keys.
 
 # Parse arguments
 DEBUG=false
 CHECK=false
 USERNAME=$(whoami)
 
+script_path="${BASH_SOURCE[0]}"
+script_name="$(basename "$script_path")"
+
+echo "Error   : $script_name is now deprecated." 
+exit 1
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --Debug|-d)
             DEBUG=true
-            shift
             ;;
         --Check|-c)
             CHECK=true
-            shift
             ;;
         --User|-u)
             USERNAME=$2
-            shift 2
-            ;;
-        -*)
-            echo "Error: Unrecognized flag $1"
-            exit 1
+            shift
             ;;
         *)
-            echo "Error: Unrecognized argument $1"
+            echo "Error   : Unrecognized argument $1 in $script_name." 
             exit 1
             ;;
     esac
+    shift
 done
 
 # Define paths

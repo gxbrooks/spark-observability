@@ -2,6 +2,10 @@
 
 # Usage: ./create_user.sh --Username <username> [--Password <password>] [--Debug | -d] [--Check | -c]
 
+script_path="${BASH_SOURCE[0]}"
+script_name="$(basename "$script_path")"
+script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+
 # Parse arguments
 DEBUG=false
 CHECK=false
@@ -19,47 +23,49 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+$debug && echo "Starting: $script_name in $script_dir"
+
 # Validate username
 if [[ -z "$USERNAME" ]]; then
-    echo "Error: --Username or -u parameter is required."
+    echo "Error  : --Username or -u parameter is required."
     exit 1
 fi
 
-# Debug function
-debug_log() {
-    if $DEBUG; then
-        echo "[DEBUG] $1"
-    fi
+append_flag() {
+    local flag=$1
+    local condition=$2
+    [[ $condition == true ]] && echo "$flag"
 }
 
-SSH_GROUP_NAME="sshusers"
+# assert that the sshuser group exists
+$script_dir/assert_group.sh \
+    --Group "sshusers" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG") 
 
-# Check if the group exists
-if ! getent group "$SSH_GROUP_NAME" > /dev/null; then
-    echo "Group '$SSH_GROUP_NAME' does not exist. Creating it..."
-    sudo groupadd "$SSH_GROUP_NAME"
-    echo "Group '$SSH_GROUP_NAME' created successfully."
-else
-    echo "Group '$SSH_GROUP_NAME' already exists."
-fi
+$script_dir/assert_group.sh \
+    --Group "$USERNAME" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG") 
 
 # Check if the user exists
+$DEBUG && echo "Checking  : if user '$USERNAME' exists..."
 if id "$USERNAME" &>/dev/null; then
-    echo "User '$USERNAME' already exists."
+    echo  "Result  : User '$USERNAME' already exists."
     if [[ -z "$PASSWORD" ]]; then
-        echo "No password provided. Skipping password update."
+        echo  "Result  : No password provided. Skipping password update."
     else
         if $CHECK; then
-            echo "Check mode enabled. Password will not be updated."
+            echo  "Result  : Check mode enabled. Password will not be updated."
         else
-            debug_log "Updating password for user '$USERNAME'..."
+            $DEBUG && echo "Updating password for user '$USERNAME'..."
             echo "$USERNAME:$PASSWORD" | sudo chpasswd
-            echo "Password for user '$USERNAME' updated."
+            echo  "Result  : Password for user '$USERNAME' updated."
         fi
     fi
 else
     if $CHECK; then
-        echo "User '$USERNAME' does not exist. Check mode enabled. No changes will be made."
+        echo  "Result  : User '$USERNAME' does not exist."
         exit 0
     fi
 
@@ -70,46 +76,51 @@ else
     fi
 
     # Create the user
-    debug_log "Creating user '$USERNAME'..."
-    sudo useradd -m -s /bin/bash "$USERNAME"
+    $DEBUG && echo "Creating user '$USERNAME'..."
+    sudo useradd -m -s /bin/bash \
+        -g "$USERNAME" \
+        -d "/home/$USERNAME" \
+        -c "${USERNAME^} Service Account" \
+        "$USERNAME"
+
     if [[ $? -ne 0 ]]; then
-        echo "Error: Failed to create user '$USERNAME'."
+        echo  "Result  : Error: Failed to create user '$USERNAME'."
         exit 1
     fi
-    echo "User '$USERNAME' created successfully."
+    echo "Result  : User '$USERNAME' service account created successfully."
 
     # Set the password
-    debug_log "Setting password for user '$USERNAME'..."
+    $DEBUG && echo "Setting password for user '$USERNAME'..."
     echo "$USERNAME:$PASSWORD" | sudo chpasswd
-    echo "Password for user '$USERNAME' set successfully."
+    echo  "Result  : Password for user '$USERNAME' set successfully."
 fi
 
 # Ensure the home directory exists
 if [[ ! -d "/home/$USERNAME" ]]; then
     if $CHECK; then
-        echo "Home directory needs to be created."
+        echo  "Result  : Home directory needs to be created."
     else
-        debug_log "Creating home directory for '$USERNAME'..."
+        $DEBUG && echo "Creating home directory for '$USERNAME'..."
         sudo mkdir -p "/home/$USERNAME"
         sudo chown "$USERNAME:$USERNAME" "/home/$USERNAME"
-        echo "Home directory for '$USERNAME' created."
+        echo  "Result  : Home directory for '$USERNAME' created."
     fi
 else
-    echo "Home directory for '$USERNAME' already exists."
+    echo  "Result  : Home directory for '$USERNAME' already exists."
 fi
 
 # Add the user to groups
 SERVICE_GROUPS=("sudo" "docker" "users" "sshusers")
 for group in "${SERVICE_GROUPS[@]}"; do
     if groups "$USERNAME" | grep -qw "$group"; then
-        echo "User '$USERNAME' is already a member of the group '$group'."
+        echo  "Result  : User '$USERNAME' is already a member of the group '$group'."
     else
         if $CHECK; then
-            echo "User '$USERNAME' needs to be added to the group '$group'."
+            echo  "Result  : User '$USERNAME' needs to be added to the group '$group'."
         else
-            debug_log "Adding user '$USERNAME' to the group '$group'..."
+            $DEBUG && echo "Adding user '$USERNAME' to the group '$group'..."
             sudo usermod -aG "$group" "$USERNAME"
-            echo "User '$USERNAME' added to the group '$group'."
+            echo  "Result  : User '$USERNAME' added to the group '$group'."
         fi
     fi
 done

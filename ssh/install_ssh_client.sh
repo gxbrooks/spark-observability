@@ -39,12 +39,6 @@
 #         Installs the OpenSSH client if not already installed.
 # -----------------------------------------------------------------------------
 
-# Ensure the script is run as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Error: This script must be run as root or with sudo."
-    exit 1
-fi
-
 # Parse flags
 CHECK=false
 DEBUG=false
@@ -58,29 +52,23 @@ for arg in "$@"; do
     esac
 done
 
-# Debug output
-debug() {
-    if [ "$DEBUG" = true ]; then
-        echo "DEBUG: $1"
-    fi
-}
-
 # Check if OpenSSH client is installed
-debug "Checking if OpenSSH client is installed."
+$DEBUG && echo "Checking  : Is OpenSSH client is installed?"
 if ! dpkg -l | grep -q openssh-client; then
     if [ "$CHECK" = true ]; then
-        echo "OpenSSH client is not installed."
+        echo "Result    : OpenSSH client is not installed."
     else
-        echo "Installing OpenSSH client..."
-        apt update
-        apt install -y openssh-client
-        echo "OpenSSH client installed."
+        $DEBUG && echo "Installing: OpenSSH client..."
+        sudo apt update
+        sudo apt install -y openssh-clientecho "Installing: OpenSSH client..."
+        echo "Result    : OpenSSH client installed."
     fi
 else
-    echo "OpenSSH client is already installed."
+    $DEBUG && echo "Result  : OpenSSH client is already installed."
     if [ "$REINSTALL" = true ]; then
-        echo "Reinstalling OpenSSH client..."
-        apt install --reinstall -y openssh-client
-        echo "OpenSSH client reinstalled."
+        $DEBUG && echo "Installing: OpenSSH client..."
+        sudo apt install --reinstall -y openssh-client
+        echo "Result    : OpenSSH client reinstalled."
     fi
 fi
+$DEBUG && echo "Result    :  OpenSSH Installation checked."

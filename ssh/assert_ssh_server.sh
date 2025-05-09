@@ -50,7 +50,10 @@
 CHECK=false
 DEBUG=false
 REINSTALL=false
-SSHD_CONFIG_SRC="./ssh/sshd_config.linux.cfg"
+script_path="${BASH_SOURCE[0]}"
+script_name="$(basename "$script_path")"
+script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+root_dir="$(cd "$script_dir/.." && pwd)"
 
 for arg in "$@"; do
     case $arg in
@@ -60,6 +63,12 @@ for arg in "$@"; do
         --Reinstall|-r) REINSTALL=true ;;
     esac
 done
+
+append_flag() {
+    local flag=$1
+    local condition=$2
+    [[ $condition == true ]] && echo "$flag"
+}
 
 # Check if OpenSSH server is installed
 echo "Checking: Is OpenSSH server is installed?"
@@ -81,20 +90,14 @@ else
     fi
 fi
 
+# assert that the sshuser group exists
+$script_dir/assert_group.sh \
+    --Group "sshusers" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG") 
 
-# Create the sshuser group
-echo "Checking: Checking if 'sshuser' group exists."
-if ! getent group sshuser > /dev/null; then
-    if [ "$CHECK" = true ]; then
-        echo "Result  : Group 'sshuser' does not exist."
-    else
-        echo "Checking: Creating group 'sshuser'..."
-        sudo groupadd sshuser
-        echo "Result  : Group 'sshuser' created."
-    fi
-else
-    echo "Result  : Group 'sshuser' already exists."
-fi
+# Check if SSH service is enabled
+
 
 # Configure firewall rules
 is_wsl() {
@@ -113,7 +116,7 @@ is_wsl() {
 
 # Backup and replace sshd_config
 echo "Checking: Preparing to configure sshd_config."
-SSHD_CONFIG_SRC="./ssh/sshd_config.linux.cfg"
+SSHD_CONFIG_SRC="$script_dir/sshd_config.linux.cfg"
 SSHD_CONFIG_DEST="/etc/ssh/sshd_config"
 SSHD_CONFIG_BACKUP="/etc/ssh/sshd_config.original"
 
@@ -165,17 +168,16 @@ else
 fi
 
 # Enable and start SSH service
-echo "Checking: Checking if SSH service is running."
+echo "Checking: Is the SSH service is running?"
 if [ -n "$WSL_DISTRO_NAME" ]; then
     # Running on WSL: Use service commands
     if ! service ssh status > /dev/null 2>&1; then
-        echo "Starting: SSH service via 'service' commands as SSH service is not running."
         # enable won't really do anything on WSL, but it's here for clarity
         # An administrative user must manually start the service after a reboot of WSL
         if [ "$CHECK" = true ]; then 
             echo "Result  : SSH service is not running (WSL)."
         else
-            echo "Result  : Enabling SSH service..."
+            $DEBUG && echo "Starting: SSH service on WSL Linux using service command."
             # sudo service ssh enable
             sudo service ssh start
             echo "Result  : SSH service is enabled and running (WSL)."
@@ -194,11 +196,10 @@ if [ -n "$WSL_DISTRO_NAME" ]; then
 else
     # Native Linux environment: Use systemctl commands
     if ! systemctl is-active --quiet ssh; then
-        echo "Starting: SSH service via 'systemctl' commands as SSH service is not running."
         if [ "$CHECK" = true ]; then 
             echo "Result  : SSH service is not running (WSL)."
         else
-            echo "Starting: Enabling SSH service (native Linux)..."
+            $DEBUG && echo "Starting: SSH service on native Linux with 'systemctl' commands."
             sudo systemctl enable ssh
             sudo systemctl start ssh
             echo "Result  : SSH service was enabled and started (native Linux)."
@@ -207,7 +208,7 @@ else
         if [ "$CHECK" = true ]; then 
             echo "Result  : SSH service needs to be restarted (WSL)."
         else
-            echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service (native Linux)..."
+            $DEBUG && echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service on native Linux."
             sudo systemctl restart ssh 
             echo "Result  : SSH service restarted (native Linux)."
         fi
@@ -230,7 +231,7 @@ if ! is_wsl; then
     else
         echo "Result  : ufw is already installed."
         if [ "$REINSTALL" = true ] && [ "$CHECK" != true ]; then
-            echo "Starting: Reinstalling ufw..."
+            $DEBUG && echo "Starting: Reinstalling ufw..."
             sudo apt install --reinstall -y ufw
             echo "Result  : ufw reinstalled."
         fi
@@ -238,7 +239,7 @@ if ! is_wsl; then
     
     if ! sudo ufw status | grep -q "Status: active"; then
         if [ "$CHECK" != true ]; then
-            echo "Starting: Enabling ufw..."
+            $DEBUG && echo "Starting: Enabling ufw..."
             sudo ufw enable
             echo "Result  : ufw enabled."
         else
@@ -252,7 +253,7 @@ if ! is_wsl; then
     if sudo ufw status | grep -q "Status: active"; then
         if ! sudo ufw status | grep -q "22/tcp"; then
             if [ "$CHECK" != true ]; then
-                echo "Starting: Allowing SSH through ufw..."
+                $DEBUG && echo "Starting: Allowing SSH through ufw..."
                 sudo ufw allow ssh
                 echo "Result  : SSH rule added to ufw."
             else

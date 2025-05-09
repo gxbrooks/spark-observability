@@ -13,6 +13,7 @@ NC='\033[0m' # No Color
 DEBUG=false
 CHECK=false
 USERNAME=$(whoami)
+PASSPHRASE=""
 
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
@@ -29,12 +30,13 @@ while [[ $# -gt 0 ]]; do
             USERNAME=$2
             shift
             ;;
-        --Passphrase|-p|-N)
+        --Passphrase|-p)
             PASSPHRASE=$2
             shift
             ;;
         *)
             echo "Error   : Unrecognized argument $1 in $script_name." 
+            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Passphrase|-p <passphrase>]"
             exit 1
             ;;
     esac
@@ -47,11 +49,13 @@ if [[ -z "$PASSPHRASE" ]]; then
   exit 1
 fi
 
+$DEBUG && echo "Checking  : $script_name started."
+
 # Define paths
 HOME_DIR=$(eval echo "~$USERNAME")
 SSH_DIR="$HOME_DIR/.ssh"
-PRIVATE_KEY="$SSH_DIR/id_rsa"
-PUBLIC_KEY="$SSH_DIR/id_rsa.pub"
+PRIVATE_KEY="$SSH_DIR/id_ed25519"
+PUBLIC_KEY="$SSH_DIR/id_ed25519.pub"
 
 # Check and create .ssh directory
 $DEBUG && echo "Checking: if .ssh directory exists for user '$USERNAME'."
@@ -68,18 +72,22 @@ else
     fi
 fi
 
-# Check and generate SSH key pair
-$DEBUG && echo "Checking: if SSH key pair exists for user '$USERNAME'."
+# Check and generate Git key pair
+$DEBUG && echo "Checking: if Git key pair exists for user '$USERNAME'."
 if [[ -f $PRIVATE_KEY && -f $PUBLIC_KEY ]]; then
-    echo "Result  : SSH key pair exists for user '$USERNAME'."
+    echo "Result  : Git key pair exists for user '$USERNAME'."
 else
     if $CHECK; then
-        echo "Result  : SSH key pair does not exist for user '$USERNAME'."
+        echo "Result  : Git key pair does not exist for user '$USERNAME'."
     else
-        ssh-keygen -t rsa -b 2048 -f "$PRIVATE_KEY" -q -N "$PASSPHRASE"
+        ssh-keygen -q -t ed25519 \
+            -f "$PRIVATE_KEY" \
+            -N "$PASSPHRASE" \
+            -C "$USERNAME@$(hostname)" \
+            &>> $SSH_DIR/id_ed25519.log 
         chmod 600 "$PRIVATE_KEY" "$PUBLIC_KEY"
         chown "$USERNAME:$USERNAME" "$PRIVATE_KEY" "$PUBLIC_KEY"
-        echo "Result  : SSH key pair generated for user '$USERNAME'."
+        echo "Result  : Git key pair generated for user '$USERNAME'."
     fi
 fi
 
@@ -111,7 +119,18 @@ else
     echo "Result  : Permissions for public key are correct."
 fi
 
-$DEBUG && echo "Next    : Copy the public key to the remote server's authorized_keys file."
-$DEBUG && echo "Next    : Use ssh-copy-id-windows.sh to copy to a Windows ssh server" 
-$DEBUG && echo "Next    : Use /usr/bin/ssh-copy-id to copy to a standalone Linux ssh server"
-$DEBUG && echo "Next    : Use /usr/bin/ssh-copy-id -p 2222 to copy to a WSL ssh server"  
+$DEBUG && echo "Next    : Copy the public key to GitHub SSH and GPG keys page at:"
+$DEBUG && echo "Next    :     https://github.com/settings/keys"
+$DEBUG && echo "Next    : Then add the following to your ~/.bashrc file" 
+$DEBUG && echo "Next    :     eval \$(keychain --eval --quiet id_ed25519)"
+
+# change to SSH URL for GitHub
+$DEBUG && echo "Checking: Is Git URL is in SSH format."
+if $CHECK; then
+    echo "Result  : Don't forget to change the git url."
+else
+    git remote set-url origin git@github.com:gxbrooks/elastic-on-spark
+    echo "Result  : Set the git url to SSH format."
+fi
+
+$DEBUG && echo "Result  : $script_name completed."
