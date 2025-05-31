@@ -54,3 +54,20 @@ $root_dir/ssh/assert_service_account.sh \
     --Password "$PASSWORD" \
     --Username "$USERNAME"
 
+# Ensure /etc/sudoers.d/ansible exists with correct permissions and content
+SUDOERS_FILE="/etc/sudoers.d/ansible"
+SUDOERS_LINE="ansible ALL=(ALL) NOPASSWD: ALL"
+
+if sudo test ! -f "$SUDOERS_FILE"; then
+    echo "Info    : Creating $SUDOERS_FILE for passwordless sudo for ansible user."
+    echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
+    sudo chmod 0440 "$SUDOERS_FILE"
+else
+    # Ensure the correct line is present (idempotent)
+    if ! sudo grep -Fxq "$SUDOERS_LINE" "$SUDOERS_FILE"; then
+        echo "Info    : Appending sudoers line for ansible user to $SUDOERS_FILE."
+        echo "$SUDOERS_LINE" | sudo tee -a "$SUDOERS_FILE" > /dev/null
+        sudo chmod 0440 "$SUDOERS_FILE"
+    fi
+fi
+

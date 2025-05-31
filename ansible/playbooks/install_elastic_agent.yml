@@ -1,35 +1,74 @@
-- name: Install Elastic Agent on Windows and Ubuntu
+- name: Install Elastic Agent on Windows and Linux
   hosts: all
+  vars:
+    elastic_agent_version: "8.11.1"
+    elastic_agent_windows_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-windows-x86_64.zip"
+    elastic_agent_linux_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
+    elastic_agent_windows_dest: 'C:\elastic-agent.zip'
+    elastic_agent_linux_dest: "/tmp/elastic-agent.tar.gz"
+    elastic_agent_linux_extract_dir: "/opt"
   tasks:
-    - name: Download Elastic Agent
-      win_get_url:
-        url: https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-7.13.1-windows-x86_64.zip
-        dest: C:\elastic-agent.zip
-      when: ansible_connection == "winrm"
+    - name: Download Elastic Agent (Windows)
+      ansible.windows.win_get_url:
+        url: "{{ elastic_agent_windows_url }}"
+        dest: '{{ elastic_agent_windows_dest }}'
+      when: ansible_os_family == "Windows"
 
-    - name: Unzip Elastic Agent
-      win_unzip:
-        src: C:\elastic-agent.zip
-        dest: C:\elastic-agent
-      when: ansible_connection == "winrm"
+    - name: Unzip Elastic Agent (Windows)
+      community.windows.win_unzip:
+        src: '{{ elastic_agent_windows_dest }}'
+        dest: 'C:\elastic-agent'
+      when: ansible_os_family == "Windows"
 
-    - name: Install Elastic Agent on Windows
-      win_command: C:\elastic-agent\elastic-agent.exe install
-      when: ansible_connection == "winrm"
+    - name: Check if Elastic Agent is already installed (Windows)
+      ansible.windows.win_stat:
+        path: 'C:\Program Files\Elastic\Agent'
+      register: elastic_agent_installed_win
+      when: ansible_os_family == "Windows"
 
-    - name: Download Elastic Agent on Ubuntu
-      get_url:
-        url: https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-7.13.1-linux-x86_64.tar.gz
-        dest: /tmp/elastic-agent.tar.gz
-      when: ansible_connection == "ssh"
+    - name: Install Elastic Agent (Windows)
+      ansible.windows.win_command: 'C:\elastic-agent\elastic-agent.exe install'
+      when:
+        - ansible_os_family == "Windows"
+        - not elastic_agent_installed_win.stat.exists
 
-    - name: Extract Elastic Agent on Ubuntu
+    - name: Download Elastic Agent (Linux)
+      ansible.builtin.get_url:
+        url: "{{ elastic_agent_linux_url }}"
+        dest: "{{ elastic_agent_linux_dest }}"
+      when: ansible_os_family != "Windows"
+      become: true
+
+    - name: Extract Elastic Agent (Linux)
       ansible.builtin.unarchive:
-        src: /tmp/elastic-agent.tar.gz
-        dest: /opt
+        src: "{{ elastic_agent_linux_dest }}"
+        dest: "{{ elastic_agent_linux_extract_dir }}"
         remote_src: yes
-      when: ansible_connection == "ssh"
+      when: ansible_os_family != "Windows"
+      become: true
 
-    - name: Install Elastic Agent on Ubuntu
-      shell: /opt/elastic-agent/elastic-agent install
-      when: ansible_connection == "ssh"
+    - name: Check if Elastic Agent is already installed (Linux)
+      ansible.builtin.stat:
+        path: "/opt/elastic-agent"
+      register: elastic_agent_installed_linux
+      when: ansible_os_family != "Windows"
+
+    - name: Install Elastic Agent (Linux)
+      ansible.builtin.shell: "/opt/elastic-agent/elastic-agent install"
+      when:
+        - ansible_os_family != "Windows"
+        - not elastic_agent_installed_linux.stat.exists
+      become: true
+
+    - name: Remove Elastic Agent archive (Linux)
+      ansible.builtin.file:
+        path: "{{ elastic_agent_linux_dest }}"
+        state: absent
+      when: ansible_os_family != "Windows"
+      become: true
+
+    - name: Remove Elastic Agent archive (Windows)
+      ansible.windows.win_file:
+        path: '{{ elastic_agent_windows_dest }}'
+        state: absent
+      when: ansible_os_family == "Windows"

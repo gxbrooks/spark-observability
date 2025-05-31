@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$PASSPHRASE" ]]; then
-  echo "Error: Passphrase is mandatory. Use the -N option to specify it." >&2
+  echo "Error: Passphrase is mandatory for securing keys. Use the -N (-p) option to specify it." >&2
   echo "Usage: $0 [--Check|-c] [--Debug|-c] [-N <passphrase>]"  >&2
   exit 1
 fi
@@ -49,7 +49,7 @@ fi
 
 if ! $CHECK; then
   sudo apt update && sudo apt upgrade -y
-  sudo apt update && sudo apt  -y install jq ncat keychain bind9-dnsutils traceroute
+  sudo apt update && sudo apt  -y install jq ncat keychain bind9-dnsutils traceroute ansible-core
 fi
 
 if ! $CHECK; then
