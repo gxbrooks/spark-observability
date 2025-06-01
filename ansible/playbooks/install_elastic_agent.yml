@@ -1,75 +1,152 @@
-- name: Install Elastic Agent on Windows and Linux
-  hosts: all
+# Windows Play
+- name: Install Elastic Agent on Windows hosts
+  hosts: windows
   vars:
-    elastic_agent_version: "8.11.1"
+    elastic_agent_version: "9.0.1"
     elastic_agent_windows_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-windows-x86_64.zip"
-    elastic_agent_linux_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
-    elastic_agent_windows_dest: 'C:\elastic-agent.zip'
-    elastic_agent_linux_dest: "/tmp/elastic-agent.tar.gz"
-    elastic_agent_linux_extract_dir: "/opt"
-    elastic_agent_linux_versioned_dir: "/opt/elastic-agent-{{ elastic_agent_version }}-linux-x86_64"
+    elastic_agent_temp_base: "{{ 'C:\\temp' }}"
+    elastic_agent_download_dir: "{{ elastic_agent_temp_base }}\\elastic-downloads"
+    elastic_agent_extract_dir: "{{ elastic_agent_temp_base }}\\elastic-extract"
+    elastic_agent_install_dir: "{{ ansible_env.ProgramFiles | default('C:\\Program Files') }}\\Elastic\\Agent"
+    elastic_agent_config_src: "../../elastic-agent/elastic-agent.yml"
+    elastic_agent_service_name: "Elastic Agent"
+
   tasks:
-    - name: Download Elastic Agent (Windows)
-      ansible.windows.win_get_url:
-        url: "{{ elastic_agent_windows_url }}"
-        dest: '{{ elastic_agent_windows_dest }}'
-      when: ansible_os_family == "Windows"
-
-    - name: Unzip Elastic Agent (Windows)
-      community.windows.win_unzip:
-        src: '{{ elastic_agent_windows_dest }}'
-        dest: 'C:\elastic-agent'
-      when: ansible_os_family == "Windows"
-
-    - name: Check if Elastic Agent is already installed (Windows)
+    - name: Check if Elastic Agent download already exists
       ansible.windows.win_stat:
-        path: 'C:\Program Files\Elastic\Agent'
-      register: elastic_agent_installed_win
-      when: ansible_os_family == "Windows"
+        path: "{{ elastic_agent_download_dir }}\\elastic-agent-{{ elastic_agent_version }}.zip"
+      register: elastic_agent_download_exists
 
-    - name: Install Elastic Agent (Windows)
-      ansible.windows.win_command: 'C:\elastic-agent\elastic-agent.exe install'
-      when:
-        - ansible_os_family == "Windows"
-        - not elastic_agent_installed_win.stat.exists
-
-    - name: Remove Elastic Agent archive (Windows)
+    - name: Create temporary directories
       ansible.windows.win_file:
-        path: '{{ elastic_agent_windows_dest }}'
-        state: absent
-      when: ansible_os_family == "Windows"
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ elastic_agent_download_dir }}"
+        - "{{ elastic_agent_extract_dir }}"
+      when: not elastic_agent_download_exists.stat.exists
 
+    - name: Download Elastic Agent
+      ansible.windows.win_get_url:
+        url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-windows-x86_64.zip"
+        dest: "{{ elastic_agent_download_dir }}\\elastic-agent-{{ elastic_agent_version }}.zip"
+      when: not elastic_agent_download_exists.stat.exists
+
+    - name: Check if Elastic Agent is already extracted
+      ansible.windows.win_stat:
+        path: "{{ elastic_agent_extract_dir }}\\elastic-agent-{{ elastic_agent_version }}-windows-x86_64\\elastic-agent.exe"
+      register: elastic_agent_extracted
+
+    - name: Extract Elastic Agent using PowerShell
+      ansible.windows.win_shell: |
+        Expand-Archive -Path "{{ elastic_agent_download_dir }}\elastic-agent-{{ elastic_agent_version }}.zip" -DestinationPath "{{ elastic_agent_extract_dir }}" -Force
+      when: not elastic_agent_extracted.stat.exists
+
+    - name: Check if Elastic Agent service already exists
+      win_service:
+        name: "{{ elastic_agent_service_name }}"
+      register: elastic_agent_service_check
+      failed_when: false
+
+    - name: Install Elastic Agent
+      ansible.windows.win_shell: |
+        .\elastic-agent.exe install --non-interactive
+      args:
+        chdir: "{{ elastic_agent_extract_dir }}\\elastic-agent-{{ elastic_agent_version }}-windows-x86_64"
+      register: elastic_agent_install_result
+      failed_when: 
+        - elastic_agent_install_result.rc != 0 
+        - "'already installed' not in elastic_agent_install_result.stderr"
+        - "'already installed' not in elastic_agent_install_result.stdout"
+      when: not elastic_agent_service_check.exists
+
+    - name: Display installation result
+      debug:
+        var: elastic_agent_install_result
+      when: elastic_agent_install_result is defined
+
+    - name: Wait for service to be created
+      win_service:
+        name: "{{ elastic_agent_service_name }}"
+      register: service_check
+      until: service_check.exists
+      retries: 10
+      delay: 2
+      failed_when: false
+      when: not elastic_agent_service_check.exists
+
+    - name: Check if configuration file already exists and get checksum
+      ansible.windows.win_stat:
+        path: "{{ elastic_agent_install_dir }}\\elastic-agent.yml"
+        get_checksum: yes
+      register: existing_config
+
+    - name: Get checksum of source configuration file
+      ansible.builtin.stat:
+        path: "{{ elastic_agent_config_src }}"
+        get_checksum: yes
+      register: source_config
+      delegate_to: localhost
+
+    - name: Stop Elastic Agent service (for configuration)
+      win_service:
+        name: "{{ elastic_agent_service_name }}"
+        state: stopped
+      when: 
+        - elastic_agent_service_check.exists or service_check.exists
+        - not existing_config.stat.exists or (existing_config.stat.checksum != source_config.stat.checksum)
+
+    - name: Copy Elastic Agent configuration file
+      win_copy:
+        src: "{{ elastic_agent_config_src }}"
+        dest: "{{ elastic_agent_install_dir }}\\elastic-agent.yml"
+        backup: yes
+      when: not existing_config.stat.exists or (existing_config.stat.checksum != source_config.stat.checksum)
+
+    - name: Start Elastic Agent service
+      win_service:
+        name: "{{ elastic_agent_service_name }}"
+        state: started
+        start_mode: auto
+      when: elastic_agent_service_check.exists or service_check.exists
+
+# Linux Play (Native Only)
+- name: Install Elastic Agent on Native Linux hosts
+  hosts: native
+  vars:
+    elastic_agent_version: "9.0.1"
+    elastic_agent_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
+    elastic_agent_dest: "/tmp/elastic-agent.tar.gz"
+    elastic_agent_extract_dir: "/opt"
+    elastic_agent_versioned_dir: "/opt/elastic-agent-{{ elastic_agent_version }}-linux-x86_64"
+
+  tasks:
     - name: Download Elastic Agent (Linux)
       ansible.builtin.get_url:
-        url: "{{ elastic_agent_linux_url }}"
-        dest: "{{ elastic_agent_linux_dest }}"
-      when: ansible_os_family != "Windows"
+        url: "{{ elastic_agent_url }}"
+        dest: "{{ elastic_agent_dest }}"
       become: true
 
     - name: Extract Elastic Agent (Linux)
       ansible.builtin.unarchive:
-        src: "{{ elastic_agent_linux_dest }}"
-        dest: "{{ elastic_agent_linux_extract_dir }}"
+        src: "{{ elastic_agent_dest }}"
+        dest: "{{ elastic_agent_extract_dir }}"
         remote_src: yes
-      when: ansible_os_family != "Windows"
       become: true
 
     - name: Check if Elastic Agent is already installed (Linux)
       ansible.builtin.stat:
-        path: "{{ elastic_agent_linux_versioned_dir }}"
+        path: "{{ elastic_agent_versioned_dir }}"
       register: elastic_agent_installed_linux
-      when: ansible_os_family != "Windows"
 
     - name: Install Elastic Agent (Linux)
-      ansible.builtin.shell: "{{ elastic_agent_linux_versioned_dir }}/elastic-agent install"
-      when:
-        - ansible_os_family != "Windows"
-        - not elastic_agent_installed_linux.stat.exists
+      ansible.builtin.shell: "{{ elastic_agent_versioned_dir }}/elastic-agent install"
+      when: not elastic_agent_installed_linux.stat.exists
       become: true
 
     - name: Remove Elastic Agent archive (Linux)
       ansible.builtin.file:
-        path: "{{ elastic_agent_linux_dest }}"
+        path: "{{ elastic_agent_dest }}"
         state: absent
-      when: ansible_os_family != "Windows"
       become: true
+

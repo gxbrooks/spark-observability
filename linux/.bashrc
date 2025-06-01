@@ -6,11 +6,11 @@ LS_HOME=/usr/share/logstash
 PATH=${PATH}:/home/gxbrooks/GitHub/elastic-on-spark/elasticsearch/bin
 
 if ! grep -qi "microsoft\|wsl" /proc/version; then
-    # Running on WSL
+    echo "Running on native Linux"
     $dir/keep_awake.sh
 else
-    # Running on native Linux
-    systemctl --user status ssh-agent
+    echo "Running on WSL"
+    systemctl --user start ssh-agent
 fi
 
 # Setup ssh-agent entry for GitHub and ssh
