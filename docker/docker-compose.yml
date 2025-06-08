@@ -235,212 +235,212 @@ services:
       init-certs:
         condition: service_completed_successfully
 
-#   init-index:
-#     image: elasticsearch-python
-#     command: bash -f ./elasticsearch/bin/init-index.sh
-#     labels:
-#       role: "Init Index"
-#     volumes:
-#       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-#       - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
-#       - ./shared:/opt/shared
-#     environment:
-#       ELASTIC_HOST: ${ELASTIC_HOST}
-#       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-#       ELASTIC_PORT: ${ELASTIC_PORT}
-#       ELASTIC_USER: ${ELASTIC_USER}
-#       CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
-#       PY_SCRIPTS: "/opt/shared/bin"
-#       PYTHONPATH: "/opt/shared/bin/api"
-#     depends_on:
-#       es01:
-#         condition: service_healthy
-#       init-certs:
-#         condition: service_completed_successfully
+  init-index:
+    image: elasticsearch-python
+    command: bash -f ./elasticsearch/bin/init-index.sh
+    labels:
+      role: "Init Index"
+    volumes:
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
+      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
+      - ./shared:/opt/shared
+    environment:
+      ELASTIC_HOST: ${ELASTIC_HOST}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ELASTIC_PORT: ${ELASTIC_PORT}
+      ELASTIC_USER: ${ELASTIC_USER}
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+      PY_SCRIPTS: "/opt/shared/bin"
+      PYTHONPATH: "/opt/shared/bin/api"
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-certs:
+        condition: service_completed_successfully
 
-#   logstash01:
-#     image: docker.elastic.co/logstash/logstash:8.14.3 #${STACK_VERSION} 
-#     container_name: logstash01
-#     labels:
-#       co.elastic.logs/module: logstash
-#       role: "Logstash"
-#     # TODO: Logstash should not run a root, but it needs to be able to write to the
-#     # /var/log/spark/events directory, which is owned by root.
-#     user: root
-#     ports: 
-#         - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
-#         # TODO: Evantually metrics should be sent to reginal Logstash servers
-#         # and then fed up into Elasticsearch
-#         # - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"
-#         - "9600:9600"
-#     volumes:
-#       - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
-#       - ./shared:/opt/shared
-#       - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
-#       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
-#       # not used
-#       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
-#     environment:
-#       xpack.monitoring.enabled: "false"
-#       ELASTIC_USER: "elastic"
-#       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-#       ELASTIC_HOSTS: "https://${ELASTIC-HOST}:${ELASTIC_PORT}"
-#       ELASTIC_URL: ${ELASTIC_URL}
-#       LS_HOST: ${LS_HOST}
-#       LS_SPARK_EVENTS_PORT: ${LS_SPARK_EVENTS_PORT}
-#       LS_DOCKER_METRICS_PORT: ${LS_DOCKER_METRICS_PORT}
-#       # TODO: environment variables to include time zone. 
-#       TZ: "America/Chicago"
-#     depends_on:
-#       es01:
-#         condition: service_healthy
-#       init-index:
-#         condition: service_completed_successfully
-#     healthcheck:
-#       test:
-#         [
-#           "CMD-SHELL",
-#           "curl -s -I http://localhost:9600",
-#         ]
-#       interval: 10s
-#       timeout: 10s
-#       retries: 120
+  logstash01:
+    image: docker.elastic.co/logstash/logstash:8.14.3 #${STACK_VERSION} 
+    container_name: logstash01
+    labels:
+      co.elastic.logs/module: logstash
+      role: "Logstash"
+    # TODO: Logstash should not run a root, but it needs to be able to write to the
+    # /var/log/spark/events directory, which is owned by root.
+    user: root
+    ports: 
+        - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
+        # TODO: Evantually metrics should be sent to reginal Logstash servers
+        # and then fed up into Elasticsearch
+        # - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"
+        - "9600:9600"
+    volumes:
+      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
+      - ./shared:/opt/shared
+      - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
+      - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+      # not used
+      - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
+    environment:
+      xpack.monitoring.enabled: "false"
+      ELASTIC_USER: "elastic"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ELASTIC_HOSTS: "https://${ELASTIC-HOST}:${ELASTIC_PORT}"
+      ELASTIC_URL: ${ELASTIC_URL}
+      LS_HOST: ${LS_HOST}
+      LS_SPARK_EVENTS_PORT: ${LS_SPARK_EVENTS_PORT}
+      LS_DOCKER_METRICS_PORT: ${LS_DOCKER_METRICS_PORT}
+      # TODO: environment variables to include time zone. 
+      TZ: "America/Chicago"
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost:9600",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
  
-#   spark-master:
-#     container_name: da-spark-master
-#     build: 
-#       context: ./spark
-#       dockerfile: Dockerfile
-#       args:
-#         SPARK_VERSION: ${SPARK_VERSION}
-#         SPARK_MASTER: ${SPARK_MASTER}
-#         SPARK_HOME: ${SPARK_HOME}
-#         SPARK_MASTER_HOST: ${SPARK_MASTER_HOST}
-#         SPARK_MASTER_PORT: ${SPARK_MASTER_PORT}
-#         HADOOP_HOME: ${HADOOP_HOME}
-#         PYSPARK_PYTHON: ${PYSPARK_PYTHON}
-#         ELASTIC_AGENT_HOME: ${ELASTIC_AGENT_HOME}
-#         ELASTIC_AGENT_STACK_VERSION: ${ELASTIC_AGENT_STACK_VERSION}
-#         GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
+  spark-master:
+    container_name: da-spark-master
+    build: 
+      context: ./spark
+      dockerfile: Dockerfile
+      args:
+        SPARK_VERSION: ${SPARK_VERSION}
+        SPARK_MASTER: ${SPARK_MASTER}
+        SPARK_HOME: ${SPARK_HOME}
+        SPARK_MASTER_HOST: ${SPARK_MASTER_HOST}
+        SPARK_MASTER_PORT: ${SPARK_MASTER_PORT}
+        HADOOP_HOME: ${HADOOP_HOME}
+        PYSPARK_PYTHON: ${PYSPARK_PYTHON}
+        ELASTIC_AGENT_HOME: ${ELASTIC_AGENT_HOME}
+        ELASTIC_AGENT_STACK_VERSION: ${ELASTIC_AGENT_STACK_VERSION}
+        GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
       
-#     image: da-spark-image
-#     entrypoint: ["./entrypoint.sh", 'master']
-#     labels:
-#       role: "Spark Master"
-#     healthcheck:
-#       test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
-#       interval: 5s
-#       timeout: 3s
-#       retries: 3
-#     hostname: spark-master
-#     env_file:
-#       - .env
-#     # TODO: allow for multiple Spark Masters
-#     # environment:
-#     #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-#     #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-#     volumes:
-#       - /var/log/spark/events:/opt/spark/spark-events
-#       - /var/log/spark/spark-master:/opt/spark/logs
-#       - ./spark/code:/opt/spark/code
-#       - ../spark/data:/opt/spark/data
-#       - ./spark/apps:/opt/spark/apps
-#       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
-#       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-#       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-#       # elastic-agent moved outside docker
-#       #- ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
-#       # entrypoint copied in in the Dockerfile
-#       # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
-#       - ./shared:/opt/shared
-#       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-#       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-#     depends_on:
-#       # for sending metrics to Elastic
-#       es01:
-#         condition: service_healthy
-#     ports:
-#       - '9090:8080'
-#       - '7077:7077'
+    image: da-spark-image
+    entrypoint: ["./entrypoint.sh", 'master']
+    labels:
+      role: "Spark Master"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    hostname: spark-master
+    env_file:
+      - .env
+    # TODO: allow for multiple Spark Masters
+    # environment:
+    #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+    #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+    volumes:
+      - /var/log/spark/events:/opt/spark/spark-events
+      - /var/log/spark/spark-master:/opt/spark/logs
+      - ./spark/code:/opt/spark/code
+      - ../spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
+      # elastic-agent moved outside docker
+      #- ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      # entrypoint copied in in the Dockerfile
+      # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      - ./shared:/opt/shared
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    depends_on:
+      # for sending metrics to Elastic
+      es01:
+        condition: service_healthy
+    ports:
+      - '9090:8080'
+      - '7077:7077'
 
-#   spark-history:
-#     container_name: da-spark-history
-#     image: da-spark-image
-#     entrypoint: ["./entrypoint.sh", 'history']
-#     labels:
-#       role: "Spark Historian"
-#     depends_on:
-#       spark-master:
-#         condition: service_healthy
-#       # for sending metrics to Elastic
-#       es01:
-#         condition: service_healthy
-#       # Make sure Logstash is running and all indicies are defined before starting Elastic Agent
-#       logstash01:
-#         condition: service_healthy
-#       init-index:
-#         condition: service_completed_successfully
-#     hostname: spark-history
-#     # environment:
-#     #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-#     #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-#     env_file:
-#       # - .spark.env
-#       - .env
-#     volumes:
-#       - /var/log/spark/events:/opt/spark/spark-events
-#       - /var/log/spark/spark-history:/opt/spark/logs
-#       - ../spark-data:/opt/spark/data
-#       - ./spark/apps:/opt/spark/apps
-#       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
-#       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-#       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-#       # elastic-agent moved outside docker
-#       # - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
-#       # entrypoint copied in in the Dockerfile
-#       # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
-#       # - ./certs:/opt/Elastic/certs
-#       - ./shared:/opt/shared
-#       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-#       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-#     ports:
-#       - '18080:18080'
+  spark-history:
+    container_name: da-spark-history
+    image: da-spark-image
+    entrypoint: ["./entrypoint.sh", 'history']
+    labels:
+      role: "Spark Historian"
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      # for sending metrics to Elastic
+      es01:
+        condition: service_healthy
+      # Make sure Logstash is running and all indicies are defined before starting Elastic Agent
+      logstash01:
+        condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
+    hostname: spark-history
+    # environment:
+    #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+    #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+    env_file:
+      # - .spark.env
+      - .env
+    volumes:
+      - /var/log/spark/events:/opt/spark/spark-events
+      - /var/log/spark/spark-history:/opt/spark/logs
+      - ../spark-data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
+      # elastic-agent moved outside docker
+      # - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      # entrypoint copied in in the Dockerfile
+      # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      # - ./certs:/opt/Elastic/certs
+      - ./shared:/opt/shared
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    ports:
+      - '18080:18080'
 
-#   spark-worker:
-# #    container_name: da-spark-worker
-#     image: da-spark-image
-#     entrypoint: ["./entrypoint.sh", 'worker']
-#     labels:
-#       role: "Spark Worker"
-#     depends_on:
-#       spark-master:
-#         condition: service_healthy
-#       # for sending metrics to Elastic
-#       es01:
-#         condition: service_healthy
-#     hostname: spark-worker
-#     # environment:
-#     #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-#     #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-#     env_file:
-#       #- .spark.env
-#       - .env
-#     volumes:
-#       - /var/log/spark/events:/opt/spark/spark-events
-#       - /var/log/spark/spark-worker:/opt/spark/logs
-#       - ../spark/data:/opt/spark/data
-#       - ./spark/apps:/opt/spark/apps
-#       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
-#       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-#       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
-#       # elastic-agent moved outside docker
-#       # - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
-#       # entrypoint copied in in the Dockerfile
-#       # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
-#       # - ./certs:/opt/Elastic/certs
-#       - ./shared:/opt/shared
-#       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-#       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-#     ports:
-#       - '8081:8081'
+  spark-worker:
+#    container_name: da-spark-worker
+    image: da-spark-image
+    entrypoint: ["./entrypoint.sh", 'worker']
+    labels:
+      role: "Spark Worker"
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      # for sending metrics to Elastic
+      es01:
+        condition: service_healthy
+    hostname: spark-worker
+    # environment:
+    #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+    #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+    env_file:
+      #- .spark.env
+      - .env
+    volumes:
+      - /var/log/spark/events:/opt/spark/spark-events
+      - /var/log/spark/spark-worker:/opt/spark/logs
+      - ../spark/data:/opt/spark/data
+      - ./spark/apps:/opt/spark/apps
+      - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
+      # elastic-agent moved outside docker
+      # - ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
+      # entrypoint copied in in the Dockerfile
+      # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
+      # - ./certs:/opt/Elastic/certs
+      - ./shared:/opt/shared
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    ports:
+      - '8081:8081'
 
