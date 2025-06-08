@@ -1,0 +1,41 @@
+---
+- name: Uninstall Elastic Agent 9.x
+  hosts: all
+  become: yes
+  tasks:
+    - name: Stop Elastic Agent service if running
+      systemd:
+        name: elastic-agent
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Run Elastic Agent uninstall script if present
+      shell: |
+        if [ -x /opt/Elastic/Agent/elastic-agent ]; then
+          /opt/Elastic/Agent/elastic-agent uninstall --force || true
+        elif [ -x /usr/bin/elastic-agent ]; then
+          /usr/bin/elastic-agent uninstall --force || true
+        fi
+      args:
+        executable: /bin/bash
+
+    - name: Remove Elastic Agent directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /opt/Elastic/Agent
+        - /usr/bin/elastic-agent
+        - /etc/elastic-agent
+        - /var/lib/elastic-agent
+        - /var/log/elastic-agent
+
+    - name: Remove Elastic Agent systemd unit file
+      file:
+        path: /etc/systemd/system/elastic-agent.service
+        state: absent
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes

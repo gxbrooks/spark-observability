@@ -2,6 +2,7 @@
 
 # conditionalizing on running in a container is probably not needed
 # as aliases will be used in the host environment
+echo "kapi $@"
 if [[ -f "/.dockerenv" ]]; then
   # Already running in a Docker container so define the environment
   # Otherwise the environment is defined in the docker-compose.yml file

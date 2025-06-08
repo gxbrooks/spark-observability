@@ -19,6 +19,14 @@ alias dcrun='docker compose run -it '
 alias dcr='docker compose restart '
 alias dclog="docker compose logs "
 alias dccp="docker compose cp "
+alias dcr="docker compose restart "
+
+Images
+alias dlsi='docker image ls'
+alias drmi='docker rmi $(docker images -q)'
+# removal of containers
+alias dcrm='docker rm $(docker ps -aq)'
+alias dcrmid='docker rmi $(docker images -q --filter "dangling=true")'
 
 alias dcipython='docker compose exec \
 	-e PYSPARK_DRIVER_PYTHON=ipython spark-master \

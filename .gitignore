@@ -5,19 +5,20 @@ logstash/logs
 *.pyo
 spark-events
 # init-certs generates these files and directories from scratch.
-certs/ca
-certs/es01
-certs/kibana
-certs/ca.zip
-certs/certs.zip
-certs/grafana
+docker/certs/ca
+docker/certs/es01
+docker/certs/kibana
+docker/certs/ca.zip
+docker/certs/certs.zip
+docker/certs/grafana
 
 
 # Data directories
-docker/spark/data/*
+# docker/spark/data/*
 spark/*
-elasticsearch/outputs/*
-elasticsearch/inputs/*
+docker/elasticsearch/outputs/*
+# TODO: is inputs even needed?
+docker/lasticsearch/inputs/*
 
 # Virtual Python Environments
 ansible_venv/
