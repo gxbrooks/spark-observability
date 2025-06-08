@@ -83,7 +83,7 @@ noaa = (
     # .config("spark.jars", "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.23.2.jar") \
     # The books version
     # .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1")
-    # Copilot recommended version for Spark 3.5.1
+    # Copilot recommended version for Spark 3.5.5
     # .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0")
     # .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.30.0")
     .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") 
