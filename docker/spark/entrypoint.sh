@@ -7,13 +7,11 @@ SPARK_WORKLOAD=$1
 # systemctl start elastic-agent && exit 23 
 # systemctl start elastic-agent 
 
+# Run Elastic Agent at the host level
+# echo "Starting Elastic Agent"
+# # "elastic-agent run" will not start a new agent if one is already running
+# /usr/bin/elastic-agent run &
 
-echo "Starting Elastic Agent"
-# "elastic-agent run" will not start a new agent if one is already running
-/usr/bin/elastic-agent run &
-
-
-# need to wrap Spark entrypoint.sh instead of copying it in
 
 echo "SPARK_WORKLOAD: $SPARK_WORKLOAD"
 

@@ -1,4 +1,4 @@
-FROM python:3.10-bullseye AS spark-base
+FROM python:3.13.3-bullseye AS spark-base
 
 # TODO: Need a service account for Spark
 
@@ -80,7 +80,8 @@ ENV PYTHONPATH=$SPARK_HOME/python
 
 #################################################################################
 #
-# Install the Elastic Agent
+# DO NOT Install the Elastic Agent - NOW RUN Elastic Agent from the host.
+# TODO: delete this section
 
 # TODO: Need a service account of Elastic Agent
 
@@ -88,24 +89,24 @@ ENV PYTHONPATH=$SPARK_HOME/python
 # keep the tar file and extracted directories outside the installation directory. 
 
 # Setup Spark related environment variables
-ENV ELASTIC_AGENT_HOME=${ELASTIC_AGENT_HOME:-/usr/share/elastic-agent}
-ENV ELASTIC_AGENT_STACK_VERSION=${ELASTIC_AGENT_STACK_VERSION}
+# ENV ELASTIC_AGENT_HOME=${ELASTIC_AGENT_HOME:-/usr/share/elastic-agent}
+# ENV ELASTIC_AGENT_STACK_VERSION=${ELASTIC_AGENT_STACK_VERSION}
 
-RUN mkdir -p ${ELASTIC_AGENT_HOME}
-WORKDIR ${ELASTIC_AGENT_HOME}
+# RUN mkdir -p ${ELASTIC_AGENT_HOME}
+# WORKDIR ${ELASTIC_AGENT_HOME}
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-	systemctl \
-    && rm -rf /var/lib/apt/lists/*
+# RUN apt-get update && apt-get install -y \
+#     ca-certificates \
+#     curl \
+# 	systemctl \
+#     && rm -rf /var/lib/apt/lists/*
 
 # Download and install the Elastic Agent
-RUN curl -L -O https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb \
-    && dpkg -i elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb \
-    && rm elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb
+# RUN curl -L -O https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb \
+#     && dpkg -i elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb \
+#     && rm elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb
 
-RUN systemctl enable elastic-agent 
+# RUN systemctl enable elastic-agent 
 # enable in the image, but need to start as part of the entrypoint wrapper
 
 WORKDIR ${SPARK_HOME}

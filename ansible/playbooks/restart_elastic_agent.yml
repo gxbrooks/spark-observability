@@ -1,0 +1,21 @@
+---
+- name: Deploy and restart Elastic Agent with latest config
+  hosts: all
+  become: yes
+  vars:
+    elastic_agent_config_src: "{{ playbook_dir }}/../../elastic-agent/elastic-agent.yml"
+    elastic_agent_config_dest: /etc/elastic-agent/elastic-agent.yml
+  tasks:
+    - name: Copy latest elastic-agent.yml to installation directory
+      copy:
+        src: "{{ elastic_agent_config_src }}"
+        dest: "{{ elastic_agent_config_dest }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Restart Elastic Agent service
+      systemd:
+        name: elastic-agent
+        state: restarted
+        enabled: yes

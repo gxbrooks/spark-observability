@@ -322,7 +322,7 @@ full_log.groupby()
 
 #########################################################################################
 #
-Listing 5.13 Computing only the commercial time for each program in our table 
+# Listing 5.13 Computing only the commercial time for each program in our table 
 F.when(
     F.trim(F.col("ProgramClassCD")).isin(
         ["COM", "PRC", "PGI", "PRO", "PSA", "MAG", "LOC", "SPO", "MER", "SOL"]
@@ -672,7 +672,7 @@ print(answer_no_null.count())  # 324
 
 #########################################################################################
 #
-Listing 5.17 Our full program, ordering channels by decreasing proportion of commercials
+# Listing 5.17 Our full program, ordering channels by decreasing proportion of commercials
 import os
  
 import pyspark.sql.functions as F
@@ -808,15 +808,15 @@ answer_call_sign = (
         F.sum(
             F.when(
                 F.trim(F.col("ProgramClassCD")).isin(
-                    ["COM", "PRC", "PGI", , "LOC", "SPO", "MER", "SOL"]
+                    ["COM", "PRC", "PGI", "LOC", "SPO", "MER", "SOL"]
                 ),
                 F.col("duration_seconds"),
-            ).F.when(
+            ).when(
                  F.trim(F.col("ProgramClassCD")) == "PRO",
-                 F.col("duration_seconds") * 
+                 F.col("duration_seconds") * 0.75
             ).otherwise(0)
-).alias("duration_commercial"),
-        F.sum("duration_seconds").alias("duration_total"),
+        ).alias("duration_commercial"),
+        F.sum("duration_seconds").alias("duration_total")
     )
     .withColumn(
         "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
@@ -845,14 +845,14 @@ answer_call_sign_PRO = (
                  F.trim(F.col("ProgramClassCD")) == "PRO",
                  F.col("duration_seconds") * 0.75
             ).otherwise(0)
-).alias("duration_commercial"),
+        ).alias("duration_commercial"),
         F.sum("duration_seconds").alias("duration_total"),
     )
     .withColumn(
         "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
     )
     .fillna(0)
-)
+    )   
 
 
 #########################################################################################

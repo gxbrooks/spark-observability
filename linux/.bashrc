@@ -7,9 +7,11 @@ PATH=${PATH}:/home/gxbrooks/GitHub/elastic-on-spark/elasticsearch/bin
 
 if ! grep -qi "microsoft\|wsl" /proc/version; then
     echo "Running on native Linux"
-    $dir/keep_awake.sh
+    # moved to wake on USB approach. See wake_on_usb.sh.
+    # $dir/keep_awake.sh
 else
     echo "Running on WSL"
+    # start ssh-agent to manage SSH keys
     systemctl --user start ssh-agent
 fi
 

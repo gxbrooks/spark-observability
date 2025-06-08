@@ -38,37 +38,37 @@ inputs:
       - metricsets:
         - container
         data_stream.dataset: docker.container
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
       - metricsets:
         - cpu
         data_stream.dataset: docker.cpu
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
       - metricsets:
         - diskio
         data_stream.dataset: docker.diskio
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
       - metricsets:
         - healthcheck
         data_stream.dataset: docker.healthcheck
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
       - metricsets:
         - info
         data_stream.dataset: docker.info
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
       - metricsets:
         - memory
         data_stream.dataset: docker.memory
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
       - metricsets:
         - network
         data_stream.dataset: docker.network
-        hosts: ["unix:///var/run/docker.sock"]
+        hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
   # For Spark Events which need to go through Logstash
   - id: spark-events
@@ -80,13 +80,13 @@ inputs:
           dataset: spark
           namespace: spark
         paths:
-          - /var/log/spark/events/app-*
+          - /opt/spark/spark-events/app-*
   - id: spark-app-logs
     type: filestream    
     use_output: "default"
     enabled: true
     paths:
-      - /var/log/spark/spark-*/spark.log
+      - /opt/spark/logs/spark.log
     tags: ["spark-app"]
     data_stream:
       dataset: spark_app
@@ -100,8 +100,8 @@ inputs:
       # Spark GC log rotation is specified in $SPARK_HOME/conf/spark-defaults.conf
       # It's a little funky as the base filename is *.log and the rotated files have a 
       # .<digit> added to the base filename
-      - /var/log/spark/spark-*/executor.gc.log
-      - /var/log/spark/spark-*/executor.gc.log.*
+      - /opt/spark/logs/executor.gc.log
+      - /opt/spark/logs/executor.gc.log.*
     tags: ["spark-gc"]
     data_stream:
       dataset: spark_gc
@@ -187,7 +187,7 @@ inputs:
                       - dissect:
                           field: gc.paused.type_rest
                           target_prefix: gc.paused
-                          # gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
+                          #gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
                           tokenizer: "%{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
                       - add_fields:
                           target: gc
@@ -216,7 +216,7 @@ inputs:
                 
           
 providers:
-  # Docker provides inventory information from Docker.
+# Docker provides inventory information from Docker.
   docker:
     enabled: true
     host: "unix:///var/run/docker.sock"
@@ -231,14 +231,13 @@ outputs:
     username: "elastic"
     password: "myElastic2025"
     ssl:
-      certificate_authorities: ["/etc/ssl/certs/elastic/ca.crt"]
+      certificate_authorities: ["C:/Program Files/Elastic/ca.crt"]
       verification_mode: full
     # api_key: "example-key"
     # preset: balanced  
-  # Spark outputs for events
+# Spark outputs for events
   spark_events:
     type: logstash
-    # hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
     hosts: ["localhost:5050"]
 
 #####################################################
