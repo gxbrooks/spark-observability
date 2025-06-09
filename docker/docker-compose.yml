@@ -265,7 +265,7 @@ services:
       co.elastic.logs/module: logstash
       role: "Logstash"
     # TODO: Logstash should not run a root, but it needs to be able to write to the
-    # /var/log/spark/events directory, which is owned by root.
+    # /mnt/c/Volumes/logs/spark/events directory, which is owned by root.
     user: root
     ports: 
         - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
@@ -332,6 +332,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 3
+      start_period: 60s 
     hostname: spark-master
     env_file:
       - .env
@@ -340,8 +341,8 @@ services:
     #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
     #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
     volumes:
-      - /var/log/spark/events:/opt/spark/spark-events
-      - /var/log/spark/spark-master:/opt/spark/logs
+      - /mnt/c/Volumes/logs/spark/events:/opt/spark/spark-events
+      - /mnt/c/Volumes/logs/spark/spark-master:/opt/spark/logs
       - ./spark/code:/opt/spark/code
       - ../spark/data:/opt/spark/data
       - ./spark/apps:/opt/spark/apps
@@ -355,10 +356,10 @@ services:
       - ./shared:/opt/shared
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-    depends_on:
-      # for sending metrics to Elastic
-      es01:
-        condition: service_healthy
+    # depends_on:
+    #   # for sending metrics to Elastic
+    #   es01:
+    #     condition: service_healthy
     ports:
       - '9090:8080'
       - '7077:7077'
@@ -372,14 +373,14 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
-      # for sending metrics to Elastic
-      es01:
-        condition: service_healthy
-      # Make sure Logstash is running and all indicies are defined before starting Elastic Agent
-      logstash01:
-        condition: service_healthy
-      init-index:
-        condition: service_completed_successfully
+      # # for sending metrics to Elastic
+      # es01:
+      #   condition: service_healthy
+      # # Make sure Logstash is running and all indicies are defined before starting Elastic Agent
+      # logstash01:
+      #   condition: service_healthy
+      # init-index:
+      #   condition: service_completed_successfully
     hostname: spark-history
     # environment:
     #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
@@ -388,8 +389,8 @@ services:
       # - .spark.env
       - .env
     volumes:
-      - /var/log/spark/events:/opt/spark/spark-events
-      - /var/log/spark/spark-history:/opt/spark/logs
+      - /mnt/c/Volumes/logs/spark/events:/opt/spark/spark-events
+      - /mnt/c/Volumes/logs/spark/spark-history:/opt/spark/logs
       - ../spark-data:/opt/spark/data
       - ./spark/apps:/opt/spark/apps
       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties
@@ -415,9 +416,9 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
-      # for sending metrics to Elastic
-      es01:
-        condition: service_healthy
+      # # for sending metrics to Elastic
+      # es01:
+      #   condition: service_healthy
     hostname: spark-worker
     # environment:
     #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
@@ -426,8 +427,8 @@ services:
       #- .spark.env
       - .env
     volumes:
-      - /var/log/spark/events:/opt/spark/spark-events
-      - /var/log/spark/spark-worker:/opt/spark/logs
+      - /mnt/c/Volumes/logs/spark/events:/opt/spark/spark-events
+      - /mnt/c/Volumes/logs/spark/spark-worker:/opt/spark/logs
       - ../spark/data:/opt/spark/data
       - ./spark/apps:/opt/spark/apps
       - ./spark/conf/log4j2.properties:/opt/spark/conf/log4j2.properties

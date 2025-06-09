@@ -80,13 +80,13 @@ inputs:
           dataset: spark
           namespace: spark
         paths:
-          - /opt/spark/spark-events/app-*
+          - 'C:\Volumes\logs\spark\events\app-*'
   - id: spark-app-logs
     type: filestream    
     use_output: "default"
     enabled: true
     paths:
-      - /opt/spark/logs/spark.log
+      - 'C:\Volumes\logs\spark\spark-*\spark.log'
     tags: ["spark-app"]
     data_stream:
       dataset: spark_app
@@ -100,8 +100,8 @@ inputs:
       # Spark GC log rotation is specified in $SPARK_HOME/conf/spark-defaults.conf
       # It's a little funky as the base filename is *.log and the rotated files have a 
       # .<digit> added to the base filename
-      - /opt/spark/logs/executor.gc.log
-      - /opt/spark/logs/executor.gc.log.*
+      - 'C:\Volumes\logs\spark\spark-*\executor.gc.log'
+      - 'C:\Volumes\logs\spark\spark-*\executor.gc.log.*'
     tags: ["spark-gc"]
     data_stream:
       dataset: spark_gc

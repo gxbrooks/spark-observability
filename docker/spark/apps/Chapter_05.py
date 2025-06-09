@@ -7,10 +7,11 @@ from pyspark.sql.utils import AnalysisException
 
 # Setup
 DIRECTORY = "./data/broadcast_logs"
-spark = SparkSession.builder.appName("Chapter 5: " + 
-    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ).getOrCreate()
-    
+# spark = SparkSession.builder.appName("Chapter 5: " + 
+#     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#     ).getOrCreate()
+# spark.sparkContext.setLogLevel("WARN")
+
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),  
     sep="|",                                                  
@@ -443,16 +444,16 @@ print(answer_no_null.count())  # 324     # ❶
 #
 # Listing 5.17 Our full program, ordering channels by decreasing proportion of commercials 
 
-import os
+# import os
  
-import pyspark.sql.functions as F
-from pyspark.sql import SparkSession
+# import pyspark.sql.functions as F
+# from pyspark.sql import SparkSession
  
-spark = SparkSession.builder.appName(
-    "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
-).getOrCreate()
+# spark = SparkSession.builder.appName(
+#     "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
+# ).getOrCreate()
  
-spark.sparkContext.setLogLevel("WARN")
+# spark.sparkContext.setLogLevel("WARN")
  
 # Reading all the relevant data sources
  
@@ -673,16 +674,16 @@ print(answer_no_null.count())  # 324
 #########################################################################################
 #
 # Listing 5.17 Our full program, ordering channels by decreasing proportion of commercials
-import os
+# import os
  
-import pyspark.sql.functions as F
-from pyspark.sql import SparkSession
+# import pyspark.sql.functions as F
+# from pyspark.sql import SparkSession
  
-spark = SparkSession.builder.appName(
-    "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
-).getOrCreate()
+# spark = SparkSession.builder.appName(
+#     "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
+# ).getOrCreate()
  
-spark.sparkContext.setLogLevel("WARN")
+# spark.sparkContext.setLogLevel("WARN")
  
 # Reading all the relevant data sources
  
