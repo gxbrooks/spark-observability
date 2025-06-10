@@ -51,13 +51,13 @@ elements.where(F.col("phase") == "liq").groupby("period").count().show()
 #########################################################################################
 #
 # Listing 7.2 Trying (and failing) at querying a data frame SQL style 
-try:
-    spark.sql(
-        "select period, count(*) from elements "
-        "where phase='liq' group by period"
-    ).show(5)
-except AnalysisException as e:
-    print(e)
+# try:
+#     spark.sql(
+#         "select period, count(*) from elements "
+#         "where phase='liq' group by period"
+#     ).show(5)
+# except AnalysisException as e:
+#     print(e)
  
 # 'Table or view not found: elements; line 1 pos 29'
 
@@ -370,8 +370,9 @@ drive_days = spark.sql(
         drive_days.model = failures.model"""
 )
 drive_days.show(5)
- 
-drive_days.join(failures, on="model", how="left").show(5)
+
+# failures not define here
+# drive_days.join(failures, on="model", how="left").show(5)
 
 #########################################################################################
 #
@@ -419,7 +420,7 @@ spark.sql(
         WHERE failure = 1            --❶
         GROUP BY model)              --❶
     SELECT
-failures.model,
+        failures.model,
         failures / drive_days failure_rate
     FROM drive_days
     INNER JOIN failures

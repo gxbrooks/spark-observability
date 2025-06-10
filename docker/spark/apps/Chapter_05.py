@@ -7,10 +7,10 @@ from pyspark.sql.utils import AnalysisException
 
 # Setup
 DIRECTORY = "./data/broadcast_logs"
-# spark = SparkSession.builder.appName("Chapter 5: " + 
-#     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#     ).getOrCreate()
-# spark.sparkContext.setLogLevel("WARN")
+spark = SparkSession.builder.appName("Chapter 5: " + 
+    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ).getOrCreate()
+spark.sparkContext.setLogLevel("WARN")
 
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),  

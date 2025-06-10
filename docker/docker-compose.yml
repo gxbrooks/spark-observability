@@ -354,8 +354,8 @@ services:
       # entrypoint copied in in the Dockerfile
       # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
       - ./shared:/opt/shared
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      # - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     # depends_on:
     #   # for sending metrics to Elastic
     #   es01:
@@ -402,8 +402,8 @@ services:
       # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
       # - ./certs:/opt/Elastic/certs
       - ./shared:/opt/shared
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      # - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:
       - '18080:18080'
 
@@ -435,8 +435,8 @@ services:
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/conf/spark-env.sh:/opt/spark/conf/spark-env.sh
       - ./shared:/opt/shared
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      # - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     ports:
       - '8081:8081'
 
