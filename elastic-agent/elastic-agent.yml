@@ -32,7 +32,6 @@ inputs:
       - add_host_metadata: ~
       - add_cloud_metadata: ~
       - add_docker_metadata: ~
-
   - type: docker/metrics
     use_output: default
     id: docker-metrics
@@ -44,7 +43,7 @@ inputs:
     docker:
       enabled: true
       hosts: 
-          - "unix:///var/run/docker.sock"
+        - "unix:///var/run/docker.sock"
       cleanup_timeout: 60s # Timeout for cleaning up old container data
     streams:
       - data_stream:
@@ -109,15 +108,19 @@ inputs:
         hosts:
           - 'unix:///var/run/docker.sock'
         period: 10s
-      # - data_stream: # Uncomment if you also want image metrics
-      #     dataset: docker.image
-      #     type: metrics
-      #   metricset:
-      #     - image
-      #   period: 10s
-
+      - data_stream: # Uncomment if you also want image metrics
+          dataset: docker.image
+          type: metrics
+        metricset:
+          - image
+        period: 10s
   # Spark Section
   # For Spark Events which need to go through Logstash
+  - id: filestream-minimal
+    type: filestream
+    enabled: true
+    paths:
+      - /tmp/filestream-minimal.log
   - id: spark-events
     type: filestream
     use_output: "spark_events"
@@ -127,13 +130,14 @@ inputs:
           dataset: spark
           namespace: spark
         paths:
-          - /opt/spark/spark-events/app-*
+          - '/mnt/c/Volumes/logs/spark/events/app-*'
   - id: spark-app-logs
     type: filestream    
     use_output: "default"
     enabled: true
     paths:
-      - /opt/spark/logs/spark.log
+      - '/mnt/c/Volumes/logs/spark/spark-*/spark.log'
+      - '/mnt/c/Volumes/logs/spark/spark-*/spark.log.*'
     tags: ["spark-app"]
     data_stream:
       dataset: spark_app
@@ -147,8 +151,8 @@ inputs:
       # Spark GC log rotation is specified in $SPARK_HOME/conf/spark-defaults.conf
       # It's a little funky as the base filename is *.log and the rotated files have a 
       # .<digit> added to the base filename
-      - /opt/spark/logs/executor.gc.log
-      - /opt/spark/logs/executor.gc.log.*
+      - '/mnt/c/Volumes/logs/spark/spark-*/executor.gc.log'
+      - '/mnt/c/Volumes/logs/spark/spark-*/executor.gc.log.*'
     tags: ["spark-gc"]
     data_stream:
       dataset: spark_gc
@@ -216,7 +220,7 @@ inputs:
                   - dissect:
                       field: gc.paused.type_rest
                       target_prefix: gc.paused
-                      #"type_rest": "(Normal) (G1 Evacuation Pause) 1161M->765M(1721M) 2.122ms",
+                      # "type_rest": "(Normal) (G1 Evacuation Pause) 1161M->765M(1721M) 2.122ms",
                       tokenizer: "(%{kind}) (%{reason}) %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
                   - add_fields:
                       target: gc
@@ -234,7 +238,7 @@ inputs:
                       - dissect:
                           field: gc.paused.type_rest
                           target_prefix: gc.paused
-                          #gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
+                          # gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
                           tokenizer: "%{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
                       - add_fields:
                           target: gc
@@ -261,6 +265,12 @@ inputs:
                 - "gc.first"
                 - "gc.rest_first"
 
+providers:
+# Docker provides inventory information from Docker.
+  docker:
+    enabled: true
+    host: "unix:///var/run/docker.sock"
+    cleanup_timeout: 60
 
 outputs:
   default:
@@ -271,10 +281,13 @@ outputs:
     ssl:
       certificate_authorities: ["/etc/ssl/certs/elastic/ca.crt"]
       verification_mode: full
-# Spark outputs for events
+  # Spark outputs for events
   spark_events:
     type: logstash
     hosts: ["localhost:5050"]
+
+agent.logging.level: debug
+agent.logging.to_files: true
 
 agent:
   monitoring:

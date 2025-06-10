@@ -2,7 +2,7 @@
 - name: Install Elastic Agent on Windows hosts
   hosts: windows
   vars:
-    elastic_agent_version: "8.7.1"
+    elastic_agent_version: "9.0.1"
     elastic_agent_windows_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-windows-x86_64.zip"
     elastic_agent_temp_base: "{{ 'C:\\temp' }}"
     elastic_agent_download_dir: "{{ elastic_agent_temp_base }}\\elastic-downloads"
@@ -157,22 +157,39 @@
 - name: Install Elastic Agent on Native Linux hosts
   hosts: native
   vars:
-    elastic_agent_version: "8.7.1"
+    elastic_agent_version: "9.0.1"
     elastic_agent_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
-    elastic_agent_dest: "/tmp/elastic-agent.tar.gz"
-    elastic_agent_extract_dir: "/opt"
-    elastic_agent_versioned_dir: "/opt/elastic-agent-{{ elastic_agent_version }}-linux-x86_64"
+    elastic_agent_temp_base: "/tmp"
+    elastic_agent_download_dir: "{{ elastic_agent_temp_base }}/elastic-downloads"
+    elastic_agent_extract_dir: "{{ elastic_agent_temp_base }}/elastic-extract"
+    elastic_agent_download_file: "{{ elastic_agent_download_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
+    elastic_agent_install_dir: "/opt/Elastic/Agent"
+    elastic_agent_config_src: "../../elastic-agent/elastic-agent.yml"
+    elastic_agent_envconf_src: "../../elastic-agent/env.conf"
+    elastic_agent_envconf_dest: "/etc/systemd/system/elastic-agent.service.d/env.conf"
+    elastic_agent_service_name: "elastic-agent"
+    elastic_agent_versioned_dir: "{{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-x86_64"
 
   tasks:
+    - name: Create download and extract directories (Linux)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ elastic_agent_download_dir }}"
+        - "{{ elastic_agent_extract_dir }}"
+      become: true
+
     - name: Check if Elastic Agent archive already exists (Linux)
       ansible.builtin.stat:
-        path: "{{ elastic_agent_dest }}"
+        path: "{{ elastic_agent_download_file }}"
       register: elastic_agent_download_exists_linux
 
     - name: Download Elastic Agent (Linux)
       ansible.builtin.get_url:
         url: "{{ elastic_agent_url }}"
-        dest: "{{ elastic_agent_dest }}"
+        dest: "{{ elastic_agent_download_file }}"
       when: not elastic_agent_download_exists_linux.stat.exists
       become: true
 
@@ -183,7 +200,7 @@
 
     - name: Extract Elastic Agent (Linux)
       ansible.builtin.unarchive:
-        src: "{{ elastic_agent_dest }}"
+        src: "{{ elastic_agent_download_file }}"
         dest: "{{ elastic_agent_extract_dir }}"
         remote_src: yes
       when: not elastic_agent_extracted_linux.stat.exists
@@ -191,46 +208,94 @@
 
     - name: Check if Elastic Agent is already installed (Linux)
       ansible.builtin.stat:
-        path: "/etc/systemd/system/elastic-agent.service"
+        path: "/etc/systemd/system/{{ elastic_agent_service_name }}.service"
       register: elastic_agent_installed_linux
 
+    - name: List contents of extracted Elastic Agent directory (Linux)
+      ansible.builtin.shell: "ls -l {{ elastic_agent_versioned_dir }}"
+      register: agent_extract_ls
+      changed_when: false
+      become: true
+
+    - name: Show extract directory listing (Linux)
+      ansible.builtin.debug:
+        msg: "{{ agent_extract_ls.stdout }}"
+
+    - name: Check if Elastic Agent binary is present (Linux)
+      ansible.builtin.stat:
+        path: "{{ elastic_agent_install_dir }}/elastic-agent"
+      register: elastic_agent_binary_linux
+      become: true
+
+    - name: Remove stale systemd unit if agent binary is missing (Linux)
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ elastic_agent_service_name }}.service"
+        state: absent
+      when: not elastic_agent_binary_linux.stat.exists
+      become: true
+
+    - name: Check installed Elastic Agent version (Linux)
+      ansible.builtin.shell: |
+        if [ -x "{{ elastic_agent_install_dir }}/elastic-agent" ]; then
+          "{{ elastic_agent_install_dir }}/elastic-agent" version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+'
+        else
+          echo "none"
+        fi
+      register: installed_agent_version_linux
+      changed_when: false
+      become: true
+
+    - name: Uninstall Elastic Agent if wrong version is installed (Linux)
+      ansible.builtin.shell: |
+        if [ -x "{{ elastic_agent_install_dir }}/elastic-agent" ]; then
+          "{{ elastic_agent_install_dir }}/elastic-agent" uninstall --force || true
+        fi
+      when: installed_agent_version_linux.stdout != 'none' and installed_agent_version_linux.stdout != elastic_agent_version
+      become: true
+
     - name: Install Elastic Agent (Linux)
-      ansible.builtin.shell: "{{ elastic_agent_versioned_dir }}/elastic-agent install --non-interactive"
-      when: not elastic_agent_installed_linux.stat.exists
+      ansible.builtin.shell: "./elastic-agent install --non-interactive"
+      args:
+        chdir: "{{ elastic_agent_versioned_dir }}"
+      when: installed_agent_version_linux.stdout != elastic_agent_version
+      register: elastic_agent_install_result
+      failed_when:
+        - elastic_agent_install_result.rc != 0
+        - "'already installed' not in elastic_agent_install_result.stderr"
       become: true
 
     - name: Check if configuration file already exists and get checksum (Linux)
       ansible.builtin.stat:
-        path: "/opt/Elastic/Agent/elastic-agent.yml"
+        path: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
         get_checksum: yes
       register: existing_config_linux
       become: true
 
     - name: Get checksum of source configuration file (Linux)
       ansible.builtin.stat:
-        path: "../../elastic-agent/elastic-agent.yml"
+        path: "{{ elastic_agent_config_src }}"
         get_checksum: yes
       register: source_config_linux
       delegate_to: localhost
 
     - name: Stop Elastic Agent service (for configuration) (Linux)
       ansible.builtin.systemd:
-        name: elastic-agent
+        name: "{{ elastic_agent_service_name }}"
         state: stopped
       when: not existing_config_linux.stat.exists or (existing_config_linux.stat.checksum != source_config_linux.stat.checksum)
       become: true
 
     - name: Copy Elastic Agent configuration file (Linux)
       ansible.builtin.copy:
-        src: "../../elastic-agent/elastic-agent.yml"
-        dest: "/opt/Elastic/Agent/elastic-agent.yml"
+        src: "{{ elastic_agent_config_src }}"
+        dest: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
         backup: yes
       when: not existing_config_linux.stat.exists or (existing_config_linux.stat.checksum != source_config_linux.stat.checksum)
       become: true
 
     - name: Ensure systemd drop-in directory exists for Elastic Agent (Linux)
       ansible.builtin.file:
-        path: "/etc/systemd/system/elastic-agent.service.d"
+        path: "{{ elastic_agent_envconf_dest | dirname }}"
         state: directory
         owner: root
         group: root
@@ -239,8 +304,8 @@
 
     - name: Copy Elastic Agent environment file (Linux)
       ansible.builtin.copy:
-        src: "../../elastic-agent/env.conf"
-        dest: "/etc/systemd/system/elastic-agent.service.d/env.conf"
+        src: "{{ elastic_agent_envconf_src }}"
+        dest: "{{ elastic_agent_envconf_dest }}"
         owner: root
         group: root
         mode: '0644'
@@ -253,7 +318,7 @@
 
     - name: Start Elastic Agent service (Linux)
       ansible.builtin.systemd:
-        name: elastic-agent
+        name: "{{ elastic_agent_service_name }}"
         state: restarted
         enabled: yes
       when: elastic_agent_installed_linux.stat.exists or (not existing_config_linux.stat.exists or (existing_config_linux.stat.checksum != source_config_linux.stat.checksum))
@@ -261,7 +326,7 @@
 
     - name: Remove Elastic Agent archive (Linux)
       ansible.builtin.file:
-        path: "{{ elastic_agent_dest }}"
+        path: "{{ elastic_agent_download_file }}"
         state: absent
       become: true
 

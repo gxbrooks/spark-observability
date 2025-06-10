@@ -71,3 +71,16 @@ else
     fi
 fi
 
+# Setup a Volumes partition that can be used across Windows and Linux
+# This is needed for Docker container paths with Elastic Agent that
+# can use the same pathnames (/mnt/c/Volumes) across Windows or Linux
+# in one docker-compose.yml file.
+
+# Adjust USERNAME if you need a specific owner
+USERNAME="$USER"
+
+sudo mkdir -p /mnt/c/Volumes
+sudo chown "${USERNAME}:${USERNAME}" /mnt/c/Volumes
+sudo chmod 775 /mnt/c/Volumes   # rwxrwxr-x
+
+echo "/mnt/c/Volumes is ready with user-write permissions."
