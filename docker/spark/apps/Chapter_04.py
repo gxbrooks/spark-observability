@@ -91,21 +91,21 @@ df = (
         .option("lineSep", "\n")
         .csv(spark.sparkContext.parallelize( csv_string.splitlines()))
     )
- df.printSchema()
+df.printSchema()
  
  # Explicity schema
- df = (
-    spark.read
-        .option("header", True)
-        .option("inferSchema", True)
-        .option("sep", ",")
-        .option("quote", "$")
-        .option("lineSep", "\n")
-        .schema(schema)
-        .csv(spark.sparkContext.parallelize( csv_string.splitlines()))
-    )
- df.printSchema()
- 
+df = (
+spark.read
+    .option("header", True)
+    .option("inferSchema", True)
+    .option("sep", ",")
+    .option("quote", "$")
+    .option("lineSep", "\n")
+    .schema(schema)
+    .csv(spark.sparkContext.parallelize( csv_string.splitlines()))
+)
+df.printSchema()
+
 
 #########################################################################################
 #
@@ -204,9 +204,9 @@ print("SequenceNo" in logsSelectB.columns)  # => False
 #
 # Exercise 4.2 What is the printed result of this code? 
 
-sample_frame.columns # => ['item', 'price', 'quantity', 'UPC']
+# sample_frame.columns # => ['item', 'price', 'quantity', 'UPC']
 
-print(sample_frame.drop('item', 'UPC', 'prices').columns) 
+# print(sample_frame.drop('item', 'UPC', 'prices').columns) 
 
 
 # a) ['item' 'UPC']
@@ -305,7 +305,7 @@ logs.printSchema()
 
 #########################################################################################
 #
-Listing 4.16 Batch lowercasing using the toDF() method 
+# Listing 4.16 Batch lowercasing using the toDF() method 
 
 logs.toDF(*[x.lower() for x in logs.columns]).printSchema()
  
@@ -319,11 +319,11 @@ logs.toDF(*[x.lower() for x in logs.columns]).printSchema()
 #  |-- language2: integer (nullable = true)
 #  |-- duration_seconds: integer (nullable = true)
 
-Rioux, Jonathan. Data Analysis with Python and PySpark (p. 172). Manning. Kindle Edition. 
+# Rioux, Jonathan. Data Analysis with Python and PySpark (p. 172). Manning. Kindle Edition. 
 
 #########################################################################################
 #
-Listing 4.17 Selecting our columns in alphabetical order using select() 
+# Listing 4.17 Selecting our columns in alphabetical order using select() 
 
 logs.select(sorted(logs.columns)).printSchema()
  
@@ -341,7 +341,7 @@ logs.select(sorted(logs.columns)).printSchema()
 
 #########################################################################################
 #
-Listing 4.18 Describing everything in one fell swoop 
+# Listing 4.18 Describing everything in one fell swoop 
 
 for i in logs.columns:
     logs.describe(i).show()
@@ -376,7 +376,7 @@ for i in logs.columns:
 #
 # Listing 4.19 Summarizing everything in one fell swoop 
 for i in logs.columns:
-    logs.select(i).summary().show()                             ❶
+    logs.select(i).summary().show()                           #  ❶
  
 # +-------+------------------+
 # |summary|      LogServiceID|

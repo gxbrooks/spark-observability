@@ -12,8 +12,7 @@ spark = SparkSession.builder.getOrCreate()
 # Listing 7.1 Reading and counting the liquid elements by period 
 
 elements = spark.read.csv(
-    # "./data/elements/Periodic_Table_Of_Elements.csv",
-    "./data/Periodic_Table_Of_Elements.csv",
+    "./data/elements/Periodic_Table_Of_Elements.csv",
     header=True,
     inferSchema=True,
 )
@@ -79,7 +78,7 @@ spark.sql(
 # |     4|       1|
 # +------+--------+                          #❷
 
-Rioux, Jonathan. Data Analysis with Python and PySpark (p. 305). Manning. Kindle Edition. 
+# Rioux, Jonathan. Data Analysis with Python and PySpark (p. 305). Manning. Kindle Edition. 
 
 
 #########################################################################################
@@ -118,7 +117,7 @@ data_Q2_2019/        data_Q3_2019.zip    drive_stats_2019_Q1/
 
 """
 
-Rioux, Jonathan. Data Analysis with Python and PySpark (p. 309). Manning. Kindle Edition. 
+# Rioux, Jonathan. Data Analysis with Python and PySpark (p. 309). Manning. Kindle Edition. 
 
 
 #########################################################################################
@@ -336,7 +335,7 @@ q4.createOrReplaceTempView("Q4")
  
 spark.sql(
     """
-    CREATE OR REPLACE TEMP VIEW backblaze_2019b AS
+    CREATE OR REPLACE TEMP VIEW backblaze_2019 AS
     SELECT {col} FROM Q1 UNION ALL
     SELECT {col} FROM Q2 UNION ALL
     SELECT {col} FROM Q3 UNION ALL
@@ -360,7 +359,7 @@ print(backblaze_2019.count())
 #########################################################################################
 #
 # Listing 7.12 Joining tables in Spark SQL and in PySpark 
-spark.sql(
+drive_days = spark.sql(
     """select
            drive_days.model,
            drive_days,
@@ -369,7 +368,8 @@ spark.sql(
     left join failures
     on
         drive_days.model = failures.model"""
-).show(5)
+)
+drive_days.show(5)
  
 drive_days.join(failures, on="model", how="left").show(5)
 
@@ -588,7 +588,7 @@ most_reliable_drive_for_capacity(summarized_data, capacity_GB=11176.0).show()
 
 #########################################################################################
 #
-Exercise 7.2 
+# Exercise 7.2 
 
 # If we look at the code that follows, we can simplify it even further and avoid creating 
 # two tables outright. Can you write a summarized_data without having to use a table 

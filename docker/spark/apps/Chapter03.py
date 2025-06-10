@@ -229,8 +229,8 @@ def countDistinctBookWords (dir):
     wordSpark.stop()
 
 countDistinctBookWords("./data/gutenberg_books/*.txt")
-
-
+#regenerate the session becasue of the wordSpark.stop() above
+spark = SparkSession.builder.getOrCreate()
 ######################################################
 # Excercise 3.4
 
@@ -291,8 +291,9 @@ sresults = (
     .where(F.col("word") != "")
     .groupby(F.col("word"))
     .count()
-    .sum()
 )
+sresults.show()
+sresults.count()
 
 ######################################################
 # Excercise self: Compare the word counts by file, sorting by the total number of words..
@@ -338,7 +339,7 @@ by_word_df = (
 # step 4: Merge in word counts by file and the total word counts into one df
 merged_df = (
     by_word_df
-    .join(by_word_pivot_base_df, on=F.col("word"), how="left")
+    .join(by_word_pivot_base_df, on="word", how="left")
     .orderBy(F.col("total"), ascending=False)
     )
 

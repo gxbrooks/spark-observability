@@ -114,7 +114,7 @@ array_subset.show()
 # |Silicon Valley|       Comedy|       Comedy|        Comedy|        Comedy|
 # +--------------+-------------+-------------+--------------+--------------+
 
-Rioux, Jonathan. Data Analysis with Python and PySpark (p. 250). Manning. Kindle Edition. 
+# Rioux, Jonathan. Data Analysis with Python and PySpark (p. 250). Manning. Kindle Edition. 
 
 
 
@@ -356,7 +356,7 @@ episodes_name.select(F.explode("name").alias("name")).show(3, False)   #❷
 
 #########################################################################################
 #
-Listing 6.16 A sample of the schema for the shows data frame 
+# Listing 6.16 A sample of the schema for the shows data frame 
 
 shows.printSchema()
 # root                                    ❶
@@ -607,7 +607,7 @@ print(other_shows_schema == shows_with_schema.schema)  # True
 #
 # Exercise 6.3 What is wrong with this schema? 
 
-schema = T.StructType([T.StringType(), T.LongType(), T.LongType()])
+# schema = T.StructType([T.StringType(), T.LongType(), T.LongType()])
 
 # all messed up, StructType takes a sequence of Structfields as args
 
