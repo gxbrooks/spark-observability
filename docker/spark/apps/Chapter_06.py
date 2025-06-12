@@ -501,6 +501,7 @@ embedded_schema2 = T.StructType(
     ]
 )
 
+
 shows_with_schema_wrong = spark.read.json(
     "./data/shows/shows-silicon-valley.json",
     schema=embedded_schema2,

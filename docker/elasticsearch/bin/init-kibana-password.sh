@@ -10,6 +10,10 @@ if [ x${CA_CERT} == x ] || [ x${ELASTIC_HOST} == x ] || [ x${ELASTIC_PASSWORD} =
   exit 1; 
 fi;
 
+if [[ ! -v CA_CERT ]]; then
+  echo "CA_CERT not set in environment"
+  exit 1
+fi
 
 echo "Waiting for Elasticsearch availability";
 # This readiness test was from the original 

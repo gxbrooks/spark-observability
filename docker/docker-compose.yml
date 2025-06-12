@@ -21,6 +21,8 @@ volumes:
     driver: local
   spark-logs:
     driver: local
+  certs:
+    driver: local
 
 
 networks:
@@ -36,12 +38,20 @@ services:
     labels:
       role: "Init Certs"
     volumes:
-      - /etc/ssl/private/elastic:/etc/ssl/private/elastic
-      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
-      - ./certs:/usr/share/elasticsearch/certs   # For configs & scripts
+      # Xpack expects all certs to be rooted in config, so we standardize on 
+      # that for all elasaticsearch images
+      - certs:/usr/share/elasticsearch/config/certs
+      # For configs & scripts
+      - ./certs:/usr/share/elasticsearch/certs
       - ./shared:/opt/shared
+      # Needs to align with Elastic Agent and other host applications (if any)
+      # here we follow the Linux convention of storing the CA certs in /etc/ssl/public
+      # within the container and a cross-platform /mnt/c/Volumes convention for the host.
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+    environment:
+      TZ: "America/Chicago"    
     user: "0"
-    command: bash -f ./certs/init-certs.sh
+    entrypoint: ["bash", "-f", "./certs/init-certs.sh"]
     # env_file:
     #   - .env
     
@@ -58,7 +68,8 @@ services:
       role: Elasticsearch
     volumes:
       - esdata:/usr/share/elasticsearch/data
-      - /etc/ssl/private/elastic/certs:/usr/share/elasticsearch/config/certs
+      - certs:/usr/share/elasticsearch/config/certs:ro
+      # Needed at least for the healthcheck
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - ./shared:/opt/shared
     ports:
@@ -70,8 +81,6 @@ services:
       ELASTIC_USER: ${ELASTIC_USER}
       KIBANA_PORT: ${KIBANA_PORT}
       KIBANA_PASSWORD : ${KIBANA_PASSWORD}
-      # is this needed by Elasticsearch?
-      CA_CERT: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
       node.name: es01
@@ -80,6 +89,7 @@ services:
       bootstrap.memory_lock: true
       # Xpack is rooted at /usr/share/elasticsearch/config, so start all certificate 
       # paths with "certs/"!!!
+      CA_CERT: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
       xpack.security.enabled: true
       xpack.security.http.ssl.enabled: true
       xpack.security.http.ssl.key: "certs/es01/es01.key"
@@ -92,9 +102,9 @@ services:
       xpack.security.transport.ssl.verification_mode: "certificate"
       xpack.license.self_generated.type: "${LICENSE}"
       # For using Watcher as an HTTPS client
-      # https://handlers.sans.edu/gbruneau/elk/TLS_elasticsearch_configuration.pdf
       # xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
       xpack.http.ssl.certificate_authorities: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
+      TZ: "America/Chicago"    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
       resources:
@@ -104,9 +114,9 @@ services:
       memlock:
         soft: -1
         hard: -1
-    # depends_on:
-    #   init-certs:
-    #     condition: service_completed_successfully 
+    depends_on:
+      init-certs:
+        condition: service_completed_successfully 
     healthcheck:
       test:
         [
@@ -124,21 +134,19 @@ services:
       role: "Init Kibana Password"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
       - ./shared:/opt/shared
     command: bash -f ./elasticsearch/bin/init-kibana-password.sh 
     environment:
-      # do we need any of this? Taken from logstash
-      # - xpack.monitoring.enabled=false
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       ELASTIC_USER: elastic
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_HOST: ${ELASTIC_HOST}
       ELASTIC_PORT: ${ELASTIC_PORT}
       KIBANA_PASSWORD: ${KIBANA_PASSWORD}
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
-
+      TZ: "America/Chicago"    
     depends_on:
       es01:
         condition: service_healthy 
@@ -149,9 +157,12 @@ services:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION} 
     container_name: kibana
     volumes:
-      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
       - ./shared:/opt/shared
       - kibanadata:/usr/share/kibana/data
+      # Eventually Kibana will need its privatg key
+      - certs:/etc/ssl/private/elastic/certs
+      # As a client of Elasticsearch, Kibana needs the CA cert
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     labels:
       co.elastic.logs/module: kibana
       role: "Kibana"
@@ -162,15 +173,19 @@ services:
       ELASTICSEARCH_HOSTS: https://es01:9200
       ELASTICSEARCH_USERNAME: kibana_system
       ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "/etc/ssl/certs/elastic/ca.crt"
       XPACK_SECURITY_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
       XPACK_REPORTING_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
+      TZ: "America/Chicago"    
     mem_limit: ${KB_MEM_LIMIT}
     depends_on:
       es01:
         condition: service_healthy 
       init-kibana-password:
+        condition: service_completed_successfully
+      init-certs:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -191,6 +206,8 @@ services:
     ports:
       - '3000:3000'
     volumes:
+      # Eventually Grafana will need its privatg key
+      - certs:/etc/ssl/privatge/elastic/certs
       - "./grafana/data:/var/lib/grafana/data"
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
@@ -202,6 +219,7 @@ services:
       GF_SERVER_HTTP_PORT: "3000"
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      TZ: "America/Chicago"    
     depends_on:
       es01:
         condition: service_healthy 
@@ -211,12 +229,12 @@ services:
   init-kibana:
     image: elasticsearch-python
     volumes:
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
       - ./shared:/opt/shared
     command: bash -f ./elasticsearch/bin/init-kibana.sh
     environment:
-      # do we need any of this? Taken from logstash
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       xpack.monitoring.enabled: false
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_PORT: ${ELASTIC_PORT}
@@ -224,9 +242,9 @@ services:
       KIBANA_HOST: ${KIBANA_HOST}
       KIBANA_PASSWORD : ${KIBANA_PASSWORD}
       KIBANA_PORT: ${KIBANA_PORT}
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
+      TZ: "America/Chicago"    
     depends_on:
       kibana:
         condition: service_healthy
@@ -242,16 +260,17 @@ services:
       role: "Init Index"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
       - ./shared:/opt/shared
     environment:
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       ELASTIC_HOST: ${ELASTIC_HOST}
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_PORT: ${ELASTIC_PORT}
       ELASTIC_USER: ${ELASTIC_USER}
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
+      TZ: "America/Chicago"
     depends_on:
       es01:
         condition: service_healthy
@@ -274,13 +293,14 @@ services:
         # - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"
         - "9600:9600"
     volumes:
-      - /etc/ssl/certs/elastic:/etc/ssl/certs/elastic
       - ./shared:/opt/shared
       - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
-      # not used
       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      # probably don't need certs: which is only for services not for clients
     environment:
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
       xpack.monitoring.enabled: "false"
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
@@ -295,6 +315,8 @@ services:
       es01:
         condition: service_healthy
       init-index:
+        condition: service_completed_successfully
+      init-certs:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -356,6 +378,8 @@ services:
       - ./shared:/opt/shared
       # - "/var/run/docker.sock:/var/run/docker.sock:ro"
       # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    environment:
+      TZ: "America/Chicago"    
     # depends_on:
     #   # for sending metrics to Elastic
     #   es01:
@@ -404,6 +428,8 @@ services:
       - ./shared:/opt/shared
       # - "/var/run/docker.sock:/var/run/docker.sock:ro"
       # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    environment:
+      TZ: "America/Chicago"    
     ports:
       - '18080:18080'
 
@@ -420,9 +446,6 @@ services:
       # es01:
       #   condition: service_healthy
     hostname: spark-worker
-    # environment:
-    #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
-    #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
     env_file:
       #- .spark.env
       - .env
@@ -437,12 +460,17 @@ services:
       - ./shared:/opt/shared
       # - "/var/run/docker.sock:/var/run/docker.sock:ro"
       # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+    environment:
+      TZ: "America/Chicago"
+      #   - SPARK_LOG_DIR=/opt/spark/logs/${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
+      #   - SPARK_ROLE_NAME=${COMPOSE_PROJECT_NAME}_${SERVICE_NAME}_${INDEX}
     ports:
       - '8081:8081'
 
   spark-client:
     image: da-spark-image
     container_name: spark-client
+    command: ["tail", "-f", "/dev/null"] # Keep the client container running
     depends_on:
       - spark-master
     volumes:
@@ -457,13 +485,6 @@ services:
       - ./shared:/opt/shared
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-      
-    env_file:
-      #- .spark.env
-      - .env
-    ports:
-      # Expose the Spark Application UI (4040+) from this client container
-      - "4040-4050:4040-4050"
     environment:
       SPARK_MODE: client
       SPARK_MASTER_URL: spark://spark-master:7077
@@ -475,4 +496,10 @@ services:
       PYSPARK_DRIVER_PYTHON: ipython
       PYSPARK_DRIVER_PYTHON_OPTS: "" # Add any specific IPython options if needed (e.g., --no-color)
       PYSPARK_PYTHON: python3 # Ensure workers use standard python (adjust if you need specific python versions)
-    command: ["tail", "-f", "/dev/null"] # Keep the client container running
+      TZ: "America/Chicago"
+    env_file:
+      #- .spark.env
+      - .env
+    ports:
+      # Expose the Spark Application UI (4040+) from this client container
+      - "4040-4050:4040-4050"

@@ -6,6 +6,10 @@
 # exit the script immediately if any command fails
 set -e
 
+if [ [ ! -v CA_CERT ] || [! -f $CA_CERT] ]; then
+  echo "CA_CERT not in environmen or not a file"
+  exit 1
+fi
 
 # this is the Spark on Elastic utility bin directory
 PATH="${PATH}:/opt/shared/bin"

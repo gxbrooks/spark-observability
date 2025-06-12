@@ -164,7 +164,7 @@
     elastic_agent_extract_dir: "{{ elastic_agent_temp_base }}/elastic-extract"
     elastic_agent_download_file: "{{ elastic_agent_download_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
     elastic_agent_install_dir: "/opt/Elastic/Agent"
-    elastic_agent_config_src: "../../elastic-agent/elastic-agent.yml"
+    elastic_agent_config_src: "../../elastic-agent/elastic-agent.linux.yml"
     elastic_agent_envconf_src: "../../elastic-agent/env.conf"
     elastic_agent_envconf_dest: "/etc/systemd/system/elastic-agent.service.d/env.conf"
     elastic_agent_service_name: "elastic-agent"
@@ -216,10 +216,6 @@
       register: agent_extract_ls
       changed_when: false
       become: true
-
-    - name: Show extract directory listing (Linux)
-      ansible.builtin.debug:
-        msg: "{{ agent_extract_ls.stdout }}"
 
     - name: Check if Elastic Agent binary is present (Linux)
       ansible.builtin.stat:

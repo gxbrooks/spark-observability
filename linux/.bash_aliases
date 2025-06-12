@@ -17,7 +17,7 @@ alias dcb='docker compose build '
 alias dcexec='docker compose exec -it '
 alias dcrun='docker compose run -it '
 alias dcr='docker compose restart '
-alias dclog="docker compose logs "
+alias dclogs="docker compose logs "
 alias dccp="docker compose cp "
 alias dcr="docker compose restart "
 
