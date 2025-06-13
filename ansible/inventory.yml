@@ -24,9 +24,9 @@ all:
         # ansible_winrm_scheme: https
         # ansible_port: 5986
         # ssh specific configs
-        ansible_shell_type: powershell
+        ansible_shell_type: cmd
         # ansible_password: "{{ vaulted_password }}"  # Omit if using keys only
-        ansible_python_interpreter: C:\Program Files\Python313\python.exe"
+        ansible_python_interpreter: C:\Program Files\Python313\python.exe
       hosts:
         GaryPC:
           ansible_host: GaryPC.lan
