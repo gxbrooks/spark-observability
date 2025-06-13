@@ -25,8 +25,9 @@ all:
         # ansible_port: 5986
         # ssh specific configs
         ansible_shell_type: cmd
+        ansible_shell_executable: cmd
         # ansible_password: "{{ vaulted_password }}"  # Omit if using keys only
-        ansible_python_interpreter: C:\Program Files\Python313\python.exe
+        ansible_python_interpreter: "C:\\Program Files\\Python312\\python.exe"
       hosts:
         GaryPC:
           ansible_host: GaryPC.lan
@@ -39,6 +40,8 @@ all:
         elastic_agent_arch: "x86_64"
         elastic_agent_extension: "tar.gz"
         ansible_python_interpreter: "/usr/bin/python3"
+        ansible_shell_type: sh
+        ansible_shell_executable: /bin/sh
         # SSH configuration
         # Managed node communication configuration for ssh managed nodes
 

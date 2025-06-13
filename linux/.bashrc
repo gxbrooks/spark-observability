@@ -19,4 +19,8 @@ fi
 # will prompt for passphrase if not already in ssh-agent
 eval $(keychain --eval --agents ssh id_rsa id_ed25519)
 
-
+# Add to ~/.bashrc
+if ! pgrep -f ssh-agent > /dev/null; then
+    eval "$(ssh-agent -s)"
+    ssh-add # Add your keys here if you want them added automatically
+fi
