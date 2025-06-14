@@ -1,22 +1,18 @@
 ---
-- name: Distribute Elastic CA certificate to Windows hosts
+- name: Distribute Elastic CA certificate to Windows hosts (SSH+cmd compatible)
   hosts: windows
   gather_facts: false
   vars:
     ca_cert_src: "{{ playbook_dir }}/../../docker/certs/elastic/certs/ca/ca.crt"
     ca_cert_dest: "C:/Volumes/certs/ca.crt"
+    ca_cert_dir: "C:/Volumes/certs"
     force_cert: false
   tasks:
     - name: Ensure destination directory exists (Windows)
-      ansible.windows.win_file:
-        path: "{{ ca_cert_dest | dirname }}"
-        state: directory
+      raw: cmd.exe /c "if not exist {{ ca_cert_dir }} mkdir {{ ca_cert_dir }}"
 
-    - name: Copy CA certificate to Windows host
-      ansible.windows.win_copy:
-        src: "{{ ca_cert_src }}"
-        dest: "{{ ca_cert_dest }}"
-        force: "{{ force_cert }}"
+    - name: Copy CA certificate to Windows host (using Python)
+      raw: python -c "import shutil; shutil.copyfile(r'{{ ca_cert_src }}', r'{{ ca_cert_dest }}')"
 
 - name: Distribute Elastic CA certificate to Linux hosts
   hosts: linux

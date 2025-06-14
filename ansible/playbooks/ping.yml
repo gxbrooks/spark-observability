@@ -1,12 +1,20 @@
 ---
-- name: Test connectivity to all hosts
-  hosts: all
-  gather_facts: true  # Ensure facts are gathered to determine OS family
+- name: Ping Linux hosts
+  hosts: linux
+  gather_facts: false
   tasks:
-    - name: Ping the remote host (Unix/Linux/WSL)
-      ping:
-      when: ansible_os_family != "Windows"
+    - name: Ping the remote host (Linux)
+      ansible.builtin.ping:
 
-    - name: WinRM Ping Test (Windows)
-      win_ping:
-      when: ansible_os_family == "Windows"
+- name: Ping Windows hosts via SSH+Python
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - name: Ping the remote host (Windows via SSH+Python)
+      ansible.builtin.raw: python --version
+      register: win_ping_result
+      changed_when: false
+
+    - name: Show Windows Python version
+      debug:
+        var: win_ping_result.stdout

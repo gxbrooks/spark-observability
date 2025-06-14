@@ -101,16 +101,23 @@ publicKeyContent=$(<"$identity_file")
 # Debug: Print the remote script before encoding
 
 remoteCommands=$(get_remote_powershell_commands "$publicKeyContent")
+
+# Encode the PowerShell script for safe command-line usage
+encodedRemoteCommands=$(printf "%s" "$remoteCommands" | iconv -f utf-8 -t utf-16le | base64 -w 0)
+
+# Build the command to run PowerShell via cmd.exe
+ps_command="cmd.exe /c powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encodedRemoteCommands"
+
 if [ "$DebugLocal" = true ]; then
     echo "Local: -----------------------------------------------------------------------------------------"
-    echo "Local: Remote PowerShell Script:"
-    echo "$remoteCommands"
+    echo "Local: Remote PowerShell Script (encoded):"
+    echo "$ps_command"
     echo "Local: -----------------------------------------------------------------------------------------"
 fi
 if [ "$DebugLocal" = true ]; then
     echo "Local: Before sshCommand execution: -p $sshPort $remoteConnection"
 fi
-output=$(ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password -p $sshPort  "$remoteConnection" "$remoteCommands")
+output=$(ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password -p $sshPort  "$remoteConnection" "$ps_command")
 result=$?
 
 if [ "$DebugLocal" = true ]; then

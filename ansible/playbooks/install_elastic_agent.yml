@@ -1,5 +1,5 @@
 # Windows Play
-- name: Install Elastic Agent on Windows hosts
+- name: Install Elastic Agent on Windows hosts (SSH+cmd, raw module only)
   hosts: windows
   vars:
     elastic_agent_version: "9.0.1"
@@ -10,45 +10,31 @@
     elastic_agent_install_dir: "C:/Program Files/Elastic/Agent"
     elastic_agent_config_src: "../../elastic-agent/elastic-agent.windows.yml"
     elastic_agent_service_name: "Elastic Agent"
-
+    elastic_agent_zip: "{{ elastic_agent_download_dir }}/elastic-agent-{{ elastic_agent_version }}.zip"
+    elastic_agent_extract_subdir: "{{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-windows-x86_64"
   tasks:
     - name: Ensure temp directories exist
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
+      raw: cmd.exe /c "if not exist {{ item }} mkdir {{ item }}"
       loop:
         - "{{ elastic_agent_download_dir }}"
         - "{{ elastic_agent_extract_dir }}"
 
-    - name: Download Elastic Agent zip
-      ansible.builtin.get_url:
-        url: "{{ elastic_agent_windows_url }}"
-        dest: "{{ elastic_agent_download_dir }}/elastic-agent-{{ elastic_agent_version }}.zip"
-        mode: '0644'
+    - name: Download Elastic Agent zip (using PowerShell Invoke-WebRequest)
+      raw: powershell -Command "Invoke-WebRequest -Uri '{{ elastic_agent_windows_url }}' -OutFile '{{ elastic_agent_zip }}' -UseBasicParsing"
 
-    - name: Unzip Elastic Agent
-      ansible.builtin.unarchive:
-        src: "{{ elastic_agent_download_dir }}/elastic-agent-{{ elastic_agent_version }}.zip"
-        dest: "{{ elastic_agent_extract_dir }}"
-        remote_src: yes
+    - name: Unzip Elastic Agent (using PowerShell Expand-Archive)
+      raw: powershell -Command "Expand-Archive -Path '{{ elastic_agent_zip }}' -DestinationPath '{{ elastic_agent_extract_dir }}' -Force"
 
-    - name: Copy Elastic Agent config
-      ansible.builtin.copy:
-        src: "{{ elastic_agent_config_src }}"
-        dest: "{{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-windows-x86_64/elastic-agent.yml"
-        mode: '0644'
+    - name: Copy Elastic Agent config (using copy command)
+      raw: copy /Y "{{ elastic_agent_config_src }}" "{{ elastic_agent_extract_subdir }}\\elastic-agent.yml"
 
     - name: Install Elastic Agent
-      ansible.builtin.command:
-        cmd: "{{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-windows-x86_64/elastic-agent.exe install -c {{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-windows-x86_64/elastic-agent.yml"
-      args:
-        chdir: "{{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-windows-x86_64"
+      raw: "{{ elastic_agent_extract_subdir }}\\elastic-agent.exe install -c {{ elastic_agent_extract_subdir }}\\elastic-agent.yml"
       register: install_result
       ignore_errors: yes
 
     - name: Ensure Elastic Agent service is running
-      ansible.builtin.command:
-        cmd: "sc query \"{{ elastic_agent_service_name }}\""
+      raw: sc query "{{ elastic_agent_service_name }}"
       register: service_status
       changed_when: false
 
