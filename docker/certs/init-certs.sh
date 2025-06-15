@@ -35,7 +35,7 @@
 #     └── chain.crt    # 644 permissions
 #
 # This represents a significant impedence mispatch with the way that the Elastic Stack expects 
-# certificates to be stored. For Docker Swarm we will need to move to Docker secrets. To handle
+# certificates to be stored. To handle
 # host-level instlalations of Elastic Agent we will copy out just the Elasticsearch certficates
 # to /etc/ssl. Also, we will store the whole Elasticsearch certs directory in /etc/ss/private, to 
 # be used by Elasticsearch in its native structure. 
@@ -144,9 +144,9 @@ get_ca_hash > "$CA_VERSION_FILE"
 chmod 644 "$CA_VERSION_FILE"
 # Copy CA cert for distribution
 mkdir -p "$CA_DIST_DIR"
-cp "$CA_CERT_DIR/ca.crt" "$CA_DIST_DIR/ca.crt"
-chmod 644 "$CA_DIST_DIR/ca.crt"
-echo "[init-certs] CA cert distributed to $CA_DIST_DIR"
+cp "$CA_CERT_DIR/ca.crt" "$CA_CERT_PATH"
+chmod 644 "$CA_CERT_PATH"
+echo "[init-certs] CA cert distributed to $CA_CERT_PATH"
 # Optionally trigger Ansible playbook for CA cert distribution
 if [ -n "${TRIGGER_ANSIBLE:-}" ]; then
   echo "[init-certs] Triggering Ansible playbook for CA cert distribution..."

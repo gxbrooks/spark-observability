@@ -41,12 +41,8 @@ services:
       # Xpack expects all certs to be rooted in config, so we standardize on 
       # that for all elasaticsearch images
       - certs:/usr/share/elasticsearch/config/certs
-      # For configs & scripts
       - ./certs:/usr/share/elasticsearch/certs
       - ./shared:/opt/shared
-      # Needs to align with Elastic Agent and other host applications (if any)
-      # here we follow the Linux convention of storing the CA certs in /etc/ssl/public
-      # within the container and a cross-platform /mnt/c/Volumes convention for the host.
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
       TZ: "America/Chicago"    
@@ -69,11 +65,8 @@ services:
     volumes:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs:ro
-      # Needed at least for the healthcheck
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - ./shared:/opt/shared
-    ports:
-      - "${ELASTIC_PORT}:${ELASTIC_PORT}"
     environment:
       ELASTIC_PORT: ${ELASTIC_PORT}
       ELASTIC_HOST: ${ELASTIC_HOST}
@@ -89,7 +82,7 @@ services:
       bootstrap.memory_lock: true
       # Xpack is rooted at /usr/share/elasticsearch/config, so start all certificate 
       # paths with "certs/"!!!
-      CA_CERT: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
+      CA_CERT: "${ES_CA_CERT_PATH}"
       xpack.security.enabled: true
       xpack.security.http.ssl.enabled: true
       xpack.security.http.ssl.key: "certs/es01/es01.key"
@@ -103,7 +96,7 @@ services:
       xpack.license.self_generated.type: "${LICENSE}"
       # For using Watcher as an HTTPS client
       # xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
-      xpack.http.ssl.certificate_authorities: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
+      xpack.http.ssl.certificate_authorities: "${ES_CA_CERT_PATH}"
       TZ: "America/Chicago"    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
@@ -138,7 +131,7 @@ services:
       - ./shared:/opt/shared
     command: bash -f ./elasticsearch/bin/init-kibana-password.sh 
     environment:
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
       ELASTIC_USER: elastic
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_HOST: ${ELASTIC_HOST}
@@ -159,9 +152,7 @@ services:
     volumes:
       - ./shared:/opt/shared
       - kibanadata:/usr/share/kibana/data
-      # Eventually Kibana will need its privatg key
       - certs:/etc/ssl/private/elastic/certs
-      # As a client of Elasticsearch, Kibana needs the CA cert
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     labels:
       co.elastic.logs/module: kibana
@@ -173,8 +164,8 @@ services:
       ELASTICSEARCH_HOSTS: https://es01:9200
       ELASTICSEARCH_USERNAME: kibana_system
       ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
-      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "/etc/ssl/certs/elastic/ca.crt"
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "${CA_CERT_LINUX_PATH}"
       XPACK_SECURITY_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
       XPACK_REPORTING_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
@@ -206,12 +197,12 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      # Eventually Grafana will need its privatg key
       - certs:/etc/ssl/privatge/elastic/certs
       - "./grafana/data:/var/lib/grafana/data"
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
       - ./shared:/opt/shared
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "mysecretpassword"
@@ -219,6 +210,7 @@ services:
       GF_SERVER_HTTP_PORT: "3000"
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
       TZ: "America/Chicago"    
     depends_on:
       es01:
@@ -234,7 +226,7 @@ services:
       - ./shared:/opt/shared
     command: bash -f ./elasticsearch/bin/init-kibana.sh
     environment:
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
       xpack.monitoring.enabled: false
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_PORT: ${ELASTIC_PORT}
@@ -263,7 +255,7 @@ services:
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
       - ./shared:/opt/shared
     environment:
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
       ELASTIC_HOST: ${ELASTIC_HOST}
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_PORT: ${ELASTIC_PORT}
@@ -298,9 +290,8 @@ services:
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
-      # probably don't need certs: which is only for services not for clients
     environment:
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
       xpack.monitoring.enabled: "false"
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
@@ -375,9 +366,6 @@ services:
       #- ./elastic-agent/elastic-agent.yml:/etc/elastic-agent/elastic-agent.yml
       # entrypoint copied in in the Dockerfile
       # - ./spark/entrypoint.sh:${SPARK_HOME}/entrypoint.sh
-      - ./shared:/opt/shared
-      # - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      # - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
     environment:
       TZ: "America/Chicago"    
     # depends_on:

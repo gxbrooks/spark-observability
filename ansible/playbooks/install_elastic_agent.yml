@@ -31,7 +31,7 @@
     - name: Install Elastic Agent
       raw: "{{ elastic_agent_extract_subdir }}\\elastic-agent.exe install -c {{ elastic_agent_extract_subdir }}\\elastic-agent.yml"
       register: install_result
-      ignore_errors: yes
+      ignore_errors: true
 
     - name: Ensure Elastic Agent service is running
       raw: sc query "{{ elastic_agent_service_name }}"
@@ -63,7 +63,7 @@
       win_service:
         name: "{{ elastic_agent_service_name }}"
         state: stopped
-      when: 
+      when:
         - elastic_agent_service_check.exists or service_check.exists
         - not existing_config.stat.exists or (existing_config.stat.checksum != source_config.stat.checksum)
 
@@ -89,14 +89,14 @@
 
     - name: Get checksum of source env.conf file (Windows)
       ansible.builtin.stat:
-        path: '../../elastic-agent/env.conf'
+        path: "../../elastic-agent/env.conf"
         get_checksum: yes
       register: source_envconf
       delegate_to: localhost
 
     - name: Copy env.conf to Windows host if changed
       win_copy:
-        src: '../../elastic-agent/env.conf'
+        src: "../../elastic-agent/env.conf"
         dest: '{{ elastic_agent_install_dir }}\\env.conf'
         backup: yes
       when: not existing_envconf.stat.exists or (existing_envconf.stat.checksum != source_envconf.stat.checksum)
@@ -146,7 +146,7 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
       loop:
         - "{{ elastic_agent_download_dir }}"
         - "{{ elastic_agent_extract_dir }}"
@@ -266,7 +266,7 @@
         state: directory
         owner: root
         group: root
-        mode: '0755'
+        mode: "0755"
       become: true
 
     - name: Copy Elastic Agent environment file (Linux)
@@ -275,7 +275,7 @@
         dest: "{{ elastic_agent_envconf_dest }}"
         owner: root
         group: root
-        mode: '0644'
+        mode: "0644"
       become: true
 
     - name: Reload systemd for Elastic Agent (Linux)
@@ -296,4 +296,3 @@
         path: "{{ elastic_agent_download_file }}"
         state: absent
       become: true
-
