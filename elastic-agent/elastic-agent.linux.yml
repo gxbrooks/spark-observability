@@ -114,6 +114,17 @@ inputs:
         metricset:
           - image
         period: 10s
+  # Kubernetes metrics integration
+  - type: kubernetes/metrics
+    use_output: default
+    enabled: true
+    hosts: ["https://localhost:10250"]
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+    period: 10s
+    processors:
+      - add_cloud_metadata: ~
   # Spark Section
   # For Spark Events which need to go through Logstash
   - id: filestream-minimal

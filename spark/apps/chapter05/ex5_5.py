@@ -3,11 +3,11 @@ import os
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder.appName("Broadcast logs script ch05 (ex5_7)").getOrCreate()
+spark = SparkSession.builder.appName("Broadcast logs script ch05 (ex5_5)").getOrCreate()
 
 spark.sparkContext.setLogLevel("WARN")
 
-DIRECTORY = "/opt/spark/data/broadcast_logs"
+DIRECTORY = "/spark-data/broadcast_logs"
 
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),
@@ -68,6 +68,7 @@ program_call_signs = spark.read.csv(
     F.col("Undertaking_Name").alias("undertaking_name"),
 )
 
+
 log_identifier = log_identifier.where(F.col("PrimaryFG") == 1)
 
 joined_logs = logs.join(
@@ -104,12 +105,7 @@ answer = (
             F.when(
                 F.trim(F.col("ProgramClassCD")).isin(commercial_programs),
                 F.col("duration_seconds"),
-            )
-            .when(
-                F.trim(F.col("ProgramClassCD")) == "PRC",
-                F.col("duration_seconds") * 0.75,
-            )
-            .otherwise(0)
+            ).otherwise(0)
         ).alias("duration_commercial"),
         F.sum("duration_seconds").alias("duration_total"),
     )
@@ -121,8 +117,4 @@ answer = (
 # Fill null values
 answer_filled = answer.fillna(0)
 
-answer_filled.groupby(F.round("commercial_ratio", 1).alias("commercial_ratio")).agg(
-    F.count("*").alias("number_of_channels")
-).orderBy("commercial_ratio", ascending=False).show(1000, False)
-
-# answer_filled.orderBy("commercial_ratio", ascending=False).show(1000, False)
+answer_filled.orderBy("commercial_ratio", ascending=False).show(1000, False)

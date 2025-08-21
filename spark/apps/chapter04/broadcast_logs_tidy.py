@@ -5,7 +5,7 @@ from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName("Ch04 - Broadcast logs tidy").getOrCreate()
 
-DIRECTORY = "/opt/spark/data/broadcast_logs"
+DIRECTORY = "/spark-data/broadcast_logs"
 
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),

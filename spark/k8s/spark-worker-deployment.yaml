@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker
+  namespace: spark
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spark-worker
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      containers:
+        - name: spark-worker
+          image: myrepo/spark:3.5.5
+          command: ["./entrypoint.sh", "worker"]
+          env:
+            - name: SPARK_MASTER_URL
+              value: "spark://spark-master:7077"
+            - name: TZ
+              value: "America/Chicago"
+          ports:
+            - containerPort: 8081

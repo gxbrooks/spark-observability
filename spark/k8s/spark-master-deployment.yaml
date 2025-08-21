@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+  namespace: spark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-master
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+      containers:
+        - name: spark-master
+          image: myrepo/spark:3.5.5
+          command: ["./entrypoint.sh", "master"]
+          env:
+            - name: SPARK_MODE
+              value: "master"
+            - name: TZ
+              value: "America/Chicago"
+          ports:
+            - containerPort: 7077
+            - containerPort: 8080

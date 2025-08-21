@@ -21,10 +21,10 @@ def get_distinct_words(filename):
     return results
 
 
-result = get_distinct_words("/opt/spark/data/pride-and-prejudice.txt")
+result = get_distinct_words("/spark-data/pride-and-prejudice.txt")
 
 result.show()
 
 result.coalesce(1).write.mode("overwrite").csv(
-    "/opt/spark/data/results/chapter03/simple_count.csv"
+    "/spark-data/results/chapter03/simple_count.csv"
 )

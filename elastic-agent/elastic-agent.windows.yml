@@ -70,28 +70,6 @@ inputs:
         data_stream.dataset: docker.network
         hosts: ["npipe:////./pipe/docker_engine"]
         period: 10s
-  # For Spark Events which need to go through Logstash
-  - id: spark-events
-    type: filestream
-    use_output: "spark_events"
-    streams:
-      - id: spark-events-json-stream
-        data_stream:
-          dataset: spark
-          namespace: spark
-        paths:
-          - 'C:\Volumes\logs\spark\events\app-*'
-  - id: spark-app-logs
-    type: filestream    
-    use_output: "default"
-    enabled: true
-    paths:
-      - 'C:\Volumes\logs\spark\spark-*\spark.log'
-    tags: ["spark-app"]
-    data_stream:
-      dataset: spark_app
-      namespace: default
-    ignore_older: 24h
   - id: spark-gc
     type: filestream
     use_output: default

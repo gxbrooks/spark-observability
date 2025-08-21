@@ -5,7 +5,7 @@ spark = SparkSession.builder.appName(
     "Ch03 - Analyzing the vocabulary of Pride and Prejudice. - short"
 ).getOrCreate()
 
-book = spark.read.text("/opt/spark/data/pride-and-prejudice.txt")
+book = spark.read.text("/spark-data/pride-and-prejudice.txt")
 
 results = (
     book.select(F.split(F.col("value"), " ").alias("line"))
@@ -19,4 +19,4 @@ results = (
 
 results.orderBy(F.col("count").desc()).show(10)
 
-results.coalesce(1).write.csv("/opt/spark/data/results/chapter03/simple_count.csv")
+results.coalesce(1).write.csv("/spark-data/results/chapter03/simple_count.csv")

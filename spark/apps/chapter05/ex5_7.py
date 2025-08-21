@@ -3,11 +3,11 @@ import os
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder.appName("Broadcast logs script ch05 (ex5_6)").getOrCreate()
+spark = SparkSession.builder.appName("Broadcast logs script ch05 (ex5_7)").getOrCreate()
 
 spark.sparkContext.setLogLevel("WARN")
 
-DIRECTORY = "/opt/spark/data/broadcast_logs"
+DIRECTORY = "/spark-data/broadcast_logs"
 
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),
@@ -121,10 +121,8 @@ answer = (
 # Fill null values
 answer_filled = answer.fillna(0)
 
-answer_filled.orderBy("commercial_ratio", ascending=False).show(1000, False)
+answer_filled.groupby(F.round("commercial_ratio", 1).alias("commercial_ratio")).agg(
+    F.count("*").alias("number_of_channels")
+).orderBy("commercial_ratio", ascending=False).show(1000, False)
 
-# answer_filled.join(
-#     program_call_signs,
-#     how="left",
-#     on=[answer_filled["ProgramClassCD"] == program_call_signs["LogIdentifierID"]],
-# ).orderBy("commercial_ratio", ascending=False).show(1000, False)
+# answer_filled.orderBy("commercial_ratio", ascending=False).show(1000, False)

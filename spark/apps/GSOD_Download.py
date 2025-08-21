@@ -1,4 +1,3 @@
-
 from pyspark.sql import SparkSession
 from google.cloud import bigquery
 from functools import reduce
@@ -120,7 +119,7 @@ noaa_df = reduce(lambda df1, df2: df1.unionByName(df2),
 (
     noaa_df
     .write.mode("overwrite")
-    .parquet("file:///opt/spark/data/gsod_data.parquet")
+    .parquet("file:///spark-data/gsod_data.parquet")
 )
 
 # Stop the SparkSession

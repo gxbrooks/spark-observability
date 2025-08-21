@@ -13,27 +13,12 @@ all:
         elastic_agent_os: "windows"
         elastic_agent_arch: "x86_64"
         elastic_agent_extension: "zip"
-        # Ansible WinRM configuration for WinRM managed nodes
-        # WinRM is no longer in feature development. SSH is the future
-        # ansible_connection: winrm  # Overrides global 'ssh' default
-        # ansible_winrm_transport: certificate
-        # ansible_winrm_server_cert_validation: ignore
-        # ansible_winrm_server_cert_validation: validate 
-        # ansible_winrm_cert_key_pem: "/home/gxbrooks/.winrm/ansible_client_private_key.pem"
-        # ansible_winrm_cert_pem: "/home/gxbrooks/.winrm/ansible_client_cert.pem"
-        # ansible_winrm_scheme: https
-        # ansible_port: 5986
-        # ssh specific configs
         ansible_shell_type: cmd
         ansible_shell_executable: cmd
-        # ansible_password: "{{ vaulted_password }}"  # Omit if using keys only
         ansible_python_interpreter: "C:\\Program Files\\Python312\\python.exe"
       hosts:
         GaryPC:
           ansible_host: GaryPC.lan
-          
-        Lab1:
-          ansible_host: Lab1.lan
     linux:
       vars:
         elastic_agent_os: "linux"
@@ -42,21 +27,18 @@ all:
         ansible_python_interpreter: "/usr/bin/python3"
         ansible_shell_type: sh
         ansible_shell_executable: /bin/sh
-        # SSH configuration
-        # Managed node communication configuration for ssh managed nodes
-
       children:
         native:
           vars:
             ansible_port: 22
           hosts:
+            Lab1:
+              ansible_host: Lab1.lan
             Lab2:
-              ansible_host: Lab2.lan 
+              ansible_host: Lab2.lan
         wsl:
           vars:
             ansible_port: 2222
           hosts:
             GaryPC-WSL:
               ansible_host: GaryPC.lan
-            Lab1-WSL:
-              ansible_host: Lab1.lan

@@ -3,11 +3,9 @@ import os
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder.appName("Broadcast logs script ch05 (ex5_5)").getOrCreate()
+spark = SparkSession.builder.appName("Ch05 - Broadcast logs script ch05").getOrCreate()
 
-spark.sparkContext.setLogLevel("WARN")
-
-DIRECTORY = "/opt/spark/data/broadcast_logs"
+DIRECTORY = "/spark-data/broadcast_logs"
 
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),
@@ -16,8 +14,6 @@ logs = spark.read.csv(
     inferSchema=True,
     timestampFormat="yyyy-MM-dd",
 )
-
-logs = logs.drop("BroadcastLogID", "SequenceNO")
 
 logs = logs.withColumn(
     "duration_seconds",
@@ -57,19 +53,12 @@ cd_program_class = spark.read.csv(
     F.col("EnglishDescription").alias("ProgramClass_Description"),
 )
 
-# ex 5.5 table
-program_call_signs = spark.read.csv(
-    os.path.join(DIRECTORY, "Call_Signs.csv"),
-    sep=",",
-    header=True,
-    inferSchema=True,
-).select(
-    "LogIdentifierID",
-    F.col("Undertaking_Name").alias("undertaking_name"),
-)
-
+# log_identifier.printSchema()
 
 log_identifier = log_identifier.where(F.col("PrimaryFG") == 1)
+
+# print(log_identifier.count())
+# log_identifier.show(5)
 
 joined_logs = logs.join(
     log_identifier,
@@ -77,13 +66,23 @@ joined_logs = logs.join(
     how="inner",
 )
 
-joined_logs_with_signs = joined_logs.join(
-    program_call_signs, how="inner", on="LogIdentifierID"
-)
-
-full_log = joined_logs_with_signs.join(cd_category, "CategoryID", how="left").join(
+full_log = joined_logs.join(cd_category, "CategoryID", how="left").join(
     cd_program_class, "ProgramClassID", how="left"
 )
+
+# joined_logs.printSchema()
+# joined_logs.show(5)
+
+full_log.groupby("ProgramClassCD", "ProgramClass_Description").agg(
+    F.sum("duration_seconds").alias("duration_total")
+).orderBy("duration_total", ascending=False).show(100, False)
+
+# F.when(
+#     F.trim(F.col("ProgramClassCD")).isin(
+#         ["COM", "PRC", "PGI", "PRO", "PSA", "MAG", "LOC", "SPO", "MER", "SOL"]
+#     ),
+#     F.col("duration_seconds") # take this value if the ProgramClassCD value is in list
+# ).otherwise(0)
 
 commercial_programs = [
     "COM",
@@ -99,12 +98,14 @@ commercial_programs = [
 ]
 
 answer = (
-    full_log.groupby("LogIdentifierID", "undertaking_name")
+    full_log.groupby("ProgramClassCD", "ProgramClass_Description")
     .agg(
         F.sum(
             F.when(
                 F.trim(F.col("ProgramClassCD")).isin(commercial_programs),
-                F.col("duration_seconds"),
+                F.col(
+                    "duration_seconds"
+                ),  # take this value if the ProgramClassCD value is in list
             ).otherwise(0)
         ).alias("duration_commercial"),
         F.sum("duration_seconds").alias("duration_total"),
@@ -113,6 +114,13 @@ answer = (
         "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
     )
 )
+
+answer.orderBy("commercial_ratio", ascending=False).show(1000, False)
+
+# Drop null values
+answer_no_null = answer.dropna(subset=["commercial_ratio"])
+
+answer_no_null.orderBy("commercial_ratio", ascending=False).show(1000, False)
 
 # Fill null values
 answer_filled = answer.fillna(0)
