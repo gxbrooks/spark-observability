@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-env
+  namespace: spark
+data:
+  TZ: "America/Chicago"
+  ELASTIC_HOST: "GaryPC.lan"
+  ELASTIC_PORT: "9200"
+  ELASTIC_USER: "elastic"
+  ELASTIC_PASSWORD: "myElastic2025"
+  CA_CERT_LINUX_PATH: "/etc/ssl/certs/elastic/ca.crt"
+  SPARK_MASTER: "spark://spark-master:7077"
+  SPARK_MASTER_HOST: "spark-master"
+  SPARK_MASTER_PORT: "7077"
+  SPARK_EVENTS_DIR: "/mnt/nfs/spark-events"
+  SPARK_NO_DAEMONIZE: "True"

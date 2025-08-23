@@ -1,0 +1,76 @@
+---
+- name: Install Kubernetes and k3d on Lab2
+  hosts: Lab2 # probably should be "native" once we get to multi node
+  become: true
+  vars_files:
+    - ../../config.env
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+      when: ansible_os_family == 'Debian'
+
+    - name: Install k3d
+      shell: |
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      args:
+        creates: /usr/local/bin/k3d
+
+    - name: Create k3d cluster
+      shell: |
+        k3d cluster create spark-cluster --config ./spark/k3d/k3d-config.yaml
+      args:
+        creates: /root/.k3d/kubeconfig-spark-cluster.yaml
+
+    - name: Ensure NFS export for Spark events exists
+      file:
+        path: "{{ SPARK_EVENTS_DIR }}"
+        state: directory
+        mode: '0775'
+
+    - name: Install NFS server
+      apt:
+        name: nfs-kernel-server
+        state: present
+      when: ansible_os_family == 'Debian'
+
+    - name: Configure NFS exports
+      lineinfile:
+        path: /etc/exports
+        line: "{{ SPARK_EVENTS_DIR }} *(rw,sync,no_root_squash)"
+        create: yes
+
+    - name: Restart NFS server
+      service:
+        name: nfs-kernel-server
+        state: restarted
+      when: ansible_os_family == 'Debian'
+
+    - name: Apply Spark K8s manifests
+      shell: |
+        kubectl apply -f ./spark/k8s/
+      args:
+        chdir: "{{ playbook_dir }}/../.."
+
+    - name: Send Kubernetes metrics to Elasticsearch
+      elastic_agent:
+        integration: kubernetes
+        enabled: true
+        hosts: ["https://localhost:10250"]
+        output.elasticsearch:
+          hosts: ["https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+          username: "${ELASTIC_USER}"
+          password: "${ELASTIC_PASSWORD}"
+          ssl.certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+
+    - name: Send Docker metrics to Elasticsearch
+      elastic_agent:
+        integration: docker
+        enabled: true
+        hosts: ["unix:///var/run/docker.sock"]
+        output.elasticsearch:
+          hosts: ["https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+          username: "${ELASTIC_USER}"
+          password: "${ELASTIC_PASSWORD}"
+          ssl.certificate_authorities: ["${CA_CERT_LINUX_PATH}"]

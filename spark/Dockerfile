@@ -4,29 +4,17 @@ FROM python:3.13.3-bullseye AS spark-base
 
 ARG SPARK_VERSION
 ARG SPARK_HOME
-ARG SPARK_MASTER_HOST
-ARG SPARK_MASTER_PORT
-ARG SPARK_MASTER
 ARG PYSPARK_PYTHON
 ARG HADOOP_HOME
-ARG ELASTIC_AGENT_HOME
-ARG ELASTIC_AGENT_STACK_VERSION
 
 # setup the structure of the implementation
 ENV SPARK_HOME=${SPARK_HOME:-/opt/spark}
 ENV HADOOP_HOME=${HADOOP_HOME:-/opt/hadoop}
 
-ENV SPARK_MASTER_HOST=${SPARK_MASTER_HOST:-spark-master}
-ENV SPARK_MASTER_PORT=${SPARK_MASTER_PORT:-7077}
-
-# TODO: need to find all uses of SPARK_MASTER
-# and build it out of host and port like:
-# ENV SPARK_MASTER=spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}
-ENV SPARK_MASTER=${SPARK_MASTER:-spark://spark-master:7077}
-
 ENV PYSPARK_PYTHON=${PYSPARK_PYTHON:-python3}
 
 ENV PATH="${SPARK_HOME}/sbin:${SPARK_HOME}/bin:${PATH}"
+# TODO: looks like a vestigal variable definition probably for access to GSOD data
 ENV GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS}"
 
 # Install tools required by the OS
@@ -77,37 +65,6 @@ RUN chmod u+x /opt/spark/sbin/* && \
 # PYTHONPATH is undefined at this point and only consists of $SPARK_HOME/python
 ENV PYTHONPATH=$SPARK_HOME/python
 
-
-#################################################################################
-#
-# DO NOT Install the Elastic Agent - NOW RUN Elastic Agent from the host.
-# TODO: delete this section
-
-# TODO: Need a service account of Elastic Agent
-
-# See https://www.elastic.co/guide/en/fleet/8.15/install-standalone-elastic-agent.html
-# keep the tar file and extracted directories outside the installation directory. 
-
-# Setup Spark related environment variables
-# ENV ELASTIC_AGENT_HOME=${ELASTIC_AGENT_HOME:-/usr/share/elastic-agent}
-# ENV ELASTIC_AGENT_STACK_VERSION=${ELASTIC_AGENT_STACK_VERSION}
-
-# RUN mkdir -p ${ELASTIC_AGENT_HOME}
-# WORKDIR ${ELASTIC_AGENT_HOME}
-
-# RUN apt-get update && apt-get install -y \
-#     ca-certificates \
-#     curl \
-# 	systemctl \
-#     && rm -rf /var/lib/apt/lists/*
-
-# Download and install the Elastic Agent
-# RUN curl -L -O https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb \
-#     && dpkg -i elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb \
-#     && rm elastic-agent-${ELASTIC_AGENT_STACK_VERSION}-amd64.deb
-
-# RUN systemctl enable elastic-agent 
-# enable in the image, but need to start as part of the entrypoint wrapper
 
 WORKDIR ${SPARK_HOME}
 

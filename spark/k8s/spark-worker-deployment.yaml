@@ -17,10 +17,8 @@ spec:
         - name: spark-worker
           image: myrepo/spark:3.5.5
           command: ["./entrypoint.sh", "worker"]
-          env:
-            - name: SPARK_MASTER_URL
-              value: "spark://spark-master:7077"
-            - name: TZ
-              value: "America/Chicago"
+          envFrom:
+            - configMapRef:
+                name: spark-configmap
           ports:
             - containerPort: 8081

@@ -17,11 +17,9 @@ spec:
         - name: spark-history
           image: myrepo/spark:3.5.5
           command: ["./entrypoint.sh", "history"]
-          env:
-            - name: SPARK_HISTORY_DIR
-              value: "/mnt/nfs/spark-events"
-            - name: TZ
-              value: "America/Chicago"
+          envFrom:
+            - configMapRef:
+                name: spark-configmap
           ports:
             - containerPort: 18080
           volumeMounts:

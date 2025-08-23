@@ -1,0 +1,131 @@
+# Centralized variable definitions for all contexts
+# Each variable has a value and a list of contexts where it is needed
+# Contexts: observability, spark-image, spark-runtime
+
+
+# Global variables
+TZ:
+  value: America/Chicago
+  contexts: [observability, spark-image, spark-runtime]
+
+
+# unclear why CLUSTER_NAME is needed, see es01 service in docker-compose.yml
+CLUSTER_NAME:
+  value: docker-custer
+  contexts: [observability]
+
+# Elasticsearch image build variables
+STACK_VERSION:
+  value: 8.7.1
+  contexts: [observability]
+
+# Observability runtime variables
+
+# Elasticsearch variables
+ELASTIC_HOST:
+  value: GaryPC.lan
+  contexts: [observability, spark-runtime]
+ELASTIC_PORT:
+  value: 9200
+  contexts: [observability, spark-runtime]
+ELASTIC_USER:
+  value: elastic
+  contexts: [observability, spark-runtime]
+ELASTIC_PASSWORD:
+  value: myElastic2025
+  contexts: [observability, spark-runtime]
+CA_CERT_LINUX_PATH:
+  value: /etc/ssl/certs/elastic/ca.crt
+  contexts: [observability, spark-runtime]
+CA_CERT_WINDOWS_PATH:
+  value: C:\\Volumes\\certs\\ca.crt
+  contexts: [observability]
+ES_CA_CERT_PATH:
+  value: /usr/share/elasticsearch/config/certs/ca/ca.crt
+  contexts: [observability]
+
+# Kibana variables
+ENCRYPTION_KEY:
+  value: c34d38b3a14956121ff2170e5030b471551370178f43e5626eec58b04a30fae2
+  contexts: [observability] 
+KIBANA_HOST:
+  value: GaryPC.lan
+  contexts: [observability]
+KIBANA_PORT:
+  value: 5601
+  contexts: [observability]
+
+# Logstash variables
+LS_HOST:
+  value: GaryPC.lan
+  contexts: [observability]
+LOGSTASH_PORT:
+  value: 5044
+  contexts: [observability]
+LS_DOCKER_METRICS_PORT:
+  value: 5050
+  contexts: [observability]
+LS_SPARK_EVENTS_PORT:
+  value: 5051
+  contexts: [observability]
+
+# Grafana variables
+GRAFANA_HOST:
+  value: GaryPC.lan
+  contexts: [observability]
+GF_SERVER_HTTP_PORT:
+  value: 3000
+  contexts: [observability]
+# See docker-compose.yml for admin user/password setup
+GF_SECURITY_ADMIN_USER:
+  value: admin
+  contexts: [observability]
+GF_SECURITY_ADMIN_PASSWORD:
+  value: mysecretpassword
+  contexts: [observability]
+
+# Elastic Agent variables
+# Currently we use systemd env.conf file format for Elastic Agent on Linux.
+# env.con is in elastic-agent/env.conf
+# there is a playbook to inject env.conf into the Elastic Agent service environment.
+# for Windows there is a task to populate environment variables from the Linux version
+# All this needs to be integrates with linux/generate_env.py
+ELASTIC_AGENT_STACK_VERSION:
+  value: 8.15.0
+  contexts: []
+ 
+# TODO: may not be referenced yet
+ELASTIC_AGENT_HOME:
+  value: /usr/share/elastic-agent
+  contexts: []
+
+# Spark image build-time variables
+SPARK_VERSION:
+  value: 3.5.5
+  contexts: [spark-image]
+SPARK_HOME:
+  value: /opt/spark
+  contexts: [spark-image]
+HADOOP_HOME:
+  value: /opt/spark
+  contexts: [spark-image]
+PYSPARK_PYTHON:
+  value: python3
+  contexts: [spark-image]
+
+# Spark runtime variables (for K8s ConfigMap)
+SPARK_MASTER:
+  value: spark://spark-master:7077
+  contexts: [spark-runtime]
+SPARK_MASTER_HOST:
+  value: spark-master
+  contexts: [spark-runtime]
+SPARK_MASTER_PORT:
+  value: 7077
+  contexts: [spark-runtime]
+SPARK_EVENTS_DIR:
+  value: /mnt/nfs/spark-events
+  contexts: [spark-runtime]
+SPARK_NO_DAEMONIZE:
+  value: true
+  contexts: [spark-runtime]

@@ -141,7 +141,7 @@ inputs:
           dataset: spark
           namespace: spark
         paths:
-          - '/mnt/c/Volumes/logs/spark/events/app-*'
+          - "${SPARK_EVENTS_DIR}/app-*"
   - id: spark-app-logs
     type: filestream    
     use_output: "default"

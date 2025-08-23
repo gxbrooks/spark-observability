@@ -43,7 +43,7 @@ services:
       - ./shared:/opt/shared
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
-      TZ: "America/Chicago"    
+      TZ: ${TZ}    
     user: "0"
     entrypoint: ["bash", "-f", "./certs/init-certs.sh"]
     # env_file:
@@ -75,12 +75,15 @@ services:
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
       node.name: es01
+      # are cluster.name and discovery.type needed?
       cluster.name: "${CLUSTER_NAME}"
       discovery.type: "single-node"
       bootstrap.memory_lock: true
       # Xpack is rooted at /usr/share/elasticsearch/config, so start all certificate 
       # paths with "certs/"!!!
-      CA_CERT: "${ES_CA_CERT_PATH}"
+      # This looks like a vestigal variable defintion. Any cert paths needed 
+      # are defined by xpack
+      # CA_CERT: "${ES_CA_CERT_PATH}"
       xpack.security.enabled: true
       xpack.security.http.ssl.enabled: true
       xpack.security.http.ssl.key: "certs/es01/es01.key"
@@ -95,7 +98,7 @@ services:
       # For using Watcher as an HTTPS client
       # xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
       xpack.http.ssl.certificate_authorities: "${ES_CA_CERT_PATH}"
-      TZ: "America/Chicago"    
+      TZ: ${TZ}    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
       resources:
@@ -137,7 +140,7 @@ services:
       KIBANA_PASSWORD: ${KIBANA_PASSWORD}
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
-      TZ: "America/Chicago"    
+      TZ: ${TZ}    
     depends_on:
       es01:
         condition: service_healthy 
@@ -167,7 +170,7 @@ services:
       XPACK_SECURITY_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
       XPACK_REPORTING_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
-      TZ: "America/Chicago"    
+      TZ: ${TZ}    
     mem_limit: ${KB_MEM_LIMIT}
     depends_on:
       es01:
@@ -205,11 +208,11 @@ services:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "mysecretpassword"
       # GF_SERVER_HOST: localhost
-      GF_SERVER_HTTP_PORT: "3000"
+      GF_SERVER_HTTP_PORT: ${GF_SERVER_HTTP_PORT}
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       CA_CERT: "${CA_CERT_LINUX_PATH}"
-      TZ: "America/Chicago"    
+      TZ: ${TZ}    
     depends_on:
       es01:
         condition: service_healthy 
@@ -234,7 +237,7 @@ services:
       KIBANA_PORT: ${KIBANA_PORT}
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
-      TZ: "America/Chicago"    
+      TZ: ${TZ}    
     depends_on:
       kibana:
         condition: service_healthy
@@ -260,7 +263,7 @@ services:
       ELASTIC_USER: ${ELASTIC_USER}
       PY_SCRIPTS: "/opt/shared/bin"
       PYTHONPATH: "/opt/shared/bin/api"
-      TZ: "America/Chicago"
+      TZ: ${TZ}
     depends_on:
       es01:
         condition: service_healthy
@@ -299,7 +302,7 @@ services:
       LS_SPARK_EVENTS_PORT: ${LS_SPARK_EVENTS_PORT}
       LS_DOCKER_METRICS_PORT: ${LS_DOCKER_METRICS_PORT}
       # TODO: environment variables to include time zone. 
-      TZ: "America/Chicago"
+      TZ: ${TZ}
     depends_on:
       es01:
         condition: service_healthy

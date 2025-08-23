@@ -17,11 +17,9 @@ spec:
         - name: spark-master
           image: myrepo/spark:3.5.5
           command: ["./entrypoint.sh", "master"]
-          env:
-            - name: SPARK_MODE
-              value: "master"
-            - name: TZ
-              value: "America/Chicago"
+          envFrom:
+            - configMapRef:
+                name: spark-configmap
           ports:
             - containerPort: 7077
             - containerPort: 8080
