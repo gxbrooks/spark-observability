@@ -19,6 +19,7 @@ volumes:
     driver: local
   kibanadata:
     driver: local
+  # where private keys and associated certs are stored
   certs:
     driver: local
 
@@ -39,11 +40,14 @@ services:
       # Xpack expects all certs to be rooted in config, so we standardize on 
       # that for all elasaticsearch images
       - certs:/usr/share/elasticsearch/config/certs
+      # scripts and Elasticsearch cert config file
       - ./certs:/usr/share/elasticsearch/certs
       - ./shared:/opt/shared
+      # provides host-level access to the elastic CA cert
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
-      TZ: ${TZ}    
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
+      TZ: ${TZ}
     user: "0"
     entrypoint: ["bash", "-f", "./certs/init-certs.sh"]
     # env_file:
@@ -81,9 +85,7 @@ services:
       bootstrap.memory_lock: true
       # Xpack is rooted at /usr/share/elasticsearch/config, so start all certificate 
       # paths with "certs/"!!!
-      # This looks like a vestigal variable defintion. Any cert paths needed 
-      # are defined by xpack
-      # CA_CERT: "${ES_CA_CERT_PATH}"
+      # CA_CERT: "${CA_CERT_LINUX_PATH}"
       xpack.security.enabled: true
       xpack.security.http.ssl.enabled: true
       xpack.security.http.ssl.key: "certs/es01/es01.key"
@@ -163,7 +165,7 @@ services:
     environment:
       # ELASTICSEARCH_HOSTS: https://${ELASTIC_HOST}:${ELASTIC_PORT}
       ELASTICSEARCH_HOSTS: https://es01:9200
-      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_USERNAME: ${KIBANA_USER}
       ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
       CA_CERT: "${CA_CERT_LINUX_PATH}"
       ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "${CA_CERT_LINUX_PATH}"
@@ -198,7 +200,7 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - certs:/etc/ssl/privatge/elastic/certs
+      - certs:/etc/ssl/private/elastic/certs
       - "./grafana/data:/var/lib/grafana/data"
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "./grafana/grafana.ini:/etc/grafana/grafana.ini"

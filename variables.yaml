@@ -23,7 +23,7 @@ STACK_VERSION:
 
 # Elasticsearch variables
 ELASTIC_HOST:
-  value: GaryPC.lan
+  value: es01
   contexts: [observability, spark-runtime]
 ELASTIC_PORT:
   value: 9200
@@ -34,14 +34,21 @@ ELASTIC_USER:
 ELASTIC_PASSWORD:
   value: myElastic2025
   contexts: [observability, spark-runtime]
+ELASTIC_URL:
+  value: https://es01:9200
+  contexts: [observability]
 CA_CERT_LINUX_PATH:
   value: /etc/ssl/certs/elastic/ca.crt
   contexts: [observability, spark-runtime]
+# Not clear where needed.
 CA_CERT_WINDOWS_PATH:
   value: C:\\Volumes\\certs\\ca.crt
   contexts: [observability]
 ES_CA_CERT_PATH:
   value: /usr/share/elasticsearch/config/certs/ca/ca.crt
+  contexts: [observability]
+LICENSE:
+  value: basic
   contexts: [observability]
 
 # Kibana variables
@@ -54,19 +61,30 @@ KIBANA_HOST:
 KIBANA_PORT:
   value: 5601
   contexts: [observability]
+KIBANA_USER:
+  value: kibana_system
+  contexts: [observability]
+KIBANA_PASSWORD:
+  value: myElastic2025
+  contexts: [observability]
+KB_MEM_LIMIT:
+  value: 1073741824
+  contexts: [observability]
 
 # Logstash variables
 LS_HOST:
-  value: GaryPC.lan
+  value: logstash01
   contexts: [observability]
 LOGSTASH_PORT:
   value: 5044
   contexts: [observability]
+# currently, metrics are sent straight to Elasticsearch, not via Logstash
+# TODO: send metrics via regional Logstash servers
 LS_DOCKER_METRICS_PORT:
-  value: 5050
+  value: 5051
   contexts: [observability]
 LS_SPARK_EVENTS_PORT:
-  value: 5051
+  value: 5050
   contexts: [observability]
 
 # Grafana variables

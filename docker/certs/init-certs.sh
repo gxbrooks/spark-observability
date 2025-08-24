@@ -80,35 +80,43 @@ for arg in "$@"; do
 done
 
 # Follows the Linux convention of storing the CA certs in /etc/ssl/public
-CA_DIST_DIR="/etc/ssl/certs/elastic" 
-mkdir -p "$CA_DIST_DIR"
+# $CA_CERT is where the public version of the CA cert is stored
+# it is passed into the environment by the docker-compose.yml file
+if [ ! -v CA_CERT ] ; then
+  echo "CA_CERT ('$CA_CERT') not defined in the environment"
+  exit 1
+fi
+
+mkdir -p $(dirname "$CA_CERT")
+
 # Follows the Elasticsearch convention (mandate) of storing the CA certs in 
 # /usr/share/elasticsearch/config
 CA_BASE_DIR="/usr/share/elasticsearch/config" 
 CERTS_DIR="$CA_BASE_DIR/certs"
 CA_CERT_DIR="$CERTS_DIR/ca"
-CA_CERT="$CERTS_DIR/ca/ca.crt"
-CA_VERSION_FILE="$CERTS_DIR/.certs_version"
+CA_CERT_PATH="$CA_CERT_DIR/ca.crt"
+CA_KEY_PATH="$CA_CERT_DIR/ca.key"
+CA_VERSION_FILE="$CA_CERT_DIR/.certs_version"
 
 
 # Helper: get CA cert hash
 get_ca_hash() {
-  if [ -f "$CA_CERT_DIR/ca.crt" ]; then
-    sha256sum "$CA_CERT_DIR/ca.crt" | awk '{print $1}'
+  if [ -f "$CA_CERT_PATH" ]; then
+    sha256sum "$CA_CERT_PATH" | awk '{print $1}'
   else
     echo ""
   fi
 }
 
 # check if the script has already run, unless --force is given
-if [ -f "$CERTS_DIR/done" ] && [ $FORCE -eq 0 ]; then
-  echo "[init-certs] init-certs has already run successfully, exiting"
-  exit 0
+if ! [ -f "$CERTS_DIR/done" ]; then
+  # cert generation has not executed successfully
+  echo "[init-certs] init-certs has not run successfully, proceeding"
 # --Force forces regeneration
 elif [ $FORCE -eq 1 ]; then
   echo "[init-certs] Force regeneration of certificates."
-# Must regenerate if there is no private key or no version
-elif [ ! -f "$CA_CERT_DIR/ca.crt" ] || [ ! -f "$CA_VERSION_FILE" ]; then
+# Must regenerate if there is no private CA key or no version
+elif [ ! -f "$CA_CERT_PATH" ] || [ ! -f "$CA_VERSION_FILE" ]; then
   echo "[init-certs] CA certificate or version file not found, regenerating certificates."
 else
   CA_HASH=$(get_ca_hash)
@@ -122,31 +130,34 @@ else
 fi
 
 echo "[init-certs] Generating new CA and service certificates..."
+echo "[init-certs] Certificates & keys will be stored in CERTS_DIR='$CERTS_DIR'"
+echo "[init-certs] CA cert will be stored in CA_CERT_PATH='$CA_CERT_PATH'"
+echo "[init-certs] CA cert will be distributed to  CA_CERT='$CA_CERT'"
+
 # Clean old certs (idempotent)
 rm -rf "$CERTS_DIR"/*
 # add other service dirs as needed
 mkdir -p "$CERTS_DIR/ca" # "$CERTS_DIR/es01" "$CERTS_DIR/logstash01" 
 chmod -R 755 "$CERTS_DIR/ca"
-echo "[init-certs] Creating self-signed certificat authority (CA)"
+echo "[init-certs] Creating self-signed certificat authority"
 # elasticsearch-certutil ca --silent \
 #   --pem \
 #   --out "$CERTS_DIR/ca.zip
 # Generate CA
 openssl req -x509 -newkey rsa:4096 \
   -days 3650 -nodes \
-  -keyout "$CA_CERT_DIR/ca.key" \
-  -out "$CA_CERT_DIR/ca.crt" \
+  -keyout "$CA_KEY_PATH" \
+  -out "$CA_CERT_PATH" \
   -subj "/CN=Elastic-Stack-CA"
-chmod 600 "$CA_CERT_DIR/ca.key" 
-chmod 644 "$CA_CERT_DIR/ca.crt" 
+chmod 600 "$CA_KEY_PATH" 
+chmod 644 "$CA_CERT_PATH"
 # Save CA cert hash as version marker
 get_ca_hash > "$CA_VERSION_FILE"
 chmod 644 "$CA_VERSION_FILE"
 # Copy CA cert for distribution
-mkdir -p "$CA_DIST_DIR"
-cp "$CA_CERT_DIR/ca.crt" "$CA_CERT_PATH"
+cp "$CA_CERT_PATH" "$CA_CERT"
 chmod 644 "$CA_CERT_PATH"
-echo "[init-certs] CA cert distributed to $CA_CERT_PATH"
+echo "[init-certs] CA cert distributed to $CA_CERT"
 # Optionally trigger Ansible playbook for CA cert distribution
 if [ -n "${TRIGGER_ANSIBLE:-}" ]; then
   echo "[init-certs] Triggering Ansible playbook for CA cert distribution..."
@@ -154,7 +165,7 @@ if [ -n "${TRIGGER_ANSIBLE:-}" ]; then
 fi
 
 
-echo "[init-certs] Creating Elastic certs"
+echo "[init-certs] Creating Elastic Stack certs"
 # what is init for (now) in instance.yml?
 # Remove any existing certs zip to avoid errors
 rm -f "$CERTS_DIR/certs.zip"
@@ -163,8 +174,8 @@ elasticsearch-certutil cert --silent \
   --pem \
   --out "$CERTS_DIR/certs.zip" \
   --in ./certs/instances.yml \
-  --ca-cert "$CERTS_DIR/ca/ca.crt" \
-  --ca-key "$CERTS_DIR/ca/ca.key" 
+  --ca-cert "$CA_CERT_PATH" \
+  --ca-key "$CA_KEY_PATH" 
 # chmod 600 "$CERTS_DIR/certs.zip"
 unzip -o -q "$CERTS_DIR/certs.zip" -d "$CERTS_DIR"
 
@@ -189,7 +200,7 @@ openssl req -new \
   -out "$CERTS_DIR/grafana/grafana.csr" \
   -sha256 \
   -batch
-echo "[init-certs] Created Grafana certificate signing request (CSR) at $CERTS_DIR/grafana/grafana.csr"
+echo "[init-certs] Created Grafana certificate signing request at $CERTS_DIR/grafana/grafana.csr"
 # use Elastic Stack CA as the CA 
 openssl x509 -req \
   -in "$CERTS_DIR/grafana/grafana.csr" \

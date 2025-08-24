@@ -1,0 +1,46 @@
+---
+- name: Deploy Elastic Stack on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  tasks:
+    - name: Create namespace
+      raw: kubectl create namespace elastic
+      ignore_errors: true
+      
+    - name: Copy Kubernetes manifests
+      raw: |
+        mkdir -p ~/elastic-k8s
+        cp {{ playbook_dir }}/../kubernetes/*.yml ~/elastic-k8s/
+        
+    - name: Create TLS secrets
+      raw: |
+        kubectl create secret generic elasticsearch-certs \
+          --from-file=ca.crt=/path/to/ca.crt \
+          --from-file=tls.crt=/path/to/tls.crt \
+          --from-file=tls.key=/path/to/tls.key \
+          -n elastic
+          
+    - name: Create credentials secret
+      raw: |
+        kubectl create secret generic elastic-credentials \
+          --from-literal=elastic-password={{ elastic_password }} \
+          --from-literal=kibana-password={{ kibana_password }} \
+          -n elastic
+          
+    - name: Apply Elasticsearch configuration
+      raw: kubectl apply -f ~/elastic-k8s/elasticsearch.yml -n elastic
+      
+    - name: Wait for Elasticsearch to be ready
+      raw: |
+        kubectl wait --for=condition=ready pod/elasticsearch-0 \
+          --timeout=300s \
+          -n elastic
+          
+    - name: Apply Kibana configuration
+      raw: kubectl apply -f ~/elastic-k8s/kibana.yml -n elastic
+      
+    - name: Wait for Kibana to be ready
+      raw: |
+        kubectl wait --for=condition=ready pod -l app=kibana \
+          --timeout=300s \
+          -n elastic
