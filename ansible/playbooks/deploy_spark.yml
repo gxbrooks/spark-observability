@@ -1,0 +1,25 @@
+---
+- name: Deploy Spark on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  tasks:
+    - name: Copy Spark Kubernetes manifests
+      raw: |
+        mkdir -p ~/spark-k8s
+        cp {{ playbook_dir }}/../kubernetes/spark.yml ~/spark-k8s/
+        
+    - name: Apply Spark namespace and RBAC
+      raw: kubectl apply -f ~/spark-k8s/spark.yml
+      
+    - name: Wait for service account to be ready
+      raw: kubectl wait --for=condition=ready serviceaccount/spark -n spark --timeout=60s
+      
+    - name: Build and push Spark Docker image
+      raw: |
+        cd {{ playbook_dir }}/../spark
+        docker build -t {{ spark_image }}:{{ spark_tag }} .
+        docker push {{ spark_image }}:{{ spark_tag }}
+      
+    - name: Update ConfigMap with image details
+      raw: |
+        kubectl create configmap spark-defaults --from-file={{ playbook_dir }}/../spark/conf/spark-defaults.conf -n spark --dry-run=client -o yaml | kubectl apply -f -

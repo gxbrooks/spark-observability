@@ -1,6 +1,6 @@
 ---
-- name: Setup Kubernetes prerequisites
-  hosts: linux:!wsl  # Target only native Linux hosts, exclude WSL
+- name: Setup Kubernetes prerequisites for Spark
+  hosts: spark_kubernetes:&linux  # Target only Linux hosts in spark_kubernetes group
   become: true
   tasks:
     - name: Install required system packages

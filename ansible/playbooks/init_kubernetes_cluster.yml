@@ -1,6 +1,6 @@
 ---
-- name: Initialize Kubernetes cluster
-  hosts: kubernetes_master  # We'll add this group to inventory
+- name: Initialize Kubernetes cluster for Spark
+  hosts: kubernetes_master  # Master node for Spark cluster
   become: true
   tasks:
     - name: Initialize Kubernetes cluster
