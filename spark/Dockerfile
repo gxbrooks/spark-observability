@@ -1,4 +1,4 @@
-FROM python:3.13.3-bullseye AS spark-base
+FROM python:3.11-bullseye AS spark-base
 
 # TODO: Need a service account for Spark
 

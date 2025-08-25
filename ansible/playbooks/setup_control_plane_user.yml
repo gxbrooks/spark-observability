@@ -1,0 +1,46 @@
+---
+- name: Setup Kubernetes control plane user access
+  hosts: kubernetes_master
+  become: true
+  vars:
+    control_user: "{{ k8s_control_user | default(lookup('env', 'USER')) }}"
+  tasks:
+    - name: Display users being configured
+      debug:
+        msg: "Setting up Kubernetes access for users: {{ control_user }} and {{ ansible_user }}"
+
+    # Setup for control plane user
+    - name: Create .kube directory for control user
+      file:
+        path: "/home/{{ control_user }}/.kube"
+        state: directory
+        mode: '0755'
+        owner: "{{ control_user }}"
+        group: "{{ control_user }}"
+
+    - name: Copy kubectl config for control user
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{ control_user }}/.kube/config"
+        remote_src: yes
+        owner: "{{ control_user }}"
+        group: "{{ control_user }}"
+        mode: '0600'
+
+    # Setup for ansible user
+    - name: Create .kube directory for ansible user
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Copy kubectl config for ansible user
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'

@@ -35,7 +35,7 @@ def write_toml(vars_dict, filename):
 
 def write_configmap(vars_dict, filename):
     with open(filename, 'w') as f:
-        f.write('apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: spark-env\n  namespace: spark\ndata:\n')
+        f.write('apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: spark-configmap\n  namespace: spark\ndata:\n')
         for k, v in vars_dict.items():
             f.write(f'  {k}: "{v}"\n')
 

@@ -1,0 +1,61 @@
+---
+- name: Setup Kubernetes prerequisites for Spark
+  hosts: spark_kubernetes:&linux  # Target only Linux hosts in spark_kubernetes group
+  become: true
+  tasks:
+    - name: Install required system packages
+      raw: >
+        apt-get update && 
+        apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg2
+      
+    - name: Remove old Kubernetes apt repository (if present)
+      file:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        state: absent
+      ignore_errors: true
+
+    - name: Add Kubernetes apt key
+      raw: curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
+    - name: Add Kubernetes apt repository (Noble)
+      apt_repository:
+        repo: deb https://apt.kubernetes.io/ kubernetes-noble main
+        state: present
+        filename: kubernetes
+
+    - name: Install Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+
+    - name: Disable swap
+      command: swapoff -a
+
+    - name: Remove swap from fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: 'swap'
+        state: absent
+
+    - name: Enable required kernel modules
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
+
+    - name: Set kernel parameters for Kubernetes
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: 1 }
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: 1 }
+        - { name: 'net.ipv4.ip_forward', value: 1 }

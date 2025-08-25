@@ -1,0 +1,59 @@
+---
+- name: Stop Spark on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  vars:
+    k8s_config_dir: "/home/{{ ansible_user }}/kubernetes"
+  tasks:
+    - name: Ensure kubernetes config directory exists
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy Spark deployment files
+      copy:
+        src: "{{ playbook_dir | dirname | dirname }}/spark/k8s/{{ item }}"
+        dest: "{{ k8s_config_dir }}/"
+        mode: '0644'
+      loop:
+        - spark-master-deployment.yaml
+        - spark-master-service.yaml
+        - spark-worker-deployment.yaml
+        - spark-history-deployment.yaml
+        - spark-configmap.yaml
+
+    # Step 1: Stop workers first to ensure graceful disconnection from master
+    - name: Stop Spark Workers
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-worker-deployment.yaml"
+
+    # Step 2: Stop history server as it's independent of master/worker relationship
+    - name: Stop Spark History Server
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+
+    # Step 3: Stop the master deployment after workers are gone
+    - name: Stop Spark Master
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-master-deployment.yaml"
+
+    # Step 4: Remove the master service after the deployment is gone
+    - name: Remove Spark Master Service
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-master-service.yaml"
+
+    # Step 5: Finally remove the configmap after all pods are gone
+    - name: Remove Spark ConfigMap
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-configmap.yaml"

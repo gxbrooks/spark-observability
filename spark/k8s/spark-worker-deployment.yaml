@@ -22,3 +22,10 @@ spec:
                 name: spark-configmap
           ports:
             - containerPort: 8081
+          resources:
+            requests:
+              cpu: "6"
+              memory: "40Gi"
+            limits:
+              cpu: "6"
+              memory: "40Gi"

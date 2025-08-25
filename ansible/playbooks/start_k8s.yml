@@ -1,0 +1,27 @@
+---
+- name: Start Kubernetes workloads
+  hosts: spark_kubernetes:&linux
+  become: true
+  vars_files:
+    - ../../variables.yaml
+  tasks:
+    - name: Start Spark workloads
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: present
+        src: ../../spark/k8s/spark-master-deployment.yaml
+      when: inventory_hostname == groups['spark_kubernetes'][0]
+
+    - name: Start Spark history server
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: present
+        src: ../../spark/k8s/spark-history-deployment.yaml
+      when: inventory_hostname == groups['spark_kubernetes'][0]
+
+    - name: Start Spark workers
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: present
+        src: ../../spark/k8s/spark-worker-deployment.yaml
+      when: inventory_hostname == groups['spark_kubernetes'][0]

@@ -1,0 +1,62 @@
+---
+- name: Reset Kubernetes cluster
+  hosts: spark_kubernetes:&linux
+  become: true
+  tasks:
+    - name: Reset Kubernetes on all nodes
+      command: kubeadm reset -f
+
+    # Clean up files for ansible user (our service account)
+    - name: Remove ansible user .kube directory
+      file:
+        path: /home/{{ ansible_user }}/.kube
+        state: absent
+      become_user: "{{ ansible_user }}"
+
+    - name: Remove ansible user kubernetes directory
+      file:
+        path: /home/{{ ansible_user }}/kubernetes
+        state: absent
+      become_user: "{{ ansible_user }}"
+
+    # Clean up system files
+    - name: Remove CNI configuration
+      file:
+        path: /etc/cni/net.d
+        state: absent
+
+    - name: Remove Kubernetes configuration
+      file:
+        path: /etc/kubernetes
+        state: absent
+
+    # Reset network configuration - split into separate commands
+    - name: Reset iptables filter table
+      command: iptables -F
+      
+    - name: Reset iptables NAT table
+      command: iptables -t nat -F
+      
+    - name: Reset iptables mangle table
+      command: iptables -t mangle -F
+      
+    - name: Delete iptables custom chains
+      command: iptables -X
+      ignore_errors: true  # Custom chains might not exist
+
+    - name: Reset IP forwarding
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: '0'
+        state: present
+
+    # Optional: remove all docker containers and images
+    - name: Remove all containers
+      shell: docker rm -f $(docker ps -aq) || true
+      args:
+        executable: /bin/bash
+
+    - name: Remove all docker images
+      shell: docker rmi -f $(docker images -q) || true
+      args:
+        executable: /bin/bash

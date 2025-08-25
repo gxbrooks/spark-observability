@@ -3,32 +3,83 @@
   hosts: kubernetes_master  # Master node for Spark cluster
   become: true
   tasks:
-    - name: Initialize Kubernetes cluster
-      raw: kubeadm init --pod-network-cidr=10.244.0.0/16
+    - name: Initialize Kubernetes cluster (this may take several minutes)
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU
       register: kubeadm_init
+      changed_when: true  # This operation always counts as a change
+      failed_when: kubeadm_init.rc != 0 and 'already exists' not in kubeadm_init.stderr
       
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command
+      when: kubeadm_init.rc == 0 or 'already exists' in kubeadm_init.stderr
+
+    - name: Store join command for worker nodes
+      set_fact:
+        k8s_join_command: "{{ join_command.stdout }}"
+      when: join_command is defined and join_command.stdout is defined
+
     - name: Create .kube directory for ansible user
-      raw: mkdir -p /home/{{ ansible_user }}/.kube
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
       
-    - name: Copy kube config for ansible user
-      raw: |
-        cp /etc/kubernetes/admin.conf /home/{{ ansible_user }}/.kube/config
-        chown -R {{ ansible_user }}:{{ ansible_user }} /home/{{ ansible_user }}/.kube
+    - name: Copy kubectl config for ansible user
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
         
     - name: Install Flannel CNI
       raw: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
       become_user: "{{ ansible_user }}"
       
-    - name: Get join command
-      raw: kubeadm token create --print-join-command
-      register: join_command
+    - name: Wait for node to be ready
+      shell: |
+        for i in {1..30}; do
+          kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes && break
+          sleep 2
+        done
+      when: inventory_hostname == groups['spark_kubernetes'][0]
+      register: node_check
+      until: node_check.rc == 0
+      retries: 30
+      delay: 2
+
+    - name: Remove any control-plane taints
+      shell: |
+        for TAINT in "node-role.kubernetes.io/control-plane" "node-role.kubernetes.io/master"; do
+          kubectl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all $TAINT- 2>/dev/null || true
+        done
+      when: inventory_hostname == groups['spark_kubernetes'][0]
       
+    - name: Create local temp directory
+      delegate_to: localhost
+      become: false  # Explicitly disable sudo for localhost
+      file:
+        path: "{{ playbook_dir }}/../temp"
+        state: directory
+        mode: '0755'
+      run_once: true
+
     - name: Store join command
-      local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="/tmp/kubernetes_join_command"
+      delegate_to: localhost
+      become: false  # Explicitly disable sudo for localhost
+      copy:
+        content: "{{ join_command.stdout_lines[0] }}"
+        dest: "{{ playbook_dir }}/../temp/kubernetes_join_command"
+        mode: '0644'
+      run_once: true
       
 - name: Join Kubernetes cluster
   hosts: kubernetes_workers  # We'll add this group to inventory
   become: true
   tasks:
     - name: Copy join command from master
-      raw: "{{ lookup('file', '/tmp/kubernetes_join_command') }}"
+      raw: "{{ lookup('file', playbook_dir + '/../temp/kubernetes_join_command') }}"

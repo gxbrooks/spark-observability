@@ -31,14 +31,28 @@ all:
         native:
           vars:
             ansible_port: 22
-          hosts:
-            Lab1:
-              ansible_host: Lab1.lan
-            Lab2:
-              ansible_host: Lab2.lan
+          children:
+            spark_kubernetes:
+              children:
+                kubernetes_master:
+                  hosts:
+                    Lab2.lan:
+                      ansible_host: Lab2.lan
+                kubernetes_workers:
+                  hosts:
+                    # Add worker nodes here when ready to scale
+                    # Lab1.lan:
+                    #   ansible_host: Lab1.lan
+            observability:
+              hosts:
+                # Add future observability (Elastic/Grafana) Linux host(s) here
+                # ElasticHost.lan:
+                #   ansible_host: ElasticHost.lan
         wsl:
           vars:
             ansible_port: 2222
-          hosts:
-            GaryPC-WSL:
-              ansible_host: GaryPC.lan
+          children:
+            observability:
+              hosts:
+                GaryPC-WSL:
+                  ansible_host: GaryPC.lan
