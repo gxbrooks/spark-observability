@@ -131,6 +131,13 @@ PYSPARK_PYTHON:
   value: python3
   contexts: [spark-image]
 
+# Google data accesss
+# A relative path may not be consistent between iPython and spark submit
+# (but should be)
+GOOGLE_APPLICATION_CREDENTIALS:
+  value: /opt/spark/apps/bq-api-key.json
+  contexts: [spark-image]
+
 # Spark runtime variables (for K8s ConfigMap)
 SPARK_MASTER:
   value: spark://spark-master:7077
@@ -147,3 +154,4 @@ SPARK_EVENTS_DIR:
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
+
