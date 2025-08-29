@@ -1,0 +1,97 @@
+---
+# Launch PySpark IPython Environment Playbook
+# 
+# Usage:
+# - Default launch with interactive shell: ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml
+# - Create pod without interactive shell: ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml -e "launch_shell=false allow_interactive_param=false"
+# - With custom resources: ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml -e "pyspark_ipython_memory_limit=4Gi pyspark_ipython_cpu_limit=2"
+# - For automated scripts: ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml -e "allow_interactive_param=false"
+# - To skip log directory creation when called from a shell script: add -e "create_log_dir_skipped=true"
+#
+# IMPORTANT: If you're using the linux/launch_ipython.sh script, it already handles creating the pod 
+# and launches its own interactive shell. Don't call this playbook with interactive mode from another script.
+
+- name: Launch PySpark IPython environment
+  hosts: kubernetes_master
+  become: false
+  vars:
+    spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ spark_home }}/k8s"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    allow_interactive: "{{ allow_interactive_param | default(true) | bool }}"
+    launch_shell: "{{ launch_shell | default(true) | bool }}"
+  pre_tasks:
+    - name: Run generate_env.py to ensure configuration files are up-to-date
+      delegate_to: localhost
+      become: false
+      shell: "python3 linux/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      args:
+        chdir: "{{ project_root }}"
+      register: generate_result
+      changed_when: "'Generating' in generate_result.stdout"
+      
+    - name: Read Spark version from TOML
+      shell: "grep SPARK_VERSION {{ project_root }}/spark/spark-image.toml | cut -d '\"' -f 2"
+      delegate_to: localhost
+      register: spark_version_output
+      changed_when: false
+      check_mode: false
+      
+    - name: Set Spark image variables
+      set_fact:
+        spark_tag: "{{ spark_version_output.stdout | default('3.5.1') }}"
+        spark_image: "localhost:5000/spark"
+      
+  tasks:
+    - name: Check if kubectl is installed
+      command: "kubectl version --client"
+      register: kubectl_result
+      ignore_errors: true
+      
+    - name: Fail if kubectl not available
+      fail:
+        msg: >
+          This playbook requires kubectl to be installed and in the PATH.
+          Please install kubectl before running this playbook.
+      when: kubectl_result.rc != 0
+      
+    - name: Verify NFS mount is available
+      shell: |
+        mountpoint /mnt/spark-events || (echo "NFS mount not found" && exit 1)
+      register: nfs_check
+      ignore_errors: true
+      
+    - name: Fail if NFS mount is not available
+      fail:
+        msg: >
+          NFS mount /mnt/spark-events is not available. Please set up the NFS mount first.
+          You can run 'ansible-playbook -i inventory.yml playbooks/nfs/install_nfs.yml' to set up the NFS mount.
+      when: nfs_check.rc != 0
+      
+    - name: Create Spark k8s directory if it doesn't exist
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: directory
+        mode: '0755'
+      
+    - name: Launch PySpark IPython environment
+      include_role:
+        name: spark_ipython
+        
+    - name: Cleanup pod when not in interactive mode
+      kubernetes.core.k8s:
+        state: absent
+        kind: Pod
+        name: "{{ pyspark_ipython_pod_name | default('pyspark-ipython') }}"
+        namespace: spark
+        kubeconfig: "{{ kubeconfig }}"
+      when: not launch_shell | default(true) and not ansible_check_mode
+      
+  post_tasks:
+    - name: Display cleanup instructions
+      debug:
+        msg: |
+          To clean up the PySpark IPython pod manually:
+          kubectl delete pod {{ pyspark_ipython_pod_name | default('pyspark-ipython') }} -n spark
+      when: launch_shell | default(true) and not ansible_check_mode

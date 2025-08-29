@@ -1,0 +1,17 @@
+---
+# Default variables for the spark_ipython role
+
+# Pod naming
+pyspark_ipython_pod_name: pyspark-ipython
+
+# Resource allocation for the pod
+pyspark_ipython_cpu_request: "500m"
+pyspark_ipython_memory_request: "1Gi"
+pyspark_ipython_cpu_limit: "1"
+pyspark_ipython_memory_limit: "2Gi"
+
+# Launch shell automatically (set to false to just create the pod)
+launch_shell: true
+
+# Allow interactive mode for the shell (when false, will not use -it flags)
+allow_interactive: true

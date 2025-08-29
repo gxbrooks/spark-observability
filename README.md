@@ -48,9 +48,34 @@ The Spark environment can be managed with the following commands:
 ```bash
 # Start all components
 ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.yml
+```
 
-# Start specific component (master, worker, or history)
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.yml -e "spark_component=history"
+#### Interactive Development with PySpark
+To launch an interactive PySpark IPython shell for development and data exploration:
+
+```bash
+# Quick and easy method (launches in current terminal)
+./linux/launch_ipython.sh
+
+# OR using the Ansible playbook directly (will launch its own interactive shell)
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/launch_ipython.yml
+
+# Create pod without launching interactive shell
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/launch_ipython.yml -e "launch_shell=false allow_interactive_param=false"
+```
+
+> **Note:** Use either the shell script OR the Ansible playbook with interactive mode, but not both together. The shell script already handles pod creation before launching the interactive shell.
+
+The interactive shell provides:
+- A full PySpark environment with SparkSession pre-configured
+- Event logging to the NFS-mounted `/mnt/spark-events` directory
+- GC logs written to `/opt/spark/logs/gc.log`
+- Local mode execution (`--master local[*]`) for development
+
+When done with the interactive session:
+```bash
+# Clean up the pod when finished
+kubectl delete pod pyspark-ipython -n spark
 ```
 
 #### Restarting Spark

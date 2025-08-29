@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  role_name: spark_ipython
+  author: elastic-on-spark team
+  description: Role for launching PySpark IPython environments on Kubernetes
+  company: Elastic
+  license: Apache-2.0
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+    - name: Debian
+      versions:
+        - all
+  galaxy_tags:
+    - spark
+    - pyspark
+    - kubernetes
+    - development
+    - ipython
+    - jupyter
+
+dependencies:
+  # No dependencies

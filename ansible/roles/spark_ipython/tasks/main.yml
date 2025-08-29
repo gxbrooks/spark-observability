@@ -1,0 +1,85 @@
+---
+# Tasks for launching a PySpark IPython environment
+
+- name: Check if namespace exists
+  kubernetes.core.k8s_info:
+    kind: Namespace
+    name: spark
+    kubeconfig: "{{ kubeconfig }}"
+  register: spark_namespace
+  failed_when: false
+
+- name: Fail if Spark namespace doesn't exist
+  fail:
+    msg: >
+      Spark namespace not found. Make sure Spark is deployed.
+      Run: ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml
+  when: spark_namespace.failed or not spark_namespace.resources
+
+- name: Generate PySpark IPython pod configuration from template
+  template:
+    src: spark-ipython-pod.yml.j2
+    dest: "/tmp/spark-ipython-pod.yml"
+  delegate_to: localhost
+
+- name: Apply the PySpark IPython pod configuration
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    src: "/tmp/spark-ipython-pod.yml"
+  register: pod_created
+
+# Pod is created in the previous task
+
+- name: Skip pod wait in check mode
+  debug:
+    msg: "Skipping pod wait in check mode"
+  when: ansible_check_mode
+
+- name: Wait for pod to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    name: "{{ pyspark_ipython_pod_name | default('pyspark-ipython') }}"
+    namespace: spark
+    kubeconfig: "{{ kubeconfig }}"
+  register: pod_status
+  until: pod_status.resources and pod_status.resources | length > 0 and 
+         pod_status.resources[0].status.phase == "Running" and 
+         pod_status.resources[0].status.containerStatuses | default([]) and 
+         pod_status.resources[0].status.containerStatuses[0].ready | default(false)
+  retries: 30
+  delay: 2
+  when: pod_created is not failed and not ansible_check_mode
+
+- name: Create log directories in the pod
+  command: >
+    kubectl exec {{ pyspark_ipython_pod_name | default('pyspark-ipython') }} -n spark --
+    bash -c "mkdir -p /opt/spark/logs && chmod 777 /opt/spark/logs"
+  when: pod_created is not failed and not ansible_check_mode and not create_log_dir_skipped | default(false)
+
+- name: Display connection information
+  debug:
+    msg: |
+      PySpark IPython pod is ready!
+      
+      To connect to the IPython shell:
+      kubectl exec -it {{ pyspark_ipython_pod_name | default('pyspark-ipython') }} -n spark -- bash -c 'PYSPARK_DRIVER_PYTHON=ipython3 PYSPARK_DRIVER_PYTHON_OPTS="" SPARK_DRIVER_OPTS="-Xlog:gc:file=/opt/spark/logs/gc.log:time" pyspark --master local[*] --conf spark.driver.extraJavaOptions="-Xlog:gc:file=/opt/spark/logs/gc.log:time" --conf spark.eventLog.enabled=true --conf spark.eventLog.dir="/mnt/spark-events"'
+      
+      To clean up when finished:
+      kubectl delete pod {{ pyspark_ipython_pod_name | default('pyspark-ipython') }} -n spark
+
+- name: Debug launch variables
+  debug:
+    msg: "allow_interactive value: {{ allow_interactive_param | default(true) }}, launch_shell value: {{ launch_shell | default(true) }}"
+
+- name: Launch IPython with PySpark in local mode (non-interactive)
+  command: >
+    kubectl exec {{ pyspark_ipython_pod_name | default('pyspark-ipython') }} -n spark --
+    bash -c 'PYSPARK_DRIVER_PYTHON=ipython3 PYSPARK_DRIVER_PYTHON_OPTS="" SPARK_DRIVER_OPTS="-Xlog:gc:file=/opt/spark/logs/gc.log:time" pyspark --master local[*] --conf spark.driver.extraJavaOptions="-Xlog:gc:file=/opt/spark/logs/gc.log:time" --conf spark.eventLog.enabled=true --conf spark.eventLog.dir="/mnt/spark-events"'
+  when: launch_shell | default(true) and not ansible_check_mode and not (allow_interactive_param | default(true) | bool)
+
+- name: Launch IPython with PySpark in local mode (interactive)
+  command: >
+    kubectl exec -it {{ pyspark_ipython_pod_name | default('pyspark-ipython') }} -n spark --
+    bash -c 'PYSPARK_DRIVER_PYTHON=ipython3 PYSPARK_DRIVER_PYTHON_OPTS="" SPARK_DRIVER_OPTS="-Xlog:gc:file=/opt/spark/logs/gc.log:time" pyspark --master local[*] --conf spark.driver.extraJavaOptions="-Xlog:gc:file=/opt/spark/logs/gc.log:time" --conf spark.eventLog.enabled=true --conf spark.eventLog.dir="/mnt/spark-events"'
+  when: launch_shell | default(true) and not ansible_check_mode and (allow_interactive_param | default(true) | bool)

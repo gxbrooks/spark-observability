@@ -14,6 +14,7 @@ Roles are stored in the `ansible/roles/` directory following Ansible best practi
 
 - `k8s_certs`: Manages Kubernetes certificate distribution
 - `spark`: Handles Spark deployment on Kubernetes
+- `spark_ipython`: Provides PySpark IPython integration for interactive development
 
 All roles are referenced by their simple name (e.g., `name: spark`) as the `roles_path` is configured in ansible.cfg.
 
@@ -34,6 +35,56 @@ ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
 ```
 
 Running from any other directory will cause errors with finding roles.
+
+## Available Playbooks
+
+### Deploy Spark
+
+Deploys Spark on Kubernetes:
+
+```bash
+cd /home/gxbrooks/repos/elastic-on-spark/ansible
+ansible-playbook playbooks/spark/deploy_spark.yml
+```
+
+### Start Spark
+
+Starts Spark services:
+
+```bash
+cd /home/gxbrooks/repos/elastic-on-spark/ansible
+ansible-playbook playbooks/spark/start_spark.yml
+```
+
+### Stop Spark
+
+Stops Spark services:
+
+```bash
+cd /home/gxbrooks/repos/elastic-on-spark/ansible
+ansible-playbook playbooks/spark/stop_spark.yml
+```
+
+### Launch PySpark IPython Environment
+
+Launches an interactive IPython environment with PySpark:
+
+```bash
+cd /home/gxbrooks/repos/elastic-on-spark/ansible
+ansible-playbook playbooks/spark/launch_ipython.yml
+```
+
+#### Options for PySpark IPython
+
+- Create pod without interactive shell:
+  ```bash
+  ansible-playbook playbooks/spark/launch_ipython.yml -e "launch_shell=false"
+  ```
+
+- Customize resources:
+  ```bash
+  ansible-playbook playbooks/spark/launch_ipython.yml -e "pyspark_ipython_memory_limit=4Gi pyspark_ipython_cpu_limit=2"
+  ```
 
 ## Common Issues and Solutions
 
@@ -74,6 +125,39 @@ This will remove:
 - Spark master pod and service
 - Spark history server pod and service (accessible at http://localhost:31534)
 - Spark ConfigMap
+
+## Using PySpark with IPython
+
+For interactive development with PySpark, use the IPython integration playbook:
+
+```bash
+cd /home/gxbrooks/repos/elastic-on-spark/ansible
+ansible-playbook playbooks/spark/launch_ipython.yml
+```
+
+This will:
+1. Create a PySpark-enabled pod in the Kubernetes cluster
+2. Launch an interactive IPython shell connected to Spark
+3. Provide access to all Spark functionality through the IPython interface
+
+### Options for the IPython Playbook:
+
+- Create without launching shell: 
+  ```bash
+  ansible-playbook playbooks/spark/launch_ipython.yml -e "launch_shell=false"
+  ```
+
+- Customize resource allocation:
+  ```bash
+  ansible-playbook playbooks/spark/launch_ipython.yml \
+    -e "pyspark_ipython_memory_limit=4Gi pyspark_ipython_cpu_limit=2"
+  ```
+
+- Custom pod name:
+  ```bash
+  ansible-playbook playbooks/spark/launch_ipython.yml \
+    -e "pyspark_ipython_pod_name=my-custom-pyspark"
+  ```
 
 ## Common Docker and Registry Issues
 
