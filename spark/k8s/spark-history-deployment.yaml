@@ -13,9 +13,11 @@ spec:
       labels:
         app: spark-history
     spec:
+      serviceAccountName: spark
       containers:
         - name: spark-history
-          image: myrepo/spark:3.5.5
+          image: "localhost:5000/spark:3.5.1"
+          imagePullPolicy: Always
           command: ["./entrypoint.sh", "history"]
           envFrom:
             - configMapRef:
@@ -24,16 +26,16 @@ spec:
             - containerPort: 18080
           resources:
             requests:
-              cpu: "2"
-              memory: "8Gi"
+              cpu: "500m"
+              memory: "1Gi"
             limits:
-              cpu: "2"
-              memory: "8Gi"
+              cpu: "1"
+              memory: "2Gi"
           volumeMounts:
             - name: spark-events
-              mountPath: /mnt/nfs/spark-events
+              mountPath: /mnt/spark-events
       volumes:
         - name: spark-events
-          nfs:
-            server: nfs-server.local
-            path: /export/spark-events
+          hostPath:
+            path: /mnt/spark-events
+            type: DirectoryOrCreate

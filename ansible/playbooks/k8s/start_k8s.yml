@@ -1,0 +1,21 @@
+---
+- name: Start Kubernetes core (no application workloads)
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  tasks:
+    - name: Check that Kubernetes API is reachable
+      command: kubectl --kubeconfig {{ kubeconfig }} get nodes --no-headers
+      register: nodes_out
+      retries: 6
+      delay: 10
+      until: nodes_out.rc == 0
+
+    - name: Show Kubernetes nodes
+      debug:
+        var: nodes_out.stdout_lines
+
+    - name: Note about application workloads
+      debug:
+        msg: "K8s playbooks no longer manage Spark. Use ansible/playbooks/spark/deploy_spark.yml and ansible/playbooks/spark/start_spark.yml."

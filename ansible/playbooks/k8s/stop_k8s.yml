@@ -1,0 +1,10 @@
+---
+- name: Stop Kubernetes core (no application workloads)
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  tasks:
+    - name: Drain and cordon are out of scope here
+      debug:
+        msg: "This playbook intentionally does not manage Spark workloads. Use spark/stop_spark.yml to stop Spark."

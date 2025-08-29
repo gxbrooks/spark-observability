@@ -1,0 +1,43 @@
+---
+# Kubernetes certificate management role
+- name: Check if kubernetes certs are available and properly configured
+  stat:
+    path: "/etc/kubernetes/pki/ca.crt"
+  register: k8s_ca_cert
+  become: true
+
+- name: Include certificate distribution tasks if necessary
+  include_tasks: distribute_certs.yml
+  when: not k8s_cert_check_only|default(false)
+
+- name: Check if kubeconfig exists for ansible user
+  stat:
+    path: "/home/{{ ansible_user }}/.kube/config"
+  register: kubeconfig_file
+
+- name: Check kubectl works with current config
+  shell: |
+    kubectl get nodes
+  register: kubectl_test
+  ignore_errors: true
+  when: kubeconfig_file.stat.exists
+
+- name: Set certificate status fact
+  set_fact:
+    k8s_certs_valid: "{{ kubeconfig_file.stat.exists and kubectl_test.rc == 0 }}"
+
+- name: Output certificate status
+  debug:
+    msg: >-
+      Kubernetes certificates status:
+      CA cert exists: {{ k8s_ca_cert.stat.exists }}
+      Kubeconfig exists: {{ kubeconfig_file.stat.exists }}
+      kubectl works: {{ kubectl_test.rc == 0 if kubeconfig_file.stat.exists else 'Not tested' }}
+
+- name: Recommend running distribute_k8s_certs.yml if certificates are invalid
+  debug:
+    msg: >-
+      Kubernetes certificates are not properly configured. 
+      Please run the distribute_k8s_certs.yml playbook to fix this:
+      ansible-playbook ansible/playbooks/k8s/distribute_k8s_certs.yml
+  when: not k8s_certs_valid|default(false)

@@ -1,0 +1,172 @@
+---
+# Usage:
+# Standard start: ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml
+# Start specific component: ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "spark_component=history"
+# Restart component(s): ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "spark_component=master restart=true"
+# Restart all: ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "restart=true"
+#
+# Valid spark_component values: 'all' (default), 'master', 'worker', 'history'
+# Note: The variable is used internally as spark_component_var to avoid templating issues
+- name: Start Spark on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  vars:
+    spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ spark_home }}/k8s"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    # Use spark_component_var to avoid circular reference
+    spark_component_var: "{{ spark_component | default('all') }}"
+  pre_tasks:
+    - name: Run generate_env.py to ensure configuration files are up-to-date
+      delegate_to: localhost
+      become: false
+      shell: "python3 linux/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      args:
+        chdir: "{{ project_root }}"
+      register: generate_result
+      changed_when: "'Generating' in generate_result.stdout"
+        
+    - name: Read Spark version from TOML
+      set_fact:
+        spark_version: "{{ lookup('file', project_root + '/spark/spark-image.toml') | regex_search('SPARK_VERSION\\s*=\\s*\"([^\"]+)\"', '\\1') | first }}"
+  tasks:
+    - name: Ensure Spark namespace exists
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: spark
+
+    - name: Ensure Spark k8s directory exists
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy RBAC manifest
+      copy:
+        src: "{{ project_root }}/spark/k8s/spark-rbac.yaml"
+        dest: "{{ k8s_config_dir }}/spark-rbac.yaml"
+        mode: '0644'
+
+    - name: Ensure RBAC exists (apply spark/k8s/spark-rbac.yaml)
+      command: kubectl apply -f {{ k8s_config_dir }}/spark-rbac.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+
+    - name: Template and copy Spark deployment files
+      template:
+        src: "{{ item }}"
+        dest: "{{ k8s_config_dir }}/{{ item | basename }}"
+        mode: '0644'
+      vars:
+        SPARK_VERSION: "{{ spark_version }}"
+      with_items:
+        - "{{ project_root }}/spark/k8s/spark-master-deployment.yaml"
+        - "{{ project_root }}/spark/k8s/spark-worker-deployment.yaml"
+        - "{{ project_root }}/spark/k8s/spark-history-deployment.yaml"
+
+    - name: Copy Spark service and env ConfigMap manifests
+      copy:
+        src: "{{ project_root }}/spark/k8s/{{ item }}"
+        dest: "{{ k8s_config_dir }}/{{ item }}"
+        mode: '0644'
+      loop:
+        - spark-master-service.yaml
+        - spark-history-service.yaml
+        - spark-configmap.yaml
+
+    - name: Apply env ConfigMap for pods
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-configmap.yaml"
+
+    # First, stop any components that need to be restarted
+    - name: Stop Spark Master for restart
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-master-deployment.yaml"
+      when: spark_component_var in ['master', 'all'] and restart | default(false)
+
+    - name: Stop Spark History Server for restart
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+      when: spark_component_var in ['history', 'all'] and restart | default(false)
+
+    - name: Stop Spark Workers for restart
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-worker-deployment.yaml"
+      when: spark_component_var in ['worker', 'all'] and restart | default(false)
+
+    - name: Wait for pods to terminate when restarting
+      pause:
+        seconds: 10
+      when: restart | default(false)
+
+    # Start services first
+    - name: Start Master Service
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-master-service.yaml"
+      when: spark_component_var in ['master', 'all']
+
+    - name: Start History Service
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-history-service.yaml"
+      when: spark_component_var in ['history', 'all']
+
+    # Then start deployments
+    - name: Start Spark Master
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-master-deployment.yaml"
+      when: spark_component_var in ['master', 'all']
+    
+    - name: Start Spark History Server
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+      when: spark_component_var in ['history', 'all']
+    
+    - name: Start Spark Workers
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-worker-deployment.yaml"
+      when: spark_component_var in ['worker', 'all']
+      
+    # Debug tasks to check component status
+    - name: Check pod status
+      command: kubectl get pods -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_status
+      
+    - name: Display pod status
+      debug:
+        var: pod_status.stdout_lines
+        
+    - name: Check service status
+      command: kubectl get svc -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: svc_status
+      
+    - name: Display service status
+      debug:
+        var: svc_status.stdout_lines

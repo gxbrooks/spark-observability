@@ -1,0 +1,9 @@
+---
+- name: Stop NFS Server
+  hosts: nfs_servers
+  become: true
+  tasks:
+    - name: Stop NFS server
+      systemd:
+        name: nfs-server
+        state: stopped

@@ -1,0 +1,91 @@
+---
+# Tasks to distribute Kubernetes certificates
+
+- name: Ensure kubernetes group exists
+  become: true
+  group:
+    name: kubernetes
+    state: present
+
+- name: Add ansible user to kubernetes group
+  become: true
+  user:
+    name: "{{ ansible_user }}"
+    groups: kubernetes
+    append: yes
+
+- name: Ensure .kube directory exists for ansible user
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Ensure certs directory exists for ansible user
+  file:
+    path: "/home/{{ ansible_user }}/.kube/certs"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Set proper permissions on kubernetes cert directory
+  become: true
+  file:
+    path: "/etc/kubernetes/pki"
+    state: directory
+    group: kubernetes
+    mode: "g+rx"
+    recurse: no
+
+- name: Set proper permissions on kubernetes CA certificate
+  become: true
+  file:
+    path: "/etc/kubernetes/pki/ca.crt"
+    state: file
+    group: kubernetes
+    mode: "0644"
+
+- name: Copy Kubernetes CA certificate to ansible user
+  become: true
+  copy:
+    src: "/etc/kubernetes/pki/ca.crt"
+    dest: "/home/{{ ansible_user }}/.kube/certs/ca.crt"
+    remote_src: true
+    mode: '0600'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Copy kubectl config to ansible user
+  become: true
+  copy:
+    src: "/etc/kubernetes/admin.conf"
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    mode: '0600'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Update kubeconfig to use local CA certificate path
+  shell: |
+    KUBECONFIG=/home/{{ ansible_user }}/.kube/config kubectl config set-cluster kubernetes \
+      --certificate-authority=/home/{{ ansible_user }}/.kube/certs/ca.crt \
+      --embed-certs=true
+  args:
+    executable: /bin/bash
+
+- name: Test kubectl with the new configuration
+  shell: |
+    kubectl get nodes
+  register: kubectl_result
+  failed_when: false
+
+- name: Show kubectl test result
+  debug:
+    msg: "kubectl test result: {{ 'Success' if kubectl_result.rc == 0 else 'Failed - ' + kubectl_result.stderr }}"
+
+- name: Fail if kubectl test fails
+  fail:
+    msg: "Failed to configure kubectl properly. See error above."
+  when: kubectl_result.rc != 0

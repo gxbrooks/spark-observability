@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: spark-master
-          image: myrepo/spark:3.5.5
+          image: "localhost:5000/spark:3.5.1"
+          imagePullPolicy: Always
           command: ["./entrypoint.sh", "master"]
           envFrom:
             - configMapRef:
@@ -25,8 +26,16 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: "2"
-              memory: "8Gi"
+              cpu: "500m"
+              memory: "1Gi"
             limits:
-              cpu: "2"
-              memory: "8Gi"
+              cpu: "1"
+              memory: "2Gi"
+          volumeMounts:
+            - name: spark-events
+              mountPath: /mnt/spark-events
+      volumes:
+        - name: spark-events
+          hostPath:
+            path: /mnt/spark-events
+            type: DirectoryOrCreate

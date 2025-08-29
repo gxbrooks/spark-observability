@@ -7,10 +7,12 @@ spec:
   selector:
     app: spark-master
   ports:
-    - protocol: TCP
+    - name: spark
+      protocol: TCP
       port: 7077
       targetPort: 7077
-    - protocol: TCP
+    - name: ui
+      protocol: TCP
       port: 8080
       targetPort: 8080
   type: NodePort

@@ -3,7 +3,18 @@
   hosts: kubernetes_master
   become: false
   vars:
-    k8s_config_dir: "/home/{{ ansible_user }}/kubernetes"
+    spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ spark_home }}/k8s"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+  pre_tasks:
+    - name: Run generate_env.py to ensure configuration files are up-to-date
+      delegate_to: localhost
+      become: false
+      shell: "python3 linux/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      args:
+        chdir: "{{ project_root }}"
+      register: generate_result
+      changed_when: "'Generating' in generate_result.stdout"
   tasks:
     - name: Ensure kubernetes config directory exists
       file:
@@ -13,7 +24,7 @@
 
     - name: Copy Spark deployment files
       copy:
-        src: "{{ playbook_dir | dirname | dirname }}/spark/k8s/{{ item }}"
+        src: "{{ project_root }}/spark/k8s/{{ item }}"
         dest: "{{ k8s_config_dir }}/"
         mode: '0644'
       loop:
@@ -21,6 +32,7 @@
         - spark-master-service.yaml
         - spark-worker-deployment.yaml
         - spark-history-deployment.yaml
+        - spark-history-service.yaml
         - spark-configmap.yaml
 
     # Step 1: Stop workers first to ensure graceful disconnection from master
@@ -36,6 +48,13 @@
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
         src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+        
+    # Step 2.5: Remove the history service
+    - name: Remove Spark History Service
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-history-service.yaml"
 
     # Step 3: Stop the master deployment after workers are gone
     - name: Stop Spark Master

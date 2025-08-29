@@ -36,19 +36,3 @@ roleRef:
   kind: Role
   name: spark-role
   apiGroup: rbac.authorization.k8s.io
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: spark-defaults
-  namespace: spark
-data:
-  spark-defaults.conf: |
-    spark.kubernetes.container.image=your-spark-image:tag
-    spark.kubernetes.namespace=spark
-    spark.kubernetes.authenticate.driver.serviceAccountName=spark
-    spark.driver.memory=4g
-    spark.executor.memory=4g
-    spark.driver.cores=2
-    spark.executor.cores=2
-    spark.executor.instances=2

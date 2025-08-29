@@ -22,8 +22,10 @@
         - kubernetes
 
     - name: Set group ownership and permissions on Kubernetes files
+      vars:
+        project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
       file:
-        path: "{{ playbook_dir | dirname | dirname }}"
+        path: "{{ project_root }}"
         group: "{{ k8s_group }}"
         mode: "g+rX"
         recurse: yes

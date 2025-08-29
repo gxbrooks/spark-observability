@@ -1,0 +1,42 @@
+---
+# Main tasks file for spark role
+
+- name: Template deployment manifests with SPARK_VERSION
+  template:
+    src: "{{ item }}"
+    dest: "{{ k8s_config_dir }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
+    mode: '0644'
+  vars:
+    SPARK_VERSION: "{{ spark_version }}"
+  loop:
+    - spark-master-deployment.yml.j2
+    - spark-history-deployment.yml.j2
+    - spark-worker-deployment.yml.j2
+
+- name: Copy service manifests
+  copy:
+    src: "{{ project_root }}/spark/k8s/{{ item }}"
+    dest: "{{ k8s_config_dir }}/{{ item }}"
+    mode: '0644'
+  loop:
+    - spark-history-service.yaml
+    - spark-master-service.yaml
+
+- name: Apply service manifests
+  k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    src: "{{ k8s_config_dir }}/{{ item }}"
+  loop:
+    - spark-master-service.yaml
+    - spark-history-service.yaml
+    
+- name: Apply deployment manifests
+  k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    src: "{{ k8s_config_dir }}/{{ item }}"
+  loop:
+    - spark-master-deployment.yaml
+    - spark-history-deployment.yaml
+    - spark-worker-deployment.yaml

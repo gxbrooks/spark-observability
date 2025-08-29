@@ -1,28 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spark-worker
+  name: spark-history
   namespace: spark
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spark-worker
+      app: spark-history
   template:
     metadata:
       labels:
-        app: spark-worker
+        app: spark-history
     spec:
+      serviceAccountName: spark
       containers:
-        - name: spark-worker
-          image: "localhost:5000/spark:3.5.1"
+        - name: spark-history
+          image: "{{ spark_image }}"
           imagePullPolicy: Always
-          command: ["./entrypoint.sh", "worker"]
+          command: ["./entrypoint.sh", "history"]
           envFrom:
             - configMapRef:
                 name: spark-configmap
           ports:
-            - containerPort: 8081
+            - containerPort: 18080
           resources:
             requests:
               cpu: "500m"

@@ -32,17 +32,20 @@ all:
           vars:
             ansible_port: 22
           children:
+            nfs_servers:  # NFS is independent of Kubernetes
+              hosts:
+                Lab2:  # Using Lab2 as NFS server for now
+                  ansible_host: Lab2.lan
             spark_kubernetes:
               children:
                 kubernetes_master:
                   hosts:
-                    Lab2.lan:
+                    Lab2:
                       ansible_host: Lab2.lan
                 kubernetes_workers:
                   hosts:
-                    # Add worker nodes here when ready to scale
-                    # Lab1.lan:
-                    #   ansible_host: Lab1.lan
+                    Lab2:  # Same host is both master and worker for now
+                      ansible_host: Lab2.lan
             observability:
               hosts:
                 # Add future observability (Elastic/Grafana) Linux host(s) here

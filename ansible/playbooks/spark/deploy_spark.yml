@@ -1,0 +1,294 @@
+---
+# Main playbook for secure Spark deployment on Kubernetes
+
+- name: Validate prerequisites for deployment
+  hosts: localhost
+  gather_facts: false
+  vars:
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: "Starting secure Spark deployment on Kubernetes"
+        
+    - name: Check if running on control node
+      command: "kubectl version --client"
+      register: kubectl_result
+      ignore_errors: true
+      
+    - name: Fail if kubectl not available
+      fail:
+        msg: >
+          This playbook requires kubectl to be installed and in the PATH.
+          Please install kubectl before running this playbook.
+      when: kubectl_result.rc != 0
+
+- name: Set up Kubernetes certificates for secure communication
+  import_playbook: ../k8s/distribute_k8s_certs.yml
+
+- name: Validate NFS mounts on all cluster nodes
+  hosts: kubernetes_master:kubernetes_workers
+  become: true
+  tasks:
+    - name: Verify NFS mount is available on {{ inventory_hostname }}
+      shell: |
+        mountpoint /mnt/spark-events || (echo "NFS mount not found on {{ inventory_hostname }}" && exit 1)
+      register: nfs_check
+      ignore_errors: true
+      
+    - name: Fail if NFS mount is not available
+      fail:
+        msg: "NFS mount /mnt/spark-events is not available on {{ inventory_hostname }}. Please set up the NFS mount first."
+      when: nfs_check.rc != 0
+
+- name: Deploy Spark on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  vars:
+    spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ spark_home }}/k8s"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    spark_version: "{{ lookup('file', project_root + '/spark/spark-image.toml') | regex_search('SPARK_VERSION\\s*=\\s*\"([^\"]+)\"', '\\1') | first }}"
+    registry_host: "localhost:5000"
+    spark_image: "{{ registry_host }}/spark:{{ spark_version }}"
+  pre_tasks:
+    - name: Run generate_env.py in development environment first 
+      delegate_to: localhost
+      become: false
+      shell: "python3 linux/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      args:
+        chdir: "{{ project_root }}"
+      register: generate_result
+      changed_when: "'Generating' in generate_result.stdout"
+      
+    # Kubernetes certificates are now handled by the spark role dependency
+        
+    - name: Read Spark TOML config directly
+      set_fact:
+        spark_version: "{{ lookup('file', project_root + '/spark/spark-image.toml') | regex_search('SPARK_VERSION\\s*=\\s*\"([^\"]+)\"', '\\1') | first }}"
+
+    - name: Set Spark image variables
+      set_fact:
+        spark_image: "localhost:5000/spark"
+        spark_tag: "{{ spark_version }}"
+
+    - name: Clean up existing Docker repository files
+      become: true
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/keyrings/docker.gpg
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+
+    - name: Install Docker dependencies
+      become: true
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Create Docker keyring directory
+      become: true
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Add Docker GPG key
+      become: true
+      shell: |
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor | sudo tee /etc/apt/keyrings/docker.gpg > /dev/null
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+    - name: Add Docker repository
+      become: true
+      shell: |
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable" | sudo tee /etc/apt/sources.list.d/docker.list
+        apt-get update
+
+    - name: Install Docker packages
+      become: true
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running
+      become: true
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add user to docker group
+      become: true
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Reset connection to allow Docker group changes to take effect
+      meta: reset_connection
+
+  tasks:
+    - name: Ensure Kubernetes certificates are properly configured
+      include_role:
+        name: k8s_certs
+      vars:
+        k8s_cert_check_only: true
+    - name: Ensure spark directory exists
+      file:
+        path: "/home/{{ ansible_user }}/spark"
+        state: directory
+        mode: '0755'
+
+    - name: Copy spark files to remote
+      become: true
+      copy:
+        src: "{{ project_root }}/spark/"
+        dest: "/home/{{ ansible_user }}/spark/"
+        mode: preserve
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Register generated ConfigMap for pod env
+      delegate_to: localhost
+      slurp:
+        src: "{{ project_root }}/spark/k8s/spark-configmap.yaml"
+      register: spark_configmap
+
+    - name: Check if Spark image exists
+      shell: docker images -q {{ spark_image }}:{{ spark_tag }}
+      register: image_exists
+      ignore_errors: true
+
+    - name: Get source files checksum
+      shell: |
+        cd /home/{{ ansible_user }}/spark && \
+        find . -type f -not -path '*/\.*' -exec sha256sum {} \; | sort | sha256sum
+      register: source_checksum
+
+    - name: Check existing image checksum
+      shell: docker inspect {{ spark_image }}:{{ spark_tag }} --format={% raw %}'{{.Config.Labels.build_checksum}}'{% endraw %}
+      register: image_checksum
+      ignore_errors: true
+      when: image_exists.stdout != ""
+
+    - name: Build Spark Docker image when checksum changed or missing
+      shell: |
+        cd /home/{{ ansible_user }}/spark && \
+        echo "Building with args:" && \
+        BUILD_ARGS=$(sed 's/^[[:space:]]*//; s/[[:space:]]*=[[:space:]]*/=/' spark-image.toml | awk -F'=' '/^[A-Z]/{gsub(/"/, "", $2); printf "--build-arg %s=%s ", $1, $2}') && \
+        echo "$BUILD_ARGS" && \
+        docker build . -t {{ spark_image }}:{{ spark_tag }} \
+          --build-arg BUILD_CHECKSUM="{{ source_checksum.stdout }}" \
+          --label build_checksum="{{ source_checksum.stdout }}" \
+          $BUILD_ARGS --progress=plain
+      register: docker_build
+      when: image_exists.stdout == "" or (image_checksum.stdout | default('')) != source_checksum.stdout
+      
+    - name: Show Docker build output when built
+      debug:
+        var: docker_build.stdout_lines
+      when: docker_build is defined
+      
+    - name: Ensure local registry is running
+      command: docker inspect -f {% raw %}'{{.State.Running}}'{% endraw %} registry
+      register: registry_status
+      ignore_errors: true
+      
+    - name: Start local registry if not running
+      command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
+      when: registry_status.rc != 0 or registry_status.stdout != "true"
+      
+    - name: Push Spark image to local registry
+      shell: |
+        docker push {{ spark_image }}:{{ spark_tag }}
+      when: image_exists.stdout == "" or (image_checksum.stdout | default('')) != source_checksum.stdout
+
+    - name: Create Spark Kubernetes directory
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Copy Kubernetes core config (namespace/RBAC)
+      copy:
+        src: "{{ project_root }}/spark/k8s/spark-rbac.yaml"
+        dest: "{{ k8s_config_dir }}/spark-rbac.yaml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Apply Kubernetes core config (namespace/RBAC)
+      command: kubectl apply -f {{ k8s_config_dir }}/spark-rbac.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      
+    - name: Verify service account exists
+      command: kubectl get serviceaccount spark -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      retries: 6
+      delay: 5
+      register: result
+      until: result.rc == 0
+      
+    - name: Verify role binding
+      command: kubectl get rolebinding spark-role-binding -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      retries: 6
+      delay: 5
+      register: result
+      until: result.rc == 0
+
+    - name: Copy spark-defaults.conf to remote
+      copy:
+        src: "{{ project_root }}/spark/conf/spark-defaults.conf"
+        dest: "/home/{{ ansible_user }}/spark/conf/spark-defaults.conf"
+        mode: '0644'
+
+    - name: Create ConfigMap from spark-defaults.conf
+      shell: |
+        kubectl create configmap spark-defaults \
+        --from-file=/home/{{ ansible_user }}/spark/conf/spark-defaults.conf \
+        -n spark --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+
+    - name: Include spark deployment role
+      include_role:
+        name: spark
+
+    - name: Apply generated env ConfigMap for pods
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        definition: "{{ (spark_configmap.content | b64decode) | from_yaml }}"
+        state: present
+      when: spark_configmap is defined
+
+    # Apply registry config first if using a local registry
+    - name: Copy registry config
+      copy:
+        src: "{{ project_root }}/spark/k8s/spark-registry-config.yaml"
+        dest: "{{ k8s_config_dir }}/spark-registry-config.yaml"
+        mode: '0644'
+
+    - name: Apply registry config
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-registry-config.yaml"
+
+    # Deployments and services are now handled by the spark role

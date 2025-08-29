@@ -3,7 +3,8 @@
   hosts: windows
   gather_facts: false
   vars:
-    ca_cert_src: "{{ playbook_dir }}/../../docker/certs/elastic/certs/ca/ca.crt"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    ca_cert_src: "{{ project_root }}/docker/certs/elastic/certs/ca/ca.crt"
     ca_cert_dest: "C:/Volumes/certs/ca.crt"
     ca_cert_dir: "C:/Volumes/certs"
     force_cert: false
@@ -19,7 +20,8 @@
   become: true
   gather_facts: false
   vars:
-    ca_cert_src: "{{ playbook_dir }}/../../docker/certs/elastic/certs/ca/ca.crt"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    ca_cert_src: "{{ project_root }}/docker/certs/elastic/certs/ca/ca.crt"
     ca_cert_dest: "/mnt/c/Volumes/certs/ca.crt"
     force_cert: false
   tasks:
