@@ -117,5 +117,5 @@ If pods are stuck in "ImagePullBackOff":
 
 3. Ensure container runtime can access the registry:
    ```bash
-   docker pull localhost:5000/spark:3.5.1
+   docker pull localhost:5000/spark:${SPARK_VERSION}
    ```

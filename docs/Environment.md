@@ -1,0 +1,191 @@
+# Spark on Kubernetes Environment Best Practices
+
+This document outlines the best practices for environment variables and directory structures used in the elastic-on-spark project.
+
+## Directory Structure Overview
+
+Our Spark on Kubernetes deployment uses two primary directory structures:
+
+1. System-wide Spark installation (container)
+2. User-specific configuration directory (host)
+
+### System-wide Spark Installation
+
+The system-wide Spark installation contains the core Spark binaries, libraries, and default configurations:
+
+```
+SPARK_HOME=/opt/spark/
+├── bin/           # Spark executables and scripts
+├── jars/          # Core Spark JAR files
+├── python/        # PySpark libraries
+├── conf/          # Default configuration files
+└── apps/          # Application directory for shared applications
+```
+
+This directory structure is primarily used within the container environment and follows standard Linux conventions for third-party software installation.
+
+### User-specific Configuration Directory
+
+The user-specific configuration directory contains deployment configurations, Kubernetes manifests, and user-specific settings:
+
+```
+USER_SPARK_HOME=/home/ansible/spark/
+├── conf/          # User-specific configuration overrides
+├── k8s/           # Kubernetes manifests
+│   ├── spark-master-deployment.yaml
+│   ├── spark-worker-deployment.yaml
+│   ├── spark-history-deployment.yaml
+│   ├── spark-master-service.yaml
+│   ├── spark-history-service.yaml
+│   ├── spark-rbac.yaml
+│   └── spark-configmap.yaml
+```
+
+This directory is used on the host machine for deploying and configuring the Spark cluster.
+
+### Persistent Storage
+
+For data persistence across pod restarts:
+
+```
+SPARK_EVENTS_DIR=/mnt/spark-events/
+```
+
+This directory is mounted as a persistent volume to store Spark event logs.
+
+## Environment Variable Best Practices
+
+### Variable Naming Conventions
+
+The project follows these variable naming conventions:
+
+1. **System-wide Variables**: UPPER_CASE
+   - `SPARK_HOME`
+   - `SPARK_VERSION`
+   - `HADOOP_HOME`
+
+2. **User-specific Variables**: Prefixed with `USER_` or using snake_case in Ansible
+   - `USER_SPARK_HOME`
+   - `local_spark_home` (in Ansible)
+
+### Variable Contexts
+
+Variables are categorized by context to ensure proper usage:
+
+1. **spark-image**: Variables used during Docker image building
+   - `SPARK_VERSION`
+   - `SPARK_HOME`
+   - `HADOOP_HOME`
+   - `PYSPARK_PYTHON`
+
+2. **ansible**: Variables used in Ansible playbooks
+   - `SPARK_VERSION`
+   - `SPARK_HOME`
+   - `USER_SPARK_HOME`
+   - `SPARK_USER`
+
+3. **spark-runtime**: Variables for the running Spark environment
+   - `SPARK_MASTER`
+   - `SPARK_MASTER_HOST`
+   - `SPARK_EVENTS_DIR`
+   - `SPARK_USER`
+
+### Central Variable Definition
+
+All variables are defined in a single source of truth (`variables.yaml`) with their respective contexts:
+
+```yaml
+SPARK_VERSION:
+  value: 3.5.1
+  contexts: [spark-image, ansible]
+
+SPARK_HOME:
+  value: /opt/spark
+  contexts: [spark-image, ansible]
+
+SPARK_USER:
+  value: ansible
+  contexts: [spark-runtime, ansible]
+
+USER_SPARK_HOME:
+  value: /home/ansible/spark
+  contexts: [ansible]
+```
+
+## Variable Flow
+
+Variables flow from the central definition to deployment following this pattern:
+
+1. **Definition**: Variables are defined in `variables.yaml`
+2. **Processing**: `generate_env.py` processes these variables based on context
+3. **Context-specific Files**: Variables are written to context-specific files
+   - `spark-image.toml` for Docker build
+   - `spark_vars.yml` for Ansible
+   - `spark-configmap.yaml` for Kubernetes
+4. **Deployment**: Context-specific files are used during deployment
+
+## Best Practices for Development and Operations
+
+### Directory Permissions
+
+1. **System-wide Installation**:
+   - Directories should be owned by root:root
+   - File permissions: 755 for directories, 644 for files
+   - Executable scripts: 755
+
+2. **User-specific Configuration**:
+   - Directories should be owned by the Spark user (ansible)
+   - File permissions: 750 for directories, 640 for files
+
+### Variable Usage in Templates
+
+When using variables in templates:
+
+1. In Ansible Jinja2 templates, use snake_case:
+   ```
+   {{ spark_home }}
+   {{ spark_version }}
+   ```
+
+2. In Kubernetes manifests, use environment variable syntax:
+   ```
+   ${SPARK_HOME}
+   ${SPARK_VERSION}
+   ```
+
+### Managing Configuration Files
+
+1. **Base Configuration**: Stored in `/opt/spark/conf/`
+2. **User Overrides**: Stored in `/home/ansible/spark/conf/`
+
+## Implementation in Elastic-on-Spark
+
+The elastic-on-spark project implements these best practices through:
+
+1. **Centralized Variable Definition**: All variables in `variables.yaml`
+2. **Variable Processing**: Using `linux/generate_env.py` to generate context-specific files
+3. **Ansible Integration**: 
+   - Playbooks use `spark_vars.yml` generated from the central configuration
+   - Correct path resolution is critical: `{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml`
+   - This pattern ensures variables are found regardless of which directory contains the executing playbook
+4. **Kubernetes Deployment**: ConfigMaps and deployment manifests use these variables
+
+## Troubleshooting Environment Issues
+
+### Common Issues and Solutions
+
+1. **Permission Problems**:
+   - Ensure the `SPARK_USER` has appropriate permissions on `USER_SPARK_HOME`
+   - Use `become: true` in Ansible tasks that manipulate system directories
+
+2. **Path Inconsistencies**:
+   - Check that `SPARK_HOME` and `USER_SPARK_HOME` are correctly set for their respective contexts
+   - Verify that templates reference the correct path variables
+
+3. **Configuration Mismatches**:
+   - Always regenerate configuration files after changing `variables.yaml`
+   - Use `linux/validate_variables.sh` to verify consistency
+
+4. **Path Resolution Issues**:
+   - When including vars files in roles, ensure proper directory traversal (`dirname` filters)
+   - The pattern `{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml` correctly resolves to the ansible/vars directory from playbooks

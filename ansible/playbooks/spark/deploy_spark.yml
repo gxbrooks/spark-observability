@@ -45,14 +45,22 @@
   hosts: kubernetes_master
   become: false
   vars:
-    spark_home: "/home/{{ ansible_user }}/spark"
-    k8s_config_dir: "{{ spark_home }}/k8s"
+    local_spark_home: "/home/{{ ansible_user }}/spark"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
-    spark_version: "{{ lookup('file', project_root + '/spark/spark-image.toml') | regex_search('SPARK_VERSION\\s*=\\s*\"([^\"]+)\"', '\\1') | first }}"
-    registry_host: "localhost:5000"
-    spark_image: "{{ registry_host }}/spark:{{ spark_version }}"
+    k8s_config_dir: "{{ local_spark_home }}/k8s"
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   pre_tasks:
+    - name: Ensure environment variables are generated and up-to-date
+      delegate_to: localhost
+      become: false
+      shell: "python3 linux/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      args:
+        chdir: "{{ project_root }}"
+      register: generate_result
+      changed_when: "'Generating' in generate_result.stdout"
+
     - name: Run generate_env.py in development environment first 
       delegate_to: localhost
       become: false
@@ -64,14 +72,11 @@
       
     # Kubernetes certificates are now handled by the spark role dependency
         
-    - name: Read Spark TOML config directly
-      set_fact:
-        spark_version: "{{ lookup('file', project_root + '/spark/spark-image.toml') | regex_search('SPARK_VERSION\\s*=\\s*\"([^\"]+)\"', '\\1') | first }}"
-
-    - name: Set Spark image variables
-      set_fact:
-        spark_image: "localhost:5000/spark"
-        spark_tag: "{{ spark_version }}"
+    # No need to read Spark version from TOML directly as it's now loaded from spark_vars.yml
+    
+    - name: Display Spark version being used
+      debug:
+        msg: "Using Spark version: {{ spark_version }} with image {{ spark_image }}:{{ spark_tag }}"
 
     - name: Clean up existing Docker repository files
       become: true
@@ -217,10 +222,13 @@
       when: image_exists.stdout == "" or (image_checksum.stdout | default('')) != source_checksum.stdout
 
     - name: Create Spark Kubernetes directory
+      become: true
       file:
         path: "{{ k8s_config_dir }}"
         state: directory
         mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
         
     - name: Copy Kubernetes core config (namespace/RBAC)
       copy:

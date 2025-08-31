@@ -1,13 +1,20 @@
 ---
 # Main tasks file for spark role
 
-- name: Template deployment manifests with SPARK_VERSION
+# Always include centralized variables
+- name: Include centralized Spark variables
+  include_vars: "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
+
+# Ensure that the spark_version variable is available
+- name: Display Spark version being used
+  debug:
+    msg: "Using Spark version: {{ spark_version }}"
+
+- name: Template deployment manifests using centralized variables
   template:
     src: "{{ item }}"
-    dest: "{{ k8s_config_dir }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
+    dest: "{{ k8s_config_dir }}/{{ item | basename | regex_replace('\\.yml\\.j2$', '.yaml') }}"
     mode: '0644'
-  vars:
-    SPARK_VERSION: "{{ spark_version }}"
   loop:
     - spark-master-deployment.yml.j2
     - spark-history-deployment.yml.j2

@@ -26,5 +26,5 @@ This Ansible role handles the deployment of Spark on Kubernetes.
   roles:
     - role: spark
       vars:
-        spark_version: "3.5.1"
+        spark_version: "{{ lookup('env', 'SPARK_VERSION') | default('3.5.1') }}"
 ```

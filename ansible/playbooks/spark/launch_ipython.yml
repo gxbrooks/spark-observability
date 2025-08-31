@@ -14,6 +14,8 @@
 - name: Launch PySpark IPython environment
   hosts: kubernetes_master
   become: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   vars:
     spark_home: "/home/{{ ansible_user }}/spark"
     k8s_config_dir: "{{ spark_home }}/k8s"
@@ -31,17 +33,10 @@
       register: generate_result
       changed_when: "'Generating' in generate_result.stdout"
       
-    - name: Read Spark version from TOML
-      shell: "grep SPARK_VERSION {{ project_root }}/spark/spark-image.toml | cut -d '\"' -f 2"
-      delegate_to: localhost
-      register: spark_version_output
-      changed_when: false
-      check_mode: false
-      
-    - name: Set Spark image variables
-      set_fact:
-        spark_tag: "{{ spark_version_output.stdout | default('3.5.1') }}"
-        spark_image: "localhost:5000/spark"
+    # Variables now come from the included vars_files: spark_vars.yml
+    - name: Verify loaded Spark version
+      debug:
+        msg: "Using Spark version: {{ spark_version }} with image {{ spark_image }}:{{ spark_tag }}"
       
   tasks:
     - name: Check if kubectl is installed

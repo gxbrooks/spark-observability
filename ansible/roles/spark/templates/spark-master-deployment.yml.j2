@@ -16,7 +16,7 @@ spec:
       serviceAccountName: spark
       containers:
         - name: spark-master
-          image: "{{ spark_image }}"
+          image: "{{ spark_image }}:{{ spark_tag }}"
           imagePullPolicy: Always
           command: ["./entrypoint.sh", "master"]
           envFrom:

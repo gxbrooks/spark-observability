@@ -10,6 +10,8 @@
 - name: Start Spark on Kubernetes
   hosts: kubernetes_master
   become: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   vars:
     spark_home: "/home/{{ ansible_user }}/spark"
     k8s_config_dir: "{{ spark_home }}/k8s"
@@ -27,9 +29,11 @@
       register: generate_result
       changed_when: "'Generating' in generate_result.stdout"
         
-    - name: Read Spark version from TOML
-      set_fact:
-        spark_version: "{{ lookup('file', project_root + '/spark/spark-image.toml') | regex_search('SPARK_VERSION\\s*=\\s*\"([^\"]+)\"', '\\1') | first }}"
+    # We now use the centralized spark_vars.yml file, which is already loaded via vars_files
+    # This task is kept for backward compatibility but simplified
+    - name: Ensure we have the proper Spark version
+      debug:
+        msg: "Using Spark version: {{ spark_version }}"
   tasks:
     - name: Ensure Spark namespace exists
       k8s:

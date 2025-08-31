@@ -117,13 +117,15 @@ ELASTIC_AGENT_HOME:
   value: /usr/share/elastic-agent
   contexts: []
 
-# Spark image build-time variables
+# Spark image build-time and installation variables
 SPARK_VERSION:
   value: 3.5.1
-  contexts: [spark-image]
+  contexts: [spark-image, ansible]
+
+# System location of the Spark installation
 SPARK_HOME:
   value: /opt/spark
-  contexts: [spark-image]
+  contexts: [spark-image, ansible]
 HADOOP_HOME:
   value: /opt/spark
   contexts: [spark-image]
@@ -150,8 +152,18 @@ SPARK_MASTER_PORT:
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
   value: /mnt/spark-events
-  contexts: [spark-runtime]
+  contexts: [spark-runtime, ansible]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
+
+# Spark user specific variables
+# TODO: Utilize these variables in the spark playbooks
+SPARK_USER:
+  value: ansible
+  contexts: [spark-runtime, ansible]
+
+USER_SPARK_HOME:
+  value: /home/ansible/spark
+  contexts: [ansible]
 

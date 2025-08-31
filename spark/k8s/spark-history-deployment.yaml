@@ -16,7 +16,7 @@ spec:
       serviceAccountName: spark
       containers:
         - name: spark-history
-          image: "localhost:5000/spark:3.5.1"
+          image: "localhost:5000/spark:${SPARK_VERSION}"
           imagePullPolicy: Always
           command: ["./entrypoint.sh", "history"]
           envFrom:
