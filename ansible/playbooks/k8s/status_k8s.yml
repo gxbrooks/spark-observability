@@ -1,0 +1,70 @@
+---
+# status_k8s.yml - Checks the status of the Kubernetes cluster
+
+- name: Check Kubernetes Status
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  tasks:
+    - name: Check if kubeconfig exists
+      stat:
+        path: "{{ kubeconfig }}"
+      register: kubeconfig_stat
+
+    - name: Check kubelet service status
+      become: true
+      systemd:
+        name: kubelet
+      register: kubelet_status
+      
+    - name: Display kubelet service status
+      debug:
+        msg: "Kubelet service: {{ 'RUNNING' if kubelet_status.status.ActiveState == 'active' else 'NOT RUNNING' }}"
+
+    - name: Display kubelet status details
+      debug:
+        msg: "Kubelet status: {{ kubelet_status.status.SubState }}"
+      when: kubelet_status.status is defined
+
+    - name: Check Kubernetes API availability
+      command: kubectl --kubeconfig {{ kubeconfig }} cluster-info
+      register: cluster_info
+      ignore_errors: yes
+      when: kubeconfig_stat.stat.exists
+
+    - name: Display cluster info
+      debug:
+        var: cluster_info.stdout_lines
+      when: cluster_info is defined and cluster_info.stdout_lines is defined
+
+    - name: Get Kubernetes node status
+      command: kubectl --kubeconfig {{ kubeconfig }} get nodes
+      register: nodes
+      ignore_errors: yes
+      when: kubeconfig_stat.stat.exists and cluster_info.rc is defined and cluster_info.rc == 0
+    
+    - name: Display node status
+      debug:
+        var: nodes.stdout_lines
+      when: nodes is defined and nodes.stdout_lines is defined
+
+    - name: Get pod status
+      command: kubectl --kubeconfig {{ kubeconfig }} get pods --all-namespaces
+      register: pods
+      ignore_errors: yes
+      when: kubeconfig_stat.stat.exists and cluster_info.rc is defined and cluster_info.rc == 0
+    
+    - name: Display pod status
+      debug:
+        var: pods.stdout_lines
+      when: pods is defined and pods.stdout_lines is defined
+
+    - name: Check IP addresses and hostnames in kubeconfig
+      shell: "grep 'server:' {{ kubeconfig }} || echo 'No server entry found'"
+      register: kubeconfig_server
+      when: kubeconfig_stat.stat.exists
+    
+    - name: Display kubeconfig server entry
+      debug:
+        msg: "{{ kubeconfig_server.stdout_lines if kubeconfig_stat.stat.exists and kubeconfig_server is defined and kubeconfig_server.stdout_lines is defined else 'No kubeconfig file found or no server entry in kubeconfig' }}"

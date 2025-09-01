@@ -1,21 +1,33 @@
 ---
+# reset_k8s.yml - Resets the Kubernetes cluster and removes configurations
+
 - name: Reset Kubernetes cluster
   hosts: spark_kubernetes:&linux
   become: true
   tasks:
+    - name: Display warning message
+      debug:
+        msg: "WARNING: This will reset your Kubernetes cluster and delete all configuration!"
+
     - name: Reset Kubernetes on all nodes
       command: kubeadm reset -f
 
-    # Clean up files for ansible user (our service account)
+    # Clean up files for control user
+    - name: Remove control user .kube directory
+      file:
+        path: "/home/{{ k8s_control_user | default(lookup('env', 'USER')) }}/.kube"
+        state: absent
+
+    # Clean up files for ansible user (service account)
     - name: Remove ansible user .kube directory
       file:
-        path: /home/{{ ansible_user }}/.kube
+        path: "/home/{{ ansible_user }}/.kube"
         state: absent
       become_user: "{{ ansible_user }}"
 
     - name: Remove ansible user kubernetes directory
       file:
-        path: /home/{{ ansible_user }}/kubernetes
+        path: "/home/{{ ansible_user }}/kubernetes"
         state: absent
       become_user: "{{ ansible_user }}"
 
@@ -25,38 +37,45 @@
         path: /etc/cni/net.d
         state: absent
 
+    - name: Stop and disable kubelet
+      systemd:
+        name: kubelet
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Stop and disable containerd
+      systemd:
+        name: containerd
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
     - name: Remove Kubernetes configuration
       file:
         path: /etc/kubernetes
         state: absent
 
-    # Reset network configuration - split into separate commands
-    - name: Reset iptables filter table
-      command: iptables -F
-      
-    - name: Reset iptables NAT table
-      command: iptables -t nat -F
-      
-    - name: Reset iptables mangle table
-      command: iptables -t mangle -F
-      
-    - name: Delete iptables custom chains
-      command: iptables -X
-      ignore_errors: true  # Custom chains might not exist
+    - name: Clean iptables rules
+      shell: |
+        iptables -F
+        iptables -t nat -F
+        iptables -t mangle -F
+        iptables -X
+      ignore_errors: yes
 
-    - name: Reset IP forwarding
-      sysctl:
-        name: net.bridge.bridge-nf-call-iptables
-        value: '0'
-        state: present
+    - name: Remove kubernetes modules configuration
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/modules-load.d/k8s.conf
+        - /etc/sysctl.d/k8s.conf
+      ignore_errors: yes
 
-    # Optional: remove all docker containers and images
-    - name: Remove all containers
-      shell: docker rm -f $(docker ps -aq) || true
-      args:
-        executable: /bin/bash
-
-    - name: Remove all docker images
-      shell: docker rmi -f $(docker images -q) || true
-      args:
-        executable: /bin/bash
+    - name: Remove Kubernetes hosts entry
+      blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBERNETES MASTER HOSTNAME"
+        state: absent
+      ignore_errors: yes

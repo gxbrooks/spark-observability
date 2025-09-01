@@ -1,0 +1,107 @@
+---
+# regenerate_k8s_certs.yml - Regenerates Kubernetes API server certificates with proper hostnames
+
+- name: Regenerate Kubernetes API server certificates
+  hosts: kubernetes_master
+  become: true
+  vars:
+    k8s_master_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] }}"
+    k8s_sans: "kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,lab2,Lab2,{{ k8s_master_host }}"
+  tasks:
+    - name: Display hostname that will be used
+      debug:
+        msg: "Using hostname {{ k8s_master_host }} for Kubernetes API server certificate"
+
+    - name: Stop kubelet service
+      systemd:
+        name: kubelet
+        state: stopped
+
+    - name: Create backup directory for API certificates
+      file:
+        path: /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}
+        state: directory
+        mode: '0700'
+
+    - name: Backup existing API server certificates
+      command: cp /etc/kubernetes/pki/apiserver.* /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/
+      args:
+        creates: /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/apiserver.crt
+
+    - name: Remove existing API server certificates
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/pki/apiserver.crt
+        - /etc/kubernetes/pki/apiserver.key
+        - /etc/kubernetes/pki/apiserver.csr
+
+    - name: Create kubeadm certificate config file
+      copy:
+        dest: /tmp/kubeadm-apiserver-cert.yaml
+        content: |
+          apiVersion: kubeadm.k8s.io/v1beta3
+          kind: ClusterConfiguration
+          apiServer:
+            certSANs:
+            {% for san in k8s_sans.split(',') %}
+            - {{ san }}
+            {% endfor %}
+            - {{ ansible_default_ipv4.address }}
+        mode: '0600'
+
+    - name: Regenerate the API Server Certificate
+      command: kubeadm init phase certs apiserver --config=/tmp/kubeadm-apiserver-cert.yaml
+      register: cert_result
+
+    - name: Display certificate regeneration result
+      debug:
+        var: cert_result.stdout_lines
+
+    - name: Restart kubelet service
+      systemd:
+        name: kubelet
+        state: restarted
+
+    - name: Wait for kubelet to be active
+      systemd:
+        name: kubelet
+      register: kubelet_status
+      until: kubelet_status.status.ActiveState == 'active'
+      retries: 10
+      delay: 5
+
+    - name: Wait for API server to be responsive (might take a minute)
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
+      register: api_check
+      until: api_check.rc == 0
+      retries: 12
+      delay: 10
+      ignore_errors: yes
+
+    - name: Show API server connectivity status
+      debug:
+        msg: "API server is {{ 'running' if api_check.rc == 0 else 'not running' }}"
+
+    # Remove insecure-skip-tls-verify from kubeconfig files since we have proper certificates now
+    - name: Remove insecure-skip-tls-verify from control user's kubeconfig
+      lineinfile:
+        path: "/home/{{ k8s_control_user | default(lookup('env', 'USER')) }}/.kube/config"
+        regexp: '^\s+insecure-skip-tls-verify: true'
+        state: absent
+      when: api_check.rc == 0
+
+    - name: Check if runtime user's kubeconfig exists
+      stat:
+        path: "/home/{{ ansible_user }}/.kube/config"
+      register: runtime_kubeconfig_stat
+      
+    - name: Remove insecure-skip-tls-verify from runtime user's kubeconfig
+      lineinfile:
+        path: "/home/{{ ansible_user }}/.kube/config"
+        regexp: '^\s+insecure-skip-tls-verify: true'
+        state: absent
+      when: 
+        - api_check.rc == 0
+        - runtime_kubeconfig_stat.stat.exists

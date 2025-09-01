@@ -1,21 +1,69 @@
 ---
-- name: Start Kubernetes core (no application workloads)
-  hosts: kubernetes_master
-  become: false
+# start_k8s.yml - Starts Kubernetes services and ensures they are running
+
+- name: Start Kubernetes services
+  hosts: spark_kubernetes:&linux
+  become: true
   vars:
-    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    k8s_master_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] }}"
   tasks:
-    - name: Check that Kubernetes API is reachable
-      command: kubectl --kubeconfig {{ kubeconfig }} get nodes --no-headers
-      register: nodes_out
-      retries: 6
-      delay: 10
-      until: nodes_out.rc == 0
+    - name: Enable and start containerd
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
 
-    - name: Show Kubernetes nodes
-      debug:
-        var: nodes_out.stdout_lines
+    - name: Enable and start kubelet
+      systemd:
+        name: kubelet
+        state: started
+        enabled: yes
+    
+    - name: Wait for kubelet to be active
+      systemd:
+        name: kubelet
+      register: kubelet_status
+      until: kubelet_status.status.ActiveState == 'active'
+      retries: 10
+      delay: 5
+      
+    - name: Update /etc/hosts if needed to ensure hostname resolution
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          # Kubernetes master hostname mapping
+          {{ ansible_default_ipv4.address }} {{ k8s_master_host }}
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBERNETES MASTER HOSTNAME"
+        create: no
+      when: 
+        - ansible_default_ipv4.address is defined
+        - inventory_hostname == groups['kubernetes_master'][0]
+    
+    # Run on master node only
+    - name: Check for Flannel CNI
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel -o name
+      register: flannel_check
+      ignore_errors: yes
+      when: inventory_hostname == groups['kubernetes_master'][0]
 
-    - name: Note about application workloads
+    - name: Install Flannel CNI if not present
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - flannel_check.stdout == "" or flannel_check.rc != 0
+
+    - name: Wait for CNI to be initialized
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
+      register: node_check
+      until: node_check.rc == 0
+      retries: 30
+      delay: 5
+      ignore_errors: yes
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display Kubernetes nodes
       debug:
-        msg: "K8s playbooks no longer manage Spark. Use ansible/playbooks/spark/deploy_spark.yml and ansible/playbooks/spark/start_spark.yml."
+        var: node_check.stdout_lines
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - node_check is defined and node_check.stdout_lines is defined
