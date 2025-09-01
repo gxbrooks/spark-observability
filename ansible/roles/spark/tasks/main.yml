@@ -12,17 +12,19 @@
 
 - name: Template deployment manifests using centralized variables
   template:
-    src: "{{ item }}"
-    dest: "{{ k8s_config_dir }}/{{ item | basename | regex_replace('\\.yml\\.j2$', '.yaml') }}"
+    src: "templates/{{ item }}"
+    dest: "{{ k8s_config_dir }}/{{ item | regex_replace('\\.j2$', '') }}"
     mode: '0644'
+  vars:
+    SPARK_VERSION: "{{ spark_version }}"
   loop:
-    - spark-master-deployment.yml.j2
-    - spark-history-deployment.yml.j2
-    - spark-worker-deployment.yml.j2
+    - spark-master-deployment.yaml.j2
+    - spark-history-deployment.yaml.j2
+    - spark-worker-deployment.yaml.j2
 
 - name: Copy service manifests
   copy:
-    src: "{{ project_root }}/spark/k8s/{{ item }}"
+    src: "files/k8s/{{ item }}"
     dest: "{{ k8s_config_dir }}/{{ item }}"
     mode: '0644'
   loop:

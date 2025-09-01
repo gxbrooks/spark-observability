@@ -89,7 +89,7 @@ This script reads the source definitions and generates context-specific configur
 CONTEXTS = {
     'observability': 'docker/.env',
     'spark-image': 'spark/spark-image.toml',
-    'spark-runtime': 'spark/k8s/spark-configmap.yaml',
+    'spark-runtime': 'ansible/roles/spark/files/k8s/spark-configmap.yaml',
     'ansible': 'ansible/vars/spark_vars.yml',
 }
 
@@ -186,7 +186,7 @@ ELASTIC_PORT:
 ```
 
 2. **Processing by generate_env.py**:
-   - For `spark-runtime` context: Added to `spark-configmap.yaml` as environment variables
+   - For `spark-runtime` context: Added to `ansible/roles/spark/files/k8s/spark-configmap.yaml` as environment variables
    - For `ansible` context: Converted to snake_case and added to `spark_vars.yml`
 
 3. **Available in Templates**:

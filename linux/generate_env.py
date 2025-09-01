@@ -27,7 +27,7 @@ CONFIG_FILE = 'variables.yaml'
 CONTEXTS = {
     'observability': 'docker/.env',
     'spark-image': 'spark/spark-image.toml',
-    'spark-runtime': 'spark/k8s/spark-configmap.yaml',
+    'spark-runtime': 'ansible/roles/spark/files/k8s/spark-configmap.yaml',
     'ansible': 'ansible/vars/spark_vars.yml',
 }
 

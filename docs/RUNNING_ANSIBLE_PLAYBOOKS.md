@@ -22,6 +22,15 @@ All roles are referenced by their simple name (e.g., `name: spark`) as the `role
 
 ⚠️ **IMPORTANT**: All Ansible commands **MUST** be run from the `ansible` directory to ensure ansible.cfg is properly loaded and roles can be found.
 
+Before running any playbooks, ensure your environment configuration files are up-to-date:
+
+```bash
+cd /home/gxbrooks/repos/elastic-on-spark
+python3 linux/generate_env.py
+```
+
+Then run your playbooks from the ansible directory:
+
 ```bash
 cd /home/gxbrooks/repos/elastic-on-spark/ansible
 ansible-playbook playbooks/spark/deploy_spark.yml
@@ -95,6 +104,39 @@ If you encounter permission issues when running the playbook:
 1. Ensure your user has proper permissions to run kubectl commands
 2. Check that you have proper SSH access to the remote machines
 3. Make sure your user is in the docker group (`sudo usermod -aG docker $USER`)
+4. Ensure all generated configuration files have proper permissions:
+   ```bash
+   # Check permissions on generated files
+   ls -la roles/spark/files/k8s/spark-configmap.yaml
+   
+   # Fix permissions if needed
+   chmod 644 roles/spark/files/k8s/spark-configmap.yaml
+   ```
+
+#### ConfigMap Permission Denied Issue
+
+If you see an error like this when starting Spark:
+
+```
+TASK [Apply env ConfigMap for pods] *******************************************************************************************************************
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ansible_collections.kubernetes.core.plugins.module_utils.k8s.exceptions.CoreException: Failed to load resource definition: [Errno 13] Permission denied: '/home/gxbrooks/repos/elastic-on-spark/ansible/roles/spark/files/k8s/spark-configmap.yaml'
+```
+
+This is caused by Ansible's k8s module having issues accessing the file directly from the roles directory. To fix this:
+
+1. Regenerate the environment variables:
+   ```bash
+   cd /home/gxbrooks/repos/elastic-on-spark
+   python3 linux/generate_env.py -f
+   ```
+
+2. Run the Ansible playbook from the ansible directory:
+   ```bash
+   cd /home/gxbrooks/repos/elastic-on-spark/ansible
+   ansible-playbook playbooks/spark/start_spark.yml
+   ```
+
+The updated playbooks automatically copy the ConfigMap to a temporary location before applying it.
 
 ### Missing Inventory
 
@@ -176,6 +218,36 @@ When deploying Spark on Kubernetes, Docker image management is critical:
 3. **Registry Authentication**
    - For private registries, ensure proper authentication is configured
    - Check registry is accessible: `curl localhost:5000/v2/_catalog`
+
+## Troubleshooting History Server Issues
+
+If the Spark History UI (http://localhost:31534) is not responding:
+
+1. First, check if the History Server pod is running:
+   ```bash
+   kubectl get pods -n spark
+   ```
+
+2. If no pods are running, there might be an issue with the Spark start playbook. Run with verbose output:
+   ```bash
+   cd /home/gxbrooks/repos/elastic-on-spark/ansible
+   ansible-playbook -vvv playbooks/spark/start_spark.yml
+   ```
+
+3. Check the History Server service is properly exposed:
+   ```bash
+   kubectl get svc -n spark | grep history
+   ```
+
+4. Check the logs from the History Server pod:
+   ```bash
+   kubectl logs -n spark $(kubectl get pods -n spark | grep history | awk '{print $1}')
+   ```
+
+5. Verify the NFS mount for Spark event logs is working:
+   ```bash
+   kubectl exec -it -n spark $(kubectl get pods -n spark | grep history | awk '{print $1}') -- ls -la /mnt/spark-events
+   ```
 
 ## Troubleshooting with Diagnostic Scripts
 

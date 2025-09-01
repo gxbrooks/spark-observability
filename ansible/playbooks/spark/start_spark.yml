@@ -13,8 +13,9 @@
   vars_files:
     - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   vars:
-    spark_home: "/home/{{ ansible_user }}/spark"
-    k8s_config_dir: "{{ spark_home }}/k8s"
+    # Use user's home directory for k8s configs, not /opt/spark
+    user_spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ user_spark_home }}/k8s"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
     # Use spark_component_var to avoid circular reference
@@ -53,7 +54,7 @@
 
     - name: Copy RBAC manifest
       copy:
-        src: "{{ project_root }}/spark/k8s/spark-rbac.yaml"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-rbac.yaml"
         dest: "{{ k8s_config_dir }}/spark-rbac.yaml"
         mode: '0644'
 
@@ -64,19 +65,19 @@
 
     - name: Template and copy Spark deployment files
       template:
-        src: "{{ item }}"
-        dest: "{{ k8s_config_dir }}/{{ item | basename }}"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/{{ item }}.j2"
+        dest: "{{ k8s_config_dir }}/{{ item }}"
         mode: '0644'
       vars:
         SPARK_VERSION: "{{ spark_version }}"
       with_items:
-        - "{{ project_root }}/spark/k8s/spark-master-deployment.yaml"
-        - "{{ project_root }}/spark/k8s/spark-worker-deployment.yaml"
-        - "{{ project_root }}/spark/k8s/spark-history-deployment.yaml"
+        - spark-master-deployment.yaml
+        - spark-worker-deployment.yaml
+        - spark-history-deployment.yaml
 
     - name: Copy Spark service and env ConfigMap manifests
       copy:
-        src: "{{ project_root }}/spark/k8s/{{ item }}"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/{{ item }}"
         dest: "{{ k8s_config_dir }}/{{ item }}"
         mode: '0644'
       loop:
@@ -84,6 +85,12 @@
         - spark-history-service.yaml
         - spark-configmap.yaml
 
+    - name: Copy ConfigMap to a temporary file
+      copy:
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-configmap.yaml"
+        dest: "{{ k8s_config_dir }}/spark-configmap.yaml"
+        mode: '0644'
+        
     - name: Apply env ConfigMap for pods
       k8s:
         kubeconfig: "{{ kubeconfig }}"

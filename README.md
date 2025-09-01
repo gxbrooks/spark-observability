@@ -24,18 +24,18 @@ ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/setup_k8s_permis
 
 3. Distribute Kubernetes certificates securely:
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/distribute_k8s_certs.yml
+# Navigate to ansible directory first
+cd ansible
+ansible-playbook -i inventory.yml playbooks/k8s/distribute_k8s_certs.yml
 ```
 
 4. Deploy Spark on Kubernetes securely:
 ```bash
-./deploy_spark.sh
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
 ```
 
-Or run the Ansible playbook directly:
-```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/deploy_spark.yml
-```
+> **Important:** Always run Ansible playbooks from within the `ansible` directory to ensure that `ansible.cfg` is properly loaded. See [Running Ansible Playbooks](docs/RUNNING_ANSIBLE_PLAYBOOKS.md) for details.
 
 > **Note:** The deployment uses secure certificate management and doesn't rely on insecure TLS flags.
 > For detailed information about the secure deployment, see [Secure Spark Deployment Guide](docs/SECURE_SPARK_DEPLOYMENT.md).
@@ -46,8 +46,8 @@ The Spark environment can be managed with the following commands:
 
 #### Starting Spark
 ```bash
-# Start all components
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.yml
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml
 ```
 
 #### Interactive Development with PySpark
@@ -58,11 +58,15 @@ To launch an interactive PySpark IPython shell for development and data explorat
 ./linux/launch_ipython.sh
 
 # OR using the Ansible playbook directly (will launch its own interactive shell)
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/launch_ipython.yml
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml
 
 # Create pod without launching interactive shell
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/launch_ipython.yml -e "launch_shell=false allow_interactive_param=false"
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml -e "launch_shell=false allow_interactive_param=false"
 ```
+
+> **Note:** The launch_ipython.sh script provides additional functionality like waiting for pod readiness and setting up logging, so it's preferred for interactive development.
 
 > **Note:** Use either the shell script OR the Ansible playbook with interactive mode, but not both together. The shell script already handles pod creation before launching the interactive shell.
 
@@ -78,13 +82,21 @@ When done with the interactive session:
 kubectl delete pod pyspark-ipython -n spark
 ```
 
+#### Stopping Spark
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/stop_spark.yml
+```
+
 #### Restarting Spark
 ```bash
 # Restart all components
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.yml -e "restart=true"
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "restart=true"
 
 # Restart specific component
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.yml -e "spark_component=master restart=true"
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "spark_component=master restart=true"
 ```
 
 #### Environment Configuration Generation
@@ -93,18 +105,21 @@ The system automatically generates configuration files from `variables.yaml` as 
 Generated configuration files include:
 - `docker/.env` - Environment variables for Docker Compose
 - `spark/spark-image.toml` - Configuration for Spark image builds
-- `spark/k8s/spark-configmap.yaml` - Kubernetes ConfigMap for Spark runtime
+- `ansible/roles/spark/files/k8s/spark-configmap.yaml` - Kubernetes ConfigMap for Spark runtime (auto-generated)
 
 These files are only regenerated when:
 1. The source `variables.yaml` file has been modified more recently than the generated files
 2. The target files don't exist
 3. Force regeneration is explicitly requested
 
+> **Important:** If you modify `variables.yaml`, always regenerate the configuration files before running Ansible playbooks.
+
 To force regeneration of these files, use the `force_env_generation` parameter:
 
 ```bash
+cd ansible
 # Force environment configuration regeneration
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/deploy_spark.yml -e "force_env_generation=true"
+ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml -e "force_env_generation=true"
 ```
 
 You can also manually generate configuration files by running the script directly:
@@ -123,25 +138,20 @@ python3 linux/generate_env.py -f
 python3 linux/generate_env.py -v
 ```
 
-#### Stopping Spark
-```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/stop_spark.yml
-```
-
 ### Spark History Server
 
 The Spark History Server provides a web UI for monitoring and debugging Spark applications after they've completed.
 
 #### Direct Deployment
 
-For secure deployment of the Spark History Server, use the deployment script:
+For secure deployment of the Spark History Server:
 
 ```bash
-# Run the secure deployment script
-./deploy_secure_spark.sh
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
 ```
 
-This script:
+This playbook:
 1. Sets up proper Kubernetes certificate management
 2. Builds and securely distributes the Spark Docker image
 3. Deploys the History Server to Kubernetes with proper security settings
@@ -171,6 +181,17 @@ Then access: http://localhost:18080
    - Check pod status: `kubectl get pods -n spark`
    - View pod logs: `kubectl logs -n spark <pod-name>`
    - Check pod description: `kubectl describe pod -n spark <pod-name>`
+   - If there's a "permission denied" error on ConfigMap files:
+     ```bash
+     # Regenerate environment files
+     cd /home/gxbrooks/repos/elastic-on-spark
+     python3 linux/generate_env.py -f
+     
+     # Then run the playbook from ansible directory
+     cd ansible
+     ansible-playbook playbooks/spark/start_spark.yml
+     ```
+   - For detailed troubleshooting steps, see the [Running Ansible Playbooks](docs/RUNNING_ANSIBLE_PLAYBOOKS.md) guide
 
 3. **NFS Mount Issues**
    - Ensure NFS server is running: `systemctl status nfs-server`

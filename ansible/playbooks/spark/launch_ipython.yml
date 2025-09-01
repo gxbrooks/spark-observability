@@ -17,8 +17,9 @@
   vars_files:
     - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   vars:
-    spark_home: "/home/{{ ansible_user }}/spark"
-    k8s_config_dir: "{{ spark_home }}/k8s"
+    # Use user's home directory for k8s configs, not /opt/spark
+    user_spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ user_spark_home }}/k8s"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
     allow_interactive: "{{ allow_interactive_param | default(true) | bool }}"

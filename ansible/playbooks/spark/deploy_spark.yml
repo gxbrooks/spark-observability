@@ -45,10 +45,11 @@
   hosts: kubernetes_master
   become: false
   vars:
-    local_spark_home: "/home/{{ ansible_user }}/spark"
+    # Use user's home directory for k8s configs, not /opt/spark
+    user_spark_home: "/home/{{ ansible_user }}/spark" 
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
-    k8s_config_dir: "{{ local_spark_home }}/k8s"
+    k8s_config_dir: "{{ user_spark_home }}/k8s"
   vars_files:
     - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   pre_tasks:
@@ -169,7 +170,7 @@
     - name: Register generated ConfigMap for pod env
       delegate_to: localhost
       slurp:
-        src: "{{ project_root }}/spark/k8s/spark-configmap.yaml"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-configmap.yaml"
       register: spark_configmap
 
     - name: Check if Spark image exists
@@ -232,7 +233,7 @@
         
     - name: Copy Kubernetes core config (namespace/RBAC)
       copy:
-        src: "{{ project_root }}/spark/k8s/spark-rbac.yaml"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-rbac.yaml"
         dest: "{{ k8s_config_dir }}/spark-rbac.yaml"
         mode: '0644'
         owner: "{{ ansible_user }}"
@@ -263,7 +264,7 @@
 
     - name: Copy spark-defaults.conf to remote
       copy:
-        src: "{{ project_root }}/spark/conf/spark-defaults.conf"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/conf/spark-defaults.conf"
         dest: "/home/{{ ansible_user }}/spark/conf/spark-defaults.conf"
         mode: '0644'
 
@@ -289,7 +290,7 @@
     # Apply registry config first if using a local registry
     - name: Copy registry config
       copy:
-        src: "{{ project_root }}/spark/k8s/spark-registry-config.yaml"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-registry-config.yaml"
         dest: "{{ k8s_config_dir }}/spark-registry-config.yaml"
         mode: '0644'
 

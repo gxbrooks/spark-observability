@@ -2,9 +2,12 @@
 - name: Stop Spark on Kubernetes
   hosts: kubernetes_master
   become: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
   vars:
-    spark_home: "/home/{{ ansible_user }}/spark"
-    k8s_config_dir: "{{ spark_home }}/k8s"
+    # Use user's home directory for k8s configs, not /opt/spark
+    user_spark_home: "/home/{{ ansible_user }}/spark"
+    k8s_config_dir: "{{ user_spark_home }}/k8s"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
   pre_tasks:
     - name: Run generate_env.py to ensure configuration files are up-to-date
@@ -22,18 +25,29 @@
         state: directory
         mode: '0755'
 
-    - name: Copy Spark deployment files
+    # Copy service and configmap files
+    - name: Copy Spark service and configmap files 
       copy:
-        src: "{{ project_root }}/spark/k8s/{{ item }}"
-        dest: "{{ k8s_config_dir }}/"
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/{{ item }}"
+        dest: "{{ k8s_config_dir }}/{{ item }}"
         mode: '0644'
       loop:
-        - spark-master-deployment.yaml
         - spark-master-service.yaml
-        - spark-worker-deployment.yaml
-        - spark-history-deployment.yaml
         - spark-history-service.yaml
         - spark-configmap.yaml
+        
+    # Template deployment files
+    - name: Template Spark deployment files
+      template:
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/{{ item }}.j2"
+        dest: "{{ k8s_config_dir }}/{{ item }}"
+        mode: '0644'
+      vars:
+        SPARK_VERSION: "{{ spark_version }}"
+      loop:
+        - spark-master-deployment.yaml
+        - spark-worker-deployment.yaml
+        - spark-history-deployment.yaml
 
     # Step 1: Stop workers first to ensure graceful disconnection from master
     - name: Stop Spark Workers
