@@ -10,6 +10,7 @@ The deployment solution addresses two key security concerns:
    - Proper certificate-based authentication between clients and Kubernetes API
    - No insecure TLS verification skipping
    - Proper certificate distribution between development and runtime environments
+   - Automatic certificate regeneration when hostnames or network configurations change
 
 2. **Secure Docker Image Management**
    - Local Docker registry for image distribution
@@ -44,6 +45,40 @@ This will:
 2. Build and publish the Spark Docker image
 3. Deploy all Spark components with proper security settings
 
+## Kubernetes Certificate Management
+
+### Initial Setup
+
+During the initial Kubernetes setup, certificates are created automatically with:
+```bash
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml
+```
+
+### After Hostname or Network Changes
+
+If your cluster's hostname or network configuration changes, regenerate certificates:
+
+```bash
+# Step 1: Update your inventory.yml with current hostnames/IPs
+
+# Step 2: Regenerate certificates with proper hostnames
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/regenerate_k8s_certs.yml
+
+# Step 3: Update kubeconfig files with new certificates 
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml --tags=kubeconfig
+
+# Step 4: Restart Kubernetes services
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/start_k8s.yml
+```
+
+The certificate regeneration process:
+- Backs up existing certificates (creates a timestamped backup in `/etc/kubernetes/pki/`)
+- Generates both original and lowercase variants of all hostnames in the certificate SANs
+- Ensures unique hostname entries to avoid duplicates
+- Performs validation to ensure certificates work properly with case-insensitive matching
+- Removes any insecure TLS verification flags
+- Validates API server connectivity with proper certificate validation
+
 ### (Deprecated) Manual Scripts
 
 The following manual scripts have been deprecated in favor of the Ansible-based approach:
@@ -55,15 +90,20 @@ The following manual scripts have been deprecated in favor of the Ansible-based 
 
 The solution uses the following approach for certificate management:
 
-1. The Kubernetes CA certificate from `/etc/kubernetes/pki/ca.crt` is copied to user home directories
-2. Each user gets a properly configured kubeconfig that references the local CA certificate
-3. Certificate validation is properly enabled - no insecure flags
-4. Group permissions ensure both development and runtime users have access
+1. The Kubernetes CA certificate from `/etc/kubernetes/pki/ca.crt` is embedded directly in the kubeconfig files
+2. Each user gets a properly configured kubeconfig with the embedded CA certificate
+3. Certificate validation is strictly enforced - all `insecure-skip-tls-verify` flags have been removed
+4. Hostname validation is automatically verified during installation and certificate regeneration
+5. **Case-insensitive hostname matching** ensures certificates work with different hostname capitalizations
+6. Both original and lowercase versions of each hostname are included in certificate SANs
+7. When network configurations change, `regenerate_k8s_certs.yml` creates new certificates with correct hostnames
+8. Group permissions ensure both development and runtime users have access
+9. Certificate validation is automatically tested during setup to detect potential issues
 
 ## Docker Image Management Details
 
 The Docker image management strategy:
-
+ 
 1. A local registry runs on port 5000
 2. Images are built with consistent versioning based on source code checksums
 3. Images are tagged and pushed to the local registry
@@ -91,14 +131,44 @@ After deployment:
 
 If you encounter certificate problems:
 
-1. Verify the CA certificate exists and matches:
+1. Check if hostname validation is successful:
    ```bash
-   diff ~/.kube/certs/ca.crt /etc/kubernetes/pki/ca.crt
+   SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}' | grep -o 'https://[^:]*' | sed 's#https://##')
+   openssl s_client -connect ${SERVER}:6443 -servername ${SERVER} -showcerts </dev/null 2>&1 | grep -i "Verification"
+   ```
+   You should see "Verification: OK" in the output. If not, certificates need to be regenerated.
+
+2. Inspect the API server certificate's Subject Alternative Names:
+   ```bash
+   echo | openssl s_client -connect localhost:6443 2>/dev/null | openssl x509 -text | grep -A1 "Subject Alternative Name"
+   ```
+   Verify that all required hostnames (including lowercase variants) are present in the output.
+
+3. Regenerate certificates with the correct hostname:
+   ```bash
+   # The regeneration playbook will include both original and lowercase variants of all hostnames
+   ansible-playbook -i inventory.yml ansible/playbooks/k8s/regenerate_k8s_certs.yml
+   
+   # Update kubeconfig files with the new certificates
+   ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml --tags=kubeconfig
+   
+   # Restart Kubernetes services
+   ansible-playbook -i inventory.yml ansible/playbooks/k8s/start_k8s.yml
    ```
 
-2. Validate kubeconfig is properly configured:
+4. Validate that kubeconfig is properly configured with certificate validation:
    ```bash
-   kubectl config view
+   kubectl config view | grep -A2 "cluster:"
+   ```
+   Ensure there is no `insecure-skip-tls-verify: true` in the output.
+   
+5. Test API server access with certificate verification:
+   ```bash
+   # Using curl to test certificate validation
+   curl --cacert /etc/kubernetes/pki/ca.crt https://${SERVER}:6443/version
+   
+   # Using kubectl with proper certificate validation
+   KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes
    ```
 
 ### Image Pull Issues

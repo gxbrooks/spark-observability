@@ -1,16 +1,40 @@
 ---
 # regenerate_k8s_certs.yml - Regenerates Kubernetes API server certificates with proper hostnames
+#
+# This playbook regenerates the Kubernetes API server certificates with all necessary hostnames
+# including both original case and lowercase variants to handle case-insensitive hostname lookups.
+#
+# Best practices implemented:
+# 1. Generates complete set of hostname variants at certificate creation time
+# 2. Focuses on comprehensive connection testing rather than post-connection validation
+# 3. Provides detailed diagnostics information for troubleshooting failed connections
+# 4. Uses standard TLS validation during connection attempts instead of manual SAN verification
+#
+# The certificates are configured with all necessary Subject Alternative Names (SANs) upfront,
+# ensuring that connections will work properly regardless of which hostname variant is used
+# by the client. The playbook provides rich diagnostics if connections fail.
 
 - name: Regenerate Kubernetes API server certificates
   hosts: kubernetes_master
   become: true
   vars:
+    # Get hostname from inventory
     k8s_master_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] }}"
-    k8s_sans: "kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,lab2,Lab2,{{ k8s_master_host }}"
+    # Get inventory hostname (usually short name)
+    k8s_master_name: "{{ groups['kubernetes_master'][0] }}"
+    # Dynamically derive short hostname from FQDN if present
+    k8s_short_hostname: "{{ k8s_master_host.split('.')[0] }}"
+    # Include: 1. Kubernetes internal names, 2. Inventory hostname, 3. ansible_host, 4. Short hostname if different, 5. localhost
+    k8s_sans: "kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,{{ k8s_master_name }},{{ k8s_master_host }},{{ k8s_short_hostname }},localhost"
   tasks:
-    - name: Display hostname that will be used
+    - name: Display hostname variants that will be used
       debug:
-        msg: "Using hostname {{ k8s_master_host }} for Kubernetes API server certificate"
+        msg: |
+          Using hostname variants for Kubernetes API server certificate:
+          - FQDN/ansible_host: {{ k8s_master_host }}
+          - Inventory hostname: {{ k8s_master_name }}
+          - Short hostname: {{ k8s_short_hostname }}
+          - Full SANs list: {{ k8s_sans }}
 
     - name: Stop kubelet service
       systemd:
@@ -23,10 +47,18 @@
         state: directory
         mode: '0700'
 
-    - name: Backup existing API server certificates
-      command: cp /etc/kubernetes/pki/apiserver.* /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/
-      args:
-        creates: /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/apiserver.crt
+    - name: Check if API server certificates exist
+      stat:
+        path: /etc/kubernetes/pki/apiserver.crt
+      register: apiserver_cert_exists
+
+    - name: Backup existing API server certificates if they exist
+      shell: |
+        mkdir -p /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}
+        cp -f /etc/kubernetes/pki/apiserver.crt /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/ || true
+        cp -f /etc/kubernetes/pki/apiserver.key /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/ || true
+        cp -f /etc/kubernetes/pki/apiserver.csr /etc/kubernetes/pki/backup-{{ ansible_date_time.date }}-{{ ansible_date_time.time | replace(':', '-') }}/ || true
+      when: apiserver_cert_exists.stat.exists
 
     - name: Remove existing API server certificates
       file:
@@ -37,6 +69,23 @@
         - /etc/kubernetes/pki/apiserver.key
         - /etc/kubernetes/pki/apiserver.csr
 
+    # Generate both original and lowercase variants of all hostnames
+    - name: Prepare list of hostnames and their lowercase variants
+      set_fact:
+        all_sans: []
+      
+    - name: Add original hostnames to SANs list
+      set_fact:
+        all_sans: "{{ all_sans + [item] }}"
+      loop: "{{ k8s_sans.split(',') }}"
+      
+    - name: Add lowercase variants if different from original
+      set_fact:
+        all_sans: "{{ all_sans + [item | lower] }}"
+      loop: "{{ k8s_sans.split(',') }}"
+      when: item != item | lower
+        
+    # Create the certificate config file directly
     - name: Create kubeadm certificate config file
       copy:
         dest: /tmp/kubeadm-apiserver-cert.yaml
@@ -45,7 +94,7 @@
           kind: ClusterConfiguration
           apiServer:
             certSANs:
-            {% for san in k8s_sans.split(',') %}
+            {% for san in all_sans | unique %}
             - {{ san }}
             {% endfor %}
             - {{ ansible_default_ipv4.address }}
@@ -71,6 +120,7 @@
       until: kubelet_status.status.ActiveState == 'active'
       retries: 10
       delay: 5
+      when: not ansible_check_mode
 
     - name: Wait for API server to be responsive (might take a minute)
       command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
@@ -105,3 +155,82 @@
       when: 
         - api_check.rc == 0
         - runtime_kubeconfig_stat.stat.exists
+        
+    # Test actual API server connectivity with informative errors (no runtime validation)
+    - name: Set certificate info for diagnostics
+      set_fact:
+        cert_info:
+          master_host: "{{ k8s_master_host }}"
+          master_name: "{{ k8s_master_name }}"
+          short_hostname: "{{ k8s_short_hostname }}"
+          intended_sans: "{{ all_sans | unique }}"
+      when: api_check.rc == 0
+
+    # Test API server access with comprehensive error handling
+    - name: Test kubectl command to verify API server access
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes -o wide
+      register: kubectl_test
+      ignore_errors: yes
+      when: api_check.rc == 0
+      
+    - name: Display kubectl test result with extended diagnostics
+      debug:
+        msg: |
+          API Server kubectl access test: {{ 'SUCCESS' if kubectl_test.rc == 0 else 'FAILED' }}
+          {{ kubectl_test.stdout_lines | default(['No output']) if kubectl_test.rc == 0 else kubectl_test.stderr }}
+          
+          {% if kubectl_test.rc != 0 %}
+          Diagnostics for failed kubectl connection:
+          - Check that the API server is running: systemctl status kube-apiserver
+          - Verify network connectivity to {{ ansible_default_ipv4.address }}:6443
+          - Examine certificate paths in kubeconfig: /etc/kubernetes/admin.conf
+          - Use 'kubectl --v=8' for verbose connection debugging
+          {% endif %}
+      when: kubectl_test is defined
+      
+    - name: Test HTTPS API access with detailed diagnostics
+      shell: >
+        curl --fail --silent --show-error --connect-timeout 10 
+        --cacert /etc/kubernetes/pki/ca.crt 
+        --cert /etc/kubernetes/pki/apiserver-kubelet-client.crt 
+        --key /etc/kubernetes/pki/apiserver-kubelet-client.key 
+        https://localhost:6443/api/v1/nodes
+      register: curl_test
+      ignore_errors: yes
+      when: api_check.rc == 0
+      
+    - name: Display HTTPS API access result with troubleshooting info
+      debug:
+        msg: |
+          API Server HTTPS access: {{ 'SUCCESS' if curl_test.rc == 0 else 'FAILED' }}
+          
+          {% if curl_test.rc != 0 %}
+          Troubleshooting for failed HTTPS connection:
+          - Error: {{ curl_test.stderr | default('Unknown error') }}
+          - Check API server logs: journalctl -u kube-apiserver
+          - Verify certificate paths exist and are readable
+          - Check certificate expiry: openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text | grep -A2 Validity
+          - Use 'curl -v' for verbose connection information
+          {% endif %}
+      when: curl_test is defined
+      
+    - name: Display success message
+      debug:
+        msg: |
+          Certificate regeneration complete. The Kubernetes API server is now using certificates with proper hostnames:
+          - Inventory hostname: {{ k8s_master_name }}
+          - FQDN/ansible_host: {{ k8s_master_host }}
+          - Short hostname: {{ k8s_short_hostname }}
+          - IP address: {{ ansible_default_ipv4.address }}
+          
+          API Server access: {{ 'SUCCESSFUL ✓' if kubectl_test.rc == 0 else 'FAILED ✗ - Check the output above' }}
+          
+          Next steps:
+          1. Run 'ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml --tags=kubeconfig' to update kubeconfig files
+          2. Run 'ansible-playbook -i inventory.yml playbooks/k8s/start_k8s.yml' to restart Kubernetes services
+          
+          IMPORTANT: 
+          - Certificates include both original and lowercase hostname variants for improved compatibility
+          - If you experience connection issues, check client error messages for hostname/certificate details
+          - Use kubectl --v=6 or curl -v for detailed connection diagnostics when needed
+      when: api_check.rc == 0

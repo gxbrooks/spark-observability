@@ -29,12 +29,43 @@
         chdir: "{{ project_root }}"
       register: generate_result
       changed_when: "'Generating' in generate_result.stdout"
+    
+    # Check if Docker is running and operational with a simple command
+    - name: Check if Docker is running and operational
+      command: docker info
+      register: docker_info_result
+      changed_when: false
+      
+    - name: Fail if Docker is not running or responding
+      fail:
+        msg: >
+          Docker is not running or responding properly.
+          
+          Use the following playbooks to manage Docker:
+          - Check status: ansible-playbook -i inventory.yml playbooks/docker/status_docker.yml
+          - Start Docker: ansible-playbook -i inventory.yml playbooks/docker/start_docker.yml
+          - Diagnose issues: ansible-playbook -i inventory.yml playbooks/docker/diagnose_docker.yml
+      when: docker_info_result.rc != 0
         
     # We now use the centralized spark_vars.yml file, which is already loaded via vars_files
     # This task is kept for backward compatibility but simplified
     - name: Ensure we have the proper Spark version
       debug:
         msg: "Using Spark version: {{ spark_version }}"
+        
+    - name: Check if Kubernetes API is accessible
+      command: kubectl cluster-info
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: k8s_status
+      failed_when: false
+      changed_when: false
+      
+    - name: Fail if Kubernetes API is not accessible
+      fail:
+        msg: "Kubernetes API is not accessible. Please check if Kubernetes is running properly."
+      when: k8s_status.rc != 0
+  
   tasks:
     - name: Ensure Spark namespace exists
       k8s:
@@ -181,3 +212,48 @@
     - name: Display service status
       debug:
         var: svc_status.stdout_lines
+        
+    - name: Wait for pods to be ready (with timeout)
+      shell: |
+        kubectl wait --namespace spark --for=condition=ready pod --selector=app={{ item }} --timeout=60s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_ready_status
+      failed_when: false
+      changed_when: false
+      when: spark_component_var in [item, 'all']
+      with_items:
+        - spark-master
+        - spark-worker
+        - spark-history
+        
+    - name: Check Spark pod status in detail (if pods not ready)
+      shell: |
+        kubectl describe pods --namespace spark -l app={{ item }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_details
+      when: >
+        (spark_component_var in [item, 'all']) and 
+        (pod_ready_status.results | selectattr('item', 'equalto', item) | 
+         map(attribute='rc') | list | first | default(1) != 0)
+      with_items:
+        - spark-master
+        - spark-worker
+        - spark-history
+        
+    - name: Display pod details if not ready
+      debug:
+        var: pod_details.results | selectattr('skipped', 'undefined') | map(attribute='stdout_lines') | list
+      when: pod_details.results is defined and pod_details.results | selectattr('skipped', 'undefined') | list | length > 0
+      
+    - name: Fail if Spark History Server is not ready (when specifically requested)
+      fail:
+        msg: >
+          Spark History Server pods are not ready. Check for ImagePullBackOff or other errors.
+          Common causes: Docker not running, image not available, or network issues.
+          Run 'kubectl describe pods -n spark -l app=spark-history' for more details.
+      when: >
+        spark_component_var in ['history', 'all'] and
+        (pod_ready_status.results | selectattr('item', 'equalto', 'spark-history') |
+         map(attribute='rc') | list | first | default(1) != 0)

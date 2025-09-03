@@ -1,0 +1,186 @@
+---
+# This playbook installs Docker on native Linux machines only
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+# 
+# Note: This playbook specifically targets native Linux hosts only:
+# - Does NOT install on Windows hosts (which should use Docker Desktop)
+# - Does NOT install on WSL instances (which should use Docker from Windows Docker Desktop)
+
+- name: Install Docker
+  hosts: native:!wsl
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Check if Docker is already installed
+      command: docker --version
+      register: docker_version_check
+      failed_when: false
+      changed_when: false
+      
+    - name: Display Docker status if already installed
+      debug:
+        msg: "Docker is already installed: {{ docker_version_check.stdout }}"
+      when: docker_version_check.rc == 0
+      
+    # Check if Docker service file exists
+    - name: Check if Docker service file exists
+      stat:
+        path: /lib/systemd/system/docker.service
+      register: docker_service_file
+      
+    - name: Debug Docker service file status
+      debug:
+        msg: "Docker service file {{ 'exists' if docker_service_file.stat.exists else 'does not exist' }}"
+      
+    # Set a fact to determine if we need to reinstall Docker
+    - name: Set fact for Docker reinstall
+      set_fact:
+        need_docker_reinstall: "{{ docker_version_check.rc == 0 and not docker_service_file.stat.exists }}"
+        
+    - name: Display reinstall notice
+      debug:
+        msg: "Docker binary exists but service file is missing. Will reinstall Docker service."
+      when: need_docker_reinstall
+      
+    # Install Docker when it's not installed or needs reinstallation
+    - name: Handle Docker installation on Debian/Ubuntu
+      block:
+        # First check and clean up any conflicting Docker repository configurations
+        - name: Check for conflicting Docker repository files
+          find:
+            paths: /etc/apt/sources.list.d/
+            patterns: "*docker*.list"
+          register: docker_repo_files
+          
+        - name: Display found Docker repository files
+          debug:
+            var: docker_repo_files.files
+            
+        - name: Backup and remove conflicting Docker repository files
+          block:
+            - name: Create backup directory
+              file:
+                path: "/root/docker_repo_backup"
+                state: directory
+                mode: '0755'
+              
+            - name: Backup Docker repository files
+              copy:
+                src: "{{ item.path }}"
+                dest: "/root/docker_repo_backup/{{ item.path | basename }}.bak"
+                remote_src: yes
+              with_items: "{{ docker_repo_files.files }}"
+              when: docker_repo_files.files | length > 0
+              
+            - name: Remove Docker repository files
+              file:
+                path: "{{ item.path }}"
+                state: absent
+              with_items: "{{ docker_repo_files.files }}"
+              when: docker_repo_files.files | length > 0
+          when: docker_repo_files.files | length > 0
+              
+        - name: Check for Docker apt keyrings
+          stat: 
+            path: /etc/apt/keyrings/docker.gpg
+          register: docker_keyring
+          
+        - name: Backup and remove Docker keyring if it exists
+          block:
+            - name: Backup Docker keyring
+              copy:
+                src: /etc/apt/keyrings/docker.gpg
+                dest: /root/docker_repo_backup/docker.gpg.bak
+                remote_src: yes
+                
+            - name: Remove Docker keyring
+              file:
+                path: /etc/apt/keyrings/docker.gpg
+                state: absent
+          when: docker_keyring.stat.exists
+        
+        - name: Update apt cache after cleanup
+          apt:
+            update_cache: yes
+            
+        - name: Install Docker using apt
+          apt:
+            name:
+              - docker.io
+              - docker-compose
+            state: present
+      when: 
+        - (docker_version_check.rc != 0 or need_docker_reinstall | bool)
+        - ansible_os_family == "Debian"
+        
+    - name: Install Docker packages on RHEL/CentOS
+      yum:
+        name:
+          - docker
+          - docker-compose
+        state: present
+      when:
+        - (docker_version_check.rc != 0 or need_docker_reinstall | bool)
+        - ansible_os_family == "RedHat"
+        
+    # Force daemon reload when reinstalling Docker
+    - name: Force systemd daemon reload on reinstall
+      systemd:
+        daemon_reload: yes
+      when: need_docker_reinstall | bool
+      
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+        daemon_reload: yes
+        
+    - name: Add current user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+        
+    - name: Check Docker version
+      command: docker --version
+      register: docker_version
+      changed_when: false
+      
+    - name: Display Docker version
+      debug:
+        var: docker_version.stdout
+        
+    # Configure Docker Registry
+    - name: Check if Docker registry is running
+      command: docker ps -a --filter "name=registry" --format "{{ '{{' }}.State{{ '}}' }}"
+      register: registry_status
+      failed_when: false
+      changed_when: false
+      
+    - name: Start Docker registry if not running
+      command: docker start registry
+      when: registry_status.stdout != "running" and registry_status.stdout != ""
+      register: registry_start
+      failed_when: false
+      
+    - name: Create Docker registry if doesn't exist
+      command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
+      when: registry_status.stdout == ""
+      register: registry_create
+      failed_when: false
+      
+    - name: Verify Docker registry is accessible
+      uri:
+        url: http://localhost:5000/v2/_catalog
+        status_code: 200
+      register: registry_check
+      failed_when: false
+      changed_when: false
+      
+    - name: Display installation summary
+      debug:
+        msg: >
+          Docker {{ 'was already installed' if docker_version_check.rc == 0 else 'has been installed' }}.
+          Version: {{ docker_version.stdout }}
+          Registry status: {{ "OK" if registry_check.status == 200 else "Not responding" }}

@@ -8,7 +8,12 @@
   vars:
     k8s_group: kubernetes
     control_user: "{{ k8s_control_user | default(lookup('env', 'USER')) }}"
+    # Get hostname from inventory
     k8s_master_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] }}"
+    # Get inventory hostname (usually short name)
+    k8s_master_name: "{{ groups['kubernetes_master'][0] }}"
+    # Dynamically derive short hostname from FQDN if present
+    k8s_short_hostname: "{{ k8s_master_host.split('.')[0] }}"
   tasks:
     - name: Display Kubernetes master hostname
       debug:
@@ -82,6 +87,57 @@
         - "/home/{{ ansible_user }}/kubernetes"
         - "/etc/kubernetes"
         - "/etc/containerd"
+        
+    # === Clean up any conflicting Kubernetes repository configurations ===
+    - name: Check for conflicting Kubernetes apt sources
+      shell: |
+        find /etc/apt -name "*.list" -type f -exec grep -l "pkgs.k8s.io\|kubernetes" {} \; 2>/dev/null || echo "No conflicts"
+      register: conflicting_sources
+      changed_when: false
+      
+    - name: Show detected conflicting sources
+      debug:
+        var: conflicting_sources.stdout_lines
+      when: conflicting_sources.stdout != "No conflicts"
+
+    - name: Remove conflicting apt sources entries
+      lineinfile:
+        path: "{{ item }}"
+        regexp: ".*pkgs\\.k8s\\.io.*|.*kubernetes.*"
+        state: absent
+      loop: "{{ conflicting_sources.stdout_lines }}"
+      when: conflicting_sources.stdout != "No conflicts"
+    
+    - name: Check for existing Kubernetes repository files
+      find:
+        paths: /etc/apt/sources.list.d
+        patterns: "*kubernetes*"
+      register: k8s_repo_files
+
+    - name: Remove existing Kubernetes repository files
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ k8s_repo_files.files }}"
+      when: k8s_repo_files.files | length > 0
+
+    - name: Check for existing Kubernetes keyrings
+      find:
+        paths: /etc/apt/keyrings
+        patterns: "*kubernetes*"
+      register: k8s_keyrings
+
+    - name: Remove existing Kubernetes keyrings
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ k8s_keyrings.files }}"
+      when: k8s_keyrings.files | length > 0
+      
+    - name: Update apt cache after cleanup
+      apt:
+        update_cache: yes
+      changed_when: false
 
     # === Package Installation ===
     - name: Install required system packages
@@ -110,16 +166,30 @@
         dest: /tmp/k8s-apt-key
         mode: '0644'
 
-    - name: Add Kubernetes apt key
-      apt_key:
-        file: /tmp/k8s-apt-key
-        state: present
+    - name: Check if kubernetes keyring exists
+      stat:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      register: k8s_keyring_exists
+        
+    - name: Create Kubernetes GPG keyring file
+      shell: |
+        cat /tmp/k8s-apt-key | gpg --dearmor > /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      when: not k8s_keyring_exists.stat.exists
 
     - name: Add Kubernetes repository
       apt_repository:
         repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
         state: present
         filename: kubernetes
+        update_cache: yes
+        
+    # Force update of apt cache to ensure repo is properly recognized
+    - name: Force update of apt cache after repository configuration
+      command: apt-get update
+      changed_when: false
 
     - name: Install Kubernetes packages
       apt:
@@ -172,7 +242,7 @@
     # === Initialize Kubernetes Cluster ===
     - name: Check if Kubernetes is already initialized
       stat:
-        path: /etc/kubernetes/kubelet.conf
+        path: /etc/kubernetes/admin.conf
       register: k8s_config_check
       when: inventory_hostname == groups['kubernetes_master'][0]
 
@@ -183,19 +253,37 @@
         - inventory_hostname == groups['kubernetes_master'][0]
         - not k8s_config_check.stat.exists | default(true)
 
-    - name: Get join command
-      shell: kubeadm token create --print-join-command
-      register: join_command
-      when: 
+    - name: Display Kubernetes initialization status
+      debug:
+        msg: "{{ 'Kubernetes was already initialized' if k8s_config_check.stat.exists | default(false) else 'Kubernetes initialized successfully' }}"
+      when:
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
 
-    - name: Store join command for worker nodes
-      set_fact:
-        k8s_join_command: "{{ join_command.stdout }}"
-      when: 
+    - name: Wait for Kubernetes API server to become available
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
+      register: api_status
+      until: api_status.rc == 0
+      retries: 60
+      delay: 10
+      ignore_errors: yes
+      when:
         - inventory_hostname == groups['kubernetes_master'][0]
-        - join_command is defined and join_command.stdout is defined
+        - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
+
+    # Skip token creation during installation as it can cause timeouts
+    # This is now an optional manual step after installation completes
+    - name: Display information about creating join tokens
+      debug:
+        msg: |
+          Kubernetes cluster is initialized. To add worker nodes later, run:
+          
+          sudo kubeadm token create --print-join-command
+          
+          This will output a command that can be run on worker nodes to join the cluster.
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
 
     # === Configure kubectl for users with hostnames directly ===
     - name: Check if Kubernetes certificates exist
@@ -219,6 +307,7 @@
       slurp:
         src: /etc/kubernetes/pki/ca.crt
       register: ca_cert_data
+      ignore_errors: yes
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
@@ -306,13 +395,94 @@
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
       tags: [kubeconfig]
 
+    # === Check certificate validity for current hostname ===
+    - name: Check if certificate supports current hostname
+      shell: |
+        openssl x509 -in /etc/kubernetes/pki/apiserver.crt -noout -text | grep -A1 "Subject Alternative Name" | grep -o "DNS:[^,]*" | tr '\n' ' '
+      register: cert_sans
+      ignore_errors: yes
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+      
+    - name: Display certificate SANs
+      debug:
+        msg: "Certificate SANs: {{ cert_sans.stdout }}"
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - cert_sans.rc is defined and cert_sans.rc == 0
+      
+    - name: Set hostname variants for certificate validation
+      set_fact:
+        hostname_variants:
+          - "{{ k8s_master_host }}"
+          - "DNS:{{ k8s_master_host }}"
+          - "{{ k8s_short_hostname }}"
+          - "DNS:{{ k8s_short_hostname }}"
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - cert_sans.rc is defined and cert_sans.rc == 0
+      
+    - name: Check if any hostname variant is in certificate SANs (case-insensitive)
+      set_fact:
+        hostname_found: "{{ hostname_found | default(false) or (item | lower in cert_sans.stdout | lower) }}"
+      with_items: "{{ hostname_variants }}"
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - cert_sans.rc is defined and cert_sans.rc == 0
+        - cert_sans.stdout is defined
+      
+    - name: Check if current hostname is in certificate SANs (case-insensitive)
+      fail:
+        msg: |
+          ERROR: None of the hostname variants [{{ k8s_master_host }}, {{ k8s_short_hostname }}] are in the API server certificate's SANs!
+          Certificate SANs: {{ cert_sans.stdout }}
+          (Note: This check is case-insensitive, so differences in capitalization should not cause this error)
+          
+          You must run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/regenerate_k8s_certs.yml' 
+          to regenerate the certificates with the correct hostname.
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - cert_sans.rc is defined and cert_sans.rc == 0
+        - cert_sans.stdout is defined 
+        - "not (hostname_found | default(false))"
+      ignore_errors: yes
+      tags: [kubeconfig]
+      
     # === Install Flannel CNI ===
-    - name: Install Flannel CNI
-      command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+    - name: Check for Flannel CNI
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel -o name
+      register: flannel_check
+      ignore_errors: yes
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
+
+    - name: Download flannel manifest file
+      get_url:
+        url: https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+        dest: /tmp/kube-flannel.yml
+        mode: '0644'
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
+        - flannel_check.stdout == "" or flannel_check.rc != 0
+
+    - name: Install Flannel CNI if not present
+      shell: kubectl apply -f /tmp/kube-flannel.yml
       become_user: "{{ ansible_user }}"
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
+        - flannel_check.stdout == "" or flannel_check.rc != 0
+
+    - name: Wait for CNI to be initialized
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
+      register: node_check
+      until: node_check.rc == 0
+      retries: 30
+      delay: 5
+      ignore_errors: yes
+      when: inventory_hostname == groups['kubernetes_master'][0]
 
     # === Remove control-plane taints to allow workloads on master ===
     - name: Remove any control-plane taints
@@ -351,6 +521,17 @@
         - "'kubeconfig' in ansible_run_tags"
       tags: [kubeconfig]
 
+    - name: Check certificate hostname validation
+      shell: |
+        kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}' | grep -o 'https://[^:]*' | sed 's#https://##' | xargs -I{} openssl s_client -connect {}:6443 -servername {} -showcerts </dev/null 2>&1 | grep -i "Verification"
+      register: cert_validation
+      ignore_errors: yes
+      become_user: "{{ control_user }}"
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - "'kubeconfig' in ansible_run_tags"
+      tags: [kubeconfig]
+
     - name: Display connectivity result
       debug:
         msg: "{{ 'Connection successful!' if cluster_info.rc == 0 else 'Connection failed. There may be certificate hostname mismatches or the API server needs to be restarted.' }}"
@@ -359,13 +540,22 @@
         - "'kubeconfig' in ansible_run_tags"
       tags: [kubeconfig]
         
-    - name: Provide next steps if connection fails
+    - name: Display certificate validation status
       debug:
-        msg: "If connection failed, consider regenerating certificates with the regenerate_k8s_certs.yml playbook."
+        msg: "Certificate validation: {{ 'SUCCESS - Certificates are properly configured for the current hostname' if 'Verification: OK' in cert_validation.stdout else 'FAILED - Certificate hostname mismatch detected. You MUST run regenerate_k8s_certs.yml to fix this issue.' }}"
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - "'kubeconfig' in ansible_run_tags"
-        - cluster_info.rc is defined and cluster_info.rc != 0
+        - cert_validation.stdout is defined
+      tags: [kubeconfig]
+        
+    - name: Provide next steps if connection fails
+      debug:
+        msg: "If connection failed or certificate validation failed, run the regenerate_k8s_certs.yml playbook to fix certificate issues."
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - "'kubeconfig' in ansible_run_tags"
+        - (cluster_info.rc is defined and cluster_info.rc != 0) or ('Verification: OK' not in cert_validation.stdout | default(''))
       tags: [kubeconfig]
 
     # === Verify Kubernetes cluster status ===

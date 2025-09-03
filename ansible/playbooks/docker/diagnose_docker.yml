@@ -1,0 +1,355 @@
+---
+# This playbook diagnoses Docker issues on native Linux machines and provides detailed information
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/diagnose_docker.yml
+# 
+# This playbook will:
+# 1. Check if Docker is installed properly
+# 2. Verify Docker service unit files exist
+# 3. Check Docker service status in detail
+# 4. Verify Docker daemon socket
+# 5. Check Docker Registry status
+# 6. Verify Docker images and containers
+# 7. Check for Kubernetes integration issues
+# 8. Provide detailed diagnostic information and recommendations
+#
+# This playbook is for diagnosis only and will NOT automatically fix issues
+
+- name: Diagnose Docker issues
+  hosts: native:!wsl
+  become: true
+  vars:
+    registry_port: 5000
+  tasks:
+    - name: Check if Docker binary is installed
+      stat:
+        path: "/usr/bin/docker"
+      register: docker_bin
+      
+    - name: Get Docker package information
+      command: dpkg -l docker* containerd*
+      register: docker_packages
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "Debian"
+      
+    - name: Display Docker package information
+      debug:
+        msg: "Docker package information:"
+      when: ansible_os_family == "Debian"
+      
+    - name: Output Docker package details
+      debug:
+        var: docker_packages.stdout_lines
+      when: ansible_os_family == "Debian" and docker_packages.stdout_lines is defined
+      
+    - name: Get Docker package information (RHEL/CentOS)
+      command: rpm -qa docker* containerd*
+      register: docker_packages_rpm
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "RedHat"
+      
+    - name: Display Docker package information (RHEL/CentOS)
+      debug:
+        msg: "Docker package information:"
+      when: ansible_os_family == "RedHat"
+      
+    - name: Output Docker package details (RHEL/CentOS)
+      debug:
+        var: docker_packages_rpm.stdout_lines
+      when: ansible_os_family == "RedHat" and docker_packages_rpm.stdout_lines is defined
+      
+    - name: Recommend Docker installation if not found
+      debug:
+        msg: |
+          Docker binary not found. To install Docker, run:
+          ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+      when: not docker_bin.stat.exists
+      
+    - name: Check if Docker service unit file exists (lib)
+      stat:
+        path: "/lib/systemd/system/docker.service"
+      register: docker_service_lib
+      when: docker_bin.stat.exists
+      
+    - name: Check if Docker service unit file exists (usr lib)
+      stat:
+        path: "/usr/lib/systemd/system/docker.service"
+      register: docker_service_usrlib
+      when: docker_bin.stat.exists and not docker_service_lib.stat.exists
+      
+    - name: Check if Docker service unit file exists (etc)
+      stat:
+        path: "/etc/systemd/system/docker.service"
+      register: docker_service_etc
+      when: docker_bin.stat.exists and not docker_service_lib.stat.exists and not docker_service_usrlib.stat.exists
+      
+    - name: Display Docker service file status
+      debug:
+        msg: >
+          Docker service unit file 
+          {{ 'found at /lib/systemd/system/docker.service' if docker_service_lib.stat.exists | default(false) else
+             'found at /usr/lib/systemd/system/docker.service' if docker_service_usrlib.stat.exists | default(false) else
+             'found at /etc/systemd/system/docker.service' if docker_service_etc.stat.exists | default(false) else
+             'not found - Docker service may be improperly installed' }}
+      when: docker_bin.stat.exists
+        
+    - name: Check Docker service status
+      command: systemctl status docker
+      register: docker_service_status
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Display Docker service status
+      debug:
+        msg: "Docker service status:"
+      when: docker_bin.stat.exists
+      
+    - name: Output Docker service details
+      debug:
+        var: docker_service_status.stdout_lines
+      when: docker_bin.stat.exists and docker_service_status.stdout_lines is defined
+      
+    - name: Check if Docker socket exists
+      stat:
+        path: "/var/run/docker.sock"
+      register: docker_sock
+      when: docker_bin.stat.exists
+      
+    - name: Display Docker socket information
+      debug:
+        msg: |
+          Docker socket information:
+          Path: /var/run/docker.sock
+          Exists: {{ docker_sock.stat.exists | default(false) }}
+          {% if docker_sock.stat.exists | default(false) %}
+          Permissions: {{ docker_sock.stat.mode }}
+          Owner: {{ docker_sock.stat.pw_name }}
+          Group: {{ docker_sock.stat.gr_name }}
+          {% endif %}
+          
+          {% if docker_sock.stat.exists | default(false) and docker_sock.stat.gr_name != 'docker' %}
+          ISSUE: Docker socket is not owned by the 'docker' group. This may cause permission problems.
+          {% endif %}
+      when: docker_bin.stat.exists
+      
+    - name: Check if current user is in docker group
+      command: groups {{ ansible_user }}
+      register: user_groups
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Display user group information
+      debug:
+        msg: |
+          User '{{ ansible_user }}' {{ 'is' if 'docker' in user_groups.stdout else 'is NOT' }} in the docker group.
+          {% if 'docker' not in user_groups.stdout %}
+          ISSUE: User must be in the 'docker' group to use Docker without sudo.
+          {% endif %}
+      when: docker_bin.stat.exists
+      
+    - name: Check Docker daemon configuration
+      stat:
+        path: "/etc/docker/daemon.json"
+      register: daemon_json
+      when: docker_bin.stat.exists
+      
+    - name: Display Docker daemon configuration
+      command: cat /etc/docker/daemon.json
+      register: daemon_config
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists and daemon_json.stat.exists | default(false)
+      
+    - name: Show Docker daemon configuration
+      debug:
+        msg: "Docker daemon configuration:"
+      when: docker_bin.stat.exists and daemon_json.stat.exists | default(false)
+      
+    - name: Output Docker daemon configuration details
+      debug:
+        var: daemon_config.stdout_lines
+      when: docker_bin.stat.exists and daemon_json.stat.exists | default(false) and daemon_config.stdout_lines is defined
+      
+    - name: Check Docker info (non-privileged)
+      become: false
+      command: docker info
+      register: docker_info_user
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Check Docker info (as root)
+      command: docker info
+      register: docker_info_root
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Display Docker info status
+      debug:
+        msg: |
+          Docker daemon status:
+          As user: {{ 'OK' if docker_info_user.rc == 0 else 'FAILED' }}
+          As root: {{ 'OK' if docker_info_root.rc == 0 else 'FAILED' }}
+          
+          {% if docker_info_user.rc != 0 and docker_info_root.rc == 0 %}
+          ISSUE: Docker works as root but not as user. Check user permissions and group membership.
+          {% elif docker_info_root.rc != 0 %}
+          ISSUE: Docker daemon is not responding. The service may need to be restarted.
+          {% endif %}
+      when: docker_bin.stat.exists
+      
+    - name: Check if Docker registry container exists
+      become: false
+      command: docker ps -a --filter "name=registry" --format "{{ '{{' }}.State{{ '}}' }}"
+      register: registry_status
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists and docker_info_user.rc == 0
+      
+    - name: Display Docker registry status
+      debug:
+        msg: |
+          Docker Registry status: {{ registry_status.stdout if registry_status.stdout != '' else 'Not found' }}
+          
+          {% if registry_status.stdout == '' %}
+          ISSUE: Docker registry container not found. It should be created by running:
+          docker run -d -p 5000:5000 --restart=always --name registry registry:2
+          {% elif registry_status.stdout != 'running' %}
+          ISSUE: Docker registry exists but is not running. Start it with:
+          docker start registry
+          {% endif %}
+      when: docker_bin.stat.exists and docker_info_user.rc == 0
+      
+    - name: Check registry connectivity
+      uri:
+        url: http://localhost:5000/v2/_catalog
+        status_code: 200
+      register: registry_check
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists and docker_info_user.rc == 0 and registry_status.stdout == 'running'
+      
+    - name: Display registry connectivity status
+      debug:
+        msg: |
+          Registry API status: {{ registry_check.status | default(0) }}
+          Content: {{ registry_check.content | default('No content') }}
+          
+          {% if registry_check.status | default(0) != 200 %}
+          ISSUE: Docker registry API is not responding properly.
+          {% endif %}
+      when: docker_bin.stat.exists and docker_info_user.rc == 0 and registry_status.stdout == 'running'
+      
+    - name: Check available images
+      become: false
+      command: docker images
+      register: docker_images
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists and docker_info_user.rc == 0
+      
+    - name: Display available images
+      debug:
+        msg: "Available Docker images:"
+      when: docker_bin.stat.exists and docker_info_user.rc == 0
+      
+    - name: Output available images details
+      debug:
+        var: docker_images.stdout_lines
+      when: docker_bin.stat.exists and docker_info_user.rc == 0 and docker_images.stdout_lines is defined
+      
+    - name: Check Docker logs
+      command: journalctl -u docker --no-pager -n 20
+      register: docker_logs
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Display Docker logs
+      debug:
+        msg: "Recent Docker logs:"
+      when: docker_bin.stat.exists
+      
+    - name: Output Docker logs details
+      debug:
+        var: docker_logs.stdout_lines
+      when: docker_bin.stat.exists and docker_logs.stdout_lines is defined
+      
+    - name: Check Docker storage details
+      command: df -h /var/lib/docker
+      register: docker_storage
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Display Docker storage
+      debug:
+        msg: "Docker storage:"
+      when: docker_bin.stat.exists
+      
+    - name: Output Docker storage details
+      debug:
+        var: docker_storage.stdout_lines
+      when: docker_bin.stat.exists and docker_storage.stdout_lines is defined
+      
+    - name: Display Docker diagnostic summary
+      debug:
+        msg: |
+          ===========================================
+          DOCKER DIAGNOSTIC SUMMARY
+          ===========================================
+          
+          1. Installation:
+             - Docker binary: {{ 'FOUND' if docker_bin.stat.exists else 'NOT FOUND' }}
+             - Service files: {{ 'OK' if docker_service_lib.stat.exists | default(false) or docker_service_usrlib.stat.exists | default(false) or docker_service_etc.stat.exists | default(false) else 'MISSING' }}
+          
+          2. Service:
+             - Status: {{ 'RUNNING' if docker_service_status.rc == 0 else 'NOT RUNNING' }}
+             - Socket: {{ 'OK' if docker_sock.stat.exists | default(false) else 'MISSING' }}
+          
+          3. Permissions:
+             - Socket group: {{ docker_sock.stat.gr_name | default('unknown') }}
+             - User in docker group: {{ 'YES' if 'docker' in user_groups.stdout | default('') else 'NO' }}
+          
+          4. Registry:
+             - Container: {{ registry_status.stdout if registry_status.stdout != '' else 'NOT FOUND' }}
+             - API accessible: {{ 'YES' if registry_check.status | default(0) == 200 else 'NO' }}
+          
+          5. Storage:
+             {{ docker_storage.stdout_lines[0] | default('') }}
+             {{ docker_storage.stdout_lines[1] | default('') }}
+          
+          ===========================================
+          RECOMMENDED ACTIONS
+          ===========================================
+          
+          {% if not docker_bin.stat.exists %}
+          1. Install Docker:
+             ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+          {% elif not docker_service_lib.stat.exists | default(false) and not docker_service_usrlib.stat.exists | default(false) and not docker_service_etc.stat.exists | default(false) %}
+          1. Reinstall Docker service:
+             ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+          {% elif docker_service_status.rc != 0 %}
+          1. Start Docker service:
+             ansible-playbook -i inventory.yml playbooks/docker/start_docker.yml
+          {% endif %}
+          
+          {% if docker_bin.stat.exists and 'docker' not in user_groups.stdout | default('') %}
+          2. Add user to docker group:
+             sudo usermod -aG docker {{ ansible_user }} && newgrp docker
+          {% endif %}
+          
+          {% if docker_bin.stat.exists and docker_info_user.rc == 0 and (registry_status.stdout == '' or registry_status.stdout != 'running') %}
+          3. Start Docker registry:
+             ansible-playbook -i inventory.yml playbooks/docker/start_docker.yml
+          {% endif %}
+          
+          For detailed management of Docker:
+          - Start: ansible-playbook -i inventory.yml playbooks/docker/start_docker.yml
+          - Stop: ansible-playbook -i inventory.yml playbooks/docker/stop_docker.yml
+          - Restart: ansible-playbook -i inventory.yml playbooks/docker/restart_docker.yml
+          - Status: ansible-playbook -i inventory.yml playbooks/docker/status_docker.yml

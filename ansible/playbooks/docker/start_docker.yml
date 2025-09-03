@@ -1,0 +1,101 @@
+---
+# This playbook starts Docker service on native Linux machines
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/start_docker.yml
+#
+# This playbook will:
+# 1. Check if Docker is installed
+# 2. Start Docker service if not running
+# 3. Verify Docker is operational
+# 4. Start Docker registry if needed
+
+- name: Start Docker Service
+  hosts: native:!wsl
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Verify SSH connectivity
+      ping:
+      register: ping_result
+      failed_when: false
+      
+    - name: Skip hosts with SSH connectivity issues
+      meta: end_host
+      when: ping_result is failed
+  tasks:
+    - name: Check if Docker is installed
+      stat:
+        path: "/usr/bin/docker"
+      register: docker_bin
+      
+    - name: Fail if Docker is not installed
+      fail:
+        msg: >
+          Docker is not installed. Please run the install_docker.yml playbook first:
+          ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+      when: not docker_bin.stat.exists
+      
+    - name: Check if Docker service unit file exists
+      stat:
+        path: "/lib/systemd/system/docker.service"
+      register: docker_service_lib
+      
+    - name: Check if Docker service unit file exists in etc
+      stat:
+        path: "/etc/systemd/system/docker.service"
+      register: docker_service_etc
+      when: not docker_service_lib.stat.exists
+      
+    - name: Fail if Docker service is not properly installed
+      fail:
+        msg: >
+          Docker service unit file not found. Docker appears to be improperly installed.
+          Please run the install_docker.yml playbook to fix this issue:
+          ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+      when: not docker_service_lib.stat.exists and (not docker_service_etc.stat.exists | default(false))
+      
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+        daemon_reload: yes
+        
+    - name: Verify Docker is running properly
+      command: docker info
+      register: docker_info
+      failed_when: docker_info.rc != 0
+      changed_when: false
+      
+    - name: Check if Docker registry is running
+      command: docker ps -a --filter "name=registry" --format "{{ '{{' }}.State{{ '}}' }}"
+      register: registry_status
+      failed_when: false
+      changed_when: false
+      
+    - name: Start Docker registry if not running
+      command: docker start registry
+      when: registry_status.stdout != "running" and registry_status.stdout != ""
+      register: registry_start
+      failed_when: false
+      changed_when: registry_start.rc == 0
+      
+    - name: Create Docker registry if doesn't exist
+      command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
+      when: registry_status.stdout == ""
+      register: registry_create
+      failed_when: false
+      changed_when: registry_create.rc == 0
+      
+    - name: Verify Docker registry is accessible
+      uri:
+        url: http://localhost:5000/v2/_catalog
+        status_code: 200
+      register: registry_check
+      failed_when: false
+      changed_when: false
+      
+    - name: Display Docker status
+      debug:
+        msg: >
+          Docker service is now running.
+          Registry status: {{ "OK" if registry_check.status == 200 else "Not responding" }}

@@ -17,16 +17,19 @@ ansible-playbook -i ansible/inventory.yml ansible/playbooks/nfs/install_nfs.yml
 
 2. Set up Kubernetes:
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/setup_kubernetes.yml
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/init_kubernetes_cluster.yml
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/setup_k8s_permissions.yml
+# Use the simplified k8s playbooks for installation and management
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/install_k8s.yml
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start_k8s.yml
 ```
 
-3. Distribute Kubernetes certificates securely:
+3. Certificate Management (after hostname/network changes):
 ```bash
 # Navigate to ansible directory first
 cd ansible
-ansible-playbook -i inventory.yml playbooks/k8s/distribute_k8s_certs.yml
+# Regenerate certificates with the new hostnames
+ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+# Update kubeconfig files with the new certificates
+ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml --tags=kubeconfig
 ```
 
 4. Deploy Spark on Kubernetes securely:
@@ -37,7 +40,10 @@ ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
 
 > **Important:** Always run Ansible playbooks from within the `ansible` directory to ensure that `ansible.cfg` is properly loaded. See [Running Ansible Playbooks](docs/RUNNING_ANSIBLE_PLAYBOOKS.md) for details.
 
-> **Note:** The deployment uses secure certificate management and doesn't rely on insecure TLS flags.
+> **Security Note:** This deployment implements robust certificate management with proper TLS validation.
+> - All insecure TLS verification flags have been removed for production-grade security
+> - Certificate regeneration is fully automated when hostnames or network configurations change
+> - Comprehensive certificate validation ensures proper TLS security throughout the stack
 > For detailed information about the secure deployment, see [Secure Spark Deployment Guide](docs/SECURE_SPARK_DEPLOYMENT.md).
 
 ### Managing Spark
@@ -80,6 +86,8 @@ When done with the interactive session:
 ```bash
 # Clean up the pod when finished
 kubectl delete pod pyspark-ipython -n spark
+
+# The session will end when you exit the shell or press Ctrl+D
 ```
 
 #### Stopping Spark
@@ -202,3 +210,38 @@ Then access: http://localhost:18080
    - Check Docker build logs
    - Verify all required build arguments are properly extracted from `spark-image.toml`
    - Ensure Docker has enough resources allocated
+
+## Kubernetes Cluster Management
+
+The project includes a set of Ansible playbooks for managing Kubernetes clusters with production-grade security:
+
+```bash
+# Initial setup: Install and set up Kubernetes
+cd ansible
+ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml
+
+# After hostname or network changes:
+# 1. First regenerate certificates with current hostnames
+ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+# 2. Then recreate kubeconfig files to use the new certificates
+ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml --tags=kubeconfig
+
+# Check Kubernetes cluster status
+ansible-playbook -i inventory.yml playbooks/k8s/status_k8s.yml
+
+# Start/Stop Kubernetes services
+ansible-playbook -i inventory.yml playbooks/k8s/start_k8s.yml
+ansible-playbook -i inventory.yml playbooks/k8s/stop_k8s.yml
+
+# Generate a new join token for worker nodes
+ansible-playbook -i inventory.yml playbooks/k8s/create_join_token.yml
+```
+
+> **Security Note:** The Kubernetes configuration enforces strict TLS certificate validation. When hostnames or network configurations change, always run the playbooks in this exact order:
+> 1. `regenerate_k8s_certs.yml` - Creates new certificates with the current hostnames (includes case-insensitive hostname matching)
+> 2. `install_k8s.yml --tags=kubeconfig` - Creates kubeconfig files with the new certificates
+> 3. `start_k8s.yml` - Restarts services with the new configuration
+>
+> The playbooks automatically handle hostname case sensitivity by including both original and lowercase variants of all hostnames in the certificates.
+
+See [ansible/playbooks/k8s/README.md](ansible/playbooks/k8s/README.md) for detailed documentation on Kubernetes management.

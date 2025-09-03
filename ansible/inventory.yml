@@ -46,11 +46,6 @@ all:
                   hosts:
                     Lab2:  # Same host is both master and worker for now
                       ansible_host: Lab2.lan
-            observability:
-              hosts:
-                # Add future observability (Elastic/Grafana) Linux host(s) here
-                # ElasticHost.lan:
-                #   ansible_host: ElasticHost.lan
         wsl:
           vars:
             ansible_port: 2222

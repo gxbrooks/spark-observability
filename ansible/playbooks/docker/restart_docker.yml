@@ -1,0 +1,77 @@
+---
+# This playbook restarts Docker service on native Linux machines
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/restart_docker.yml
+#
+# This playbook will:
+# 1. Check if Docker is installed
+# 2. Restart Docker service
+# 3. Verify Docker is operational
+
+- name: Restart Docker Service
+  hosts: native:!wsl
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Verify SSH connectivity
+      ping:
+      register: ping_result
+      failed_when: false
+      
+    - name: Skip hosts with SSH connectivity issues
+      meta: end_host
+      when: ping_result is failed
+  tasks:
+    - name: Check if Docker is installed
+      stat:
+        path: "/usr/bin/docker"
+      register: docker_bin
+      
+    - name: Fail if Docker is not installed
+      fail:
+        msg: >
+          Docker is not installed. Please run the install_docker.yml playbook first:
+          ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+      when: not docker_bin.stat.exists
+      
+    - name: Check if Docker service unit file exists
+      stat:
+        path: "/lib/systemd/system/docker.service"
+      register: docker_service_lib
+      
+    - name: Check if Docker service unit file exists in etc
+      stat:
+        path: "/etc/systemd/system/docker.service"
+      register: docker_service_etc
+      when: not docker_service_lib.stat.exists
+      
+    - name: Fail if Docker service is not properly installed
+      fail:
+        msg: >
+          Docker service unit file not found. Docker appears to be improperly installed.
+          Please run the install_docker.yml playbook to fix this issue:
+          ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+      when: not docker_service_lib.stat.exists and (not docker_service_etc.stat.exists | default(false))
+      
+    - name: Restart Docker service
+      systemd:
+        name: docker
+        state: restarted
+        daemon_reload: yes
+        
+    - name: Wait for Docker to be ready
+      command: docker info
+      register: docker_info
+      until: docker_info.rc == 0
+      retries: 5
+      delay: 5
+      failed_when: false
+      changed_when: false
+      
+    - name: Verify Docker is running properly
+      fail:
+        msg: "Failed to restart Docker properly. Run playbooks/docker/diagnose_docker.yml for detailed diagnostics."
+      when: docker_info.rc != 0
+      
+    - name: Display Docker status
+      debug:
+        msg: "Docker service has been restarted successfully."

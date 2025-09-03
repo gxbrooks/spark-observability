@@ -1,0 +1,49 @@
+---
+# This playbook stops Docker service on native Linux machines
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/stop_docker.yml
+#
+# This playbook will:
+# 1. Check if Docker is installed
+# 2. Stop Docker service if running
+
+- name: Stop Docker Service
+  hosts: native:!wsl
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Verify SSH connectivity
+      ping:
+      register: ping_result
+      failed_when: false
+      
+    - name: Skip hosts with SSH connectivity issues
+      meta: end_host
+      when: ping_result is failed
+  tasks:
+    - name: Check if Docker is installed
+      stat:
+        path: "/usr/bin/docker"
+      register: docker_bin
+      
+    - name: Exit gracefully if Docker is not installed
+      debug:
+        msg: "Docker is not installed. Nothing to stop."
+      when: not docker_bin.stat.exists
+      
+    - name: Check Docker service status
+      command: systemctl is-active docker
+      register: docker_status
+      failed_when: false
+      changed_when: false
+      when: docker_bin.stat.exists
+      
+    - name: Stop Docker service if running
+      systemd:
+        name: docker
+        state: stopped
+      when: docker_bin.stat.exists and docker_status.stdout == "active"
+      
+    - name: Display Docker status
+      debug:
+        msg: "Docker service is now stopped."
+      when: docker_bin.stat.exists
