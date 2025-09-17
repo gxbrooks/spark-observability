@@ -18,9 +18,9 @@
   vars:
     SPARK_VERSION: "{{ spark_version }}"
   loop:
-    - spark-master-deployment.yaml.j2
-    - spark-history-deployment.yaml.j2
-    - spark-worker-deployment.yaml.j2
+    - spark-master.yaml.j2
+    - spark-history.yaml.j2
+    - spark-worker.yaml.j2
 
 - name: Copy service manifests
   copy:
@@ -30,6 +30,7 @@
   loop:
     - spark-history-service.yaml
     - spark-master-service.yaml
+    - spark-master-headless.yaml
 
 - name: Apply service manifests
   k8s:
@@ -38,6 +39,7 @@
     src: "{{ k8s_config_dir }}/{{ item }}"
   loop:
     - spark-master-service.yaml
+    - spark-master-headless.yaml
     - spark-history-service.yaml
     
 - name: Apply deployment manifests
@@ -46,6 +48,6 @@
     state: present
     src: "{{ k8s_config_dir }}/{{ item }}"
   loop:
-    - spark-master-deployment.yaml
-    - spark-history-deployment.yaml
-    - spark-worker-deployment.yaml
+    - spark-master.yaml
+    - spark-history.yaml
+    - spark-worker.yaml

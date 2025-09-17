@@ -13,9 +13,19 @@ data:
   ELASTIC_USER: "elastic"
   ELASTIC_PASSWORD: "myElastic2025"
   CA_CERT_LINUX_PATH: "/etc/ssl/certs/elastic/ca.crt"
-  SPARK_MASTER: "spark://spark-master:7077"
-  SPARK_MASTER_HOST: "spark-master"
+  # Updated to use FQDN for better DNS resolution
+  SPARK_MASTER: "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"
+  SPARK_MASTER_HOST: "spark-master-0.spark-master-headless.spark.svc.cluster.local"
   SPARK_MASTER_PORT: "7077"
+  # Enhanced DNS resolution settings
+  SPARK_MASTER_HOSTNAME: "spark-master-0.spark-master-headless.spark.svc.cluster.local"
+  SPARK_LOCAL_HOSTNAME: "spark-master-0.spark-master-headless.spark.svc.cluster.local" 
+  SPARK_DRIVER_HOST: "spark-master-0.spark-master-headless.spark.svc.cluster.local"
+  SPARK_PUBLIC_DNS: "spark-master-0.spark-master-headless.spark.svc.cluster.local"
+  # Network timeouts to handle potential DNS resolution delays
+  SPARK_RPC_ASKTIME: "60s"
+  SPARK_NETWORK_TIMEOUT: "120s"
+  # Original settings
   SPARK_EVENTS_DIR: "/mnt/spark-events"
   SPARK_NO_DAEMONIZE: "True"
   SPARK_USER: "ansible"

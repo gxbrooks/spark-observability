@@ -32,9 +32,9 @@ The user-specific configuration directory contains deployment configurations, Ku
 USER_SPARK_HOME=/home/ansible/spark/
 ├── conf/          # User-specific configuration overrides
 ├── k8s/           # Kubernetes manifests (generated from templates)
-│   ├── spark-master-deployment.yaml  # Generated from templates
-│   ├── spark-worker-deployment.yaml  # Generated from templates
-│   ├── spark-history-deployment.yaml # Generated from templates
+│   ├── spark-master.yaml  # Generated from templates (StatefulSet)
+│   ├── spark-worker.yaml  # Generated from templates
+│   ├── spark-history.yaml # Generated from templates
 │   ├── spark-master-service.yaml     # Copied from ansible role files
 │   ├── spark-history-service.yaml    # Copied from ansible role files
 │   ├── spark-rbac.yaml               # Copied from ansible role files

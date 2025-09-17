@@ -102,9 +102,9 @@
       vars:
         SPARK_VERSION: "{{ spark_version }}"
       with_items:
-        - spark-master-deployment.yaml
-        - spark-worker-deployment.yaml
-        - spark-history-deployment.yaml
+        - spark-master.yaml
+        - spark-worker.yaml
+        - spark-history.yaml
 
     - name: Copy Spark service and env ConfigMap manifests
       copy:
@@ -113,6 +113,7 @@
         mode: '0644'
       loop:
         - spark-master-service.yaml
+        - spark-master-headless.yaml
         - spark-history-service.yaml
         - spark-configmap.yaml
 
@@ -133,21 +134,21 @@
       k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: absent
-        src: "{{ k8s_config_dir }}/spark-master-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-master.yaml"
       when: spark_component_var in ['master', 'all'] and restart | default(false)
 
     - name: Stop Spark History Server for restart
       k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: absent
-        src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-history.yaml"
       when: spark_component_var in ['history', 'all'] and restart | default(false)
 
     - name: Stop Spark Workers for restart
       k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: absent
-        src: "{{ k8s_config_dir }}/spark-worker-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-worker.yaml"
       when: spark_component_var in ['worker', 'all'] and restart | default(false)
 
     - name: Wait for pods to terminate when restarting
@@ -156,6 +157,13 @@
       when: restart | default(false)
 
     # Start services first
+    - name: Start Master Headless Service
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        src: "{{ k8s_config_dir }}/spark-master-headless.yaml"
+      when: spark_component_var in ['master', 'all']
+      
     - name: Start Master Service
       k8s:
         kubeconfig: "{{ kubeconfig }}"
@@ -175,21 +183,21 @@
       k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: present
-        src: "{{ k8s_config_dir }}/spark-master-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-master.yaml"
       when: spark_component_var in ['master', 'all']
     
     - name: Start Spark History Server
       k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: present
-        src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-history.yaml"
       when: spark_component_var in ['history', 'all']
     
     - name: Start Spark Workers
       k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: present
-        src: "{{ k8s_config_dir }}/spark-worker-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-worker.yaml"
       when: spark_component_var in ['worker', 'all']
       
     # Debug tasks to check component status

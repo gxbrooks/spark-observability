@@ -147,7 +147,7 @@ vars_files:
 **Agent**: Ansible template module
 
 **Input Files**: Template files in `/home/gxbrooks/repos/elastic-on-spark/ansible/roles/spark/templates/`  
-**Example**: `spark-master-deployment.yml.j2`
+**Example**: `spark-master.yml.j2`
 
 ```yaml
 containers:
@@ -156,7 +156,7 @@ containers:
 ```
 
 **Output Files**: Rendered Kubernetes manifests in the target environment's directory  
-**Example**: `~/spark/k8s/spark-master-deployment.yaml`
+**Example**: `~/spark/k8s/spark-master.yaml`
 
 > **Note on File Extensions**: The system maintains consistency by converting `.yml.j2` template files to `.yaml` output files during the rendering process. This ensures compatibility with both Ansible (which often uses `.yml`) and Kubernetes (which prefers `.yaml`). The conversion is handled by the regex_replace filter in the template task.
 

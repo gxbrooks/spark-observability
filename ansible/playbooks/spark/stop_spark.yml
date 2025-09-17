@@ -33,6 +33,7 @@
         mode: '0644'
       loop:
         - spark-master-service.yaml
+        - spark-master-headless.yaml
         - spark-history-service.yaml
         - spark-configmap.yaml
         
@@ -45,23 +46,23 @@
       vars:
         SPARK_VERSION: "{{ spark_version }}"
       loop:
-        - spark-master-deployment.yaml
-        - spark-worker-deployment.yaml
-        - spark-history-deployment.yaml
+        - spark-master.yaml
+        - spark-worker.yaml
+        - spark-history.yaml
 
     # Step 1: Stop workers first to ensure graceful disconnection from master
     - name: Stop Spark Workers
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-worker-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-worker.yaml"
 
     # Step 2: Stop history server as it's independent of master/worker relationship
     - name: Stop Spark History Server
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-history-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-history.yaml"
         
     # Step 2.5: Remove the history service
     - name: Remove Spark History Service
@@ -75,7 +76,7 @@
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-master-deployment.yaml"
+        src: "{{ k8s_config_dir }}/spark-master.yaml"
 
     # Step 4: Remove the master service after the deployment is gone
     - name: Remove Spark Master Service
@@ -83,6 +84,13 @@
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
         src: "{{ k8s_config_dir }}/spark-master-service.yaml"
+        
+    # Step 5: Remove the headless service
+    - name: Remove Spark Master Headless Service
+      k8s:
+        kubeconfig: /home/{{ ansible_user }}/.kube/config
+        state: absent
+        src: "{{ k8s_config_dir }}/spark-master-headless.yaml"
 
     # Step 5: Finally remove the configmap after all pods are gone
     - name: Remove Spark ConfigMap

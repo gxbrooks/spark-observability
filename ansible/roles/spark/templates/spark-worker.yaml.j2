@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker
+  namespace: spark
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spark-worker
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      serviceAccountName: spark
+      # Add dnsPolicy and dnsConfig for more reliable DNS resolution
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "5"
+      containers:
+        - name: spark-worker
+          image: "{{ spark_image }}:{{ spark_tag }}"
+          imagePullPolicy: Always
+          command: ["./entrypoint.sh", "worker"]
+          envFrom:
+            - configMapRef:
+                name: spark-configmap
+          env:
+            # Add master host information for reliable connection
+            - name: SPARK_MASTER_HOST_IP
+              value: "spark-master-0.spark-master-headless.spark.svc.cluster.local"
+            - name: SPARK_LOCAL_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - containerPort: 8081
+              name: webui
+          # Add readiness and liveness probes
+          readinessProbe:
+            exec:
+              command: ["./k8s-readiness.sh", "worker"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["./check-spark-health.sh", "worker"]
+            initialDelaySeconds: 45
+            periodSeconds: 60
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: "6"
+              memory: "16Gi"
+            limits:
+              cpu: "10"
+              memory: "32Gi"
+          volumeMounts:
+            - name: spark-events
+              mountPath: /mnt/spark-events
+      volumes:
+        - name: spark-events
+          hostPath:
+            path: /mnt/spark-events
+            type: DirectoryOrCreate
