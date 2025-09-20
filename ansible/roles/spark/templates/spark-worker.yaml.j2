@@ -30,27 +30,36 @@ spec:
                 name: spark-configmap
           env:
             # Add master host information for reliable connection
-            - name: SPARK_MASTER_HOST_IP
-              value: "spark-master-0.spark-master-headless.spark.svc.cluster.local"
+            - name: SPARK_MASTER_HOST
+              value: "spark-master-headless.spark.svc.cluster.local"
+            - name: SPARK_MASTER_PORT
+              value: "7077"
             - name: SPARK_LOCAL_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SPARK_LOCAL_HOSTNAME
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
           ports:
             - containerPort: 8081
               name: webui
-          # Add readiness and liveness probes
+          # Re-enable health checks now that scripts are available
           readinessProbe:
             exec:
               command: ["./k8s-readiness.sh", "worker"]
             initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             exec:
               command: ["./check-spark-health.sh", "worker"]
-            initialDelaySeconds: 45
-            periodSeconds: 60
+            initialDelaySeconds: 60
+            periodSeconds: 120
             timeoutSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "6"
@@ -61,8 +70,14 @@ spec:
           volumeMounts:
             - name: spark-events
               mountPath: /mnt/spark-events
+            - name: spark-defaults-conf
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
       volumes:
         - name: spark-events
           hostPath:
             path: /mnt/spark-events
             type: DirectoryOrCreate
+        - name: spark-defaults-conf
+          configMap:
+            name: spark-defaults-conf

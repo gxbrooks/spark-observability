@@ -30,7 +30,14 @@ RUN apt-get update  \
       build-essential \
       software-properties-common \
       ssh \
-	  ipython3 \
+      ipython3 \
+      dnsutils \
+      iputils-ping \
+      net-tools \
+      netcat \
+      traceroute \
+      tcpdump \
+      iproute2 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -41,9 +48,9 @@ RUN apt-get update  \
 RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME}
 WORKDIR ${SPARK_HOME}
 
-# Download and install Spark
-RUN curl https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \
- && tar xvzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
+# Install Spark from pre-downloaded archive in the images directory
+COPY images/spark-${SPARK_VERSION}-bin-hadoop3.tgz .
+RUN tar xvzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
  && rm -rf spark-${SPARK_VERSION}-bin-hadoop3.tgz
 
 FROM spark-base AS pyspark
@@ -56,9 +63,9 @@ FROM spark-base AS pyspark
 COPY requirements/requirements.in .
 RUN pip3 install -r requirements.in
 
-# Copy the default configurations into $SPARK_HOME/conf
-COPY conf/spark-defaults.conf "$SPARK_HOME/conf"
-#COPY conf/log4j2.properties "$SPARK_HOME/conf"
+# Copy only the log configuration, not spark-defaults.conf
+# spark-defaults.conf will be mounted from ConfigMap at runtime
+COPY conf/log4j2.properties "$SPARK_HOME/conf"
 
 RUN chmod u+x /opt/spark/sbin/* && \
     chmod u+x /opt/spark/bin/*
@@ -69,10 +76,11 @@ ENV PYTHONPATH=$SPARK_HOME/python
 
 WORKDIR ${SPARK_HOME}
 
-# Copy the entrypoint which starts elasstic-agent and then invokes the approriate
-# Spark process
+# Copy the entrypoint which invokes Spark with the correct mode or role
 COPY entrypoint.sh .
-RUN chmod a+x entrypoint.sh
+COPY check-spark-health.sh .
+COPY k8s-readiness.sh .
+RUN chmod a+x entrypoint.sh check-spark-health.sh k8s-readiness.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
 

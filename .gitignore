@@ -27,6 +27,16 @@ ansible_venv/
 
 config.env
 spark-data/
+spark/images/
+
+# Generated configuration files
+docker/.env
+spark/spark-image.toml
+ansible/roles/spark/files/k8s/spark-configmap.yaml
+ansible/vars/spark_vars.yml
+
+# Build artifacts
+spark/.last_build_timestamp
 
 *.drawio.dtmp
 *.drawio.bkp

@@ -35,17 +35,17 @@ spec:
                   fieldPath: status.podIP
           ports:
             - containerPort: 18080
-          # Add readiness and liveness probes
-          readinessProbe:
-            exec:
-              command: ["./k8s-readiness.sh", "history"]
-            initialDelaySeconds: 20
-            periodSeconds: 10
-          livenessProbe:
-            exec:
-              command: ["./check-spark-health.sh", "all"]
-            initialDelaySeconds: 30
-            periodSeconds: 120
+          # Temporarily removed health checks due to missing scripts
+          # readinessProbe:
+          #   exec:
+          #     command: ["./k8s-readiness.sh", "history"]
+          #   initialDelaySeconds: 20
+          #   periodSeconds: 10
+          # livenessProbe:
+          #   exec:
+          #     command: ["./check-spark-health.sh", "all"]
+          #   initialDelaySeconds: 30
+          #   periodSeconds: 120
           resources:
             requests:
               cpu: "1"
@@ -56,8 +56,14 @@ spec:
           volumeMounts:
             - name: spark-events
               mountPath: /mnt/spark-events
+            - name: spark-defaults-conf
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
       volumes:
         - name: spark-events
           hostPath:
             path: /mnt/spark-events
             type: DirectoryOrCreate
+        - name: spark-defaults-conf
+          configMap:
+            name: spark-defaults-conf
