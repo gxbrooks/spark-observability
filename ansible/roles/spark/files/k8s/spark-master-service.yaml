@@ -3,6 +3,31 @@ kind: Service
 metadata:
   name: spark-master
   namespace: spark
+  labels:
+    app: spark-master
+spec:
+  selector:
+    app: spark-master
+  ports:
+    - name: spark
+      protocol: TCP
+      port: 7077
+      targetPort: 7077
+    - name: ui
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: NodePort
+  # Removed clusterIP: None to avoid conflict with headless service
+---
+# Headful Service for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-external
+  namespace: spark
+  labels:
+    app: spark-master
 spec:
   selector:
     app: spark-master

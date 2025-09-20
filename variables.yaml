@@ -142,13 +142,27 @@ GOOGLE_APPLICATION_CREDENTIALS:
 
 # Spark runtime variables (for K8s ConfigMap)
 SPARK_MASTER:
-  value: spark://spark-master:7077
+  value: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
   contexts: [spark-runtime]
 SPARK_MASTER_HOST:
-  value: spark-master
+  value: spark-master-0.spark-master-headless.spark.svc.cluster.local
   contexts: [spark-runtime]
 SPARK_MASTER_PORT:
   value: 7077
+  contexts: [spark-runtime]
+  
+# Spark network and timeout settings
+SPARK_NETWORK_TIMEOUT:
+  value: 600s
+  contexts: [spark-runtime]
+SPARK_RPC_ASK_TIMEOUT:
+  value: 60s
+  contexts: [spark-runtime]
+SPARK_RPC_LOOKUP_TIMEOUT:
+  value: 60s
+  contexts: [spark-runtime]
+SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
+  value: 120s
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
   value: /mnt/spark-events

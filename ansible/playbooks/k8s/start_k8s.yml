@@ -67,3 +67,15 @@
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - node_check is defined and node_check.stdout_lines is defined
+        
+    - name: Check if master node is also a worker node
+      set_fact:
+        master_is_worker: "{{ groups['kubernetes_master'][0] in groups['kubernetes_workers'] }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+      
+    - name: Remove NoSchedule taint from master node when it's also a worker
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/control-plane-
+      ignore_errors: yes
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - master_is_worker | default(false)

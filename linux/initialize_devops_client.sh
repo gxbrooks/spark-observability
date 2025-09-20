@@ -22,7 +22,7 @@ while [[ $# -gt 0 ]]; do
           shift
           ;;
         *) echo "Unknown parameter passed: $1"  >&2
-          echo "Usage: $0 [--Check|-c] [--Debug|-c] [-N <passphrase>]" >&2
+          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>]" >&2
           exit 1
           ;;
     esac
