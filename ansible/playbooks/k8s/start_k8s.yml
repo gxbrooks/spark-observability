@@ -27,6 +27,154 @@
       retries: 10
       delay: 5
       
+    - name: Ensure br_netfilter module is loaded
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Ensure net.bridge.bridge-nf-call-iptables is set to 1
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: '1'
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Ensure net.bridge.bridge-nf-call-ip6tables is set to 1
+      sysctl:
+        name: net.bridge.bridge-nf-call-ip6tables
+        value: '1'
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Ensure net.ipv4.ip_forward is enabled
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Disable rp_filter for all
+      sysctl:
+        name: net.ipv4.conf.all.rp_filter
+        value: '0'
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Disable rp_filter for default
+      sysctl:
+        name: net.ipv4.conf.default.rp_filter
+        value: '0'
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Disable rp_filter on cni0
+      sysctl:
+        name: net.ipv4.conf.cni0.rp_filter
+        value: '0'
+        state: present
+        sysctl_set: yes
+        reload: yes
+      ignore_errors: true
+
+    - name: Disable rp_filter on flannel.1 if present
+      shell: |
+        if [ -f /proc/sys/net/ipv4/conf/flannel.1/rp_filter ]; then
+          echo 0 > /proc/sys/net/ipv4/conf/flannel.1/rp_filter
+        fi
+      changed_when: false
+      ignore_errors: true
+
+    - name: Disable rp_filter on enp6s0
+      sysctl:
+        name: net.ipv4.conf.enp6s0.rp_filter
+        value: '0'
+        state: present
+        sysctl_set: yes
+        reload: yes
+      ignore_errors: true
+
+    # Network connectivity checks and fixes
+    - name: Check FORWARD policy
+      shell: iptables -S FORWARD | head -n1
+      register: forward_policy
+      changed_when: false
+      
+    - name: Check if iptables rules are persisted
+      stat:
+        path: /etc/iptables/rules.v4
+      register: iptables_persisted
+      
+    - name: Check persisted FORWARD policy if rules exist
+      shell: |
+        if [ -f /etc/iptables/rules.v4 ]; then
+          grep -E '^-P FORWARD' /etc/iptables/rules.v4 || echo "No FORWARD policy found in persisted rules"
+        else
+          echo "No persisted rules found"
+        fi
+      register: persisted_forward_policy
+      when: iptables_persisted.stat.exists
+      
+    - name: Display current and persisted FORWARD policy
+      debug:
+        msg: |
+          Current FORWARD policy: {{ forward_policy.stdout }}
+          Persisted FORWARD policy: {{ persisted_forward_policy.stdout | default('No persisted rules') }}
+          Rules persisted: {{ iptables_persisted.stat.exists }}
+        
+    - name: Set FORWARD policy to ACCEPT if DROP
+      shell: iptables -P FORWARD ACCEPT
+      when: "'DROP' in forward_policy.stdout"
+      register: forward_fixed
+      
+    - name: Persist FORWARD policy in iptables rules
+      shell: |
+        mkdir -p /etc/iptables
+        iptables-save > /etc/iptables/rules.v4
+      when: "'DROP' in forward_policy.stdout or not iptables_persisted.stat.exists"
+      register: rules_persisted
+      
+    - name: Install iptables-persistent if not present
+      apt:
+        name: iptables-persistent
+        state: present
+        update_cache: yes
+      when: "'DROP' in forward_policy.stdout or not iptables_persisted.stat.exists"
+      
+    - name: Save iptables rules persistently
+      shell: netfilter-persistent save
+      when: "'DROP' in forward_policy.stdout or not iptables_persisted.stat.exists"
+      ignore_errors: true
+      
+    - name: Display network configuration summary
+      debug:
+        msg: |
+          Network configuration applied:
+          - FORWARD policy: {{ 'ACCEPT (was DROP)' if forward_fixed.changed else 'ACCEPT (already set)' }}
+          - Rules persisted: {{ 'Yes' if rules_persisted.changed else 'Already persisted' }}
+          - rp_filter disabled on all interfaces
+          - sysctl configuration applied
+      
+    - name: Create persistent rp_filter configuration
+      blockinfile:
+        path: /etc/sysctl.d/99-k8s-rpfilter.conf
+        block: |
+          # Kubernetes networking: disable reverse path filtering for pod traffic
+          net.ipv4.conf.all.rp_filter=0
+          net.ipv4.conf.default.rp_filter=0
+          net.ipv4.conf.cni0.rp_filter=0
+          net.ipv4.conf.flannel.1.rp_filter=0
+        marker: "# {mark} KUBERNETES RP_FILTER"
+        create: yes
+      
+    - name: Apply sysctl configuration
+      shell: sysctl --system
+      changed_when: false
+      
     - name: Update /etc/hosts if needed to ensure hostname resolution
       blockinfile:
         path: /etc/hosts
@@ -73,9 +221,19 @@
         master_is_worker: "{{ groups['kubernetes_master'][0] in groups['kubernetes_workers'] }}"
       when: inventory_hostname == groups['kubernetes_master'][0]
       
-    - name: Remove NoSchedule taint from master node when it's also a worker
+
+    - name: Remove NoSchedule taint (control-plane) from master node when it's also a worker
       command: kubectl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/control-plane-
-      ignore_errors: yes
-      when: 
+      register: remove_control_plane_taint
+      failed_when: false
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - master_is_worker | default(false)
+
+    - name: Remove NoSchedule taint (master) from master node when it's also a worker
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/master-
+      register: remove_master_taint
+      failed_when: false
+      when:
         - inventory_hostname == groups['kubernetes_master'][0]
         - master_is_worker | default(false)

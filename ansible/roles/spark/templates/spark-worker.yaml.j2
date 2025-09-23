@@ -29,11 +29,6 @@ spec:
             - configMapRef:
                 name: spark-configmap
           env:
-            # Add master host information for reliable connection
-            - name: SPARK_MASTER_HOST
-              value: "spark-master-headless.spark.svc.cluster.local"
-            - name: SPARK_MASTER_PORT
-              value: "7077"
             - name: SPARK_LOCAL_IP
               valueFrom:
                 fieldRef:

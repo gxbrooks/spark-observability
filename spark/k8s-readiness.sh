@@ -19,14 +19,43 @@ check_port() {
   return $?
 }
 
+resolve_master_host() {
+  local candidates=()
+  if [ -n "${SPARK_MASTER_HOST:-}" ]; then candidates+=("$SPARK_MASTER_HOST"); fi
+  if [ -n "${SPARK_MASTER:-}" ]; then
+    if [[ "$SPARK_MASTER" =~ ^spark://([^:]+):([0-9]+)$ ]]; then
+      candidates+=("${BASH_REMATCH[1]}")
+    fi
+  fi
+  candidates+=(
+    "spark-master-0.spark-master-headless.spark.svc.cluster.local"
+    "spark-master-headless.spark.svc.cluster.local"
+    "spark-master"
+  )
+
+  local max_attempts=${RESOLUTION_ATTEMPTS:-10}
+  local sleep_seconds=${RESOLUTION_SLEEP_SECONDS:-2}
+  local attempt=1
+  while [ $attempt -le $max_attempts ]; do
+    for host in "${candidates[@]}"; do
+      if check_dns "$host"; then
+        echo "$host"
+        return 0
+      fi
+    done
+    sleep "$sleep_seconds"
+    attempt=$((attempt+1))
+  done
+  return 1
+}
+
 case $COMPONENT in
   "master")
     # For master: Check self-resolution and port binding
-    # First try from the environment variable
     master_host=${SPARK_MASTER_HOST:-"spark-master-headless.spark.svc.cluster.local"}
-    hostname_check=$(check_dns "$master_host" || 
-                    check_dns "spark-master-0.spark-master-headless.spark.svc.cluster.local" || 
-                    check_dns "spark-master" || 
+    hostname_check=$(check_dns "$master_host" || \
+                    check_dns "spark-master-0.spark-master-headless.spark.svc.cluster.local" || \
+                    check_dns "spark-master" || \
                     check_dns "localhost")
     
     # For port binding, check both localhost and the configured hostname
@@ -34,55 +63,27 @@ case $COMPONENT in
     exit $((hostname_check + local_port_check))
     ;;
   "worker")
-    # For worker: Verify it can see the master
-    # Try multiple possible hostnames for the master, preferring the one in the environment
-    
-    # Check if we have a direct IP connection to the master (best option)
+    # For worker: Verify it can see the master without hardcoded IPs
     if grep -q "spark-master" /etc/hosts; then
-      master_entry=$(grep "spark-master" /etc/hosts)
+      master_entry=$(grep "spark-master" /etc/hosts | head -n1)
       master_ip=$(echo "$master_entry" | awk '{print $1}')
       master_host="$master_ip"
-      echo "✓ Found master entry in /etc/hosts: $master_entry"
+      echo "Using master from /etc/hosts: $master_host"
     else
-      # Fall back to environment variable or default hostname
-      master_host=${SPARK_MASTER_HOST:-"spark-master-0.spark-master-headless.spark.svc.cluster.local"}
-      
-      # Test DNS resolution with multiple fallbacks
-      if check_dns "spark-master-0.spark-master-headless.spark.svc.cluster.local"; then
-        echo "✓ DNS resolution for spark-master-0.spark-master-headless.spark.svc.cluster.local successful"
-        master_host="spark-master-0.spark-master-headless.spark.svc.cluster.local"
-      elif check_dns "$master_host"; then
-        echo "✓ DNS resolution for $master_host successful"
-      elif check_dns "spark-master"; then
-        echo "✓ DNS resolution for spark-master successful"
-        master_host="spark-master"
-      elif check_dns "spark-master-headless.spark.svc.cluster.local"; then
-        echo "✓ DNS resolution for spark-master-headless.spark.svc.cluster.local successful"
-        master_host="spark-master-headless.spark.svc.cluster.local"
-      # Last resort - try the hardcoded IP we observed
-      else
-        echo "⚠ DNS resolutions failed, trying hardcoded IP 10.244.0.51"
-        master_host="10.244.0.51"
-      fi
+      master_host=$(resolve_master_host) || master_host=""
+    fi
+
+    if [ -z "$master_host" ]; then
+      echo "Readiness: unable to resolve master host"
+      exit 1
     fi
     
-    # Now check port connectivity
     if check_port "$master_host" "7077"; then
-      echo "✓ Port connectivity to $master_host:7077 successful"
+      echo "Readiness: connectivity to $master_host:7077 OK"
       exit 0
     else
-      echo "✗ Port connectivity check failed for $master_host:7077"
-      
-      # One last attempt with the pod IP
-      if check_port "10.244.0.51" "7077"; then
-        echo "✓ Direct IP connectivity to 10.244.0.51:7077 successful"
-        # Add this to /etc/hosts for future use
-        echo "10.244.0.51 spark-master-0.spark-master-headless.spark.svc.cluster.local spark-master spark-master.spark.svc.cluster.local spark-master-headless.spark.svc.cluster.local" >> /etc/hosts
-        exit 0
-      else
-        echo "✗ All connectivity attempts failed"
-        exit 1
-      fi
+      echo "Readiness: connectivity to $master_host:7077 FAILED"
+      exit 1
     fi
     ;;
   "history")
