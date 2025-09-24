@@ -46,6 +46,8 @@ all:
                   hosts:
                     Lab2:  # Same host is both master and worker for now
                       ansible_host: Lab2.lan
+                    Lab1:  # New worker node
+                      ansible_host: Lab1.lan
         wsl:
           vars:
             ansible_port: 2222
