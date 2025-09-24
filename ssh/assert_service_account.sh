@@ -125,4 +125,4 @@ for group in "${SERVICE_GROUPS[@]}"; do
     fi
 done
 
-echo "Script completed successfully."
+echo "Result  : assert_service_account.sh completed successfully."
