@@ -37,6 +37,7 @@ while [[ $# -gt 0 ]]; do
         *)
             echo "Error   : Unrecognized argument $1 in $script_name." 
             echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Passphrase|-p <passphrase>]"
+            echo "        : Where passphrase is used to unlock the private keys in .ssh/"
             exit 1
             ;;
     esac
@@ -46,6 +47,7 @@ done
 if [[ -z "$PASSPHRASE" ]]; then
   echo "Error: --Passphrase or -p is mandatory in ${script_name}. Use the -N option to specify it." >&2
   echo "Usage: $0 [--Check|-c] [--Debug|-c] [--Passphrase <passphrase>]"  >&2
+  echo "        : Where passphrase is used to unlock the private keys in .ssh/" >&2
   exit 1
 fi
 
@@ -71,7 +73,8 @@ else
         echo "Result  : .ssh directory created for user '$USERNAME'."
     fi
 fi
-
+# FIXME: If keys don't exist their permissions will still be checked.
+#        Use a full decision tree to differentiate use cases.
 # Check and generate Git key pair
 $DEBUG && echo "Checking: if Git key pair exists for user '$USERNAME'."
 if [[ -f $PRIVATE_KEY && -f $PUBLIC_KEY ]]; then
@@ -119,7 +122,8 @@ else
     echo "Result  : Permissions for public key are correct."
 fi
 
-$DEBUG && echo "Next    : Copy the public key to GitHub SSH and GPG keys page at:"
+$DEBUG && echo "Next    : Copy the public  in ~/.ssh/id_ed25519.pub to GitHub SSH "
+$DEBUG && echo "Next    : and GPG keys page at:"
 $DEBUG && echo "Next    :     https://github.com/settings/keys"
 $DEBUG && echo "Next    : Then add the following to your ~/.bashrc file" 
 $DEBUG && echo "Next    :     eval \$(keychain --eval --quiet id_ed25519)"

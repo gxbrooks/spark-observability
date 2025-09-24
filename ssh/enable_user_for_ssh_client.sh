@@ -69,6 +69,9 @@ else
 fi
 
 # Check and generate SSH key pair
+
+# FIXME: If keys don't exist their permissions will still be checked.
+#        Use a full decision tree to differentiate use cases.
 $DEBUG && echo "Checking: if SSH key pair exists for user '$USERNAME'."
 if [[ -f $PRIVATE_KEY && -f $PUBLIC_KEY ]]; then
     echo "Result  : SSH key pair exists for user '$USERNAME'."
@@ -111,7 +114,7 @@ else
     echo "Result  : Permissions for public key are correct."
 fi
 
-$DEBUG && echo "Next    : Copy the public key to the remote server's authorized_keys file."
-$DEBUG && echo "Next    : Use ssh-copy-id-windows.sh to copy to a Windows ssh server" 
-$DEBUG && echo "Next    : Use /usr/bin/ssh-copy-id to copy to a standalone Linux ssh server"
-$DEBUG && echo "Next    : Use /usr/bin/ssh-copy-id -p 2222 to copy to a WSL ssh server"  
+$DEBUG && echo "Next    : Copy the public key in ~/.ssh/id_rsa.pub to the remote server's authorized_keys file."
+$DEBUG && echo "Next    : Use ssh/ssh-copy-id-windows.sh <user>@<host> to copy to a Windows ssh server" 
+$DEBUG && echo "Next    : Use /usr/bin/ssh-copy-id <user>@<host> to copy to a standalone Linux ssh server"
+$DEBUG && echo "Next    : Use /usr/bin/ssh-copy-id -p 2222 <user>@<host> to copy to a WSL ssh server"  

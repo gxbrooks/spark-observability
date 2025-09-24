@@ -80,37 +80,8 @@ $root_dir/ssh/enable_user_for_ssh_client.sh \
     $(append_flag "--Debug" "$DEBUG")
 
 # link into the users bash environment
-# Ensure the user's .bash_aliases exists and contains the sourcing command
-bash_aliases="$HOME/.bash_aliases"
-spark_aliases_source="source $dir/.bash_aliases"
+$root_dir/linux/link_to_user_env.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
 
-$DEBUG && echo "Checking: linking ~/.bash_aliases to '$spark_aliases_source'."
-if [ ! -f "$bash_aliases" ]; then
-  if $CHECK; then
-    echo "Result  : .bash_aliases does not exist for user '$USER'."
-  else
-    echo "$spark_aliases_source" > "$bash_aliases"
-    echo "Result  : Started sourcing of Spark Observability .bash_aliases from user's bash_aliases file."
-  fi
-elif ! grep -Fxq "$spark_aliases_source" "$bash_aliases"; then
-  if $CHECK; then
-    echo "Result  : ~/.bash_aliases does not source $spark_aliases_source."
-  else
-    echo "$spark_aliases_source" >> "$bash_aliases"
-    echo "Added .bash_aliases sourcing to $spark_aliases_source."
-  fi
-else 
-    $DEBUG && echo "Result  : ~/.bash_aliases already sources $spark_aliases_source."
-fi
-
-user_bashrc="$HOME/.bashrc"
-spark_bashrc_source="source $dir/.bashrc"
-
-if grep -Fxq "$spark_bashrc_source" "$user_bashrc"; then
-    echo "Result  : Spark Observability .bashrc is already being sourced in $user_bashrc."
-elif $CHECK; then
-    echo "Result  : ~/.bashrc does not source $spark_bashrc_source."
-else
-    echo "$spark_bashrc_source" >> "$user_bashrc"
-    echo "Result  : Added Spark Observability .bashrc sourcing to $user_bashrc."
-fi
+echo "Result  : Devops client initialized for user '$USER'."
