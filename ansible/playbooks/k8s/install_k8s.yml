@@ -14,10 +14,50 @@
     k8s_master_name: "{{ groups['kubernetes_master'][0] }}"
     # Dynamically derive short hostname from FQDN if present
     k8s_short_hostname: "{{ k8s_master_host.split('.')[0] }}"
+    # Configurable network settings
+    k8s_pod_network_cidr: "{{ k8s_pod_network_cidr | default('10.244.0.0/16') }}"
+    k8s_service_cidr: "{{ k8s_service_cidr | default('10.96.0.0/12') }}"
   tasks:
     - name: Display Kubernetes master hostname
       debug:
         msg: "Using hostname {{ k8s_master_host }} for Kubernetes API server"
+
+    # === Swap Configuration ===
+    - name: Check current swap status
+      shell: swapon --show
+      register: swap_status
+      failed_when: false
+
+    - name: Display current swap status
+      debug:
+        msg: "Current swap status: {{ swap_status.stdout_lines }}"
+
+    - name: Disable swap temporarily
+      shell: swapoff -a
+      when: swap_status.stdout != ""
+
+    - name: Create backup of original fstab before modifying
+      copy:
+        src: /etc/fstab
+        dest: /etc/fstab.orig
+        remote_src: yes
+      when: swap_status.stdout != ""
+
+    - name: Disable swap permanently
+      lineinfile:
+        path: /etc/fstab
+        regexp: '^.*swap.*'
+        state: absent
+      when: swap_status.stdout != ""
+
+    - name: Verify swap is disabled
+      shell: swapon --show
+      register: swap_verify
+      failed_when: false
+
+    - name: Display final swap status
+      debug:
+        msg: "Final swap status: {{ swap_verify.stdout_lines }}"
 
     # === Kernel Module Configuration ===
     - name: Load required kernel modules
@@ -137,7 +177,21 @@
     - name: Update apt cache after cleanup
       apt:
         update_cache: yes
+      ignore_errors: yes
+      retries: 1
+      delay: 5
+      timeout: 30
       changed_when: false
+
+    # === Wait for apt to be available ===
+    - name: Wait for apt to be available
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+          echo "Waiting for apt to be available..."
+          sleep 5
+        done
+      timeout: 120
+      ignore_errors: yes
 
     # === Package Installation ===
     - name: Install required system packages
@@ -151,7 +205,10 @@
           - python3-pip
           - python3-kubernetes
         state: present
-        update_cache: yes
+        update_cache: no
+      ignore_errors: yes
+      retries: 2
+      delay: 5
 
     # === Kubernetes Repository Setup ===
     - name: Create Kubernetes apt key directory
@@ -184,12 +241,16 @@
         repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
         state: present
         filename: kubernetes
-        update_cache: yes
+        update_cache: no
         
-    # Force update of apt cache to ensure repo is properly recognized
-    - name: Force update of apt cache after repository configuration
-      command: apt-get update
-      changed_when: false
+    # Update apt cache after repository configuration
+    - name: Update apt cache after repository configuration
+      apt:
+        update_cache: yes
+      ignore_errors: yes
+      retries: 1
+      delay: 5
+      timeout: 30
 
     - name: Install Kubernetes packages
       apt:
@@ -198,7 +259,7 @@
           - kubeadm
           - kubectl
         state: present
-        update_cache: yes
+        update_cache: no
 
     - name: Hold Kubernetes packages at current version
       dpkg_selections:
@@ -208,6 +269,43 @@
         - kubelet
         - kubeadm
         - kubectl
+
+    # === CNI Plugin Installation ===
+    - name: Create CNI plugin directory
+      file:
+        path: /opt/cni/bin
+        state: directory
+        mode: '0755'
+
+    - name: Download CNI plugins
+      get_url:
+        url: https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz
+        dest: /tmp/cni-plugins.tgz
+        mode: '0644'
+      ignore_errors: yes
+      retries: 3
+      delay: 5
+
+    - name: Extract CNI plugins
+      unarchive:
+        src: /tmp/cni-plugins.tgz
+        dest: /opt/cni/bin
+        remote_src: yes
+        creates: /opt/cni/bin/bridge
+      ignore_errors: yes
+
+    - name: Set CNI plugin permissions
+      file:
+        path: /opt/cni/bin
+        mode: '0755'
+        recurse: yes
+      ignore_errors: yes
+
+    - name: Create CNI configuration directory
+      file:
+        path: /etc/cni/net.d
+        state: directory
+        mode: '0755'
 
     # === Containerd Setup ===
     - name: Install containerd
@@ -247,7 +345,7 @@
       when: inventory_hostname == groups['kubernetes_master'][0]
 
     - name: Initialize Kubernetes cluster
-      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={{ ansible_default_ipv4.address }} --ignore-preflight-errors=NumCPU,Port-10250
+      command: kubeadm init --pod-network-cidr={{ k8s_pod_network_cidr }} --apiserver-advertise-address={{ ansible_default_ipv4.address }} --ignore-preflight-errors=NumCPU,Port-10250
       register: kubeadm_init
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]

@@ -6,7 +6,24 @@
   become: true
   vars:
     k8s_master_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] }}"
+    # Configurable interface names for rp_filter
+    k8s_network_interfaces: ['enp6s0']
   tasks:
+    # === Swap Status Check ===
+    - name: Check current swap status
+      shell: swapon --show
+      register: swap_status
+      failed_when: false
+
+    - name: Display swap status
+      debug:
+        msg: "Swap status: {{ 'DISABLED (OK)' if swap_status.stdout == '' else 'ENABLED (WARNING - Kubernetes requires swap to be disabled)' }}"
+
+    - name: Fail if swap is enabled
+      fail:
+        msg: "Swap is enabled on this system. Kubernetes requires swap to be disabled. Run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml' to disable swap."
+      when: swap_status.stdout != ""
+
     - name: Enable and start containerd
       systemd:
         name: containerd
@@ -89,13 +106,14 @@
       changed_when: false
       ignore_errors: true
 
-    - name: Disable rp_filter on enp6s0
+    - name: Disable rp_filter on network interfaces
       sysctl:
-        name: net.ipv4.conf.enp6s0.rp_filter
+        name: "net.ipv4.conf.{{ item }}.rp_filter"
         value: '0'
         state: present
         sysctl_set: yes
         reload: yes
+      loop: "{{ k8s_network_interfaces }}"
       ignore_errors: true
 
     # Network connectivity checks and fixes
@@ -187,7 +205,98 @@
         - ansible_default_ipv4.address is defined
         - inventory_hostname == groups['kubernetes_master'][0]
     
-    # Run on master node only
+    # === Worker Node Detection ===
+    - name: Check if this is a worker node
+      set_fact:
+        is_worker_node: "{{ inventory_hostname in groups['kubernetes_workers'] and inventory_hostname not in groups['kubernetes_master'] }}"
+
+    # === CNI Plugin Detection and Installation ===
+    - name: Check if CNI plugins are installed
+      stat:
+        path: /opt/cni/bin
+      register: cni_bin_dir
+      when: is_worker_node
+
+    - name: Check if CNI configuration exists
+      stat:
+        path: /etc/cni/net.d
+      register: cni_config_dir
+      when: is_worker_node
+
+    - name: Check for CNI configuration files
+      shell: ls /etc/cni/net.d/*.conflist /etc/cni/net.d/*.conf 2>/dev/null | wc -l
+      register: cni_config_files
+      when: 
+        - is_worker_node
+        - cni_config_dir.stat.exists
+
+    - name: Fail if CNI plugins are missing
+      fail:
+        msg: "CNI plugins are not installed. Run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml' to install them."
+      when: 
+        - is_worker_node
+        - not cni_bin_dir.stat.exists
+
+    - name: Get Flannel CNI configuration from ConfigMap
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get configmap kube-flannel-cfg -n kube-flannel -o jsonpath='{.data.cni-conf\.json}'
+      register: flannel_cni_config
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: 
+        - is_worker_node
+        - cni_config_dir.stat.exists
+        - cni_config_files.stdout | int == 0
+      ignore_errors: yes
+
+    - name: Create Flannel CNI configuration from ConfigMap
+      copy:
+        content: "{{ flannel_cni_config.stdout }}"
+        dest: /etc/cni/net.d/10-flannel.conflist
+        mode: '0644'
+      when: 
+        - is_worker_node
+        - cni_config_dir.stat.exists
+        - cni_config_files.stdout | int == 0
+        - flannel_cni_config.stdout != ""
+
+    - name: Restart kubelet to trigger CNI initialization
+      systemd:
+        name: kubelet
+        state: restarted
+      when: 
+        - is_worker_node
+        - cni_config_dir.stat.exists
+        - cni_config_files.stdout | int == 0
+        - flannel_cni_config.stdout != ""
+
+    - name: Wait for CNI configuration to be created by Flannel
+      shell: ls /etc/cni/net.d/*.conflist /etc/cni/net.d/*.conf 2>/dev/null | wc -l
+      register: cni_config_files_after
+      until: cni_config_files_after.stdout | int > 0
+      retries: 10
+      delay: 5
+      when: 
+        - is_worker_node
+        - cni_config_dir.stat.exists
+        - cni_config_files.stdout | int == 0
+        - flannel_cni_config.stdout != ""
+
+    - name: Fail if CNI configuration is still missing after Flannel initialization
+      fail:
+        msg: |
+          CNI configuration is still missing after Flannel initialization attempt.
+          This indicates a deeper issue with Flannel or CNI plugin installation.
+          Check:
+          1. Flannel pod logs: kubectl logs -n kube-flannel <flannel-pod>
+          2. CNI plugin installation: ls /opt/cni/bin/
+          3. Pod CIDR assignment: kubectl get node <node> -o jsonpath='{.spec.podCIDR}'
+      when: 
+        - is_worker_node
+        - cni_config_dir.stat.exists
+        - cni_config_files_after is defined
+        - cni_config_files_after.stdout is defined
+        - cni_config_files_after.stdout | int == 0
+
+    # === Flannel CNI Management (Master Node Only) ===
     - name: Check for Flannel CNI
       command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel -o name
       register: flannel_check
@@ -199,6 +308,37 @@
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - flannel_check.stdout == "" or flannel_check.rc != 0
+
+    - name: Wait for Flannel pods to be ready
+      command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel -o jsonpath='{.items[*].status.phase}'
+      register: flannel_status
+      until: "'Running' in flannel_status.stdout"
+      retries: 30
+      delay: 10
+      ignore_errors: yes
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check Flannel pod status
+      debug:
+        msg: "Flannel pods status: {{ flannel_status.stdout if flannel_status is defined else 'Not checked' }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check Flannel pod logs for errors
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf logs -n kube-flannel -l app=flannel --tail=10
+      register: flannel_logs
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - flannel_status.stdout is defined
+        - "'Running' not in flannel_status.stdout"
+      ignore_errors: yes
+
+    - name: Display Flannel pod logs if there are issues
+      debug:
+        msg: "Flannel pod logs (last 10 lines): {{ flannel_logs.stdout_lines if flannel_logs is defined else 'No logs available' }}"
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - flannel_logs is defined
 
     - name: Wait for CNI to be initialized
       command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
@@ -237,3 +377,71 @@
       when:
         - inventory_hostname == groups['kubernetes_master'][0]
         - master_is_worker | default(false)
+
+    # === Worker Node Joining ===
+    - name: Check if this is a worker node that needs to join the cluster
+      set_fact:
+        is_worker_node: "{{ inventory_hostname in groups['kubernetes_workers'] and inventory_hostname not in groups['kubernetes_master'] }}"
+
+    - name: Check if worker node is already joined
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes {{ inventory_hostname | lower }}
+      register: worker_node_check
+      ignore_errors: true
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: is_worker_node
+
+    - name: Get join command from master for worker nodes
+      shell: kubeadm token create --print-join-command
+      register: join_command
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: 
+        - is_worker_node
+        - worker_node_check.rc != 0
+
+    - name: Join worker node to cluster
+      shell: "{{ join_command.stdout }}"
+      register: join_result
+      when: 
+        - is_worker_node
+        - worker_node_check.rc != 0
+        - join_command is defined and join_command.stdout is defined
+      ignore_errors: true
+
+    - name: Display join result
+      debug:
+        msg: "Join result: {{ join_result.stdout if join_result is defined and join_result.stdout is defined else 'Worker already joined or join failed' }}"
+      when: is_worker_node
+
+    - name: Wait for worker node to be ready
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes {{ inventory_hostname | lower }}
+      register: worker_ready_check
+      until: worker_ready_check.rc == 0
+      retries: 30
+      delay: 10
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: 
+        - is_worker_node
+        - join_result is defined
+        - join_result.rc is defined
+        - join_result.rc == 0
+
+    # === Pod CIDR Assignment ===
+    - name: Check if worker node has Pod CIDR assigned
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get node {{ inventory_hostname | lower }} -o jsonpath='{.spec.podCIDR}'
+      register: pod_cidr_check
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: is_worker_node
+      ignore_errors: yes
+
+    - name: Assign Pod CIDR to worker node if missing
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf patch node {{ inventory_hostname | lower }} -p '{"spec":{"podCIDR":"10.244.{{ ansible_play_hosts.index(inventory_hostname) }}.0/24"}}'
+      register: pod_cidr_assignment
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: 
+        - is_worker_node
+        - pod_cidr_check.stdout == ""
+
+    - name: Display Pod CIDR assignment result
+      debug:
+        msg: "Pod CIDR assignment: {{ pod_cidr_assignment.stdout if pod_cidr_assignment is defined and pod_cidr_assignment.stdout is defined else 'Not needed - Pod CIDR already assigned' }}"
+      when: is_worker_node

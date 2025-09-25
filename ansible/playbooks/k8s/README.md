@@ -6,13 +6,13 @@ This directory contains Ansible playbooks for managing a Kubernetes cluster for 
 
 The playbooks follow a verb-object naming convention for easier tab-completion:
 
-* `install_k8s.yml` - Installs and initializes a new Kubernetes cluster (creates kubeconfig with hostnames)
-* `start_k8s.yml` - Starts Kubernetes services and ensures they are running
+* `install_k8s.yml` - Installs and initializes a new Kubernetes cluster with CNI plugins and networking
+* `start_k8s.yml` - Starts Kubernetes services, configures networking, and joins worker nodes
 * `stop_k8s.yml` - Stops Kubernetes services
 * `reset_k8s.yml` - Resets the Kubernetes cluster (destructive operation)
-* `status_k8s.yml` - Checks the status of the Kubernetes cluster
-* `regenerate_k8s_certs.yml` - Regenerates Kubernetes API server certificates with proper hostnames
-* `create_join_token.yml` - Creates a join token for adding worker nodes to the cluster
+* `uninstall_k8s.yml` - Completely removes Kubernetes and restores system to original state
+* `status_k8s.yml` - Quick status check (master node only) - "Is it running?"
+* `diagnose_k8s.yml` - Comprehensive health diagnostics (all nodes) - "Why isn't it working?"
 
 ## Usage
 
@@ -22,26 +22,23 @@ Run the playbooks using the standard Ansible command:
 # Initial Installation (First Time Setup)
 ansible-playbook -i ../../inventory.yml install_k8s.yml
 
-# Start Kubernetes services
+# Start Kubernetes services and join worker nodes
 ansible-playbook -i ../../inventory.yml start_k8s.yml
 
-# Check Kubernetes status
+# Quick status check (master node only)
 ansible-playbook -i ../../inventory.yml status_k8s.yml
 
-# After Hostname Changes (For Existing Installation)
-# First regenerate certificates with new hostnames:
-ansible-playbook -i ../../inventory.yml regenerate_k8s_certs.yml
-# Then create kubeconfig files with the new certificates:
-ansible-playbook -i ../../inventory.yml install_k8s.yml --tags=kubeconfig
-
-# Create a join token for worker nodes
-ansible-playbook -i ../../inventory.yml create_join_token.yml
+# Comprehensive diagnostics (all nodes)
+ansible-playbook -i ../../inventory.yml diagnose_k8s.yml
 
 # Stop Kubernetes services
 ansible-playbook -i ../../inventory.yml stop_k8s.yml
 
-# Reset Kubernetes cluster
+# Reset Kubernetes cluster (destructive)
 ansible-playbook -i ../../inventory.yml reset_k8s.yml
+
+# Completely uninstall Kubernetes and restore system
+ansible-playbook -i ../../inventory.yml uninstall_k8s.yml
 ```
 
 ## Workflow Guide
@@ -50,98 +47,198 @@ ansible-playbook -i ../../inventory.yml reset_k8s.yml
 
 For a fresh installation or after resetting Kubernetes:
 
-1. Run the main installation playbook:
+1. **Install Kubernetes:**
    ```bash
    ansible-playbook -i ../../inventory.yml install_k8s.yml
    ```
    This will:
-   - Install Kubernetes packages
+   - Install Kubernetes packages (kubelet, kubeadm, kubectl)
+   - Install CNI plugins
+   - Disable swap (required for Kubernetes)
    - Initialize the cluster with `kubeadm init`
-   - Create initial certificates and kubeconfig files
-   - Configure networking with Flannel
+   - Configure containerd and networking
 
-2. Start Kubernetes services and verify they're running:
+2. **Start Kubernetes services and join worker nodes:**
    ```bash
    ansible-playbook -i ../../inventory.yml start_k8s.yml
+   ```
+   This will:
+   - Start containerd and kubelet services
+   - Configure network prerequisites (rp_filter, iptables, sysctl)
+   - Install and configure Flannel CNI
+   - Join worker nodes to the cluster
+   - Assign Pod CIDRs to worker nodes
+
+3. **Verify cluster health:**
+   ```bash
+   ansible-playbook -i ../../inventory.yml status_k8s.yml
+   ansible-playbook -i ../../inventory.yml diagnose_k8s.yml
+   ```
+
+### Adding Worker Nodes
+
+To add new worker nodes to an existing cluster:
+
+1. **Update inventory.yml** with the new worker node details
+2. **Run start_k8s.yml** on the new worker node:
+   ```bash
+   ansible-playbook -i ../../inventory.yml start_k8s.yml --limit <new-worker-node>
+   ```
+   This will automatically:
+   - Install CNI plugins if missing
+   - Configure networking prerequisites
+   - Join the node to the cluster
+   - Assign a Pod CIDR
+
+### Network Configuration
+
+The playbooks automatically configure network prerequisites for Kubernetes:
+
+- **Swap Management**: Automatically disables swap (required for Kubernetes)
+- **Kernel Modules**: Loads `br_netfilter` module for iptables bridge filtering
+- **Sysctl Settings**: Configures `net.bridge.bridge-nf-call-iptables`, `net.bridge.bridge-nf-call-ip6tables`, and `net.ipv4.ip_forward`
+- **rp_filter**: Disables reverse path filtering on network interfaces
+- **iptables**: Sets FORWARD policy to ACCEPT for pod-to-Service connectivity
+
+### CNI Plugin Management
+
+The playbooks handle CNI plugin installation and configuration:
+
+- **CNI Plugins**: Downloads and installs CNI plugins to `/opt/cni/bin/`
+- **Flannel CNI**: Installs and configures Flannel for pod networking
+- **Pod CIDR**: Automatically assigns Pod CIDRs to worker nodes
+- **CNI Configuration**: Creates Flannel CNI configuration from ConfigMap
+
+### Troubleshooting
+
+If you encounter issues:
+
+1. **Run diagnostics:**
+   ```bash
+   ansible-playbook -i ../../inventory.yml diagnose_k8s.yml
+   ```
+
+2. **Check cluster status:**
+   ```bash
    ansible-playbook -i ../../inventory.yml status_k8s.yml
    ```
 
-### After Hostname or Network Changes
-
-If IP addresses or hostnames have changed (e.g., after moving to a new network):
-
-1. Update your inventory.yml with the current hostname/IP addresses
-
-2. Run these playbooks in this specific order:
+3. **Verify node connectivity:**
    ```bash
-   # Step 1: Regenerate certificates with the correct hostnames
-   ansible-playbook -i ../../inventory.yml regenerate_k8s_certs.yml
-   
-   # Step 2: Create kubeconfig files with the new certificates
-   ansible-playbook -i ../../inventory.yml install_k8s.yml --tags=kubeconfig
-   
-   # Step 3: Restart Kubernetes services
-   ansible-playbook -i ../../inventory.yml start_k8s.yml
-   
-   # Step 4: Verify everything is working
-   ansible-playbook -i ../../inventory.yml status_k8s.yml
+   kubectl get nodes -o wide
+   kubectl get pods -A
    ```
 
-> **Important:** The `regenerate_k8s_certs.yml` playbook requires Kubernetes to be already installed. 
-> If you're setting up a new installation, start with `install_k8s.yml` first.
-
-### Certificate Management Details
-
-The certificate regeneration process:
-
-1. **Hostname Detection**: The playbook dynamically extracts all relevant hostnames from your inventory:
-   - The FQDN/ansible_host value from your inventory
-   - The inventory hostname (usually the short name)
-   - The short hostname extracted from FQDN if present
-   - localhost and Kubernetes internal names
-
-2. **Certificate Backup**: Before regenerating certificates, the playbook:
-   - Creates a timestamped backup directory
-   - Backs up existing certificates if present
-   - Preserves your CA certificates which remain valid
-
-3. **Certificate Validation**: After regeneration, the playbook verifies:
-   - The API server is accessible with the new certificates
-   - All required hostnames are present in the certificate SANs
-   - TLS connections work properly with strict validation
-
-4. **Security Enhancements**:
-   - Removes any `insecure-skip-tls-verify: true` flags from kubeconfig files
-   - Performs validation tests using openssl and curl
-
-### Troubleshooting Certificate Issues
-
-If you encounter certificate validation errors:
-
-1. **Check hostname resolution**: Ensure your hostnames resolve correctly:
+4. **Check CNI status:**
    ```bash
-   ping $(hostname)
-   ping $(hostname -f)
+   kubectl get pods -n kube-flannel
+   ls -la /opt/cni/bin/
+   ls -la /etc/cni/net.d/
    ```
 
-2. **Verify certificate SANs**: Check that your certificate contains all needed hostnames:
-   ```bash
-   openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text | grep -A1 "Subject Alternative Name"
-   ```
-   
-   Note: The certificate now includes both original and lowercase versions of each hostname for case-insensitive matching. If you see duplicate entries that only differ in capitalization, this is by design.
+## UFW Firewall Configuration
 
-3. **Test API server directly**: Try connecting directly:
+To enable UFW (Uncomplicated Firewall) with Kubernetes support:
+
+### Prerequisites
+- Kubernetes cluster is running and healthy
+- Pod-to-Service connectivity is working
+- CoreDNS is ready and functioning
+
+### UFW Configuration
+
+The playbooks can configure UFW to work with Kubernetes:
+
+```bash
+# Configure UFW for Kubernetes (when ready)
+ansible-playbook -i ../../inventory.yml start_k8s.yml -e "ufw_enabled=true"
+```
+
+This will:
+- Set `DEFAULT_FORWARD_POLICY="ACCEPT"` for pod-to-Service connectivity
+- Add Kubernetes NAT rules for pod egress traffic
+- Enable IP forwarding in UFW
+- Configure firewall rules for Kubernetes ports (6443, 2379, 2380, 10250, etc.)
+- Allow SSH and HTTP/HTTPS for NodePort services
+
+### Testing UFW Configuration
+
+Before enabling UFW, test connectivity:
+```bash
+# Test pod-to-Service connectivity
+kubectl -n spark exec pod/test-dns -- sh -c 'nc -vz 10.96.0.1 443'
+```
+
+After enabling UFW, verify connectivity is maintained:
+```bash
+# Verify connectivity still works
+kubectl -n spark exec pod/test-dns -- sh -c 'nc -vz 10.96.0.1 443'
+```
+
+### UFW Troubleshooting
+
+If pod connectivity breaks after enabling UFW:
+
+1. **Check UFW status:**
    ```bash
-   curl -v --cert /etc/kubernetes/pki/apiserver-kubelet-client.crt \
-        --key /etc/kubernetes/pki/apiserver-kubelet-client.key \
-        https://localhost:6443/api/v1/nodes
+   sudo ufw status verbose
    ```
 
-4. **Run the playbook with verbose output**: For more debugging information:
+2. **Check UFW logs:**
    ```bash
-   ansible-playbook -i ../../inventory.yml regenerate_k8s_certs.yml -v
+   sudo tail -f /var/log/ufw.log
    ```
+
+3. **Disable UFW temporarily:**
+   ```bash
+   sudo ufw disable
+   ```
+
+4. **Check iptables rules:**
+   ```bash
+   sudo iptables -L FORWARD -n -v
+   sudo iptables -t nat -L POSTROUTING -n -v
+   ```
+
+## Playbook Capabilities
+
+### install_k8s.yml
+- Installs Kubernetes packages (kubelet, kubeadm, kubectl)
+- Downloads and installs CNI plugins
+- Disables swap (required for Kubernetes)
+- Initializes cluster with `kubeadm init`
+- Configures containerd runtime
+- Sets up basic networking prerequisites
+
+### start_k8s.yml
+- Starts containerd and kubelet services
+- Configures network prerequisites (rp_filter, iptables, sysctl)
+- Detects and installs missing CNI plugins
+- Installs and configures Flannel CNI
+- Joins worker nodes to the cluster
+- Assigns Pod CIDRs to worker nodes
+- Handles UFW firewall configuration (optional)
+
+### status_k8s.yml
+- Quick status check (master node only)
+- Checks kubelet service status
+- Verifies Kubernetes API availability
+- Shows node and pod status
+- Fast "is it running?" check
+
+### diagnose_k8s.yml
+- Comprehensive health diagnostics (all nodes)
+- Checks system requirements (memory, CPU, OS)
+- Validates swap status, CNI plugins, Pod CIDR assignments
+- Monitors Flannel pod status and network configuration
+- Deep troubleshooting for "why isn't it working?" issues
+
+### uninstall_k8s.yml
+- Completely removes Kubernetes components
+- Restores system to original state
+- Re-enables swap if it was originally enabled
+- Cleans up all configuration files and directories
+- Removes package holds and dependencies
 
 ## Spark Deployment
 

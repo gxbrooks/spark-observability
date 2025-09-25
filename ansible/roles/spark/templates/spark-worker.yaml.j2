@@ -1,19 +1,120 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spark-worker
+  name: spark-worker-lab2
   namespace: spark
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: spark-worker
+      node: lab2
   template:
     metadata:
       labels:
         app: spark-worker
+        node: lab2
     spec:
       serviceAccountName: spark
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - Lab2.lan
+      # Add dnsPolicy and dnsConfig for more reliable DNS resolution
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "5"
+      containers:
+        - name: spark-worker
+          image: "{{ spark_image }}:{{ spark_tag }}"
+          imagePullPolicy: Always
+          command: ["./entrypoint.sh", "worker"]
+          envFrom:
+            - configMapRef:
+                name: spark-configmap
+          env:
+            - name: SPARK_LOCAL_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SPARK_LOCAL_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - containerPort: 8081
+              name: webui
+          # Re-enable health checks now that scripts are available
+          readinessProbe:
+            exec:
+              command: ["./k8s-readiness.sh", "worker"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["./check-spark-health.sh", "worker"]
+            initialDelaySeconds: 60
+            periodSeconds: 120
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "6"
+              memory: "16Gi"
+            limits:
+              cpu: "10"
+              memory: "32Gi"
+          volumeMounts:
+            - name: spark-events
+              mountPath: /mnt/spark-events
+            - name: spark-defaults-conf
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+      volumes:
+        - name: spark-events
+          hostPath:
+            path: /mnt/spark-events
+            type: DirectoryOrCreate
+        - name: spark-defaults-conf
+          configMap:
+            name: spark-defaults-conf
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker-lab1
+  namespace: spark
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: spark-worker
+      node: lab1
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+        node: lab1
+    spec:
+      serviceAccountName: spark
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - Lab1.lan
       # Add dnsPolicy and dnsConfig for more reliable DNS resolution
       dnsPolicy: ClusterFirst
       dnsConfig:

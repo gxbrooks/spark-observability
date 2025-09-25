@@ -1,0 +1,191 @@
+---
+# diagnose_k8s.yml - Diagnose Kubernetes cluster and node health
+# This playbook checks the health of Kubernetes components and provides diagnostics
+
+- name: Diagnose Kubernetes cluster health
+  hosts: spark_kubernetes:&linux
+  become: true
+  tasks:
+    - name: Check system requirements
+      debug:
+        msg: |
+          System Information:
+          - Hostname: {{ ansible_hostname }}
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Kernel: {{ ansible_kernel }}
+          - Architecture: {{ ansible_architecture }}
+          - Memory: {{ ansible_memtotal_mb }}MB
+          - CPU: {{ ansible_processor_vcpus }} cores
+
+    - name: Check swap status
+      shell: swapon --show
+      register: swap_status
+      failed_when: false
+
+    - name: Display swap status
+      debug:
+        msg: "Swap status: {{ 'DISABLED (OK)' if swap_status.stdout == '' else 'ENABLED (WARNING - Kubernetes requires swap to be disabled)' }}"
+
+    # === CNI Plugin Diagnostics ===
+    - name: Check CNI plugin directory
+      stat:
+        path: /opt/cni/bin
+      register: cni_bin_check
+
+    - name: Display CNI plugin status
+      debug:
+        msg: "CNI plugins: {{ 'INSTALLED' if cni_bin_check.stat.exists else 'MISSING - Run install_k8s.yml to install' }}"
+
+    - name: Check CNI configuration directory
+      stat:
+        path: /etc/cni/net.d
+      register: cni_config_check
+
+    - name: Check for CNI configuration files
+      shell: ls /etc/cni/net.d/*.conflist /etc/cni/net.d/*.conf 2>/dev/null | wc -l
+      register: cni_config_count
+      when: cni_config_check.stat.exists
+
+    - name: Display CNI configuration status
+      debug:
+        msg: "CNI configuration: {{ 'CONFIGURED (' + cni_config_count.stdout + ' files)' if cni_config_count is defined and cni_config_count.stdout | int > 0 else 'MISSING - CNI plugin may not be initialized' }}"
+
+    # === Pod CIDR Diagnostics ===
+    - name: Check if this is a worker node
+      set_fact:
+        is_worker_node: "{{ inventory_hostname in groups['kubernetes_workers'] and inventory_hostname not in groups['kubernetes_master'] }}"
+
+    - name: Check Pod CIDR assignment
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get node {{ inventory_hostname }} -o jsonpath='{.spec.podCIDR}'
+      register: pod_cidr_check
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: is_worker_node
+      ignore_errors: yes
+
+    - name: Display Pod CIDR status
+      debug:
+        msg: "Pod CIDR: {{ 'ASSIGNED (' + pod_cidr_check.stdout + ')' if pod_cidr_check is defined and pod_cidr_check.stdout != '' else 'MISSING - Node may not be ready' }}"
+      when: is_worker_node
+
+    # === Flannel Pod Diagnostics ===
+    - name: Check Flannel pod status
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel -o wide
+      register: flannel_pods
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+      ignore_errors: yes
+
+    - name: Display Flannel pod status
+      debug:
+        msg: "Flannel pods status: {{ flannel_pods.stdout_lines if flannel_pods is defined else 'Not checked' }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check required kernel modules
+      shell: lsmod | grep -E "(br_netfilter|overlay)"
+      register: kernel_modules
+      failed_when: false
+
+    - name: Display kernel modules
+      debug:
+        msg: "Loaded kernel modules: {{ kernel_modules.stdout_lines }}"
+
+    - name: Check sysctl settings
+      shell: |
+        echo "net.bridge.bridge-nf-call-iptables: $(sysctl -n net.bridge.bridge-nf-call-iptables)"
+        echo "net.bridge.bridge-nf-call-ip6tables: $(sysctl -n net.bridge.bridge-nf-call-ip6tables)"
+        echo "net.ipv4.ip_forward: $(sysctl -n net.ipv4.ip_forward)"
+      register: sysctl_settings
+
+    - name: Display sysctl settings
+      debug:
+        msg: "Sysctl settings: {{ sysctl_settings.stdout_lines }}"
+
+    - name: Check containerd status
+      systemd:
+        name: containerd
+      register: containerd_status
+
+    - name: Display containerd status
+      debug:
+        msg: "Containerd status: {{ containerd_status.status.ActiveState }}"
+
+    - name: Check kubelet status
+      systemd:
+        name: kubelet
+      register: kubelet_status
+
+    - name: Display kubelet status
+      debug:
+        msg: "Kubelet status: {{ kubelet_status.status.ActiveState }}"
+
+    - name: Check kubelet logs for errors
+      shell: journalctl -u kubelet --no-pager -n 20
+      register: kubelet_logs
+      failed_when: false
+
+    - name: Display kubelet logs
+      debug:
+        msg: "Kubelet logs: {{ kubelet_logs.stdout_lines }}"
+
+    - name: Check Kubernetes configuration files
+      stat:
+        path: "{{ item }}"
+      register: k8s_config_files
+      loop:
+        - /etc/kubernetes/admin.conf
+        - /etc/kubernetes/kubelet.conf
+        - /etc/kubernetes/bootstrap-kubelet.conf
+        - /var/lib/kubelet/config.yaml
+
+    - name: Display Kubernetes configuration files
+      debug:
+        msg: "K8s config files: {{ k8s_config_files.results | map(attribute='stat.exists') | list }}"
+
+    - name: Check CNI configuration
+      shell: ls -la /etc/cni/net.d/
+      register: cni_config
+      failed_when: false
+
+    - name: Display CNI configuration
+      debug:
+        msg: "CNI config: {{ cni_config.stdout_lines }}"
+
+    - name: Check network connectivity to master
+      shell: ping -c 3 {{ groups['kubernetes_master'][0] }}
+      register: master_ping
+      failed_when: false
+
+    - name: Display master connectivity
+      debug:
+        msg: "Master connectivity: {{ master_ping.rc == 0 }}"
+
+    - name: Check Kubernetes API server connectivity
+      shell: curl -k https://{{ groups['kubernetes_master'][0] }}:6443/version
+      register: api_connectivity
+      failed_when: false
+
+    - name: Display API server connectivity
+      debug:
+        msg: "API server connectivity: {{ api_connectivity.rc == 0 }}"
+
+    - name: Check iptables rules
+      shell: iptables -S FORWARD | head -5
+      register: iptables_rules
+      failed_when: false
+
+    - name: Display iptables rules
+      debug:
+        msg: "Iptables FORWARD rules: {{ iptables_rules.stdout_lines }}"
+
+    - name: Check rp_filter settings
+      shell: |
+        echo "all: $(cat /proc/sys/net/ipv4/conf/all/rp_filter)"
+        echo "default: $(cat /proc/sys/net/ipv4/conf/default/rp_filter)"
+        echo "cni0: $(cat /proc/sys/net/ipv4/conf/cni0/rp_filter 2>/dev/null || echo 'N/A')"
+        echo "flannel.1: $(cat /proc/sys/net/ipv4/conf/flannel.1/rp_filter 2>/dev/null || echo 'N/A')"
+      register: rp_filter_settings
+      failed_when: false
+
+    - name: Display rp_filter settings
+      debug:
+        msg: "rp_filter settings: {{ rp_filter_settings.stdout_lines }}"
