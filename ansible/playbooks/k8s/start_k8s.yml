@@ -335,10 +335,11 @@
 
     - name: Display Flannel pod logs if there are issues
       debug:
-        msg: "Flannel pod logs (last 10 lines): {{ flannel_logs.stdout_lines if flannel_logs is defined else 'No logs available' }}"
+        msg: "Flannel pod logs (last 10 lines): {{ flannel_logs.stdout_lines if flannel_logs is defined and flannel_logs.stdout_lines is defined else 'No logs available' }}"
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - flannel_logs is defined
+        - flannel_logs.stdout_lines is defined
 
     - name: Wait for CNI to be initialized
       command: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes

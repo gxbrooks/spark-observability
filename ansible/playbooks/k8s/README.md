@@ -240,6 +240,54 @@ If pod connectivity breaks after enabling UFW:
 - Cleans up all configuration files and directories
 - Removes package holds and dependencies
 
+## Resource Allocation
+
+### Hardware Specifications
+- **Lab1 & Lab2**: 16 cores (32 threads), 96GB RAM each
+- **Total Cluster**: 32 cores (64 threads), 192GB RAM
+- **Swap**: Disabled (Kubernetes requirement)
+
+### Lab1 Resource Allocation (Dedicated Worker Node)
+
+| **Component** | **Replicas** | **CPU Request** | **CPU Limit** | **Memory Request** | **Memory Limit** |
+|------------|-----------------|-----------------|---------------|-------------------|------------------|
+| **Spark Workers** | 5 | 2 cores each | 4 cores each | 8Gi each | 14Gi each |
+| **Kubernetes System** | ~7 pods | ~1 core | ~2 cores | ~2Gi | ~4Gi |
+| **SUBTOTAL - Lab1** | **~7** | **11-22 cores** | **18-36 cores** | **42-84Gi** | **74Gi** |
+
+### Lab2 Resource Allocation (Control Plane + Workers)
+
+| **Component** | **Replicas** | **CPU Request** | **CPU Limit** | **Memory Request** | **Memory Limit** |
+|------------|-----------------|-----------------|---------------|-------------------|------------------|
+| **Spark Master** | 1 | 1 core | 2 cores | 2Gi | 4Gi |
+| **Spark History** | 1 | 1 core | 2 cores | 2Gi | 4Gi |
+| **Spark Workers** | 2 | 2 cores each | 4 cores each | 8Gi each | 14Gi each |
+| **Kubernetes System** | ~8 pods | ~2 cores | ~4 cores | ~4Gi | ~8Gi |
+| **SUBTOTAL - Lab2** | **~12** | **8-16 cores** | **12-24 cores** | **16-32Gi** | **24-48Gi** |
+
+### Resource Allocation Rationale
+
+#### **Memory Allocation Strategy**
+- **Lab1**: 74Gi allocated (77% of 96Gi) with 22Gi system reserve
+- **Lab2**: 48Gi allocated (50% of 96Gi) with 48Gi system reserve
+- **System Reserve**: Includes OS kernel (~2-4Gi), file cache (~8-16Gi), system processes (~2-4Gi), and OOM buffer (~4-8Gi)
+
+#### **CPU Allocation Strategy**
+- **Lab1**: 18-36 cores (113-225% of 16 cores) - CPU overcommitment acceptable for worker node
+- **Lab2**: 12-24 cores (75-150% of 16 cores) - CPU overcommitment acceptable with control plane priority
+- **Kubernetes**: Can handle CPU overcommitment through proper scheduling and throttling
+
+#### **Worker Distribution**
+- **Lab1**: 5 workers (dedicated worker node for maximum parallelism)
+- **Lab2**: 2 workers (control plane priority with some worker capacity)
+- **Total**: 7 Spark workers for good task distribution
+
+#### **Safety Considerations**
+- **Memory Safety**: All allocations within available RAM limits
+- **OOM Prevention**: Adequate headroom prevents memory pressure
+- **I/O Performance**: Sufficient file cache memory for good I/O performance
+- **System Stability**: Reserved memory for OS and system processes
+
 ## Spark Deployment
 
 After Kubernetes is running, use the Spark playbooks to deploy and start Spark:

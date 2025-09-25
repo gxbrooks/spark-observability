@@ -15,8 +15,8 @@
     # Dynamically derive short hostname from FQDN if present
     k8s_short_hostname: "{{ k8s_master_host.split('.')[0] }}"
     # Configurable network settings
-    k8s_pod_network_cidr: "{{ k8s_pod_network_cidr | default('10.244.0.0/16') }}"
-    k8s_service_cidr: "{{ k8s_service_cidr | default('10.96.0.0/12') }}"
+    k8s_pod_network_cidr: "10.244.0.0/16"
+    k8s_service_cidr: "10.96.0.0/12"
   tasks:
     - name: Display Kubernetes master hostname
       debug:
@@ -344,8 +344,13 @@
       register: k8s_config_check
       when: inventory_hostname == groups['kubernetes_master'][0]
 
+    - name: Build certificate SAN list for all nodes
+      set_fact:
+        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.lan,Lab1,lab1"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
     - name: Initialize Kubernetes cluster
-      command: kubeadm init --pod-network-cidr={{ k8s_pod_network_cidr }} --apiserver-advertise-address={{ ansible_default_ipv4.address }} --ignore-preflight-errors=NumCPU,Port-10250
+      command: kubeadm init --pod-network-cidr={{ k8s_pod_network_cidr }} --apiserver-advertise-address={{ ansible_default_ipv4.address }} --apiserver-cert-extra-sans={{ cert_sans }} --ignore-preflight-errors=NumCPU,Port-10250
       register: kubeadm_init
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]

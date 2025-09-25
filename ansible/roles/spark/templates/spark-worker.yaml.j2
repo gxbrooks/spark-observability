@@ -16,6 +16,11 @@ spec:
         node: lab2
     spec:
       serviceAccountName: spark
+      # Add tolerations for control-plane taint
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -24,7 +29,7 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                - Lab2.lan
+                - lab2
       # Add dnsPolicy and dnsConfig for more reliable DNS resolution
       dnsPolicy: ClusterFirst
       dnsConfig:
@@ -68,11 +73,11 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: "6"
-              memory: "16Gi"
+              cpu: "2"
+              memory: "8Gi"
             limits:
-              cpu: "10"
-              memory: "32Gi"
+              cpu: "4"
+              memory: "14Gi"
           volumeMounts:
             - name: spark-events
               mountPath: /mnt/spark-events
@@ -94,7 +99,7 @@ metadata:
   name: spark-worker-lab1
   namespace: spark
 spec:
-  replicas: 4
+  replicas: 5
   selector:
     matchLabels:
       app: spark-worker
@@ -114,7 +119,7 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                - Lab1.lan
+                - lab1
       # Add dnsPolicy and dnsConfig for more reliable DNS resolution
       dnsPolicy: ClusterFirst
       dnsConfig:
@@ -158,11 +163,11 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: "6"
-              memory: "16Gi"
+              cpu: "2"
+              memory: "8Gi"
             limits:
-              cpu: "10"
-              memory: "32Gi"
+              cpu: "4"
+              memory: "14Gi"
           volumeMounts:
             - name: spark-events
               mountPath: /mnt/spark-events
