@@ -117,28 +117,28 @@ ELASTIC_AGENT_HOME:
   value: /usr/share/elastic-agent
   contexts: []
 
-# Spark image build-time and installation variables
+# Spark runtime variables (moved from deprecated spark-image context)
 SPARK_VERSION:
   value: 3.5.1
-  contexts: [spark-image, ansible]
+  contexts: [spark-runtime, ansible]
 
 # System location of the Spark installation
 SPARK_HOME:
   value: /opt/spark
-  contexts: [spark-image, ansible]
+  contexts: [spark-runtime, ansible]
 HADOOP_HOME:
   value: /opt/spark
-  contexts: [spark-image]
+  contexts: [spark-runtime]
 PYSPARK_PYTHON:
   value: python3
-  contexts: [spark-image]
+  contexts: [spark-runtime]
 
-# Google data accesss
+# Google data access
 # A relative path may not be consistent between iPython and spark submit
 # (but should be)
 GOOGLE_APPLICATION_CREDENTIALS:
   value: /opt/spark/apps/bq-api-key.json
-  contexts: [spark-image]
+  contexts: [spark-runtime]
 
 # Spark runtime variables (for K8s ConfigMap)
 SPARK_MASTER:

@@ -1,6 +1,10 @@
 # Docker Playbooks
 
+⚠️ **DEPRECATED**: Use of Docker is currently deprecated in favor of containerd for Kubernetes deployments.
+
 This directory contains playbooks to manage Docker on native Linux hosts only. These playbooks explicitly exclude WSL instances, as WSL should use Docker from Windows Docker Desktop.
+
+**Note**: For Kubernetes deployments, containerd is now the preferred container runtime. Docker playbooks are maintained for legacy compatibility only.
 
 ## Available Playbooks
 
