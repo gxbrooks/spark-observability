@@ -43,17 +43,19 @@ spec:
               name: spark
             - containerPort: 8080
               name: webui
-          # Re-enable health checks now that scripts are available
+          # Use simple HTTP health checks that work with official Spark image
           readinessProbe:
-            exec:
-              command: ["./k8s-readiness.sh", "master"]
+            httpGet:
+              path: /
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
           livenessProbe:
-            exec:
-              command: ["./check-spark-health.sh", "master"]
+            httpGet:
+              path: /
+              port: 8080
             initialDelaySeconds: 60
             periodSeconds: 120
             timeoutSeconds: 10

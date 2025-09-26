@@ -1,0 +1,58 @@
+---
+config:
+  theme: neo-dark
+---
+flowchart TD
+ subgraph subGraph0["Source Definition"]
+        variables["variables.yaml"]
+  end
+ subgraph Processing["Processing"]
+        generate_env["generate_env.py"]
+  end
+ subgraph subGraph2["Context-Specific Files"]
+        spark_image["spark-image.toml"]
+        spark_vars["spark_vars.yml"]
+        spark_configmap["spark-configmap.yaml"]
+        docker_env["docker/.env"]
+  end
+ subgraph Ansible["Ansible"]
+        playbooks["Ansible Playbooks"]
+        templates["Template Files (.j2)"]
+  end
+ subgraph Deployment["Deployment"]
+        k8s_manifest["Kubernetes Manifests"]
+        docker_container["Docker Containers"]
+  end
+    variables -- "SPARK_VERSION: 3.5.1" --> generate_env
+    generate_env -- "SPARK_VERSION = '3.5.1'" --> spark_image
+    generate_env -- "spark_version: '3.5.1'" --> spark_vars
+    generate_env -- "SPARK_VERSION: '3.5.1'" --> spark_configmap
+    generate_env -- "SPARK_VERSION=3.5.1" --> docker_env
+    spark_vars -- spark_version, spark_image, spark_tag --> playbooks
+    playbooks --> templates
+    templates -- rendered with variables --> k8s_manifest
+    spark_image -- build args --> docker_container
+     variables:::source
+     generate_env:::processor
+     spark_image:::output
+     spark_vars:::output
+     spark_configmap:::output
+     docker_env:::output
+     playbooks:::processor
+     templates:::processor
+     k8s_manifest:::output
+     docker_container:::output
+    classDef source fill:#f9f,stroke:#333,stroke-width:2px
+    classDef processor fill:#bbf,stroke:#333,stroke-width:2px
+    classDef output fill:#bfb,stroke:#333,stroke-width:2px
+    style variables color:#000000
+    style generate_env color:#000000
+    style spark_image color:#000000
+    style spark_vars color:#000000
+    style spark_configmap color:#000000
+    style docker_env color:#000000
+    style playbooks color:#000000
+    style templates color:#000000
+    style k8s_manifest color:#000000
+    style docker_container color:#000000
+    style Processing color:none
