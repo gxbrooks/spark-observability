@@ -24,7 +24,7 @@ spec:
         - name: spark-history
           image: "{{ spark_image }}:{{ spark_tag }}"
           imagePullPolicy: Always
-          command: ["./entrypoint.sh", "history"]
+          command: ["/opt/spark/sbin/start-history-server.sh"]
           envFrom:
             - configMapRef:
                 name: spark-configmap
@@ -55,14 +55,14 @@ spec:
               memory: "4Gi"
           volumeMounts:
             - name: spark-events
-              mountPath: /mnt/spark-events
+              mountPath: /mnt/spark/events
             - name: spark-defaults-conf
               mountPath: /opt/spark/conf/spark-defaults.conf
               subPath: spark-defaults.conf
       volumes:
         - name: spark-events
           hostPath:
-            path: /mnt/spark-events
+            path: /mnt/spark/events
             type: DirectoryOrCreate
         - name: spark-defaults-conf
           configMap:

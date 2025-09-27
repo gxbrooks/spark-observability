@@ -8,7 +8,7 @@
 # Default Spark configurations
 spark.master                           spark://spark-master:7077
 spark.eventLog.enabled                 true
-spark.eventLog.dir                     {{ spark_events_dir }}
+spark.eventLog.dir                     {{ spark_events_dir }}/{{ ansible_hostname }}
 spark.history.fs.logDirectory          {{ spark_events_dir }}
 spark.executor.memory                  8g
 spark.driver.memory                    4g

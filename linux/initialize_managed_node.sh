@@ -54,6 +54,16 @@ $root_dir/ssh/assert_service_account.sh \
     --Password "$PASSWORD" \
     --Username "$USERNAME"
 
+$DEBUG && echo "Checking: Python version management"
+$root_dir/linux/assert_python_version.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
+# Ensure spark user and group exist
+$root_dir/linux/assert_spark_user.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
 # Ensure /etc/sudoers.d/ansible exists with correct permissions and content
 SUDOERS_FILE="/etc/sudoers.d/ansible"
 SUDOERS_LINE="ansible ALL=(ALL) NOPASSWD: ALL"

@@ -30,6 +30,7 @@ CONTEXTS = {
     'spark-runtime': 'ansible/roles/spark/files/k8s/spark-configmap.yaml',
     'ansible': 'ansible/vars/spark_vars.yml',
     'ispark': 'spark/ispark/ispark_env.sh',
+    'nfs': 'ansible/vars/nfs_vars.yml',
 }
 
 def load_config():
@@ -211,6 +212,8 @@ def main(contexts=None, force=False, verbose=False):
                 success = write_ansible_vars(vars_dict, target_file)
             elif context == 'ispark':
                 success = write_shell_env(vars_dict, target_file)
+            elif context == 'nfs':
+                success = write_ansible_vars(vars_dict, target_file)
             
             if success:
                 changes_made = True

@@ -40,7 +40,7 @@ spec:
         - name: spark-worker
           image: "{{ spark_image }}:{{ spark_tag }}"
           imagePullPolicy: Always
-          command: ["./entrypoint.sh", "worker"]
+          command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"]
           envFrom:
             - configMapRef:
                 name: spark-configmap
@@ -57,20 +57,7 @@ spec:
             - containerPort: 8081
               name: webui
           # Re-enable health checks now that scripts are available
-          readinessProbe:
-            exec:
-              command: ["./k8s-readiness.sh", "worker"]
-            initialDelaySeconds: 30
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            exec:
-              command: ["./check-spark-health.sh", "worker"]
-            initialDelaySeconds: 60
-            periodSeconds: 120
-            timeoutSeconds: 10
-            failureThreshold: 3
+          # Health checks removed - not available in base Apache Spark image
           resources:
             requests:
               cpu: "2"
@@ -80,14 +67,20 @@ spec:
               memory: "14Gi"
           volumeMounts:
             - name: spark-events
-              mountPath: /mnt/spark-events
+              mountPath: /mnt/spark/events
+            - name: spark-data
+              mountPath: /mnt/spark/data
             - name: spark-defaults-conf
               mountPath: /opt/spark/conf/spark-defaults.conf
               subPath: spark-defaults.conf
       volumes:
         - name: spark-events
           hostPath:
-            path: /mnt/spark-events
+            path: /mnt/spark/events
+            type: DirectoryOrCreate
+        - name: spark-data
+          hostPath:
+            path: /mnt/spark/data
             type: DirectoryOrCreate
         - name: spark-defaults-conf
           configMap:
@@ -130,7 +123,7 @@ spec:
         - name: spark-worker
           image: "{{ spark_image }}:{{ spark_tag }}"
           imagePullPolicy: Always
-          command: ["./entrypoint.sh", "worker"]
+          command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"]
           envFrom:
             - configMapRef:
                 name: spark-configmap
@@ -147,20 +140,7 @@ spec:
             - containerPort: 8081
               name: webui
           # Re-enable health checks now that scripts are available
-          readinessProbe:
-            exec:
-              command: ["./k8s-readiness.sh", "worker"]
-            initialDelaySeconds: 30
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            exec:
-              command: ["./check-spark-health.sh", "worker"]
-            initialDelaySeconds: 60
-            periodSeconds: 120
-            timeoutSeconds: 10
-            failureThreshold: 3
+          # Health checks removed - not available in base Apache Spark image
           resources:
             requests:
               cpu: "2"
@@ -170,14 +150,20 @@ spec:
               memory: "14Gi"
           volumeMounts:
             - name: spark-events
-              mountPath: /mnt/spark-events
+              mountPath: /mnt/spark/events
+            - name: spark-data
+              mountPath: /mnt/spark/data
             - name: spark-defaults-conf
               mountPath: /opt/spark/conf/spark-defaults.conf
               subPath: spark-defaults.conf
       volumes:
         - name: spark-events
           hostPath:
-            path: /mnt/spark-events
+            path: /mnt/spark/events
+            type: DirectoryOrCreate
+        - name: spark-data
+          hostPath:
+            path: /mnt/spark/data
             type: DirectoryOrCreate
         - name: spark-defaults-conf
           configMap:

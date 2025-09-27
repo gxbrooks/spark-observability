@@ -1,0 +1,41 @@
+---
+- name: Update Spark NFS Exports for Spark Compatibility
+  hosts: nfs_servers
+  become: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/nfs_vars.yml"
+  vars:
+    nfs_export_opts_spark: "*(rw,sync,no_root_squash,no_subtree_check,no_wdelay,insecure_locks,fsid=1)"
+    nfs_export_opts_events: "*(rw,sync,no_root_squash,no_subtree_check)"
+  tasks:
+    - name: Remove old Spark data export from /etc/exports
+      lineinfile:
+        path: /etc/exports
+        regexp: '^{{ NFS_SPARK_DATA_EXPORT }} .*'
+        state: absent
+
+    - name: Remove old Spark events export from /etc/exports
+      lineinfile:
+        path: /etc/exports
+        regexp: '^{{ NFS_SPARK_EVENTS_EXPORT }} .*'
+        state: absent
+
+    - name: Add enhanced Spark data export to /etc/exports
+      lineinfile:
+        path: /etc/exports
+        line: "{{ NFS_SPARK_DATA_EXPORT }} {{ nfs_export_opts_spark }}"
+        create: yes
+
+    - name: Add Spark events export to /etc/exports
+      lineinfile:
+        path: /etc/exports
+        line: "{{ NFS_SPARK_EVENTS_EXPORT }} {{ nfs_export_opts_events }}"
+        create: yes
+
+    - name: Apply updated NFS exports
+      command: exportfs -ra
+      register: exportfs_result
+
+    - name: Display exportfs result
+      debug:
+        var: exportfs_result.stdout_lines

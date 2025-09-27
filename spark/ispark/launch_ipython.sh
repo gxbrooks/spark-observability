@@ -42,6 +42,7 @@ fi
 
 # Set up environment variables
 export SPARK_MASTER_URL="${SPARK_MASTER_URL}"
+export SPARK_DATA_DIR="/mnt/spark/data"
 export PYSPARK_DRIVER_PYTHON="ipython3"
 export PYSPARK_DRIVER_PYTHON_OPTS=""
 

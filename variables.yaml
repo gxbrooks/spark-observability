@@ -8,6 +8,18 @@ TZ:
   value: America/Chicago
   contexts: [observability, spark-image, spark-runtime]
 
+PYTHON_VERSION:
+  value: 3.12
+  contexts: [spark-runtime, client, managed-node]
+
+PYSPARK_PYTHON:
+  value: python3
+  contexts: [spark-runtime]
+
+PYSPARK_DRIVER_PYTHON:
+  value: python3
+  contexts: [spark-runtime]
+
 
 # unclear why CLUSTER_NAME is needed, see es01 service in docker-compose.yml
 CLUSTER_NAME:
@@ -129,9 +141,6 @@ SPARK_HOME:
 HADOOP_HOME:
   value: /opt/spark
   contexts: [spark-runtime]
-PYSPARK_PYTHON:
-  value: python3
-  contexts: [spark-runtime]
 
 # Google data access
 # A relative path may not be consistent between iPython and spark submit
@@ -173,7 +182,7 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   value: 120s
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
-  value: /mnt/spark-events
+  value: /mnt/spark/events
   contexts: [spark-runtime, ansible]
 SPARK_NO_DAEMONIZE:
   value: true
@@ -188,4 +197,36 @@ SPARK_USER:
 USER_SPARK_HOME:
   value: /home/ansible/spark
   contexts: [ansible]
+
+# NFS Configuration
+NFS_SERVER:
+  value: Lab2.lan
+  contexts: [spark-runtime, nfs]
+
+# Spark Mount Points
+SPARK_MOUNT_BASE:
+  value: /mnt/spark
+  contexts: [spark-runtime, nfs]
+
+SPARK_EVENTS_MOUNT:
+  value: /mnt/spark/events
+  contexts: [spark-runtime, nfs]
+
+SPARK_DATA_MOUNT:
+  value: /mnt/spark/data
+  contexts: [spark-runtime, nfs]
+
+# Spark Data Source
+SPARK_DATA_SOURCE:
+  value: /home/gxbrooks/repos/elastic-on-spark/spark/data
+  contexts: [spark-runtime, nfs]
+
+# NFS Export Paths
+NFS_SPARK_EVENTS_EXPORT:
+  value: /srv/nfs/spark/events
+  contexts: [nfs]
+
+NFS_SPARK_DATA_EXPORT:
+  value: /srv/nfs/spark/data
+  contexts: [nfs]
 

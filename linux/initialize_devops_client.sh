@@ -84,4 +84,14 @@ $root_dir/linux/link_to_user_env.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
+# Ensure Python version is available
+$root_dir/linux/assert_python_version.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
+# Ensure spark user and group exist
+$root_dir/linux/assert_spark_user.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
 echo "Result  : Devops client initialized for user '$USER'."
