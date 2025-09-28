@@ -1,15 +1,38 @@
 
 
+#!/usr/bin/env python3
+"""
+Chapter 06: JSON Processing
+Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
+"""
+
+import os
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
+import pyspark.sql.types as T
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Set Spark local IP to avoid hostname resolution warning
+os.environ['SPARK_LOCAL_IP'] = '192.168.1.48'
+
+# Create Spark session with proper configuration
+spark = SparkSession.builder \
+    .appName("Chapter 06: JSON Processing") \
+    .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .getOrCreate()
+
+print("=== Chapter 06: JSON Processing ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
 
 #########################################################################################
 #
 # Listing 6.3 Ingesting a JSON document using the JSON specialized SparkReader
-
-from pyspark.sql import SparkSession
  
-spark = SparkSession.builder.getOrCreate()
- 
-shows = spark.read.json("./data/shows/shows-silicon-valley.json")   #❶
+shows = spark.read.json("/mnt/spark/data/shows/shows-silicon-valley.json")   #❶
  
 shows.count()
 # 1                                                                 #❷
@@ -17,7 +40,7 @@ shows.count()
 #########################################################################################
 #
 # Listing 6.4 Reading multiple JSON documents using the multiLine option 
-three_shows = spark.read.json("./data/shows/shows-*.json", multiLine=True)
+three_shows = spark.read.json("/mnt/spark/data/shows/shows-*.json", multiLine=True)
  
 three_shows.count()
 # 3
@@ -427,7 +450,7 @@ embedded_schema = T.StructType(
 # Listing 6.18 Reading a JSON document using an explicit partial schema 
 
 shows_with_schema = spark.read.json(
-    "./data/shows/shows-silicon-valley.json",
+    "/mnt/spark/data/shows/shows-silicon-valley.json",
     schema=embedded_schema,                    #❶
     mode="FAILFAST",                           #❷
 )
@@ -503,7 +526,7 @@ embedded_schema2 = T.StructType(
 
 
 shows_with_schema_wrong = spark.read.json(
-    "./data/shows/shows-silicon-valley.json",
+    "/mnt/spark/data/shows/shows-silicon-valley.json",
     schema=embedded_schema2,
     mode="FAILFAST",
 )

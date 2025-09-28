@@ -5,6 +5,7 @@ DEBUG=false
 CHECK=false
 USERNAME="ansible"
 PASSWORD=""
+PYTHON_VERSION="3.8"
 
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
@@ -27,9 +28,13 @@ while [[ $# -gt 0 ]]; do
             PASSWORD=$2
             shift
             ;;
+        -pyv)
+            PYTHON_VERSION=$2
+            shift
+            ;;
         *)
             echo "Error   : Unrecognized argument $1 in $script_name." 
-            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Passphrase|-p <passphrase>]"
+            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Password|-p <password>] [-pyv <python_version>]"
             exit 1
             ;;
     esac
@@ -56,6 +61,7 @@ $root_dir/ssh/assert_service_account.sh \
 
 $DEBUG && echo "Checking: Python version management"
 $root_dir/linux/assert_python_version.sh \
+    --PythonVersion "$PYTHON_VERSION" \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 

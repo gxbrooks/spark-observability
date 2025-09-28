@@ -72,10 +72,20 @@ check_user_in_spark_group() {
 
 # Function to create spark group
 create_spark_group() {
-    echo "Info    : Creating spark group with GID $SPARK_GID..."
+    $DEBUG && echo "Debug   : Checking if spark group exists..."
     
-    if ! $CHECK; then
-        if ! check_spark_group; then
+    if check_spark_group; then
+        $DEBUG && echo "Debug   : spark group already exists"
+        if $CHECK; then
+            echo "Check   : spark group already exists - no change needed"
+        else
+            echo "Info    : spark group already exists - no change needed"
+        fi
+    else
+        if $CHECK; then
+            echo "Check   : spark group does not exist - would create with GID $SPARK_GID"
+        else
+            echo "Info    : Creating spark group with GID $SPARK_GID..."
             sudo groupadd -g "$SPARK_GID" spark
             if [ $? -eq 0 ]; then
                 echo "Success : spark group created with GID $SPARK_GID"
@@ -83,20 +93,26 @@ create_spark_group() {
                 echo "Error   : Failed to create spark group"
                 return 1
             fi
-        else
-            echo "Info    : spark group already exists"
         fi
-    else
-        echo "Check   : Would create spark group with GID $SPARK_GID"
     fi
 }
 
 # Function to create spark user
 create_spark_user() {
-    echo "Info    : Creating spark user with UID $SPARK_UID..."
+    $DEBUG && echo "Debug   : Checking if spark user exists..."
     
-    if ! $CHECK; then
-        if ! check_spark_user; then
+    if check_spark_user; then
+        $DEBUG && echo "Debug   : spark user already exists"
+        if $CHECK; then
+            echo "Check   : spark user already exists - no change needed"
+        else
+            echo "Info    : spark user already exists - no change needed"
+        fi
+    else
+        if $CHECK; then
+            echo "Check   : spark user does not exist - would create with UID $SPARK_UID"
+        else
+            echo "Info    : Creating spark user with UID $SPARK_UID..."
             sudo useradd -u "$SPARK_UID" -g "$SPARK_GID" -m -s /bin/bash spark
             if [ $? -eq 0 ]; then
                 echo "Success : spark user created with UID $SPARK_UID"
@@ -104,21 +120,27 @@ create_spark_user() {
                 echo "Error   : Failed to create spark user"
                 return 1
             fi
-        else
-            echo "Info    : spark user already exists"
         fi
-    else
-        echo "Check   : Would create spark user with UID $SPARK_UID"
     fi
 }
 
 # Function to add user to spark group
 add_user_to_spark_group() {
     local username=$1
-    echo "Info    : Adding user '$username' to spark group..."
+    $DEBUG && echo "Debug   : Checking if user '$username' is in spark group..."
     
-    if ! $CHECK; then
-        if ! check_user_in_spark_group "$username"; then
+    if check_user_in_spark_group "$username"; then
+        $DEBUG && echo "Debug   : User '$username' is already in spark group"
+        if $CHECK; then
+            echo "Check   : User '$username' is already in spark group - no change needed"
+        else
+            echo "Info    : User '$username' is already in spark group - no change needed"
+        fi
+    else
+        if $CHECK; then
+            echo "Check   : User '$username' is not in spark group - would add to spark group"
+        else
+            echo "Info    : Adding user '$username' to spark group..."
             sudo usermod -a -G spark "$username"
             if [ $? -eq 0 ]; then
                 echo "Success : User '$username' added to spark group"
@@ -127,11 +149,7 @@ add_user_to_spark_group() {
                 echo "Error   : Failed to add user '$username' to spark group"
                 return 1
             fi
-        else
-            echo "Info    : User '$username' is already in spark group"
         fi
-    else
-        echo "Check   : Would add user '$username' to spark group"
     fi
 }
 
@@ -164,7 +182,7 @@ verify_spark_setup() {
 }
 
 # Main execution
-echo "Info    : Setting up spark user and group..."
+$DEBUG && echo "Debug   : Starting spark user and group setup..."
 
 # Create spark group
 create_spark_group

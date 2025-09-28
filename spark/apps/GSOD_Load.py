@@ -9,7 +9,7 @@ spark = SparkSession.builder.appName(
 ).getOrCreate()
 
 
-gsod = spark.read.parquet(f"./data/gsod_data.parquet")
+gsod = spark.read.parquet(f"/mnt/spark/data/gsod_data.parquet")
 
 gsod_light = (
     gsod
@@ -25,7 +25,7 @@ gsod_light = (
     .orderBy(F.col("count"), ascending=False)
     ).show(20)
 
-gsod_light = spark.read.parquet("./data/gsod_light.parquet")
+gsod_light = spark.read.parquet("/mnt/spark/data/gsod_light.parquet")
 
 gsod_light_p = (
     gsod_light

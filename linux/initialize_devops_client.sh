@@ -7,7 +7,8 @@
 # Parse flags
 CHECK=false
 DEBUG=false
-PASSPHRASE="" 
+PASSPHRASE=""
+PYTHON_VERSION="3.8"
 while [[ $# -gt 0 ]]; do
     echo "arg: $1"
     case $1 in
@@ -21,8 +22,12 @@ while [[ $# -gt 0 ]]; do
           PASSPHRASE=$2
           shift
           ;;
+        -pyv)
+          PYTHON_VERSION=$2
+          shift
+          ;;
         *) echo "Unknown parameter passed: $1"  >&2
-          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>]" >&2
+          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>]" >&2
           exit 1
           ;;
     esac
@@ -31,7 +36,7 @@ done
 
 if [[ -z "$PASSPHRASE" ]]; then
   echo "Error: Passphrase is mandatory for securing keys. Use the -N (-p) option to specify it." >&2
-  echo "Usage: $0 [--Check|-c] [--Debug|-c] [-N <passphrase>]"  >&2
+  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>]"  >&2
   exit 1
 fi
 
@@ -50,8 +55,6 @@ fi
 if ! $CHECK; then
   sudo apt update && sudo apt upgrade -y
   sudo apt update && sudo apt  -y install jq ncat keychain bind9-dnsutils traceroute ansible-core hdfs-cli
-  # Install PySpark client for development
-  pip3 install --break-system-packages pyspark==3.5.1 ipython
 fi
 
 if ! $CHECK; then
@@ -86,8 +89,9 @@ $root_dir/linux/link_to_user_env.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
-# Ensure Python version is available
+# Ensure Python is available for Spark compatibility (venv setup is now default)
 $root_dir/linux/assert_python_version.sh \
+    --PythonVersion "$PYTHON_VERSION" \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 

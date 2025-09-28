@@ -1,4 +1,3 @@
-
 echo "Setting up bash environment for Spark Observability..."
 # bash environment configuration for Spark Observability
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +24,5 @@ if ! pgrep -f ssh-agent > /dev/null; then
     ssh-add # Add your keys here if you want them added automatically
 fi
 
-# Add project virtual environment to PATH (idempotent)
-if [[ ":$PATH:" != *":/home/gxbrooks/repos/elastic-on-spark/venv/bin:"* ]]; then
-    export PATH="/home/gxbrooks/repos/elastic-on-spark/venv/bin:$PATH"
-fi
+# Add project virtual environment to PATH
+export PATH="/home/gxbrooks/repos/elastic-on-spark/venv/bin:$PATH"

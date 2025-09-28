@@ -1,13 +1,30 @@
 
+#!/usr/bin/env python3
+"""
+Chapter 09: Advanced Analytics
+Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
+"""
+
+import os
 from pyspark.sql import SparkSession
 from functools import reduce
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 import pandas as pd
- 
-spark = SparkSession.builder.appName(
-    "Ch09 - Using UDFs"
-).getOrCreate()
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Create Spark session with proper configuration
+spark = SparkSession.builder \
+    .appName("Chapter 09: Advanced Analytics") \
+    .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .getOrCreate()
+
+print("=== Chapter 09: Advanced Analytics ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
 
 #########################################################################################
 #
@@ -22,8 +39,8 @@ gsod = (
     reduce(
         lambda x, y: x.unionByName(y, allowMissingColumns=True),
         [
-            # spark.read.parquet(f"./data/gsod_noaa/gsod{year}.parquet")
-            spark.read.parquet(f"./data/gsod_noaa/gsod{year}.parquet")
+            # spark.read.parquet(f"/mnt/spark/data/gsod_noaa/gsod{year}.parquet")
+            spark.read.parquet(f"/mnt/spark/data/gsod_noaa/gsod{year}.parquet")
             for year in range(2010, 2021)
         ],
     )
@@ -38,7 +55,43 @@ gsod = (
 # Un-named side panel
 
 
-gsod = spark.read.parquet(f"./data/gsod_data.parquet")
+# Try to read GSOD data, create sample data if not available
+try:
+    gsod = spark.read.parquet(f"/mnt/spark/data/gsod_data.parquet")
+    print("Info    : Loaded GSOD data from parquet file")
+except Exception as e:
+    print(f"Warning : GSOD parquet file not found: {e}")
+    print("Info    : Creating sample weather data for demonstration...")
+    
+    # Create sample weather data for demonstration
+    from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
+    
+    sample_data = [
+        ("2020-01-01", "USW00094728", 2020, 1, 1, 15.5, 25.0, 5.0),
+        ("2020-01-02", "USW00094728", 2020, 1, 2, 12.3, 22.0, 2.5),
+        ("2020-01-03", "USW00094728", 2020, 1, 3, 18.7, 28.0, 9.0),
+        ("2020-01-04", "USW00094728", 2020, 1, 4, 20.1, 30.0, 10.0),
+        ("2020-01-05", "USW00094728", 2020, 1, 5, 16.8, 26.0, 7.5),
+        ("2020-02-01", "USW00094728", 2020, 2, 1, 14.2, 24.0, 4.5),
+        ("2020-02-02", "USW00094728", 2020, 2, 2, 17.9, 27.0, 8.5),
+        ("2020-02-03", "USW00094728", 2020, 2, 3, 13.6, 23.0, 4.0),
+        ("2020-03-01", "USW00094728", 2020, 3, 1, 19.4, 29.0, 9.5),
+        ("2020-03-02", "USW00094728", 2020, 3, 2, 21.2, 31.0, 11.0),
+    ]
+    
+    schema = StructType([
+        StructField("date", StringType(), True),
+        StructField("station", StringType(), True),
+        StructField("year", IntegerType(), True),
+        StructField("mo", IntegerType(), True),
+        StructField("da", IntegerType(), True),
+        StructField("temp", DoubleType(), True),
+        StructField("max", DoubleType(), True),
+        StructField("min", DoubleType(), True)
+    ])
+    
+    gsod = spark.createDataFrame(sample_data, schema)
+    print("Info    : Created sample weather data for demonstration")
 
 #########################################################################################
 #
@@ -50,7 +103,7 @@ from pyspark.sql import SparkSession
  
 spark = SparkSession.builder.config(
     "spark.jars.packages",
-    "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1", #❶
+    "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1", ## 1
 ).getOrCreate()
 
 # [...]
@@ -84,13 +137,13 @@ from functools import reduce
 import pyspark.sql.functions as F
  
  
-def read_df_from_bq(year):                                         #❶
+def read_df_from_bq(year):                                         ## 1
     return (
-        spark.read.format("bigquery").option(                      #❷
+        spark.read.format("bigquery").option(                      ## 2
             "table", 
-            f"bigquery-public-data.noaa_gsod.gsod{year}"           #❸
+            f"bigquery-public-data.noaa_gsod.gsod{year}"           ## 3
         )  
-        .option("credentialsFile", "./apps/bq-api-key.json")        #❹
+        .option("credentialsFile", "./apps/bq-api-key.json")        ## 4
         .load()
 )
  
@@ -98,8 +151,8 @@ def read_df_from_bq(year):                                         #❶
 gsod = (
     reduce(
         lambda x, y: x.unionByName(y, allowMissingColumns=True),
-        # [read_df_from_bq(year) for year in range(2010, 2021)],     #❺
-        [read_df_from_bq(year) for year in range(2014, 2024)],     #❺
+        # [read_df_from_bq(year) for year in range(2010, 2021)],     ## 5
+        [read_df_from_bq(year) for year in range(2014, 2024)],     ## 5
     )
     .dropna(subset=["year", "mo", "da", "temp"])
     .where(F.col("temp") != 9999.9)
@@ -111,7 +164,7 @@ gsod = (
 # 
 # Listing 9.3 Reading the gsod data from 2010 to 2020 via a loop 
 
-gsod_alt = read_df_from_bq(2010)     ❶
+gsod_alt = read_df_from_bq(2010)     # 1
 for year in range(2011, 2020):
     gsod_alt = gsod_alt.unionByName(
         read_df_from_bq(year), allowMissingColumns=True
@@ -127,8 +180,8 @@ import pandas as pd
 import pyspark.sql.types as T
  
  
-@F.pandas_udf(T.DoubleType())                 #❶
-def f_to_c(degrees: pd.Series) -> pd.Series:  #❷
+@F.pandas_udf(T.DoubleType())                 ## 1
+def f_to_c(degrees: pd.Series) -> pd.Series:  ## 2
     """Transforms Farhenheit to Celsius."""
     return (degrees - 32) * 5 / 9
 
@@ -160,11 +213,11 @@ from typing import Iterator
  
  
 @F.pandas_udf(T.DoubleType())
-def f_to_c2(degrees: Iterator[pd.Series]) -> Iterator[pd.Series]:  #❶
+def f_to_c2(degrees: Iterator[pd.Series]) -> Iterator[pd.Series]:  ## 1
     """Transforms Farhenheit to Celsius."""
-    sleep(5)                                                       #❷
-    for batch in degrees:                                          #❸
-        yield (batch - 32) * 5 / 9                                 #❸
+    sleep(5)                                                       ## 2
+    for batch in degrees:                                          ## 3
+        yield (batch - 32) * 5 / 9                                 ## 3
  
  
 gsod.select(
@@ -234,15 +287,15 @@ color_to_num_udf = F.pandas_udf(color_to_num, WHICH_TYPE)
 # 
 # Listing 9.8 Creating a grouped aggregate UDF 
 
-from sklearn.linear_model import LinearRegression                   #❶
+from sklearn.linear_model import LinearRegression                   ## 1
  
 @F.pandas_udf(T.DoubleType())
 def rate_of_change_temperature(day: pd.Series, temp: pd.Series) -> float:
     """Returns the slope of the daily temperature for a given period of time."""
     return (
-        LinearRegression()                                          #❷
-        .fit(X=day.astype(int).values.reshape(-1, 1), y=temp)       #❸
-        .coef_[0]                                                   #❹
+        LinearRegression()                                          ## 2
+        .fit(X=day.astype(int).values.reshape(-1, 1), y=temp)       ## 3
+        .coef_[0]                                                   ## 4
     )
 
 #########################################################################################
@@ -251,7 +304,7 @@ def rate_of_change_temperature(day: pd.Series, temp: pd.Series) -> float:
 # Listing 9.9 Applying our grouped aggregate UDF using agg() 
 
 result = gsod.groupby("stn", "year", "mo").agg(
-    rate_of_change_temperature(gsod["da"], gsod["temp"]).alias(   #❶
+    rate_of_change_temperature(gsod["da"], gsod["temp"]).alias(   ## 1
         "rt_chg_temp"
     )
 )
@@ -325,7 +378,7 @@ gsod_local = gsod_map.where(
  
  
 print(
-    rate_of_change_temperature.func(                #❶
+    rate_of_change_temperature.func(                ## 1
         gsod_local["da"], gsod_local["temp_norm"]
     )
 )
@@ -470,7 +523,7 @@ def rate_of_change_temperature(day: pd.Series, temp: pd.Series) -> float:
 
 
 result = gsod.groupby("stn", "year", "mo").agg(
-    rate_of_change_temperature(gsod["da"], gsod["temp"]).alias(   #❶
+    rate_of_change_temperature(gsod["da"], gsod["temp"]).alias(   ## 1
         "rt_chg_temp"
     )
 )
