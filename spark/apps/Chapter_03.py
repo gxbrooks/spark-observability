@@ -73,11 +73,31 @@ results = results.repartition(10)
 
 # Listing 3.3 Writing results in multiple CSV files, one per partition
 print("\n=== Writing results to CSV ===")
-results.write.csv("/mnt/spark/data/simple_count.csv", mode="overwrite")
+# Try Hadoop HDFS first, fallback to local filesystem
+try:
+    # Write to Hadoop HDFS
+    results.write.csv("hdfs://10.101.125.84:9000/spark/simple_count.csv", mode="overwrite")
+    print("Successfully wrote to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count.csv")
+except Exception as e:
+    print(f"Hadoop write failed: {e}")
+    print("Falling back to local filesystem...")
+    # Fallback to local filesystem
+    results.write.csv("/mnt/spark/data/simple_count.csv", mode="overwrite")
+    print("Wrote to local filesystem: /mnt/spark/data/simple_count.csv")
+
 print(f"Number of partitions: {results.rdd.getNumPartitions()}")
 
 # Listing 3.4 Writing results under a single partition 
-results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
+try:
+    # Write to Hadoop HDFS
+    results.coalesce(1).write.csv("hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv", mode="overwrite")
+    print("Successfully wrote single partition to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv")
+except Exception as e:
+    print(f"Hadoop single partition write failed: {e}")
+    print("Falling back to local filesystem...")
+    # Fallback to local filesystem
+    results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
+    print("Wrote single partition to local filesystem: /mnt/spark/data/simple_count_single_partition.csv")
 
 # Listing 3.5 Our first PySpark program, dubbed "Counting Jane Austen"
 print("\n=== Listing 3.5: Complete word count analysis ===")
@@ -93,7 +113,15 @@ words_nonull = words_clean.where(F.col("word") != "")
 results = words_nonull.groupby(F.col("word")).count()
 
 results.orderBy("count", ascending=False).show(10)
-results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
+# Write to Hadoop HDFS
+try:
+    results.coalesce(1).write.csv("hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv", mode="overwrite")
+    print("Successfully wrote to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv")
+except Exception as e:
+    print(f"Hadoop write failed: {e}")
+    print("Falling back to local filesystem...")
+    results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
+    print("Wrote to local filesystem: /mnt/spark/data/simple_count_single_partition.csv")
 
 # Listing 3.7 Chaining transformation methods
 print("\n=== Listing 3.7: Chained transformations ===")

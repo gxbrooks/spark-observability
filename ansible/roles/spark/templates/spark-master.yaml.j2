@@ -70,6 +70,8 @@ spec:
           volumeMounts:
             - name: spark-events
               mountPath: /mnt/spark/events
+            - name: spark-data
+              mountPath: /mnt/spark/data
             - name: spark-defaults-conf
               mountPath: /opt/spark/conf/spark-defaults.conf
               subPath: spark-defaults.conf
@@ -77,6 +79,10 @@ spec:
         - name: spark-events
           hostPath:
             path: /mnt/spark/events
+            type: DirectoryOrCreate
+        - name: spark-data
+          hostPath:
+            path: /mnt/spark/data
             type: DirectoryOrCreate
         - name: spark-defaults-conf
           configMap:

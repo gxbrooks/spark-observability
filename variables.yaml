@@ -230,3 +230,20 @@ NFS_SPARK_DATA_EXPORT:
   value: /srv/nfs/spark/data
   contexts: [nfs]
 
+# Hadoop Configuration
+HADOOP_NAMENODE:
+  value: 10.101.125.84:9000
+  contexts: [spark-runtime, ansible]
+
+HADOOP_CONF_DIR:
+  value: /opt/hadoop/etc/hadoop
+  contexts: [spark-runtime, ansible]
+
+HADOOP_HOME:
+  value: /opt/hadoop
+  contexts: [spark-runtime, ansible]
+
+HDFS_DEFAULT_FS:
+  value: hdfs://10.101.125.84:9000
+  contexts: [spark-runtime, ansible]
+

@@ -49,7 +49,9 @@ fi
 
 if ! $CHECK; then
   sudo apt update && sudo apt upgrade -y
-  sudo apt update && sudo apt  -y install jq ncat keychain bind9-dnsutils traceroute ansible-core
+  sudo apt update && sudo apt  -y install jq ncat keychain bind9-dnsutils traceroute ansible-core hdfs-cli
+  # Install PySpark client for development
+  pip3 install --break-system-packages pyspark==3.5.1 ipython
 fi
 
 if ! $CHECK; then
