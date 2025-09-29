@@ -19,11 +19,11 @@ until curl --no-progress-meter --cacert ${CA_CERT} https://es01:9200 | grep -q "
 # The sparkUnproccessedIndexTemplate.json file assumes the namespace of the index and the dataset are both
 # named 'spark'. These names are specified in the logstash.conf file. 
 
-esapi PUT /_ilm/policy/batch-events elasticsearch/batch-events/batch-events.ilm.json > elasticsearch/outputs/batch-events.ilm.out.json 
-esapi PUT /_index_template/batch-events elasticsearch/batch-events/batch-events.template.json > elasticsearch/outputs/batch-events.template.out.json 
+esapi PUT /_ilm/policy/batch-events elasticsearch/batch-events/batch-events.ilm.json > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.ilm.out.json 
+esapi PUT /_index_template/batch-events elasticsearch/batch-events/batch-events.template.json > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.template.out.json 
 # if the index already exists, don't create it or elastic will error out
 ! esapi GET /batch-events-000001 >& /dev/null \
-  && esapi  PUT /batch-events-000001 elasticsearch/batch-events/batch-events.index.json > elasticsearch/outputs/batch-events.index.out.json 
+  && esapi  PUT /batch-events-000001 elasticsearch/batch-events/batch-events.index.json > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.index.out.json 
 
 
 esapi PUT /_ilm/policy/spark-logs elasticsearch/spark/spark-logs.ilm.json 
@@ -57,7 +57,7 @@ esapi PUT /_index_template/batch-metrics-ds elasticsearch/batch-metrics/batch-me
 esapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metrics.watcher.json 
 
 # Spark gc logs
-esapi PUT /_ilm/policy/spark-gc elasticsearch/spark-gc/spark-gc.ilm.json > elasticsearch/outputs/spark-gc.ilm.out.json 
+esapi PUT /_ilm/policy/spark-gc elasticsearch/spark-gc/spark-gc.ilm.json > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc.ilm.out.json 
 esapi PUT /_index_template/spark-gc-ds elasticsearch/spark-gc/spark-gc.template.json 
 
 

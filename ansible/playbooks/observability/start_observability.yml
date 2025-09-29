@@ -1,0 +1,63 @@
+---
+# Start Observability Platform
+# This playbook starts the Docker-based observability platform on GaryPC WSL
+
+- name: Start Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
+    
+  tasks:
+    - name: Check if observability directory exists
+      stat:
+        path: "{{ observability_dir }}"
+      register: obs_dir_stat
+      
+    - name: Fail if observability directory doesn't exist
+      fail:
+        msg: "Observability directory {{ observability_dir }} does not exist."
+      when: not obs_dir_stat.stat.exists
+      
+    - name: Check current service status
+      command: docker-compose -f "{{ docker_compose_file }}" ps
+      args:
+        chdir: "{{ observability_dir }}"
+      register: current_status
+      
+    - name: Display current status
+      debug:
+        var: current_status.stdout_lines
+        
+    - name: Start observability platform
+      command: docker-compose -f "{{ docker_compose_file }}" up -d
+      args:
+        chdir: "{{ observability_dir }}"
+      register: start_result
+      
+    - name: Wait for services to be ready
+      wait_for:
+        timeout: 300
+      delegate_to: localhost
+      
+    - name: Check final service status
+      command: docker-compose -f "{{ docker_compose_file }}" ps
+      args:
+        chdir: "{{ observability_dir }}"
+      register: final_status
+      
+    - name: Display final status
+      debug:
+        var: final_status.stdout_lines
+        
+    - name: Show service URLs
+      debug:
+        msg: |
+          Observability Platform Services:
+          - Elasticsearch: https://{{ inventory_hostname }}:9200
+          - Kibana: http://{{ inventory_hostname }}:5601
+          - Grafana: http://{{ inventory_hostname }}:3000
+          - Logstash: {{ inventory_hostname }}:9600

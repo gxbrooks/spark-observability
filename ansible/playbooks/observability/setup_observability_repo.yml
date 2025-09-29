@@ -1,0 +1,105 @@
+---
+# Setup Observability Repository on GaryPC WSL
+# This playbook clones the repository and sets up the observability platform on GaryPC WSL
+
+- name: Setup Observability Repository
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    repo_url: "https://github.com/gxbrooks/elastic-on-spark.git"
+    repo_dir: "/home/ansible/repos/elastic-on-spark"
+    observability_dir: "/home/ansible/observability"
+    
+  tasks:
+    - name: Create observability directory
+      file:
+        path: "{{ observability_dir }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Create logs directory
+      file:
+        path: "{{ observability_dir }}/logs"
+        state: directory
+        mode: '0755'
+      
+    - name: Copy docker-compose.yml
+      copy:
+        src: "{{ playbook_dir }}/../../../observability/docker-compose.yml"
+        dest: "{{ observability_dir }}/docker-compose.yml"
+        mode: '0644'
+        
+    - name: Copy .env file
+      copy:
+        src: "{{ playbook_dir }}/../../../observability/.env"
+        dest: "{{ observability_dir }}/.env"
+        mode: '0644'
+        
+    - name: Copy certs directory
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/certs/"
+        dest: "{{ observability_dir }}/certs/"
+        delete: false
+        recursive: true
+        
+    - name: Copy elasticsearch directory
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/elasticsearch/"
+        dest: "{{ observability_dir }}/elasticsearch/"
+        delete: false
+        recursive: true
+        
+    - name: Copy grafana directory
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/grafana/"
+        dest: "{{ observability_dir }}/grafana/"
+        delete: false
+        recursive: true
+        
+    - name: Copy logstash directory
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/logstash/"
+        dest: "{{ observability_dir }}/logstash/"
+        delete: false
+        recursive: true
+        
+    - name: Copy shared directory
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/shared/"
+        dest: "{{ observability_dir }}/shared/"
+        delete: false
+        recursive: true
+      
+    - name: Check if .env file exists
+      stat:
+        path: "{{ observability_dir }}/.env"
+      register: env_file_stat
+      
+    - name: Check if Docker is running
+      command: docker ps
+      register: docker_status
+      failed_when: false
+      
+    - name: Fail if Docker is not running
+      fail:
+        msg: "Docker is not running on {{ inventory_hostname }}. Please start Docker Desktop."
+      when: docker_status.rc != 0
+      
+    - name: Display setup status
+      debug:
+        msg: |
+          Repository Setup Status:
+          - Repository: {{ 'Cloned' if not repo_exists.stat.exists else 'Updated' }}
+          - Observability directory: {{ 'Found' if obs_dir_stat.stat.exists else 'Missing' }}
+          - Environment file: {{ 'Found' if env_file_stat.stat.exists else 'Generated' }}
+          - Docker: {{ 'Running' if docker_status.rc == 0 else 'Not running' }}
+          
+    - name: Show next steps
+      debug:
+        msg: |
+          Repository setup completed.
+          Next steps:
+          1. Run 'deploy_observability.yml' to deploy the platform
+          2. Run 'start_observability.yml' to start the services

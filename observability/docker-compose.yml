@@ -250,6 +250,7 @@ services:
 
   init-index:
     image: elasticsearch-python
+    user: "0:0"
     command: bash -f ./elasticsearch/bin/init-index.sh
     labels:
       role: "Init Index"

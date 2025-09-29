@@ -1,0 +1,78 @@
+---
+# Uninstall Observability Platform
+# This playbook completely removes the observability platform and cleans up resources on GaryPC WSL
+
+- name: Uninstall Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
+    
+  tasks:
+    - name: Check if observability directory exists
+      stat:
+        path: "{{ observability_dir }}"
+      register: obs_dir_stat
+      
+    - name: Fail if observability directory doesn't exist
+      fail:
+        msg: "Observability directory {{ observability_dir }} does not exist."
+      when: not obs_dir_stat.stat.exists
+      
+    - name: Check current service status
+      command: docker-compose -f "{{ docker_compose_file }}" ps
+      args:
+        chdir: "{{ observability_dir }}"
+      register: current_status
+      
+    - name: Display current status
+      debug:
+        var: current_status.stdout_lines
+        
+    - name: Stop and remove all containers, networks, and volumes
+      command: docker-compose -f "{{ docker_compose_file }}" down -v --remove-orphans
+      args:
+        chdir: "{{ observability_dir }}"
+      register: uninstall_result
+      
+    - name: Remove custom images
+      command: docker-compose -f "{{ docker_compose_file }}" down --rmi all
+      args:
+        chdir: "{{ observability_dir }}"
+      register: image_removal
+      failed_when: false
+      
+    - name: Remove elastic network
+      command: docker network rm elastic
+      register: network_removal
+      failed_when: false
+      
+    - name: Clean up unused Docker resources
+      command: docker system prune -f
+      register: cleanup_result
+      failed_when: false
+      
+    - name: Check final service status
+      command: docker-compose -f "{{ docker_compose_file }}" ps
+      args:
+        chdir: "{{ observability_dir }}"
+      register: final_status
+      
+    - name: Display final status
+      debug:
+        var: final_status.stdout_lines
+        
+    - name: Show uninstall status
+      debug:
+        msg: |
+          Observability Platform Uninstall Status:
+          - Containers: Removed
+          - Networks: {{ 'Removed' if network_removal.rc == 0 else 'Already removed or in use' }}
+          - Volumes: Removed
+          - Images: {{ 'Removed' if image_removal.rc == 0 else 'Some may still exist' }}
+          - System cleanup: {{ 'Completed' if cleanup_result.rc == 0 else 'Failed' }}
+          
+          The observability platform has been completely uninstalled.

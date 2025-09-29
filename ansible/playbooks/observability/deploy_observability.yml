@@ -1,0 +1,94 @@
+---
+# Deploy Observability Platform
+# This playbook deploys the Docker-based observability platform on GaryPC WSL
+# The platform includes Elasticsearch, Kibana, Grafana, and Logstash
+
+- name: Deploy Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
+    env_file: "{{ observability_dir }}/.env"
+    
+  tasks:
+    - name: Check if observability directory exists
+      stat:
+        path: "{{ observability_dir }}"
+      register: obs_dir_stat
+      
+    - name: Fail if observability directory doesn't exist
+      fail:
+        msg: "Observability directory {{ observability_dir }} does not exist. Please ensure the observability platform files are available."
+      when: not obs_dir_stat.stat.exists
+      
+    - name: Check if docker-compose.yml exists
+      stat:
+        path: "{{ docker_compose_file }}"
+      register: compose_file_stat
+      
+    - name: Fail if docker-compose.yml doesn't exist
+      fail:
+        msg: "Docker compose file {{ docker_compose_file }} does not exist."
+      when: not compose_file_stat.stat.exists
+      
+    - name: Check if .env file exists
+      stat:
+        path: "{{ env_file }}"
+      register: env_file_stat
+      
+    - name: Fail if .env file doesn't exist
+      fail:
+        msg: "Environment file {{ env_file }} does not exist. Please run generate_env.py to create it."
+      when: not env_file_stat.stat.exists
+      
+    - name: Check if Docker is running
+      command: sudo docker ps
+      register: docker_status
+      failed_when: false
+      
+    - name: Fail if Docker is not running
+      fail:
+        msg: "Docker is not running on {{ inventory_hostname }}. Please start Docker Desktop."
+      when: docker_status.rc != 0
+      
+    - name: Create elastic network if it doesn't exist
+      command: sudo docker network create elastic
+      register: network_create
+      failed_when: false
+      
+    - name: Stop any existing observability containers
+      command: sudo docker-compose -f "{{ docker_compose_file }}" down
+      args:
+        chdir: "{{ observability_dir }}"
+      register: stop_result
+      failed_when: false
+      
+    - name: Build custom images
+      command: sudo docker-compose -f "{{ docker_compose_file }}" build
+      args:
+        chdir: "{{ observability_dir }}"
+      register: build_result
+      
+    - name: Deploy observability platform
+      command: sudo docker-compose -f "{{ docker_compose_file }}" up -d
+      args:
+        chdir: "{{ observability_dir }}"
+      register: deploy_result
+      
+    - name: Wait for services to be ready
+      wait_for:
+        timeout: 300
+      delegate_to: localhost
+      
+    - name: Check service status
+      command: sudo docker-compose -f "{{ docker_compose_file }}" ps
+      args:
+        chdir: "{{ observability_dir }}"
+      register: service_status
+      
+    - name: Display service status
+      debug:
+        var: service_status.stdout_lines
