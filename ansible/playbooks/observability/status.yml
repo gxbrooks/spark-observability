@@ -1,0 +1,114 @@
+---
+# Check Observability Platform Status
+# Display status of all observability services
+
+- name: Check Observability Platform Status
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_windows: "{{ ansible_os_family == 'Windows' }}"
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+        
+    - name: Check if observability directory exists
+      stat:
+        path: "{{ observability_dir }}"
+      register: obs_dir_stat
+      
+    # === LINUX TASKS ===
+    - name: Get Docker container status (Linux)
+      command: docker ps -a --format "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Ports{{ '}}' }}"
+      register: docker_status
+      when: is_linux and obs_dir_stat.stat.exists
+      ignore_errors: true
+      
+    - name: Get Docker compose status (Linux)
+      command: docker-compose ps
+      args:
+        chdir: "{{ observability_dir }}"
+      register: compose_status
+      when: is_linux and obs_dir_stat.stat.exists
+      ignore_errors: true
+      
+    - name: Check Elasticsearch health (Linux)
+      uri:
+        url: "https://{{ ansible_hostname }}:9200/_cluster/health"
+        method: GET
+        user: "elastic"
+        password: "myElastic2025"
+        validate_certs: false
+        timeout: 10
+      register: es_health
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Check Kibana status (Linux)
+      uri:
+        url: "http://{{ ansible_hostname }}:5601/api/status"
+        method: GET
+        user: "elastic"
+        password: "myElastic2025"
+        validate_certs: false
+        timeout: 10
+      register: kibana_status
+      when: is_linux
+      ignore_errors: true
+      
+    # === WINDOWS TASKS ===
+    - name: Check Docker Desktop service status (Windows)
+      win_service:
+        name: "Docker Desktop Service"
+      register: docker_service_status
+      when: is_windows
+      ignore_errors: true
+      
+    # === DISPLAY RESULTS ===
+    - name: Display observability status
+      debug:
+        msg: |
+          Observability Platform Status
+          =============================
+          
+          Host: {{ inventory_hostname }}
+          OS: {{ ansible_os_family }}
+          Directory Exists: {{ obs_dir_stat.stat.exists }}
+          
+          {% if is_linux %}
+          Docker Containers:
+          {{ docker_status.stdout | default('Docker not accessible') }}
+          
+          Docker Compose Status:
+          {{ compose_status.stdout | default('Docker Compose not accessible') }}
+          
+          Elasticsearch Health:
+          {% if es_health.status == 200 %}
+          Status: {{ es_health.json.status | default('unknown') }}
+          Cluster: {{ es_health.json.cluster_name | default('unknown') }}
+          Nodes: {{ es_health.json.number_of_nodes | default('unknown') }}
+          {% else %}
+          Status: Not accessible ({{ es_health.status | default('timeout') }})
+          {% endif %}
+          
+          Kibana Status:
+          {% if kibana_status.status == 200 %}
+          Status: {{ kibana_status.json.status.overall.state | default('unknown') }}
+          {% else %}
+          Status: Not accessible ({{ kibana_status.status | default('timeout') }})
+          {% endif %}
+          
+          {% elif is_windows %}
+          Docker Desktop Service:
+          Status: {{ docker_service_status.state | default('unknown') }}
+          {% endif %}
+          
+          Access URLs:
+          - Elasticsearch: https://{{ ansible_hostname }}:9200
+          - Kibana: http://{{ ansible_hostname }}:5601
+          - Grafana: http://{{ ansible_hostname }}:3000
+          - Logstash: {{ ansible_hostname }}:5050

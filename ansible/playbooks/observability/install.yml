@@ -1,0 +1,176 @@
+---
+# Install Observability Platform
+# Complete installation including file deployment and service startup
+# Supports both Linux and Windows hosts
+
+- name: Install Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
+    env_file: "{{ observability_dir }}/.env"
+    
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_windows: "{{ ansible_os_family == 'Windows' }}"
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+        
+    - name: Display installation target
+      debug:
+        msg: |
+          Installing Observability Platform on:
+          - Host: {{ inventory_hostname }}
+          - OS Family: {{ ansible_os_family }}
+          - Is Windows: {{ is_windows }}
+          - Is Linux: {{ is_linux }}
+          
+    # === LINUX/WSL TASKS ===
+    - name: Create observability directory (Linux)
+      file:
+        path: "{{ observability_dir }}"
+        state: directory
+        mode: '0755'
+      when: is_linux
+      
+    - name: Create logs directory (Linux)
+      file:
+        path: "{{ observability_dir }}/logs"
+        state: directory
+        mode: '0755'
+      when: is_linux
+      
+    - name: Copy docker-compose.yml (Linux)
+      copy:
+        src: "{{ playbook_dir }}/../../../observability/docker-compose.yml"
+        dest: "{{ docker_compose_file }}"
+        mode: '0644'
+      when: is_linux
+      
+    - name: Copy .env file (Linux)
+      copy:
+        src: "{{ playbook_dir }}/../../../observability/.env"
+        dest: "{{ env_file }}"
+        mode: '0644'
+      when: is_linux
+      
+    - name: Synchronize certificates directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/certs/"
+        dest: "{{ observability_dir }}/certs/"
+        delete: false
+        recursive: true
+      when: is_linux
+      
+    - name: Synchronize elasticsearch directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/elasticsearch/"
+        dest: "{{ observability_dir }}/elasticsearch/"
+        delete: false
+        recursive: true
+      when: is_linux
+      
+    - name: Synchronize grafana directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/grafana/"
+        dest: "{{ observability_dir }}/grafana/"
+        delete: false
+        recursive: true
+      when: is_linux
+      
+    - name: Synchronize logstash directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/logstash/"
+        dest: "{{ observability_dir }}/logstash/"
+        delete: false
+        recursive: true
+      when: is_linux
+      
+    - name: Synchronize shared directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/shared/"
+        dest: "{{ observability_dir }}/shared/"
+        delete: false
+        recursive: true
+      when: is_linux
+      
+    - name: Create elasticsearch outputs directory (Linux)
+      file:
+        path: "{{ observability_dir }}/elasticsearch/outputs"
+        state: directory
+        mode: '0777'
+        owner: ansible
+        group: ansible
+      when: is_linux
+        
+    # === WINDOWS TASKS ===
+    - name: Start Docker Desktop service (Windows)
+      win_service:
+        name: "Docker Desktop Service"
+        state: started
+      when: is_windows
+      ignore_errors: true
+      
+    - name: Wait for Docker Desktop to be ready (Windows)
+      wait_for:
+        timeout: 60
+        delay: 5
+      when: is_windows
+      
+    # === COMMON STARTUP TASKS ===
+    - name: Check if Docker is available
+      command: docker --version
+      register: docker_check
+      ignore_errors: true
+      when: is_linux
+      
+    - name: Fail if Docker is not available
+      fail:
+        msg: "Docker is not available. Please install Docker Desktop."
+      when: is_linux and docker_check.rc != 0
+      
+    - name: Create Docker network if it doesn't exist
+      command: docker network create elastic
+      ignore_errors: true
+      when: is_linux
+      
+    - name: Build custom Docker images
+      command: docker-compose build
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      
+    - name: Start observability services
+      command: docker-compose up -d
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      
+    - name: Wait for services to be ready
+      pause:
+        seconds: 30
+        prompt: "Waiting for observability services to start up..."
+        
+    - name: Display installation status
+      debug:
+        msg: |
+          Observability Platform Installation Complete!
+          ===========================================
+          
+          Services:
+          - Elasticsearch: https://{{ ansible_hostname }}:9200
+          - Kibana: http://{{ ansible_hostname }}:5601
+          - Grafana: http://{{ ansible_hostname }}:3000
+          - Logstash: {{ ansible_hostname }}:5050
+          
+          Credentials:
+          - Elasticsearch/Kibana: elastic / myElastic2025
+          - Grafana: Check {{ observability_dir }}/.env for admin password
+          
+          Next Steps:
+          1. Verify services are accessible via browser
+          2. Check Kibana data views are present
+          3. Test Spark event flow from Lab2

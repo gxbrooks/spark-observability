@@ -1,0 +1,76 @@
+---
+# Start Observability Platform
+# Start existing observability services
+
+- name: Start Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_windows: "{{ ansible_os_family == 'Windows' }}"
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+        
+    - name: Check if observability directory exists
+      stat:
+        path: "{{ observability_dir }}"
+      register: obs_dir_stat
+      
+    - name: Fail if observability directory doesn't exist
+      fail:
+        msg: "Observability directory not found. Run 'install.yml' first."
+      when: not obs_dir_stat.stat.exists
+      
+    # === WINDOWS TASKS ===
+    - name: Start Docker Desktop service (Windows)
+      win_service:
+        name: "Docker Desktop Service"
+        state: started
+      when: is_windows
+      ignore_errors: true
+      
+    - name: Wait for Docker Desktop to be ready (Windows)
+      wait_for:
+        timeout: 60
+        delay: 5
+      when: is_windows
+      
+    # === LINUX TASKS ===
+    - name: Check if Docker is available
+      command: docker --version
+      register: docker_check
+      ignore_errors: true
+      when: is_linux
+      
+    - name: Fail if Docker is not available
+      fail:
+        msg: "Docker is not available. Please install Docker Desktop."
+      when: is_linux and docker_check.rc != 0
+      
+    - name: Start observability services
+      command: docker-compose up -d
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      
+    - name: Wait for services to be ready
+      pause:
+        seconds: 15
+        prompt: "Waiting for observability services to start up..."
+        
+    - name: Display start status
+      debug:
+        msg: |
+          Observability Platform Started!
+          =============================
+          
+          Services:
+          - Elasticsearch: https://{{ ansible_hostname }}:9200
+          - Kibana: http://{{ ansible_hostname }}:5601
+          - Grafana: http://{{ ansible_hostname }}:3000
+          - Logstash: {{ ansible_hostname }}:5050

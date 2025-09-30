@@ -1,0 +1,90 @@
+---
+# Uninstall Observability Platform
+# Remove all observability files and services
+
+- name: Uninstall Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_windows: "{{ ansible_os_family == 'Windows' }}"
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+        
+    - name: Display uninstall warning
+      debug:
+        msg: |
+          WARNING: This will completely remove the observability platform!
+          =============================================================
+          
+          This will:
+          - Stop all observability services
+          - Remove all Docker containers and volumes
+          - Delete all observability files
+          - Remove all data (Elasticsearch, Kibana, Grafana)
+          
+          Are you sure you want to continue?
+          
+    - name: Pause for confirmation
+      pause:
+        prompt: "Press ENTER to continue with uninstall, or Ctrl+C to cancel"
+        
+    # === LINUX TASKS ===
+    - name: Stop observability services (Linux)
+      command: docker-compose down
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Remove all Docker containers (Linux)
+      command: docker container prune -f
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Remove all Docker volumes (Linux)
+      command: docker volume prune -f
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Remove all Docker networks (Linux)
+      command: docker network prune -f
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Remove observability directory (Linux)
+      file:
+        path: "{{ observability_dir }}"
+        state: absent
+      when: is_linux
+      ignore_errors: true
+      
+    # === WINDOWS TASKS ===
+    - name: Stop Docker Desktop service (Windows)
+      win_service:
+        name: "Docker Desktop Service"
+        state: stopped
+      when: is_windows
+      ignore_errors: true
+      
+    - name: Remove observability directory (Windows)
+      win_file:
+        path: "{{ observability_dir }}"
+        state: absent
+      when: is_windows
+      ignore_errors: true
+        
+    - name: Display uninstall status
+      debug:
+        msg: |
+          Observability Platform Uninstalled!
+          ==================================
+          
+          All observability services and data have been removed from {{ inventory_hostname }}.
+          
+          To reinstall, run: ansible-playbook -i inventory.yml playbooks/observability/install.yml

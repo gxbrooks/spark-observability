@@ -9,16 +9,17 @@ TZ:
   contexts: [observability, spark-image, spark-runtime]
 
 PYTHON_VERSION:
-  value: 3.12
-  contexts: [spark-runtime, client, managed-node]
+  value: 3.8
+  contexts: [spark-runtime, client, managed-node, spark-client]
 
 PYSPARK_PYTHON:
-  value: python3
-  contexts: [spark-runtime]
+  value: python3.8
+  contexts: [spark-runtime, spark-client]
 
-PYSPARK_DRIVER_PYTHON:
-  value: python3
-  contexts: [spark-runtime]
+# PYSPARK_DRIVER_PYTHON is redundant - use PYSPARK_PYTHON instead
+# PYSPARK_DRIVER_PYTHON:
+#   value: python3.8
+#   contexts: [spark-runtime, spark-client]
 
 
 # unclear why CLUSTER_NAME is needed, see es01 service in docker-compose.yml
