@@ -10,7 +10,7 @@ if [ x${CA_CERT} == x ] || [ x${ELASTIC_HOST} == x ] || [ x${ELASTIC_PASSWORD} =
   exit 1; 
 fi;
 
-if [ [ ! -v CA_CERT ] || [! -f $CA_CERT] ]; then
+if [ ! -v CA_CERT ] || [ ! -f "$CA_CERT" ]; then
   echo "CA_CERT not in environmen or not a file"
   exit 1
 fi

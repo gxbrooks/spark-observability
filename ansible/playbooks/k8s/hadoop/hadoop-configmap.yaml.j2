@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hdfs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hadoop-config
+  namespace: hdfs
+data:
+  core-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>fs.defaultFS</name>
+        <value>{{ HDFS_DEFAULT_FS }}</value>
+      </property>
+    </configuration>
+  hdfs-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>/hadoop/dfs/name</value>
+      </property>
+      <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>/hadoop/dfs/data</value>
+      </property>
+      <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+      </property>
+      <property>
+        <name>dfs.namenode.http-address</name>
+        <value>hdfs-namenode:9870</value>
+      </property>
+      <property>
+        <name>dfs.namenode.rpc-address</name>
+        <value>hdfs-namenode:9000</value>
+      </property>
+    </configuration>

@@ -1,0 +1,91 @@
+---
+# Uninstall Hadoop from Kubernetes
+# This playbook removes Hadoop services and resources from Kubernetes
+
+- name: Uninstall Hadoop from Kubernetes
+  hosts: hadoop
+  become: false
+  gather_facts: true
+  
+  vars:
+    k8s_config_dir: "/home/{{ ansible_user }}/k8s/hadoop"
+    
+  tasks:
+    - name: Check if Hadoop namespace exists
+      command: kubectl get namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namespace_check
+      ignore_errors: true
+      
+    - name: Skip if Hadoop namespace doesn't exist
+      debug:
+        msg: "Hadoop namespace 'hdfs' does not exist. Nothing to uninstall."
+      when: namespace_check.rc != 0
+      
+    - name: Delete DataNode Deployment
+      command: kubectl delete deployment hdfs-datanode -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_delete
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Delete NameNode StatefulSet
+      command: kubectl delete statefulset hdfs-namenode -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_delete
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Delete Hadoop Services
+      command: kubectl delete service hdfs-namenode hdfs-namenode-headless hdfs-datanode -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: services_delete
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Delete Hadoop ConfigMap
+      command: kubectl delete configmap hadoop-config -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: configmap_delete
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Delete Hadoop namespace
+      command: kubectl delete namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namespace_delete
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Wait for namespace deletion
+      command: kubectl get namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namespace_gone
+      retries: 10
+      delay: 5
+      until: namespace_gone.rc != 0
+      when: namespace_check.rc == 0
+      
+    - name: Clean up local configuration files
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: absent
+      register: cleanup_result
+      
+    - name: Display uninstall results
+      debug:
+        msg: |
+          Hadoop uninstall completed:
+          - DataNode: {{ 'Deleted' if datanode_delete.rc == 0 else 'Not found or error' }}
+          - NameNode: {{ 'Deleted' if namenode_delete.rc == 0 else 'Not found or error' }}
+          - Services: {{ 'Deleted' if services_delete.rc == 0 else 'Not found or error' }}
+          - ConfigMap: {{ 'Deleted' if configmap_delete.rc == 0 else 'Not found or error' }}
+          - Namespace: {{ 'Deleted' if namespace_delete.rc == 0 else 'Not found or error' }}
+          - Local config: {{ 'Cleaned up' if cleanup_result.changed else 'Already clean' }}

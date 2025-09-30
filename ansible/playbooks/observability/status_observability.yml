@@ -23,28 +23,28 @@
       when: not obs_dir_stat.stat.exists
       
     - name: Check Docker status
-      command: sudo docker ps
+      command: docker ps
       register: docker_ps
       failed_when: false
       
     - name: Check observability service status
-      command: sudo docker-compose -f "{{ docker_compose_file }}" ps
+      command: docker-compose -f "{{ docker_compose_file }}" ps
       args:
         chdir: "{{ observability_dir }}"
       register: service_status
       
     - name: Check service health
-      command: sudo docker-compose -f "{{ docker_compose_file }}" ps
+      command: docker-compose -f "{{ docker_compose_file }}" ps
       args:
         chdir: "{{ observability_dir }}"
       register: health_status
       
     - name: Check network status
-      command: sudo docker network ls
+      command: docker network ls
       register: network_status
       
     - name: Check volume status
-      command: sudo docker volume ls
+      command: docker volume ls
       register: volume_status
       
     - name: Display service status

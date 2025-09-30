@@ -1,0 +1,205 @@
+---
+- name: Configure Spark History Server for Event Log Sharing
+  hosts: spark_kubernetes
+  become: false
+  gather_facts: true
+  
+  vars:
+    spark_history_server_namespace: "spark"
+    nfs_server: "Lab2.lan"
+    nfs_path: "/mnt/spark/events/spark-history"
+    
+  tasks:
+    - name: Check if Spark History Server exists
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: spark-history-server
+        namespace: "{{ spark_history_server_namespace }}"
+      register: history_server_check
+      
+    - name: Create Spark History Server ConfigMap for event log directory
+      kubernetes.core.k8s:
+        name: spark-history-server-config
+        api_version: v1
+        kind: ConfigMap
+        namespace: "{{ spark_history_server_namespace }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: spark-history-server-config
+            namespace: "{{ spark_history_server_namespace }}"
+          data:
+            SPARK_HISTORY_OPTS: |
+              -Dspark.history.fs.logDirectory={{ nfs_path }}
+              -Dspark.history.ui.port=18080
+              -Dspark.history.fs.cleaner.enabled=true
+              -Dspark.history.fs.cleaner.interval=1d
+              -Dspark.history.fs.cleaner.maxAge=7d
+            SPARK_EVENT_LOG_DIR: "{{ nfs_path }}"
+      register: configmap_result
+      
+    - name: Create Spark History Server PersistentVolume for event logs
+      kubernetes.core.k8s:
+        name: spark-history-pv
+        api_version: v1
+        kind: PersistentVolume
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: spark-history-pv
+          spec:
+            capacity:
+              storage: 10Gi
+            accessModes:
+              - ReadWriteMany
+            nfs:
+              server: "{{ nfs_server }}"
+              path: "{{ nfs_path }}"
+            persistentVolumeReclaimPolicy: Retain
+      register: pv_result
+      
+    - name: Create Spark History Server PersistentVolumeClaim
+      kubernetes.core.k8s:
+        name: spark-history-pvc
+        api_version: v1
+        kind: PersistentVolumeClaim
+        namespace: "{{ spark_history_server_namespace }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: spark-history-pvc
+            namespace: "{{ spark_history_server_namespace }}"
+          spec:
+            accessModes:
+              - ReadWriteMany
+            resources:
+              requests:
+                storage: 10Gi
+            volumeName: spark-history-pv
+      register: pvc_result
+      
+    - name: Create Spark History Server Deployment
+      kubernetes.core.k8s:
+        name: spark-history-server
+        api_version: apps/v1
+        kind: Deployment
+        namespace: "{{ spark_history_server_namespace }}"
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: spark-history-server
+            namespace: "{{ spark_history_server_namespace }}"
+            labels:
+              app: spark-history-server
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: spark-history-server
+            template:
+              metadata:
+                labels:
+                  app: spark-history-server
+              spec:
+                containers:
+                - name: spark-history-server
+                  image: "{{ spark_image | default('apache/spark:3.5.1') }}"
+                  command: ["/opt/spark/bin/spark-class"]
+                  args: ["org.apache.spark.deploy.history.HistoryServer"]
+                  ports:
+                  - containerPort: 18080
+                    name: http
+                  env:
+                  - name: SPARK_HISTORY_OPTS
+                    valueFrom:
+                      configMapKeyRef:
+                        name: spark-history-server-config
+                        key: SPARK_HISTORY_OPTS
+                  - name: SPARK_EVENT_LOG_DIR
+                    valueFrom:
+                      configMapKeyRef:
+                        name: spark-history-server-config
+                        key: SPARK_EVENT_LOG_DIR
+                  volumeMounts:
+                  - name: spark-history-logs
+                    mountPath: "{{ nfs_path }}"
+                    subPath: ""
+                  resources:
+                    requests:
+                      memory: "512Mi"
+                      cpu: "200m"
+                    limits:
+                      memory: "1Gi"
+                      cpu: "500m"
+                volumes:
+                - name: spark-history-logs
+                  persistentVolumeClaim:
+                    claimName: spark-history-pvc
+      register: deployment_result
+      
+    - name: Create Spark History Server Service
+      kubernetes.core.k8s:
+        name: spark-history-server
+        api_version: v1
+        kind: Service
+        namespace: "{{ spark_history_server_namespace }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: spark-history-server
+            namespace: "{{ spark_history_server_namespace }}"
+            labels:
+              app: spark-history-server
+          spec:
+            type: ClusterIP
+            ports:
+            - port: 18080
+              targetPort: 18080
+              name: http
+            selector:
+              app: spark-history-server
+      register: service_result
+      
+    - name: Wait for Spark History Server to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: spark-history-server
+        namespace: "{{ spark_history_server_namespace }}"
+        wait: true
+        wait_condition:
+          type: Ready
+          status: "True"
+        wait_timeout: 300
+      when: deployment_result.changed
+      
+    - name: Display Spark History Server status
+      debug:
+        msg: |
+          Spark History Server Configuration:
+          ==================================
+          Namespace: {{ spark_history_server_namespace }}
+          NFS Server: {{ nfs_server }}
+          NFS Path: {{ nfs_path }}
+          
+          Event Log Flow:
+          1. Spark Workers → Write event logs to {{ nfs_path }}
+          2. Spark History Server → Reads from {{ nfs_path }}
+          3. Elastic Agent → Monitors {{ nfs_path }} for new logs
+          4. Logstash → Processes logs from Elastic Agent
+          5. Elasticsearch → Stores processed data
+          
+          Access URLs:
+          - History Server: http://{{ ansible_hostname }}:18080
+          - NFS Mount: {{ nfs_server }}:{{ nfs_path }}

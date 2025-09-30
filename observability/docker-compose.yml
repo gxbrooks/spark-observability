@@ -82,16 +82,16 @@ services:
       # are cluster.name and discovery.type needed?
       cluster.name: "${CLUSTER_NAME}"
       discovery.type: "single-node"
-      bootstrap.memory_lock: true
+      bootstrap.memory_lock: "true"
       # Xpack is rooted at /usr/share/elasticsearch/config, so start all certificate 
       # paths with "certs/"!!!
       # CA_CERT: "${CA_CERT_LINUX_PATH}"
-      xpack.security.enabled: true
-      xpack.security.http.ssl.enabled: true
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "true"
       xpack.security.http.ssl.key: "certs/es01/es01.key"
       xpack.security.http.ssl.certificate: "certs/es01/es01.crt"
       xpack.security.http.ssl.certificate_authorities: "certs/ca/ca.crt"
-      xpack.security.transport.ssl.enabled: true
+      xpack.security.transport.ssl.enabled: "true"
       xpack.security.transport.ssl.key: "certs/es01/es01.key"
       xpack.security.transport.ssl.certificate: "certs/es01/es01.crt"
       xpack.security.transport.ssl.certificate_authorities: "certs/ca/ca.crt"
@@ -230,7 +230,7 @@ services:
     command: bash -f ./elasticsearch/bin/init-kibana.sh
     environment:
       CA_CERT: "${CA_CERT_LINUX_PATH}"
-      xpack.monitoring.enabled: false
+      xpack.monitoring.enabled: "false"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_PORT: ${ELASTIC_PORT}
       ELASTIC_USER: ${ELASTIC_USER}

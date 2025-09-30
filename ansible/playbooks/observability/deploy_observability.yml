@@ -45,7 +45,7 @@
       when: not env_file_stat.stat.exists
       
     - name: Check if Docker is running
-      command: sudo docker ps
+      command: docker ps
       register: docker_status
       failed_when: false
       
@@ -55,25 +55,25 @@
       when: docker_status.rc != 0
       
     - name: Create elastic network if it doesn't exist
-      command: sudo docker network create elastic
+      command: docker network create elastic
       register: network_create
       failed_when: false
       
     - name: Stop any existing observability containers
-      command: sudo docker-compose -f "{{ docker_compose_file }}" down
+      command: docker-compose -f "{{ docker_compose_file }}" down
       args:
         chdir: "{{ observability_dir }}"
       register: stop_result
       failed_when: false
       
     - name: Build custom images
-      command: sudo docker-compose -f "{{ docker_compose_file }}" build
+      command: docker-compose -f "{{ docker_compose_file }}" build
       args:
         chdir: "{{ observability_dir }}"
       register: build_result
       
     - name: Deploy observability platform
-      command: sudo docker-compose -f "{{ docker_compose_file }}" up -d
+      command: docker-compose -f "{{ docker_compose_file }}" up -d
       args:
         chdir: "{{ observability_dir }}"
       register: deploy_result
@@ -84,7 +84,7 @@
       delegate_to: localhost
       
     - name: Check service status
-      command: sudo docker-compose -f "{{ docker_compose_file }}" ps
+      command: docker-compose -f "{{ docker_compose_file }}" ps
       args:
         chdir: "{{ observability_dir }}"
       register: service_status

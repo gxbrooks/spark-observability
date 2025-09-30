@@ -71,6 +71,14 @@
         dest: "{{ observability_dir }}/shared/"
         delete: false
         recursive: true
+        
+    - name: Create elasticsearch outputs directory
+      file:
+        path: "{{ observability_dir }}/elasticsearch/outputs"
+        state: directory
+        mode: '0777'
+        owner: ansible
+        group: ansible
       
     - name: Check if .env file exists
       stat:

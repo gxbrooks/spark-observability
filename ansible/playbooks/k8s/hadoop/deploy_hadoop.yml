@@ -1,0 +1,111 @@
+---
+# Deploy Hadoop on Kubernetes
+# This playbook deploys Hadoop HDFS (NameNode and DataNode) on Kubernetes
+
+- name: Deploy Hadoop on Kubernetes
+  hosts: hadoop
+  become: false
+  gather_facts: true
+  
+  vars:
+    k8s_config_dir: "/home/{{ ansible_user }}/k8s/hadoop"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+    
+  tasks:
+    - name: Check if kubectl is available
+      command: kubectl version --client
+      register: kubectl_result
+      ignore_errors: true
+      
+    - name: Fail if kubectl not available
+      fail:
+        msg: "kubectl is required but not found. Please install kubectl before running this playbook."
+      when: kubectl_result.rc != 0
+      
+    - name: Create Hadoop Kubernetes directory
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        
+    - name: Copy Hadoop NameNode configuration
+      copy:
+        src: "{{ playbook_dir }}/hadoop-namenode.yaml"
+        dest: "{{ k8s_config_dir }}/hadoop-namenode.yaml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        
+    - name: Copy Hadoop DataNode configuration
+      copy:
+        src: "{{ playbook_dir }}/hadoop-datanode.yaml"
+        dest: "{{ k8s_config_dir }}/hadoop-datanode.yaml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        
+    - name: Create Hadoop ConfigMap with variables
+      template:
+        src: "{{ playbook_dir }}/hadoop-configmap.yaml.j2"
+        dest: "{{ k8s_config_dir }}/hadoop-configmap.yaml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        
+    - name: Apply Hadoop namespace and ConfigMap
+      command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-configmap.yaml"
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: configmap_result
+      
+    - name: Wait for namespace to be ready
+      command: kubectl get namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      retries: 10
+      delay: 2
+      register: namespace_result
+      until: namespace_result.rc == 0
+      
+    - name: Deploy Hadoop NameNode
+      command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-namenode.yaml"
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_result
+      
+    - name: Wait for NameNode to be ready
+      command: kubectl wait --for=condition=ready pod -l app=hdfs-namenode -n hdfs --timeout=300s
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_ready
+      ignore_errors: true
+      
+    - name: Deploy Hadoop DataNode
+      command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-datanode.yaml"
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_result
+      
+    - name: Wait for DataNode to be ready
+      command: kubectl wait --for=condition=ready pod -l app=hdfs-datanode -n hdfs --timeout=300s
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_ready
+      ignore_errors: true
+      
+    - name: Display deployment results
+      debug:
+        msg: |
+          Hadoop deployment completed:
+          - NameNode: {{ 'Ready' if namenode_ready.rc == 0 else 'Not ready' }}
+          - DataNode: {{ 'Ready' if datanode_ready.rc == 0 else 'Not ready' }}
+          
+    - name: Show Hadoop service URLs
+      debug:
+        msg: |
+          Hadoop Service URLs:
+          - NameNode Web UI: http://{{ inventory_hostname }}:9870
+          - NameNode RPC: {{ inventory_hostname }}:9000
+          - DataNode: {{ inventory_hostname }}:9864

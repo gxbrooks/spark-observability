@@ -1,0 +1,65 @@
+---
+# Start Hadoop on Kubernetes
+# This playbook starts Hadoop services on Kubernetes
+
+- name: Start Hadoop on Kubernetes
+  hosts: hadoop
+  become: false
+  gather_facts: true
+  
+  vars:
+    k8s_config_dir: "/home/{{ ansible_user }}/k8s/hadoop"
+    
+  tasks:
+    - name: Check if Hadoop namespace exists
+      command: kubectl get namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namespace_check
+      ignore_errors: true
+      
+    - name: Fail if Hadoop namespace doesn't exist
+      fail:
+        msg: "Hadoop namespace 'hdfs' does not exist. Please run deploy_hadoop.yml first."
+      when: namespace_check.rc != 0
+      
+    - name: Scale up NameNode StatefulSet
+      command: kubectl scale statefulset hdfs-namenode --replicas=1 -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_scale
+      
+    - name: Scale up DataNode Deployment
+      command: kubectl scale deployment hdfs-datanode --replicas=1 -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_scale
+      
+    - name: Wait for NameNode to be ready
+      command: kubectl wait --for=condition=ready pod -l app=hdfs-namenode -n hdfs --timeout=300s
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_ready
+      ignore_errors: true
+      
+    - name: Wait for DataNode to be ready
+      command: kubectl wait --for=condition=ready pod -l app=hdfs-datanode -n hdfs --timeout=300s
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_ready
+      ignore_errors: true
+      
+    - name: Display start results
+      debug:
+        msg: |
+          Hadoop services started:
+          - NameNode: {{ 'Ready' if namenode_ready.rc == 0 else 'Not ready' }}
+          - DataNode: {{ 'Ready' if datanode_ready.rc == 0 else 'Not ready' }}
+          
+    - name: Show Hadoop service URLs
+      debug:
+        msg: |
+          Hadoop Service URLs:
+          - NameNode Web UI: http://{{ inventory_hostname }}:9870
+          - NameNode RPC: {{ inventory_hostname }}:9000
+          - DataNode: {{ inventory_hostname }}:9864
