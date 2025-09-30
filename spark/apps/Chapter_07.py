@@ -20,6 +20,8 @@ os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
 spark = SparkSession.builder \
     .appName("Chapter 07: Data Aggregation") \
     .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 print("=== Chapter 07: Data Aggregation ===")
@@ -44,6 +46,8 @@ elements.where(F.col("phase") == "liq").groupby("period").count().show()
   # count(*)
 # FROM elements
 # WHERE phase = 'liq'
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 # GROUP BY period;spark = SparkSession.builder.getOrCreate()
 
 #########################################################################################
@@ -496,6 +500,8 @@ from functools import reduce
  
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 spark = SparkSession.builder.getOrCreate()
  
 # DATA_DIRECTORY = "/mnt/spark/data/backblaze/"

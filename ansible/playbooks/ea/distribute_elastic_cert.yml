@@ -1,0 +1,45 @@
+---
+# Distribute Elastic CA certificate to hosts for Elastic Agent
+# This playbook copies the CA certificate from GaryPC WSL to other hosts
+
+- name: Distribute Elastic CA certificate to hosts
+  hosts: native
+  become: true
+  gather_facts: true
+  
+  vars:
+    ca_cert_src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+    ca_cert_dest: "/etc/ssl/certs/elastic/ca.crt"
+    ca_cert_dir: "/etc/ssl/certs/elastic"
+    
+  tasks:
+    - name: Ensure certificate directory exists
+      file:
+        path: "{{ ca_cert_dir }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Copy CA certificate from GaryPC WSL
+      copy:
+        src: "{{ ca_cert_src }}"
+        dest: "{{ ca_cert_dest }}"
+        mode: '0644'
+        remote_src: true
+      when: inventory_hostname != 'GaryPC-WSL'
+      
+    - name: Copy CA certificate locally on GaryPC WSL
+      copy:
+        src: "{{ ca_cert_src }}"
+        dest: "{{ ca_cert_dest }}"
+        mode: '0644'
+        remote_src: true
+      when: inventory_hostname == 'GaryPC-WSL'
+      
+    - name: Verify certificate was copied
+      stat:
+        path: "{{ ca_cert_dest }}"
+      register: cert_stat
+      
+    - name: Display certificate status
+      debug:
+        msg: "CA certificate {{ 'copied successfully' if cert_stat.stat.exists else 'failed to copy' }} to {{ ca_cert_dest }}"

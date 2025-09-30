@@ -22,6 +22,8 @@ os.environ['SPARK_LOCAL_IP'] = '192.168.1.48'
 spark = SparkSession.builder \
     .appName("Chapter 06: JSON Processing") \
     .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 print("=== Chapter 06: JSON Processing ===")

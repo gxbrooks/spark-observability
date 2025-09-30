@@ -286,16 +286,16 @@ providers:
 outputs:
   default:
     type: elasticsearch
-    hosts: ["https://localhost:9200"]
-    username: "elastic"
-    password: "myElastic2025"
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
     ssl:
-      certificate_authorities: ["/mnt/c/Volumes/certs/ca.crt"]
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
       verification_mode: full
   # Spark outputs for events
   spark_events:
     type: logstash
-    hosts: ["localhost:5050"]
+    hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
 
 agent.logging.level: debug
 agent.logging.to_files: true

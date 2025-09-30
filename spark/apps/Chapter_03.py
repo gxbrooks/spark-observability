@@ -8,10 +8,12 @@ import os
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 
-# Create Spark session with chapter-specific app name
+# Create Spark session with chapter-specific app name and event logging
 spark = SparkSession.builder \
     .appName("Chapter 03") \
     .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 # Set log level to reduce noise

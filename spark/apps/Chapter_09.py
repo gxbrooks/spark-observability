@@ -20,6 +20,8 @@ os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
 spark = SparkSession.builder \
     .appName("Chapter 09: Advanced Analytics") \
     .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 print("=== Chapter 09: Advanced Analytics ===")
@@ -33,6 +35,8 @@ print(f"Spark master: {spark.sparkContext.master}")
 """
 spark = SparkSession.builder.appName(
     "Ch09 - Using UDFs"
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 ).getOrCreate()
 
 gsod = (
@@ -104,6 +108,8 @@ from pyspark.sql import SparkSession
 spark = SparkSession.builder.config(
     "spark.jars.packages",
     "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1", ## 1
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 ).getOrCreate()
 
 # [...]

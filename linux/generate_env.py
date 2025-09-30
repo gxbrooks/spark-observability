@@ -25,12 +25,14 @@ CONFIG_FILE = 'variables.yaml'
 
 # Contexts and output files
 CONTEXTS = {
-    'observability': 'docker/.env',
+    'observability': 'observability/.env',
     'spark-image': 'spark/spark-image.toml',
     'spark-runtime': 'ansible/roles/spark/files/k8s/spark-configmap.yaml',
     'ansible': 'ansible/vars/spark_vars.yml',
     'ispark': 'spark/ispark/ispark_env.sh',
+    'spark-client': 'spark/spark_env.sh',
     'nfs': 'ansible/vars/nfs_vars.yml',
+    'elastic-agent': 'elastic-agent/elastic_agent_env.sh',
 }
 
 def load_config():
@@ -210,7 +212,7 @@ def main(contexts=None, force=False, verbose=False):
                 success = write_configmap(vars_dict, target_file)
             elif context == 'ansible':
                 success = write_ansible_vars(vars_dict, target_file)
-            elif context == 'ispark':
+            elif context in ['ispark', 'spark-client', 'elastic-agent']:
                 success = write_shell_env(vars_dict, target_file)
             elif context == 'nfs':
                 success = write_ansible_vars(vars_dict, target_file)

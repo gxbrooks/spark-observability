@@ -17,6 +17,8 @@ DIRECTORY = "/mnt/spark/data/broadcast_logs"
 spark = SparkSession.builder \
     .appName("Chapter 05: Data Processing") \
     .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 print("=== Chapter 05: Data Processing ===")
@@ -463,6 +465,8 @@ print(answer_no_null.count())  # 324     # ❶
  
 # spark = SparkSession.builder.appName(
 #     "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 # ).getOrCreate()
  
 # spark.sparkContext.setLogLevel("WARN")
@@ -693,6 +697,8 @@ print(answer_no_null.count())  # 324
  
 # spark = SparkSession.builder.appName(
 #     "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 # ).getOrCreate()
  
 # spark.sparkContext.setLogLevel("WARN")

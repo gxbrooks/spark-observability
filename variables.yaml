@@ -37,21 +37,28 @@ STACK_VERSION:
 ELASTIC_HOST:
   value: es01
   contexts: [observability, spark-runtime]
+# For Elastic Agent on hosts, use GaryPC WSL
+ELASTIC_HOST_EXTERNAL:
+  value: GaryPC.lan
+  contexts: [elastic-agent]
 ELASTIC_PORT:
   value: 9200
   contexts: [observability, spark-runtime]
 ELASTIC_USER:
   value: elastic
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, elastic-agent]
 ELASTIC_PASSWORD:
   value: myElastic2025
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, elastic-agent]
 ELASTIC_URL:
   value: https://es01:9200
   contexts: [observability]
+ELASTIC_URL_EXTERNAL:
+  value: https://GaryPC.lan:9200
+  contexts: [elastic-agent]
 CA_CERT_LINUX_PATH:
   value: /etc/ssl/certs/elastic/ca.crt
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, elastic-agent]
 # Not clear where needed.
 CA_CERT_WINDOWS_PATH:
   value: C:\\Volumes\\certs\\ca.crt
@@ -87,6 +94,9 @@ KB_MEM_LIMIT:
 LS_HOST:
   value: logstash01
   contexts: [observability]
+LS_HOST_EXTERNAL:
+  value: GaryPC.lan
+  contexts: [elastic-agent]
 LOGSTASH_PORT:
   value: 5044
   contexts: [observability]
@@ -97,7 +107,7 @@ LS_DOCKER_METRICS_PORT:
   contexts: [observability]
 LS_SPARK_EVENTS_PORT:
   value: 5050
-  contexts: [observability]
+  contexts: [observability, elastic-agent]
 
 # Grafana variables
 GRAFANA_HOST:
@@ -160,10 +170,10 @@ SPARK_MASTER_PORT:
 # External access for local development
 SPARK_MASTER_EXTERNAL_HOST:
   value: Lab2.lan
-  contexts: [observability, ispark]
+  contexts: [observability, ispark, spark-client]
 SPARK_MASTER_EXTERNAL_PORT:
   value: 32582
-  contexts: [observability, ispark]
+  contexts: [observability, ispark, spark-client]
   
 # Spark network and timeout settings
 SPARK_NETWORK_TIMEOUT:
@@ -180,7 +190,7 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
   value: /mnt/spark/events
-  contexts: [spark-runtime, ansible]
+  contexts: [spark-runtime, ansible, spark-client, elastic-agent]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
@@ -211,7 +221,7 @@ SPARK_EVENTS_MOUNT:
 
 SPARK_DATA_MOUNT:
   value: /mnt/spark/data
-  contexts: [spark-runtime, nfs]
+  contexts: [spark-runtime, nfs, spark-client]
 
 # Spark Data Source
 SPARK_DATA_SOURCE:
@@ -242,7 +252,7 @@ HADOOP_HOME:
 
 HDFS_DEFAULT_FS:
   value: hdfs://hdfs-namenode:9000
-  contexts: [spark-runtime, ansible, hadoop]
+  contexts: [spark-runtime, ansible, hadoop, spark-client]
 
 # Hadoop Namespace
 HADOOP_NAMESPACE:
