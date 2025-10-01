@@ -31,17 +31,18 @@ inputs:
     processors:
       - add_host_metadata: ~
       - add_cloud_metadata: ~
-      - add_docker_metadata: ~
+      # add_docker_metadata removed - we use Kubernetes instead of Docker on Linux
   - type: docker/metrics
     use_output: default
     id: docker-metrics
     name: docker-metrics
+    enabled: false  # Disabled on Linux - we use Kubernetes instead
     data_stream:
       namespace: default
     # Configuration for Docker provider. This is crucial for Docker metrics.
     # The 'host' parameter points to the Docker daemon socket.
     docker:
-      enabled: true
+      enabled: false  # Disabled on Linux - we use Kubernetes instead
       hosts: 
         - "unix:///var/run/docker.sock"
       cleanup_timeout: 60s # Timeout for cleaning up old container data
@@ -118,7 +119,7 @@ inputs:
   - type: kubernetes/metrics
     use_output: default
     enabled: true
-    hosts: ["https://localhost:10250"]
+    hosts: ["https://${KUBERNETES_API_SERVER}:10250"]
     bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
     ssl:
       certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
@@ -170,30 +171,30 @@ inputs:
       namespace: default
     processors:
       - dissect:
-          # Apparently the GC fields come out in a specific order and not the order of the GC flags
-          # Even if the field order is specified as "utctime,uptime,level,tags,hostname,pid,tid", they still come out in the
-          # order below. 
+          # Simplified GC log parsing - just extract basic fields
           tokenizer: "[%{log_timestamp}][%{uptime|float}s][%{hostname}][%{pid|integer}][%{tid|integer}][%{level}][%{tags}] GC(%{cycle}) %{message}"
           field: message 
           target_prefix: gc
-          # mainly for gc tags values
-          # for whatever reason trim_values is not timing the gc tags field
           trim_values: 'all'
-      # the drop_fields is necessary in order to avoid the "Failed to copy fields in copy_fields processor" 
-      # One shouldn't have to do that
-      - drop_fields: 
-          fields: ["gc.ingest_time"]
-      - copy_fields:
-          fields:
-            - from: "@timestamp"
-              to: "gc.ingest_time"
       - timestamp:
           field: gc.log_timestamp
-          # target_field: gc.parsed_timestamp
+          target_field: "@timestamp"
           layouts:
+            - '2006-01-02T15:04:05.999-0700'
+            - '2006-01-02T15:04:05.999Z'
             - '2006-01-02T15:04:05.999-0700'
           test:
             - '2025-01-07T16:24:15.331+0000'
+          ignore_failure: false
+      # Ensure we have a valid timestamp - use log timestamp as primary, fallback to ingest time
+      - if:
+          not:
+            has_fields: ["@timestamp"]
+        then:
+          - timestamp:
+              field: "@timestamp"
+              layouts:
+                - '2006-01-02T15:04:05.999Z'
       # the following disects can be made more efficient and prices. 
       # also need to look at what other metrics are indicators of poor GC performance
       # for now we focuse on heap size and reclamation and pause times. 

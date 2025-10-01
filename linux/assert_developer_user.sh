@@ -74,6 +74,24 @@ else
     fi
 fi
 
+# Add user to elastic-agent group for Elastic Agent access
+$DEBUG && echo "Checking: Elastic Agent group membership for $USERNAME"
+if $CHECK; then
+    if groups "$USERNAME" | grep -q elastic-agent; then
+        echo "Check    : $USERNAME is already in elastic-agent group"
+    else
+        echo "Check    : $USERNAME needs to be added to elastic-agent group"
+    fi
+else
+    # Add user to elastic-agent group
+    if ! groups "$USERNAME" | grep -q elastic-agent; then
+        echo "Info    : Adding $USERNAME to elastic-agent group"
+        sudo usermod -aG elastic-agent "$USERNAME"
+    else
+        $DEBUG && echo "Debug    : $USERNAME is already in elastic-agent group"
+    fi
+fi
+
 # Setup a Volumes partition that can be used across Windows and Linux
 # This is needed for Docker container paths with Elastic Agent that
 # can use the same pathnames (/mnt/c/Volumes) across Windows or Linux

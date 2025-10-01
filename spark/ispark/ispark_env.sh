@@ -2,4 +2,4 @@
 # Do not edit manually!
 
 export SPARK_MASTER_EXTERNAL_HOST="Lab2.lan"
-export SPARK_MASTER_EXTERNAL_PORT="32582"
+export SPARK_MASTER_EXTERNAL_PORT="31472"

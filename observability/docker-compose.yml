@@ -64,6 +64,9 @@ services:
     labels:
       co.elastic.logs/module: elasticsearch
       role: Elasticsearch
+    ports:
+      - "9200:9200"
+      - "9300:9300"
     volumes:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs:ro

@@ -4,7 +4,7 @@
 export PYTHON_VERSION="3.8"
 export PYSPARK_PYTHON="python3.8"
 export SPARK_MASTER_EXTERNAL_HOST="Lab2.lan"
-export SPARK_MASTER_EXTERNAL_PORT="32582"
+export SPARK_MASTER_EXTERNAL_PORT="31472"
 export SPARK_EVENTS_DIR="/mnt/spark/events"
 export SPARK_DATA_MOUNT="/mnt/spark/data"
 export HDFS_DEFAULT_FS="hdfs://hdfs-namenode:9000"
