@@ -16,12 +16,9 @@ from functools import reduce
 os.environ['PYSPARK_PYTHON'] = 'python3.8'
 os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
 
-# Create Spark session with proper configuration
+# Create Spark session - configuration comes from spark-defaults.conf
 spark = SparkSession.builder \
     .appName("Chapter 07: Data Aggregation") \
-    .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
-    .config("spark.eventLog.enabled", "true") \
-    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 print("=== Chapter 07: Data Aggregation ===")
@@ -42,13 +39,13 @@ elements.where(F.col("phase") == "liq").groupby("period").count().show()
 # -- In SQL: We assume that the data is in a table called `elements`
  
 # SELECT
-  # period,
-  # count(*)
+#   period,
+#   count(*)
 # FROM elements
 # WHERE phase = 'liq'
-    .config("spark.eventLog.enabled", "true") \
-    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
-# GROUP BY period;spark = SparkSession.builder.getOrCreate()
+#     .config("spark.eventLog.enabled", "true") \
+#     .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
+# GROUP BY period; 
 
 #########################################################################################
 #
@@ -500,9 +497,9 @@ from functools import reduce
  
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
-    .config("spark.eventLog.enabled", "true") \
-    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
-spark = SparkSession.builder.getOrCreate()
+
+# Reuse existing SparkSession (created at top of file)
+# spark = SparkSession.builder.getOrCreate()  # Already created
  
 # DATA_DIRECTORY = "/mnt/spark/data/backblaze/"
 DATA_DIRECTORY = "/mnt/spark/data/backblaze_data/"

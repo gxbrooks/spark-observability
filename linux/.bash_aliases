@@ -38,3 +38,19 @@ alias kapi="docker compose exec -it es01 kapi"
 alias hdfs="/home/gxbrooks/repos/elastic-on-spark/linux/hdfs-wrapper.sh"
 
 alias gtags="git for-each-ref --sort=-creatordate --format '%(creatordate:short) %(refname:short)' refs/tags"
+
+
+# Kubernetes aliases
+alias kwexec="kubectl exec -it -n spark -c spark-worker "
+alias kmexec="kubectl exec -it -n spark -c spark-master "
+alias kpods="kubectl get pods -n spark"
+alias ksvc="kubectl get svc -n spark"
+alias klogs="kubectl logs -n spark"
+
+alias klogsall="kubectl logs -n spark --all-containers"
+alias ktop="kubectl top pods -n spark"
+alias ktopall="kubectl top pods -n spark --all-containers"
+alias kdescribe="kubectl describe pod -n spark"
+alias kdescribeall="kubectl describe pod -n spark --all-containers"
+alias kdelete="kubectl delete pod -n spark"
+alias kdeleteall="kubectl delete pod -n spark --all-containers"

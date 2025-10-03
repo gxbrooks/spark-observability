@@ -28,93 +28,36 @@ inputs:
         data_stream:
           dataset: system.load
           type: metrics
+      # Process metrics explicitly disabled to avoid IO permission errors
+      - metricset: process
+        data_stream:
+          dataset: system.process
+          type: metrics
+        enabled: false
     processors:
       - add_host_metadata: ~
       - add_cloud_metadata: ~
-      # add_docker_metadata removed - we use Kubernetes instead of Docker on Linux
-  - type: docker/metrics
+  # System logs integration
+  - type: system/logs
     use_output: default
-    id: docker-metrics
-    name: docker-metrics
-    enabled: false  # Disabled on Linux - we use Kubernetes instead
-    data_stream:
-      namespace: default
-    # Configuration for Docker provider. This is crucial for Docker metrics.
-    # The 'host' parameter points to the Docker daemon socket.
-    docker:
-      enabled: false  # Disabled on Linux - we use Kubernetes instead
-      hosts: 
-        - "unix:///var/run/docker.sock"
-      cleanup_timeout: 60s # Timeout for cleaning up old container data
+    enabled: true
     streams:
       - data_stream:
-          dataset: docker.container
-          type: metrics
-        metricset:
-          - container
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-        # Optional: Add processors here if you need to modify fields for Docker container metrics
-        # processors:
-        #   - add_fields:
-        #       target: ''
-        #       fields:
-        #         environment: production
+          dataset: system.auth
+          type: logs
+        paths:
+          - /var/log/auth.log
+          - /var/log/secure
+        processors:
+          - add_host_metadata: ~
       - data_stream:
-          dataset: docker.cpu
-          type: metrics
-        metricset:
-          - cpu
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-      - data_stream:
-          dataset: docker.diskio
-          type: metrics
-        metricset:
-          - diskio
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-      - data_stream:
-          dataset: docker.healthcheck
-          type: metrics
-        metricset:
-          - healthcheck
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-      - data_stream:
-          dataset: docker.info
-          type: metrics
-        metricset:
-          - info
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-      - data_stream:
-          dataset: docker.memory
-          type: metrics
-        metricset:
-          - memory
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-      - data_stream:
-          dataset: docker.network
-          type: metrics
-        metricset:
-          - network
-        hosts:
-          - 'unix:///var/run/docker.sock'
-        period: 10s
-      - data_stream: # Uncomment if you also want image metrics
-          dataset: docker.image
-          type: metrics
-        metricset:
-          - image
-        period: 10s
+          dataset: system.syslog
+          type: logs
+        paths:
+          - /var/log/syslog
+          - /var/log/messages
+        processors:
+          - add_host_metadata: ~
   # Kubernetes metrics integration
   - type: kubernetes/metrics
     use_output: default
@@ -124,6 +67,19 @@ inputs:
     ssl:
       certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
     period: 10s
+    streams:
+      - metricset: state_container
+        data_stream:
+          dataset: kubernetes.container
+          type: metrics
+      - metricset: state_pod
+        data_stream:
+          dataset: kubernetes.pod
+          type: metrics
+      - metricset: state_node
+        data_stream:
+          dataset: kubernetes.node
+          type: metrics
     processors:
       - add_cloud_metadata: ~
   # Spark Section
@@ -136,153 +92,144 @@ inputs:
   - id: spark-events
     type: filestream
     use_output: "spark_events"
+    enabled: true
     streams:
       - id: spark-events-json-stream
         data_stream:
           dataset: spark
           namespace: spark
         paths:
-          - "${SPARK_EVENTS_DIR}/app-*"
+          - "/mnt/spark/events/app-*"
+        # Only process files that are readable to avoid permission errors
+        exclude_files:
+          - "*.tmp"
+          - "*.lock"
   - id: spark-app-logs
     type: filestream    
     use_output: "default"
     enabled: true
     paths:
-      - '/mnt/c/Volumes/logs/spark/spark-*/spark.log'
-      - '/mnt/c/Volumes/logs/spark/spark-*/spark.log.*'
+      # Spark application logs from all components (mounted from Kubernetes pods to host)
+      # Pod-specific subdirectories with distinct filename patterns from GC logs
+      - '/mnt/spark/logs/*/executor-app.log*'   # Executor application logs
+      - '/mnt/spark/logs/*/component-app.log*'  # Master & History Server application logs
     tags: ["spark-app"]
     data_stream:
       dataset: spark_app
       namespace: default
     ignore_older: 24h
+    processors:
+      # Extract pod name and component type from file path for better identification
+      - dissect:
+          tokenizer: "/mnt/spark/logs/%{pod_name}/%{component_type}-app.log"
+          field: log.file.path
+          target_prefix: spark
+          ignore_failure: true
   - id: spark-gc
     type: filestream
     use_output: default
     enabled: true
     paths:
-      # Spark GC log rotation is specified in $SPARK_HOME/conf/spark-defaults.conf
-      # It's a little funky as the base filename is *.log and the rotated files have a 
-      # .<digit> added to the base filename
-      - '/mnt/c/Volumes/logs/spark/spark-*/executor.gc.log'
-      - '/mnt/c/Volumes/logs/spark/spark-*/executor.gc.log.*'
+      # GC log files from all Spark components - using natural Spark logging paths
+      - '/mnt/spark/logs/*/gc-master.log*'    # Master daemon GC logs (pod-specific)
+      - '/mnt/spark/logs/*/gc-worker.log*'    # Worker daemon GC logs (pod-specific)
+      - '/mnt/spark/logs/*/gc-history.log*'   # History server GC logs (pod-specific)
+      - '/mnt/spark/logs/*/gc-executor.log*'  # Executor GC logs (pod-specific)
+      - '/mnt/spark/logs/*/gc-driver.log*'    # Driver GC logs (pod-specific)
     tags: ["spark-gc"]
     data_stream:
       dataset: spark_gc
       namespace: default
     processors:
+      # Parse Java 11 G1GC log format - Handle GC pause events with heap info
+      # Format: [timestamp][uptime][level][gc] GC(cycle) Pause Type (Kind) BeforeM->AfterM(HeapM) TimeMs
+      # Example: [2025-10-03T14:57:00.139-0500][22.525s][info][gc] GC(15) Pause Young (Normal) (G1 Evacuation Pause) 1056M->65M(1508M) 6.290ms
       - dissect:
-          # Simplified GC log parsing - just extract basic fields
-          tokenizer: "[%{log_timestamp}][%{uptime|float}s][%{hostname}][%{pid|integer}][%{tid|integer}][%{level}][%{tags}] GC(%{cycle}) %{message}"
-          field: message 
-          target_prefix: gc
+          tokenizer: "[%{gc_timestamp}][%{uptime|float}s][%{level}][%{gc_tags}] GC(%{cycle|integer}) Pause %{type} (%{kind}) %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+          field: message
+          target_prefix: gc.paused
           trim_values: 'all'
+          ignore_failure: true
+      # Handle GC events without kind (Remark, Cleanup, etc.)
+      # Format: [timestamp][uptime][level][gc] GC(cycle) Pause Type BeforeM->AfterM(HeapM) TimeMs
+      # Example: [2025-10-03T14:30:21.698-0500][61.634s][info][gc] GC(6) Pause Remark 31M->31M(1024M) 1.260ms
+      - dissect:
+          tokenizer: "[%{gc_timestamp}][%{uptime|float}s][%{level}][%{gc_tags}] GC(%{cycle|integer}) Pause %{type} %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
+          field: message
+          target_prefix: gc.paused
+          trim_values: 'all'
+          ignore_failure: true
+      # Handle GC start events (no heap info)
+      # Format: [timestamp][uptime][level][gc,start] GC(cycle) Pause Type (Kind)
+      - dissect:
+          tokenizer: "[%{gc_timestamp}][%{uptime|float}s][%{level}][%{gc_tags}] GC(%{cycle|integer}) Pause %{type} (%{kind})"
+          field: message
+          target_prefix: gc.start
+          trim_values: 'all'
+          ignore_failure: true
+      # Extract component and pod info from file path for better identification
+      - dissect:
+          tokenizer: "/mnt/spark/logs/%{pod_directory}/gc-%{component_type}.log"
+          field: log.file.path
+          target_prefix: spark
+          ignore_failure: true
+      # Parse pod directory to extract pod name (simplified approach)
+      - dissect:
+          tokenizer: "%{pod_name}"
+          field: spark.pod_directory
+          target_prefix: spark.pod
+          ignore_failure: true
+      # Preserve original @timestamp as ingestion time for latency measurement
+      - add_fields:
+          target: gc
+          fields:
+            ingest_time: "@timestamp"
+      # Use GC timestamp as the primary event timestamp
       - timestamp:
-          field: gc.log_timestamp
+          field: gc.paused.gc_timestamp
           target_field: "@timestamp"
           layouts:
             - '2006-01-02T15:04:05.999-0700'
-            - '2006-01-02T15:04:05.999Z'
-            - '2006-01-02T15:04:05.999-0700'
-          test:
-            - '2025-01-07T16:24:15.331+0000'
-          ignore_failure: false
-      # Ensure we have a valid timestamp - use log timestamp as primary, fallback to ingest time
-      - if:
-          not:
-            has_fields: ["@timestamp"]
-        then:
-          - timestamp:
-              field: "@timestamp"
-              layouts:
-                - '2006-01-02T15:04:05.999Z'
-      # the following disects can be made more efficient and prices. 
-      # also need to look at what other metrics are indicators of poor GC performance
-      # for now we focuse on heap size and reclamation and pause times. 
-      # missing full gcs     
-      # To start with, we focuse only on gc info messages. Of those, for now we only 
-      # consider pause times in garbage collections. 
-      #   Pause Young (Concurrent Start) (G1 Humongous Allocation)
-      #   Pause Remark 495M->495M(880M) 4.284ms
-      #   Pause Cleanup 660M->660M(880M) 0.511ms
-      # we skip lines with  Concurrent Cycle and its childres
-      # we also have to avoid any gc lines that have a tag of "start" or any other tags
-      - if:
-          # for some reason equals: gc.tags: 'gc            ' doesn't work
-          # we construct the regex so that it works in case trim_values starts working
-          regexp:
-            gc.tags: "^gc *$"
-        then:
-          - dissect:
-              field: gc.message
-              target_prefix: gc
-              tokenizer: "%{first} %{rest_first}"
-              ignore_failure: true       
-          - if:
-              equals: 
-                gc.first: "Pause"
-            then: 
-              - dissect:
-                  field: gc.rest_first
-                  target_prefix: gc.paused
-                  tokenizer: "%{type} %{type_rest}"
-              - if:
-                  equals: 
-                    gc.paused.type: "Young"
-                then:
-                  - dissect:
-                      field: gc.paused.type_rest
-                      target_prefix: gc.paused
-                      # "type_rest": "(Normal) (G1 Evacuation Pause) 1161M->765M(1721M) 2.122ms",
-                      tokenizer: "(%{kind}) (%{reason}) %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
-                  - add_fields:
-                      target: gc
-                      fields: 
-                        stats: "paused"
-                else:
-                  - if:
-                      or:
-                        # process "Remark" and "Cleanup" GCs but not Concurrent
-                        - equals: 
-                            gc.paused.type: "Remark"
-                        - equals:
-                            gc.paused.type: "Cleanup"
-                    then:
-                      - dissect:
-                          field: gc.paused.type_rest
-                          target_prefix: gc.paused
-                          # gc.paused.type_rest="<type> 332M->332M(1721M) 0.515ms"
-                          tokenizer: "%{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
-                      - add_fields:
-                          target: gc
-                          fields: 
-                            stats: "paused"
-              - if:
-                  equals:
-                    gc.stats: "paused"
-                then:
-                  - script:
-                      lang: javascript
-                      source: |
-                        function process(event) {
-                          var before = event.Get("gc.paused.before");
-                          var after = event.Get("gc.paused.after");
-                          event.Put("gc.paused.reclaimed", Number(before) - Number(after));
-                          return event;
-                        }
-              - drop_fields:
-                  fields: ["gc.paused.type_rest"]
-          # For some reason this drop_fields is not dropping the fields.
-          - drop_fields:
-              fields: 
-                - "gc.first"
-                - "gc.rest_first"
+          ignore_failure: true
+      # Add standardized metadata fields for both K8s and Docker Compose
+      # Temporarily disabled script processor due to syntax error
+      # - script:
+      #     lang: painless
+      #     source: |
+      #       // Add host information
+      #       if (ctx.spark == null) {
+      #         ctx.spark = new HashMap();
+      #       }
+      #       if (ctx.spark.metadata == null) {
+      #         ctx.spark.metadata = new HashMap();
+      #       }
+      #       ctx.spark.metadata.host = ctx.agent?.hostname;
+      #       ctx.spark.metadata.deployment_type = "kubernetes";
+      #       // ... rest of script temporarily disabled
+      #     ignore_failure: true
+      # Add required fields for compatibility with existing index
+      - add_fields:
+          target: gc
+          fields:
+            stats: "paused"
+            level: "info"
+            tags: "gc"
+      # Calculate reclaimed memory for GC events with heap info
+      # Temporarily disabled script processor due to syntax error
+      # - script:
+      #     lang: painless
+      #     source: |
+      #       if (ctx.gc?.paused?.before != null && ctx.gc?.paused?.after != null) {
+      #         ctx.gc.paused.reclaimed = ctx.gc.paused.before - ctx.gc.paused.after;
+      #       }
+      #     ignore_failure: true
 
-providers:
-# Docker provides inventory information from Docker.
-  docker:
-    enabled: true
-    host: "unix:///var/run/docker.sock"
-    cleanup_timeout: 60
+# Providers section removed - not needed for standalone Elastic Agent
+# providers:
+#   kubernetes:
+#     enabled: true
+#     kube_config: "${KUBECONFIG}"
+#     cleanup_timeout: 60
 
 outputs:
   default:

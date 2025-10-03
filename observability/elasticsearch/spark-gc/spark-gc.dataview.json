@@ -4,35 +4,40 @@
   "data_view": {
     "title": "logs-spark_gc-default",
     "id": "spark-gc-dv",
-    "name": "Spark GCC",
+    "name": "Spark GC Logs",
     "allowNoIndex": true,
     "fields": {
-      "@timestamp": {"name": "@timestamp", "customLabel": "GC Timestamp"},
-      "gc.cycle": {"name": "gc.cycle", "customLabel": "GC Cycle"},
-      "gc.pid": {"name": "gc.pid", "customLabel": "PID"},
-      "gc.tid": {"name": "gc.tid", "customLabel": "TID"},
+      "@timestamp": {"name": "@timestamp", "customLabel": "GC Event Time"},
+      "message": {"name": "message", "customLabel": "Raw GC Log Message"},
+      "agent.hostname": {"name": "agent.hostname", "customLabel": "Agent Host"},
+      "spark.component_type": {"name": "spark.component_type", "customLabel": "Spark Component"},
+      "spark.metadata.spark_role": {"name": "spark.metadata.spark_role", "customLabel": "Spark Role"},
+      "spark.metadata.pod_name": {"name": "spark.metadata.pod_name", "customLabel": "Pod Name"},
+      "spark.metadata.host": {"name": "spark.metadata.host", "customLabel": "Host"},
+      "gc.paused.cycle": {"name": "gc.paused.cycle", "customLabel": "GC Cycle"},
       "gc.paused.type": {"name": "gc.paused.type", "customLabel": "GC Type"},
       "gc.paused.kind": {"name": "gc.paused.kind", "customLabel": "GC Kind"},
-      "gc.paused.before": {
-        "name": "gc.paused.before",
-        "customLabel": "Heap Space Before (KB)"
-      },
-      "gc.paused.after": {
-        "name": "gc.paused.after",
-        "customLabel": "Heap Space After (KB)"
-      },
-      "gc.paused.heapsize": {
-        "name": "gc.paused.heapsize",
-        "customLabel": "Total Heap Size (KB)"
-      },
-      "gc.paused.millis": {
-        "name": "gc.paused.millis",
-        "customLabel": "Paused Time (ms)"
-      },
-      "gc.paused.reclaimed": {
-        "name": "gc.paused.reclaimed",
-        "customLabel": "Heap Space Reclaimed (KB)"
-      }
+      "gc.paused.before": {"name": "gc.paused.before", "customLabel": "Heap Before (MB)"},
+      "gc.paused.after": {"name": "gc.paused.after", "customLabel": "Heap After (MB)"},
+      "gc.paused.heapsize": {"name": "gc.paused.heapsize", "customLabel": "Total Heap (MB)"},
+      "gc.paused.millis": {"name": "gc.paused.millis", "customLabel": "Pause Time (ms)"},
+      "gc.paused.reclaimed": {"name": "gc.paused.reclaimed", "customLabel": "Memory Reclaimed (MB)"},
+      "gc.start.cycle": {"name": "gc.start.cycle", "customLabel": "GC Start Cycle"},
+      "gc.start.type": {"name": "gc.start.type", "customLabel": "GC Start Type"},
+      "gc.start.kind": {"name": "gc.start.kind", "customLabel": "GC Start Kind"},
+      "gc.stats": {"name": "gc.stats", "customLabel": "GC Stats"},
+      "gc.level": {"name": "gc.level", "customLabel": "GC Level"},
+      "gc.tags": {"name": "gc.tags", "customLabel": "GC Tags"},
+      "gc.ingest_time": {"name": "gc.ingest_time", "customLabel": "Ingest Time"},
+      "container.name": {"name": "container.name", "customLabel": "Container Name"},
+      "container.runtime": {"name": "container.runtime", "customLabel": "Container Runtime"},
+      "kubernetes.namespace": {"name": "kubernetes.namespace", "customLabel": "K8s Namespace"},
+      "kubernetes.pod.name": {"name": "kubernetes.pod.name", "customLabel": "K8s Pod Name"},
+      "kubernetes.pod.uid": {"name": "kubernetes.pod.uid", "customLabel": "K8s Pod UID"},
+      "kubernetes.node.name": {"name": "kubernetes.node.name", "customLabel": "K8s Node"},
+      "kubernetes.labels.app": {"name": "kubernetes.labels.app", "customLabel": "K8s App Label"},
+      "kubernetes.labels.component": {"name": "kubernetes.labels.component", "customLabel": "K8s Component Label"},
+      "log.file.path": {"name": "log.file.path", "customLabel": "Log File Path"}
     },
     "sourceFilters": []
   }

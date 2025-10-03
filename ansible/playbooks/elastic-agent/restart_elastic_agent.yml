@@ -3,8 +3,8 @@
   hosts: all
   become: yes
   vars:
-    elastic_agent_config_src: "{{ playbook_dir }}/../../elastic-agent/elastic-agent.yml"
-    elastic_agent_config_dest: /etc/elastic-agent/elastic-agent.yml
+    elastic_agent_config_src: "{{ playbook_dir }}/../../../elastic-agent/elastic-agent.linux.yml"
+    elastic_agent_config_dest: /opt/Elastic/Agent/elastic-agent.yml
   tasks:
     - name: Copy latest elastic-agent.yml to installation directory
       copy:

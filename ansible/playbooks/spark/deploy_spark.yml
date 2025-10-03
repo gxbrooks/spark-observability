@@ -35,16 +35,16 @@
   hosts: kubernetes_master:kubernetes_workers
   become: true
   tasks:
-    - name: Verify NFS mount is available on {{ inventory_hostname }}
+    - name: Verify Spark events directory is available on {{ inventory_hostname }}
       shell: |
-        mountpoint /mnt/spark-events || (echo "NFS mount not found on {{ inventory_hostname }}" && exit 1)
-      register: nfs_check
+        test -d /mnt/spark/events && test -w /mnt/spark/events || (echo "Spark events directory not found or not writable on {{ inventory_hostname }}" && exit 1)
+      register: spark_events_check
       ignore_errors: true
-      
-    - name: Fail if NFS mount is not available
+
+    - name: Fail if Spark events directory is not available
       fail:
-        msg: "NFS mount /mnt/spark-events is not available on {{ inventory_hostname }}. Please set up the NFS mount first."
-      when: nfs_check.rc != 0
+        msg: "Spark events directory /mnt/spark/events is not available or not writable on {{ inventory_hostname }}. Please set up the directory first."
+      when: spark_events_check.rc != 0
 
 - name: Deploy Spark on Kubernetes
   hosts: kubernetes_master
@@ -185,7 +185,7 @@
     - name: Download Spark archive if not present or force_download is true
       delegate_to: localhost
       get_url:
-        url: "https://dlcdn.apache.org/spark/spark-{{ spark_version }}/spark-{{ spark_version }}-bin-hadoop3.tgz"
+        url: "https://archive.apache.org/dist/spark/spark-{{ spark_version }}/spark-{{ spark_version }}-bin-hadoop3.tgz"
         dest: "{{ project_root }}/spark/images/spark-{{ spark_version }}-bin-hadoop3.tgz"
         mode: '0644'
         timeout: 600
@@ -247,6 +247,7 @@
     - name: Display build decision
       debug:
         msg: "Will {{ (image_exists.stdout == '' or force_build | bool) | ternary('BUILD', 'SKIP building') }} Spark image (image_exists={{ image_exists.stdout != '' }}, force_build={{ force_build | bool }}, sources_changed={{ sources_changed | default('unknown') }}, force_download={{ force_download | bool }})"
+      when: image_exists is defined and image_exists.stdout is defined
       
     - name: Check if Spark archive exists on remote host in images directory
       stat:
@@ -256,7 +257,7 @@
     - name: Fail if Spark archive not found
       fail:
         msg: "Spark archive not found on remote host in images directory. Please check if the file was copied correctly."
-      when: (image_exists.stdout == "" or force_build | bool) and not remote_spark_archive.stat.exists
+      when: image_exists is defined and image_exists.stdout is defined and ((image_exists.stdout == "" or force_build | bool) and not remote_spark_archive.stat.exists)
       
     - name: Build Spark Docker image
       shell: |
@@ -267,7 +268,7 @@
         docker build . -t {{ spark_image }}:{{ spark_tag }} \
           $BUILD_ARGS --progress=plain {{ (force_build | bool) | ternary('--no-cache', '') }}
       register: docker_build
-      when: image_exists.stdout == "" or force_build | bool
+      when: image_exists is defined and image_exists.stdout is defined and (image_exists.stdout == "" or force_build | bool)
       async: 900
       poll: 15
       
@@ -349,10 +350,12 @@
         spark_rpc_lookup_timeout: "{{ SPARK_RPC_LOOKUP_TIMEOUT | default('60s') }}"
         spark_executor_heartbeat_interval: "{{ SPARK_EXECUTOR_HEARTBEAT_INTERVAL | default('120s') }}"
 
-    - name: Create ConfigMap from spark-defaults.conf
+    - name: Create ConfigMap from spark configuration files
       shell: |
         kubectl create configmap spark-defaults-conf \
         --from-file=/home/{{ ansible_user }}/spark/conf/spark-defaults.conf \
+        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2-executor.properties \
+        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2.properties \
         -n spark --dry-run=client -o yaml | kubectl apply -f -
       environment:
         KUBECONFIG: "{{ kubeconfig }}"

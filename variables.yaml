@@ -196,6 +196,9 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
 SPARK_EVENTS_DIR:
   value: /mnt/spark/events
   contexts: [spark-runtime, ansible, spark-client, elastic-agent]
+SPARK_CONF_DIR:
+  value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
+  contexts: [spark-client]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
@@ -229,6 +232,7 @@ SPARK_DATA_MOUNT:
   contexts: [spark-runtime, nfs, spark-client]
 
 # Spark Data Source
+# TODO: This is wrong. Spark data is now in /mnt/spark/data. Must be unused.
 SPARK_DATA_SOURCE:
   value: /home/gxbrooks/repos/elastic-on-spark/spark/data
   contexts: [spark-runtime, nfs]

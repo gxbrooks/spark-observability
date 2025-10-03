@@ -36,11 +36,34 @@ spec:
         options:
           - name: ndots
             value: "5"
+      initContainers:
+        - name: init-logs
+          image: "{{ spark_image }}:{{ spark_tag }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              mkdir -p /mnt/spark/logs/$(POD_NAME)
+              chown -R 185:185 /mnt/spark/logs/$(POD_NAME)
+              chmod 755 /mnt/spark/logs/$(POD_NAME)
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: spark-logs-host
+              mountPath: /mnt/spark/logs
+          securityContext:
+            runAsUser: 0
       containers:
         - name: spark-worker
           image: "{{ spark_image }}:{{ spark_tag }}"
           imagePullPolicy: Always
-          command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"]
+          command: ["/bin/bash", "-c"]
+          args: 
+            - |
+              export SPARK_WORKER_OPTS="-XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-worker.log:time,uptime,level,tags:filecount=10,filesize=10M"
+              exec /opt/spark/sbin/start-worker.sh spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
           envFrom:
             - configMapRef:
                 name: spark-configmap
@@ -53,6 +76,22 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            # Pod metadata for log directory path
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            # Use mounted configuration files
+            - name: SPARK_CONF_DIR
+              value: "/opt/spark/conf-extra"
           ports:
             - containerPort: 8081
               name: webui
@@ -70,9 +109,11 @@ spec:
               mountPath: /mnt/spark/events
             - name: spark-data
               mountPath: /mnt/spark/data
+            - name: spark-logs-host
+              mountPath: /opt/spark/logs
+              subPathExpr: $(POD_NAME)
             - name: spark-defaults-conf
-              mountPath: /opt/spark/conf/spark-defaults.conf
-              subPath: spark-defaults.conf
+              mountPath: /opt/spark/conf-extra
       volumes:
         - name: spark-events
           hostPath:
@@ -81,6 +122,10 @@ spec:
         - name: spark-data
           hostPath:
             path: /mnt/spark/data
+            type: DirectoryOrCreate
+        - name: spark-logs-host
+          hostPath:
+            path: /mnt/spark/logs
             type: DirectoryOrCreate
         - name: spark-defaults-conf
           configMap:
@@ -119,11 +164,34 @@ spec:
         options:
           - name: ndots
             value: "5"
+      initContainers:
+        - name: init-logs
+          image: "{{ spark_image }}:{{ spark_tag }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              mkdir -p /mnt/spark/logs/$(POD_NAME)
+              chown -R 185:185 /mnt/spark/logs/$(POD_NAME)
+              chmod 755 /mnt/spark/logs/$(POD_NAME)
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: spark-logs-host
+              mountPath: /mnt/spark/logs
+          securityContext:
+            runAsUser: 0
       containers:
         - name: spark-worker
           image: "{{ spark_image }}:{{ spark_tag }}"
           imagePullPolicy: Always
-          command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"]
+          command: ["/bin/bash", "-c"]
+          args: 
+            - |
+              export SPARK_WORKER_OPTS="-XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-worker.log:time,uptime,level,tags:filecount=10,filesize=10M"
+              exec /opt/spark/sbin/start-worker.sh spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
           envFrom:
             - configMapRef:
                 name: spark-configmap
@@ -136,6 +204,22 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            # Pod metadata for log directory path
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            # Use mounted configuration files
+            - name: SPARK_CONF_DIR
+              value: "/opt/spark/conf-extra"
           ports:
             - containerPort: 8081
               name: webui
@@ -153,9 +237,11 @@ spec:
               mountPath: /mnt/spark/events
             - name: spark-data
               mountPath: /mnt/spark/data
+            - name: spark-logs-host
+              mountPath: /opt/spark/logs
+              subPathExpr: $(POD_NAME)
             - name: spark-defaults-conf
-              mountPath: /opt/spark/conf/spark-defaults.conf
-              subPath: spark-defaults.conf
+              mountPath: /opt/spark/conf-extra
       volumes:
         - name: spark-events
           hostPath:
@@ -164,6 +250,10 @@ spec:
         - name: spark-data
           hostPath:
             path: /mnt/spark/data
+            type: DirectoryOrCreate
+        - name: spark-logs-host
+          hostPath:
+            path: /mnt/spark/logs
             type: DirectoryOrCreate
         - name: spark-defaults-conf
           configMap:

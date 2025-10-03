@@ -19,12 +19,9 @@ import pyspark.sql.types as T
 os.environ['PYSPARK_PYTHON'] = 'python3.8'
 os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
 
-# Create Spark session with proper configuration
+# Create Spark session - configuration comes from spark-defaults.conf
 spark = SparkSession.builder \
     .appName("Chapter 08: Data Joins") \
-    .master(os.getenv('SPARK_MASTER_URL', 'spark://Lab2.lan:32582')) \
-    .config("spark.eventLog.enabled", "true") \
-    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
     .getOrCreate()
 
 print("=== Chapter 08: Data Joins ===")
