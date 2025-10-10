@@ -87,10 +87,14 @@ This script reads the source definitions and generates context-specific configur
 ```python
 # Contexts and output files mapping
 CONTEXTS = {
-    'observability': 'docker/.env',
+    'observability': 'observability/.env',
     'spark-image': 'spark/spark-image.toml',
     'spark-runtime': 'ansible/roles/spark/files/k8s/spark-configmap.yaml',
     'ansible': 'ansible/vars/spark_vars.yml',
+    'spark-client': 'spark/spark_env.sh',
+    'elastic-agent': 'elastic-agent/elastic_agent_env.sh',
+    'ispark': 'spark/ispark/ispark_env.sh',
+    'nfs': 'ansible/vars/nfs_vars.yml',
 }
 
 # Function that extracts variables for specific contexts
@@ -101,6 +105,32 @@ def get_vars(config, context):
 ### 3. Context-Specific Files
 
 For Spark version, the relevant context-specific files are:
+
+#### New Contexts (Added in vObservabilityFramework+2)
+
+**spark-client**: Developer environment variables
+- **File**: `spark/spark_env.sh`
+- **Purpose**: Environment variables for developers running Spark applications
+- **Variables**: `SPARK_MASTER_EXTERNAL_HOST`, `SPARK_MASTER_EXTERNAL_PORT`, `SPARK_EVENTS_DIR`, `HDFS_DEFAULT_FS`
+- **Usage**: Automatically sourced by `linux/.bashrc` for developers
+
+**elastic-agent**: Host-level Elastic Agent configuration
+- **File**: `elastic-agent/elastic_agent_env.sh`
+- **Purpose**: Environment variables for Elastic Agent running on hosts
+- **Variables**: `ELASTIC_HOST_EXTERNAL`, `ELASTIC_URL_EXTERNAL`, `LS_HOST_EXTERNAL`, `CA_CERT_LINUX_PATH`
+- **Usage**: Used to generate `elastic-agent/env.conf` for systemd service
+
+**ispark**: Interactive Spark development
+- **File**: `spark/ispark/ispark_env.sh`
+- **Purpose**: Environment variables for interactive Spark sessions
+- **Usage**: Sourced by iPython Spark launcher scripts
+
+**nfs**: NFS server configuration
+- **File**: `ansible/vars/nfs_vars.yml`
+- **Purpose**: NFS server variables for Ansible playbooks
+- **Usage**: Used by NFS installation and configuration playbooks
+
+#### Original Contexts
 
 #### a. Ansible Variables
 

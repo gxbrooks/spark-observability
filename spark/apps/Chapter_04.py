@@ -2,10 +2,22 @@
 #
 # Listing 4.1 Creating our SparkSession object to start using PySpark 
 
+import os
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
- 
-spark = SparkSession.builder.getOrCreate()
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Create Spark session with proper configuration
+spark = SparkSession.builder \
+    .appName("Chapter 04") \
+    .getOrCreate()
+
+print("=== Chapter 04: Data Ingestion and Schema ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
 
 #########################################################################################
 #
@@ -30,7 +42,7 @@ df_grocery_list.printSchema()
 
 import os
  
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),  
     sep="|",                                                  
@@ -412,14 +424,14 @@ for i in logs.columns:
 #########################################################################################
 #
 # Exercise 4.3 
-# Reread the data in a logs_raw data frame (the data file is ./data/broadcast_logsBroadcastLogs_2018_Q3_M8.CSV), 
+# Reread the data in a logs_raw data frame (the data file is /mnt/spark/data/broadcast_logs/BroadcastLogs_2018_Q3_M8.CSV), 
 # this time without passing any optional parameters. Print the first five rows of data, as well as the schema. 
 # What are the differences in terms of data and schema between logs and logs_raw? 
 
 
 # only one column
 
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
 logsNoParams = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV")
 )
@@ -443,7 +455,7 @@ logsNoParams.show(2)
 # Exercise 4.4 
 # Create a new data frame, logs_clean, that contains only the columns that do not end with ID.
 
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8_sample.CSV"),  
     sep="|",                                                  

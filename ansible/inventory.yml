@@ -36,6 +36,10 @@ all:
               hosts:
                 Lab2:  # Using Lab2 as NFS server for now
                   ansible_host: Lab2.lan
+            hadoop:  # Hadoop cluster for Spark data storage
+              hosts:
+                Lab2:
+                  ansible_host: Lab2.lan
             spark_kubernetes:
               children:
                 kubernetes_master:

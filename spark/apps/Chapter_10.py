@@ -1,22 +1,38 @@
 
+#!/usr/bin/env python3
+"""
+Chapter 10: Machine Learning
+Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
+"""
+
+import os
 from pyspark.sql import SparkSession
 from functools import reduce
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 import pandas as pd
-from pyspark.sql.window import Window 
- 
-spark = SparkSession.builder.appName(
-    "Ch09 - Using UDFs"
-).getOrCreate()
+from pyspark.sql.window import Window
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Create Spark session - configuration comes from spark-defaults.conf
+spark = SparkSession.builder \
+    .appName("Chapter 10: Machine Learning") \
+    .getOrCreate()
+
+print("=== Chapter 10: Machine Learning ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
 
 
 #########################################################################################
 #
 # 
 # Listing 10.1 Reading the data necessary: GSOD NOAA weather data
-# gsod = spark.read.parquet("./data/window/gsod.parquet")
-gsod = spark.read.parquet(f"./data/gsod_data.parquet")
+# gsod = spark.read.parquet("/mnt/spark/data/window/gsod.parquet")
+gsod = spark.read.parquet(f"/mnt/spark/data/gsod_data.parquet")
 
 
 #########################################################################################
@@ -63,9 +79,9 @@ coldest_when.orderBy("year", "mo", "da").show()
 # 
 # Listing 10.4 Creating a WindowSpec object by using the Window builder class 
 
-from pyspark.sql.window import Window    #❶
+from pyspark.sql.window import Window    ## 1
  
-each_year = Window.partitionBy("year")   #❷
+each_year = Window.partitionBy("year")   ## 2
  
 print(each_year)
 # <pyspark.sql.window.WindowSpec object at 0x7f978fc8e6a0>
@@ -95,7 +111,7 @@ coldest_when.orderBy("year", "mo", "da").show()
 # Listing 10.6 Selecting the minimum temperature for each year using a window function 
 
 (gsod
- .withColumn("min_temp", F.min("temp").over(each_year))    #❶
+ .withColumn("min_temp", F.min("temp").over(each_year))    ## 1
  .where("temp = min_temp")
  .select("year", "mo", "da", "stn", "temp")
  .orderBy("year", "mo", "da")
@@ -122,7 +138,7 @@ gsod.select(
     F.min("temp").over(each_year).alias("min_temp"),
 ).where(
     "temp = min_temp"
-).drop(                 #❶
+).drop(                 ## 1
     "min_temp"
 ).orderBy(
     "year", "mo", "da"
@@ -150,7 +166,7 @@ gsod.select(
     F.max("temp").over(max_station_per_day).alias("max_temp"),
 ).where(
     "temp = max_temp"
-).drop(                 #❶
+).drop(                 ## 1
     "max_temp"
 ).orderBy(
     "year", "mo", "da"
@@ -162,7 +178,7 @@ gsod.select(
 # 
 # Listing 10.8 Reading gsod_light from the book’s code repository 
 
-# gsod_light = spark.read.parquet("./data/window/gsod_light.parquet")
+# gsod_light = spark.read.parquet("/mnt/spark/data/window/gsod_light.parquet")
 gsod_light = (
     gsod
     .select(F.col("stn"), F.col("year"), F.col("mo"), F.col("da"), F.col("temp"), F.col("date"))
@@ -191,22 +207,22 @@ gsod_light.orderBy("count_temp", ascending=False).show()
 # 
 # Listing 10.9 An ordered version of the month-partitioned window 
 
-temp_per_month_asc = Window.partitionBy("mo").orderBy("count_temp")   #❶❷
+temp_per_month_asc = Window.partitionBy("mo").orderBy("count_temp")   ## 1# 2
 
 #########################################################################################
 #
 # Listing 10.10 The rank() according to the value of the count_temp column 
 
 gsod_light.withColumn(
-    "rank_tpm", F.rank().over(temp_per_month_asc)    #❶
+    "rank_tpm", F.rank().over(temp_per_month_asc)    ## 1
 ).show()
 # +------+----+---+---+----+----------+--------+
 # |   stn|year| mo| da|temp|count_temp|rank_tpm|
 # +------+----+---+---+----+----------+--------+
-# |949110|2019| 11| 23|54.9|        14|       1|     ❷
-# |996470|2018| 03| 12|55.6|        12|       1|     ❸
-# |998166|2019| 03| 20|34.8|        12|       1|     ❸
-# |998012|2017| 03| 02|31.4|        24|       3|     ❹
+# |949110|2019| 11| 23|54.9|        14|       1|     # 2
+# |996470|2018| 03| 12|55.6|        12|       1|     # 3
+# |998166|2019| 03| 20|34.8|        12|       1|     # 3
+# |998012|2017| 03| 02|31.4|        24|       3|     # 4
 # |041680|2019| 02| 19|16.1|        15|       1|
 # |076470|2018| 06| 07|65.0|        24|       1|
 # |719200|2017| 10| 09|60.5|        11|       1|
@@ -219,16 +235,16 @@ gsod_light.withColumn(
 #
 # 
 gsod_light.withColumn(
-    "rank_tpm", F.dense_rank().over(temp_per_month_asc)   #❶
+    "rank_tpm", F.dense_rank().over(temp_per_month_asc)   ## 1
 ).show()
  
 # +------+----+---+---+----+----------+--------+
 # |   stn|year| mo| da|temp|count_temp|rank_tpm|
 # +------+----+---+---+----+----------+--------+
 # |949110|2019| 11| 23|54.9|        14|       1|
-# |996470|2018| 03| 12|55.6|        12|       1|          ❷
-# |998166|2019| 03| 20|34.8|        12|       1|          ❷
-# |998012|2017| 03| 02|31.4|        24|       2|          ❸
+# |996470|2018| 03| 12|55.6|        12|       1|          # 2
+# |998166|2019| 03| 20|34.8|        12|       1|          # 2
+# |998012|2017| 03| 02|31.4|        24|       2|          # 3
 # |041680|2019| 02| 19|16.1|        15|       1|
 # |076470|2018| 06| 07|65.0|        24|       1|
 # |719200|2017| 10| 09|60.5|        11|       1|
@@ -242,7 +258,7 @@ gsod_light.withColumn(
 # 
 # Listing 10.12 Computing percentage rank for every recorded temperature per year 
 
-temp_each_year = each_year.orderBy("temp")                    #❶
+temp_each_year = each_year.orderBy("temp")                    ## 1
  
 gsod_light.withColumn(
     "rank_tpm", F.percent_rank().over(temp_each_year)
@@ -253,7 +269,7 @@ gsod_light.withColumn(
 # +------+----+---+---+----+----------+------------------+
 # |041680|2019| 02| 19|16.1|        15|               0.0|
 # |998166|2019| 03| 20|34.8|        12|0.3333333333333333|
-# |998252|2019| 04| 18|44.7|        11|0.6666666666666666|    ❷
+# |998252|2019| 04| 18|44.7|        11|0.6666666666666666|    # 2
 # |949110|2019| 11| 23|54.9|        14|               1.0|
 # |994979|2017| 12| 11|21.3|        21|               0.0|
 # |998012|2017| 03| 02|31.4|        24|               0.5|
@@ -299,10 +315,10 @@ gsod_light.withColumn(
 # +------+----+---+---+----+----------+--------+
 # |   stn|year| mo| da|temp|count_temp|rank_tpm|
 # +------+----+---+---+----+----------+--------+
-# |041680|2019| 02| 19|16.1|        15|       1|   ❶
-# |998166|2019| 03| 20|34.8|        12|       2|   ❶
-# |998252|2019| 04| 18|44.7|        11|       3|   ❶
-# |949110|2019| 11| 23|54.9|        14|       4|   ❶
+# |041680|2019| 02| 19|16.1|        15|       1|   # 1
+# |998166|2019| 03| 20|34.8|        12|       2|   # 1
+# |998252|2019| 04| 18|44.7|        11|       3|   # 1
+# |949110|2019| 11| 23|54.9|        14|       4|   # 1
 # |994979|2017| 12| 11|21.3|        21|       1|
 # |998012|2017| 03| 02|31.4|        24|       2|
 # |719200|2017| 10| 09|60.5|        11|       3|
@@ -311,7 +327,7 @@ gsod_light.withColumn(
 # |917350|2018| 04| 21|82.6|         9|       3|
 # +------+----+---+---+----+----------+--------+ 
 
-# ❶ row_number() will give you strictly increasing ranks for every record in your window.
+# # 1 row_number() will give you strictly increasing ranks for every record in your window.
 
 #########################################################################################
 #
@@ -319,7 +335,7 @@ gsod_light.withColumn(
 # Listing 10.15 Creating a window with a descending-ordered column 
 
 temp_per_month_desc = Window.partitionBy("mo").orderBy(
-    F.col("count_temp").desc()                           #❶
+    F.col("count_temp").desc()                           ## 1
 )
  
 gsod_light.withColumn(
@@ -341,7 +357,7 @@ gsod_light.withColumn(
 # |917350|2018| 04| 21|82.6|         9|         2|
 # +------+----+---+---+----+----------+----------+ 
 
-# ❶ By default, a column will be ordered with ascending values. Passing the desc() method will reverse that order for that column.
+# # 1 By default, a column will be ordered with ascending values. Passing the desc() method will reverse that order for that column.
 
 #########################################################################################
 #
@@ -378,8 +394,8 @@ gsod_light.withColumn(
 # |   stn|year| mo| da|temp|count_temp|previous_temp|previous_temp_2|
 # +------+----+---+---+----+----------+-------------+---------------+
 # |041680|2019| 02| 19|16.1|        15|         null|           null|
-# |998166|2019| 03| 20|34.8|        12|         16.1|           null|  ❶
-# |998252|2019| 04| 18|44.7|        11|         34.8|           16.1|  ❶
+# |998166|2019| 03| 20|34.8|        12|         16.1|           null|  # 1
+# |998252|2019| 04| 18|44.7|        11|         34.8|           16.1|  # 1
 # |949110|2019| 11| 23|54.9|        14|         44.7|           34.8|
 # |994979|2017| 12| 11|21.3|        21|         null|           null|
 # |998012|2017| 03| 02|31.4|        24|         21.3|           null|
@@ -387,7 +403,7 @@ gsod_light.withColumn(
 # |996470|2018| 03| 12|55.6|        12|         null|           null|
 # |076470|2018| 06| 07|65.0|        24|         55.6|           null|
 # |917350|2018| 04| 21|82.6|         9|         65.0|           55.6|
-# +------+----+---+---+----+----------+-------------+---------------+ ❶ The previous observation of the second record is the twice-previous observation of the third record, and so on.
+# +------+----+---+---+----+----------+-------------+---------------+ # 1 The previous observation of the second record is the twice-previous observation of the third record, and so on.
 
 
 #########################################################################################
@@ -423,6 +439,8 @@ gsod_light.withColumn(
 # answer = randomly assign values in the same partioin to tiles
 
 # Create a Spark session
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 tSpark = SparkSession.builder.appName("DateFunctionExample").getOrCreate()
 
 # Example data
@@ -481,23 +499,23 @@ gsod_light.withColumn(
 # |076470|2018| 06| 07|65.0|        24| 67.733333333333|              60.3|
 # |917350|2018| 04| 21|82.6|         9| 67.733333333333| 67.73333333333333|
 # +------+----+---+---+----+----------+----------------+------------------+
-#                                            ↑ ❶            ↑ ❷ 
-# ❶ All good: the average is consistent across each window, and the results are logical. 
-# ❷ Some odd stuff is happening. It looks like each window grows, record by record, so the average changes every time.
+#                                            ^ # 1            ^ # 2 
+# # 1 All good: the average is consistent across each window, and the results are logical. 
+# # 2 Some odd stuff is happening. It looks like each window grows, record by record, so the average changes every time.
 
 #########################################################################################
 #
 # 
-Listing 10.19 Rewriting the window spec with explicit window boundaries
+# Listing 10.19 Rewriting the window spec with explicit window boundaries
 
 not_ordered = Window.partitionBy("year").rowsBetween(
-    Window.unboundedPreceding, Window.unboundedFollowing    #❶
+    Window.unboundedPreceding, Window.unboundedFollowing    ## 1
 )
 ordered = not_ordered.orderBy("temp").rangeBetween(
-    Window.unboundedPreceding, Window.currentRow            #❷
+    Window.unboundedPreceding, Window.currentRow            ## 2
 ) 
-# ❶ This window is unbounded: every record, from the first to the last, is in the window. 
-# ❷ This window is growing to the left: every record up to the current row value is included in a window.
+# # 1 This window is unbounded: every record, from the first to the last, is in the window. 
+# # 2 This window is growing to the left: every record up to the current row value is included in a window.
 
 #########################################################################################
 #
@@ -538,9 +556,9 @@ gsod_light_p.show()
 # |994979|2019| 12| 11|21.3|        21|2019-12-11|1576040400|  
 # +------+----+---+---+----+----------+----------+----------+  
 #
-                                         ↑ ❶         ↑ ❷ 
-# ❶ The new column is of type DateType(), which can be treated (window wise) as a number. 
-# ❷ When using PySpark, windows must be over numerical values. Using unix_timestamp() is 
+#                                         ^ # 1         ^ # 2 
+# # 1 The new column is of type DateType(), which can be treated (window wise) as a number. 
+# # 2 When using PySpark, windows must be over numerical values. Using unix_timestamp() is 
 #   the easiest way to convert a date/timestamp to a number.
 
 
@@ -554,7 +572,7 @@ ONE_MONTH_ISH = 30 * 60 * 60 * 24
 one_month_ish_before_and_after = (
     Window.partitionBy("year")
     .orderBy("dt_num")
-    .rangeBetween(-ONE_MONTH_ISH, ONE_MONTH_ISH)     #❶
+    .rangeBetween(-ONE_MONTH_ISH, ONE_MONTH_ISH)     ## 1
 )
  
 gsod_light_p.withColumn(
@@ -576,7 +594,7 @@ gsod_light_p.withColumn(
 # |994979|2019| 12| 11|21.3|        21|2019-12-11|1576040400|         17.5|
 # +------+----+---+---+----+----------+----------+----------+-------------+ 
 #
-# ❶ The range becomes (current_row_value – ONE_MONTH_ISH, current_row_value + ONE_MONTH_ISH).
+# # 1 The range becomes (current_row_value – ONE_MONTH_ISH, current_row_value + ONE_MONTH_ISH).
 
 #########################################################################################
 #
@@ -591,12 +609,12 @@ def median(vals: pd.Series) -> float:
 
 
 gsod_light.withColumn(
-    "median_temp", median("temp").over(Window.partitionBy("year"))    #❶
+    "median_temp", median("temp").over(Window.partitionBy("year"))    ## 1
 ).withColumn(
     "median_temp_g",
     median("temp").over(
-        Window.partitionBy("year").orderBy("mo", "da")                #❷
-    ),                                                                #❷
+        Window.partitionBy("year").orderBy("mo", "da")                ## 2
+    ),                                                                ## 2
 ).show()
 #                                          
 # +------+----+---+---+----+----------+-----------+-------------+
@@ -614,11 +632,11 @@ gsod_light.withColumn(
 # |076470|2018| 06| 07|65.0|        24|       65.0|         65.0|
 # +------+----+---+---+----+----------+-----------+-------------+
 #
-#                     ↑ ❸  ↑ ❹ 
-# ❶ The UDF is applied over an unbounded/unordered window frame. 
-# ❷ The same UDF is now applied over a bounded/ordered window frame. 
-# ❸ Since the window is unbounded, every record within a window has the same median. 
-# ❹ Since the window is bounded to the right, the median changes as we add more records 
+#                     ^ # 3  ^ # 4 
+# # 1 The UDF is applied over an unbounded/unordered window frame. 
+# # 2 The same UDF is now applied over a bounded/ordered window frame. 
+# # 3 Since the window is unbounded, every record within a window has the same median. 
+# # 4 Since the window is bounded to the right, the median changes as we add more records 
 #   to the window.
 
 #########################################################################################
@@ -671,23 +689,23 @@ each_year = Window.partitionBy("year")
 
 temp_per_month_asc = Window.partitionBy("mo").orderBy("count_temp")
  
-# gsod_light = spark.read.parquet("./data/window/gsod_light.parquet")
-gsod_light_book = spark.read.parquet("./data/gsod_light.parquet")
+# gsod_light = spark.read.parquet("/mnt/spark/data/window/gsod_light.parquet")
+gsod_light_book = spark.read.parquet("/mnt/spark/data/gsod_light.parquet")
 gsod_light_book.withColumn(
-    "rank_tpm", F.rank().over(temp_per_month_asc)  #❶
+    "rank_tpm", F.rank().over(temp_per_month_asc)  ## 1
 ).show()
 
 # unclear how to meet (1) below
 gsod_light_book.withColumn(
-    "rank_tpm", F.dense_rank().over(temp_per_month_asc)  #❶
+    "rank_tpm", F.dense_rank().over(temp_per_month_asc)  ## 1
 ).orderBy(F.col("mo"), F.col("count_temp")).show()
 
 # +------+----+---+---+----+----------+--------+
 # |   stn|year| mo| da|temp|count_temp|rank_tpm|
 # +------+----+---+---+----+----------+--------+
 # |949110|2019| 11| 23|54.9|        14|       1|
-# |996470|2018| 03| 12|55.6|        12|       1|   ❶
-# |998166|2019| 03| 20|34.8|        12|       1|   ❶
+# |996470|2018| 03| 12|55.6|        12|       1|   # 1
+# |998166|2019| 03| 20|34.8|        12|       1|   # 1
 # |998012|2017| 03| 02|31.4|        24|       3|
 # |041680|2019| 02| 19|16.1|        15|       1|
 # |076470|2018| 06| 07|65.0|        24|       1|
@@ -696,7 +714,7 @@ gsod_light_book.withColumn(
 # |917350|2018| 04| 21|82.6|         9|       1|
 # |998252|2019| 04| 18|44.7|        11|       2|
 # +------+----+---+---+----+----------+--------+ 
-# ❶ These records should be 1 and 2.
+# # 1 These records should be 1 and 2.
 
 #########################################################################################
 #

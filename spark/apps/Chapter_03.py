@@ -1,153 +1,129 @@
+#!/usr/bin/env python3
+"""
+Chapter 03: Word Count Analysis
+Batch job for analyzing word frequencies in Gutenberg books.
+"""
+
+import os
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
+
+# Create Spark session with chapter-specific app name and event logging
+spark = SparkSession.builder \
+    .appName("Chapter 03") \
+    .getOrCreate()
+
+# Set log level to reduce noise
+spark.sparkContext.setLogLevel("WARN")
+
+print("=== Chapter 03: Word Count Analysis ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
+
+# Data paths (using NFS mount accessible to all workers)
+books = [
+    "/mnt/spark/data/gutenberg_books/1342-0.txt", 
+    "/mnt/spark/data/gutenberg_books/11-0.txt", 
+    "/mnt/spark/data/gutenberg_books/1661-0.txt",
+    "/mnt/spark/data/gutenberg_books/2701-0.txt",
+    "/mnt/spark/data/gutenberg_books/30254-0.txt",
+    "/mnt/spark/data/gutenberg_books/84-0.txt",
+]
 
 # From Chapter 2 Listing 2.20
-
-from pyspark.sql import SparkSession
-from pyspark.sql.functions  import col, split, explode, lower, regexp_extract, length, sum
-spark = SparkSession.builder.getOrCreate()
-
-books = [
-            "./data/gutenberg_books/1342-0.txt", 
-            "./data/gutenberg_books/11-0.txt", 
-            "./data/gutenberg_books/1661-0.txt",
-            "./data/gutenberg_books/2701-0.txt",
-            "./data/gutenberg_books/30254-0.txt",
-            "./data/gutenberg_books/84-0.txt",
-        ]
 book = spark.read.text(books)
-lines = book.select(split(book.value, " ").alias("line"))
-words = lines.select(explode(col("line")).alias("word"))
-words_lower = words.select(lower(col("word")).alias("word_lower"))
+lines = book.select(F.split(book.value, " ").alias("line"))
+words = lines.select(F.explode(F.col("line")).alias("word"))
+words_lower = words.select(F.lower(F.col("word")).alias("word_lower"))
 words_clean = words_lower.select(
-    regexp_extract(col("word_lower"), "[a-z]*", 0).alias("word")
+    F.regexp_extract(F.col("word_lower"), "[a-z]*", 0).alias("word")
 )
-words_nonull = words_clean.where(col("word") != "")
+words_nonull = words_clean.where(F.col("word") != "")
 
 # Listing 3.1 Counting word frequencies using groupby() and count() 
-groups = words_nonull.groupby(col("word"))
+groups = words_nonull.groupby(F.col("word"))
+print("Grouped data:", groups)
 
-print(groups)
- 
-# <pyspark.sql.group.GroupedData at 0x10ed23da0>
- 
-results = words_nonull.groupby(col("word")).count()
- 
-print(results)
- 
-# DataFrame[word: string, count: bigint]
- 
+results = words_nonull.groupby(F.col("word")).count()
+print("Results schema:", results)
 results.show()
 
 # Exercise 3.1
+print("\n=== Exercise 3.1: Word length analysis ===")
+count_by_size = words_nonull.select(F.length(F.col("word")).alias("length")).groupby("length").count()
+count_by_size.show()
 
+total_words = count_by_size.agg(F.sum(F.col("count"))).collect()[0][0]
+print(f"Total words: {total_words}")
 
-# Option a + works
-count_by_size = words_nonull.select(length(col("word")).alias("length")).groupby("length").count()
-# Option b = A column or function parameter with name `length` cannot be resolved
-# words_nonull.select(length(col("word"))).groupby("length").count()
-# Option c - no column named "length"
-# words_nonull.groupby("length").select("length").count()
-
-
-count_by_size.select("length").count()
-
-count_by_size.agg(sum(col("count"))).collect()[0][0]
-count_by_size.agg(sum("count").alias("total")).collect()
-
-# Listing 3.2 Displaying the top 10 words in Jane Austen’s Pride and Prejudice 
+# Listing 3.2 Displaying the top 10 words in Jane Austen's Pride and Prejudice 
+print("\n=== Top 10 words ===")
 results.orderBy("count", ascending=False).show(10)
-results.orderBy(col("count").desc()).show(10)
 
-
-# Exercise 3.2 #############################################################################
-
-(
-    results.orderBy("count", ascending=False)
-    .groupby(length(col("word")))
-    .count()
+# Exercise 3.2
+print("\n=== Exercise 3.2: Word length distribution ===")
+results.orderBy("count", ascending=False) \
+    .groupby(F.length(F.col("word"))) \
+    .count() \
     .show(5)
-)
-# sort is done on the non-aggregated columns, then grouped
-(
-    results
-    .groupby(length(col("word")))
-    .count()
-    .orderBy("count", ascending=False)
-    .show(5)
-)
-# sort is done on the aggregated columns, then grouped
 
+# Repartition for better performance
 results = results.repartition(10)
 
-# Listing 3.3 Writing our results in multiple CSV files, one per partition results.write.csv("./data/simple_count.csv")
-results.write.csv("./data/simple_count.csv", mode="overwrite")
+# Listing 3.3 Writing results in multiple CSV files, one per partition
+print("\n=== Writing results to CSV ===")
+# Try Hadoop HDFS first, fallback to local filesystem
+try:
+    # Write to Hadoop HDFS
+    results.write.csv("hdfs://10.101.125.84:9000/spark/simple_count.csv", mode="overwrite")
+    print("Successfully wrote to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count.csv")
+except Exception as e:
+    print(f"Hadoop write failed: {e}")
+    print("Falling back to local filesystem...")
+    # Fallback to local filesystem
+    results.write.csv("/mnt/spark/data/simple_count.csv", mode="overwrite")
+    print("Wrote to local filesystem: /mnt/spark/data/simple_count.csv")
+
 print(f"Number of partitions: {results.rdd.getNumPartitions()}")
 
-# Listing 3.4 Writing our results under a single partition 
-results.coalesce(1).write.csv("./data/simple_count_single_partition.csv", mode="overwrite")
+# Listing 3.4 Writing results under a single partition 
+try:
+    # Write to Hadoop HDFS
+    results.coalesce(1).write.csv("hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv", mode="overwrite")
+    print("Successfully wrote single partition to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv")
+except Exception as e:
+    print(f"Hadoop single partition write failed: {e}")
+    print("Falling back to local filesystem...")
+    # Fallback to local filesystem
+    results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
+    print("Wrote single partition to local filesystem: /mnt/spark/data/simple_count_single_partition.csv")
 
-# Listing 3.5 Our first PySpark program, dubbed “Counting Jane Austen”
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,
-    explode,
-    lower,
-    regexp_extract,
-    split,
-)
-spark.stop()
-spark = SparkSession.builder.appName(
-    "Analyzing the vocabulary of Pride and Prejudice."
-).getOrCreate()
- 
+# Listing 3.5 Our first PySpark program, dubbed "Counting Jane Austen"
+print("\n=== Listing 3.5: Complete word count analysis ===")
 book = spark.read.text(books).repartition(10)
- 
-lines = book.select(split(book.value, " ").alias("line"))
- 
-words = lines.select(explode(col("line")).alias("word"))
- 
-words_lower = words.select(lower(col("word")).alias("word"))
- 
+
+lines = book.select(F.split(book.value, " ").alias("line"))
+words = lines.select(F.explode(F.col("line")).alias("word"))
+words_lower = words.select(F.lower(F.col("word")).alias("word"))
 words_clean = words_lower.select(
-    regexp_extract(col("word"), "[a-z']*", 0).alias("word")
+    F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word")
 )
- 
-words_nonull = words_clean.where(col("word") != "")
- 
-results = words_nonull.groupby(col("word")).count()
- 
+words_nonull = words_clean.where(F.col("word") != "")
+results = words_nonull.groupby(F.col("word")).count()
+
 results.orderBy("count", ascending=False).show(10)
- 
-results.coalesce(1).write.csv("./data/simple_count_single_partition.csv", mode="overwrite")
+# Write to Hadoop HDFS
+try:
+    results.coalesce(1).write.csv("hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv", mode="overwrite")
+    print("Successfully wrote to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv")
+except Exception as e:
+    print(f"Hadoop write failed: {e}")
+    print("Falling back to local filesystem...")
+    results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
+    print("Wrote to local filesystem: /mnt/spark/data/simple_count_single_partition.csv")
 
-
-# Listing 3.6 Simplifying our PySpark functions import # Before
-from pyspark.sql.functions import col, explode, lower, regexp_extract, split
-import pyspark.sql.functions as F
-
-dir(F) #to list out the module
-
-
-# Listing 3.7 Removing intermediate variables by chaining transformation methods # Before
-# Before section of Listing3.7
-book = spark.read.text(books)
- 
-lines = book.select(split(book.value, " ").alias("line"))
- 
-words = lines.select(explode(col("line")).alias("word"))
- 
-words_lower = words.select(lower(col("word")).alias("word"))
- 
-words_clean = words_lower.select(
-    regexp_extract(col("word"), "[a-z']*", 0).alias("word")
-)
-
-words_nonull = words_clean.where(col("word") != "")
- 
-results = words_nonull.groupby("word").count()
- 
-# After section of List 3.7
-import pyspark.sql.functions as F
- 
+# Listing 3.7 Chaining transformation methods
+print("\n=== Listing 3.7: Chained transformations ===")
 results = (
     spark.read.text(books)
     .select(F.split(F.col("value"), " ").alias("line"))
@@ -159,28 +135,10 @@ results = (
     .count()
 )
 
-# Listing 3.8 Chaining for writing over the same variable
-df = spark.read.text("./data/gutenberg_books/1342-0.txt")   
-df = df.select(F.split(F.col("value"), " ").alias("line"))   
- 
-# alternatively
-df = (
-       spark.read.text("./data/gutenberg_books/1342-0.txt") 
-       .select(F.split(F.col("value"), " ").alias("line"))   
-     )
-
-# recommended formatter - not integrated with Notepad++
-# https://black.readthedocs.io/en/stable/
-
-
-#######################################################
-# Excercise 3.3
-
-# Part 1
-
-# If you need to read multiple text files, replace `1342-0` by `*`.
+# Exercise 3.3
+print("\n=== Exercise 3.3: Multiple file analysis ===")
 results = (
-    spark.read.text("./data/gutenberg_books/*.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/*.txt")
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -188,13 +146,12 @@ results = (
     .where(F.col("word") != "")
     .groupby(F.col("word"))
     .count()
-    .count()
 )
 
-print(results)
+print(f"Total distinct words: {results.count()}")
 
 all_results = (
-    spark.read.text("./data/gutenberg_books/*.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/*.txt")
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -205,37 +162,13 @@ all_results = (
     .orderBy("count", ascending=False)
 )
 
-# verify answer is correct
-rows = all_results.collect()
+print("Top 10 words across all books:")
+all_results.show(10)
 
-# part 2
-def countDistinctBookWords (dir):
-    
-    wordSpark = SparkSession.builder.appName(
-        "Counting word occurences from a book."
-        ).getOrCreate()
-    wordSpark.sparkContext.setLogLevel("WARN")
-    distinctWords = (
-        spark.read.text("./data/gutenberg_books/*.txt")
-        .select(F.split(F.col("value"), " ").alias("line"))
-        .select(F.explode(F.col("line")).alias("word"))
-        .select(F.lower(F.col("word")).alias("word"))
-        .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
-        .where(F.col("word") != "")
-        .groupby(F.col("word"))
-        .count()
-        .collect())
-    print(f"Distinct words = {len(distinctWords)}")
-    wordSpark.stop()
-
-countDistinctBookWords("./data/gutenberg_books/*.txt")
-#regenerate the session becasue of the wordSpark.stop() above
-spark = SparkSession.builder.getOrCreate()
-######################################################
-# Excercise 3.4
-
+# Exercise 3.4
+print("\n=== Exercise 3.4: Words that appear only once ===")
 results = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -247,13 +180,13 @@ results = (
     .select(F.col("word"))
 )
 
+print("Words that appear only once:")
 results.show(5)
 
-######################################################
-# Excercise 3.5
-
+# Exercise 3.5
+print("\n=== Exercise 3.5: Character frequency analysis ===")
 chars = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -265,25 +198,13 @@ chars = (
     .orderBy(F.col("count"), ascending=False)
 )
 
-chars = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
-    .select(F.split(F.col("value"), " ").alias("line"))
-    .select(F.explode(F.col("line")).alias("word"))
-    .select(F.lower(F.col("word")).alias("word"))
-    .select(F.regexp_extract(F.col("word"), "[a-z']*", 0).alias("word"))
-    .where(F.col("word") != "")
-    .select(F.substring(F.col("word"), 1, 0).alias("first_character"))
-)
+print("First character frequency:")
+chars.show(10)
 
-######################################################
-# Excercise 3.6
-
-# essay questions why not .count().sum()
-#
-# count returns a dataframe and there is no shortcut function for sum aggregation
-
+# Exercise 3.6
+print("\n=== Exercise 3.6: Total distinct words ===")
 sresults = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -292,16 +213,15 @@ sresults = (
     .groupby(F.col("word"))
     .count()
 )
-sresults.show()
-sresults.count()
 
-######################################################
-# Excercise self: Compare the word counts by file, sorting by the total number of words..
+print(f"Total distinct words in Pride and Prejudice: {sresults.count()}")
 
+# Exercise: Compare word counts by file
+print("\n=== Exercise: Word counts by file ===")
 
-# step 1: preprocess all the words
+# Step 1: preprocess all the words
 df = (
-    spark.read.text("./data/gutenberg_books/*.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/*.txt")
     .select(F.input_file_name().alias("filename"), F.col("value"))
     .select(F.regexp_extract(F.col("filename"), r"([^/]+)$", 1).alias("basename"),
         F.col("value"))
@@ -317,8 +237,7 @@ by_word_base_df = (
     df
     .groupBy(F.col("basename"), F.col("word"))
     .agg(F.count("*").alias("word_count"))
-    )
-
+)
 
 # Step 3: create columns for each basename 
 by_word_pivot_base_df = (
@@ -327,20 +246,24 @@ by_word_pivot_base_df = (
     .pivot("basename")
     .agg(F.sum(F.col("word_count")))
     .fillna(0)
-    )
+)
 
-# Step 3: create columns of each basename with the word counts
+# Step 4: create columns of each basename with the word counts
 by_word_df = (
     by_word_base_df
     .groupBy(F.col("word"))
     .agg(F.sum(F.col("word_count")).alias("total"))
-    )
+)
 
-# step 4: Merge in word counts by file and the total word counts into one df
+# Step 5: Merge in word counts by file and the total word counts into one df
 merged_df = (
     by_word_df
     .join(by_word_pivot_base_df, on="word", how="left")
     .orderBy(F.col("total"), ascending=False)
-    )
+)
 
+print("Top 10 words with file breakdown:")
+merged_df.show(10)
+
+print("\n=== Chapter 03 completed successfully ===")
 spark.stop()

@@ -1,0 +1,61 @@
+---
+# Stop Hadoop on Kubernetes
+# This playbook stops Hadoop services on Kubernetes
+
+- name: Stop Hadoop on Kubernetes
+  hosts: hadoop
+  become: false
+  gather_facts: true
+  
+  vars:
+    k8s_config_dir: "/home/{{ ansible_user }}/k8s/hadoop"
+    
+  tasks:
+    - name: Check if Hadoop namespace exists
+      command: kubectl get namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namespace_check
+      ignore_errors: true
+      
+    - name: Skip if Hadoop namespace doesn't exist
+      debug:
+        msg: "Hadoop namespace 'hdfs' does not exist. Nothing to stop."
+      when: namespace_check.rc != 0
+      
+    - name: Scale down DataNode Deployment
+      command: kubectl scale deployment hdfs-datanode --replicas=0 -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_scale
+      when: namespace_check.rc == 0
+      
+    - name: Scale down NameNode StatefulSet
+      command: kubectl scale statefulset hdfs-namenode --replicas=0 -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_scale
+      when: namespace_check.rc == 0
+      
+    - name: Wait for DataNode pods to terminate
+      command: kubectl wait --for=delete pod -l app=hdfs-datanode -n hdfs --timeout=60s
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_stopped
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Wait for NameNode pods to terminate
+      command: kubectl wait --for=delete pod -l app=hdfs-namenode -n hdfs --timeout=60s
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_stopped
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Display stop results
+      debug:
+        msg: |
+          Hadoop services stopped:
+          - DataNode: {{ 'Stopped' if datanode_stopped.rc == 0 else 'Still running' }}
+          - NameNode: {{ 'Stopped' if namenode_stopped.rc == 0 else 'Still running' }}

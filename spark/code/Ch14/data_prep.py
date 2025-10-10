@@ -16,7 +16,7 @@ spark = (
 )
 
 food = spark.read.csv(
-    "./data/recipes/epi_r.csv", inferSchema=True, header=True
+    "/mnt/spark/data/recipes/epi_r.csv", inferSchema=True, header=True
 )
 
 

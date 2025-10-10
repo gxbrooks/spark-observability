@@ -1,0 +1,63 @@
+---
+- name: Setup NFS Directory Structure for Spark Event Logs
+  hosts: nfs_servers
+  become: true
+  gather_facts: true
+  
+  vars:
+    nfs_base_path: "/mnt/spark/events"
+    spark_history_server_path: "/mnt/spark/events/spark-history"
+    
+  tasks:
+    - name: Create base NFS events directory
+      file:
+        path: "{{ nfs_base_path }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+        
+    - name: Create Spark History Server event logs directory
+      file:
+        path: "{{ spark_history_server_path }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+        
+    - name: Create Spark History Server subdirectories
+      file:
+        path: "{{ spark_history_server_path }}/{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+      loop:
+        - "app-logs"
+        - "driver-logs" 
+        - "executor-logs"
+        
+    - name: Set proper NFS export permissions
+      lineinfile:
+        path: /etc/exports
+        line: "{{ nfs_base_path }}/{{ item }} {{ ansible_default_ipv4.network }}/{{ ansible_default_ipv4.netmask }}(rw,sync,no_subtree_check,no_root_squash)"
+        state: present
+        create: true
+      loop: "{{ hosts_to_setup }}"
+      notify: restart nfs server
+      
+    - name: Reload NFS exports
+      command: exportfs -ra
+      changed_when: false
+      
+  handlers:
+    - name: restart nfs server
+      service:
+        name: nfs-kernel-server
+        state: restarted
+        
+    - name: restart nfs server
+      service:
+        name: nfs-server
+        state: restarted
+      when: ansible_os_family == "RedHat"

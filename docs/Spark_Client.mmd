@@ -1,0 +1,33 @@
+graph TB
+    subgraph "Your Local Machine"
+        A[iSpark Client<br/>launch_ipython.sh]
+        B[Python Client<br/>spark_ipython_client.py]
+        C[IPython Environment<br/>Interactive Development]
+        D[Local Files<br/>Scripts & Data]
+        E[Environment Variables<br/>spark/ispark/ispark_env.sh]
+    end
+    
+    subgraph "Kubernetes Cluster"
+        F[Spark Master<br/>Lab2.lan:32582]
+        G[Spark Workers<br/>Lab1: 5 pods<br/>Lab2: 2 pods]
+        H[Spark History Server<br/>Web UI & Monitoring]
+        I[Kubernetes Services<br/>Pod Management<br/>Load Balancing]
+    end
+    
+    A --> B
+    B --> C
+    C --> D
+    E --> A
+    
+    B -.->|"spark://Lab2.lan:32582"| F
+    F --> G
+    F --> H
+    G --> I
+    H --> I
+    
+    style A fill:#e1f5fe
+    style B fill:#e8f5e8
+    style C fill:#fff3e0
+    style F fill:#f3e5f5
+    style G fill:#f3e5f5
+    style H fill:#f3e5f5

@@ -162,7 +162,7 @@ ansible -i ansible/inventory.yml Lab1 -m shell -a "whoami"
 
 After successful setup:
 1. Lab1.lan will be available as a Kubernetes worker node
-2. Spark workers can be scheduled on Lab1.lan
+2. Spark workers can be scheduled on Lab1.lan ++++++++++++++++
 3. Development work can be done as `gxbrooks` user
 4. Operations automation runs as `ansible` user
 5. Both users can coexist without conflicts

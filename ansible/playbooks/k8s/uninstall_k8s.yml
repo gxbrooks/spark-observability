@@ -1,0 +1,312 @@
+---
+# uninstall_k8s.yml - Complete removal of Kubernetes from the system
+# This playbook removes all Kubernetes components, packages, and configurations
+
+- name: Uninstall Kubernetes completely
+  hosts: spark_kubernetes:&linux
+  become: true
+  tasks:
+    - name: Display warning message
+      debug:
+        msg: "WARNING: This will completely remove Kubernetes from the system!"
+
+    # === Stop and disable services ===
+    - name: Stop kubelet service
+      systemd:
+        name: kubelet
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Stop containerd service
+      systemd:
+        name: containerd
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    # === Reset Kubernetes cluster ===
+    - name: Reset Kubernetes cluster
+      command: kubeadm reset -f
+      ignore_errors: yes
+
+    # === Remove Kubernetes packages ===
+    - name: Check if Kubernetes packages are installed
+      command: dpkg -l | grep -E '^(ii|hi)' | grep -E '(kubelet|kubeadm|kubectl)'
+      register: k8s_packages_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Remove package holds first
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: install
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+      when: k8s_packages_installed.stdout != ""
+      ignore_errors: yes
+
+    - name: Remove Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: absent
+        purge: yes
+        allow_change_held_packages: yes
+      when: k8s_packages_installed.stdout != ""
+      ignore_errors: yes
+
+    - name: Check if containerd is installed
+      command: dpkg -l | grep -E '^(ii|hi)' | grep containerd
+      register: containerd_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Remove containerd
+      apt:
+        name: containerd
+        state: absent
+        purge: yes
+      when: containerd_installed.stdout != ""
+      ignore_errors: yes
+
+    - name: Check if Docker packages are installed
+      command: dpkg -l | grep -E '^(ii|hi)' | grep -E '(docker|containerd)'
+      register: docker_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Remove Docker packages if present
+      apt:
+        name:
+          - docker.io
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: absent
+        purge: yes
+      when: docker_installed.stdout != ""
+      ignore_errors: yes
+
+    - name: Check if system packages are installed
+      command: dpkg -l | grep -E '^(ii|hi)' | grep -E '(apt-transport-https|ca-certificates|curl|gnupg2|software-properties-common|python3-pip|python3-kubernetes)'
+      register: system_packages_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Remove system packages installed for Kubernetes
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg2
+          - software-properties-common
+          - python3-pip
+          - python3-kubernetes
+        state: absent
+        purge: yes
+      when: system_packages_installed.stdout != ""
+      ignore_errors: yes
+
+    # === Clean up configuration files ===
+    - name: Remove Kubernetes configuration directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /var/lib/kubelet
+        - /var/lib/etcd
+        - /etc/cni/net.d
+        - /opt/cni/bin
+        - /var/lib/cni
+        - /var/lib/calico
+        - /var/lib/flannel
+        - /etc/systemd/system/kubelet.service.d
+        - /etc/systemd/system/containerd.service.d
+        - /tmp/k8s-apt-key
+        - /tmp/kube-flannel.yml
+
+    - name: Remove user .kube directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/home/{{ k8s_control_user | default(lookup('env', 'USER')) }}/.kube"
+        - "/home/{{ ansible_user }}/.kube"
+        - "/home/{{ ansible_user }}/kubernetes"
+        - "/root/.kube"
+
+    # === Clean up system files ===
+    - name: Remove Kubernetes modules configuration
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/modules-load.d/k8s.conf
+        - /etc/sysctl.d/k8s.conf
+        - /etc/sysctl.d/99-k8s-rpfilter.conf
+
+    - name: Reset kernel parameters to defaults
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_set: yes
+        reload: yes
+      loop:
+        - { key: 'net.bridge.bridge-nf-call-iptables', value: '0' }
+        - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '0' }
+        - { key: 'net.ipv4.ip_forward', value: '0' }
+      ignore_errors: yes
+
+    - name: Remove Kubernetes hosts entries
+      blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBERNETES MASTER HOSTNAME"
+        state: absent
+      ignore_errors: yes
+
+    # === Clean up iptables rules ===
+    - name: Clean iptables rules
+      shell: |
+        iptables -F
+        iptables -t nat -F
+        iptables -t mangle -F
+        iptables -X
+        iptables -t nat -X
+        iptables -t mangle -X
+      ignore_errors: yes
+
+    - name: Remove iptables rules file
+      file:
+        path: /etc/iptables/rules.v4
+        state: absent
+      ignore_errors: yes
+
+    # === Clean up network interfaces ===
+    - name: Remove CNI network interfaces
+      shell: |
+        ip link delete cni0 2>/dev/null || true
+        ip link delete flannel.1 2>/dev/null || true
+        ip link delete docker0 2>/dev/null || true
+      ignore_errors: yes
+
+    - name: Remove Flannel CNI if present
+      shell: |
+        kubectl delete -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml 2>/dev/null || true
+      ignore_errors: true
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    # === Clean up systemd services ===
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    # === Clean up users and groups ===
+    - name: Remove kubernetes group
+      group:
+        name: kubernetes
+        state: absent
+      ignore_errors: yes
+
+    # === Clean up repositories ===
+    - name: Check if Kubernetes repository exists
+      stat:
+        path: /etc/apt/sources.list.d/kubernetes.list
+      register: k8s_repo_exists
+
+    - name: Remove Kubernetes repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+        state: absent
+        filename: kubernetes
+      when: k8s_repo_exists.stat.exists
+      ignore_errors: yes
+
+    - name: Remove Kubernetes keyring
+      file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove Kubernetes apt key
+      file:
+        path: /tmp/k8s-apt-key
+        state: absent
+      ignore_errors: yes
+
+    # === Clean up containerd configuration ===
+    - name: Remove containerd configuration
+      file:
+        path: /etc/containerd
+        state: absent
+      ignore_errors: yes
+
+    # === Final cleanup ===
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Autoremove unused packages
+      apt:
+        autoremove: yes
+        autoclean: yes
+      ignore_errors: yes
+
+    # === Restore swap if it was originally enabled ===
+    - name: Check if swap was originally enabled (check for swap entries in fstab backup)
+      shell: |
+        if [ -f /etc/fstab.orig ]; then
+          grep -q "swap" /etc/fstab.orig && echo "swap_was_enabled"
+        else
+          echo "no_backup_found"
+        fi
+      register: swap_original_status
+      ignore_errors: true
+
+    - name: Restore original swap configuration if it existed
+      shell: |
+        if [ -f /etc/fstab.orig ]; then
+          cp /etc/fstab.orig /etc/fstab
+          echo "Restored original fstab with swap configuration"
+        else
+          echo "No original fstab backup found, swap will remain disabled"
+        fi
+      register: swap_restore_result
+      when: swap_original_status.stdout == "swap_was_enabled"
+
+    - name: Display swap restoration status
+      debug:
+        msg: "{{ swap_restore_result.stdout if swap_restore_result is defined and swap_restore_result.stdout is defined else 'No swap restoration needed - system was originally configured without swap' }}"
+
+    - name: Display completion message
+      debug:
+        msg: |
+          Kubernetes has been completely removed from the system.
+          
+          Removed components:
+          - Kubernetes packages (kubelet, kubeadm, kubectl)
+          - Container runtime (containerd)
+          - System packages (apt-transport-https, ca-certificates, curl, etc.)
+          - All configuration files and directories
+          - Network interfaces and iptables rules
+          - User configurations and certificates
+          - Systemd services and modules
+          - Kernel modules and sysctl settings
+          - Flannel CNI and network components
+          - Temporary files and downloads
+          
+          System restoration:
+          - Swap configuration restored to original state (if applicable)
+          - Network settings reset to defaults
+          - All Kubernetes-specific configurations removed
+          
+          The system is now clean and ready for a fresh Kubernetes installation.

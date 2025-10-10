@@ -3,13 +3,24 @@ import datetime
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
-from pyspark.sql.utils import AnalysisException   
+from pyspark.sql.utils import AnalysisException
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Set Spark local IP to avoid hostname resolution warning
+os.environ['SPARK_LOCAL_IP'] = '192.168.1.48'
 
 # Setup
-DIRECTORY = "./data/broadcast_logs"
-spark = SparkSession.builder.appName("Chapter 5: " + 
-    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ).getOrCreate()
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
+spark = SparkSession.builder \
+    .appName("Chapter 05: Data Processing") \
+    .getOrCreate()
+
+print("=== Chapter 05: Data Processing ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
 spark.sparkContext.setLogLevel("WARN")
 
 logs = spark.read.csv(
@@ -33,7 +44,7 @@ logs = logs.withColumn(
 #
 # Listing 5.1 Exploring our first link table: log_identifier 
 
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
 log_identifier = spark.read.csv(
     os.path.join(DIRECTORY, "ReferenceTables/LogIdentifier.csv"),
     sep="|",
@@ -190,7 +201,7 @@ logs_and_channels_verbose.drop(F.col("right.LogServiceID")).select(
 #########################################################################################
 #
 # Listing 5.10 Linking the category and program class tables using two left joins
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
  
 cd_category = spark.read.csv(
     os.path.join(DIRECTORY, "ReferenceTables/CD_Category.csv"),
@@ -451,13 +462,15 @@ print(answer_no_null.count())  # 324     # ❶
  
 # spark = SparkSession.builder.appName(
 #     "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 # ).getOrCreate()
  
 # spark.sparkContext.setLogLevel("WARN")
  
 # Reading all the relevant data sources
  
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
 
 logs = spark.read.csv(
     # Me: Updated filename
@@ -484,7 +497,7 @@ cd_category = spark.read.csv(
 )
  
 cd_program_class = spark.read.csv(
-    "./data/broadcast_logs/ReferenceTables/CD_ProgramClass.csv",
+    "/mnt/spark/data/broadcast_logs/ReferenceTables/CD_ProgramClass.csv",
     sep="|",
     header=True,
     inferSchema=True,
@@ -681,13 +694,15 @@ print(answer_no_null.count())  # 324
  
 # spark = SparkSession.builder.appName(
 #     "Getting the Canadian TV channels with the highest/lowest proportion of commercials."
+    .config("spark.eventLog.enabled", "true") \
+    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
 # ).getOrCreate()
  
 # spark.sparkContext.setLogLevel("WARN")
  
 # Reading all the relevant data sources
  
-DIRECTORY = "./data/broadcast_logs"
+DIRECTORY = "/mnt/spark/data/broadcast_logs"
  
 logs = spark.read.csv(
     # os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8.CSV"),
@@ -715,7 +730,7 @@ cd_category = spark.read.csv(
 )
  
 cd_program_class = spark.read.csv(
-    "./data/broadcast_logs/ReferenceTables/CD_ProgramClass.csv",
+    "/mnt/spark/data/broadcast_logs/ReferenceTables/CD_ProgramClass.csv",
     sep="|",
     header=True,
     inferSchema=True,
@@ -791,7 +806,7 @@ answer.orderBy("commercial_ratio", ascending=False).show(1000, False)
 # add the Undertaking_Name to our final table to display a human-readable description of the channel.
 
 call_sign = spark.read.csv(
-    "./data/broadcast_logs/Call_Signs.csv",
+    "/mnt/spark/data/broadcast_logs/Call_Signs.csv",
     sep=",",
     header=True,
     inferSchema=True,

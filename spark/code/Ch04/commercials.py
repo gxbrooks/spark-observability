@@ -20,7 +20,7 @@ spark.sparkContext.setLogLevel("WARN")
 # Reading all the relevant data sources
 ###############################################################################
 
-DIRECTORY = "./data/Ch03"
+DIRECTORY = "/mnt/spark/data/Ch03"
 
 logs = spark.read.csv(
     os.path.join(DIRECTORY, "BroadcastLogs_2018_Q3_M8.CSV"),
@@ -30,14 +30,14 @@ logs = spark.read.csv(
 )
 
 log_identifier = spark.read.csv(
-    "./data/Ch03/ReferenceTables/LogIdentifier.csv",
+    "/mnt/spark/data/Ch03/ReferenceTables/LogIdentifier.csv",
     sep="|",
     header=True,
     inferSchema=True,
 )
 
 cd_category = spark.read.csv(
-    "./data/Ch03/ReferenceTables/CD_Category.csv",
+    "/mnt/spark/data/Ch03/ReferenceTables/CD_Category.csv",
     sep="|",
     header=True,
     inferSchema=True,
@@ -48,7 +48,7 @@ cd_category = spark.read.csv(
 )
 
 cd_program_class = spark.read.csv(
-    "./data/Ch03/ReferenceTables/CD_ProgramClass.csv",
+    "/mnt/spark/data/Ch03/ReferenceTables/CD_ProgramClass.csv",
     sep="|",
     header=True,
     inferSchema=True,

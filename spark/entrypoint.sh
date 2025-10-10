@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# DEPRECATED: This script is no longer used
+# Standard Apache Spark image now uses built-in scripts with runtime environment variables
+
 set -euo pipefail
 
 ROLE=${1:-}

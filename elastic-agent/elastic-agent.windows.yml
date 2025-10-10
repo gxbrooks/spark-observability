@@ -204,7 +204,7 @@ providers:
 outputs:
   default:
     type: elasticsearch
-    hosts: ["https://localhost:9200"]
+    hosts: ["${ELASTIC_URL_EXTERNAL}"]
     # TODO: Move to API keys = https://www.elastic.co/guide/en/fleet/current/grant-access-to-elasticsearch.html
     username: "elastic"
     password: "myElastic2025"
@@ -216,7 +216,7 @@ outputs:
 # Spark outputs for events
   spark_events:
     type: logstash
-    hosts: ["localhost:5050"]
+    hosts: ["${LS_HOST_EXTERNAL}:${LS_SPARK_EVENTS_PORT}"]
 
 #####################################################
 #

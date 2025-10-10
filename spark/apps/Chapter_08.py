@@ -4,13 +4,33 @@
 
 
 
+#!/usr/bin/env python3
+"""
+Chapter 08: Data Joins
+Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
+"""
+
+import os
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
+import pyspark.sql.types as T
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Create Spark session - configuration comes from spark-defaults.conf
+spark = SparkSession.builder \
+    .appName("Chapter 08: Data Joins") \
+    .getOrCreate()
+
+print("=== Chapter 08: Data Joins ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
+
 #########################################################################################
 #
-# Listing 8.1 Promoting a Python list to an RDD 
-
-from pyspark.sql import SparkSession
- 
-spark = SparkSession.builder.getOrCreate()
+# Listing 8.1 Promoting a Python list to an RDD
  
 collection = [1, "two", 3.0, ("four", 4), {"five": 5}]             #❶
  
@@ -71,7 +91,7 @@ print(collection_rdd.collect())
 
 #########################################################################################
 #
-Listing 8.5 Applying the add() function via reduce() 
+# Listing 8.5 Applying the add() function via reduce() 
 from operator import add                #❶
 collection_rdd = sc.parallelize([4, 7, 9, 1, 3])
  

@@ -24,3 +24,16 @@ if ! pgrep -f ssh-agent > /dev/null; then
     eval "$(ssh-agent -s)"
     ssh-add # Add your keys here if you want them added automatically
 fi
+
+# Add project virtual environment to PATH (idempotent)
+if [[ ":$PATH:" != *":/home/gxbrooks/repos/elastic-on-spark/venv/bin:"* ]]; then
+    export PATH="/home/gxbrooks/repos/elastic-on-spark/venv/bin:$PATH"
+fi
+
+# Source Spark client environment variables
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$project_root/spark/spark_env.sh" ]; then
+    source "$project_root/spark/spark_env.sh"
+    # Set SPARK_MASTER_URL from external host/port
+    export SPARK_MASTER_URL="spark://${SPARK_MASTER_EXTERNAL_HOST}:${SPARK_MASTER_EXTERNAL_PORT}"
+fi

@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-namenode
+  namespace: hdfs
+spec:
+  serviceName: hdfs-namenode-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hdfs-namenode
+  template:
+    metadata:
+      labels:
+        app: hdfs-namenode
+    spec:
+      containers:
+      - name: namenode
+        image: apache/hadoop:3.3.6
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [ ! -d /hadoop/dfs/name ]; then
+            mkdir -p /hadoop/dfs/name
+            hdfs namenode -format -force
+          fi
+          hdfs namenode
+        ports:
+        - containerPort: 9000
+        - containerPort: 9870
+        env:
+        - name: HADOOP_CONF_DIR
+          value: /opt/hadoop/etc/hadoop
+        - name: HDFS_NAMENODE_USER
+          value: root
+        - name: HDFS_DATANODE_USER
+          value: root
+        - name: HDFS_SECONDARYNAMENODE_USER
+          value: root
+        volumeMounts:
+        - name: namenode-storage
+          mountPath: /hadoop/dfs/name
+        - name: hadoop-config
+          mountPath: /opt/hadoop/etc/hadoop
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hadoop-config
+  volumeClaimTemplates:
+  - metadata:
+      name: namenode-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-namenode
+  namespace: hdfs
+spec:
+  selector:
+    app: hdfs-namenode
+  ports:
+  - port: 9000
+    targetPort: 9000
+    name: rpc
+  - port: 9870
+    targetPort: 9870
+    name: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-namenode-headless
+  namespace: hdfs
+spec:
+  clusterIP: None
+  selector:
+    app: hdfs-namenode
+  ports:
+  - port: 9000
+    targetPort: 9000
+    name: rpc
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hdfs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hadoop-config
+  namespace: hdfs
+data:
+  core-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://hdfs-namenode:9000</value>
+      </property>
+    </configuration>
+  hdfs-site.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>/hadoop/dfs/name</value>
+      </property>
+      <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>/hadoop/dfs/data</value>
+      </property>
+      <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+      </property>
+    </configuration>

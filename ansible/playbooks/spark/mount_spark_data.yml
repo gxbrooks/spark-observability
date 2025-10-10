@@ -1,0 +1,30 @@
+---
+- name: Mount Spark Data Directory
+  hosts: kubernetes_master:kubernetes_workers
+  become: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/nfs_vars.yml"
+  vars:
+    nfs_server: "{{ groups['nfs_servers'][0] }}"
+    spark_data_export: "{{ NFS_SPARK_DATA_EXPORT }}"
+    spark_data_mount: "{{ SPARK_DATA_MOUNT }}"
+  tasks:
+    - name: Force unmount stale NFS mount
+      mount:
+        path: "{{ spark_data_mount }}"
+        state: unmounted
+      ignore_errors: true
+
+    - name: Create Spark data mount point
+      file:
+        path: "{{ spark_data_mount }}"
+        state: directory
+        mode: '0777'
+
+    - name: Mount Spark data NFS share
+      mount:
+        path: "{{ spark_data_mount }}"
+        src: "{{ nfs_server }}:{{ spark_data_export }}"
+        fstype: nfs
+        opts: rw,sync
+        state: mounted

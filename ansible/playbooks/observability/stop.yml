@@ -1,0 +1,61 @@
+---
+# Stop Observability Platform
+# Stop observability services
+
+- name: Stop Observability Platform
+  hosts: observability
+  become: false
+  gather_facts: true
+  
+  vars:
+    observability_dir: "/home/ansible/observability"
+    
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_windows: "{{ ansible_os_family == 'Windows' }}"
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+        
+    - name: Check if observability directory exists
+      stat:
+        path: "{{ observability_dir }}"
+      register: obs_dir_stat
+      
+    - name: Display stop message
+      debug:
+        msg: "Stopping observability services on {{ inventory_hostname }}..."
+        
+    # === LINUX TASKS ===
+    - name: Stop observability services (Linux)
+      command: docker-compose down
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux and obs_dir_stat.stat.exists
+      ignore_errors: true
+      
+    - name: Clean up orphaned containers (Linux)
+      command: docker container prune -f
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Clean up orphaned networks (Linux)
+      command: docker network prune -f
+      when: is_linux
+      ignore_errors: true
+      
+    # === WINDOWS TASKS ===
+    - name: Stop Docker Desktop service (Windows)
+      win_service:
+        name: "Docker Desktop Service"
+        state: stopped
+      when: is_windows
+      ignore_errors: true
+        
+    - name: Display stop status
+      debug:
+        msg: |
+          Observability Platform Stopped!
+          ==============================
+          
+          All services have been stopped on {{ inventory_hostname }}.
+          To restart, run: ansible-playbook -i inventory.yml playbooks/observability/start.yml

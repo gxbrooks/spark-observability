@@ -12,7 +12,7 @@ spark = (SparkSession
 # Listing 2.3
 spark.sparkContext.setLogLevel("INFO")
 
-book = spark.read.text("./data/gutenberg_books/1342-0.txt")
+book = spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
 
 book.show()
 
@@ -157,12 +157,12 @@ from pyspark.sql.functions import col, length
 # The `length` function returns the number of characters in a string column.
  
 exo2_3_dfa = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(length(col("value")))
     .withColumnRenamed("length(value)", "number_of_char")
 )
 exo2_3_dfb = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(length(col("value")))
 )
 
@@ -196,7 +196,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, split, explode, lower, regexp_extract
 spark = SparkSession.builder.getOrCreate()
  
-book = spark.read.text("./data/gutenberg_books/1342-0.txt")
+book = spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
 lines = book.select(split(book.value, " ").alias("line"))
 words = lines.select(explode(col("line")).alias("word"))
 words_lower = words.select(lower(col("word")).alias("word_lower"))
@@ -216,7 +216,7 @@ words_not_in = words_nonull.where(~col("word").isin(["is", "not", "the", "if"]))
 from pyspark.sql.functions import col, split
  
 try:
-    book = spark.read.text("./data/gutenberg_books/1342-0.txt")
+    book = spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     # Intentional error
     # book = book.printSchema()
     lines = book.select(split(book.value, " ").alias("line"))
@@ -225,7 +225,7 @@ except AnalysisException as err:
     print(err)
 
 try:
-    book = spark.read.text("./data/gutenberg_books/1342-0.txt")
+    book = spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     book.printSchema()
     lines = book.select(split(book.value, " ").alias("line"))
     words = lines.select(explode(col("line")).alias("word"))

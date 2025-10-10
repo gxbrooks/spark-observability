@@ -11,7 +11,7 @@ spark = SparkSession.builder.appName(
     "Analyzing the vocabulary of Pride and Prejudice."
 ).getOrCreate()
 
-book = spark.read.text("./data/gutenberg_books/1342-0.txt")
+book = spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
 
 lines = book.select(split(book.value, " ").alias("line"))
 

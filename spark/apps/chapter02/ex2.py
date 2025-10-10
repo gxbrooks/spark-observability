@@ -13,7 +13,7 @@ spark = SparkSession.builder.appName(
 
 # Rewrite:
 exo2_3_df_origin = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(length(col("value")))
     .withColumnRenamed("length(value)", "number_of_char")
 )
@@ -22,7 +22,7 @@ myshow(exo2_3_df_origin, "exo2_3_df_origin")
 
 # Solution:
 exo2_3_df_solution = (
-    spark.read.text("./data/gutenberg_books/1342-0.txt")
+    spark.read.text("/mnt/spark/data/gutenberg_books/1342-0.txt")
     .select(length(col("value")).alias("number_of_char"))
 )
 myshow(exo2_3_df_solution, "exo2_3_df_solution")

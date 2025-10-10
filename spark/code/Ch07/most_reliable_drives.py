@@ -18,7 +18,7 @@ from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.getOrCreate()
 
-DATA_DIRECTORY = "../../data/Ch07/"
+DATA_DIRECTORY = ".././mnt/spark/data/Ch07/"
 
 DATA_FILES = [
     "drive_stats_2019_Q1",

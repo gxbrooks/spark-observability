@@ -1,0 +1,92 @@
+---
+# Status Hadoop on Kubernetes
+# This playbook checks the status of Hadoop services on Kubernetes
+
+- name: Status Hadoop on Kubernetes
+  hosts: hadoop
+  become: false
+  gather_facts: true
+  
+  vars:
+    k8s_config_dir: "/home/{{ ansible_user }}/k8s/hadoop"
+    
+  tasks:
+    - name: Check if Hadoop namespace exists
+      command: kubectl get namespace hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namespace_check
+      ignore_errors: true
+      
+    - name: Display namespace status
+      debug:
+        msg: "Hadoop namespace 'hdfs': {{ 'Exists' if namespace_check.rc == 0 else 'Does not exist' }}"
+        
+    - name: Get NameNode status
+      command: kubectl get pods -l app=hdfs-namenode -n hdfs -o wide
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: namenode_status
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Get DataNode status
+      command: kubectl get pods -l app=hdfs-datanode -n hdfs -o wide
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: datanode_status
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Get Hadoop services
+      command: kubectl get services -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: services_status
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Get Hadoop StatefulSets
+      command: kubectl get statefulsets -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: statefulsets_status
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Get Hadoop Deployments
+      command: kubectl get deployments -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: deployments_status
+      ignore_errors: true
+      when: namespace_check.rc == 0
+      
+    - name: Display Hadoop status
+      debug:
+        msg: |
+          Hadoop Status:
+          =============
+          
+          NameNode Pods:
+          {{ namenode_status.stdout if namenode_status is defined else 'Not available' }}
+          
+          DataNode Pods:
+          {{ datanode_status.stdout if datanode_status is defined else 'Not available' }}
+          
+          Services:
+          {{ services_status.stdout if services_status is defined else 'Not available' }}
+          
+          StatefulSets:
+          {{ statefulsets_status.stdout if statefulsets_status is defined else 'Not available' }}
+          
+          Deployments:
+          {{ deployments_status.stdout if deployments_status is defined else 'Not available' }}
+          
+    - name: Show Hadoop service URLs
+      debug:
+        msg: |
+          Hadoop Service URLs:
+          - NameNode Web UI: http://{{ inventory_hostname }}:9870
+          - NameNode RPC: {{ inventory_hostname }}:9000
+          - DataNode: {{ inventory_hostname }}:9864

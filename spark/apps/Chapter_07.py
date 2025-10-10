@@ -1,18 +1,36 @@
 
+#!/usr/bin/env python3
+"""
+Chapter 07: Data Aggregation
+Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
+"""
+
+import os
 from pyspark.sql import SparkSession
 from pyspark.sql.utils import AnalysisException     #❶
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from functools import reduce
- 
-spark = SparkSession.builder.getOrCreate()
+
+# Set Python environment variables for version compatibility
+os.environ['PYSPARK_PYTHON'] = 'python3.8'
+os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+
+# Create Spark session - configuration comes from spark-defaults.conf
+spark = SparkSession.builder \
+    .appName("Chapter 07: Data Aggregation") \
+    .getOrCreate()
+
+print("=== Chapter 07: Data Aggregation ===")
+print(f"Spark version: {spark.version}")
+print(f"Spark master: {spark.sparkContext.master}")
 
 #########################################################################################
 #
 # Listing 7.1 Reading and counting the liquid elements by period 
 
 elements = spark.read.csv(
-    "./data/elements/Periodic_Table_Of_Elements.csv",
+    "/mnt/spark/data/elements/Periodic_Table_Of_Elements.csv",
     header=True,
     inferSchema=True,
 )
@@ -21,18 +39,20 @@ elements.where(F.col("phase") == "liq").groupby("period").count().show()
 # -- In SQL: We assume that the data is in a table called `elements`
  
 # SELECT
-  # period,
-  # count(*)
+#   period,
+#   count(*)
 # FROM elements
 # WHERE phase = 'liq'
-# GROUP BY period;spark = SparkSession.builder.getOrCreate()
+#     .config("spark.eventLog.enabled", "true") \
+#     .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
+# GROUP BY period; 
 
 #########################################################################################
 #
 # Listing 7.1 Reading and counting the liquid elements by period 
 
 elements = spark.read.csv(
-    "./data/elements/Periodic_Table_Of_Elements.csv",
+    "/mnt/spark/data/elements/Periodic_Table_Of_Elements.csv",
     header=True,
     inferSchema=True,
 )
@@ -124,7 +144,7 @@ data_Q2_2019/        data_Q3_2019.zip    drive_stats_2019_Q1/
 #
 # Listing 7.6 Reading Backblaze data into a data frame and registering a view 
 
-DATA_DIRECTORY = "./data/backblaze_data/"
+DATA_DIRECTORY = "/mnt/spark/data/backblaze_data/"
  
 q1 = spark.read.csv(
     # Typo in listing
@@ -477,10 +497,12 @@ from functools import reduce
  
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
-spark = SparkSession.builder.getOrCreate()
+
+# Reuse existing SparkSession (created at top of file)
+# spark = SparkSession.builder.getOrCreate()  # Already created
  
-# DATA_DIRECTORY = "./data/backblaze/"
-DATA_DIRECTORY = "./data/backblaze_data/"
+# DATA_DIRECTORY = "/mnt/spark/data/backblaze/"
+DATA_DIRECTORY = "/mnt/spark/data/backblaze_data/"
  
 DATA_FILES = [
     # "drive_stats_2019_Q1",

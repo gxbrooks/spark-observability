@@ -8,6 +8,19 @@ TZ:
   value: America/Chicago
   contexts: [observability, spark-image, spark-runtime]
 
+PYTHON_VERSION:
+  value: 3.8
+  contexts: [spark-runtime, client, managed-node, spark-client]
+
+PYSPARK_PYTHON:
+  value: python3.8
+  contexts: [spark-runtime, spark-client]
+
+# PYSPARK_DRIVER_PYTHON is redundant - use PYSPARK_PYTHON instead
+# PYSPARK_DRIVER_PYTHON:
+#   value: python3.8
+#   contexts: [spark-runtime, spark-client]
+
 
 # unclear why CLUSTER_NAME is needed, see es01 service in docker-compose.yml
 CLUSTER_NAME:
@@ -25,21 +38,32 @@ STACK_VERSION:
 ELASTIC_HOST:
   value: es01
   contexts: [observability, spark-runtime]
+# For Elastic Agent on hosts, use GaryPC WSL
+ELASTIC_HOST_EXTERNAL:
+  value: GaryPC.lan
+  contexts: [elastic-agent]
 ELASTIC_PORT:
   value: 9200
   contexts: [observability, spark-runtime]
 ELASTIC_USER:
   value: elastic
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, elastic-agent]
 ELASTIC_PASSWORD:
   value: myElastic2025
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, elastic-agent]
 ELASTIC_URL:
   value: https://es01:9200
   contexts: [observability]
+ELASTIC_URL_EXTERNAL:
+  value: https://GaryPC.lan:9200
+  contexts: [elastic-agent]
+
+KUBERNETES_API_SERVER:
+  value: Lab2.lan
+  contexts: [elastic-agent]
 CA_CERT_LINUX_PATH:
   value: /etc/ssl/certs/elastic/ca.crt
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, elastic-agent]
 # Not clear where needed.
 CA_CERT_WINDOWS_PATH:
   value: C:\\Volumes\\certs\\ca.crt
@@ -75,6 +99,9 @@ KB_MEM_LIMIT:
 LS_HOST:
   value: logstash01
   contexts: [observability]
+LS_HOST_EXTERNAL:
+  value: GaryPC.lan
+  contexts: [elastic-agent]
 LOGSTASH_PORT:
   value: 5044
   contexts: [observability]
@@ -85,7 +112,7 @@ LS_DOCKER_METRICS_PORT:
   contexts: [observability]
 LS_SPARK_EVENTS_PORT:
   value: 5050
-  contexts: [observability]
+  contexts: [observability, elastic-agent]
 
 # Grafana variables
 GRAFANA_HOST:
@@ -117,28 +144,22 @@ ELASTIC_AGENT_HOME:
   value: /usr/share/elastic-agent
   contexts: []
 
-# Spark image build-time and installation variables
+# Spark runtime variables (moved from deprecated spark-image context)
 SPARK_VERSION:
   value: 3.5.1
-  contexts: [spark-image, ansible]
+  contexts: [spark-runtime, ansible]
 
 # System location of the Spark installation
 SPARK_HOME:
   value: /opt/spark
-  contexts: [spark-image, ansible]
-HADOOP_HOME:
-  value: /opt/spark
-  contexts: [spark-image]
-PYSPARK_PYTHON:
-  value: python3
-  contexts: [spark-image]
+  contexts: [spark-runtime, ansible]
 
-# Google data accesss
+# Google data access
 # A relative path may not be consistent between iPython and spark submit
 # (but should be)
 GOOGLE_APPLICATION_CREDENTIALS:
   value: /opt/spark/apps/bq-api-key.json
-  contexts: [spark-image]
+  contexts: [spark-runtime]
 
 # Spark runtime variables (for K8s ConfigMap)
 SPARK_MASTER:
@@ -150,6 +171,14 @@ SPARK_MASTER_HOST:
 SPARK_MASTER_PORT:
   value: 7077
   contexts: [spark-runtime]
+
+# External access for local development
+SPARK_MASTER_EXTERNAL_HOST:
+  value: Lab2.lan
+  contexts: [observability, ispark, spark-client]
+SPARK_MASTER_EXTERNAL_PORT:
+  value: 31472
+  contexts: [observability, ispark, spark-client]
   
 # Spark network and timeout settings
 SPARK_NETWORK_TIMEOUT:
@@ -165,8 +194,11 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   value: 120s
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
-  value: /mnt/spark-events
-  contexts: [spark-runtime, ansible]
+  value: /mnt/spark/events
+  contexts: [spark-runtime, ansible, spark-client, elastic-agent]
+SPARK_CONF_DIR:
+  value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
+  contexts: [spark-client]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
@@ -180,4 +212,68 @@ SPARK_USER:
 USER_SPARK_HOME:
   value: /home/ansible/spark
   contexts: [ansible]
+
+# NFS Configuration
+NFS_SERVER:
+  value: Lab2.lan
+  contexts: [spark-runtime, nfs]
+
+# Spark Mount Points
+SPARK_MOUNT_BASE:
+  value: /mnt/spark
+  contexts: [spark-runtime, nfs]
+
+SPARK_EVENTS_MOUNT:
+  value: /mnt/spark/events
+  contexts: [spark-runtime, nfs]
+
+SPARK_DATA_MOUNT:
+  value: /mnt/spark/data
+  contexts: [spark-runtime, nfs, spark-client]
+
+# Spark Data Source
+# TODO: This is wrong. Spark data is now in /mnt/spark/data. Must be unused.
+SPARK_DATA_SOURCE:
+  value: /home/gxbrooks/repos/elastic-on-spark/spark/data
+  contexts: [spark-runtime, nfs]
+
+# NFS Export Paths
+NFS_SPARK_EVENTS_EXPORT:
+  value: /srv/nfs/spark/events
+  contexts: [nfs]
+
+NFS_SPARK_DATA_EXPORT:
+  value: /srv/nfs/spark/data
+  contexts: [nfs]
+
+# Hadoop Configuration
+HADOOP_NAMENODE:
+  value: hdfs-namenode:9000
+  contexts: [spark-runtime, ansible, hadoop]
+
+HADOOP_CONF_DIR:
+  value: /opt/hadoop/etc/hadoop
+  contexts: [spark-runtime, ansible, hadoop]
+
+HADOOP_HOME:
+  value: /opt/hadoop
+  contexts: [spark-runtime, ansible, hadoop]
+
+HDFS_DEFAULT_FS:
+  value: hdfs://hdfs-namenode:9000
+  contexts: [spark-runtime, ansible, hadoop, spark-client]
+
+# Hadoop Namespace
+HADOOP_NAMESPACE:
+  value: hdfs
+  contexts: [hadoop]
+
+# Hadoop Service Names
+HADOOP_NAMENODE_SERVICE:
+  value: hdfs-namenode
+  contexts: [hadoop]
+
+HADOOP_DATANODE_SERVICE:
+  value: hdfs-datanode
+  contexts: [hadoop]
 

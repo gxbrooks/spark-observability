@@ -5,13 +5,13 @@
 # Spark version
 spark_version: "3.5.1"
 
-# Registry and image configuration
-registry_host: "localhost:5000"
-spark_image: "{{ registry_host }}/spark"
+# Registry and image configuration (using standard Apache Spark image)
+registry_host: "docker.io"
+spark_image: "{{ registry_host }}/apache/spark"
 spark_tag: "{{ spark_version }}"
 
 # Paths and directories
-spark_events_dir: "/mnt/spark-events"
+spark_events_dir: "/mnt/spark/events"
 spark_home: "/opt/spark"
 
 # Kubernetes-specific settings

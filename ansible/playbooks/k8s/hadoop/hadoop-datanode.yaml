@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hdfs-datanode
+  namespace: hdfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hdfs-datanode
+  template:
+    metadata:
+      labels:
+        app: hdfs-datanode
+    spec:
+      containers:
+      - name: datanode
+        image: apache/hadoop:3.3.6
+        command:
+        - /bin/bash
+        - -c
+        - |
+          mkdir -p /hadoop/dfs/data
+          hdfs datanode
+        ports:
+        - containerPort: 9864
+        env:
+        - name: HADOOP_CONF_DIR
+          value: /opt/hadoop/etc/hadoop
+        - name: HDFS_NAMENODE_USER
+          value: root
+        - name: HDFS_DATANODE_USER
+          value: root
+        volumeMounts:
+        - name: datanode-storage
+          mountPath: /hadoop/dfs/data
+        - name: hadoop-config
+          mountPath: /opt/hadoop/etc/hadoop
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hadoop-config
+      - name: datanode-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-datanode
+  namespace: hdfs
+spec:
+  selector:
+    app: hdfs-datanode
+  ports:
+  - port: 9864
+    targetPort: 9864
+    name: datanode
