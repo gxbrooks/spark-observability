@@ -1,5 +1,6 @@
 #!/bin/bash
-
+echo "This is now obsolete. See wake_on_kvm.sh"
+exit 1
 echo "🔍 Enabling USB wakeup support for all capable devices..."
 
 # Step 1: Enable wakeup on all USB devices with power/wakeup

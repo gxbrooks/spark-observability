@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Check if systemd-inhibit is already running
-echo "inhibiting auto-sleep with systemd-inhibit for native Linux systems."
+# "inhibiting auto-sleep with systemd-inhibit for native Linux systems."
+echo "This is now obsolete. See wake_on_kvm.sh"
+exit 1
 if pgrep -x "systemd-inhibit" > /dev/null; then
     echo "Warning: systemd-inhibit is already running."
 else
