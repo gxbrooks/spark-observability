@@ -93,48 +93,48 @@
       register: registry_status
       failed_when: false
       changed_when: false
-      when: docker_bin.stat.exists and docker_service_status.rc == 0
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0
       
     - name: Display Docker registry status
       debug:
         msg: "Docker Registry:"
-      when: docker_bin.stat.exists and docker_service_status.rc == 0
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0
       
     - name: Output Docker registry details
       debug:
         var: registry_status.stdout_lines
-      when: docker_bin.stat.exists and docker_service_status.rc == 0 and registry_status.stdout_lines is defined
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0 and registry_status.stdout_lines is defined
       
     - name: Check running containers
       command: docker ps
       register: containers
       failed_when: false
       changed_when: false
-      when: docker_bin.stat.exists and docker_service_status.rc == 0
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0
       
     - name: Display running containers
       debug:
         msg: "Running containers:"
-      when: docker_bin.stat.exists and docker_service_status.rc == 0
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0
       
     - name: Output running containers details
       debug:
         var: containers.stdout_lines
-      when: docker_bin.stat.exists and docker_service_status.rc == 0 and containers.stdout_lines is defined
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0 and containers.stdout_lines is defined
       
     - name: List available images
       command: docker images
       register: images
       failed_when: false
       changed_when: false
-      when: docker_bin.stat.exists and docker_service_status.rc == 0
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0
       
     - name: Display available images
       debug:
         msg: "Available Docker images:"
-      when: docker_bin.stat.exists and docker_service_status.rc == 0
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0
       
     - name: Output available images details
       debug:
         var: images.stdout_lines
-      when: docker_bin.stat.exists and docker_service_status.rc == 0 and images.stdout_lines is defined
+      when: docker_bin.stat.exists and docker_service_status is defined and not docker_service_status.skipped | default(false) and docker_service_status.rc == 0 and images.stdout_lines is defined

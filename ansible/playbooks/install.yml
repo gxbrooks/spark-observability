@@ -1,0 +1,89 @@
+---
+# Global installation playbook for Spark Observability Platform
+# Idempotent - installs and configures all components
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/install.yml
+
+- name: Display installation banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display installation information
+      debug:
+        msg: |
+          ================================================
+          Spark Observability Platform - Installation
+          ================================================
+          
+          This playbook will install/configure:
+          1. Docker (Lab1, Lab2 - native Linux only)
+          2. NFS Server and Clients
+          3. Kubernetes Cluster
+          4. Observability Platform (GaryPC-WSL)
+          5. Spark on Kubernetes
+          6. Elastic Agent (all hosts)
+          
+          All operations are idempotent and safe to re-run.
+          
+          Prerequisites:
+          - Ansible control machine has SSH access to all hosts
+          - Docker Desktop manually started on GaryPC (for WSL)
+          
+          ================================================
+
+# Step 1: Install Docker (native Linux only, skip WSL)
+- import_playbook: docker/install_docker.yml
+
+# Step 2: Install NFS Server and Clients
+- import_playbook: nfs/install_nfs.yml
+
+# Step 3: Install Kubernetes Cluster
+- import_playbook: k8s/install_k8s.yml
+
+# Step 4: Install Observability Platform
+- import_playbook: observability/install.yml
+
+# Step 5: Deploy Spark to Kubernetes
+- import_playbook: spark/deploy_spark.yml
+
+# Step 6: Install Elastic Agent
+- import_playbook: elastic-agent/install_elastic_agent.yml
+
+# Step 7: Display completion status
+- name: Display installation completion
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          ================================================
+          Spark Observability Platform - Installation Complete!
+          ================================================
+          
+          All components have been installed and configured:
+          ✓ Docker (Lab1, Lab2)
+          ✓ NFS Server (Lab2) and Clients (Lab1, Lab2)
+          ✓ Kubernetes Cluster (Master: Lab2, Workers: Lab1+Lab2)
+          ✓ Observability Platform (GaryPC-WSL)
+          ✓ Spark on Kubernetes
+          ✓ Elastic Agent (all hosts)
+          
+          Next Steps:
+          ================================================
+          
+          To start all services, run:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
+          
+          To check status of all components, run:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
+          
+          To access services:
+          - Elasticsearch: https://GaryPC.lan:9200 (elastic / myElastic2025)
+          - Kibana: http://GaryPC.lan:5601 (elastic / myElastic2025)
+          - Grafana: http://GaryPC.lan:3000
+          - Spark History: http://Lab2.lan:31534
+          
+          ================================================
+

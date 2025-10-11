@@ -30,21 +30,23 @@
       register: generate_result
       changed_when: "'Generating' in generate_result.stdout"
     
-    # Check if Docker is running and operational with a simple command
+    # Check if Docker is running (optional - only needed for building custom images)
+    # Spark runs on Kubernetes with containerd, so Docker is not required for runtime
     - name: Check if Docker is running and operational
       command: docker info
       register: docker_info_result
       changed_when: false
+      failed_when: false
       
-    - name: Fail if Docker is not running or responding
-      fail:
+    - name: Warn if Docker is not running (only needed for custom image building)
+      debug:
         msg: >
-          Docker is not running or responding properly.
+          WARNING: Docker is not running. This is OK if using pre-built images.
+          Docker is only needed if building custom Spark images.
           
-          Use the following playbooks to manage Docker:
+          If you need Docker:
           - Check status: ansible-playbook -i inventory.yml playbooks/docker/status_docker.yml
           - Start Docker: ansible-playbook -i inventory.yml playbooks/docker/start_docker.yml
-          - Diagnose issues: ansible-playbook -i inventory.yml playbooks/docker/diagnose_docker.yml
       when: docker_info_result.rc != 0
         
     # We now use the centralized spark_vars.yml file, which is already loaded via vars_files
@@ -116,6 +118,28 @@
         - spark-master-headless.yaml
         - spark-history-service.yaml
         - spark-configmap.yaml
+
+    - name: Template spark-defaults.conf from template
+      template:
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/spark-defaults.conf.j2"
+        dest: "/home/{{ ansible_user }}/spark/conf/spark-defaults.conf"
+        mode: '0644'
+      vars:
+        spark_events_dir: "{{ SPARK_EVENTS_DIR | default('/mnt/spark/events') }}"
+        spark_network_timeout: "{{ SPARK_NETWORK_TIMEOUT | default('600s') }}"
+        spark_rpc_ask_timeout: "{{ SPARK_RPC_ASK_TIMEOUT | default('60s') }}"
+        spark_rpc_lookup_timeout: "{{ SPARK_RPC_LOOKUP_TIMEOUT | default('60s') }}"
+        spark_executor_heartbeat_interval: "{{ SPARK_EXECUTOR_HEARTBEAT_INTERVAL | default('120s') }}"
+
+    - name: Create/update spark-defaults-conf ConfigMap from files
+      shell: |
+        kubectl create configmap spark-defaults-conf \
+        --from-file=/home/{{ ansible_user }}/spark/conf/spark-defaults.conf \
+        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2-executor.properties \
+        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2.properties \
+        -n spark --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
 
     - name: Copy ConfigMap to a temporary file
       copy:

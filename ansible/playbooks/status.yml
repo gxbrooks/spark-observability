@@ -1,0 +1,59 @@
+---
+# Global status check for all components
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
+
+- name: Display status check banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display status check information
+      debug:
+        msg: |
+          ================================================
+          Spark Observability Platform - Status Check
+          ================================================
+          
+          Checking status of all components:
+          - Docker (Lab1, Lab2)
+          - Kubernetes Cluster
+          - Observability Platform
+          
+          ================================================
+
+# Check Docker Status
+- import_playbook: docker/status_docker.yml
+
+# Check Kubernetes Status
+- import_playbook: k8s/status_k8s.yml
+
+# Check Observability Platform Status
+- import_playbook: observability/status.yml
+
+# Display summary
+- name: Display status summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display summary message
+      debug:
+        msg: |
+          ================================================
+          Status Check Complete
+          ================================================
+          
+          Review the output above for detailed status of each component.
+          
+          To restart services:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
+          
+          To check Spark pods specifically:
+            kubectl get pods -n spark
+            kubectl get svc -n spark
+          
+          To check Elastic Agent:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/restart_elastic_agent.yml
+          
+          ================================================
+

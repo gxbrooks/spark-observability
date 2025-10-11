@@ -1,0 +1,84 @@
+---
+# Global startup playbook for Spark Observability Platform
+# Starts all components in dependency order
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
+
+- name: Display startup banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display startup information
+      debug:
+        msg: |
+          ================================================
+          Spark Observability Platform - Global Startup
+          ================================================
+          
+          This playbook will start components in order:
+          1. NFS Server (Lab2)
+          2. Kubernetes Cluster (Lab2 master, Lab1+Lab2 workers)
+          3. Observability Platform (GaryPC-WSL)
+          4. Spark on Kubernetes (master, workers, history)
+          5. Elastic Agent verification (all hosts)
+          
+          Prerequisites:
+          - Docker on GaryPC must be started manually (check completed)
+          - All components should be installed (run install.yml if needed)
+          
+          ================================================
+
+# Step 1: Start NFS Server
+- import_playbook: nfs/start_nfs.yml
+
+# Step 2: Start Kubernetes Cluster  
+- import_playbook: k8s/start_k8s.yml
+
+# Step 3: Start Observability Platform
+- import_playbook: observability/start.yml
+
+# Step 4: Start Spark on Kubernetes
+- import_playbook: spark/start_spark.yml
+
+# Step 5: Display final status
+- name: Display startup completion status
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          ================================================
+          Spark Observability Platform - Startup Complete
+          ================================================
+          
+          Services Status:
+          ✓ NFS Server: Running on Lab2
+          ✓ Kubernetes: Master on Lab2, Workers on Lab1+Lab2
+          ✓ Observability Platform: Running on GaryPC-WSL
+            - Elasticsearch: https://GaryPC.lan:9200
+            - Kibana: http://GaryPC.lan:5601
+            - Grafana: http://GaryPC.lan:3000
+          ✓ Spark: Master, Workers, History Server on Kubernetes
+            - Spark History: http://Lab2.lan:31534
+          
+          Next Steps:
+          ================================================
+          
+          1. Verify all services:
+             cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
+          
+          2. Check Elastic Agent status:
+             cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/restart_elastic_agent.yml
+          
+          3. Run Spark application to test event flow:
+             python3 spark/apps/Chapter_03.py
+          
+          4. Access web interfaces:
+             - Kibana: http://GaryPC.lan:5601 (elastic / myElastic2025)
+             - Grafana: http://GaryPC.lan:3000
+             - Spark History: http://Lab2.lan:31534
+          
+          ================================================
+

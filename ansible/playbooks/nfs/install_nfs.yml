@@ -2,9 +2,13 @@
 - name: Install and Configure NFS Server
   hosts: nfs_servers
   become: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/nfs_vars.yml"
   vars:
-    nfs_export_dir: /srv/nfs/spark-events
-    nfs_export_opts: "*(rw,sync,no_root_squash)"
+    nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check)"
+    nfs_export_dirs:
+      - /srv/nfs/spark/events
+      - /srv/nfs/spark/data
   tasks:
     - name: Install NFS server packages
       apt:
@@ -14,19 +18,21 @@
         state: present
         update_cache: yes
 
-    - name: Create NFS export directory
+    - name: Create NFS export directories
       file:
-        path: "{{ nfs_export_dir }}"
+        path: "{{ item }}"
         state: directory
         mode: '0777'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
+      loop: "{{ nfs_export_dirs }}"
 
-    - name: Add export to /etc/exports
+    - name: Add exports to /etc/exports
       lineinfile:
         path: /etc/exports
-        line: "{{ nfs_export_dir }} {{ nfs_export_opts }}"
+        line: "{{ item }} {{ nfs_export_opts }}"
         create: yes
+      loop: "{{ nfs_export_dirs }}"
 
     - name: Apply NFS exports
       command: exportfs -ra
@@ -37,13 +43,38 @@
         state: started
         enabled: yes
 
+- name: Configure NFS Server Local Mounts (Bind Mounts)
+  hosts: nfs_servers
+  become: true
+  vars:
+    bind_mounts:
+      - { mount: '/mnt/spark/events', src: '/srv/nfs/spark/events' }
+      - { mount: '/mnt/spark/data', src: '/srv/nfs/spark/data' }
+  tasks:
+    - name: Create local mount points on NFS server
+      file:
+        path: "{{ item.mount }}"
+        state: directory
+        mode: '0777'
+      loop: "{{ bind_mounts }}"
+
+    - name: Create bind mounts on NFS server
+      mount:
+        path: "{{ item.mount }}"
+        src: "{{ item.src }}"
+        fstype: none
+        opts: bind
+        state: mounted
+      loop: "{{ bind_mounts }}"
+
 - name: Configure NFS Clients
-  hosts: kubernetes_master:kubernetes_workers
+  hosts: kubernetes_master:kubernetes_workers:!nfs_servers
   become: true
   vars:
     nfs_server: "{{ groups['nfs_servers'][0] }}"
-    nfs_export_dir: /srv/nfs/spark-events
-    nfs_mount_point: /mnt/spark-events
+    nfs_mounts:
+      - { src: '/srv/nfs/spark/events', dest: '/mnt/spark/events' }
+      - { src: '/srv/nfs/spark/data', dest: '/mnt/spark/data' }
   tasks:
     - name: Install NFS client packages
       apt:
@@ -51,16 +82,18 @@
         state: present
         update_cache: yes
 
-    - name: Create NFS mount point
+    - name: Create NFS mount points
       file:
-        path: "{{ nfs_mount_point }}"
+        path: "{{ item.dest }}"
         state: directory
         mode: '0777'
+      loop: "{{ nfs_mounts }}"
 
-    - name: Mount NFS share
+    - name: Mount NFS shares
       mount:
-        path: "{{ nfs_mount_point }}"
-        src: "{{ nfs_server }}:{{ nfs_export_dir }}"
+        path: "{{ item.dest }}"
+        src: "{{ nfs_server }}:{{ item.src }}"
         fstype: nfs
         opts: rw,sync
         state: mounted
+      loop: "{{ nfs_mounts }}"
