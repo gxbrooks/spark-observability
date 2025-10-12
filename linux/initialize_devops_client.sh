@@ -100,4 +100,9 @@ $root_dir/linux/assert_spark_user.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
+# Verify Spark client applications are properly configured
+$root_dir/linux/assert_spark_client_apps.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
 echo "Result  : Devops client initialized for user '$USER'."

@@ -37,3 +37,7 @@ if [ -f "$project_root/spark/spark_env.sh" ]; then
     # Set SPARK_MASTER_URL from external host/port
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_EXTERNAL_HOST}:${SPARK_MASTER_EXTERNAL_PORT}"
 fi
+
+# Configure PySpark to use IPython for interactive sessions
+export PYSPARK_DRIVER_PYTHON=ipython
+export PYSPARK_DRIVER_PYTHON_OPTS=""

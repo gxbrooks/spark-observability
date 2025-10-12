@@ -36,8 +36,10 @@ spec:
       protocol: TCP
       port: 7077
       targetPort: 7077
+      nodePort: 31686  # Fixed port for client applications (from variables.yaml)
     - name: ui
       protocol: TCP
       port: 8080
       targetPort: 8080
+      nodePort: 32636  # Fixed port for Web UI
   type: NodePort
