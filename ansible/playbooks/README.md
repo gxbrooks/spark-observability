@@ -152,7 +152,7 @@ After startup, services are accessible at:
 | **Grafana** | http://GaryPC.lan:3000 | admin / (check observability/.env) |
 | **Elasticsearch** | https://GaryPC.lan:9200 | elastic / myElastic2025 |
 | **Spark History** | http://Lab2.lan:31534 | (no auth) |
-| **JupyterHub** | http://Lab2.lan:32080 | Sign up + admin approval |
+| **JupyterHub** | https://Lab2.lan:32443 | Sign up + admin approval |
 | **Spark Master UI** | http://Lab2.lan:32636 | (no auth) |
 
 ## Common Workflows

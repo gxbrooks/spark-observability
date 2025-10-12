@@ -53,10 +53,13 @@ proxy:
   service:
     type: NodePort
     nodePorts:
-      http: 32080  # External access port
+      https: 32443  # HTTPS port
   
   https:
-    enabled: false  # Disable for now, enable with SSL certs in production
+    enabled: true
+    type: secret
+    secret:
+      name: jupyterhub-tls  # Created by generate_jupyter_certs.yml
   
   chp:
     resources:

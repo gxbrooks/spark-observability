@@ -1,0 +1,85 @@
+---
+# Generate SSL/TLS certificates for JupyterHub HTTPS
+
+- name: Generate SSL certificates for JupyterHub
+  hosts: kubernetes_master
+  become: false
+  vars:
+    cert_dir: "/tmp/jupyterhub-certs"
+    cert_days: 3650  # 10 years for internal use
+    jupyterhub_hostname: "Lab2.lan"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  
+  tasks:
+    - name: Ensure certificate directory exists
+      file:
+        path: "{{ cert_dir }}"
+        state: directory
+        mode: '0755'
+    
+    - name: Check if certificates already exist
+      stat:
+        path: "{{ cert_dir }}/tls.crt"
+      register: cert_exists
+    
+    - name: Generate private key
+      command: >
+        openssl genrsa -out {{ cert_dir }}/tls.key 2048
+      when: not cert_exists.stat.exists
+    
+    - name: Generate self-signed certificate
+      command: >
+        openssl req -new -x509
+        -key {{ cert_dir }}/tls.key
+        -out {{ cert_dir }}/tls.crt
+        -days {{ cert_days }}
+        -subj "/C=US/ST=State/L=City/O=Organization/CN={{ jupyterhub_hostname }}"
+        -addext "subjectAltName=DNS:{{ jupyterhub_hostname }},DNS:*.{{ jupyterhub_hostname }},IP:192.168.1.48"
+      when: not cert_exists.stat.exists
+    
+    - name: Set certificate file permissions
+      file:
+        path: "{{ cert_dir }}/{{ item }}"
+        mode: '0600'
+      loop:
+        - tls.key
+        - tls.crt
+    
+    - name: Delete existing JupyterHub TLS secret if exists
+      command: kubectl delete secret jupyterhub-tls -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: secret_delete
+      failed_when: false
+      changed_when: secret_delete.rc == 0
+    
+    - name: Create Kubernetes secret with certificates
+      command: >
+        kubectl create secret tls jupyterhub-tls
+        --cert={{ cert_dir }}/tls.crt
+        --key={{ cert_dir }}/tls.key
+        -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+    
+    - name: Display certificate information
+      command: >
+        openssl x509 -in {{ cert_dir }}/tls.crt -noout -subject -dates
+      register: cert_info
+    
+    - name: Show certificate details
+      debug:
+        msg:
+          - "========================================"
+          - "SSL Certificate Created"
+          - "========================================"
+          - "{{ cert_info.stdout }}"
+          - ""
+          - "Certificate stored in Kubernetes secret: jupyterhub-tls"
+          - "Valid for {{ cert_days }} days ({{ cert_days / 365 }} years)"
+          - "Hostname: {{ jupyterhub_hostname }}"
+          - ""
+          - "Next: Deploy JupyterHub with HTTPS enabled"
+          - "  ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyterhub_helm.yml"
+          - "========================================"
+

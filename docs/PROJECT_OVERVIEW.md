@@ -74,8 +74,8 @@ Access the web-based multi-user environment at:
 cd ansible
 ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyterhub_helm.yml
 
-# Access in browser
-http://Lab2.lan:32080
+# Access in browser (HTTPS)
+https://Lab2.lan:32443
 ```
 
 **Features:**
@@ -87,10 +87,11 @@ http://Lab2.lan:32080
 - Accessible from anywhere
 
 **First-time setup:**
-1. Navigate to http://Lab2.lan:32080
-2. Click "Sign Up" to create an account
-3. Admin approval required for new users
-4. Login and start your notebook server
+1. Navigate to https://Lab2.lan:32443
+2. Accept self-signed certificate warning in browser
+3. Click "Sign Up" to create an account (username: admin recommended)
+4. Login immediately (admin is pre-approved)
+5. Start your notebook server
 
 ##### 2. Client-Mode iPython (Terminal-Based)
 

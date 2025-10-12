@@ -58,10 +58,10 @@ ansible-playbook -i inventory.yml playbooks/jupyter/status_jupyter.yml
 ## Access JupyterHub
 
 Once deployed, JupyterHub is accessible at:
-- **URL**: http://Lab2.lan:32080
-- **Authentication**: No password required (development setup)
-- **User**: jovyan (uid 1000, gid 100)
-- **Python Version**: 3.11.6 (compatible with PySpark 3.5.1)
+- **URL**: https://Lab2.lan:32443 (HTTPS with self-signed certificate)
+- **Authentication**: NativeAuthenticator (sign up + admin approval)
+- **Python Version**: 3.11 (compatible with PySpark 3.5.1)
+- **Certificate**: Self-signed (accept browser warning for internal use)
 
 ### Authentication Model
 

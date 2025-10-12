@@ -108,6 +108,70 @@
               - timeo=600
               - retrans=2
     
+    - name: Ensure certificate directory exists
+      file:
+        path: "/tmp/jupyterhub-certs"
+        state: directory
+        mode: '0755'
+    
+    - name: Check if certificates already exist
+      stat:
+        path: "/tmp/jupyterhub-certs/tls.crt"
+      register: cert_exists
+    
+    - name: Generate private key for JupyterHub
+      command: >
+        openssl genrsa -out /tmp/jupyterhub-certs/tls.key 2048
+      when: not cert_exists.stat.exists
+    
+    - name: Generate self-signed certificate for JupyterHub
+      command: >
+        openssl req -new -x509
+        -key /tmp/jupyterhub-certs/tls.key
+        -out /tmp/jupyterhub-certs/tls.crt
+        -days 3650
+        -subj "/C=US/ST=State/L=City/O=Lab/CN=Lab2.lan"
+        -addext "subjectAltName=DNS:Lab2.lan,DNS:*.Lab2.lan,IP:192.168.1.48"
+      when: not cert_exists.stat.exists
+    
+    - name: Set certificate file permissions
+      file:
+        path: "/tmp/jupyterhub-certs/{{ item }}"
+        mode: '0600'
+      loop:
+        - tls.key
+        - tls.crt
+      when: not cert_exists.stat.exists
+    
+    - name: Delete existing JupyterHub TLS secret if exists
+      command: kubectl delete secret jupyterhub-tls -n {{ jupyterhub_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: secret_delete
+      failed_when: false
+      changed_when: secret_delete.rc == 0
+    
+    - name: Create Kubernetes secret with SSL certificates
+      command: >
+        kubectl create secret tls jupyterhub-tls
+        --cert=/tmp/jupyterhub-certs/tls.crt
+        --key=/tmp/jupyterhub-certs/tls.key
+        -n {{ jupyterhub_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+    
+    - name: Display certificate information
+      command: >
+        openssl x509 -in /tmp/jupyterhub-certs/tls.crt -noout -subject -dates
+      register: cert_info
+    
+    - name: Show SSL certificate details
+      debug:
+        msg:
+          - "SSL Certificate created for HTTPS"
+          - "{{ cert_info.stdout }}"
+          - "Secret: jupyterhub-tls created in namespace {{ jupyterhub_namespace }}"
+    
     - name: Check if JupyterHub is already installed
       command: helm list -n {{ jupyterhub_namespace }}
       environment:
@@ -187,23 +251,27 @@
           - "Services:"
           - "{{ svc_details.stdout }}"
           - ""
-          - "Access JupyterHub at: http://Lab2.lan:32080"
+          - "Access JupyterHub at: https://Lab2.lan:32443"
+          - "(Self-signed certificate - accept browser warning)"
           - ""
           - "Default Admin User: admin"
-          - "Set admin password on first login"
+          - "Create password on first signup"
           - ""
           - "Features:"
+          - "  - HTTPS enabled with self-signed certificate"
           - "  - Multi-user support with NativeAuthenticator"
           - "  - Per-user isolated notebook servers"
-          - "  - PySpark pre-configured"
+          - "  - PySpark pre-configured (Python 3.11 + Spark 3.5.1)"
           - "  - Access to Spark cluster and NFS data"
           - "  - Resource limits: 1-2 CPU, 2-4G memory per user"
           - ""
           - "Next Steps:"
-          - "  1. Access http://Lab2.lan:32080"
-          - "  2. Click 'Sign Up' to create admin account"
-          - "  3. Login as admin"
-          - "  4. Authorize other users from admin panel"
+          - "  1. Access https://Lab2.lan:32443"
+          - "  2. Accept self-signed certificate warning in browser"
+          - "  3. Click 'Sign Up' to create admin account"
+          - "  4. Login as admin"
+          - "  5. Authorize other users from admin panel"
           - ""
+          - "Note: For production, replace with CA-signed certificate"
           - "========================================"
 

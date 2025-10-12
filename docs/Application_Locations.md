@@ -23,7 +23,7 @@ This document provides a comprehensive overview of where applications are instal
 | **Python 3.11** | `/usr/bin/python3.11` | System Python 3.11 | `python3.11` |
 | **PySpark** | `venv/lib/python3.11/site-packages/` | Spark Python API | `source venv/bin/activate` then `python` |
 | **IPython** | `venv/bin/ipython` | Interactive Python | `source venv/bin/activate` then `ipython` |
-| **JupyterHub** | `http://Lab2.lan:32080` | Multi-user Jupyter | Web browser |
+| **JupyterHub** | `https://Lab2.lan:32443` | Multi-user Jupyter (HTTPS) | Web browser |
 | **HDFS Client** | `/usr/bin/hdfs` | Hadoop HDFS CLI | `hdfs` (via wrapper) |
 | **Spark Submit** | `venv/bin/spark-submit` | Spark job submission | `source venv/bin/activate` then `spark-submit` |
 | **Git** | `/usr/bin/git` | Version control | `git` |
