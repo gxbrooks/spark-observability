@@ -1,0 +1,56 @@
+---
+# Playbook to start JupyterHub service
+
+- name: Start JupyterHub on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  
+  tasks:
+    - name: Check if JupyterHub deployment exists
+      command: kubectl get deployment jupyterhub -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: deployment_check
+      ignore_errors: true
+      
+    - name: Fail if JupyterHub not deployed
+      fail:
+        msg: "JupyterHub is not deployed. Please run deploy_jupyter.yml first."
+      when: deployment_check.rc != 0
+    
+    - name: Scale JupyterHub deployment to 1 replica
+      command: kubectl scale deployment jupyterhub --replicas=1 -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: scale_result
+      
+    - name: Display scale result
+      debug:
+        msg: "{{ scale_result.stdout }}"
+    
+    - name: Wait for JupyterHub pod to be ready
+      command: kubectl wait --for=condition=ready pod -l app=jupyterhub -n spark --timeout=180s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: wait_result
+      ignore_errors: true
+      
+    - name: Get JupyterHub pod status
+      command: kubectl get pods -n spark -l app=jupyterhub -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_status
+      
+    - name: Display status
+      debug:
+        msg:
+          - "========================================"
+          - "JupyterHub Status"
+          - "========================================"
+          - "{{ pod_status.stdout }}"
+          - ""
+          - "Access at: http://Lab2.lan:32080"
+          - "========================================"
+

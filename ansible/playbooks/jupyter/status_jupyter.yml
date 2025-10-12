@@ -1,0 +1,69 @@
+---
+# Playbook to check JupyterHub status
+
+- name: Check JupyterHub Status
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  
+  tasks:
+    - name: Check if JupyterHub deployment exists
+      command: kubectl get deployment jupyterhub -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: deployment_check
+      ignore_errors: true
+      
+    - name: Get JupyterHub deployment details
+      command: kubectl get deployment jupyterhub -n spark -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: deployment_details
+      when: deployment_check.rc == 0
+      ignore_errors: true
+      
+    - name: Get JupyterHub pod status
+      command: kubectl get pods -n spark -l app=jupyterhub -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_status
+      ignore_errors: true
+      
+    - name: Get JupyterHub service details
+      command: kubectl get svc jupyterhub -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: svc_details
+      ignore_errors: true
+      
+    - name: Get JupyterHub pod logs (last 20 lines)
+      command: kubectl logs -n spark -l app=jupyterhub --tail=20
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_logs
+      ignore_errors: true
+      when: deployment_check.rc == 0
+    
+    - name: Display status
+      debug:
+        msg:
+          - "========================================"
+          - "JupyterHub Status"
+          - "========================================"
+          - ""
+          - "Deployment:"
+          - "{{ deployment_details.stdout if deployment_check.rc == 0 else 'Not deployed' }}"
+          - ""
+          - "Pods:"
+          - "{{ pod_status.stdout if pod_status.rc == 0 else 'No pods found' }}"
+          - ""
+          - "Service:"
+          - "{{ svc_details.stdout if svc_details.rc == 0 else 'Service not found' }}"
+          - ""
+          - "Recent Logs:"
+          - "{{ pod_logs.stdout_lines | default(['No logs available']) | join('\n') }}"
+          - ""
+          - "Access URL: http://Lab2.lan:32080"
+          - "========================================"
+

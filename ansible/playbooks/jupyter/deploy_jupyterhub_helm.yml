@@ -1,0 +1,176 @@
+---
+# Deploy JupyterHub via Helm for multi-user Spark development
+
+- name: Deploy JupyterHub via Helm
+  hosts: kubernetes_master
+  become: false
+  vars:
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    jupyterhub_namespace: "spark"
+    jupyterhub_release: "jupyterhub"
+    jupyterhub_chart_version: "3.0.0"
+    values_file: "{{ playbook_dir }}/jupyterhub-values.yaml"
+  
+  pre_tasks:
+    - name: Check if kubectl is available
+      command: kubectl version --client
+      register: kubectl_check
+      ignore_errors: true
+      
+    - name: Fail if kubectl not available
+      fail:
+        msg: "kubectl is required but not found"
+      when: kubectl_check.rc != 0
+    
+    - name: Check if helm is available
+      command: helm version
+      register: helm_check
+      ignore_errors: true
+      changed_when: false
+      
+    - name: Install Helm if not present
+      become: true
+      shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        warn: false
+      when: helm_check.rc != 0
+      register: helm_install
+      
+    - name: Verify Helm installation
+      command: helm version
+      register: helm_verify
+      when: helm_check.rc != 0
+      
+    - name: Display Helm version
+      debug:
+        msg: "Helm is installed: {{ helm_verify.stdout if helm_check.rc != 0 else helm_check.stdout }}"
+    
+    - name: Check if Spark namespace exists
+      command: kubectl get namespace {{ jupyterhub_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: namespace_check
+      ignore_errors: true
+      
+    - name: Fail if namespace doesn't exist
+      fail:
+        msg: "Namespace {{ jupyterhub_namespace }} does not exist. Please create it first."
+      when: namespace_check.rc != 0
+
+  tasks:
+    - name: Add JupyterHub Helm repository
+      command: helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
+      register: helm_repo_add
+      changed_when: "'has been added' in helm_repo_add.stdout"
+      failed_when: helm_repo_add.rc != 0 and 'already exists' not in helm_repo_add.stderr
+      
+    - name: Update Helm repositories
+      command: helm repo update
+      
+    - name: Generate JupyterHub values file from template
+      template:
+        src: "{{ playbook_dir }}/jupyterhub-values.yaml.j2"
+        dest: "{{ values_file }}"
+        mode: '0644'
+    
+    - name: Check if JupyterHub is already installed
+      command: helm list -n {{ jupyterhub_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: helm_list
+      
+    - name: Deploy JupyterHub via Helm (if not installed)
+      command: >
+        helm install {{ jupyterhub_release }}
+        jupyterhub/jupyterhub
+        --namespace {{ jupyterhub_namespace }}
+        --version {{ jupyterhub_chart_version }}
+        --values {{ values_file }}
+        --timeout 10m
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      when: jupyterhub_release not in helm_list.stdout
+      register: helm_install
+      
+    - name: Upgrade JupyterHub via Helm (if already installed)
+      command: >
+        helm upgrade {{ jupyterhub_release }}
+        jupyterhub/jupyterhub
+        --namespace {{ jupyterhub_namespace }}
+        --version {{ jupyterhub_chart_version }}
+        --values {{ values_file }}
+        --timeout 10m
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      when: jupyterhub_release in helm_list.stdout
+      register: helm_upgrade
+    
+    - name: Wait for Hub pod to be ready
+      command: >
+        kubectl wait --for=condition=ready pod
+        -l component=hub
+        -n {{ jupyterhub_namespace }}
+        --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: hub_wait
+      ignore_errors: true
+      
+    - name: Wait for Proxy pod to be ready
+      command: >
+        kubectl wait --for=condition=ready pod
+        -l component=proxy
+        -n {{ jupyterhub_namespace }}
+        --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: proxy_wait
+      ignore_errors: true
+    
+    - name: Get JupyterHub pods status
+      command: kubectl get pods -n {{ jupyterhub_namespace }} -l app=jupyterhub
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pods_status
+      
+    - name: Get JupyterHub service details
+      command: kubectl get svc -n {{ jupyterhub_namespace }} -l app=jupyterhub
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: svc_details
+      
+    - name: Display deployment status
+      debug:
+        msg:
+          - "========================================"
+          - "JupyterHub Deployment Complete"
+          - "========================================"
+          - ""
+          - "Pods:"
+          - "{{ pods_status.stdout }}"
+          - ""
+          - "Services:"
+          - "{{ svc_details.stdout }}"
+          - ""
+          - "Access JupyterHub at: http://Lab2.lan:32080"
+          - ""
+          - "Default Admin User: admin"
+          - "Set admin password on first login"
+          - ""
+          - "Features:"
+          - "  - Multi-user support with NativeAuthenticator"
+          - "  - Per-user isolated notebook servers"
+          - "  - PySpark pre-configured"
+          - "  - Access to Spark cluster and NFS data"
+          - "  - Resource limits: 1-2 CPU, 2-4G memory per user"
+          - ""
+          - "Next Steps:"
+          - "  1. Access http://Lab2.lan:32080"
+          - "  2. Click 'Sign Up' to create admin account"
+          - "  3. Login as admin"
+          - "  4. Authorize other users from admin panel"
+          - ""
+          - "========================================"
+

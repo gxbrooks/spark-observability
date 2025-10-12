@@ -21,7 +21,8 @@
           3. Kubernetes Cluster
           4. Observability Platform (GaryPC-WSL)
           5. Spark on Kubernetes
-          6. Elastic Agent (all hosts)
+          6. JupyterHub for Spark Development
+          7. Elastic Agent (all hosts)
           
           All operations are idempotent and safe to re-run.
           
@@ -46,7 +47,10 @@
 # Step 5: Deploy Spark to Kubernetes
 - import_playbook: spark/deploy_spark.yml
 
-# Step 6: Install Elastic Agent
+# Step 6: Deploy JupyterHub for Spark Development
+- import_playbook: jupyter/deploy_jupyter.yml
+
+# Step 7: Install Elastic Agent
 - import_playbook: elastic-agent/install_elastic_agent.yml
 
 # Step 7: Display completion status
@@ -68,6 +72,7 @@
           ✓ Kubernetes Cluster (Master: Lab2, Workers: Lab1+Lab2)
           ✓ Observability Platform (GaryPC-WSL)
           ✓ Spark on Kubernetes
+          ✓ JupyterHub for Spark Development
           ✓ Elastic Agent (all hosts)
           
           Next Steps:
@@ -84,6 +89,7 @@
           - Kibana: http://GaryPC.lan:5601 (elastic / myElastic2025)
           - Grafana: http://GaryPC.lan:3000
           - Spark History: http://Lab2.lan:31534
+          - JupyterHub: http://Lab2.lan:32080
           
           ================================================
 

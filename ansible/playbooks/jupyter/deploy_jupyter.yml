@@ -1,0 +1,130 @@
+---
+# Playbook to deploy JupyterHub on Kubernetes
+
+- name: Deploy JupyterHub on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  vars:
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    k8s_config_dir: "/home/{{ ansible_user }}/spark/k8s"
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
+  
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: "Deploying JupyterHub on Kubernetes for Spark development"
+    
+    - name: Check if kubectl is available
+      command: "kubectl version --client"
+      register: kubectl_result
+      ignore_errors: true
+      
+    - name: Fail if kubectl not available
+      fail:
+        msg: "kubectl is not available. Please ensure Kubernetes is set up."
+      when: kubectl_result.rc != 0
+    
+    - name: Verify Spark namespace exists
+      command: kubectl get namespace spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: namespace_check
+      ignore_errors: true
+      
+    - name: Fail if Spark namespace doesn't exist
+      fail:
+        msg: "Spark namespace does not exist. Please deploy Spark first with deploy_spark.yml"
+      when: namespace_check.rc != 0
+
+  tasks:
+    - name: Ensure k8s config directory exists
+      file:
+        path: "{{ k8s_config_dir }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+    
+    - name: Generate JupyterHub deployment manifest from template
+      template:
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/jupyterhub-deployment.yaml.j2"
+        dest: "{{ k8s_config_dir }}/jupyterhub-deployment.yaml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+    
+    - name: Copy JupyterHub service manifest
+      copy:
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/jupyterhub-service.yaml"
+        dest: "{{ k8s_config_dir }}/jupyterhub-service.yaml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+    
+    - name: Apply JupyterHub deployment
+      command: kubectl apply -f {{ k8s_config_dir }}/jupyterhub-deployment.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: deployment_result
+      
+    - name: Apply JupyterHub service
+      command: kubectl apply -f {{ k8s_config_dir }}/jupyterhub-service.yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: service_result
+    
+    - name: Display deployment results
+      debug:
+        msg:
+          - "JupyterHub deployment: {{ deployment_result.stdout }}"
+          - "JupyterHub service: {{ service_result.stdout }}"
+    
+    - name: Wait for JupyterHub pod to be ready
+      command: kubectl wait --for=condition=ready pod -l app=jupyterhub -n spark --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: wait_result
+      ignore_errors: true
+      
+    - name: Get JupyterHub pod status
+      command: kubectl get pods -n spark -l app=jupyterhub -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_status
+      
+    - name: Display pod status
+      debug:
+        msg: "{{ pod_status.stdout_lines }}"
+    
+    - name: Get JupyterHub service details
+      command: kubectl get svc jupyterhub -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: svc_details
+      
+    - name: Display service details
+      debug:
+        msg: "{{ svc_details.stdout_lines }}"
+    
+    - name: Display access information
+      debug:
+        msg:
+          - "========================================"
+          - "JupyterHub Deployment Complete"
+          - "========================================"
+          - ""
+          - "Access JupyterHub at: http://Lab2.lan:32080"
+          - ""
+          - "The notebook environment includes:"
+          - "  - PySpark pre-configured"
+          - "  - Spark master: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"
+          - "  - Access to /mnt/spark/data (read-only)"
+          - "  - Access to /mnt/spark/events (read-only)"
+          - "  - Notebooks saved to /mnt/spark/jupyter/notebooks"
+          - ""
+          - "To check status: kubectl get pods -n spark -l app=jupyterhub"
+          - "To view logs: kubectl logs -n spark -l app=jupyterhub"
+          - "========================================"
+

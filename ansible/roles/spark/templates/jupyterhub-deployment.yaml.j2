@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyterhub
+  namespace: spark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyterhub
+  template:
+    metadata:
+      labels:
+        app: jupyterhub
+    spec:
+      serviceAccountName: spark
+      # Pin JupyterHub to Lab2 node (same as Spark master)
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - lab2
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "5"
+      initContainers:
+        - name: init-jupyter
+          image: "{{ spark_image }}:{{ spark_tag }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # Create jupyter workspace directory
+              mkdir -p /mnt/spark/jupyter/notebooks
+              mkdir -p /mnt/spark/jupyter/config
+              # Set ownership to jovyan user (uid 1000, gid 100)
+              chown -R 1000:100 /mnt/spark/jupyter
+              chmod -R 755 /mnt/spark/jupyter
+              echo "Jupyter workspace initialized with jovyan ownership (1000:100)"
+          volumeMounts:
+            - name: spark-data
+              mountPath: /mnt/spark
+          securityContext:
+            runAsUser: 0
+      containers:
+        - name: jupyterhub
+          image: "jupyter/pyspark-notebook:latest"
+          imagePullPolicy: Always
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # Install additional packages
+              pip install --quiet ipywidgets jupyter-spark
+              
+              # Configure PySpark for Jupyter
+              export PYSPARK_DRIVER_PYTHON=jupyter
+              export PYSPARK_DRIVER_PYTHON_OPTS='notebook'
+              
+              # Display Python version for verification
+              echo "Python version: $(python --version)"
+              echo "PySpark compatibility: Python 3.8-3.11 supported by Spark 3.5.1"
+              
+              # Start Jupyter in notebook mode
+              # Note: token='' disables authentication (dev mode only)
+              # For production, set --NotebookApp.token='your-secure-token'
+              start-notebook.sh \
+                --NotebookApp.token='' \
+                --NotebookApp.password='' \
+                --NotebookApp.allow_origin='*' \
+                --NotebookApp.base_url=/ \
+                --NotebookApp.ip='0.0.0.0' \
+                --NotebookApp.port=8888 \
+                --NotebookApp.notebook_dir=/home/jovyan/work
+          envFrom:
+            - configMapRef:
+                name: spark-configmap
+          env:
+            - name: JUPYTER_ENABLE_LAB
+              value: "yes"
+            - name: SPARK_MASTER
+              value: "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"
+            - name: SPARK_CONF_DIR
+              value: "/usr/local/spark/conf"
+            # Pod metadata
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - containerPort: 8888
+              name: jupyter
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+            - name: spark-events
+              mountPath: /mnt/spark/events
+              readOnly: true
+            - name: spark-data
+              mountPath: /mnt/spark/data
+              readOnly: true
+            - name: jupyter-workspace
+              mountPath: /home/jovyan/work
+            - name: spark-defaults-conf
+              mountPath: /usr/local/spark/conf
+      volumes:
+        - name: spark-events
+          hostPath:
+            path: /mnt/spark/events
+            type: Directory
+        - name: spark-data
+          hostPath:
+            path: /mnt/spark/data
+            type: DirectoryOrCreate
+        - name: jupyter-workspace
+          hostPath:
+            path: /mnt/spark/jupyter/notebooks
+            type: DirectoryOrCreate
+        - name: spark-defaults-conf
+          configMap:
+            name: spark-defaults-conf
+

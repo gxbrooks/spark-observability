@@ -15,28 +15,32 @@
           ================================================
           
           This playbook will stop components in reverse order:
-          1. Spark on Kubernetes (master, workers, history)
-          2. Observability Platform (GaryPC-WSL)
-          3. Kubernetes Cluster
-          4. NFS Server (Lab2)
+          1. JupyterHub for Spark Development
+          2. Spark on Kubernetes (master, workers, history)
+          3. Observability Platform (GaryPC-WSL)
+          4. Kubernetes Cluster
+          5. NFS Server (Lab2)
           
           Note: Docker and Elastic Agent will remain running
           
           ================================================
 
-# Step 1: Stop Spark
+# Step 1: Stop JupyterHub
+- import_playbook: jupyter/stop_jupyter.yml
+
+# Step 2: Stop Spark
 - import_playbook: spark/stop_spark.yml
 
-# Step 2: Stop Observability Platform
+# Step 3: Stop Observability Platform
 - import_playbook: observability/stop.yml
 
-# Step 3: Stop Kubernetes
+# Step 4: Stop Kubernetes
 - import_playbook: k8s/stop_k8s.yml
 
-# Step 4: Stop NFS
+# Step 5: Stop NFS
 - import_playbook: nfs/stop_nfs.yml
 
-# Step 5: Display completion status
+# Step 6: Display completion status
 - name: Display shutdown completion status
   hosts: localhost
   connection: local
@@ -50,6 +54,7 @@
           ================================================
           
           All services have been stopped:
+          ✓ JupyterHub stopped
           ✓ Spark components stopped
           ✓ Observability platform stopped
           ✓ Kubernetes cluster stopped

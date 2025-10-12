@@ -1,0 +1,52 @@
+---
+# Playbook to stop JupyterHub service
+
+- name: Stop JupyterHub on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  
+  tasks:
+    - name: Check if JupyterHub deployment exists
+      command: kubectl get deployment jupyterhub -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: deployment_check
+      ignore_errors: true
+      
+    - name: Scale JupyterHub deployment to 0 replicas
+      command: kubectl scale deployment jupyterhub --replicas=0 -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: scale_result
+      when: deployment_check.rc == 0
+      
+    - name: Display result
+      debug:
+        msg: "{{ scale_result.stdout if deployment_check.rc == 0 else 'JupyterHub deployment not found' }}"
+    
+    - name: Wait for pod to terminate
+      command: kubectl wait --for=delete pod -l app=jupyterhub -n spark --timeout=60s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: wait_result
+      ignore_errors: true
+      when: deployment_check.rc == 0
+      
+    - name: Verify JupyterHub is stopped
+      command: kubectl get pods -n spark -l app=jupyterhub
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: pod_status
+      ignore_errors: true
+      
+    - name: Display status
+      debug:
+        msg:
+          - "========================================"
+          - "JupyterHub Stopped"
+          - "========================================"
+          - "{{ pod_status.stdout if pod_status.rc == 0 else 'No JupyterHub pods running' }}"
+          - "========================================"
+

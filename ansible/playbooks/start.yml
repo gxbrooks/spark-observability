@@ -20,7 +20,8 @@
           2. Kubernetes Cluster (Lab2 master, Lab1+Lab2 workers)
           3. Observability Platform (GaryPC-WSL)
           4. Spark on Kubernetes (master, workers, history)
-          5. Elastic Agent verification (all hosts)
+          5. JupyterHub for Spark Development
+          6. Elastic Agent verification (all hosts)
           
           Prerequisites:
           - Docker on GaryPC must be started manually (check completed)
@@ -40,7 +41,10 @@
 # Step 4: Start Spark on Kubernetes
 - import_playbook: spark/start_spark.yml
 
-# Step 5: Display final status
+# Step 5: Start JupyterHub
+- import_playbook: jupyter/start_jupyter.yml
+
+# Step 6: Display final status
 - name: Display startup completion status
   hosts: localhost
   connection: local
@@ -62,6 +66,8 @@
             - Grafana: http://GaryPC.lan:3000
           ✓ Spark: Master, Workers, History Server on Kubernetes
             - Spark History: http://Lab2.lan:31534
+          ✓ JupyterHub: Running on Kubernetes (Lab2)
+            - JupyterHub: http://Lab2.lan:32080
           
           Next Steps:
           ================================================
@@ -79,6 +85,7 @@
              - Kibana: http://GaryPC.lan:5601 (elastic / myElastic2025)
              - Grafana: http://GaryPC.lan:3000
              - Spark History: http://Lab2.lan:31534
+             - JupyterHub: http://Lab2.lan:32080
           
           ================================================
 

@@ -18,6 +18,7 @@
           - Docker (Lab1, Lab2)
           - Kubernetes Cluster
           - Observability Platform
+          - JupyterHub
           
           ================================================
 
@@ -29,6 +30,9 @@
 
 # Check Observability Platform Status
 - import_playbook: observability/status.yml
+
+# Check JupyterHub Status
+- import_playbook: jupyter/status_jupyter.yml
 
 # Display summary
 - name: Display status summary

@@ -40,6 +40,10 @@ all:
               hosts:
                 Lab2:
                   ansible_host: Lab2.lan
+            jupyter_servers:  # JupyterHub for interactive Spark development
+              hosts:
+                Lab2:
+                  ansible_host: Lab2.lan
             spark_kubernetes:
               children:
                 kubernetes_master:

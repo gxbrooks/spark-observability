@@ -1,0 +1,168 @@
+# JupyterHub Helm Chart Values
+# Multi-user JupyterHub with NativeAuthenticator for Spark development
+
+# Hub configuration
+hub:
+  image:
+    name: quay.io/jupyterhub/k8s-hub
+    tag: "3.0.0"
+  
+  # Database for user information (SQLite by default, PostgreSQL for production)
+  db:
+    type: sqlite-pvc
+    pvc:
+      storageClassName: "" # Use default
+      storage: 1Gi
+  
+  # Hub service configuration
+  service:
+    type: ClusterIP  # Proxy handles external access
+  
+  # Resource limits for Hub pod
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  
+  # Hub configuration
+  config:
+    JupyterHub:
+      admin_access: true
+      authenticator_class: nativeauthenticator.NativeAuthenticator
+    
+    NativeAuthenticator:
+      enable_signup: true
+      ask_email_on_signup: true
+      allow_2fa: false
+      minimum_password_length: 8
+      check_common_password: true
+      allowed_failed_logins: 3
+      seconds_before_next_try: 600
+      # Admin users - add your admin username here
+      admin_users:
+        - admin
+      # Open signup or require admin approval
+      open_signup: false  # Require admin approval for new users
+
+# Proxy configuration
+proxy:
+  service:
+    type: NodePort
+    nodePorts:
+      http: 32080  # External access port
+  
+  https:
+    enabled: false  # Disable for now, enable with SSL certs in production
+  
+  chp:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+# Single-user notebook server configuration
+singleuser:
+  # Use PySpark-enabled image
+  image:
+    name: jupyter/pyspark-notebook
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Resource limits per user
+  cpu:
+    limit: 2
+    guarantee: 1
+  memory:
+    limit: 4G
+    guarantee: 2G
+  
+  # Storage for user notebooks
+  storage:
+    type: dynamic
+    capacity: 10Gi
+    dynamic:
+      storageClass: "" # Use default storage class
+  
+  # Extra environment variables for Spark
+  extraEnv:
+    JUPYTER_ENABLE_LAB: "yes"
+    SPARK_MASTER: "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"
+    SPARK_HOME: "/usr/local/spark"
+    PYSPARK_DRIVER_PYTHON: "jupyter"
+    PYSPARK_DRIVER_PYTHON_OPTS: "lab"
+  
+  # Mount NFS volumes
+  extraVolumes:
+    - name: spark-events
+      hostPath:
+        path: /mnt/spark/events
+        type: Directory
+    - name: spark-data
+      hostPath:
+        path: /mnt/spark/data
+        type: Directory
+    - name: spark-defaults-conf
+      configMap:
+        name: spark-defaults-conf
+  
+  extraVolumeMounts:
+    - name: spark-events
+      mountPath: /mnt/spark/events
+      readOnly: true
+    - name: spark-data
+      mountPath: /mnt/spark/data
+      readOnly: false
+    - name: spark-defaults-conf
+      mountPath: /usr/local/spark/conf
+  
+  # Start container as jovyan user
+  uid: 1000
+  fsGid: 100
+  
+  # Network policy
+  networkPolicy:
+    enabled: false  # Disable for now, enable in production
+  
+  # Default URL for users
+  defaultUrl: "/lab"
+
+# Scheduling configuration
+scheduling:
+  userScheduler:
+    enabled: true
+    replicas: 1
+  
+  podPriority:
+    enabled: false
+  
+  userPlaceholder:
+    enabled: false
+    replicas: 0
+
+# Culling idle servers
+cull:
+  enabled: true
+  timeout: 3600  # 1 hour
+  every: 600     # Check every 10 minutes
+  users: false   # Don't cull named servers
+  adminUsers: false  # Don't cull admin users
+  removeNamedServers: false
+  maxAge: 0  # Don't cull based on age
+
+# Image pre-pulling
+prePuller:
+  hook:
+    enabled: true
+  continuous:
+    enabled: false
+
+# Debugging
+debug:
+  enabled: false
+
