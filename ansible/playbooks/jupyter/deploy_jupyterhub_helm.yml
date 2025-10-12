@@ -10,7 +10,7 @@
     jupyterhub_namespace: "spark"
     jupyterhub_release: "jupyterhub"
     jupyterhub_chart_version: "3.0.0"
-    values_file: "{{ playbook_dir }}/jupyterhub-values.yaml"
+    values_file: "/tmp/jupyterhub-values.yaml"
   
   pre_tasks:
     - name: Check if kubectl is available
@@ -70,10 +70,43 @@
       command: helm repo update
       
     - name: Generate JupyterHub values file from template
+      delegate_to: localhost
       template:
         src: "{{ playbook_dir }}/jupyterhub-values.yaml.j2"
+        dest: "/tmp/jupyterhub-values.yaml"
+        mode: '0644'
+    
+    - name: Copy values file to remote host
+      copy:
+        src: "/tmp/jupyterhub-values.yaml"
         dest: "{{ values_file }}"
         mode: '0644'
+    
+    - name: Create NFS PersistentVolume for JupyterHub database
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: jupyterhub-db-pv
+            labels:
+              app: jupyterhub
+          spec:
+            capacity:
+              storage: 1Gi
+            accessModes:
+              - ReadWriteOnce
+            persistentVolumeReclaimPolicy: Retain
+            nfs:
+              server: Lab2.lan
+              path: /srv/nfs/jupyterhub
+            mountOptions:
+              - nfsvers=4.1
+              - hard
+              - timeo=600
+              - retrans=2
     
     - name: Check if JupyterHub is already installed
       command: helm list -n {{ jupyterhub_namespace }}

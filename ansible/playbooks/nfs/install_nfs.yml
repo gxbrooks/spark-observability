@@ -9,6 +9,7 @@
     nfs_export_dirs:
       - /srv/nfs/spark/events
       - /srv/nfs/spark/data
+      - /srv/nfs/jupyterhub
   tasks:
     - name: Install NFS server packages
       apt:
@@ -50,6 +51,7 @@
     bind_mounts:
       - { mount: '/mnt/spark/events', src: '/srv/nfs/spark/events' }
       - { mount: '/mnt/spark/data', src: '/srv/nfs/spark/data' }
+      - { mount: '/mnt/spark/jupyter', src: '/srv/nfs/jupyterhub' }
   tasks:
     - name: Create local mount points on NFS server
       file:

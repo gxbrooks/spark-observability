@@ -16,13 +16,13 @@
           ================================================
           
           This playbook will install/configure:
-          1. Docker (Lab1, Lab2 - native Linux only)
+          1. Docker (Lab2 only - for building Spark images)
           2. NFS Server and Clients
-          3. Kubernetes Cluster
-          4. Observability Platform (GaryPC-WSL)
+          3. Kubernetes Cluster (uses containerd runtime)
+          4. Observability Platform (GaryPC-WSL with Docker Desktop)
           5. Spark on Kubernetes
           6. JupyterHub for Spark Development
-          7. Elastic Agent (all hosts)
+          7. Elastic Agent (host-level on Lab1, Lab2, GaryPC)
           
           All operations are idempotent and safe to re-run.
           
@@ -67,13 +67,13 @@
           ================================================
           
           All components have been installed and configured:
-          ✓ Docker (Lab1, Lab2)
+          ✓ Docker (Lab2 for image builds; K8s uses containerd)
           ✓ NFS Server (Lab2) and Clients (Lab1, Lab2)
           ✓ Kubernetes Cluster (Master: Lab2, Workers: Lab1+Lab2)
           ✓ Observability Platform (GaryPC-WSL)
           ✓ Spark on Kubernetes
           ✓ JupyterHub for Spark Development
-          ✓ Elastic Agent (all hosts)
+          ✓ Elastic Agent (host-level: Lab1, Lab2, GaryPC)
           
           Next Steps:
           ================================================

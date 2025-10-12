@@ -62,38 +62,62 @@ ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml
 ```
 
 #### Interactive Development with PySpark
-To launch an interactive PySpark IPython shell for development and data exploration:
+
+There are two approaches for interactive Spark development:
+
+##### 1. JupyterHub (Recommended - Multi-User Web Interface)
+
+Access the web-based multi-user environment at:
 
 ```bash
-# Quick and easy method (launches in current terminal)
-./linux/launch_ipython.sh
-
-# OR using the Ansible playbook directly (will launch its own interactive shell)
+# Deploy JupyterHub (if not already deployed)
 cd ansible
-ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyterhub_helm.yml
 
-# Create pod without launching interactive shell
-cd ansible
-ansible-playbook -i inventory.yml playbooks/spark/launch_ipython.yml -e "launch_shell=false allow_interactive_param=false"
+# Access in browser
+http://Lab2.lan:32080
 ```
 
-> **Note:** The launch_ipython.sh script provides additional functionality like waiting for pod readiness and setting up logging, so it's preferred for interactive development.
+**Features:**
+- Multi-user support with authentication
+- Web-based Jupyter Lab interface
+- Persistent notebooks (saved to NFS)
+- PySpark pre-configured
+- Per-user resource isolation
+- Accessible from anywhere
 
-> **Note:** Use either the shell script OR the Ansible playbook with interactive mode, but not both together. The shell script already handles pod creation before launching the interactive shell.
+**First-time setup:**
+1. Navigate to http://Lab2.lan:32080
+2. Click "Sign Up" to create an account
+3. Admin approval required for new users
+4. Login and start your notebook server
 
-The interactive shell provides:
-- A full PySpark environment with SparkSession pre-configured
-- Event logging to the NFS-mounted `/mnt/spark-events` directory
-- GC logs written to `/opt/spark/logs/gc.log`
-- Local mode execution (`--master local[*]`) for development
+##### 2. Client-Mode iPython (Terminal-Based)
 
-When done with the interactive session:
+For quick tests and command-line development on Lab2:
+
 ```bash
-# Clean up the pod when finished
-kubectl delete pod pyspark-ipython -n spark
+# SSH to Lab2
+ssh ansible@Lab2.lan
 
-# The session will end when you exit the shell or press Ctrl+D
+# Navigate to project
+cd /home/gxbrooks/repos/elastic-on-spark
+
+# Activate venv and launch iPython
+source venv/bin/activate
+./spark/ispark/launch_ipython.sh
 ```
+
+**Features:**
+- Fast startup
+- Terminal-based
+- Good for quick tests and automation
+- Runs in client mode (connects to Spark cluster)
+
+**Use when:**
+- Quick debugging or testing
+- Scripting and automation
+- Prefer terminal over web interface
 
 #### Stopping Spark
 ```bash

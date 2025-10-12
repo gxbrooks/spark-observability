@@ -7,12 +7,13 @@ hub:
     name: quay.io/jupyterhub/k8s-hub
     tag: "3.0.0"
   
-  # Database for user information (SQLite by default, PostgreSQL for production)
+  # Database for user information using NFS
   db:
     type: sqlite-pvc
     pvc:
-      storageClassName: "" # Use default
+      storageClassName: "" # Manual binding to NFS PV
       storage: 1Gi
+      # Will bind to manually created NFS PV
   
   # Hub service configuration
   service:
@@ -97,29 +98,14 @@ singleuser:
     PYSPARK_DRIVER_PYTHON: "jupyter"
     PYSPARK_DRIVER_PYTHON_OPTS: "lab"
   
-  # Mount NFS volumes
-  extraVolumes:
-    - name: spark-events
-      hostPath:
-        path: /mnt/spark/events
-        type: Directory
-    - name: spark-data
-      hostPath:
-        path: /mnt/spark/data
-        type: Directory
-    - name: spark-defaults-conf
-      configMap:
-        name: spark-defaults-conf
+  # Additional pod configuration
+  profileList: []
   
-  extraVolumeMounts:
-    - name: spark-events
-      mountPath: /mnt/spark/events
-      readOnly: true
-    - name: spark-data
-      mountPath: /mnt/spark/data
-      readOnly: false
-    - name: spark-defaults-conf
-      mountPath: /usr/local/spark/conf
+  # Lifecycle hooks for mounting volumes
+  lifecycleHooks:
+    postStart:
+      exec:
+        command: ["/bin/sh", "-c", "echo 'User pod started'"]
   
   # Start container as jovyan user
   uid: 1000

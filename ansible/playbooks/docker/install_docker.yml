@@ -1,13 +1,17 @@
 ---
-# This playbook installs Docker on native Linux machines only
+# This playbook installs Docker on Lab2 for building Spark images
 # Usage: ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
 # 
-# Note: This playbook specifically targets native Linux hosts only:
-# - Does NOT install on Windows hosts (which should use Docker Desktop)
-# - Does NOT install on WSL instances (which should use Docker from Windows Docker Desktop)
+# Architecture Notes:
+# - Lab1: Uses containerd only (K8s worker, no Docker needed)
+# - Lab2: Docker for building Spark images + containerd for K8s
+# - GaryPC-WSL: Docker Desktop for observability stack
+# 
+# Docker is ONLY needed on Lab2 for building custom Spark images.
+# Kubernetes uses containerd as the container runtime.
 
-- name: Install Docker
-  hosts: native:!wsl
+- name: Install Docker on image build hosts only
+  hosts: docker_build_hosts
   become: true
   gather_facts: true
   tasks:

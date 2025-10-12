@@ -137,9 +137,10 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 
 | Host | Role | Components |
 |------|------|------------|
-| **Lab1** | Kubernetes Worker, Monitoring | Kubernetes Worker, Elastic Agent, Docker |
-| **Lab2** | Kubernetes Master+Worker, NFS, Monitoring | Kubernetes Master+Worker, NFS Server, Elastic Agent, Docker |
-| **GaryPC-WSL** | Observability Platform, Monitoring | Elasticsearch, Kibana, Grafana, Logstash, Elastic Agent, Docker |
+| **Lab1** | Kubernetes Worker, Monitoring | Kubernetes Worker (containerd), Elastic Agent (systemd) |
+| **Lab2** | Kubernetes Master+Worker, NFS, Image Builds | Kubernetes Master+Worker (containerd), NFS Server, Elastic Agent (systemd), Docker (image builds only), JupyterHub |
+| **GaryPC** | Windows Host | Elastic Agent (Windows service) |
+| **GaryPC-WSL** | Observability Platform | Elasticsearch, Kibana, Grafana, Logstash (Docker Compose) |
 
 ### Service URLs
 
@@ -151,6 +152,8 @@ After startup, services are accessible at:
 | **Grafana** | http://GaryPC.lan:3000 | admin / (check observability/.env) |
 | **Elasticsearch** | https://GaryPC.lan:9200 | elastic / myElastic2025 |
 | **Spark History** | http://Lab2.lan:31534 | (no auth) |
+| **JupyterHub** | http://Lab2.lan:32080 | Sign up + admin approval |
+| **Spark Master UI** | http://Lab2.lan:32636 | (no auth) |
 
 ## Common Workflows
 
