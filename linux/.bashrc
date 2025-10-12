@@ -25,9 +25,21 @@ if ! pgrep -f ssh-agent > /dev/null; then
     ssh-add # Add your keys here if you want them added automatically
 fi
 
-# Add project virtual environment to PATH (idempotent)
-if [[ ":$PATH:" != *":/home/gxbrooks/repos/elastic-on-spark/venv/bin:"* ]]; then
-    export PATH="/home/gxbrooks/repos/elastic-on-spark/venv/bin:$PATH"
+# Activate project virtual environment (only if not already activated)
+if [ -z "$VIRTUAL_ENV" ]; then
+    project_venv="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/venv"
+    if [ -f "$project_venv/bin/activate" ]; then
+        source "$project_venv/bin/activate"
+        echo "Virtual environment activated: Python $(python --version 2>&1 | awk '{print $2}')"
+    else
+        echo "Warning: Virtual environment not found at $project_venv"
+        # Fallback: Add to PATH if venv exists but no activate script
+        if [[ ":$PATH:" != *":/home/gxbrooks/repos/elastic-on-spark/venv/bin:"* ]]; then
+            export PATH="/home/gxbrooks/repos/elastic-on-spark/venv/bin:$PATH"
+        fi
+    fi
+else
+    echo "Virtual environment already active: $VIRTUAL_ENV"
 fi
 
 # Source Spark client environment variables
