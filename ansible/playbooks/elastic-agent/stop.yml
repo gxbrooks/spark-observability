@@ -1,0 +1,19 @@
+---
+# Stop Elastic Agent service
+# Usage: ansible-playbook -i inventory.yml playbooks/elastic-agent/stop.yml
+
+- name: Stop Elastic Agent
+  hosts: all:!wsl
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Stop Elastic Agent service
+      systemd:
+        name: elastic-agent
+        state: stopped
+    
+    - name: Display status
+      debug:
+        msg: "Elastic Agent stopped on {{ inventory_hostname }}"
+

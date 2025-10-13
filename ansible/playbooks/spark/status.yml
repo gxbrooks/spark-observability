@@ -1,0 +1,67 @@
+---
+# Check Spark cluster status
+# Usage: ansible-playbook -i inventory.yml playbooks/spark/status.yml
+
+- name: Check Spark Status on Kubernetes
+  hosts: spark_kubernetes
+  become: false
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
+  
+  tasks:
+    - name: Check Spark namespace
+      kubernetes.core.k8s_info:
+        kind: Namespace
+        name: "{{ k8s_namespace }}"
+      register: spark_namespace
+    
+    - name: Get Spark master pods
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=spark-master
+      register: spark_master_pods
+      when: spark_namespace.resources | length > 0
+    
+    - name: Get Spark worker pods
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=spark-worker
+      register: spark_worker_pods
+      when: spark_namespace.resources | length > 0
+    
+    - name: Get Spark history server pods
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=spark-history
+      register: spark_history_pods
+      when: spark_namespace.resources | length > 0
+    
+    - name: Get Spark services
+      kubernetes.core.k8s_info:
+        kind: Service
+        namespace: "{{ k8s_namespace }}"
+      register: spark_services
+      when: spark_namespace.resources | length > 0
+    
+    - name: Display Spark status
+      debug:
+        msg:
+          - "Spark Namespace: {{ 'exists' if spark_namespace.resources | length > 0 else 'not found' }}"
+          - "Spark Master Pods: {{ spark_master_pods.resources | length | default(0) }}"
+          - "Spark Worker Pods: {{ spark_worker_pods.resources | length | default(0) }}"
+          - "Spark History Pods: {{ spark_history_pods.resources | length | default(0) }}"
+          - "Spark Services: {{ spark_services.resources | length | default(0) }}"
+    
+    - name: Display detailed pod status
+      debug:
+        msg: "{{ item.metadata.name }}: {{ item.status.phase }} ({{ item.status.containerStatuses[0].ready | default(false) }})"
+      loop: "{{ (spark_master_pods.resources | default([])) + (spark_worker_pods.resources | default([])) + (spark_history_pods.resources | default([])) }}"
+      when: spark_namespace.resources | length > 0
+

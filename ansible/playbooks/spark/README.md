@@ -95,7 +95,7 @@ ansible-playbook -i ../../inventory.yml launch_ipython.yml
 - **Type**: Deployment
 - **Resources**: 1-2 cores, 2-4Gi memory
 - **Ports**: 18080 (Web UI)
-- **Storage**: NFS mount at `/mnt/spark-events`
+- **Storage**: NFS mount at `/mnt/spark/events`
 
 ## Workflow Guide
 
@@ -160,7 +160,7 @@ Workers are distributed using node affinity rules:
 - **Lab2 workers**: Scheduled on `Lab2.lan`
 
 ### Storage
-- **Spark Events**: NFS mount at `/mnt/spark-events` (shared across all nodes)
+- **Spark Events**: NFS mount at `/mnt/spark/events` (shared across all nodes)
 - **Worker Storage**: Local hostPath volumes for temporary data
 
 ## Troubleshooting

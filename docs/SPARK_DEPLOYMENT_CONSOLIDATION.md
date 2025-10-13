@@ -32,7 +32,7 @@ The elastic-on-spark project previously contained multiple approaches for deploy
 
 The Spark deployment requires an NFS server with the following mount points:
 
-1. `/mnt/spark-events` - Used for Spark event logging and history server
+1. `/mnt/spark/events` - Used for Spark event logging and history server
    - This mount must be accessible on all Kubernetes nodes
    - The mount is used by Spark master, workers, history server, and the PySpark IPython pod
    - Permissions should be set to 777 to allow all components to write event logs
@@ -45,8 +45,8 @@ ansible-playbook -i inventory.yml playbooks/nfs/install_nfs.yml
 
 This playbook:
 - Installs the NFS server on the designated NFS server nodes
-- Creates the `/srv/nfs/spark-events` export directory
-- Configures all Kubernetes nodes to mount this directory at `/mnt/spark-events`
+- Creates the `/srv/nfs/spark/events` export directory
+- Configures all Kubernetes nodes to mount this directory at `/mnt/spark/events`
 
 All Spark components reference this shared directory through hostPath volumes in their Kubernetes manifests.
 
@@ -104,11 +104,11 @@ The implementation follows Ansible best practices:
    - Default resources set to sensible values (500m CPU request, 1 CPU limit, etc.)
    - Automatically creates required directories:
      - `/opt/spark/logs` for JVM logs
-     - `/mnt/spark-events` for Spark event logs
+     - `/mnt/spark/events` for Spark event logs
 
 3. **Local Mode Configuration**:
    - Configures PySpark to run in local mode (`--master local[*]`) to avoid Spark master connectivity issues
-   - Uses the shared NFS-mounted `/mnt/spark-events` directory for event logging
+   - Uses the shared NFS-mounted `/mnt/spark/events` directory for event logging
    - Verifies NFS mount is properly configured before launching the pod
    - Uses JVM logging configuration to aid in debugging
 

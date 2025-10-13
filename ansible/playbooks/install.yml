@@ -32,26 +32,26 @@
           
           ================================================
 
-# Step 1: Install Docker (native Linux only, skip WSL)
-- import_playbook: docker/install_docker.yml
+# Step 1: Install Docker (Lab2 only for image builds)
+- import_playbook: docker/install.yml
 
 # Step 2: Install NFS Server and Clients
-- import_playbook: nfs/install_nfs.yml
+- import_playbook: nfs/install.yml
 
 # Step 3: Install Kubernetes Cluster
-- import_playbook: k8s/install_k8s.yml
+- import_playbook: k8s/install.yml
 
 # Step 4: Install Observability Platform
 - import_playbook: observability/install.yml
 
 # Step 5: Deploy Spark to Kubernetes
-- import_playbook: spark/deploy_spark.yml
+- import_playbook: spark/deploy.yml
 
-# Step 6: Deploy JupyterHub for Spark Development
-- import_playbook: jupyter/deploy_jupyter.yml
+# Step 6: Deploy JupyterHub for Spark Development (deferred to Spark 4.0)
+# - import_playbook: jupyter/deploy_jupyterhub_helm.yml
 
 # Step 7: Install Elastic Agent
-- import_playbook: elastic-agent/install_elastic_agent.yml
+- import_playbook: elastic-agent/install.yml
 
 # Step 7: Display completion status
 - name: Display installation completion

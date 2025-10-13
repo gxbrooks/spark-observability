@@ -1,0 +1,25 @@
+---
+# Start Elastic Agent service
+# Usage: ansible-playbook -i inventory.yml playbooks/elastic-agent/start.yml
+
+- name: Start Elastic Agent
+  hosts: all:!wsl
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Start Elastic Agent service
+      systemd:
+        name: elastic-agent
+        state: started
+        enabled: yes
+    
+    - name: Verify Elastic Agent is running
+      systemd:
+        name: elastic-agent
+      register: agent_status
+    
+    - name: Display status
+      debug:
+        msg: "Elastic Agent is {{ agent_status.status.ActiveState }} on {{ inventory_hostname }}"
+

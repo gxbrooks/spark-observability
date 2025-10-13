@@ -23,16 +23,19 @@
           ================================================
 
 # Check Docker Status
-- import_playbook: docker/status_docker.yml
+- import_playbook: docker/diagnose.yml
 
 # Check Kubernetes Status
-- import_playbook: k8s/status_k8s.yml
+- import_playbook: k8s/status.yml
 
 # Check Observability Platform Status
 - import_playbook: observability/status.yml
 
-# Check JupyterHub Status
-- import_playbook: jupyter/status_jupyter.yml
+# Check Spark Status
+- import_playbook: spark/status.yml
+
+# Check JupyterHub Status (deferred to Spark 4.0)
+# - import_playbook: jupyter/status_jupyter.yml
 
 # Display summary
 - name: Display status summary
@@ -57,7 +60,7 @@
             kubectl get svc -n spark
           
           To check Elastic Agent:
-            cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/restart_elastic_agent.yml
+            cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/status.yml
           
           ================================================
 

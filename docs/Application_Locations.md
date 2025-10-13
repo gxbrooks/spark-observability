@@ -6,12 +6,12 @@ This document provides a comprehensive overview of where applications are instal
 
 ### **Python Environment**
 - **Location**: `/home/gxbrooks/repos/elastic-on-spark/venv/`
-- **Python Version**: 3.11.14 (compatible with Apache Spark 3.5.1)
+- **Python Version**: 3.8.20 (matches Apache Spark 3.5.1 workers)
 - **Activation**: `source venv/bin/activate`
 - **Deactivation**: `deactivate`
 
 ### **PySpark Installation**
-- **Location**: Virtual environment (`venv/lib/python3.11/site-packages/`)
+- **Location**: Virtual environment (`venv/lib/python3.8/site-packages/`)
 - **Version**: 3.5.1
 - **Installation Method**: Virtual environment (no system pollution)
 - **Access**: Available when virtual environment is activated
@@ -20,15 +20,18 @@ This document provides a comprehensive overview of where applications are instal
 
 | Application | Location | Purpose | Access Method |
 |-------------|----------|---------|---------------|
-| **Python 3.11** | `/usr/bin/python3.11` | System Python 3.11 | `python3.11` |
-| **PySpark** | `venv/lib/python3.11/site-packages/` | Spark Python API | `source venv/bin/activate` then `python` |
-| **IPython** | `venv/bin/ipython` | Interactive Python | `source venv/bin/activate` then `ipython` |
-| **JupyterHub** | `https://Lab2.lan:32443` | Multi-user Jupyter (HTTPS) | Web browser |
+| **Python 3.8** | `/usr/bin/python3.8` | System Python 3.8 | `python3.8` |
+| **PySpark** | `venv/lib/python3.8/site-packages/` | Spark Python API | `source venv/bin/activate` then `python` |
+| **IPython** | `venv/bin/ipython` | Interactive Spark (client-mode) | `source venv/bin/activate` then `ipython` |
+| **Spark Master UI** | `http://Lab2.lan:32290` | Spark cluster monitoring | Web browser |
+| **Spark History Server** | `http://Lab2.lan:31534` | Historical job analysis | Web browser |
 | **HDFS Client** | `/usr/bin/hdfs` | Hadoop HDFS CLI | `hdfs` (via wrapper) |
 | **Spark Submit** | `venv/bin/spark-submit` | Spark job submission | `source venv/bin/activate` then `spark-submit` |
 | **Git** | `/usr/bin/git` | Version control | `git` |
 | **Ansible** | `/usr/bin/ansible` | Infrastructure automation | `ansible` |
 | **Kubectl** | `/usr/bin/kubectl` | Kubernetes CLI | `kubectl` |
+
+> **Note:** JupyterHub will be added during Spark 4.0 migration with Python 3.11 support.
 
 ## **Environment Configuration**
 
@@ -79,10 +82,10 @@ hdfs dfs -put local_file.txt /spark/
 | Script | Purpose | Usage |
 |--------|---------|-------|
 | `initialize_devops_client.sh` | Main setup script | `./linux/initialize_devops_client.sh -N "passphrase"` |
-| `assert_python_version.sh` | Python 3.11 installation | `./linux/assert_python_version.sh --PythonVersion 3.11 --SetupVenv` |
+| `assert_python_version.sh` | Python 3.8 installation | `./linux/assert_python_version.sh --PythonVersion 3.8 --SetupVenv` |
 | `link_to_user_env.sh` | Environment integration | `./linux/link_to_user_env.sh` |
 | `hdfs-wrapper.sh` | HDFS client wrapper | `hdfs` (automatic via alias) |
-| `spark-python-wrapper.sh` | Python version wrapper | `./linux/spark-python-wrapper.sh python3.11 script.py` |
+| `spark-python-wrapper.sh` | Python version wrapper | `./linux/spark-python-wrapper.sh python3.8 script.py` |
 
 ## **Best Practices**
 
@@ -123,9 +126,9 @@ hdfs dfs -ls /
 ## **File Structure**
 ```
 elastic-on-spark/
-├── venv/                          # Virtual environment
+├── venv/                          # Virtual environment (Python 3.8)
 │   ├── bin/                      # Executables (python, pip, etc.)
-│   ├── lib/python3.11/site-packages/  # Python packages
+│   ├── lib/python3.8/site-packages/  # Python packages
 │   └── pyvenv.cfg               # Virtual environment config
 ├── linux/                        # Linux-specific scripts
 │   ├── .bashrc                  # Environment configuration

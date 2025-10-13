@@ -1,0 +1,42 @@
+---
+# Undeploy Spark from Kubernetes
+# Usage: ansible-playbook -i inventory.yml playbooks/spark/undeploy.yml
+
+- name: Undeploy Spark from Kubernetes
+  hosts: spark_kubernetes
+  become: false
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
+  
+  tasks:
+    - name: Delete Spark namespace
+      kubernetes.core.k8s:
+        name: "{{ k8s_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: absent
+        wait: yes
+        wait_timeout: 300
+    
+    - name: Remove Spark service account
+      kubernetes.core.k8s:
+        name: spark
+        api_version: v1
+        kind: ServiceAccount
+        namespace: default
+        state: absent
+      ignore_errors: yes
+    
+    - name: Remove Spark cluster role binding
+      kubernetes.core.k8s:
+        name: spark-role
+        api_version: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        state: absent
+      ignore_errors: yes
+    
+    - name: Display undeploy completion
+      debug:
+        msg: "Spark has been undeployed from Kubernetes"
+

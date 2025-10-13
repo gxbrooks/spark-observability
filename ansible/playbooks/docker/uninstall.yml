@@ -1,0 +1,73 @@
+---
+# Uninstall Docker from image build hosts
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/uninstall.yml
+
+- name: Uninstall Docker
+  hosts: docker_build_hosts
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Stop Docker service
+      systemd:
+        name: docker
+        state: stopped
+      ignore_errors: yes
+    
+    - name: Stop Docker socket
+      systemd:
+        name: docker.socket
+        state: stopped
+      ignore_errors: yes
+    
+    - name: Remove Docker packages (Debian/Ubuntu)
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: absent
+        purge: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Remove Docker packages (RHEL/CentOS)
+      yum:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: absent
+      when: ansible_os_family == "RedHat"
+    
+    - name: Remove Docker group
+      group:
+        name: docker
+        state: absent
+    
+    - name: Remove Docker data directory
+      file:
+        path: /var/lib/docker
+        state: absent
+    
+    - name: Remove Docker configuration
+      file:
+        path: /etc/docker
+        state: absent
+    
+    - name: Remove Docker repository files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/yum.repos.d/docker-ce.repo
+      ignore_errors: yes
+    
+    - name: Display uninstall completion
+      debug:
+        msg: "Docker has been uninstalled from {{ inventory_hostname }}"
+

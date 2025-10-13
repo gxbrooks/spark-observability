@@ -30,19 +30,19 @@
           ================================================
 
 # Step 1: Start NFS Server
-- import_playbook: nfs/start_nfs.yml
+- import_playbook: nfs/start.yml
 
 # Step 2: Start Kubernetes Cluster  
-- import_playbook: k8s/start_k8s.yml
+- import_playbook: k8s/start.yml
 
 # Step 3: Start Observability Platform
 - import_playbook: observability/start.yml
 
 # Step 4: Start Spark on Kubernetes
-- import_playbook: spark/start_spark.yml
+- import_playbook: spark/start.yml
 
-# Step 5: Start JupyterHub
-- import_playbook: jupyter/start_jupyter.yml
+# Step 5: Start JupyterHub (deferred to Spark 4.0)
+# - import_playbook: jupyter/start_jupyter.yml
 
 # Step 6: Display final status
 - name: Display startup completion status
@@ -76,7 +76,7 @@
              cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
           
           2. Check Elastic Agent status:
-             cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/restart_elastic_agent.yml
+             cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/status.yml
           
           3. Run Spark application to test event flow:
              python3 spark/apps/Chapter_03.py

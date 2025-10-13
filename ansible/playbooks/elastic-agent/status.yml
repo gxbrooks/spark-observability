@@ -1,0 +1,35 @@
+---
+# Check Elastic Agent status
+# Usage: ansible-playbook -i inventory.yml playbooks/elastic-agent/status.yml
+
+- name: Check Elastic Agent Status
+  hosts: all:!wsl
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Check if Elastic Agent is installed
+      stat:
+        path: /opt/Elastic/Agent/elastic-agent
+      register: agent_binary
+    
+    - name: Get Elastic Agent service status
+      systemd:
+        name: elastic-agent
+      register: agent_service
+      when: agent_binary.stat.exists
+    
+    - name: Get Elastic Agent version
+      command: /opt/Elastic/Agent/elastic-agent version
+      register: agent_version
+      when: agent_binary.stat.exists
+      changed_when: false
+    
+    - name: Display Elastic Agent status
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Installed: {{ agent_binary.stat.exists }}"
+          - "Service State: {{ agent_service.status.ActiveState | default('N/A') }}"
+          - "Version: {{ agent_version.stdout | default('N/A') }}"
+

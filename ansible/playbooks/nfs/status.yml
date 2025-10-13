@@ -1,0 +1,57 @@
+---
+# Check NFS status
+# Usage: ansible-playbook -i inventory.yml playbooks/nfs/status.yml
+
+- name: Check NFS Server Status
+  hosts: nfs_servers
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Check NFS server service status
+      systemd:
+        name: nfs-server
+        state: started
+      check_mode: yes
+      register: nfs_status
+      failed_when: false
+    
+    - name: Display NFS service status
+      debug:
+        msg: "NFS server is {{ 'running' if nfs_status.status.ActiveState == 'active' else 'not running' }}"
+    
+    - name: Check NFS exports
+      command: exportfs -v
+      register: nfs_exports
+      changed_when: false
+    
+    - name: Display NFS exports
+      debug:
+        var: nfs_exports.stdout_lines
+    
+    - name: Check mounted filesystems
+      command: df -h | grep nfs
+      register: nfs_mounts
+      changed_when: false
+      failed_when: false
+    
+    - name: Display NFS mounts
+      debug:
+        msg: "{{ nfs_mounts.stdout_lines | default(['No NFS mounts found']) }}"
+
+- name: Check NFS Client Mounts
+  hosts: nfs_clients
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Check NFS mounts on clients
+      command: mount | grep nfs
+      register: client_mounts
+      changed_when: false
+      failed_when: false
+    
+    - name: Display client NFS mounts
+      debug:
+        msg: "{{ client_mounts.stdout_lines | default(['No NFS mounts on this client']) }}"
+

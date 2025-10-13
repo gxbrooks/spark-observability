@@ -48,7 +48,7 @@ This directory is used on the host machine for deploying and configuring the Spa
 For data persistence across pod restarts:
 
 ```
-SPARK_EVENTS_DIR=/mnt/spark-events/
+SPARK_EVENTS_DIR=/mnt/spark/events
 ```
 
 This directory is mounted as a persistent volume to store Spark event logs.

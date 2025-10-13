@@ -25,20 +25,20 @@
           
           ================================================
 
-# Step 1: Stop JupyterHub
-- import_playbook: jupyter/stop_jupyter.yml
+# Step 1: Stop JupyterHub (deferred to Spark 4.0)
+# - import_playbook: jupyter/stop_jupyter.yml
 
 # Step 2: Stop Spark
-- import_playbook: spark/stop_spark.yml
+- import_playbook: spark/stop.yml
 
 # Step 3: Stop Observability Platform
 - import_playbook: observability/stop.yml
 
 # Step 4: Stop Kubernetes
-- import_playbook: k8s/stop_k8s.yml
+- import_playbook: k8s/stop.yml
 
 # Step 5: Stop NFS
-- import_playbook: nfs/stop_nfs.yml
+- import_playbook: nfs/stop.yml
 
 # Step 6: Display completion status
 - name: Display shutdown completion status
@@ -61,8 +61,8 @@
           ✓ NFS server stopped
           
           Services still running:
-          - Docker (use docker/stop_docker.yml to stop if needed)
-          - Elastic Agent (use elastic-agent/restart_elastic_agent.yml to manage)
+          - Docker (use docker/stop.yml to stop if needed)
+          - Elastic Agent (use elastic-agent/stop.yml to manage)
           
           To restart all services:
             cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml

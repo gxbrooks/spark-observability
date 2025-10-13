@@ -15,12 +15,12 @@ ansible-playbook -i inventory.yml playbooks/install.yml
 ```
 
 **Installation Order:**
-1. Docker (Lab1, Lab2 - native Linux only)
+1. Docker (Lab2 only - for building Spark images)
 2. NFS Server and Clients
-3. Kubernetes Cluster
-4. Observability Platform (GaryPC-WSL)
+3. Kubernetes Cluster (uses containerd runtime)
+4. Observability Platform (GaryPC-WSL with Docker Desktop)
 5. Spark on Kubernetes
-6. Elastic Agent (all hosts)
+6. Elastic Agent (host-level on Lab1, Lab2, GaryPC)
 
 **Use Cases:**
 - First-time setup on new hosts
@@ -59,9 +59,10 @@ ansible-playbook -i inventory.yml playbooks/status.yml
 ```
 
 **Checks:**
-- Docker status (Lab1, Lab2)
+- Docker status (Lab2 only)
 - Kubernetes cluster health
-- Observability platform services
+- Spark cluster status
+- Elastic Agent status (host-level)
 - Displays summary and next steps
 
 **Use Cases:**
@@ -95,25 +96,29 @@ ansible-playbook -i inventory.yml playbooks/stop.yml
 For fine-grained control, use component-specific playbooks in subdirectories:
 
 ### Docker (`docker/`)
-- `install_docker.yml` - Install Docker on native Linux hosts
-- `start_docker.yml` - Start Docker service
-- `stop_docker.yml` - Stop Docker service
-- `status_docker.yml` - Check Docker status
-- `diagnose_docker.yml` - Troubleshoot Docker issues
+- `install.yml` - Install Docker on Lab2 (for image building only)
+- `uninstall.yml` - Remove Docker
+- `start.yml` - Start Docker service
+- `stop.yml` - Stop Docker service
+- `diagnose.yml` - Check Docker status and troubleshoot issues
+
+> **Note:** Docker is only used on Lab2 for building custom Spark images. Kubernetes uses containerd as its container runtime.
 
 ### NFS (`nfs/`)
-- `install_nfs.yml` - Install NFS server and configure clients
-- `start_nfs.yml` - Start NFS server
-- `stop_nfs.yml` - Stop NFS server
+- `install.yml` - Install NFS server and configure clients (includes all exports and data setup)
+- `uninstall.yml` - Remove NFS server and clients
+- `start.yml` - Start NFS server
+- `stop.yml` - Stop NFS server
+- `status.yml` - Check NFS server and client status
 
 ### Kubernetes (`k8s/`)
-- `install_k8s.yml` - Install Kubernetes cluster
-- `start_k8s.yml` - Start Kubernetes services
-- `stop_k8s.yml` - Stop Kubernetes services
-- `status_k8s.yml` - Check Kubernetes status
-- `diagnose_k8s.yml` - Troubleshoot Kubernetes issues
-- `reset_k8s.yml` - Reset Kubernetes cluster (destructive)
-- `uninstall_k8s.yml` - Completely remove Kubernetes
+- `install.yml` - Install Kubernetes cluster
+- `uninstall.yml` - Remove Kubernetes cluster
+- `start.yml` - Start Kubernetes services
+- `stop.yml` - Stop Kubernetes services
+- `status.yml` - Check cluster status
+- `diagnose.yml` - Troubleshoot cluster issues
+- `reset_k8s.yml` - Reset cluster (special utility - wipes all data)
 
 ### Observability (`observability/`)
 - `install.yml` - Install observability platform
@@ -123,13 +128,18 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 - `uninstall.yml` - Remove observability platform
 
 ### Spark (`spark/`)
-- `deploy_spark.yml` - Deploy Spark to Kubernetes
-- `start_spark.yml` - Start Spark components
-- `stop_spark.yml` - Stop Spark components
+- `deploy.yml` - Deploy Spark on Kubernetes (includes all config and mounting)
+- `undeploy.yml` - Remove Spark from Kubernetes
+- `start.yml` - Start Spark components
+- `stop.yml` - Stop Spark components
+- `status.yml` - Check Spark cluster status
 
 ### Elastic Agent (`elastic-agent/`)
-- `install_elastic_agent.yml` - Install Elastic Agent on all hosts
-- `restart_elastic_agent.yml` - Restart Elastic Agent service
+- `install.yml` - Install Elastic Agent on hosts (includes cert distribution and setup)
+- `uninstall.yml` - Remove Elastic Agent
+- `start.yml` - Start Elastic Agent service
+- `stop.yml` - Stop Elastic Agent service
+- `status.yml` - Check Elastic Agent status
 
 ## Infrastructure Overview
 
@@ -151,9 +161,10 @@ After startup, services are accessible at:
 | **Kibana** | http://GaryPC.lan:5601 | elastic / myElastic2025 |
 | **Grafana** | http://GaryPC.lan:3000 | admin / (check observability/.env) |
 | **Elasticsearch** | https://GaryPC.lan:9200 | elastic / myElastic2025 |
-| **Spark History** | http://Lab2.lan:31534 | (no auth) |
-| **JupyterHub** | https://Lab2.lan:32443 | Sign up + admin approval |
-| **Spark Master UI** | http://Lab2.lan:32636 | (no auth) |
+| **Spark History Server** | http://Lab2.lan:31534 | (no auth) |
+| **Spark Master UI** | http://Lab2.lan:32290 | (no auth) |
+
+> **Note:** JupyterHub will be added during Spark 4.0 migration with Python 3.11 support.
 
 ## Common Workflows
 

@@ -20,7 +20,7 @@ The deployment solution addresses two key security concerns:
 ## Prerequisites
 
 - A running Kubernetes cluster
-- NFS mount at `/mnt/spark-events` for Spark History Server
+- NFS mount at `/mnt/spark/events` for Spark History Server
 - Proper network connectivity between all components
 
 ## Deployment Instructions

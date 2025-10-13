@@ -246,7 +246,7 @@ If the Spark History UI (http://localhost:31534) is not responding:
 
 5. Verify the NFS mount for Spark event logs is working:
    ```bash
-   kubectl exec -it -n spark $(kubectl get pods -n spark | grep history | awk '{print $1}') -- ls -la /mnt/spark-events
+   kubectl exec -it -n spark $(kubectl get pods -n spark | grep history | awk '{print $1}') -- ls -la /mnt/spark/events
    ```
 
 ## Troubleshooting with Diagnostic Scripts

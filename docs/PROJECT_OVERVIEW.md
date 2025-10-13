@@ -11,7 +11,7 @@ Use Elasticsearch to monitor and observe Spark applications running on Kubernete
 ### Prerequisites
 - Ansible installed on the control machine
 - SSH access to target servers
-- Python 3.x
+- Python 3.8 (for Spark 3.5.1 compatibility)
 
 ### Spark Environment Setup
 
@@ -63,37 +63,7 @@ ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml
 
 #### Interactive Development with PySpark
 
-There are two approaches for interactive Spark development:
-
-##### 1. JupyterHub (Recommended - Multi-User Web Interface)
-
-Access the web-based multi-user environment at:
-
-```bash
-# Deploy JupyterHub (if not already deployed)
-cd ansible
-ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyterhub_helm.yml
-
-# Access in browser (HTTPS)
-https://Lab2.lan:32443
-```
-
-**Features:**
-- Multi-user support with authentication
-- Web-based Jupyter Lab interface
-- Persistent notebooks (saved to NFS)
-- PySpark pre-configured
-- Per-user resource isolation
-- Accessible from anywhere
-
-**First-time setup:**
-1. Navigate to https://Lab2.lan:32443
-2. Accept self-signed certificate warning in browser
-3. Click "Sign Up" to create an account (username: admin recommended)
-4. Login immediately (admin is pre-approved)
-5. Start your notebook server
-
-##### 2. Client-Mode iPython (Terminal-Based)
+##### Client-Mode iPython (Terminal-Based)
 
 For quick tests and command-line development on Lab2:
 
@@ -115,10 +85,13 @@ source venv/bin/activate
 - Good for quick tests and automation
 - Runs in client mode (connects to Spark cluster)
 
-**Use when:**
+**Use for:**
+- Interactive Spark development
 - Quick debugging or testing
 - Scripting and automation
-- Prefer terminal over web interface
+- All current Spark 3.5.1 work
+
+> **Note on JupyterHub:** Multi-user JupyterHub support will be added during the Spark 4.0 migration with Python 3.11 compatibility. Currently using Python 3.8 for stability with Spark 3.5.1.
 
 #### Stopping Spark
 ```bash
@@ -233,7 +206,7 @@ Then access: http://localhost:18080
 
 3. **NFS Mount Issues**
    - Ensure NFS server is running: `systemctl status nfs-server`
-   - Check mount permissions: `ls -la /mnt/spark-events`
+   - Check mount permissions: `ls -la /mnt/spark/events`
    - Verify NFS exports: `exportfs -v`
 
 4. **Docker Image Build Issues**
