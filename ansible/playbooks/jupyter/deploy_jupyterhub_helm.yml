@@ -11,6 +11,10 @@
     jupyterhub_release: "jupyterhub"
     jupyterhub_chart_version: "3.0.0"
     values_file: "/tmp/jupyterhub-values.yaml"
+    # Admin user credentials
+    jupyterhub_admin_user: "admin"
+    jupyterhub_admin_email: "gxbrooks@gmail.com"
+    jupyterhub_admin_password: "Bobo4889;;"  # TODO: Move to vault/secrets
   
   pre_tasks:
     - name: Check if kubectl is available
@@ -237,6 +241,42 @@
       environment:
         KUBECONFIG: "{{ kubeconfig }}"
       register: svc_details
+    
+    - name: Wait for Hub to be fully ready (30 seconds)
+      pause:
+        seconds: 30
+    
+    - name: Generate admin user creation script from template
+      template:
+        src: "{{ playbook_dir }}/create_admin_via_api.py"
+        dest: "/tmp/create_admin_user.py"
+        mode: '0644'
+    
+    - name: Get hub pod name
+      command: kubectl get pods -n {{ jupyterhub_namespace }} -l component=hub -o jsonpath='{.items[0].metadata.name}'
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: hub_pod_name
+    
+    - name: Copy admin user creation script to hub pod
+      command: >
+        kubectl cp /tmp/create_admin_user.py
+        {{ jupyterhub_namespace }}/{{ hub_pod_name.stdout }}:/tmp/create_admin_user.py
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      
+    - name: Create admin user with credentials
+      command: >
+        kubectl exec -n {{ jupyterhub_namespace }} {{ hub_pod_name.stdout }} --
+        python3 /tmp/create_admin_user.py
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: admin_creation
+      ignore_errors: true
+      
+    - name: Display admin user creation result
+      debug:
+        msg: "{{ admin_creation.stdout_lines | default(['Admin user creation skipped or failed']) }}"
       
     - name: Display deployment status
       debug:
