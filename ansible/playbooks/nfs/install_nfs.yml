@@ -10,6 +10,7 @@
       - /srv/nfs/spark/events
       - /srv/nfs/spark/data
       - /srv/nfs/jupyterhub
+      - /srv/nfs/jupyterhub-users
   tasks:
     - name: Install NFS server packages
       apt:
