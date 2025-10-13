@@ -32,21 +32,17 @@ hub:
   config:
     JupyterHub:
       admin_access: true
-      authenticator_class: nativeauthenticator.NativeAuthenticator
+      # FirstUseAuthenticator: First user to login becomes admin
+      # All subsequent users need admin approval
+      authenticator_class: firstuseauthenticator.FirstUseAuthenticator
     
-    NativeAuthenticator:
-      enable_signup: true
-      ask_email_on_signup: true
-      allow_2fa: false
-      minimum_password_length: 8
-      check_common_password: true
-      allowed_failed_logins: 3
-      seconds_before_next_try: 600
-      # Admin users - add your admin username here
+    FirstUseAuthenticator:
+      # Admin users - these get admin privileges on first login
       admin_users:
         - admin
-      # Open signup or require admin approval
-      open_signup: false  # Require admin approval for new users
+        - gxbrooks
+      # Create users on first login (password set during first login)
+      create_users: true
 
 # Proxy configuration
 proxy:
