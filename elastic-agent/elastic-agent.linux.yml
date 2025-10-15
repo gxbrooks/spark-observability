@@ -104,7 +104,7 @@ inputs:
               target: "spark"
   - id: spark-app-logs
     type: filestream    
-    use_output: "default"
+    use_output: "spark_app"
     enabled: true
     streams:
       - id: spark-app-logs-stream
@@ -127,7 +127,7 @@ inputs:
               ignore_failure: true
   - id: spark-gc
     type: filestream
-    use_output: default
+    use_output: "spark_gc"
     enabled: true
     streams:
       - id: spark-gc-stream
@@ -193,38 +193,13 @@ inputs:
               layouts:
                 - '2006-01-02T15:04:05.999-0700'
               ignore_failure: true
-      # Add standardized metadata fields for both K8s and Docker Compose
-      # Temporarily disabled script processor due to syntax error
-      # - script:
-      #     lang: painless
-      #     source: |
-      #       // Add host information
-      #       if (ctx.spark == null) {
-      #         ctx.spark = new HashMap();
-      #       }
-      #       if (ctx.spark.metadata == null) {
-      #         ctx.spark.metadata = new HashMap();
-      #       }
-      #       ctx.spark.metadata.host = ctx.agent?.hostname;
-      #       ctx.spark.metadata.deployment_type = "kubernetes";
-      #       // ... rest of script temporarily disabled
-      #     ignore_failure: true
-      # Add required fields for compatibility with existing index
-      - add_fields:
-          target: gc
-          fields:
-            stats: "paused"
-            level: "info"
-            tags: "gc"
-      # Calculate reclaimed memory for GC events with heap info
-      # Temporarily disabled script processor due to syntax error
-      # - script:
-      #     lang: painless
-      #     source: |
-      #       if (ctx.gc?.paused?.before != null && ctx.gc?.paused?.after != null) {
-      #         ctx.gc.paused.reclaimed = ctx.gc.paused.before - ctx.gc.paused.after;
-      #       }
-      #     ignore_failure: true
+          # Add required fields for compatibility with existing index
+          - add_fields:
+              target: gc
+              fields:
+                stats: "paused"
+                level: "info"
+                tags: "gc"
 
 # Providers section removed - not needed for standalone Elastic Agent
 # providers:
@@ -242,10 +217,28 @@ outputs:
     ssl:
       certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
       verification_mode: full
-  # Spark outputs for events
+  # Spark outputs for events (to Logstash for processing)
   spark_events:
     type: logstash
     hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
+  # Spark outputs for GC logs (directly to Elasticsearch)
+  spark_gc:
+    type: elasticsearch
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      verification_mode: full
+  # Spark outputs for application logs (directly to Elasticsearch)
+  spark_app:
+    type: elasticsearch
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      verification_mode: full
 
 agent.logging.level: debug
 agent.logging.to_files: true
