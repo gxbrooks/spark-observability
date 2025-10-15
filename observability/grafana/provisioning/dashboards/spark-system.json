@@ -35,7 +35,7 @@
             "axisLabel": "Active Jobs",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.59999999999999998,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -87,10 +87,10 @@
       "id": 1,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": true,
+          "calcs": []
         },
         "tooltip": {
           "mode": "single",
@@ -99,26 +99,26 @@
       },
       "targets": [
         {
-          "alias": "",
           "bucketAggs": [
             {
-              "field": "class",
-              "id": "3",
+              "id": "1",
+              "type": "terms",
+              "field": "App ID.keyword",
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_count",
                 "size": "10"
-              },
-              "type": "terms"
+              }
             },
             {
-              "field": "@timestamp",
               "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
               "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
+                "interval": "10s",
+                "min_doc_count": "0"
+              }
             }
           ],
           "datasource": {
@@ -127,152 +127,30 @@
           },
           "metrics": [
             {
-              "field": "count",
               "id": "1",
-              "settings": {},
-              "type": "sum"
-            }
-          ],
-          "query": "",
-          "refId": "A",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Active Spark Jobs",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.59999999999999998,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Count gc.gc_tags"
-            },
-            "properties": [
-              {
-                "id": "custom.axisPlacement",
-                "value": "left"
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "GC Events Count"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 2,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "alias": "",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "gc.pause.duration_ms",
-              "id": "1",
-              "type": "avg"
-            },
-            {
-              "field": "gc.gc_tags",
-              "id": "2",
               "type": "count"
             }
           ],
-          "query": "_index:logs-spark_gc-default",
+          "query": "_index:batch-events",
           "refId": "A",
-          "timeField": "@timestamp"
+          "timeField": "@timestamp",
+          "alias": "{{term App ID.keyword}}"
         }
       ],
-      "title": "Spark GC Metrics",
-      "type": "timeseries"
+      "title": "Active Spark Jobs",
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
+      }
     },
     {
       "datasource": {
@@ -326,15 +204,16 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 0
       },
       "id": 1,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -343,13 +222,23 @@
       "pluginVersion": "8.7.1",
       "targets": [
         {
-          "alias": "Lab1 CPU %",
           "bucketAggs": [
+            {
+              "field": "host.name",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
             {
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "auto"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -367,11 +256,793 @@
           ],
           "query": "_index:metrics-system.cpu-default",
           "refId": "A",
-          "timeField": "@timestamp"
+          "timeField": "@timestamp",
+          "alias": "{{host.name}} CPU"
         }
       ],
       "title": "Host CPU Utilization %",
-      "type": "timeseries"
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
+      },
+      "yaxes": [
+        {
+          "label": "CPU %",
+          "show": true,
+          "format": "percent"
+        },
+        {}
+      ]
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.7.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.network-default AND system.network.name:(enp* OR ens* OR eth0 OR eth1) AND NOT system.network.name:lo",
+          "alias": "{{term host.name}} In",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "system.network.in.bytes",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "10s"
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value * -1"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "4",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "asc",
+                "orderBy": "_key",
+                "size": "10"
+              }
+            },
+            {
+              "id": "5",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.network-default AND system.network.name:(enp* OR ens* OR eth0 OR eth1) AND NOT system.network.name:lo",
+          "alias": "{{term host.name}} Out",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "system.network.out.bytes",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "10s"
+              }
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "asc",
+                "orderBy": "_key",
+                "size": "10"
+              }
+            },
+            {
+              "id": "4",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Network Byte Rate (In/Out)",
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
+      },
+      "yaxes": [
+        {
+          "label": "Bytes/sec",
+          "show": true,
+          "logBase": 1,
+          "min": null,
+          "max": null,
+          "format": "Bps"
+        },
+        {}
+      ],
+      "transformations": [],
+      "seriesOverrides": [
+        {
+          "alias": "/.*Max.*/",
+          "hideTooltip": true,
+          "legend": false,
+          "lines": false
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.7.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.diskio-default",
+          "alias": "{{term host.name}} Read",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "system.diskio.read.bytes",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "10s"
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value * -1"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "4",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "asc",
+                "orderBy": "_key",
+                "size": "10"
+              }
+            },
+            {
+              "id": "5",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.diskio-default",
+          "alias": "{{term host.name}} Write",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "system.diskio.write.bytes",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "10s"
+              }
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "asc",
+                "orderBy": "_key",
+                "size": "10"
+              }
+            },
+            {
+              "id": "4",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Disk I/O Rate (Read/Write)",
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
+      },
+      "yaxes": [
+        {
+          "label": "Bytes/sec",
+          "show": true,
+          "logBase": 1,
+          "min": null,
+          "max": null,
+          "format": "Bps"
+        },
+        {}
+      ],
+      "transformations": [],
+      "seriesOverrides": [
+        {
+          "alias": "/.*Max.*/",
+          "hideTooltip": true,
+          "legend": false,
+          "lines": false
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.7.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.network-default AND system.network.name:lo",
+          "alias": "{{term host.name}} In",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "system.network.in.bytes",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "10s"
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value * -1"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "4",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "asc",
+                "orderBy": "_key",
+                "size": "10"
+              }
+            },
+            {
+              "id": "5",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.network-default AND system.network.name:lo",
+          "alias": "{{term host.name}} Out",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "system.network.out.bytes",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "10s"
+              }
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "asc",
+                "orderBy": "_key",
+                "size": "10"
+              }
+            },
+            {
+              "id": "4",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Loopback Traffic (Internal)",
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
+      },
+      "yaxes": [
+        {
+          "label": "Bytes/sec",
+          "show": true,
+          "logBase": 1,
+          "min": null,
+          "max": null,
+          "format": "Bps"
+        },
+        {}
+      ],
+      "transformations": [],
+      "seriesOverrides": [
+        {
+          "alias": "/.*Max.*/",
+          "hideTooltip": true,
+          "legend": false,
+          "lines": false
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.7.1",
+      "targets": [
+        {
+          "refId": "Load1",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.load-default",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "system.load.1"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "1",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "alias": "{{host.name}} Load 1m",
+          "timeField": "@timestamp"
+        },
+        {
+          "refId": "Load5",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.load-default",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "system.load.5"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "1",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "alias": "{{host.name}} Load 5m",
+          "timeField": "@timestamp"
+        },
+        {
+          "refId": "Load15",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.load-default",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "system.load.15"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "1",
+              "type": "terms",
+              "field": "host.name",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "10s"
+              }
+            }
+          ],
+          "alias": "{{host.name}} Load 15m",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "System Load Average",
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
+      },
+      "yaxes": [
+        {
+          "label": "Load",
+          "show": true,
+          "format": "short"
+        },
+        {}
+      ]
     },
     {
       "datasource": {
@@ -421,15 +1092,16 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 0
+        "x": 0,
+        "y": 24
       },
       "id": 2,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -438,13 +1110,23 @@
       "pluginVersion": "8.7.1",
       "targets": [
         {
-          "alias": "Lab1 Memory %",
           "bucketAggs": [
+            {
+              "field": "host.name",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
             {
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "auto"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -462,265 +1144,32 @@
           ],
           "query": "_index:metrics-system.memory-default",
           "refId": "A",
-          "timeField": "@timestamp"
+          "timeField": "@timestamp",
+          "alias": "{{host.name}} Memory"
         }
       ],
       "title": "Host Memory Utilization %",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "Bps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 3,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.7.1",
-      "targets": [
+      "yaxes": [
         {
-          "alias": "Lab1 Network In",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.network.in.bytes",
-              "id": "1",
-              "pipelineAgg": "1",
-              "type": "derivative"
-            }
-          ],
-          "query": "_index:metrics-system.network-default",
-          "refId": "A",
-          "timeField": "@timestamp"
+          "label": "Memory %",
+          "show": true,
+          "format": "percent"
         },
-        {
-          "alias": "Lab1 Network Out",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.network.out.bytes",
-              "id": "1",
-              "pipelineAgg": "1",
-              "settings": {
-                "script": "_value * -1"
-              },
-              "type": "derivative"
-            }
-          ],
-          "query": "_index:metrics-system.network-default",
-          "refId": "B",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Network Byte Rate (In/Out)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "Bps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 4,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.7.1",
-      "targets": [
-        {
-          "alias": "Lab1 Disk Read",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.diskio.read.bytes",
-              "id": "1",
-              "pipelineAgg": "1",
-              "type": "derivative"
-            }
-          ],
-          "query": "_index:metrics-system.diskio-default",
-          "refId": "A",
-          "timeField": "@timestamp"
-        },
-        {
-          "alias": "Lab1 Disk Write",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.diskio.write.bytes",
-              "id": "1",
-              "pipelineAgg": "1",
-              "settings": {
-                "script": "_value * -1"
-              },
-              "type": "derivative"
-            }
-          ],
-          "query": "_index:metrics-system.diskio-default",
-          "refId": "B",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Disk I/O Rate (Read/Write)",
-      "type": "timeseries"
+        {}
+      ]
     },
     {
       "datasource": {
@@ -770,15 +1219,16 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 16
+        "x": 12,
+        "y": 24
       },
       "id": 5,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -787,13 +1237,23 @@
       "pluginVersion": "8.7.1",
       "targets": [
         {
-          "alias": "Lab1 Page Faults",
           "bucketAggs": [
+            {
+              "field": "host.name",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
             {
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "auto"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -811,16 +1271,27 @@
           ],
           "query": "_index:metrics-system.memory-default",
           "refId": "A",
-          "timeField": "@timestamp"
+          "timeField": "@timestamp",
+          "alias": "{{host.name}} Page Faults"
         },
         {
-          "alias": "Lab1 Major Page Faults",
           "bucketAggs": [
+            {
+              "field": "host.name",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
             {
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "auto"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -838,505 +1309,42 @@
           ],
           "query": "_index:metrics-system.memory-default",
           "refId": "B",
-          "timeField": "@timestamp"
+          "timeField": "@timestamp",
+          "alias": "{{host.name}} Major Faults"
         }
       ],
       "title": "Page Fault Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
+      "type": "timeseries",
+      "legend": {
+        "show": true,
+        "values": false,
+        "min": false,
+        "max": false,
+        "mean": false,
+        "current": false,
+        "total": false,
+        "avg": false,
+        "alignAsTable": false,
+        "rightSide": false
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": ["mean"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.7.1",
-      "targets": [
+      "yaxes": [
         {
-          "alias": "Lab1 Load 1m",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.load.1",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:metrics-system.load-default",
-          "refId": "A",
-          "timeField": "@timestamp"
+          "label": "Faults/sec",
+          "show": true,
+          "format": "short"
         },
-        {
-          "alias": "Lab1 Load 5m",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.load.5",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:metrics-system.load-default",
-          "refId": "B",
-          "timeField": "@timestamp"
-        },
-        {
-          "alias": "Lab1 Load 15m",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.load.15",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:metrics-system.load-default",
-          "refId": "C",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "System Load Average",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.7.1",
-      "targets": [
-        {
-          "alias": "GC Pause Time",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "gc.paused.millis",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:logs-spark_gc-default",
-          "refId": "A",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Spark GC Pause Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "decmbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 32
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "calcs": ["mean"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.7.1",
-      "targets": [
-        {
-          "alias": "Heap Before GC",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "gc.paused.before",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:logs-spark_gc-default AND gc.stats:paused",
-          "refId": "A",
-          "timeField": "@timestamp"
-        },
-        {
-          "alias": "Heap After GC",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "gc.paused.after",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:logs-spark_gc-default AND gc.stats:paused",
-          "refId": "B",
-          "timeField": "@timestamp"
-        },
-        {
-          "alias": "Heap Size",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "gc.paused.heapsize",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:logs-spark_gc-default AND gc.stats:paused",
-          "refId": "C",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Spark Heap Usage (Before/After GC)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "decmbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 32
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.7.1",
-      "targets": [
-        {
-          "alias": "Memory Reclaimed",
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "auto"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "gc.paused.reclaimed",
-              "id": "1",
-              "type": "avg"
-            }
-          ],
-          "query": "_index:logs-spark_gc-default AND gc.stats:paused",
-          "refId": "A",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Spark Memory Reclaimed by GC",
-      "type": "timeseries"
+        {}
+      ]
     }
   ],
   "refresh": "30s",
   "schemaVersion": 27,
   "style": "dark",
-  "tags": ["spark", "system", "metrics"],
+  "tags": [
+    "spark",
+    "system",
+    "metrics"
+  ],
   "templating": {
     "list": []
   },
@@ -1350,4 +1358,3 @@
   "uid": "spark-system-metrics",
   "version": 1
 }
-

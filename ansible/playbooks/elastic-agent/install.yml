@@ -325,6 +325,41 @@
         group: "{{ elastic_agent_group }}"
         mode: '0640'
       become: true
+      
+    # Fetch Elasticsearch CA certificate from observability host
+    - name: Fetch Elasticsearch CA certificate from observability host
+      delegate_to: "{{ groups['observability'][0] }}"
+      fetch:
+        src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+        dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
+        flat: yes
+      run_once: false
+      
+    - name: Create Elastic certificate directory
+      file:
+        path: "/etc/ssl/certs/elastic"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      become: true
+      
+    - name: Copy CA certificate to host
+      copy:
+        src: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
+        dest: "/etc/ssl/certs/elastic/ca.crt"
+        owner: root
+        group: root
+        mode: '0644'
+        backup: yes
+      become: true
+      
+    - name: Clean up temporary CA cert
+      file:
+        path: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
+        state: absent
+      delegate_to: localhost
+      become: false
 
     - name: Reload systemd for Elastic Agent (Linux)
       ansible.builtin.systemd:

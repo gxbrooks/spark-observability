@@ -1,39 +1,32 @@
 ---
 
 inputs:
+  # System metrics - separate stream per metricset to prevent cross-pollution
   - type: system/metrics
+    id: system-metrics-input
+    data_stream.namespace: default
     use_output: default
     streams:
-      - metricset: cpu
-        data_stream:
-          dataset: system.cpu
-          type: metrics
-      - metricset: memory
-        data_stream:
-          dataset: system.memory
-          type: metrics
-      - metricset: network
-        data_stream:
-          dataset: system.network
-          type: metrics
-      - metricset: diskio
-        data_stream:
-          dataset: system.diskio
-          type: metrics
-      - metricset: filesystem
-        data_stream:
-          dataset: system.filesystem
-          type: metrics
-      - metricset: load
-        data_stream:
-          dataset: system.load
-          type: metrics
-      # Process metrics explicitly disabled to avoid IO permission errors
-      - metricset: process
-        data_stream:
-          dataset: system.process
-          type: metrics
-        enabled: false
+      - metricsets:
+        - cpu
+        data_stream.dataset: system.cpu
+      - metricsets:
+        - memory
+        data_stream.dataset: system.memory
+      - metricsets:
+        - network
+        data_stream.dataset: system.network
+      - metricsets:
+        - diskio
+        data_stream.dataset: system.diskio
+      - metricsets:
+        - filesystem
+        data_stream.dataset: system.filesystem
+      - metricsets:
+        - load
+        data_stream.dataset: system.load
+      # Process metricset disabled - not needed for Kubernetes hosts
+      # Causes permission errors and index pollution
     processors:
       - add_host_metadata: ~
       - add_cloud_metadata: ~
