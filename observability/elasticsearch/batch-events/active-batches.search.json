@@ -4,9 +4,15 @@
       "searchSourceJSON": "{\"query\":{\"query\":\"not class:\\\"ExecutorAdded\\\" and matched:false \",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-events\"}"
     },
     "title": "Unmatched Batch Start Events",
-    "sort": [["@timestamp", "asc"]],
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
     "columns": [
       "@timestamp",
+      "class",
       "event_kind",
       "matched",
       "event_uid",
@@ -16,6 +22,8 @@
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,
-    "timeRestore": false
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
   }
 }

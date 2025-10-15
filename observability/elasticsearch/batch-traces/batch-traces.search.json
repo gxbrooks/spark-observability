@@ -4,12 +4,28 @@
       "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-traces\"}"
     },
     "title": "Batch Traces",
-    "sort": [["@timestamp", "asc"]],
-    "columns": ["@timestamp", "class", "serviceName", "duration", "traceID", "parentID"],
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "class",
+      "serviceName",
+      "duration",
+      "traceID",
+      "parentID",
+      "start_time",
+      "end_time"
+    ],
     "description": "A list of all the completed batch jobs along with their durations.",
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,
-    "timeRestore": false
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
   }
 }

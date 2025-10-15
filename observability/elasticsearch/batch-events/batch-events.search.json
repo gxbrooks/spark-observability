@@ -4,7 +4,12 @@
       "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"batch-events\"}"
     },
     "title": "All Batch Events",
-    "sort": [["@timestamp", "asc"]],
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
     "columns": [
       "@timestamp",
       "event_kind",
@@ -17,6 +22,8 @@
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,
-    "timeRestore": false
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
   }
 }
