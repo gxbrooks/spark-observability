@@ -133,73 +133,17 @@ inputs:
       - id: spark-gc-stream
         paths:
           # GC log files from all Spark components - using natural Spark logging paths
-          - '/mnt/spark/logs/*/gc-master.log*'    # Master daemon GC logs (pod-specific)
-          - '/mnt/spark/logs/*/gc-worker.log*'    # Worker daemon GC logs (pod-specific)
-          - '/mnt/spark/logs/*/gc-history.log*'   # History server GC logs (pod-specific)
-          - '/mnt/spark/logs/*/gc-executor.log*'  # Executor GC logs (pod-specific)
-          - '/mnt/spark/logs/*/gc-driver.log*'    # Driver GC logs (pod-specific)
-        tags: ["spark-gc"]
+          - '/mnt/spark/logs/*/gc-master.log'    # Master daemon GC logs (current file only)
+          - '/mnt/spark/logs/*/gc-worker.log'    # Worker daemon GC logs (current file only)
+          - '/mnt/spark/logs/*/gc-history.log'   # History server GC logs (current file only)
+          - '/mnt/spark/logs/*/gc-executor.log'  # Executor GC logs (current file only)
+        exclude_files: ['\.0$', '\.1$', '\.2$', '\.3$', '\.4$', '\.5$', '\.6$', '\.7$', '\.8$', '\.9$']
+        tags: ["spark-gc", "test-minimal"]
         data_stream:
           dataset: spark_gc
           namespace: default
-        processors:
-          # Parse Java 11 G1GC log format - Handle GC pause events with heap info
-          # Format: [timestamp][uptime][level][gc] GC(cycle) Pause Type (Kind) BeforeM->AfterM(HeapM) TimeMs
-          # Example: [2025-10-03T14:57:00.139-0500][22.525s][info][gc] GC(15) Pause Young (Normal) (G1 Evacuation Pause) 1056M->65M(1508M) 6.290ms
-          - dissect:
-              tokenizer: "[%{gc_timestamp}][%{uptime|float}s][%{level}][%{gc_tags}] GC(%{cycle|integer}) Pause %{type} (%{kind}) %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
-              field: message
-              target_prefix: gc.paused
-              trim_values: 'all'
-              ignore_failure: true
-          # Handle GC events without kind (Remark, Cleanup, etc.)
-          # Format: [timestamp][uptime][level][gc] GC(cycle) Pause Type BeforeM->AfterM(HeapM) TimeMs
-          # Example: [2025-10-03T14:30:21.698-0500][61.634s][info][gc] GC(6) Pause Remark 31M->31M(1024M) 1.260ms
-          - dissect:
-              tokenizer: "[%{gc_timestamp}][%{uptime|float}s][%{level}][%{gc_tags}] GC(%{cycle|integer}) Pause %{type} %{before|integer}M->%{after|integer}M(%{heapsize|integer}M) %{millis|float}ms"
-              field: message
-              target_prefix: gc.paused
-              trim_values: 'all'
-              ignore_failure: true
-          # Handle GC start events (no heap info)
-          # Format: [timestamp][uptime][level][gc,start] GC(cycle) Pause Type (Kind)
-          - dissect:
-              tokenizer: "[%{gc_timestamp}][%{uptime|float}s][%{level}][%{gc_tags}] GC(%{cycle|integer}) Pause %{type} (%{kind})"
-              field: message
-              target_prefix: gc.start
-              trim_values: 'all'
-              ignore_failure: true
-          # Extract component and pod info from file path for better identification
-          - dissect:
-              tokenizer: "/mnt/spark/logs/%{pod_directory}/gc-%{component_type}.log"
-              field: log.file.path
-              target_prefix: spark
-              ignore_failure: true
-          # Parse pod directory to extract pod name (simplified approach)
-          - dissect:
-              tokenizer: "%{pod_name}"
-              field: spark.pod_directory
-              target_prefix: spark.pod
-              ignore_failure: true
-          # Preserve original @timestamp as ingestion time for latency measurement
-          - add_fields:
-              target: gc
-              fields:
-                ingest_time: "@timestamp"
-          # Use GC timestamp as the primary event timestamp
-          - timestamp:
-              field: gc.paused.gc_timestamp
-              target_field: "@timestamp"
-              layouts:
-                - '2006-01-02T15:04:05.999-0700'
-              ignore_failure: true
-          # Add required fields for compatibility with existing index
-          - add_fields:
-              target: gc
-              fields:
-                stats: "paused"
-                level: "info"
-                tags: "gc"
+        # NO PROCESSORS - Testing if raw log lines can index
+        processors: []
 
 # Providers section removed - not needed for standalone Elastic Agent
 # providers:
@@ -242,6 +186,8 @@ outputs:
 
 agent.logging.level: debug
 agent.logging.to_files: true
+agent.logging.event_data.to_files: true
+agent.logging.event_data.to_stderr: false
 
 agent:
   monitoring:
