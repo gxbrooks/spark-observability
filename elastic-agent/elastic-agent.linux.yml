@@ -93,10 +93,15 @@ inputs:
           namespace: spark
         paths:
           - "/mnt/spark/events/app-*"
-        # Only process files that are readable to avoid permission errors
-        exclude_files:
-          - "*.tmp"
-          - "*.lock"
+        exclude_files: ['\.tmp$', '\.lock$']
+        close_inactive: 5m
+        clean_inactive: 24h
+        ignore_older: 72h
+        scan_frequency: 10s
+        tags: ["spark-events", "json"]
+        parsers:
+          - ndjson:
+              target: "spark"
   - id: spark-app-logs
     type: filestream    
     use_output: "default"
