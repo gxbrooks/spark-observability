@@ -59,5 +59,7 @@ esapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metric
 # Spark gc logs
 esapi PUT /_ilm/policy/spark-gc elasticsearch/spark-gc/spark-gc.ilm.json > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc.ilm.out.json 
 esapi PUT /_index_template/spark-gc-ds elasticsearch/spark-gc/spark-gc.template.json 
+# Spark GC ingest pipeline for parsing GC log fields
+esapi PUT /_ingest/pipeline/logs-spark_gc-default elasticsearch/spark-gc/spark-gc-ingest-pipeline.json > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc-ingest-pipeline.out.json
 
 

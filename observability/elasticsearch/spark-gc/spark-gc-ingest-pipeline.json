@@ -1,0 +1,62 @@
+{
+  "description": "Parse Spark GC logs using grok patterns",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "\\[%{TIMESTAMP_ISO8601:gc.paused.gc_timestamp}\\]\\[%{NUMBER:gc.paused.uptime:float}s\\]\\[%{WORD:gc.paused.level}\\]\\[%{DATA:gc.paused.gc_tags}\\] GC\\(%{NUMBER:gc.paused.cycle:int}\\) Pause %{DATA:gc.paused.type} \\(%{DATA}\\) \\(%{DATA:gc.paused.kind}\\) %{NUMBER:gc.paused.before:int}M->%{NUMBER:gc.paused.after:int}M\\(%{NUMBER:gc.paused.heapsize:int}M\\) %{NUMBER:gc.paused.millis:float}ms"
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "\\[%{TIMESTAMP_ISO8601:gc.paused.gc_timestamp}\\]\\[%{NUMBER:gc.paused.uptime:float}s\\]\\[%{WORD:gc.paused.level}\\]\\[%{DATA:gc.paused.gc_tags}\\] GC\\(%{NUMBER:gc.paused.cycle:int}\\) Pause %{DATA:gc.paused.type} %{NUMBER:gc.paused.before:int}M->%{NUMBER:gc.paused.after:int}M\\(%{NUMBER:gc.paused.heapsize:int}M\\) %{NUMBER:gc.paused.millis:float}ms"
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "\\[%{TIMESTAMP_ISO8601:gc.start.gc_timestamp}\\]\\[%{NUMBER:gc.start.uptime:float}s\\]\\[%{WORD:gc.start.level}\\]\\[%{DATA:gc.start.gc_tags}\\] GC\\(%{NUMBER:gc.start.cycle:int}\\) Pause %{DATA:gc.start.type} \\(%{DATA}\\) \\(%{DATA:gc.start.kind}\\)"
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "\\[%{TIMESTAMP_ISO8601:gc.start.gc_timestamp}\\]\\[%{NUMBER:gc.start.uptime:float}s\\]\\[%{WORD:gc.start.level}\\]\\[%{DATA:gc.start.gc_tags}\\] GC\\(%{NUMBER:gc.start.cycle:int}\\) Pause %{DATA:gc.start.type} \\(%{DATA:gc.start.kind}\\)"
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "script": {
+        "lang": "painless",
+        "source": "if (ctx.gc?.paused?.before != null && ctx.gc?.paused?.after != null) { ctx.gc.paused.reclaimed = ctx.gc.paused.before - ctx.gc.paused.after; }",
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "gc.stats",
+        "value": "paused",
+        "if": "ctx.gc?.paused != null"
+      }
+    },
+    {
+      "set": {
+        "field": "gc.level",
+        "value": "info",
+        "if": "ctx.gc?.paused != null || ctx.gc?.start != null"
+      }
+    }
+  ]
+}

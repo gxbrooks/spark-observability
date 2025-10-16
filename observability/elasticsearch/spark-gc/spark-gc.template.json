@@ -7,7 +7,8 @@
       "index.number_of_shards": 1,
       "number_of_replicas": 1,
       "index.lifecycle.name": "spark-gc",
-      "index.lifecycle.rollover_alias": "spark-gc-alias"
+      "index.lifecycle.rollover_alias": "spark-gc-alias",
+      "index.default_pipeline": "logs-spark_gc-default"
     },
     "mappings": {
       "dynamic": true,
