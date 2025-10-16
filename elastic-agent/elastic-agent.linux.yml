@@ -138,12 +138,17 @@ inputs:
           - '/mnt/spark/logs/*/gc-history.log'   # History server GC logs (current file only)
           - '/mnt/spark/logs/*/gc-executor.log'  # Executor GC logs (current file only)
         exclude_files: ['\.0$', '\.1$', '\.2$', '\.3$', '\.4$', '\.5$', '\.6$', '\.7$', '\.8$', '\.9$']
-        tags: ["spark-gc", "test-minimal"]
+        tags: ["spark-gc", "test-step1"]
         data_stream:
           dataset: spark_gc
           namespace: default
-        # NO PROCESSORS - Testing if raw log lines can index
-        processors: []
+        processors:
+          # STEP 1: Test with just file path extraction
+          - dissect:
+              tokenizer: "/mnt/spark/logs/%{pod_name}/gc-%{component}.log"
+              field: log.file.path
+              target_prefix: spark
+              ignore_failure: true
 
 # Providers section removed - not needed for standalone Elastic Agent
 # providers:
