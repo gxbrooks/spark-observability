@@ -1,0 +1,57 @@
+# Context Specification File
+# Defines how variables from variables.yaml are transformed into context-specific configuration files
+#
+# Each context specifies:
+#   - name: Unique identifier for the context
+#   - type: Output file format (env, shell_env, toml, configmap, ansible_vars)
+#   - output: Path to the generated file (relative to project root)
+#   - description: Purpose of this context
+
+contexts:
+  - name: observability
+    type: env
+    output: observability/.env
+    description: Environment variables for Docker Compose observability stack (Elasticsearch, Kibana, Grafana)
+
+  - name: spark-image
+    type: toml
+    output: spark/spark-image.toml
+    description: Build-time configuration for Spark Docker images
+
+  - name: spark-runtime
+    type: configmap
+    output: ansible/roles/spark/files/k8s/spark-configmap.yaml
+    description: Kubernetes ConfigMap for Spark runtime environment variables
+
+  - name: ansible
+    type: ansible_vars
+    output: ansible/vars/spark_vars.yml
+    description: Ansible variables for Spark deployment playbooks and roles
+
+  - name: nfs
+    type: ansible_vars
+    output: ansible/vars/nfs_vars.yml
+    description: Ansible variables for NFS server configuration
+
+  - name: spark-client
+    type: shell_env
+    output: spark/spark_env.sh
+    description: Developer environment variables for running Spark applications locally
+
+  - name: ispark
+    type: shell_env
+    output: spark/ispark/ispark_env.sh
+    description: Environment variables for interactive Spark (iPython) sessions
+
+  - name: elastic-agent
+    type: shell_env
+    output: elastic-agent/elastic_agent_env.sh
+    description: Host-level environment variables for Elastic Agent systemd service
+
+# Supported output types and their generators:
+#   - env: Simple KEY=VALUE format (no export)
+#   - shell_env: Shell environment file with export statements
+#   - toml: TOML format with [env] section
+#   - configmap: Kubernetes ConfigMap YAML
+#   - ansible_vars: Ansible variables YAML with structured formatting
+

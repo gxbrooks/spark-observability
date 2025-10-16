@@ -4,65 +4,85 @@ This document outlines how variables flow through the system from the central de
 
 ## Overview
 
-The variable flow follows a pipeline structure:
+The variable flow follows a data-driven pipeline structure:
 
 ```
-variables.yaml → generate_env.py → context-specific files → Ansible/deployment tools → deployed components
+variables.yaml + contexts.yaml → generate_env.py → context-specific files → Ansible/deployment tools → deployed components
 ```
+
+**Key Design Principle**: The system uses a data-driven architecture where context specifications are externalized into `contexts.yaml`, eliminating hardcoded mappings and making the system easily extensible.
 
 ## Visual Representation
 
 ```mermaid
 flowchart TD
     subgraph "Source Definition"
-        variables["variables.yaml"]
+        variables["variables.yaml<br/>(Variable Values)"]
+        contexts["contexts.yaml<br/>(Context Specs)"]
     end
 
-    subgraph "Processing"
-        generate_env["generate_env.py"]
+    subgraph "Data-Driven Processing"
+        generate_env["generate_env.py<br/>(Reads both YAML files)"]
     end
 
     subgraph "Context-Specific Files"
         spark_image["spark-image.toml"]
         spark_vars["spark_vars.yml"]
         spark_configmap["spark-configmap.yaml"]
-        docker_env["docker/.env"]
+        observability_env["observability/.env"]
+        spark_client_env["spark_env.sh"]
+        elastic_agent_env["elastic_agent_env.sh"]
     end
 
-    subgraph "Ansible"
+    subgraph "Deployment Tools"
         playbooks["Ansible Playbooks"]
         templates["Template Files (.j2)"]
+        docker_compose["Docker Compose"]
     end
 
-    subgraph "Deployment"
+    subgraph "Deployed Components"
         k8s_manifest["Kubernetes Manifests"]
         docker_container["Docker Containers"]
+        shell_env["Shell Environment"]
     end
 
-    variables -->|"SPARK_VERSION: 3.5.1"| generate_env
+    variables -->|"Variable definitions"| generate_env
+    contexts -->|"Context specifications"| generate_env
     
-    generate_env -->|"SPARK_VERSION = '3.5.1'"| spark_image
-    generate_env -->|"spark_version: '3.5.1'"| spark_vars
-    generate_env -->|"SPARK_VERSION: '3.5.1'"| spark_configmap
-    generate_env -->|"SPARK_VERSION=3.5.1"| docker_env
+    generate_env -->|"type: toml"| spark_image
+    generate_env -->|"type: ansible_vars"| spark_vars
+    generate_env -->|"type: configmap"| spark_configmap
+    generate_env -->|"type: env"| observability_env
+    generate_env -->|"type: shell_env"| spark_client_env
+    generate_env -->|"type: shell_env"| elastic_agent_env
     
-    spark_vars -->|"spark_version, spark_image, spark_tag"| playbooks
-    
+    spark_vars --> playbooks
     playbooks --> templates
-    templates -->|"rendered with variables"| k8s_manifest
+    templates --> k8s_manifest
     
-    spark_image -->|"build args"| docker_container
+    spark_image --> docker_container
+    observability_env --> docker_compose
+    docker_compose --> docker_container
+    
+    spark_client_env --> shell_env
+    elastic_agent_env --> shell_env
     
     classDef source fill:#f9f,stroke:#333,stroke-width:2px;
     classDef processor fill:#bbf,stroke:#333,stroke-width:2px;
     classDef output fill:#bfb,stroke:#333,stroke-width:2px;
+    classDef deployment fill:#ffa,stroke:#333,stroke-width:2px;
     
-    class variables source;
-    class generate_env,playbooks,templates processor;
-    class spark_image,spark_vars,spark_configmap,docker_env,k8s_manifest,docker_container output;
+    class variables,contexts source;
+    class generate_env,playbooks,templates,docker_compose processor;
+    class spark_image,spark_vars,spark_configmap,observability_env,spark_client_env,elastic_agent_env output;
+    class k8s_manifest,docker_container,shell_env deployment;
 ```
 
-The diagram illustrates how variables are defined in the source file, processed by `generate_env.py`, distributed to context-specific files, and finally used in deployment.
+The diagram illustrates the **data-driven architecture**:
+1. **Two source files**: `variables.yaml` defines values, `contexts.yaml` defines transformation rules
+2. **Single processor**: `generate_env.py` reads both files and generates outputs based on specifications
+3. **Type-driven generation**: Each context's output type determines which writer function is used
+4. **Easy extensibility**: New contexts can be added by editing `contexts.yaml` without code changes
 
 ## Detailed Flow for Spark Version
 
@@ -78,33 +98,83 @@ SPARK_VERSION:
   contexts: [spark-image, ansible]
 ```
 
-### 2. Variable Processing
+### 2. Context Specification
+
+**File**: `/home/gxbrooks/repos/elastic-on-spark/contexts.yaml`
+
+This file defines all output contexts, eliminating hardcoded mappings:
+
+```yaml
+contexts:
+  - name: observability
+    type: env
+    output: observability/.env
+    description: Environment variables for Docker Compose observability stack
+
+  - name: spark-image
+    type: toml
+    output: spark/spark-image.toml
+    description: Build-time configuration for Spark Docker images
+
+  - name: spark-runtime
+    type: configmap
+    output: ansible/roles/spark/files/k8s/spark-configmap.yaml
+    description: Kubernetes ConfigMap for Spark runtime environment
+
+  # ... additional contexts
+```
+
+### 3. Variable Processing
 
 **Agent**: `/home/gxbrooks/repos/elastic-on-spark/linux/generate_env.py`
 
-This script reads the source definitions and generates context-specific configuration files:
+This script implements a **data-driven architecture**:
 
 ```python
-# Contexts and output files mapping
-CONTEXTS = {
-    'observability': 'observability/.env',
-    'spark-image': 'spark/spark-image.toml',
-    'spark-runtime': 'ansible/roles/spark/files/k8s/spark-configmap.yaml',
-    'ansible': 'ansible/vars/spark_vars.yml',
-    'spark-client': 'spark/spark_env.sh',
-    'elastic-agent': 'elastic-agent/elastic_agent_env.sh',
-    'ispark': 'spark/ispark/ispark_env.sh',
-    'nfs': 'ansible/vars/nfs_vars.yml',
+# Load context specifications from contexts.yaml (not hardcoded)
+def load_contexts():
+    with open('contexts.yaml') as f:
+        spec = yaml.safe_load(f)
+        return spec.get('contexts', [])
+
+# Type to writer function mapping
+WRITER_FUNCTIONS = {
+    'env': 'write_env',
+    'shell_env': 'write_shell_env',
+    'toml': 'write_toml',
+    'configmap': 'write_configmap',
+    'ansible_vars': 'write_ansible_vars',
 }
 
 # Function that extracts variables for specific contexts
-def get_vars(config, context):
-    return {k: v['value'] for k, v in config.items() if context in v['contexts']}
+def get_vars(variables, context_name):
+    return {k: v['value'] for k, v in variables.items() 
+            if context_name in v.get('contexts', [])}
+
+# Main loop iterates over contexts from spec file
+for context in contexts_to_generate:
+    context_name = context['name']
+    output_type = context['type']
+    output_file = context['output']
+    
+    # Get appropriate writer function based on type
+    writer_func = globals()[WRITER_FUNCTIONS[output_type]]
+    
+    # Extract variables and generate file
+    vars_dict = get_vars(variables, context_name)
+    writer_func(vars_dict, output_file)
 ```
 
-### 3. Context-Specific Files
+**Key Advantages**:
+- ✅ No hardcoded context mappings
+- ✅ Easy to add new contexts (edit YAML, no code changes)
+- ✅ Self-documenting (context descriptions in spec file)
+- ✅ Type-safe (validates output types against available writers)
+- ✅ Extensible (new output types = new writer function)
 
-For Spark version, the relevant context-specific files are:
+### 4. Context-Specific Files
+
+For Spark version, the relevant context-specific files are generated based on the context specifications:
 
 #### New Contexts (Added in vObservabilityFramework+2)
 
@@ -161,7 +231,7 @@ Key transformations:
 SPARK_VERSION = "3.5.1"
 ```
 
-### 4. Ansible Playbook Processing
+### 5. Ansible Playbook Processing
 
 **Agent**: Ansible playbooks in `/home/gxbrooks/repos/elastic-on-spark/ansible/playbooks/spark/`
 
@@ -172,7 +242,7 @@ vars_files:
   - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
 ```
 
-### 5. Template Rendering
+### 6. Template Rendering
 
 **Agent**: Ansible template module
 
@@ -194,7 +264,7 @@ Key transformations:
 - Ansible variables are rendered into their values
 - `{{ spark_image }}:{{ spark_tag }}` → `localhost:5000/spark:3.5.1`
 
-### 6. Deployment
+### 7. Deployment
 
 **Agent**: Kubernetes (via kubectl, applied by Ansible)
 
@@ -236,30 +306,104 @@ envFrom:
 
 ## Complete Flow Summary
 
-1. **Source of Truth**: `variables.yaml` defines `SPARK_VERSION: 3.5.1`
-2. **Processing**: `generate_env.py` processes this definition
-3. **Context Generation**: 
-   - For Ansible: Creates `spark_vars.yml` with `spark_version: "3.5.1"`
-   - For Spark image: Creates `spark-image.toml` with `SPARK_VERSION = "3.5.1"`
-4. **Ansible Processing**: Playbooks load variables from `spark_vars.yml`
-5. **Template Rendering**: Templates use `{{ spark_image }}:{{ spark_tag }}` which gets rendered to `localhost:5000/spark:3.5.1`
-6. **Deployment**: Rendered manifest files are applied to Kubernetes
+1. **Source of Truth**: `variables.yaml` defines `SPARK_VERSION: 3.5.1` with contexts `[spark-image, ansible]`
+2. **Context Specification**: `contexts.yaml` defines output file format and location for each context
+3. **Data-Driven Processing**: `generate_env.py` reads both files:
+   - Loads context specifications from `contexts.yaml`
+   - Filters variables by context name
+   - Routes to appropriate writer function based on output type
+4. **Context Generation**: 
+   - For Ansible: Creates `spark_vars.yml` with `spark_version: "3.5.1"` (type: ansible_vars)
+   - For Spark image: Creates `spark-image.toml` with `SPARK_VERSION = "3.5.1"` (type: toml)
+   - For Spark runtime: Creates `spark-configmap.yaml` with `SPARK_VERSION: "3.5.1"` (type: configmap)
+5. **Ansible Processing**: Playbooks load variables from `spark_vars.yml`
+6. **Template Rendering**: Templates use `{{ spark_image }}:{{ spark_tag }}` → `docker.io/apache/spark:3.5.1`
+7. **Deployment**: Rendered manifest files are applied to Kubernetes
 
 ## Best Practices
 
-1. Always modify variables in the source file (`variables.yaml`)
-2. Run `generate_env.py` after any changes to update all context-specific files
-3. Ensure playbooks include the appropriate vars file
+### Variable Management
+
+1. **Always modify variables in `variables.yaml`** - This is the single source of truth
+2. **Add new contexts in `contexts.yaml`** - No code changes needed in `generate_env.py`
+3. **Run `generate_env.py` after changes**:
+   ```bash
+   ./linux/generate_env.py -v           # Regenerate all contexts with verbose output
+   ./linux/generate_env.py spark-client # Regenerate specific context
+   ./linux/generate_env.py -f           # Force regeneration even if up to date
+   ```
+4. **Never manually edit generated files** - They will be overwritten
+
+### Adding a New Context
+
+To add a new output context:
+
+1. **Define the context in `contexts.yaml`**:
+   ```yaml
+   - name: my-new-context
+     type: shell_env                    # Choose: env, shell_env, toml, configmap, ansible_vars
+     output: path/to/my-context.sh
+     description: Description of what this context provides
+   ```
+
+2. **Tag variables for this context in `variables.yaml`**:
+   ```yaml
+   MY_VARIABLE:
+     value: some-value
+     contexts: [my-new-context, other-context]
+   ```
+
+3. **Run the generator**:
+   ```bash
+   ./linux/generate_env.py my-new-context -v
+   ```
+
+That's it! No code changes required.
+
+### Variable Naming Conventions
+
 4. Use the correct variable naming conventions in templates:
-   - Ansible variables use snake_case: `{{ spark_version }}`
-   - Shell/environment variables use UPPER_CASE: `${SPARK_VERSION}`
+   - **Ansible variables**: snake_case → `{{ spark_version }}`
+   - **Shell/environment variables**: UPPER_CASE → `${SPARK_VERSION}`
+   - **ConfigMap references**: UPPER_CASE → `${SPARK_VERSION}`
 
 ## Maintaining Consistency
 
-The system ensures consistency by:
-1. Using a single source of truth (`variables.yaml`)
-2. Automatic generation of context-specific files
-3. Proper inclusion of variable files in playbooks
-4. Consistent variable naming and referencing in templates
+The data-driven architecture ensures consistency by:
+
+1. **Single source of truth**: `variables.yaml` for all variable values
+2. **Declarative specifications**: `contexts.yaml` for all output configurations
+3. **Automatic generation**: Context-specific files regenerated from specs
+4. **Type safety**: Output types validated against available writer functions
+5. **Timestamp tracking**: Files only regenerated when source changes
+6. **Proper inclusion**: Variable files referenced in playbooks
+7. **Consistent conventions**: Naming patterns enforced per output type
+
+### Verification Commands
+
+```bash
+# Check if any files need regeneration
+./linux/generate_env.py
+
+# Force regenerate all and verify
+./linux/generate_env.py -f -v
+
+# Test specific context
+./linux/generate_env.py spark-client -v
+
+# List all defined contexts
+grep "^  - name:" contexts.yaml | awk '{print $3}'
+```
+
+### Troubleshooting
+
+**Problem**: Generated file has wrong values  
+**Solution**: Check `variables.yaml` for correct value and applicable contexts
+
+**Problem**: Context not generating  
+**Solution**: Verify context name exists in `contexts.yaml` and output type is valid
+
+**Problem**: Variable not appearing in generated file  
+**Solution**: Ensure variable's `contexts` list in `variables.yaml` includes the context name
 
 To verify that variables are properly flowing through the system, refer to the [Variable Consistency Checklist](VARIABLE_CONSISTENCY_CHECKLIST.md).
