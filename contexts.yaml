@@ -48,6 +48,11 @@ contexts:
     output: elastic-agent/elastic_agent_env.sh
     description: Host-level environment variables for Elastic Agent systemd service
 
+  - name: elastic-agent-ansible
+    type: ansible_vars
+    output: ansible/vars/elastic_agent_vars.yml
+    description: Ansible variables for Elastic Agent deployment playbooks
+
 # Supported output types and their generators:
 #   - env: Simple KEY=VALUE format (no export)
 #   - shell_env: Shell environment file with export statements

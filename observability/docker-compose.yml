@@ -195,7 +195,7 @@ services:
       retries: 120    
 
   grafana:
-    image: grafana/grafana-enterprise
+    image: grafana/grafana-enterprise:${GRAFANA_VERSION}
     labels:
       role: "Grafana"
     container_name: grafana
@@ -277,7 +277,7 @@ services:
         condition: service_completed_successfully
 
   logstash01:
-    image: docker.elastic.co/logstash/logstash:8.14.3 #${STACK_VERSION} 
+    image: docker.elastic.co/logstash/logstash:${LOGSTASH_VERSION} 
     container_name: logstash01
     labels:
       co.elastic.logs/module: logstash

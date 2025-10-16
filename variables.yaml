@@ -29,7 +29,15 @@ CLUSTER_NAME:
 
 # Elasticsearch image build variables
 STACK_VERSION:
-  value: 8.7.1
+  value: 8.15.0
+  contexts: [observability]
+
+LOGSTASH_VERSION:
+  value: 8.15.0
+  contexts: [observability]
+
+GRAFANA_VERSION:
+  value: 11.3.0
   contexts: [observability]
 
 # Observability runtime variables
@@ -134,10 +142,10 @@ GF_SECURITY_ADMIN_PASSWORD:
 # env.con is in elastic-agent/env.conf
 # there is a playbook to inject env.conf into the Elastic Agent service environment.
 # for Windows there is a task to populate environment variables from the Linux version
-# All this needs to be integrates with linux/generate_env.py
-ELASTIC_AGENT_STACK_VERSION:
+# All this needs to be integrated with linux/generate_env.py
+ELASTIC_AGENT_VERSION:
   value: 8.15.0
-  contexts: []
+  contexts: [elastic-agent-ansible]
  
 # TODO: may not be referenced yet
 ELASTIC_AGENT_HOME:
