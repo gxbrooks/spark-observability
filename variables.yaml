@@ -9,11 +9,15 @@ TZ:
   contexts: [observability, spark-image, spark-runtime]
 
 PYTHON_VERSION:
-  value: 3.8
-  contexts: [spark-runtime, client, managed-node, spark-client]
+  value: 3.11
+  contexts: [spark-runtime, client, managed-node, spark-client, spark-image, ansible, devops]
+
+JAVA_VERSION:
+  value: 17
+  contexts: [devops, managed-node, spark-client]
 
 PYSPARK_PYTHON:
-  value: python3.8
+  value: python3.11
   contexts: [spark-runtime, spark-client]
 
 # PYSPARK_DRIVER_PYTHON is redundant - use PYSPARK_PYTHON instead
@@ -154,8 +158,8 @@ ELASTIC_AGENT_HOME:
 
 # Spark runtime variables (moved from deprecated spark-image context)
 SPARK_VERSION:
-  value: 3.5.1
-  contexts: [spark-runtime, ansible]
+  value: 4.0.1
+  contexts: [spark-runtime, ansible, spark-image]
 
 # System location of the Spark installation
 SPARK_HOME:

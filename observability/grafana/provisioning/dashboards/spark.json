@@ -186,14 +186,14 @@
           ],
           "datasource": {"type": "elasticsearch", "uid": "spark-elasticsearch"},
           "metrics": [
-            {"field": "count", "id": "1", "settings": {}, "type": "sum"}
+            {"field": "count", "id": "1", "settings": {}, "type": "avg"}
           ],
-          "query": "",
+          "query": "_index:batch-metrics-ds AND NOT class:\"Task\"",
           "refId": "A",
           "timeField": "@timestamp"
         }
       ],
-      "title": "Active Spark Jobs",
+      "title": "Active Spark Jobs (Avg, excl Tasks)",
       "type": "timeseries"
     },
     {

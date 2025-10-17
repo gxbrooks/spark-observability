@@ -3,11 +3,11 @@
 # Do not edit manually!
 
 # Spark version
-spark_version: "3.5.1"
+spark_version: "4.0.1"
 
-# Registry and image configuration (using standard Apache Spark image)
-registry_host: "docker.io"
-spark_image: "{{ registry_host }}/apache/spark"
+# Registry and image configuration (using local registry on Lab2)
+registry_host: "lab2.lan:5000"
+spark_image: "{{ registry_host }}/spark"
 spark_tag: "{{ spark_version }}"
 
 # Paths and directories

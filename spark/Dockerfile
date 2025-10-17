@@ -1,7 +1,8 @@
 # Custom Spark image with Python 3.11
-# Extends official Apache Spark 3.5.1 and compiles Python 3.11 from source
+# Uses SPARK_VERSION build arg to select base image
 
-FROM docker.io/apache/spark:3.5.1
+ARG SPARK_VERSION=4.0.1
+FROM docker.io/apache/spark:${SPARK_VERSION}
 
 USER root
 
@@ -45,6 +46,7 @@ RUN /usr/local/bin/python3.11 -m pip install --no-cache-dir \
 # Verify Python version
 RUN python3 --version && echo "PySpark will use: $PYSPARK_PYTHON"
 
-USER ${spark_uid}
+# Image runs as root by default, matching Apache Spark base image
+# Kubernetes securityContext will set the appropriate user if needed
 
 WORKDIR /opt/spark

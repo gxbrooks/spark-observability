@@ -13,9 +13,7 @@ import pyspark.sql.types as T
 import pandas as pd
 from pyspark.sql.window import Window
 
-# Set Python environment variables for version compatibility
-os.environ['PYSPARK_PYTHON'] = 'python3.8'
-os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+# Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
 # Create Spark session - configuration comes from spark-defaults.conf
 spark = SparkSession.builder \

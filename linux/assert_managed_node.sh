@@ -1,11 +1,19 @@
 #!/bin/bash
 
+# Assert Managed Node Environment
+#
+# Ensures a node has all components needed to be managed by Ansible.
+# This includes SSH server, service account, Python, and user configuration.
+#
+# This script is idempotent and can be run multiple times safely.
+
 # Parse arguments
 DEBUG=false
 CHECK=false
 USERNAME="ansible"
 PASSWORD=""
-PYTHON_VERSION="3.8"
+PYTHON_VERSION=""  # Will be loaded from managed_node_env.sh if not specified
+JAVA_VERSION=""    # Will be loaded from managed_node_env.sh if not specified
 
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
@@ -32,14 +40,38 @@ while [[ $# -gt 0 ]]; do
             PYTHON_VERSION=$2
             shift
             ;;
+        -jv)
+            JAVA_VERSION=$2
+            shift
+            ;;
         *)
             echo "Error   : Unrecognized argument $1 in $script_name." 
-            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Password|-p <password>] [-pyv <python_version>]"
+            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Password|-p <password>] [-pyv <python_version>] [-jv <java_version>]"
             exit 1
             ;;
     esac
     shift
 done
+
+# Bootstrap: Generate environment configuration using system Python
+# Note: We use python3 explicitly to handle the bootstrapping issue
+if ! $CHECK; then
+  echo "Info    : Generating managed-node environment configuration..."
+  cd "$root_dir" && python3 linux/generate_env.py managed-node -f
+fi
+
+# Source the generated environment file (if it exists)
+if [[ -f "$root_dir/linux/managed_node_env.sh" ]]; then
+  source "$root_dir/linux/managed_node_env.sh"
+  $DEBUG && echo "Debug   : Loaded managed-node environment from managed_node_env.sh"
+fi
+
+# Override with command-line args or defaults if provided
+[[ -n "$PYTHON_VERSION" ]] || PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+[[ -n "$JAVA_VERSION" ]] || JAVA_VERSION="${JAVA_VERSION:-17}"
+
+$DEBUG && echo "Debug   : PYTHON_VERSION = $PYTHON_VERSION"
+$DEBUG && echo "Debug   : JAVA_VERSION = $JAVA_VERSION"
 
 append_flag() {
     local flag=$1

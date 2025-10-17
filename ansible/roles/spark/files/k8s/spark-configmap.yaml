@@ -8,14 +8,14 @@ metadata:
   namespace: spark
 data:
   TZ: "America/Chicago"
-  PYTHON_VERSION: "3.8"
-  PYSPARK_PYTHON: "python3.8"
+  PYTHON_VERSION: "3.11"
+  PYSPARK_PYTHON: "python3.11"
   ELASTIC_HOST: "es01"
   ELASTIC_PORT: "9200"
   ELASTIC_USER: "elastic"
   ELASTIC_PASSWORD: "myElastic2025"
   CA_CERT_LINUX_PATH: "/etc/ssl/certs/elastic/ca.crt"
-  SPARK_VERSION: "3.5.1"
+  SPARK_VERSION: "4.0.1"
   SPARK_HOME: "/opt/spark"
   GOOGLE_APPLICATION_CREDENTIALS: "/opt/spark/apps/bq-api-key.json"
   SPARK_MASTER: "spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077"

@@ -15,9 +15,7 @@ from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 
-# Set Python environment variables for version compatibility
-os.environ['PYSPARK_PYTHON'] = 'python3.8'
-os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+# Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
 # Create Spark session - configuration comes from spark-defaults.conf
 spark = SparkSession.builder \

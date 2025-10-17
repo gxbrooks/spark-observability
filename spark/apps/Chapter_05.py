@@ -5,9 +5,7 @@ import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from pyspark.sql.utils import AnalysisException
 
-# Set Python environment variables for version compatibility
-os.environ['PYSPARK_PYTHON'] = 'python3.8'
-os.environ['PYSPARK_DRIVER_PYTHON'] = 'python3.8'
+# Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
 # Set Spark local IP to avoid hostname resolution warning
 os.environ['SPARK_LOCAL_IP'] = '192.168.1.48'

@@ -53,6 +53,16 @@ contexts:
     output: ansible/vars/elastic_agent_vars.yml
     description: Ansible variables for Elastic Agent deployment playbooks
 
+  - name: devops
+    type: shell_env
+    output: linux/devops_env.sh
+    description: Environment variables for devops client initialization (Python, Java versions)
+
+  - name: managed-node
+    type: shell_env
+    output: linux/managed_node_env.sh
+    description: Environment variables for managed node initialization (Python, Java versions)
+
 # Supported output types and their generators:
 #   - env: Simple KEY=VALUE format (no export)
 #   - shell_env: Shell environment file with export statements

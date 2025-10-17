@@ -144,13 +144,13 @@ def write_ansible_vars(vars_dict, filename):
             # Write Spark version first if it exists
             if 'SPARK_VERSION' in vars_dict:
                 f.write(f'# Spark version\nspark_version: "{vars_dict["SPARK_VERSION"]}"\n\n')
-            
+              
             # Write registry configuration
-            f.write('# Registry and image configuration (using standard Apache Spark image)\n')
-            f.write('registry_host: "docker.io"\n')
-            f.write('spark_image: "{{ registry_host }}/apache/spark"\n')
+            f.write('# Registry and image configuration (using local registry on Lab2)\n')
+            f.write('registry_host: "lab2.lan:5000"\n')
+            f.write('spark_image: "{{ registry_host }}/spark"\n')
             f.write('spark_tag: "{{ spark_version }}"\n\n')
-            
+              
             # Write paths and directories
             f.write('# Paths and directories\n')
             if 'SPARK_EVENTS_DIR' in vars_dict:
