@@ -1,0 +1,90 @@
+---
+- name: Build Spark OpenTelemetry Listener JAR
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    project_root: "{{ playbook_dir }}/../../.."
+    otel_listener_dir: "{{ project_root }}/spark/otel/spark-otel-listener"
+    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
+  
+  tasks:
+    - name: Check if Maven is installed
+      command: mvn --version
+      register: maven_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if Maven is not installed
+      fail:
+        msg: "Maven is not installed. Please install Maven 3.6+ before building."
+      when: maven_check.rc != 0
+
+    - name: Display Maven version
+      debug:
+        msg: "{{ maven_check.stdout_lines }}"
+      when: maven_check.rc == 0
+
+    - name: Check if Java 17+ is available
+      shell: |
+        java -version 2>&1 | head -1 | awk -F '"' '{print $2}' | cut -d'.' -f1
+      register: java_version
+      changed_when: false
+
+    - name: Fail if Java 17+ is not available
+      fail:
+        msg: "Java 17 or higher is required. Current version: {{ java_version.stdout }}"
+      when: java_version.stdout | int < 17
+
+    - name: Clean previous build artifacts
+      command: mvn clean
+      args:
+        chdir: "{{ otel_listener_dir }}"
+      changed_when: true
+
+    - name: Build OpenTelemetry Listener JAR
+      command: mvn package -DskipTests
+      args:
+        chdir: "{{ otel_listener_dir }}"
+      register: mvn_build
+      changed_when: true
+
+    - name: Display build output
+      debug:
+        msg: "{{ mvn_build.stdout_lines[-20:] }}"
+
+    - name: Verify JAR was created
+      stat:
+        path: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+      register: jar_stat
+
+    - name: Fail if JAR was not created
+      fail:
+        msg: "Build failed: JAR file not found at {{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+      when: not jar_stat.stat.exists
+
+    - name: Display JAR size
+      debug:
+        msg: "Successfully built {{ otel_listener_jar }} ({{ (jar_stat.stat.size / 1024 / 1024) | round(2) }} MB)"
+      when: jar_stat.stat.exists
+
+    - name: Copy JAR to distribution directory
+      copy:
+        src: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+        dest: "{{ project_root }}/spark/otel/{{ otel_listener_jar }}"
+        mode: '0644'
+      when: jar_stat.stat.exists
+
+    - name: Build summary
+      debug:
+        msg:
+          - "============================================"
+          - "OpenTelemetry Listener Build Complete"
+          - "============================================"
+          - "JAR Location: {{ project_root }}/spark/otel/{{ otel_listener_jar }}"
+          - "JAR Size: {{ (jar_stat.stat.size / 1024 / 1024) | round(2) }} MB"
+          - "Next Steps:"
+          - "  1. Deploy to managed nodes: ansible-playbook -i inventory.yml playbooks/spark/deploy-otel-listener.yml"
+          - "  2. Restart Spark: ansible-playbook -i inventory.yml playbooks/spark/stop.yml && ansible-playbook -i inventory.yml playbooks/spark/start.yml"
+          - "============================================"
+

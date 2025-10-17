@@ -17,6 +17,10 @@ spark.history.fs.logDirectory          {{ spark_events_dir }}
 spark.executor.memory                  8g
 spark.driver.memory                    4g
 
+# OpenTelemetry Listener for real-time telemetry export
+spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
+spark.jars                             /home/ansible/spark/otel/spark-otel-listener-1.0.0.jar
+
 # Network configuration for better DNS resolution
 spark.driver.host                      ${SPARK_LOCAL_HOSTNAME}
 spark.driver.bindAddress               0.0.0.0
@@ -36,9 +40,3 @@ spark.executor.heartbeatInterval       {{ spark_executor_heartbeat_interval | de
 # Pod-specific hostPath mounts ensure no conflicts between pods
 spark.executor.extraJavaOptions        -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-executor.log:time,uptime,level,tags:filecount=10,filesize=10M -Dlog4j2.configurationFile=file:///opt/spark/conf/log4j2-executor.properties
 spark.driver.extraJavaOptions          -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-driver.log:time,uptime,level,tags:filecount=10,filesize=10M -Dlog4j2.configurationFile=file:///opt/spark/conf/log4j2-kubernetes.properties
-
-# OpenTelemetry Listener - Push-based telemetry via OTLP
-# JAR is deployed to managed nodes via Ansible (~/ansible/otel/)
-# Configuration is provided via environment variables in spark-configmap
-spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
-spark.jars                             file:///home/ansible/ansible/otel/spark-otel-listener-1.0.0.jar

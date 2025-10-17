@@ -41,6 +41,59 @@ Spark App → Custom SparkListener → OTLP Exporter
 
 ---
 
+## Automated Deployment
+
+The OpenTelemetry listener is fully automated via Ansible playbooks, following the project's "build from source" and "always automate" best practices.
+
+### Build
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/build-otel-listener.yml
+```
+
+- Builds `spark-otel-listener-1.0.0.jar` using Maven
+- Packages all dependencies (~5MB fat JAR)
+- Copies to `spark/otel/` for distribution
+
+### Deploy
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/deploy-otel-listener.yml
+```
+
+- Distributes JAR to all managed nodes via Ansible (not NFS)
+- Copies to `/home/ansible/spark/otel/spark-otel-listener-1.0.0.jar`
+- See [FILE_DISTRIBUTION_STRATEGY.md](FILE_DISTRIBUTION_STRATEGY.md) for rationale
+
+### Configure
+
+Configuration is embedded in `spark-configmap.yaml` and `spark-defaults.conf.j2`:
+
+```yaml
+# spark-configmap.yaml
+OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.observability.svc.cluster.local:4317"
+OTEL_SERVICE_NAME: "spark-application"
+OTEL_SERVICE_NAMESPACE: "spark"
+OTEL_DEPLOYMENT_ENVIRONMENT: "production"
+```
+
+```properties
+# spark-defaults.conf.j2
+spark.extraListeners com.elastic.spark.otel.OTelSparkListener
+spark.jars /home/ansible/spark/otel/spark-otel-listener-1.0.0.jar
+```
+
+### Start/Stop
+
+Standard Spark lifecycle:
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/spark/stop.yml
+ansible-playbook -i inventory.yml playbooks/spark/start.yml
+```
+
+---
+
 ## Key Components
 
 ### 1. Custom SparkListener

@@ -1,256 +1,272 @@
-# File Distribution Strategy
+# File Distribution Strategy: NFS vs Ansible
 
-## Overview
+## Executive Summary
 
-This document defines the strategy and best practices for distributing files to managed nodes in the Elastic-on-Spark infrastructure. There are two primary distribution mechanisms available:
+This document outlines the strategy for distributing files across the cluster environment. The primary decision is between two distribution mechanisms:
+1. **NFS (Network File System)**: Central shared storage
+2. **Ansible**: Push-based file distribution
 
-1. **Ansible** - Push-based distribution via playbooks
-2. **NFS** - Shared filesystem mounted on all nodes
+**Decision**: Use **Ansible for application binaries/JARs** and **NFS for runtime data**.
 
-## Distribution Matrix
+---
 
-| File Type | Distribution Method | Location | Rationale |
-|-----------|-------------------|----------|-----------|
-| **JARs** (Application, Libraries) | Ansible | `~/ansible/{component}/` | Version control, atomic updates, rollback capability |
-| **Configuration Files** | Ansible (templated) | Component-specific | Dynamic values, per-host customization, secrets |
-| **Docker Images** | Docker Registry | Local registry (Lab2:5000) | Standard practice, layer caching, efficient |
-| **Data Files** (Input/Output) | NFS | `/mnt/spark/data/` | Shared access, large files, concurrent access |
-| **Event Logs** | NFS | `/mnt/spark/events/` | Real-time writes from multiple pods, aggregation |
-| **Python Scripts** (Apps) | Ansible or NFS | `/mnt/spark/apps/` (NFS recommended) | Rapid iteration, no deployment needed |
-| **Static Assets** (Certs, Keys) | Ansible | `/etc/{service}/` | Security, access control, versioning |
+## Distribution Mechanisms
 
-## Detailed Guidelines
-
-### When to Use Ansible Distribution
+### NFS (Network File System)
 
 **Characteristics**:
-- Versioned artifacts (JARs, binaries)
-- Requires deployment/restart
-- Small to medium files (< 100MB)
-- Host-specific configuration
-- Security-sensitive files
+- Single source of truth (Lab2.lan:/srv/nfs)
+- Shared across all nodes via mount points
+- Real-time synchronization (no deployment needed)
+- Single point of failure
+- Network I/O overhead on every access
 
-**Advantages**:
-- Atomic updates across cluster
-- Rollback capability via playbooks
-- Version control integration
-- Host-specific customization
-- Access control via file permissions
-- Audit trail (Ansible logs)
+**Strengths**:
+- ✅ Automatic synchronization across all nodes
+- ✅ No explicit deployment step required
+- ✅ Easy to update (single location)
+- ✅ Perfect for runtime data (logs, events, datasets)
+- ✅ Supports concurrent writes from multiple nodes
 
-**Examples**:
-```yaml
-# Ansible playbook task
-- name: Deploy OpenTelemetry Listener JAR
-  copy:
-    src: "{{ project_root }}/spark/otel/artifacts/spark-otel-listener-1.0.0.jar"
-    dest: "/home/{{ ansible_user }}/ansible/otel/spark-otel-listener-1.0.0.jar"
-    mode: '0644'
-```
+**Weaknesses**:
+- ❌ Network latency on every file access
+- ❌ Single point of failure (NFS server down = cluster down)
+- ❌ Not suitable for frequently accessed files (JARs loaded into memory)
+- ❌ Potential stale mount issues
+- ❌ Security: All nodes can access all NFS data
 
-**File Locations**:
-- JARs: `~/ansible/otel/`, `~/ansible/spark/jars/`
-- Configs: `~/ansible/config/`, `/etc/{service}/`
-- Binaries: `~/ansible/bin/`
-- Certificates: `/etc/ssl/certs/`, `/etc/elastic-agent/certs/`
-
-### When to Use NFS Distribution
+### Ansible
 
 **Characteristics**:
-- Shared data access required
-- Large files (> 100MB)
-- High-frequency updates
-- Runtime-generated files
-- Concurrent read/write access
+- Push-based distribution from control node
+- Files copied to local filesystem on each managed node
+- Explicit deployment step required
+- Local file access (no network overhead)
+- Versioned, auditable deployments
 
-**Advantages**:
-- No deployment needed
-- Immediate availability across cluster
-- Single source of truth
-- Simplified data pipeline
-- Efficient for large files
+**Strengths**:
+- ✅ No network overhead during runtime
+- ✅ Resilient: Each node has local copy
+- ✅ Versioned: Explicit deployment with playbooks
+- ✅ Auditable: Git history + Ansible logs
+- ✅ Secure: Can control per-node file access
+- ✅ Testable: Can deploy to subset of nodes first
 
-**Examples**:
-```yaml
-# NFS mount configuration
-/srv/nfs/spark/events  *(rw,sync,no_subtree_check,no_root_squash)
+**Weaknesses**:
+- ❌ Requires explicit deployment step
+- ❌ Potential version skew across nodes
+- ❌ Not suitable for frequently changing data
+- ❌ Requires automation for updates
 
-# Usage in Spark
-spark.eventLog.dir=/mnt/spark/events
-```
+---
 
-**File Locations**:
-- Data: `/mnt/spark/data/`
-- Events: `/mnt/spark/events/`
-- Shared Apps: `/mnt/spark/apps/` (optional)
-- Shared Libraries: `/mnt/spark/jars/` (legacy, prefer Ansible)
+## Decision Matrix
 
-### Hybrid Approach: Build Artifacts
+| File Type | Distribution Method | Rationale |
+|-----------|-------------------|-----------|
+| **Application Binaries** (JARs, executables) | **Ansible** | Loaded once at startup, infrequent updates, version control important |
+| **Configuration Files** (spark-defaults.conf) | **Ansible** | Static, versioned, node-specific customization |
+| **Runtime Data** (Spark events, logs) | **NFS** | Continuous writes, shared access needed, no version control |
+| **Datasets** (input data for Spark jobs) | **NFS** | Large files, shared read access, no versioning |
+| **Spark Checkpoints** (streaming) | **NFS** | Continuous writes, shared state, fault tolerance |
+| **Python Packages** (pip install) | **Ansible** | Static, versioned, should be in container image |
+| **Docker Images** | **Registry (Lab2.lan:5000)** | Specialized distribution for containers |
+| **Certificates** (SSL/TLS) | **Ansible** | Security-sensitive, versioned, auditable |
 
-For build artifacts (e.g., custom JARs):
+---
 
-1. **Build**: Local or CI/CD
-2. **Stage**: Repository (`spark/otel/artifacts/`)
-3. **Distribute**: Ansible playbook
-4. **Deploy**: Configuration update + restart
+## Implementation: OpenTelemetry Listener
 
-```bash
-# Workflow
-make build              # Build JAR locally
-git add artifacts/      # Stage in repo
-git commit && push      # Version control
-ansible-playbook deploy # Distribute to nodes
-ansible-playbook start  # Apply changes
-```
+### Decision: Ansible Distribution
 
-## Decision Tree
+**File**: `spark-otel-listener-1.0.0.jar`
 
-```mermaid
-graph TD
-    A[Need to distribute file?] --> B{File Type?}
-    B -->|JAR/Binary| C{Version-controlled?}
-    C -->|Yes| D[Ansible]
-    C -->|No| E[Consider NFS]
-    B -->|Data File| F{Shared access needed?}
-    F -->|Yes| G[NFS]
-    F -->|No| H{Size?}
-    H -->|Large >100MB| G
-    H -->|Small| D
-    B -->|Config| I{Dynamic values?}
-    I -->|Yes| D
-    I -->|No| J{Per-host?}
-    J -->|Yes| D
-    J -->|No| K[NFS or Ansible]
-    B -->|Script| L{Iteration frequency?}
-    L -->|High| G
-    L -->|Low| D
-```
+**Why Ansible?**
+1. **Infrequent Updates**: JAR only changes when code is modified
+2. **Version Control**: Each deployment is tracked in Git/Ansible logs
+3. **Performance**: JAR loaded once into JVM memory at Spark startup
+4. **Resilience**: Each node has local copy (no NFS dependency)
+5. **Security**: Can be deployed only to authorized nodes
+6. **Testability**: Can deploy to dev nodes first
 
-## Implementation: OpenTelemetry Listener JAR
-
-**Decision**: Ansible distribution to `~/ansible/otel/`
-
-**Rationale**:
-1. **Versioned Artifact**: JAR is built from source, version-controlled
-2. **Deployment Required**: Spark must be restarted to load new listener
-3. **Small File**: ~5MB (easily distributed via Ansible)
-4. **No Shared Access**: Each node needs its own copy
-5. **Rollback**: Easy to revert to previous JAR version
-6. **Audit**: Ansible logs track when/where deployed
+**Deployment Path**:
+- **Source**: `elastic-on-spark/spark/otel/spark-otel-listener-1.0.0.jar` (Git-tracked)
+- **Destination**: `/home/ansible/spark/otel/spark-otel-listener-1.0.0.jar` (per managed node)
 
 **Workflow**:
 ```bash
-# 1. Build
-cd ansible
-ansible-playbook -i inventory.yml playbooks/spark/build.yml
+# 1. Build (local)
+ansible-playbook -i inventory.yml playbooks/spark/build-otel-listener.yml
 
-# 2. Deploy (includes JAR distribution)
-ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
+# 2. Deploy to managed nodes (Ansible push)
+ansible-playbook -i inventory.yml playbooks/spark/deploy-otel-listener.yml
 
-# 3. Restart (applies changes)
+# 3. Restart Spark to load new JAR
 ansible-playbook -i inventory.yml playbooks/spark/stop.yml
 ansible-playbook -i inventory.yml playbooks/spark/start.yml
 ```
 
-**File Paths**:
-- **Source**: `spark/otel/listener/src/main/scala/...`
-- **Build Artifact**: `spark/otel/listener/target/spark-otel-listener-1.0.0.jar`
-- **Staged Artifact**: `spark/otel/artifacts/spark-otel-listener-1.0.0.jar` (in repo)
-- **Deployed Location**: `~/ansible/otel/spark-otel-listener-1.0.0.jar` (on managed nodes)
-
-**Spark Configuration**:
-```properties
-# spark-defaults.conf.j2
-spark.jars=file:///home/ansible/ansible/otel/spark-otel-listener-1.0.0.jar
-```
-
-## Security Considerations
-
-### Ansible-Distributed Files
-- **Permissions**: Explicitly set via playbook (e.g., `mode: '0644'`)
-- **Ownership**: Set to ansible user (or specific service user)
-- **Secrets**: Use Ansible Vault for sensitive files
-- **Audit**: Ansible logs capture distribution events
-
-### NFS-Distributed Files
-- **Permissions**: Set via NFS export options and filesystem ACLs
-- **Access Control**: NFS mount options (`ro`, `rw`, `no_root_squash`)
-- **Network Security**: NFS should be on private network only
-- **Audit**: Less granular - use filesystem audit tools
-
-## Performance Considerations
-
-### Ansible
-- **Speed**: Fast for small files (< 100MB)
-- **Parallelism**: Ansible forks (default: 5)
-- **Network**: Direct SSH connection to each node
-- **Overhead**: Minimal once deployed
-
-### NFS
-- **Speed**: Excellent for large files and reads
-- **Latency**: Slightly higher for small files (network round-trip)
-- **Concurrency**: Handles multiple concurrent reads/writes
-- **Overhead**: NFS daemon on server, client mounts
-
-## Migration Path
-
-If you need to migrate from one distribution method to another:
-
-### NFS → Ansible
-1. Create Ansible playbook to copy files
-2. Test on one node
-3. Update playbook to remove NFS dependency
-4. Deploy to all nodes
-5. Unmount NFS share
-
-### Ansible → NFS
-1. Create NFS export
-2. Mount on all nodes
-3. Copy files to NFS
-4. Update configuration to use NFS paths
-5. Remove Ansible file distribution tasks
-
-## Best Practices
-
-1. **Version Everything**: Use Git for source, Docker for images, Ansible for deployment
-2. **Automate Fully**: No manual file copies
-3. **Test Rollback**: Ensure you can revert to previous versions
-4. **Document Paths**: Maintain a table of file locations (this doc!)
-5. **Monitor Access**: Track file access patterns to optimize distribution
-6. **Consolidate**: Prefer one method per file type for consistency
-7. **Security First**: Least privilege for file access
-8. **Audit Regularly**: Review distribution logs and file permissions
-
-## Future Considerations
-
-### Container Image Layers
-For Spark pods, consider embedding JARs directly in Docker images:
-- **Pros**: No runtime distribution needed, version-pinned
-- **Cons**: Requires image rebuild for JAR updates, larger images
-
-### Artifact Repository
-For larger scale, consider a dedicated artifact repository (Artifactory, Nexus):
-- **Pros**: Centralized, caching, access control, versioning
-- **Cons**: Additional infrastructure, complexity
-
-### S3/Object Storage
-For cloud deployments, S3 or equivalent:
-- **Pros**: Scalable, durable, versioned, no NFS needed
-- **Cons**: Network latency, costs, cloud-specific
-
-## Summary
-
-**Default Strategy**:
-- **JARs and Binaries**: Ansible to `~/ansible/{component}/`
-- **Data and Logs**: NFS to `/mnt/spark/{data,events}/`
-- **Configs**: Ansible (templated) to component-specific locations
-- **Images**: Docker Registry
-
-**Key Principle**: Use Ansible for deployment-time artifacts (versioned, requires restart), use NFS for runtime artifacts (shared, high-frequency access).
+**Why NOT NFS?**
+- ❌ JAR file accessed on every Spark job launch → network latency
+- ❌ No benefit from automatic synchronization (updates are rare)
+- ❌ Single point of failure for critical application code
+- ❌ Stale NFS mount could break all Spark jobs
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-10-17  
-**Author**: Elastic-on-Spark Team
+## Implementation: Runtime Data
+
+### Decision: NFS Distribution
+
+**Files**: Spark event logs, application logs, GC logs
+
+**Why NFS?**
+1. **Continuous Writes**: Logs written continuously during job execution
+2. **Shared Access**: Multiple Spark executors writing, Elastic Agent reading, History Server reading
+3. **No Versioning Needed**: Logs are ephemeral, not versioned artifacts
+4. **Centralized Monitoring**: Elastic Agent on one node can read logs from all executors
+5. **Fault Tolerance**: Spark History Server needs access to all event logs
+
+**NFS Mount Path**:
+- **Server**: `Lab2.lan:/srv/nfs/spark`
+- **Mount Point**: `/mnt/spark` on all nodes
+- **Subdirectories**:
+  - `/mnt/spark/events` - Spark event logs
+  - `/mnt/spark/data` - Shared datasets
+  - `/mnt/spark/checkpoints` - Streaming checkpoints
+
+**Why NOT Ansible?**
+- ❌ Logs written continuously (thousands of writes per job)
+- ❌ Ansible is push-based, logs need to be pulled/collected
+- ❌ No version control needed for ephemeral logs
+- ❌ Shared access pattern (multiple writers, multiple readers)
+
+---
+
+## Best Practices
+
+### For Application Binaries (Ansible)
+1. **Build locally** or on dedicated build node
+2. **Store in Git** (if < 10MB) or Git LFS (if > 10MB)
+3. **Deploy via Ansible** to consistent path on all nodes
+4. **Version in filename** (e.g., `spark-otel-listener-1.0.0.jar`)
+5. **Test on subset of nodes** before full deployment
+6. **Document in playbook** (build → deploy → restart)
+7. **Use checksum verification** to detect corruption
+
+### For Runtime Data (NFS)
+1. **Mount NFS on all nodes** via Ansible
+2. **Use subdirectories** for organization (`/mnt/spark/events`, not `/mnt/events`)
+3. **Configure autofs** for automatic remounting on failure
+4. **Monitor NFS health** (disk space, mount status)
+5. **Implement log rotation** to prevent disk fill
+6. **Backup critical data** (checkpoints, not logs)
+7. **Use NFS v4** for better performance and security
+
+### For Configuration Files (Ansible)
+1. **Use Jinja2 templates** (`.j2` files)
+2. **Store in Git** with full history
+3. **Generate from variables.yaml** via `generate_env.py`
+4. **Deploy via Ansible** with validation
+5. **Restart services** after configuration changes
+6. **Test configuration syntax** before deployment
+
+### For Docker Images (Registry)
+1. **Build on Lab2** (local registry host)
+2. **Tag with version** (`lab2.lan:5000/spark:4.0.1`)
+3. **Push to local registry** (`docker push`)
+4. **Configure containerd** to allow insecure HTTP to local registry
+5. **Pull on managed nodes** via Kubernetes/Ansible
+6. **Use image digests** for reproducibility
+
+---
+
+## Migration Path
+
+If a file type needs to move from NFS to Ansible (or vice versa):
+
+### NFS → Ansible
+1. Create Ansible playbook to copy file
+2. Update references (paths in configs)
+3. Test on dev node
+4. Deploy to all nodes
+5. Remove from NFS
+6. Remove NFS mount (if no longer needed)
+
+### Ansible → NFS
+1. Create NFS directory
+2. Copy file to NFS server
+3. Update references (paths in configs)
+4. Test on dev node
+5. Remove local copies (via Ansible playbook)
+
+---
+
+## Troubleshooting
+
+### Ansible Distribution Issues
+
+**Problem**: JAR not found on some nodes  
+**Solution**: Run deployment playbook again  
+**Prevention**: Add verification step to playbook  
+
+**Problem**: Version mismatch across nodes  
+**Solution**: Run deployment playbook with `--diff` to show changes  
+**Prevention**: Use versioned filenames  
+
+**Problem**: Permission denied  
+**Solution**: Check ownership (should be `ansible:ansible`)  
+**Prevention**: Use `owner` and `group` in Ansible `copy` task  
+
+### NFS Distribution Issues
+
+**Problem**: Stale NFS mount  
+**Solution**: `sudo umount /mnt/spark && sudo mount -a`  
+**Prevention**: Configure autofs  
+
+**Problem**: Permission denied on NFS  
+**Solution**: Check NFS exports (`/etc/exports`) and squash settings  
+**Prevention**: Use `no_root_squash` for trusted networks  
+
+**Problem**: File not visible immediately  
+**Solution**: NFS caching issue - `ls -l` to refresh  
+**Prevention**: Use `sync` mount option  
+
+---
+
+## Future Considerations
+
+### GitOps Approach
+- Consider **FluxCD** or **ArgoCD** for automated Git → Kubernetes deployment
+- Application binaries in Git → auto-deployed to Kubernetes ConfigMaps → mounted into pods
+- Eliminates manual Ansible step, pure Git-driven deployments
+
+### Object Storage (S3/MinIO)
+- For **large datasets** (> 1GB), consider object storage instead of NFS
+- Better performance for read-heavy workloads
+- S3-compatible API (boto3, spark-hadoop-cloud connector)
+- Pay-per-use scaling instead of fixed NFS capacity
+
+### Container Image Optimization
+- **Embed JARs in Docker image** instead of external distribution
+- Build custom Spark image with OTel listener included
+- Eliminates deployment step, pure image pull
+- Trade-off: Image rebuild on every JAR update
+
+---
+
+## Conclusion
+
+**Recommended Strategy**:
+- **Application Binaries (JARs, executables)**: Ansible distribution to local filesystem
+- **Runtime Data (logs, events, datasets)**: NFS for shared access
+- **Configuration Files**: Ansible with Jinja2 templates
+- **Docker Images**: Local registry (Lab2.lan:5000)
+
+**Key Principle**: **Match distribution mechanism to access pattern**
+- **Static, versioned, infrequent access**: Ansible
+- **Dynamic, continuous, shared access**: NFS
+- **Container images**: Registry
+
+This strategy balances **performance** (local file access), **resilience** (no single point of failure for binaries), **simplicity** (NFS for shared data), and **auditability** (Git + Ansible for versioned artifacts).
 

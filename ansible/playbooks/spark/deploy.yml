@@ -360,45 +360,6 @@
       environment:
         KUBECONFIG: "{{ kubeconfig }}"
 
-    - name: Check if OTel listener JAR exists in artifacts
-      delegate_to: localhost
-      stat:
-        path: "{{ project_root }}/spark/otel/artifacts/spark-otel-listener-1.0.0.jar"
-      register: otel_jar_artifact
-
-    - name: Display OTel listener status
-      debug:
-        msg: "{{ otel_jar_artifact.stat.exists | ternary('OTel listener JAR found - will deploy', 'OTel listener JAR not found - skipping (run build.yml first)') }}"
-
-    - name: Create otel directory in ansible user home
-      file:
-        path: "/home/{{ ansible_user }}/ansible/otel"
-        state: directory
-        mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      when: otel_jar_artifact.stat.exists
-
-    - name: Copy OTel listener JAR to managed node
-      copy:
-        src: "{{ project_root }}/spark/otel/artifacts/spark-otel-listener-1.0.0.jar"
-        dest: "/home/{{ ansible_user }}/ansible/otel/spark-otel-listener-1.0.0.jar"
-        mode: '0644'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      when: otel_jar_artifact.stat.exists
-
-    - name: Verify OTel JAR was deployed
-      stat:
-        path: "/home/{{ ansible_user }}/ansible/otel/spark-otel-listener-1.0.0.jar"
-      register: deployed_otel_jar
-      when: otel_jar_artifact.stat.exists
-
-    - name: Display OTel JAR deployment result
-      debug:
-        msg: "OTel listener JAR deployed to /home/{{ ansible_user }}/ansible/otel/ ({{ (deployed_otel_jar.stat.size / 1024 / 1024) | round(2) }} MB)"
-      when: otel_jar_artifact.stat.exists and deployed_otel_jar.stat.exists
-
     - name: Include spark deployment role
       include_role:
         name: "{{ playbook_dir | dirname | dirname }}/roles/spark"
