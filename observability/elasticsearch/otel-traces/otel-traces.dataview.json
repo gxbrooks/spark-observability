@@ -1,0 +1,48 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "otel-traces-*",
+    "id": "otel-traces",
+    "name": "OpenTelemetry Traces",
+    "timeFieldName": "@timestamp",
+    "allowNoIndex": true,
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "trace_id": {"customLabel": "Trace ID"},
+      "span_id": {"customLabel": "Span ID"},
+      "parent_span_id": {"customLabel": "Parent Span ID"},
+      "name": {"customLabel": "Span Name"},
+      "kind": {"customLabel": "Span Kind"},
+      "duration_ms": {"customLabel": "Duration (ms)"},
+      "status.code": {"customLabel": "Status"},
+      "attributes.spark.app.name": {"customLabel": "App Name"},
+      "attributes.spark.job.id": {"customLabel": "Job ID"},
+      "attributes.spark.stage.id": {"customLabel": "Stage ID"},
+      "attributes.spark.stage.name": {"customLabel": "Stage Name"}
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "duration_ms": {
+        "id": "number",
+        "params": {"pattern": "0,0.00"}
+      },
+      "attributes.spark.stage.shuffle.read.bytes": {
+        "id": "bytes"
+      },
+      "attributes.spark.stage.shuffle.write.bytes": {
+        "id": "bytes"
+      },
+      "attributes.spark.stage.input.bytes": {
+        "id": "bytes"
+      },
+      "attributes.spark.stage.output.bytes": {
+        "id": "bytes"
+      }
+    }
+  }
+}
+
