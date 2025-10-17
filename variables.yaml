@@ -28,18 +28,7 @@ PYSPARK_PYTHON:
 
 # unclear why CLUSTER_NAME is needed, see es01 service in docker-compose.yml
 CLUSTER_NAME:
-  value: docker-custer
-  contexts: [observability]
-
-# Elasticsearch image build variables
-STACK_VERSION:
-  value: 8.15.0
-  contexts: [observability]
-
-LOGSTASH_VERSION:
-  value: 8.15.0
-  contexts: [observability]
-
+  value: dod
 GRAFANA_VERSION:
   value: 11.3.0
   contexts: [observability]
@@ -224,6 +213,23 @@ SPARK_USER:
 USER_SPARK_HOME:
   value: /home/ansible/spark
   contexts: [ansible]
+
+# OpenTelemetry Configuration for Spark
+OTEL_EXPORTER_OTLP_ENDPOINT:
+  value: http://otel-collector.observability.svc.cluster.local:4317
+  contexts: [spark-runtime]
+
+OTEL_SERVICE_NAME:
+  value: spark-application
+  contexts: [spark-runtime]
+
+OTEL_SERVICE_NAMESPACE:
+  value: spark
+  contexts: [spark-runtime]
+
+OTEL_DEPLOYMENT_ENVIRONMENT:
+  value: production
+  contexts: [spark-runtime]
 
 # NFS Configuration
 NFS_SERVER:

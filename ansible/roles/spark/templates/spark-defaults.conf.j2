@@ -36,3 +36,9 @@ spark.executor.heartbeatInterval       {{ spark_executor_heartbeat_interval | de
 # Pod-specific hostPath mounts ensure no conflicts between pods
 spark.executor.extraJavaOptions        -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-executor.log:time,uptime,level,tags:filecount=10,filesize=10M -Dlog4j2.configurationFile=file:///opt/spark/conf/log4j2-executor.properties
 spark.driver.extraJavaOptions          -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-driver.log:time,uptime,level,tags:filecount=10,filesize=10M -Dlog4j2.configurationFile=file:///opt/spark/conf/log4j2-kubernetes.properties
+
+# OpenTelemetry Listener - Push-based telemetry via OTLP
+# JAR is deployed to managed nodes via Ansible (~/ansible/otel/)
+# Configuration is provided via environment variables in spark-configmap
+spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
+spark.jars                             file:///home/ansible/ansible/otel/spark-otel-listener-1.0.0.jar
