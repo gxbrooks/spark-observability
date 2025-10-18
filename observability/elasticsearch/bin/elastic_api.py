@@ -195,7 +195,18 @@ def make_api_request(config, method, url_path, body_path=None, noauth=False):
         if DEBUG:
             print(f"Response: HTTP {response.status_code}", file=sys.stderr)
         
-        # Raise exception for HTTP errors
+        # For noauth mode (availability checks), any HTTP response means service is up
+        if noauth:
+            # 401/403 are expected without auth - service is responding
+            if response.status_code in (200, 401, 403):
+                return response.status_code, {}
+            # For other codes, still try to get JSON
+            try:
+                return response.status_code, response.json()
+            except:
+                return response.status_code, {}
+        
+        # Normal mode: Raise exception for HTTP errors
         response.raise_for_status()
         
         # Return the JSON response
@@ -242,6 +253,9 @@ def main():
         sys.exit(3)
     elif response is None:
         print(f"Warning: No response body with status {status}", file=sys.stderr)
+        sys.exit(0)
+    elif noauth and status in (200, 401, 403):
+        # For availability checks, 401/403 means service is responding (success)
         sys.exit(0)
     elif status == 200:
         # Success - print formatted JSON
