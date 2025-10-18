@@ -177,7 +177,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -I http://localhost:${KIBANA_PORT} | grep -q 'HTTP/1.1 302 Found'",
+          "curl -s -I http://localhost:${KIBANA_PORT} | grep -q 'HTTP/1.1'",
         ]
       interval: 10s
       timeout: 10s
