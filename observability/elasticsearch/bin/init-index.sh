@@ -140,9 +140,28 @@ echo "✅ Output directories ready"
 echo ""
 echo "=== STEP 5: ENABLING ELASTICSEARCH TRIAL LICENSE ==="
 # Need full license to run watchers
-# Don't fail if the license has already been enabled
-esapi POST /_license/start_trial?acknowledge=true > /dev/null 2>&1 || true
-echo "✅ Trial license enabled (or already active)"
+# Check current license status first
+LICENSE_STATUS=$(mktemp)
+if esapi GET /_license > "$LICENSE_STATUS" 2>&1; then
+  # Check if trial or higher license is already active
+  if grep -q '"type".*:.*"trial"' "$LICENSE_STATUS" || \
+     grep -q '"type".*:.*"platinum"' "$LICENSE_STATUS" || \
+     grep -q '"type".*:.*"enterprise"' "$LICENSE_STATUS" || \
+     grep -q '"type".*:.*"gold"' "$LICENSE_STATUS"; then
+    echo "✅ License already active (trial or higher)"
+  else
+    # Basic license - try to start trial
+    echo "Starting trial license..."
+    if esapi POST /_license/start_trial?acknowledge=true > /dev/null 2>&1; then
+      echo "✅ Trial license enabled successfully"
+    else
+      echo "⚠️  Trial license could not be enabled (may have already been used)"
+    fi
+  fi
+else
+  echo "⚠️  Could not check license status"
+fi
+rm -f "$LICENSE_STATUS"
 
 # ============================================================================
 # STEP 6: Initialize Batch Events (Index, ILM, Watchers, Data Views)
