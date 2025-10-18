@@ -1,18 +1,3 @@
-#
-# System dependencies
-# 
-# kibana -------------------------------------------------->
-#   \
-#    \----------------> init-kibana --|
-#                  /                  v
-#                 / 
-# es01 --> init-kibana-password --|
-#    \                            v
-#     \ 
-#      \--> init-index ---> logstash01 ---------------> 
-#                       |          \
-#                       v           \ --> spark-* ->
-#
 
 volumes:
   esdata:

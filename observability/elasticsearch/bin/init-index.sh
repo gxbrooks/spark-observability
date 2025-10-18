@@ -155,7 +155,7 @@ if esapi GET /_license > "$LICENSE_STATUS" 2>&1; then
     if esapi POST /_license/start_trial?acknowledge=true > /dev/null 2>&1; then
       echo "✅ Trial license enabled successfully"
     else
-      echo "⚠️  Trial license could not be enabled (may have already been used)"
+      echo "⚠️  Trial license could not be enabled (may have already been enable
     fi
   fi
 else

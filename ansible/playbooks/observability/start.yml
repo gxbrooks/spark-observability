@@ -64,6 +64,16 @@
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux
+      register: docker_up
+      
+    - name: Display service startup info
+      debug:
+        msg: |
+          Services starting...
+          - Docker Compose will start all services in dependency order
+          - Elasticsearch → Kibana → init-index → Logstash → Grafana
+          - init-index will handle password setup and all initializations
+          - Check logs: docker compose logs -f init-index
       
     - name: Wait for services to be ready
       pause:

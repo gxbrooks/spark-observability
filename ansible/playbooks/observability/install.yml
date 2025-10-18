@@ -121,7 +121,7 @@
         delay: 5
       when: is_windows
       
-    # === COMMON STARTUP TASKS ===
+    # === DOCKER SETUP TASKS ===
     - name: Check if Docker is available
       command: docker --version
       register: docker_check
@@ -143,17 +143,6 @@
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux
-      
-    - name: Start observability services
-      command: docker-compose up -d
-      args:
-        chdir: "{{ observability_dir }}"
-      when: is_linux
-      
-    - name: Wait for services to be ready
-      pause:
-        seconds: 30
-        prompt: "Waiting for observability services to start up..."
         
     - name: Display installation status
       debug:
@@ -161,7 +150,16 @@
           Observability Platform Installation Complete!
           ===========================================
           
-          Services:
+          Files deployed to: {{ observability_dir }}
+          Docker images built successfully
+          
+          Next Steps:
+          1. Start services: ansible-playbook playbooks/observability/start.yml
+          2. Verify services are accessible via browser
+          3. Check Kibana data views are present
+          4. Test Spark event flow from Lab2
+          
+          Service URLs (after starting):
           - Elasticsearch: https://{{ ansible_hostname }}:9200
           - Kibana: http://{{ ansible_hostname }}:5601
           - Grafana: http://{{ ansible_hostname }}:3000
@@ -169,9 +167,4 @@
           
           Credentials:
           - Elasticsearch/Kibana: elastic / myElastic2025
-          - Grafana: Check {{ observability_dir }}/.env for admin password
-          
-          Next Steps:
-          1. Verify services are accessible via browser
-          2. Check Kibana data views are present
-          3. Test Spark event flow from Lab2
+          - Grafana: admin / mysecretpassword

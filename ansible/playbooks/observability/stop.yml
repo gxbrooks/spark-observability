@@ -1,6 +1,7 @@
 ---
 # Stop Observability Platform
 # Stop observability services
+# Use -e delete_volumes=true to also delete Docker volumes
 
 - name: Stop Observability Platform
   hosts: observability
@@ -9,6 +10,7 @@
   
   vars:
     observability_dir: "/home/ansible/observability"
+    delete_volumes: false
     
   tasks:
     - name: Detect host OS
@@ -26,11 +28,18 @@
         msg: "Stopping observability services on {{ inventory_hostname }}..."
         
     # === LINUX TASKS ===
-    - name: Stop observability services (Linux)
+    - name: Stop observability services without volumes (Linux)
       command: docker-compose down
       args:
         chdir: "{{ observability_dir }}"
-      when: is_linux and obs_dir_stat.stat.exists
+      when: is_linux and obs_dir_stat.stat.exists and not delete_volumes
+      ignore_errors: true
+      
+    - name: Stop observability services and delete volumes (Linux)
+      command: docker-compose down -v
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux and obs_dir_stat.stat.exists and delete_volumes
       ignore_errors: true
       
     - name: Clean up orphaned containers (Linux)
@@ -58,4 +67,11 @@
           ==============================
           
           All services have been stopped on {{ inventory_hostname }}.
-          To restart, run: ansible-playbook -i inventory.yml playbooks/observability/start.yml
+          {% if delete_volumes %}
+          Docker volumes have been deleted (fresh start next time).
+          {% else %}
+          Docker volumes preserved (data retained).
+          To delete volumes: ansible-playbook playbooks/observability/stop.yml -e delete_volumes=true
+          {% endif %}
+          
+          To restart, run: ansible-playbook playbooks/observability/start.yml
