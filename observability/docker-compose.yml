@@ -117,16 +117,17 @@ services:
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
-    command: >
-      bash -c "
-      SCRIPT_DIR=/usr/share/elasticsearch/elasticsearch/bin;
-      PATH=\$PATH:\$SCRIPT_DIR;
-      cat > /tmp/kibana-password.json <<'EOF'
-      {\"password\": \"\$KIBANA_PASSWORD\"}
-      EOF
-      esapi POST /_security/user/kibana_system/_password /tmp/kibana-password.json;
-      rm -f /tmp/kibana-password.json
-      "
+    command:
+      - bash
+      - -c
+      - |
+        SCRIPT_DIR=/usr/share/elasticsearch/elasticsearch/bin
+        PATH=$$PATH:$$SCRIPT_DIR
+        cat > /tmp/kibana-password.json <<EOF
+        {"password": "$$KIBANA_PASSWORD"}
+        EOF
+        esapi POST /_security/user/kibana_system/_password /tmp/kibana-password.json
+        rm -f /tmp/kibana-password.json
     environment:
       CA_CERT: "${CA_CERT_LINUX_PATH}"
       ELASTIC_HOST: ${ELASTIC_HOST}
