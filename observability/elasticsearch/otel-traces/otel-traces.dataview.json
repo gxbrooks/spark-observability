@@ -5,30 +5,62 @@
     "title": "traces-generic-default",
     "id": "otel-traces",
     "name": "OpenTelemetry Traces",
-    "timeFieldName": "@timestamp",
     "allowNoIndex": true,
-    "fieldAttrs": {
-      "@timestamp": {"customLabel": "Timestamp"},
-      "TraceId": {"customLabel": "Trace ID"},
-      "SpanId": {"customLabel": "Span ID"},
-      "ParentSpanId": {"customLabel": "Parent Span ID"},
-      "Name": {"customLabel": "Span Name"},
-      "Kind": {"customLabel": "Span Kind"},
-      "Duration": {"customLabel": "Duration (ns)"},
-      "TraceStatus": {"customLabel": "Status"},
-      "Attributes.spark.app.name": {"customLabel": "App Name"},
-      "Attributes.spark.job.id": {"customLabel": "Job ID"},
-      "Attributes.spark.stage.id": {"customLabel": "Stage ID"},
-      "Attributes.spark.stage.name": {"customLabel": "Stage Name"}
+    "fields": {
+      "@timestamp": {"name": "@timestamp", "customLabel": "Timestamp"},
+      "TraceId": {"name": "TraceId", "customLabel": "Trace ID"},
+      "TraceId.keyword": {"name": "TraceId.keyword", "customLabel": "Trace ID"},
+      "SpanId": {"name": "SpanId", "customLabel": "Span ID"},
+      "SpanId.keyword": {"name": "SpanId.keyword", "customLabel": "Span ID"},
+      "ParentSpanId": {"name": "ParentSpanId", "customLabel": "Parent Span ID"},
+      "ParentSpanId.keyword": {"name": "ParentSpanId.keyword", "customLabel": "Parent Span ID"},
+      "Name": {"name": "Name", "customLabel": "Span Name"},
+      "Name.keyword": {"name": "Name.keyword", "customLabel": "Span Name"},
+      "Kind": {"name": "Kind", "customLabel": "Span Kind"},
+      "Duration": {"name": "Duration", "customLabel": "Duration (ns)"},
+      "EndTimestamp": {"name": "EndTimestamp", "customLabel": "End Time"},
+      "TraceStatus": {"name": "TraceStatus", "customLabel": "Status"},
+      "Attributes.spark.app.name": {"name": "Attributes.spark.app.name", "customLabel": "App Name"},
+      "Attributes.spark.app.name.keyword": {"name": "Attributes.spark.app.name.keyword", "customLabel": "App Name"},
+      "Attributes.spark.app.id": {"name": "Attributes.spark.app.id", "customLabel": "App ID"},
+      "Attributes.spark.app.id.keyword": {"name": "Attributes.spark.app.id.keyword", "customLabel": "App ID"},
+      "Attributes.spark.user": {"name": "Attributes.spark.user", "customLabel": "Spark User"},
+      "Attributes.spark.user.keyword": {"name": "Attributes.spark.user.keyword", "customLabel": "Spark User"},
+      "Attributes.spark.job.id": {"name": "Attributes.spark.job.id", "customLabel": "Job ID"},
+      "Attributes.spark.job.result": {"name": "Attributes.spark.job.result", "customLabel": "Job Result"},
+      "Attributes.spark.job.result.keyword": {"name": "Attributes.spark.job.result.keyword", "customLabel": "Job Result"},
+      "Attributes.spark.job.stage.count": {"name": "Attributes.spark.job.stage.count", "customLabel": "Stage Count"},
+      "Attributes.spark.stage.id": {"name": "Attributes.spark.stage.id", "customLabel": "Stage ID"},
+      "Attributes.spark.stage.name": {"name": "Attributes.spark.stage.name", "customLabel": "Stage Name"},
+      "Attributes.spark.stage.name.keyword": {"name": "Attributes.spark.stage.name.keyword", "customLabel": "Stage Name"},
+      "Attributes.spark.stage.num.tasks": {"name": "Attributes.spark.stage.num.tasks", "customLabel": "Num Tasks"},
+      "Attributes.spark.stage.tasks.completed": {"name": "Attributes.spark.stage.tasks.completed", "customLabel": "Tasks Completed"},
+      "Attributes.spark.stage.result": {"name": "Attributes.spark.stage.result", "customLabel": "Stage Result"},
+      "Attributes.spark.stage.shuffle.read.bytes": {"name": "Attributes.spark.stage.shuffle.read.bytes", "customLabel": "Shuffle Read"},
+      "Attributes.spark.stage.shuffle.write.bytes": {"name": "Attributes.spark.stage.shuffle.write.bytes", "customLabel": "Shuffle Write"},
+      "Attributes.spark.stage.input.bytes": {"name": "Attributes.spark.stage.input.bytes", "customLabel": "Input Bytes"},
+      "Attributes.spark.stage.output.bytes": {"name": "Attributes.spark.stage.output.bytes", "customLabel": "Output Bytes"},
+      "Resource.service.name": {"name": "Resource.service.name", "customLabel": "Service Name"},
+      "Resource.service.name.keyword": {"name": "Resource.service.name.keyword", "customLabel": "Service Name"},
+      "Resource.service.namespace": {"name": "Resource.service.namespace", "customLabel": "Service Namespace"},
+      "Resource.service.namespace.keyword": {"name": "Resource.service.namespace.keyword", "customLabel": "Service Namespace"},
+      "Resource.k8s.cluster.name": {"name": "Resource.k8s.cluster.name", "customLabel": "K8s Cluster"},
+      "Resource.k8s.cluster.name.keyword": {"name": "Resource.k8s.cluster.name.keyword", "customLabel": "K8s Cluster"},
+      "Resource.deployment.environment": {"name": "Resource.deployment.environment", "customLabel": "Environment"},
+      "Resource.deployment.environment.keyword": {"name": "Resource.deployment.environment.keyword", "customLabel": "Environment"}
     },
     "fieldFormats": {
       "@timestamp": {
         "id": "date",
         "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
       },
+      "EndTimestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
       "Duration": {
-        "id": "duration",
-        "params": {"inputFormat": "nanoseconds", "outputFormat": "asMilliseconds", "outputPrecision": 2}
+        "id": "number",
+        "params": {"pattern": "0,0"}
       },
       "Attributes.spark.stage.shuffle.read.bytes": {
         "id": "bytes"
@@ -42,7 +74,8 @@
       "Attributes.spark.stage.output.bytes": {
         "id": "bytes"
       }
-    }
+    },
+    "sourceFilters": []
   }
 }
 
