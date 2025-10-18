@@ -1,9 +1,0 @@
-#!/usr/bin/bash
-
-
-if [ ! -v PYTHONPATH ] || [ ! -v PY_SCRIPTS ]; then
-  echo "PYTHONPATH or PY_SCRIPTS not set in environment"
-  exit 1
-fi
-
-python3 ${PY_SCRIPTS}/api/gapi.py $@

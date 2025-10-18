@@ -6,14 +6,39 @@
 # exit the script immediately if any command fails
 set -e
 
+# Add current directory to PATH for esapi script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PATH="${PATH}:${SCRIPT_DIR}"
+
 if [[ ! -v CA_CERT || ! -f "$CA_CERT" ]]; then
   echo "CA_CERT='$CA_CERT' not in the environment or not a file"
   exit 1
 fi
 
-echo "Waiting for Elasticsearch availability";
-# This readiness test was from the reference 
-until curl --no-progress-meter --cacert ${CA_CERT} https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+echo "Waiting for Elasticsearch availability"
+# Wait for Elasticsearch to be ready
+MAX_RETRIES=20
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
+  if esapi GET / > /dev/null 2>&1; then
+    echo "✅ Elasticsearch is available and accepting authenticated requests"
+    break
+  else
+    echo "⏳ Elasticsearch not ready yet, waiting 5 seconds..."
+    sleep 5
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+  fi
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+  echo "❌ Elasticsearch health check failed after $MAX_RETRIES attempts"
+  exit 1
+fi
+
+# Outputs directory should be created by ansible playbook with correct ownership
+# Create it here as fallback if running manually
+mkdir -p /usr/share/elasticsearch/elasticsearch/outputs 2>/dev/null || true
 
 # In spark the depth of the query plans can exceed the index default limit of 20 levels. 
 # The sparkUnproccessedIndexTemplate.json file assumes the namespace of the index and the dataset are both

@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+#
+# Elasticsearch API wrapper script
+# Calls the unified elastic_api.py script with 'elasticsearch' as the target
+#
+# Usage: esapi <method> <url_path> [body_path]
+# Example: esapi GET /_cluster/health
+#          esapi PUT /_index_template/my-template template.json
+#
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "esapi $@"
+
+# Call the unified Python script with 'elasticsearch' as the target
+python3 "${SCRIPT_DIR}/elastic_api.py" elasticsearch "$@"
+exit $?
+

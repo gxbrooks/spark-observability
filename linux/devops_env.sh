@@ -3,4 +3,12 @@
 
 export PYTHON_VERSION="3.11"
 export JAVA_VERSION="17"
+export ELASTIC_HOST_CLIENT="GaryPC.lan"
+export ELASTIC_PORT="9200"
+export ELASTIC_USER="elastic"
+export ELASTIC_PASSWORD="myElastic2025"
+export CA_CERT="/etc/ssl/certs/elastic/ca.crt"
+export KIBANA_HOST_CLIENT="GaryPC.lan"
+export KIBANA_PORT="5601"
+export KIBANA_PASSWORD="myElastic2025"
 export SPARK_VERSION="4.0.1"

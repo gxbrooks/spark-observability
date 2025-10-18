@@ -38,6 +38,9 @@ alias kapi="docker compose exec -it es01 kapi"
 alias hdfs="/home/gxbrooks/repos/elastic-on-spark/linux/hdfs-wrapper.sh"
 
 alias gtags="git for-each-ref --sort=-creatordate --format '%(creatordate:short) %(refname:short)' refs/tags"
+alias gtags='git for-each-ref --sort=-creatordate \
+  --format "%(creatordate:short)|%(refname:short)|%(subject)" refs/tags \
+  | awk -F"|" "{printf \"%-10s %-30.30s %s\n\", \$1, \$2, \$3}"'
 
 
 # Kubernetes aliases

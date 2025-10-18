@@ -48,22 +48,26 @@ GRAFANA_VERSION:
 # Observability runtime variables
 
 # Elasticsearch variables
+# Inside Docker containers, use service name; for external clients, use DNS hostname
 ELASTIC_HOST:
   value: es01
-  contexts: [observability, spark-runtime]
+  contexts: [observability]
+ELASTIC_HOST_CLIENT:
+  value: GaryPC.lan
+  contexts: [spark-runtime, devops]
 # For Elastic Agent on hosts, use GaryPC WSL
 ELASTIC_HOST_EXTERNAL:
   value: GaryPC.lan
   contexts: [elastic-agent]
 ELASTIC_PORT:
   value: 9200
-  contexts: [observability, spark-runtime]
+  contexts: [observability, spark-runtime, devops]
 ELASTIC_USER:
   value: elastic
-  contexts: [observability, spark-runtime, elastic-agent]
+  contexts: [observability, spark-runtime, elastic-agent, devops]
 ELASTIC_PASSWORD:
   value: myElastic2025
-  contexts: [observability, spark-runtime, elastic-agent]
+  contexts: [observability, spark-runtime, elastic-agent, devops]
 ELASTIC_URL:
   value: https://es01:9200
   contexts: [observability]
@@ -74,6 +78,9 @@ ELASTIC_URL_EXTERNAL:
 KUBERNETES_API_SERVER:
   value: Lab2.lan
   contexts: [elastic-agent]
+CA_CERT:
+  value: /etc/ssl/certs/elastic/ca.crt
+  contexts: [devops]
 CA_CERT_LINUX_PATH:
   value: /etc/ssl/certs/elastic/ca.crt
   contexts: [observability, spark-runtime, elastic-agent]
@@ -95,15 +102,18 @@ ENCRYPTION_KEY:
 KIBANA_HOST:
   value: kibana
   contexts: [observability]
+KIBANA_HOST_CLIENT:
+  value: GaryPC.lan
+  contexts: [devops]
 KIBANA_PORT:
   value: 5601
-  contexts: [observability]
+  contexts: [observability, devops]
 KIBANA_USER:
   value: kibana_system
   contexts: [observability]
 KIBANA_PASSWORD:
   value: myElastic2025
-  contexts: [observability]
+  contexts: [observability, devops]
 KB_MEM_LIMIT:
   value: 1073741824
   contexts: [observability]

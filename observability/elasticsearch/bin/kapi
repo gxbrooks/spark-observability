@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+#
+# Kibana API wrapper script
+# Calls the unified elastic_api.py script with 'kibana' as the target
+#
+# Usage: kapi <method> <url_path> [body_path]
+# Example: kapi GET /api/status
+#          kapi POST /api/data_views/data_view dataview.json
+#
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "kapi $@"
+
+# Call the unified Python script with 'kibana' as the target
+python3 "${SCRIPT_DIR}/elastic_api.py" kibana "$@"
+exit $?
+

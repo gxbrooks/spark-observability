@@ -97,14 +97,15 @@
         recursive: true
       when: is_linux
       
-    - name: Create elasticsearch outputs directory (Linux)
+    - name: Create elasticsearch outputs directory with proper ownership (Linux)
       file:
         path: "{{ observability_dir }}/elasticsearch/outputs"
         state: directory
-        mode: '0777'
+        mode: '0775'
         owner: ansible
         group: ansible
       when: is_linux
+      tags: [always]
         
     # === WINDOWS TASKS ===
     - name: Start Docker Desktop service (Windows)

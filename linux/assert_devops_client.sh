@@ -184,8 +184,8 @@ if ! $CHECK; then
     echo "Info    : Installing Python requirements in venv..."
     "$VENV_PATH/bin/pip" install --quiet --upgrade pip
     "$VENV_PATH/bin/pip" install --quiet -r "$root_dir/spark/requirements/requirements.txt"
-    # Install dependencies for generate_env.py
-    "$VENV_PATH/bin/pip" install --quiet pyyaml toml
+    # Install dependencies for generate_env.py and API scripts (esapi/kapi)
+    "$VENV_PATH/bin/pip" install --quiet pyyaml toml requests
     echo "Info    : Python requirements installed successfully"
   fi
   
