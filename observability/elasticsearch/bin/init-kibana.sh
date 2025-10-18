@@ -153,6 +153,13 @@ curl -k -s -u "${ELASTIC_USER}:${KIBANA_PASSWORD}" "$KIBANA_URL/api/data_views" 
 kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true elasticsearch/spark-gc/spark-gc.search.json \
     > elasticsearch/outputs/spark-gc.search.out.json
 
+# OpenTelemetry traces views
+echo "=== CREATING OTEL TRACES DATA VIEW ==="
+kapi POST /api/data_views/data_view elasticsearch/otel-traces/otel-traces.dataview.json \
+  > elasticsearch/outputs/otel-traces.dataview.out.json 
+echo "OTel traces data view creation completed. Checking current data views..."
+curl -k -s -u "${ELASTIC_USER}:${KIBANA_PASSWORD}" "$KIBANA_URL/api/data_views" | jq '.data_view | length' || echo "Failed to get data view count"
+
 echo "=== FINAL DATA VIEW VERIFICATION ==="
 echo "All data view creation completed. Final verification:"
 curl -k -s -u "${ELASTIC_USER}:${KIBANA_PASSWORD}" "$KIBANA_URL/api/data_views" > /tmp/final-dataviews.json

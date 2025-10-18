@@ -13,6 +13,7 @@ DEBUG=false
 PASSPHRASE=""
 PYTHON_VERSION=""  # Will be loaded from devops_env.sh if not specified
 JAVA_VERSION=""    # Will be loaded from devops_env.sh if not specified
+SPARK_VERSION=""   # Will be loaded from devops_env.sh if not specified
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -34,8 +35,12 @@ while [[ $# -gt 0 ]]; do
           JAVA_VERSION=$2
           shift
           ;;
+        -sv)
+          SPARK_VERSION=$2
+          shift
+          ;;
         *) echo "Unknown parameter passed: $1"  >&2
-          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>]" >&2
+          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]" >&2
           exit 1
           ;;
     esac
@@ -44,7 +49,7 @@ done
 
 if [[ -z "$PASSPHRASE" ]]; then
   echo "Error: Passphrase is mandatory passphrase to access securing keys. Use the -N (-p) option to specify it." >&2
-  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>]"  >&2
+  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]"  >&2
   exit 1
 fi
 
@@ -68,6 +73,7 @@ fi
 # Override with command-line args if provided
 [[ -n "$PYTHON_VERSION" ]] || PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 [[ -n "$JAVA_VERSION" ]] || JAVA_VERSION="${JAVA_VERSION:-17}"
+[[ -n "$SPARK_VERSION" ]] || SPARK_VERSION="${SPARK_VERSION:-4.0.1}"
 
 if $DEBUG; then
   echo "Debug   : root_dir = $root_dir"
@@ -75,14 +81,27 @@ if $DEBUG; then
   echo "Debug   : CHECK = $CHECK"
   echo "Debug   : PYTHON_VERSION = $PYTHON_VERSION"
   echo "Debug   : JAVA_VERSION = $JAVA_VERSION"
+  echo "Debug   : SPARK_VERSION = $SPARK_VERSION"
 fi
 
-# Install base packages
+# Install base packages (idempotent - only install if missing)
 if ! $CHECK; then
-  echo "Info    : Updating package lists and upgrading system..."
-  sudo apt update && sudo apt upgrade -y
-  echo "Info    : Installing devops utilities..."
-  sudo apt  install -y jq ncat keychain bind9-dnsutils traceroute ansible-core
+  PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven)
+  TO_INSTALL=()
+  
+  for pkg in "${PACKAGES[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+      TO_INSTALL+=("$pkg")
+    fi
+  done
+  
+  if [[ ${#TO_INSTALL[@]} -gt 0 ]]; then
+    echo "Info    : Installing ${#TO_INSTALL[@]} missing package(s): ${TO_INSTALL[*]}"
+    sudo apt update -qq
+    sudo apt install -y "${TO_INSTALL[@]}"
+  else
+    echo "Info    : All devops packages already installed"
+  fi
 fi
 
 # Install Java if specified version is not available
@@ -170,10 +189,34 @@ if ! $CHECK; then
     echo "Info    : Python requirements installed successfully"
   fi
   
+  # Verify/upgrade PySpark to match cluster Spark version
+  echo "Info    : Verifying PySpark version matches Spark cluster ($SPARK_VERSION)..."
+  PYSPARK_INSTALLED=$("$VENV_PATH/bin/pip" show pyspark 2>/dev/null | grep Version | awk '{print $2}')
+  
+  if [[ -z "$PYSPARK_INSTALLED" ]]; then
+    echo "Info    : Installing PySpark $SPARK_VERSION..."
+    "$VENV_PATH/bin/pip" install --quiet pyspark==$SPARK_VERSION
+    PYSPARK_INSTALLED=$SPARK_VERSION
+  elif [[ "$PYSPARK_INSTALLED" != "$SPARK_VERSION" ]]; then
+    echo "Info    : Upgrading PySpark from $PYSPARK_INSTALLED to $SPARK_VERSION..."
+    "$VENV_PATH/bin/pip" install --quiet --upgrade pyspark==$SPARK_VERSION
+    PYSPARK_INSTALLED=$SPARK_VERSION
+  else
+    echo "Info    : PySpark $PYSPARK_INSTALLED already matches cluster version"
+  fi
+  
+  # Verify spark-submit version
+  SPARK_SUBMIT_VERSION=$("$VENV_PATH/bin/spark-submit" --version 2>&1 | grep "version" | awk '{print $5}')
+  if [[ "$SPARK_SUBMIT_VERSION" == "$SPARK_VERSION" ]]; then
+    echo "Info    : spark-submit version verified: $SPARK_SUBMIT_VERSION"
+  else
+    echo "Warning : spark-submit version ($SPARK_SUBMIT_VERSION) may not match cluster ($SPARK_VERSION)"
+  fi
+  
   echo "Info    : Python venv ready at $VENV_PATH"
   echo "Info    : Activate with: source venv/bin/activate"
 else
-  echo "Info    : Check mode - would verify/create venv"
+  echo "Info    : Check mode - would verify/create venv and PySpark version"
 fi
 
 # Ensure spark user and group exist

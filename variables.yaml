@@ -26,9 +26,21 @@ PYSPARK_PYTHON:
 #   contexts: [spark-runtime, spark-client]
 
 
+# Elasticsearch Stack Version
+STACK_VERSION:
+  value: 8.15.0
+  contexts: [observability]
+
+# Logstash Version
+LOGSTASH_VERSION:
+  value: 8.15.0
+  contexts: [observability]
+
 # unclear why CLUSTER_NAME is needed, see es01 service in docker-compose.yml
 CLUSTER_NAME:
   value: dod
+  contexts: [observability]
+
 GRAFANA_VERSION:
   value: 11.3.0
   contexts: [observability]
@@ -148,7 +160,7 @@ ELASTIC_AGENT_HOME:
 # Spark runtime variables (moved from deprecated spark-image context)
 SPARK_VERSION:
   value: 4.0.1
-  contexts: [spark-runtime, ansible, spark-image]
+  contexts: [spark-runtime, ansible, spark-image, devops, spark-client]
 
 # System location of the Spark installation
 SPARK_HOME:

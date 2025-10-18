@@ -385,3 +385,73 @@
         src: "{{ k8s_config_dir }}/spark-registry-config.yaml"
 
     # Deployments and services are now handled by the spark role
+
+- name: Deploy Spark OpenTelemetry Listener to Managed Nodes
+  hosts: k8s_nodes
+  become: yes
+  become_user: ansible
+  gather_facts: false
+  vars:
+    project_root: "{{ playbook_dir }}/../../.."
+    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
+    source_jar: "{{ project_root }}/spark/otel-listener/{{ otel_listener_jar }}"
+    dest_dir: "/home/ansible/spark/otel"
+    dest_jar: "{{ dest_dir }}/{{ otel_listener_jar }}"
+  
+  tasks:
+    - name: Check if source JAR exists
+      local_action:
+        module: stat
+        path: "{{ source_jar }}"
+      register: source_jar_stat
+      run_once: true
+
+    - name: Skip OTel deployment if JAR does not exist
+      debug:
+        msg: "Skipping OTel listener deployment - JAR not found: {{ source_jar }}. Run build.yml first if needed."
+      when: not source_jar_stat.stat.exists
+      run_once: true
+
+    - name: Create OpenTelemetry directory on managed nodes
+      file:
+        path: "{{ dest_dir }}"
+        state: directory
+        mode: '0755'
+        owner: ansible
+        group: ansible
+      when: source_jar_stat.stat.exists
+
+    - name: Copy OpenTelemetry Listener JAR to managed nodes
+      copy:
+        src: "{{ source_jar }}"
+        dest: "{{ dest_jar }}"
+        mode: '0644'
+        owner: ansible
+        group: ansible
+      register: jar_copy
+      when: source_jar_stat.stat.exists
+
+    - name: Verify JAR was copied
+      stat:
+        path: "{{ dest_jar }}"
+      register: dest_jar_stat
+      when: source_jar_stat.stat.exists
+
+    - name: Display deployment status
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "JAR: {{ dest_jar }}"
+          - "Size: {{ (dest_jar_stat.stat.size / 1024 / 1024) | round(2) }} MB"
+          - "Status: {{ 'Updated' if jar_copy.changed else 'Already up-to-date' }}"
+      when: source_jar_stat.stat.exists and dest_jar_stat.stat.exists
+
+    - name: OTel deployment summary
+      debug:
+        msg:
+          - "============================================"
+          - "OpenTelemetry Listener Deployment {{ 'Complete' if source_jar_stat.stat.exists else 'Skipped' }}"
+          - "============================================"
+          - "{{ 'Deployed to: ' + (groups['k8s_nodes'] | join(', ')) if source_jar_stat.stat.exists else 'JAR not built yet - run playbooks/spark/build.yml first' }}"
+          - "{{ 'Location: ' + dest_jar if source_jar_stat.stat.exists else '' }}"
+      run_once: true

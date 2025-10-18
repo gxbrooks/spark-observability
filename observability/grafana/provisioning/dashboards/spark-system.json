@@ -103,7 +103,7 @@
             {
               "id": "1",
               "type": "terms",
-              "field": "App ID.keyword",
+              "field": "class",
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
@@ -116,7 +116,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "10s",
+                "interval": "auto",
                 "min_doc_count": "0"
               }
             }
@@ -128,16 +128,17 @@
           "metrics": [
             {
               "id": "1",
-              "type": "count"
+              "type": "avg",
+              "field": "count"
             }
           ],
-          "query": "_index:batch-events",
+          "query": "_index:batch-metrics-ds AND NOT class:\"Task\"",
           "refId": "A",
           "timeField": "@timestamp",
-          "alias": "{{term App ID.keyword}}"
+          "alias": ""
         }
       ],
-      "title": "Active Spark Jobs",
+      "title": "Active Spark Jobs (Avg, excl Tasks)",
       "type": "timeseries",
       "legend": {
         "show": true,

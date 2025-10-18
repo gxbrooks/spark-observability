@@ -7,7 +7,7 @@
   vars:
     project_root: "{{ playbook_dir }}/../../.."
     otel_listener_jar: "spark-otel-listener-1.0.0.jar"
-    source_jar: "{{ project_root }}/spark/otel/{{ otel_listener_jar }}"
+    source_jar: "{{ project_root }}/spark/otel-listener/{{ otel_listener_jar }}"
     dest_dir: "/home/ansible/spark/otel"
     dest_jar: "{{ dest_dir }}/{{ otel_listener_jar }}"
   

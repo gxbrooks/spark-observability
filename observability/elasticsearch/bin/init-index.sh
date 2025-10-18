@@ -62,4 +62,8 @@ esapi PUT /_index_template/spark-gc-ds elasticsearch/spark-gc/spark-gc.template.
 # Spark GC ingest pipeline for parsing GC log fields
 esapi PUT /_ingest/pipeline/logs-spark_gc-default elasticsearch/spark-gc/spark-gc-ingest-pipeline.json > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc-ingest-pipeline.out.json
 
+# OpenTelemetry traces
+esapi PUT /_ilm/policy/otel-traces elasticsearch/otel-traces/otel-traces.ilm-policy.json > /usr/share/elasticsearch/elasticsearch/outputs/otel-traces.ilm.out.json 
+esapi PUT /_index_template/otel-traces elasticsearch/otel-traces/otel-traces.template.json > /usr/share/elasticsearch/elasticsearch/outputs/otel-traces.template.out.json
+
 

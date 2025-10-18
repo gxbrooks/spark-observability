@@ -52,6 +52,13 @@
         msg: "Docker is not available. Please install Docker Desktop."
       when: is_linux and docker_check.rc != 0
       
+    - name: Create elasticsearch outputs directory
+      file:
+        path: "{{ observability_dir }}/elasticsearch/outputs"
+        state: directory
+        mode: '0755'
+      when: is_linux
+      
     - name: Start observability services
       command: docker-compose up -d
       args:

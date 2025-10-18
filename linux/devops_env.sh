@@ -3,3 +3,4 @@
 
 export PYTHON_VERSION="3.11"
 export JAVA_VERSION="17"
+export SPARK_VERSION="4.0.1"

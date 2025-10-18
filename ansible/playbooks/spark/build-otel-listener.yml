@@ -5,7 +5,7 @@
   gather_facts: true
   vars:
     project_root: "{{ playbook_dir }}/../../.."
-    otel_listener_dir: "{{ project_root }}/spark/otel/spark-otel-listener"
+    otel_listener_dir: "{{ project_root }}/spark/otel-listener"
     otel_listener_jar: "spark-otel-listener-1.0.0.jar"
   
   tasks:
@@ -71,7 +71,7 @@
     - name: Copy JAR to distribution directory
       copy:
         src: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
-        dest: "{{ project_root }}/spark/otel/{{ otel_listener_jar }}"
+        dest: "{{ otel_listener_dir }}/{{ otel_listener_jar }}"
         mode: '0644'
       when: jar_stat.stat.exists
 
@@ -81,7 +81,7 @@
           - "============================================"
           - "OpenTelemetry Listener Build Complete"
           - "============================================"
-          - "JAR Location: {{ project_root }}/spark/otel/{{ otel_listener_jar }}"
+          - "JAR Location: {{ otel_listener_dir }}/{{ otel_listener_jar }}"
           - "JAR Size: {{ (jar_stat.stat.size / 1024 / 1024) | round(2) }} MB"
           - "Next Steps:"
           - "  1. Deploy to managed nodes: ansible-playbook -i inventory.yml playbooks/spark/deploy-otel-listener.yml"
