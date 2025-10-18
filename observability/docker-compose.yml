@@ -123,27 +123,6 @@ services:
       retries: 120
       
 
-  init-kibana-password:   
-    image: elasticsearch-python
-    labels:
-      role: "Init Kibana Password"
-    volumes:
-      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
-    command: bash -f ./elasticsearch/bin/init-kibana-password.sh 
-    environment:
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
-      ELASTIC_USER: elastic
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-      ELASTIC_HOST: ${ELASTIC_HOST}
-      ELASTIC_PORT: ${ELASTIC_PORT}
-      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
-      TZ: ${TZ}    
-    depends_on:
-      es01:
-        condition: service_healthy 
-      init-certs:
-        condition: service_completed_successfully
 
   kibana:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION} 
@@ -172,8 +151,6 @@ services:
     depends_on:
       es01:
         condition: service_healthy 
-      init-kibana-password:
-        condition: service_completed_successfully
       init-certs:
         condition: service_completed_successfully
     healthcheck:
@@ -212,31 +189,7 @@ services:
     depends_on:
       es01:
         condition: service_healthy 
-      # init-index:
-      #   condition: service_completed_successfully
-        
-  init-kibana:
-    image: elasticsearch-python
-    volumes:
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
-      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-    command: bash -f ./elasticsearch/bin/init-kibana.sh
-    environment:
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
-      xpack.monitoring.enabled: "false"
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-      ELASTIC_PORT: ${ELASTIC_PORT}
-      ELASTIC_USER: ${ELASTIC_USER}
-      KIBANA_HOST: ${KIBANA_HOST}
-      KIBANA_PASSWORD : ${KIBANA_PASSWORD}
-      KIBANA_PORT: ${KIBANA_PORT}
-      TZ: ${TZ}    
-    depends_on:
-      kibana:
-        condition: service_healthy
-      init-kibana-password:
-        condition: service_completed_successfully
-      init-certs:
+      init-index:
         condition: service_completed_successfully
 
   init-index:
@@ -244,7 +197,8 @@ services:
     user: "0:0"
     command: bash -f ./elasticsearch/bin/init-index.sh
     labels:
-      role: "Init Index"
+      role: "Init Index and Kibana"
+      description: "Unified initialization for Elasticsearch and Kibana"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
@@ -254,9 +208,14 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_PORT: ${ELASTIC_PORT}
       ELASTIC_USER: ${ELASTIC_USER}
+      KIBANA_HOST: ${KIBANA_HOST}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      KIBANA_PORT: ${KIBANA_PORT}
       TZ: ${TZ}
     depends_on:
       es01:
+        condition: service_healthy
+      kibana:
         condition: service_healthy
       init-certs:
         condition: service_completed_successfully
