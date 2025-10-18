@@ -70,6 +70,11 @@ def parse_arguments():
         nargs="?",
         help="Optional path to JSON file containing request body"
     )
+    parser.add_argument(
+        "--noauth",
+        action="store_true",
+        help="Skip authentication (for availability checks)"
+    )
     
     args = parser.parse_args()
     
@@ -92,7 +97,7 @@ def parse_arguments():
             print(f"Error: Body file '{args.body_path}' does not exist or is not a file", file=sys.stderr)
             sys.exit(1)
     
-    return target, method, args.url_path, args.body_path
+    return target, method, args.url_path, args.body_path, args.noauth
 
 
 def get_config(target):
@@ -142,7 +147,7 @@ def get_config(target):
     return config
 
 
-def make_api_request(config, method, url_path, body_path=None):
+def make_api_request(config, method, url_path, body_path=None, noauth=False):
     """Make the HTTP request to the API endpoint."""
     url = f"{config['protocol']}://{config['host']}:{config['port']}{url_path}"
     
@@ -168,10 +173,12 @@ def make_api_request(config, method, url_path, body_path=None):
         print(f"Request: {method} {url}", file=sys.stderr)
         if body_path:
             print(f"Body file: {body_path}", file=sys.stderr)
+        if noauth:
+            print(f"No authentication (availability check mode)", file=sys.stderr)
     
     # Make the request
     try:
-        auth = (config['user'], config['password'])
+        auth = None if noauth else (config['user'], config['password'])
         
         if method == 'GET':
             response = requests.get(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'])
@@ -222,13 +229,13 @@ def make_api_request(config, method, url_path, body_path=None):
 
 def main():
     """Main entry point."""
-    target, method, url_path, body_path = parse_arguments()
+    target, method, url_path, body_path, noauth = parse_arguments()
     
     if DEBUG:
         print(f"Target: {target}, Method: {method}, Path: {url_path}", file=sys.stderr)
     
     config = get_config(target)
-    status, response = make_api_request(config, method, url_path, body_path)
+    status, response = make_api_request(config, method, url_path, body_path, noauth)
     
     if status is None:
         # Error already printed to stderr

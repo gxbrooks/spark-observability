@@ -47,8 +47,8 @@ MAX_RETRIES=20
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   echo "Elasticsearch health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
-  if esapi GET / > /dev/null 2>&1; then
-    echo "✅ Elasticsearch is available and accepting authenticated requests"
+  if esapi --noauth GET / > /dev/null 2>&1; then
+    echo "✅ Elasticsearch is available and responding"
     break
   else
     echo "⏳ Elasticsearch not ready yet, waiting 5 seconds..."
@@ -109,8 +109,8 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   echo "Kibana health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
-  if kapi GET /api/status > /dev/null 2>&1; then
-    echo "✅ Kibana is healthy and ready"
+  if kapi --noauth GET /api/status > /dev/null 2>&1; then
+    echo "✅ Kibana is available and responding"
     break
   else
     echo "⏳ Kibana not ready yet, waiting 2 seconds..."
@@ -155,7 +155,7 @@ if esapi GET /_license > "$LICENSE_STATUS" 2>&1; then
     if esapi POST /_license/start_trial?acknowledge=true > /dev/null 2>&1; then
       echo "✅ Trial license enabled successfully"
     else
-      echo "⚠️  Trial license could not be enabled (may have already been enable
+      echo "⚠️  Trial license could not be enabled (may have already been enable"
     fi
   fi
 else
