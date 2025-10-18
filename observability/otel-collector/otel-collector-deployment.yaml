@@ -41,6 +41,9 @@ data:
             action: upsert
 
     exporters:
+      logging:
+        verbosity: detailed
+      
       elasticsearch:
         endpoints:
           - https://GaryPC.lan:9200
@@ -49,9 +52,6 @@ data:
         index: otel-traces
         tls:
           insecure_skip_verify: true
-      
-      logging:
-        loglevel: info
 
     extensions:
       health_check:
@@ -59,6 +59,9 @@ data:
 
     service:
       extensions: [health_check]
+      telemetry:
+        logs:
+          level: debug
       pipelines:
         traces:
           receivers: [otlp]
