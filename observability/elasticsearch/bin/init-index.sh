@@ -63,45 +63,7 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
 fi
 
 # ============================================================================
-# STEP 2: Set Kibana system password
-# ============================================================================
-echo ""
-echo "=== STEP 2: SETTING KIBANA SYSTEM PASSWORD ==="
-echo "Setting kibana_system password..."
-
-# Create JSON payload for password update
-PASSWORD_JSON=$(mktemp)
-cat > "$PASSWORD_JSON" <<EOF
-{
-  "password": "${KIBANA_PASSWORD}"
-}
-EOF
-
-# Set the kibana_system password
-MAX_RETRIES=10
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  echo "Password update attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
-  if esapi POST /_security/user/kibana_system/_password "$PASSWORD_JSON" > /dev/null 2>&1; then
-    echo "✅ kibana_system password updated successfully"
-    rm -f "$PASSWORD_JSON"
-    break
-  else
-    echo "⏳ Password update not ready, waiting 5 seconds..."
-    sleep 5
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-  fi
-done
-
-rm -f "$PASSWORD_JSON"
-
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-  echo "❌ Failed to set kibana_system password after $MAX_RETRIES attempts"
-  exit 1
-fi
-
-# ============================================================================
-# STEP 3: Wait for Kibana availability
+# STEP 2: Wait for Kibana availability
 # ============================================================================
 echo ""
 echo "=== STEP 3: WAITING FOR KIBANA AVAILABILITY ==="
@@ -125,7 +87,7 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
 fi
 
 # ============================================================================
-# STEP 4: Create outputs directory
+# STEP 3: Create outputs directory
 # ============================================================================
 echo ""
 echo "=== STEP 4: PREPARING OUTPUT DIRECTORIES ==="
@@ -135,7 +97,7 @@ mkdir -p /usr/share/elasticsearch/elasticsearch/outputs 2>/dev/null || true
 echo "✅ Output directories ready"
 
 # ============================================================================
-# STEP 5: Start Elasticsearch Trial License
+# STEP 4: Start Elasticsearch Trial License
 # ============================================================================
 echo ""
 echo "=== STEP 5: ENABLING ELASTICSEARCH TRIAL LICENSE ==="
@@ -164,10 +126,10 @@ fi
 rm -f "$LICENSE_STATUS"
 
 # ============================================================================
-# STEP 6: Initialize Batch Events (Index, ILM, Watchers, Data Views)
+# STEP 5: Initialize Batch Events (Index, ILM, Watchers, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 6: INITIALIZING BATCH EVENTS ==="
+echo "=== STEP 5: INITIALIZING BATCH EVENTS ==="
 
 echo "Creating batch-events ILM policy..."
 esapi PUT /_ilm/policy/batch-events elasticsearch/batch-events/batch-events.ilm.json \
@@ -202,10 +164,10 @@ kapi POST /api/saved_objects/search/active-batches?overwrite=true \
 echo "✅ Batch events initialized"
 
 # ============================================================================
-# STEP 7: Initialize Watcher Data View
+# STEP 6: Initialize Watcher Data View
 # ============================================================================
 echo ""
-echo "=== STEP 7: INITIALIZING WATCHER DATA VIEW ==="
+echo "=== STEP 6: INITIALIZING WATCHER DATA VIEW ==="
 
 echo "Creating watcher data view..."
 kapi POST /api/data_views/data_view elasticsearch/batch-events/watcher.dataview.json \
@@ -220,10 +182,10 @@ kapi POST /api/saved_objects/search/match-join-watcher-runs?overwrite=true \
 echo "✅ Watcher data view initialized"
 
 # ============================================================================
-# STEP 8: Initialize Spark Logs (ILM, Templates, Data Views)
+# STEP 7: Initialize Spark Logs (ILM, Templates, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 8: INITIALIZING SPARK LOGS ==="
+echo "=== STEP 7: INITIALIZING SPARK LOGS ==="
 
 echo "Creating spark-logs ILM policy..."
 esapi PUT /_ilm/policy/spark-logs elasticsearch/spark/spark-logs.ilm.json \
@@ -240,10 +202,10 @@ kapi POST /api/data_views/data_view elasticsearch/spark/spark-logs.dataview.json
 echo "✅ Spark logs initialized"
 
 # ============================================================================
-# STEP 9: Initialize Batch Traces (ILM, Templates, Data Views)
+# STEP 8: Initialize Batch Traces (ILM, Templates, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 9: INITIALIZING BATCH TRACES ==="
+echo "=== STEP 8: INITIALIZING BATCH TRACES ==="
 
 echo "Creating batch-traces ILM policy..."
 esapi PUT /_ilm/policy/batch-traces elasticsearch/batch-traces/batch-traces.ilm.json \
@@ -264,10 +226,10 @@ kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true \
 echo "✅ Batch traces initialized"
 
 # ============================================================================
-# STEP 10: Initialize Batch Metrics (Templates, Data Streams, Watchers, Data Views)
+# STEP 9: Initialize Batch Metrics (Templates, Data Streams, Watchers, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 10: INITIALIZING BATCH METRICS ==="
+echo "=== STEP 9: INITIALIZING BATCH METRICS ==="
 
 echo "Creating batch-metrics index template..."
 esapi PUT /_index_template/batch-metrics-ds elasticsearch/batch-metrics/batch-metrics.template.json \
@@ -295,10 +257,10 @@ kapi POST /api/saved_objects/search/batch-events-counts?overwrite=true \
 echo "✅ Batch metrics initialized"
 
 # ============================================================================
-# STEP 11: Initialize Spark GC (ILM, Templates, Ingest Pipelines, Data Views)
+# STEP 10: Initialize Spark GC (ILM, Templates, Ingest Pipelines, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 11: INITIALIZING SPARK GC ==="
+echo "=== STEP 10: INITIALIZING SPARK GC ==="
 
 echo "Creating spark-gc ILM policy..."
 esapi PUT /_ilm/policy/spark-gc elasticsearch/spark-gc/spark-gc.ilm.json \
@@ -324,10 +286,10 @@ kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true \
 echo "✅ Spark GC initialized"
 
 # ============================================================================
-# STEP 12: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
+# STEP 11: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 12: INITIALIZING OPENTELEMETRY TRACES ==="
+echo "=== STEP 11: INITIALIZING OPENTELEMETRY TRACES ==="
 
 echo "Creating otel-traces ILM policy..."
 esapi PUT /_ilm/policy/otel-traces elasticsearch/otel-traces/otel-traces.ilm-policy.json \

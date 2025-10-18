@@ -109,6 +109,38 @@ services:
       
 
 
+  set-kibana-password:
+    image: elasticsearch-python
+    container_name: set-kibana-password
+    labels:
+      role: "Set Kibana Password"
+    volumes:
+      - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+    command: >
+      bash -c "
+      SCRIPT_DIR=/usr/share/elasticsearch/elasticsearch/bin;
+      PATH=\$PATH:\$SCRIPT_DIR;
+      cat > /tmp/kibana-password.json <<'EOF'
+      {\"password\": \"\$KIBANA_PASSWORD\"}
+      EOF
+      esapi POST /_security/user/kibana_system/_password /tmp/kibana-password.json;
+      rm -f /tmp/kibana-password.json
+      "
+    environment:
+      CA_CERT: "${CA_CERT_LINUX_PATH}"
+      ELASTIC_HOST: ${ELASTIC_HOST}
+      ELASTIC_PORT: ${ELASTIC_PORT}
+      ELASTIC_USER: ${ELASTIC_USER}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      TZ: ${TZ}
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-certs:
+        condition: service_completed_successfully
+
   kibana:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION} 
     container_name: kibana
@@ -136,7 +168,9 @@ services:
     mem_limit: ${KB_MEM_LIMIT}
     depends_on:
       es01:
-        condition: service_healthy 
+        condition: service_healthy
+      set-kibana-password:
+        condition: service_completed_successfully
       init-certs:
         condition: service_completed_successfully
     healthcheck:
@@ -201,6 +235,8 @@ services:
     depends_on:
       es01:
         condition: service_healthy
+      set-kibana-password:
+        condition: service_completed_successfully
       kibana:
         condition: service_healthy
       init-certs:
