@@ -238,6 +238,9 @@ USER_SPARK_HOME:
 
 # OpenTelemetry Configuration for Spark
 OTEL_EXPORTER_OTLP_ENDPOINT:
+  value: http://Lab2.lan:31317
+  contexts: [spark-client]
+OTEL_EXPORTER_OTLP_ENDPOINT_K8S:
   value: http://otel-collector.observability.svc.cluster.local:4317
   contexts: [spark-runtime]
 
