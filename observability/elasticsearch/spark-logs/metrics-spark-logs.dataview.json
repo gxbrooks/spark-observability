@@ -1,0 +1,48 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "metrics-spark-logs-default",
+    "id": "spark-log-metrics",
+    "name": "Spark Log Metrics",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fields": {
+      "@timestamp": {
+        "name": "@timestamp",
+        "type": "date",
+        "customLabel": "Timestamp"
+      },
+      "log_level": {
+        "name": "log_level",
+        "type": "string",
+        "customLabel": "Log Level"
+      },
+      "hostname": {
+        "name": "hostname",
+        "type": "string",
+        "customLabel": "Hostname"
+      },
+      "pod_name": {
+        "name": "pod_name",
+        "type": "string",
+        "customLabel": "Pod Name"
+      },
+      "log_count": {
+        "name": "log_count",
+        "type": "number",
+        "customLabel": "Log Count"
+      }
+    },
+      "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {
+          "pattern": "YYYY-MM-DD HH:mm:ss"
+        }
+      }
+    },
+    "sourceFilters": []
+  }
+}
+

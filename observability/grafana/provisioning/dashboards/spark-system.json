@@ -1488,7 +1488,7 @@
               "type": "terms"
             },
             {
-              "field": "time_bucket",
+              "field": "@timestamp",
               "id": "2",
               "settings": {
                 "interval": "auto",
@@ -1511,7 +1511,7 @@
           ],
           "query": "_index:metrics-spark-logs-default",
           "refId": "A",
-          "timeField": "time_bucket"
+          "timeField": "@timestamp"
         }
       ],
       "title": "Spark Application Logs by Level",
