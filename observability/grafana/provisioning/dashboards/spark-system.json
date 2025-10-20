@@ -1488,6 +1488,17 @@
               "type": "terms"
             },
             {
+              "field": "hostname",
+              "id": "4",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
               "field": "@timestamp",
               "id": "2",
               "settings": {
