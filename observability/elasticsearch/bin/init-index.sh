@@ -286,10 +286,59 @@ kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true \
 echo "✅ Spark GC initialized"
 
 # ============================================================================
-# STEP 11: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
+# STEP 11: Initialize Spark Application Logs (ILM, Templates, Ingest Pipelines, Data Views, Transform)
 # ============================================================================
 echo ""
-echo "=== STEP 11: INITIALIZING OPENTELEMETRY TRACES ==="
+echo "=== STEP 11: INITIALIZING SPARK APPLICATION LOGS ==="
+
+echo "Creating spark-logs ILM policy..."
+esapi PUT /_ilm/policy/spark-logs elasticsearch/spark-logs/spark-logs.ilm.json \
+  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs.ilm.out.json
+
+echo "Creating spark-logs ingest pipeline..."
+esapi PUT /_ingest/pipeline/spark-logs-pipeline elasticsearch/spark-logs/spark-logs-ingest-pipeline.json \
+  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs-ingest-pipeline.out.json
+
+echo "Creating logs-spark-default index template..."
+esapi PUT /_index_template/logs-spark-default elasticsearch/spark-logs/logs-spark-default.template.json \
+  > /usr/share/elasticsearch/elasticsearch/outputs/logs-spark-default.template.out.json
+
+echo "Creating spark-logs data view..."
+kapi POST /api/data_views/data_view elasticsearch/spark-logs/spark-logs.dataview.json \
+  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs.dataview.out.json
+
+# Create metrics data stream infrastructure
+echo "Creating metrics ILM policy..."
+esapi PUT /_ilm/policy/spark-metrics elasticsearch/spark-logs/metrics-spark-logs.ilm.json \
+  > /usr/share/elasticsearch/elasticsearch/outputs/metrics-spark-logs.ilm.out.json
+
+echo "Creating metrics index template..."
+esapi PUT /_index_template/metrics-spark-logs-default elasticsearch/spark-logs/metrics-spark-logs.template.json \
+  > /usr/share/elasticsearch/elasticsearch/outputs/metrics-spark-logs.template.out.json
+
+# Check if logs-spark-default index exists before creating transform
+echo "Checking if logs-spark-default index exists..."
+if esapi GET /logs-spark-default/_count > /dev/null 2>&1; then
+  echo "Index exists, creating transform..."
+  esapi PUT /_transform/spark-log-metrics elasticsearch/spark-logs/spark-log-metrics-transform.json \
+    > /usr/share/elasticsearch/elasticsearch/outputs/spark-log-metrics-transform.out.json
+  
+  echo "Starting spark-log-metrics transform..."
+  esapi POST /_transform/spark-log-metrics/_start \
+    > /dev/null 2>&1
+  echo "✅ Transform created and started"
+else
+  echo "⚠️  Index logs-spark-default doesn't exist yet. Transform will be created when Spark logs start flowing."
+  echo "    To create manually later: kubectl exec -n observability <pod> -- bin/esapi PUT /_transform/spark-log-metrics elasticsearch/spark-logs/spark-log-metrics-transform.json"
+fi
+
+echo "✅ Spark Application Logs initialized"
+
+# ============================================================================
+# STEP 12: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
+# ============================================================================
+echo ""
+echo "=== STEP 12: INITIALIZING OPENTELEMETRY TRACES ==="
 
 echo "Creating otel-traces ILM policy..."
 esapi PUT /_ilm/policy/otel-traces elasticsearch/otel-traces/otel-traces.ilm-policy.json \

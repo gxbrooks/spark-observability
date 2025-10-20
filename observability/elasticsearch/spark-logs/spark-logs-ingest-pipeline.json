@@ -1,0 +1,86 @@
+{
+  "description": "Pipeline for parsing Spark application logs and extracting log levels and stack traces",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "%{TIMESTAMP_ISO8601:log_timestamp} %{LOGLEVEL:log.level}%{SPACE}%{JAVACLASS:spark.class}:%{NUMBER:line_number} - %{GREEDYDATA:log_message}"
+        ],
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "script": {
+        "lang": "painless",
+        "description": "Extract stack trace from message if present",
+        "source": "def msg = String.valueOf(ctx.message); if (msg == null || msg == 'null') return; def lines = /\\n/.split(msg, 2); if (lines.length < 2) return; def remainder = lines[1]; if (remainder.length() > 20 && (remainder.contains('at ') || remainder.contains('Exception') || remainder.contains('Error'))) { if (ctx.error == null) { ctx.error = [:]; } ctx.error.stack_trace = remainder; }",
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "log.level",
+        "value": "INFO",
+        "if": "ctx?.log?.level == null && ctx?.message != null"
+      }
+    },
+    {
+      "uppercase": {
+        "field": "log.level",
+        "ignore_missing": true
+      }
+    },
+    {
+      "set": {
+        "field": "event.category",
+        "value": "application"
+      }
+    },
+    {
+      "set": {
+        "field": "event.kind",
+        "value": "event"
+      }
+    },
+    {
+      "set": {
+        "field": "event.type",
+        "value": ["info"],
+        "if": "ctx?.log?.level == 'INFO'"
+      }
+    },
+    {
+      "set": {
+        "field": "event.type",
+        "value": ["error"],
+        "if": "ctx?.log?.level == 'ERROR' || ctx?.log?.level == 'CRITICAL' || ctx?.log?.level == 'FATAL'"
+      }
+    },
+    {
+      "set": {
+        "field": "event.type",
+        "value": ["warning"],
+        "if": "ctx?.log?.level == 'WARN' || ctx?.log?.level == 'WARNING'"
+      }
+    },
+    {
+      "set": {
+        "field": "event.type",
+        "value": ["debug"],
+        "if": "ctx?.log?.level == 'DEBUG' || ctx?.log?.level == 'TRACE'"
+      }
+    }
+  ],
+  "on_failure": [
+    {
+      "set": {
+        "field": "error.message",
+        "value": "{{ _ingest.on_failure_message }}"
+      }
+    }
+  ]
+}
+
+

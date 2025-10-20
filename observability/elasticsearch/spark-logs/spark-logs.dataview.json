@@ -1,0 +1,92 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "logs-spark-default",
+    "id": "spark-logs",
+    "name": "Spark Application Logs",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fields": {
+      "@timestamp": {
+        "name": "@timestamp",
+        "type": "date",
+        "customLabel": "Timestamp"
+      },
+      "message": {
+        "name": "message",
+        "type": "string",
+        "customLabel": "Log Message"
+      },
+      "log.level": {
+        "name": "log.level",
+        "type": "string",
+        "customLabel": "Log Level"
+      },
+      "spark.component": {
+        "name": "spark.component",
+        "type": "string",
+        "customLabel": "Spark Component"
+      },
+      "spark.pod_name": {
+        "name": "spark.pod_name",
+        "type": "string",
+        "customLabel": "Pod Name"
+      },
+      "spark.class": {
+        "name": "spark.class",
+        "type": "string",
+        "customLabel": "Java Class"
+      },
+      "error.stack_trace": {
+        "name": "error.stack_trace",
+        "type": "string",
+        "customLabel": "Stack Trace"
+      },
+      "log_message": {
+        "name": "log_message",
+        "type": "string",
+        "customLabel": "Log Message (Parsed)"
+      },
+      "event.type": {
+        "name": "event.type",
+        "type": "string",
+        "customLabel": "Event Type"
+      },
+      "event.category": {
+        "name": "event.category",
+        "type": "string",
+        "customLabel": "Event Category"
+      },
+      "kubernetes.pod.name": {
+        "name": "kubernetes.pod.name",
+        "type": "string",
+        "customLabel": "K8s Pod Name"
+      },
+      "kubernetes.namespace": {
+        "name": "kubernetes.namespace",
+        "type": "string",
+        "customLabel": "K8s Namespace"
+      },
+      "kubernetes.container.name": {
+        "name": "kubernetes.container.name",
+        "type": "string",
+        "customLabel": "Container Name"
+      },
+      "host.hostname": {
+        "name": "host.hostname",
+        "type": "string",
+        "customLabel": "Host"
+      }
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {
+          "pattern": "YYYY-MM-DD HH:mm:ss.SSS"
+        }
+      }
+    },
+    "sourceFilters": []
+  }
+}

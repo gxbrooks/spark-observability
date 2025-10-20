@@ -225,6 +225,9 @@ SPARK_CONF_DIR:
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
+SPARK_DAEMON_JAVA_OPTS:
+  value: -Dlog4j2.configurationFile=file:///opt/spark/conf-extra/log4j2-cluster.properties
+  contexts: [spark-runtime]
 
 # Spark user specific variables
 # TODO: Utilize these variables in the spark playbooks

@@ -1,0 +1,56 @@
+{
+  "source": {
+    "index": ["logs-spark-default"],
+    "query": {
+      "match_all": {}
+    }
+  },
+  "dest": {
+    "index": "metrics-spark-logs-default"
+  },
+  "frequency": "1m",
+  "sync": {
+    "time": {
+      "field": "@timestamp",
+      "delay": "60s"
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "log_level": {
+        "terms": {
+          "field": "log.level"
+        }
+      },
+      "time_bucket": {
+        "date_histogram": {
+          "field": "@timestamp",
+          "fixed_interval": "1m"
+        }
+      },
+      "pod_name": {
+        "terms": {
+          "field": "spark.pod_name"
+        }
+      },
+      "hostname": {
+        "terms": {
+          "field": "host.hostname.keyword"
+        }
+      }
+    },
+    "aggregations": {
+      "log_count": {
+        "value_count": {
+          "field": "@timestamp"
+        }
+      }
+    }
+  },
+  "description": "Transform for aggregating Spark log counts by log level and component",
+  "settings": {
+    "max_page_search_size": 500
+  }
+}
+
+

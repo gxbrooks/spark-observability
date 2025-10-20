@@ -1,0 +1,41 @@
+{
+  "index_patterns": [
+    "metrics-spark-logs-default"
+  ],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "spark-metrics",
+      "index.lifecycle.rollover_alias": "spark-metrics-alias"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "time_bucket": {
+          "type": "date"
+        },
+        "log_level": {
+          "type": "keyword"
+        },
+        "pod_name": {
+          "type": "keyword"
+        },
+        "hostname": {
+          "type": "keyword"
+        },
+        "log_count": {
+          "type": "long"
+        }
+      }
+    }
+  },
+  "composed_of": [
+    "metrics-mappings",
+    "metrics-settings"
+  ]
+}
+

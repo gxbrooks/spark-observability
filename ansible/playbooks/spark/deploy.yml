@@ -354,8 +354,7 @@
       shell: |
         kubectl create configmap spark-defaults-conf \
         --from-file=/home/{{ ansible_user }}/spark/conf/spark-defaults.conf \
-        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2-executor.properties \
-        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2.properties \
+        --from-file=/home/{{ ansible_user }}/spark/conf/log4j2-cluster.properties \
         -n spark --dry-run=client -o yaml | kubectl apply -f -
       environment:
         KUBECONFIG: "{{ kubeconfig }}"
