@@ -75,11 +75,28 @@ create_spark_group() {
     $DEBUG && echo "Debug   : Checking if spark group exists..."
     
     if check_spark_group; then
-        $DEBUG && echo "Debug   : spark group already exists"
-        if $CHECK; then
-            echo "Check   : spark group already exists - no change needed"
+        # Verify the GID is correct
+        CURRENT_GID=$(getent group spark | cut -d: -f3)
+        if [ "$CURRENT_GID" != "$SPARK_GID" ]; then
+            if $CHECK; then
+                echo "Check   : spark group exists with GID $CURRENT_GID - would change to $SPARK_GID"
+            else
+                echo "Info    : spark group exists with GID $CURRENT_GID - changing to $SPARK_GID..."
+                sudo groupmod -g "$SPARK_GID" spark
+                if [ $? -eq 0 ]; then
+                    echo "Success : spark group GID changed to $SPARK_GID"
+                else
+                    echo "Error   : Failed to change spark group GID"
+                    return 1
+                fi
+            fi
         else
-            echo "Info    : spark group already exists - no change needed"
+            $DEBUG && echo "Debug   : spark group already exists with correct GID $SPARK_GID"
+            if $CHECK; then
+                echo "Check   : spark group already exists with correct GID - no change needed"
+            else
+                echo "Info    : spark group already exists with correct GID - no change needed"
+            fi
         fi
     else
         if $CHECK; then
@@ -192,6 +209,14 @@ create_spark_user
 
 # Add current user to spark group
 add_user_to_spark_group "$USER"
+
+# Add elastic-agent user to spark group if it exists (for file access to Spark logs)
+if getent passwd elastic-agent >/dev/null 2>&1; then
+    $DEBUG && echo "Debug   : elastic-agent user exists, adding to spark group..."
+    add_user_to_spark_group "elastic-agent"
+else
+    $DEBUG && echo "Debug   : elastic-agent user does not exist, skipping..."
+fi
 
 # Verify setup
 if ! $CHECK; then
