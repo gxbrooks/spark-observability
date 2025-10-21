@@ -168,7 +168,7 @@
               "type": "raw_data"
             }
           ],
-          "query": "_index:logs-spark-default",
+          "query": "_index:logs-spark-default AND log.level:($log_level)",
           "refId": "A",
           "timeField": "@timestamp"
         }
