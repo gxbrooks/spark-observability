@@ -161,15 +161,31 @@ This document defines the standard users, groups, and their roles across all hos
 | **gxbrooks** | 1000 | Personal files for gxbrooks user | `/home/gxbrooks/*` |
 | **ansible** | 1001/1002 | Automation files for ansible user | `/home/ansible/*` |
 
-## Automated User Setup
+## Automated User Setup with ID Consistency
+
+### Standard IDs (Defined in `linux/standard_ids.sh`)
+
+```bash
+# Service Accounts (100-999 range)
+SPARK_UID=185
+SPARK_GID=185      # CRITICAL: Must match Kubernetes
+
+# Normal Users (1000+ range)  
+ANSIBLE_UID=1001
+ANSIBLE_GID=1001
+```
+
+These IDs are automatically enforced by the assert_* scripts.
+
+---
 
 ### Managed Nodes (Server Hosts)
 
 **Script**: `linux/assert_managed_node.sh`
 
 **Creates/Configures**:
-1. `ansible` user (service account)
-2. `spark` user and group (UID/GID 185)
+1. `ansible` user with UID/GID 1001 (service account)
+2. `spark` user and group with UID/GID 185
 3. SSH server configuration
 4. Python environment
 
@@ -182,10 +198,13 @@ This document defines the standard users, groups, and their roles across all hos
   -jv 17
 ```
 
-**Ensures**:
-- spark group has GID 185
-- Current user added to spark group
-- elastic-agent user added to spark group (if exists)
+**Automatic ID Enforcement**:
+- ✅ Verifies spark group is GID 185 (fixes if wrong)
+- ✅ Verifies ansible user is UID/GID 1001 (fixes if wrong)
+- ✅ Adds current user to spark group
+- ✅ Adds elastic-agent to spark group (if exists)
+- ✅ Creates users with standard IDs on new hosts
+- ✅ Fixes ID mismatches on existing hosts
 
 ---
 
@@ -194,7 +213,7 @@ This document defines the standard users, groups, and their roles across all hos
 **Script**: `linux/assert_devops_client.sh`
 
 **Creates/Configures**:
-1. `spark` user and group (UID/GID 185)
+1. `spark` user and group with UID/GID 185
 2. SSH client configuration
 3. Git configuration
 4. Python virtual environment with PySpark
@@ -209,10 +228,52 @@ This document defines the standard users, groups, and their roles across all hos
   -sv 4.0.1
 ```
 
-**Ensures**:
-- spark group has GID 185
-- Current user added to spark group
-- PySpark version matches cluster Spark version
+**Automatic ID Enforcement**:
+- ✅ Verifies spark group is GID 185 (fixes if wrong)
+- ✅ Adds current user to spark group
+- ✅ Adds elastic-agent to spark group (if exists)
+- ✅ Verifies PySpark matches cluster Spark version
+
+---
+
+### Verifying ID Consistency
+
+**Script**: `linux/verify_id_consistency.sh`
+
+**Purpose**: Check that all hosts have consistent UIDs/GIDs
+
+**Usage**:
+```bash
+./linux/verify_id_consistency.sh
+```
+
+**Checks**:
+- ✓ spark GID is 185 on all hosts
+- ✓ ansible UID/GID is 1001 on all hosts (recommended)
+- ✓ elastic-agent is member of spark group on all hosts
+
+**Example Output**:
+```
+============================================
+UID/GID Consistency Verification
+============================================
+
+Checking Lab1...
+  ✓ spark GID: 185 (correct)
+  ✓ ansible UID: 1001 (correct)
+  ✓ ansible GID: 1001 (correct)
+  ✓ elastic-agent in spark group
+
+Checking Lab2...
+  ✓ spark GID: 185 (correct)
+  ✓ ansible UID: 1001 (correct)
+  ✓ ansible GID: 1001 (correct)
+  ✓ elastic-agent in spark group
+
+============================================
+✓ All critical IDs are consistent
+============================================
+```
 
 ---
 
@@ -356,10 +417,112 @@ sudo usermod -a -G spark gxbrooks
 
 ---
 
+## Setting Up a New Host
+
+### Process
+
+1. **Run assert script on the new host**:
+   ```bash
+   # For managed nodes (servers):
+   ./linux/assert_managed_node.sh --User ansible --Password <pwd> -pyv 3.11 -jv 17
+   
+   # For devops clients (developers):
+   ./linux/assert_devops_client.sh -N <passphrase> -pyv 3.11 -jv 17 -sv 4.0.1
+   ```
+
+2. **Verify ID consistency across all hosts**:
+   ```bash
+   ./linux/verify_id_consistency.sh
+   ```
+
+3. **If inconsistencies detected**:
+   - The verification script will report which IDs are wrong
+   - Re-run the appropriate assert_* script on the problematic host
+   - The script will automatically fix the IDs
+
+### How ID Consistency is Enforced
+
+**Automatic Detection and Correction**:
+
+1. **`linux/standard_ids.sh`**: Defines standard UIDs/GIDs
+   - Sourced by all assert_* scripts
+   - Single source of truth for IDs
+
+2. **`assert_spark_user.sh`**:
+   - Checks if spark group exists
+   - If GID is wrong → Changes it to 185
+   - Adds elastic-agent and current user to spark group
+
+3. **`assert_service_account.sh`** (via `assert_managed_node.sh`):
+   - Checks if ansible user exists
+   - If UID/GID is wrong → Changes to 1001/1001
+   - Creates with correct IDs if new
+
+4. **`verify_id_consistency.sh`**:
+   - Runs checks across all hosts in inventory
+   - Reports any inconsistencies
+   - Suggests remediation steps
+
+### Example: Adding Lab3 as New Host
+
+```bash
+# 1. On Lab3, clone repository
+git clone https://github.com/gxbrooks/elastic-on-spark.git
+cd elastic-on-spark
+
+# 2. Run managed node setup
+./linux/assert_managed_node.sh --User ansible --Password <secure-pwd> -pyv 3.11 -jv 17
+
+# This automatically:
+# - Creates ansible user with UID/GID 1001
+# - Creates spark user/group with UID/GID 185
+# - Adds gxbrooks to spark group
+# - Adds elastic-agent to spark group (if exists)
+
+# 3. From control machine, verify consistency
+./linux/verify_id_consistency.sh
+
+# 4. Deploy Kubernetes and Spark
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start_k8s.yml --limit Lab3
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/deploy.yml --limit Lab3
+```
+
+### Example: Fixing Existing Host with Wrong IDs
+
+```bash
+# Scenario: Lab1 has spark GID 1004 instead of 185
+
+# 1. Run verify script to detect
+./linux/verify_id_consistency.sh
+# Output: ✗ spark GID: 1004 (expected 185)
+
+# 2. Fix by running assert script on Lab1
+ansible Lab1 -i ansible/inventory.yml -m shell -a "cd /home/gxbrooks/repos/elastic-on-spark && ./linux/assert_spark_user.sh"
+
+# The script will:
+# - Detect GID mismatch (1004 vs 185)
+# - Change spark group to GID 185
+# - Re-add all users to spark group
+# - Verify elastic-agent has access
+
+# 3. Verify fix
+./linux/verify_id_consistency.sh
+# Output: ✓ spark GID: 185 (correct)
+
+# 4. Restart elastic-agent to pick up new group membership
+ansible Lab1 -i ansible/inventory.yml -m shell -a "sudo systemctl restart elastic-agent.service" -b
+```
+
+---
+
 ## Related Files
 
+- `linux/standard_ids.sh` - **NEW**: Defines standard UIDs/GIDs for all scripts
+- `linux/verify_id_consistency.sh` - **NEW**: Verifies IDs across all hosts
 - `linux/assert_spark_user.sh` - Creates spark user/group, enforces GID 185
-- `linux/assert_service_account.sh` - Creates ansible service account
+- `linux/assert_service_account.sh` - Creates service accounts with UID/GID enforcement
+- `ssh/assert_service_account.sh` - Low-level user creation with UID/GID support
+- `ssh/assert_group.sh` - Group creation with GID support
 - `linux/assert_managed_node.sh` - Complete managed node setup
 - `linux/assert_devops_client.sh` - Complete devops client setup
 - `ansible/playbooks/elastic-agent/install.yml` - Elastic Agent deployment

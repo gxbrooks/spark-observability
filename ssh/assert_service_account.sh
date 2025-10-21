@@ -11,6 +11,8 @@ DEBUG=false
 CHECK=false
 USERNAME=""
 PASSWORD=""
+USER_UID=""
+USER_GID=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -18,6 +20,8 @@ while [[ "$#" -gt 0 ]]; do
         --Check|-c) CHECK=true ;;
         --Username|-u) USERNAME="$2"; shift ;;
         --Password|-p) PASSWORD="$2"; shift ;;
+        --UID) USER_UID="$2"; shift ;;
+        --GID) USER_GID="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
@@ -43,15 +47,69 @@ $script_dir/assert_group.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG") 
 
-$script_dir/assert_group.sh \
-    --Group "$USERNAME" \
-    $(append_flag "--Check" "$CHECK") \
-    $(append_flag "--Debug" "$DEBUG") 
+# Create group with specific GID if provided
+if [[ -n "$USER_GID" ]]; then
+    if getent group "$USERNAME" >/dev/null 2>&1; then
+        CURRENT_GROUP_GID=$(getent group "$USERNAME" | cut -d: -f3)
+        if [[ "$CURRENT_GROUP_GID" != "$USER_GID" ]]; then
+            if $CHECK; then
+                echo "Check   : Group '$USERNAME' has GID $CURRENT_GROUP_GID - would change to $USER_GID"
+            else
+                echo "Info    : Changing GID for group '$USERNAME' from $CURRENT_GROUP_GID to $USER_GID..."
+                sudo groupmod -g "$USER_GID" "$USERNAME"
+            fi
+        fi
+    else
+        $script_dir/assert_group.sh \
+            --Group "$USERNAME" \
+            --GID "$USER_GID" \
+            $(append_flag "--Check" "$CHECK") \
+            $(append_flag "--Debug" "$DEBUG")
+    fi
+else
+    $script_dir/assert_group.sh \
+        --Group "$USERNAME" \
+        $(append_flag "--Check" "$CHECK") \
+        $(append_flag "--Debug" "$DEBUG")
+fi 
 
 # Check if the user exists
 $DEBUG && echo "Checking  : if user '$USERNAME' exists..."
 if id "$USERNAME" &>/dev/null; then
     echo  "Result  : User '$USERNAME' already exists."
+    
+    # Verify and fix UID/GID if specified
+    if [[ -n "$USER_UID" ]] || [[ -n "$USER_GID" ]]; then
+        CURRENT_UID=$(id -u "$USERNAME")
+        CURRENT_GID=$(id -g "$USERNAME")
+        
+        if [[ -n "$USER_UID" ]] && [[ "$CURRENT_UID" != "$USER_UID" ]]; then
+            if $CHECK; then
+                echo  "Check   : User '$USERNAME' has UID $CURRENT_UID - would change to $USER_UID"
+            else
+                echo  "Info    : Changing UID for '$USERNAME' from $CURRENT_UID to $USER_UID..."
+                sudo usermod -u "$USER_UID" "$USERNAME"
+                echo  "Success : UID updated to $USER_UID"
+            fi
+        fi
+        
+        if [[ -n "$USER_GID" ]] && [[ "$CURRENT_GID" != "$USER_GID" ]]; then
+            if $CHECK; then
+                echo  "Check   : User '$USERNAME' has GID $CURRENT_GID - would change to $USER_GID"
+            else
+                # First check if the group needs GID change
+                if getent group "$USERNAME" >/dev/null 2>&1; then
+                    GROUP_GID=$(getent group "$USERNAME" | cut -d: -f3)
+                    if [[ "$GROUP_GID" != "$USER_GID" ]]; then
+                        echo  "Info    : Changing GID for group '$USERNAME' from $GROUP_GID to $USER_GID..."
+                        sudo groupmod -g "$USER_GID" "$USERNAME"
+                    fi
+                fi
+                echo  "Success : GID updated to $USER_GID"
+            fi
+        fi
+    fi
+    
     if [[ -z "$PASSWORD" ]]; then
         echo  "Result  : No password provided. Skipping password update."
     else
@@ -75,13 +133,19 @@ else
         echo
     fi
 
-    # Create the user
+    # Create the user with optional UID/GID
     $DEBUG && echo "Creating user '$USERNAME'..."
-    sudo useradd -m -s /bin/bash \
-        -g "$USERNAME" \
-        -d "/home/$USERNAME" \
-        -c "${USERNAME^} Service Account" \
-        "$USERNAME"
+    USERADD_ARGS="-m -s /bin/bash -g $USERNAME -d /home/$USERNAME -c ${USERNAME^} Service Account"
+    [[ -n "$USER_UID" ]] && USERADD_ARGS="$USERADD_ARGS -u $USER_UID"
+    [[ -n "$USER_GID" ]] && {
+        # Ensure group exists with correct GID first
+        if ! getent group "$USERNAME" >/dev/null 2>&1; then
+            $DEBUG && echo "Creating group '$USERNAME' with GID $USER_GID..."
+            sudo groupadd -g "$USER_GID" "$USERNAME"
+        fi
+    }
+    
+    sudo useradd $USERADD_ARGS "$USERNAME"
 
     if [[ $? -ne 0 ]]; then
         echo  "Result  : Error: Failed to create user '$USERNAME'."
