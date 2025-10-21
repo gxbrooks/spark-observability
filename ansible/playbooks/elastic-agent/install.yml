@@ -402,6 +402,33 @@
       ansible.builtin.debug:
         msg: "Elastic Agent is {{ elastic_agent_status.status.ActiveState }}"
 
+    - name: Verify critical inputs are configured
+      ansible.builtin.shell: |
+        grep -c "id: {{ item }}" {{ elastic_agent_install_dir }}/elastic-agent.yml || echo "0"
+      loop:
+        - spark-events
+        - spark-app-logs
+        - spark-gc-logs
+      register: input_checks
+      changed_when: false
+      become: true
+
+    - name: Display input configuration status
+      ansible.builtin.debug:
+        msg: |
+          Elastic Agent Input Configuration Status:
+          - spark-events: {{ 'CONFIGURED' if input_checks.results[0].stdout|int > 0 else 'MISSING' }}
+          - spark-app-logs: {{ 'CONFIGURED' if input_checks.results[1].stdout|int > 0 else 'MISSING' }}
+          - spark-gc-logs: {{ 'CONFIGURED' if input_checks.results[2].stdout|int > 0 else 'MISSING' }}
+
+    - name: Fail if critical inputs are missing
+      ansible.builtin.fail:
+        msg: "Critical Elastic Agent input '{{ item.item }}' is not configured in elastic-agent.yml"
+      when: item.stdout|int == 0
+      loop: "{{ input_checks.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
     - name: Clean up temporary files (Linux)
       ansible.builtin.file:
         path: "{{ item }}"
