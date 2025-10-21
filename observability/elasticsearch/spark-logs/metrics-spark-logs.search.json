@@ -1,0 +1,31 @@
+{
+  "attributes": {
+    "title": "Spark Log Metrics",
+    "description": "Aggregated Spark log metrics by level, pod, and time",
+    "columns": [
+      "@timestamp",
+      "hostname",
+      "pod_name",
+      "log_level",
+      "log_count"
+    ],
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+    }
+  },
+  "references": [
+    {
+      "id": "spark-log-metrics",
+      "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+      "type": "index-pattern"
+    }
+  ]
+}
+
+

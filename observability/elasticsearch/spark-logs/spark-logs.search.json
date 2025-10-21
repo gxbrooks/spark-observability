@@ -1,0 +1,27 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"spark-logs\"}"
+    },
+    "title": "Spark Application Logs",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "log.level",
+      "host.hostname",
+      "spark.pod_name",
+      "log_message"
+    ],
+    "description": "Default columnar view: Time, Level, Host, Pod, Message",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
+  }
+}

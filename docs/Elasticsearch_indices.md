@@ -10,7 +10,7 @@
 | Index Pattern / Name | Type | Configuration File | Data View Name | Description |
 |---------------------|------|-------------------|----------------|-------------|
 | `logs-spark-default` | Data Stream | `spark-logs/logs-spark-default.template.json` | Spark Application Logs | Spark application logs from all cluster components (master, worker, history, executors) with parsed log levels and stack traces |
-| `metrics-spark-logs-default` | Index | `spark-logs/metrics-spark-logs.template.json` | Spark Log Metrics | Aggregated Spark log metrics by log level, pod, and time (1-minute buckets) - Transform output from logs-spark-default |
+| `metrics-spark-logs-default` | Index (¹) | `spark-logs/metrics-spark-logs.template.json` | Spark Log Metrics | Aggregated Spark log metrics by log level, pod, and time (1-minute buckets) - Transform output from logs-spark-default |
 | `logs-spark_gc-default` | Data Stream | `spark-gc/spark-gc.template.json` | Spark GC Logs | Spark JVM garbage collection logs with GC event details, pause times, and memory statistics |
 | `batch-events-000001` | Rollover Index | `batch-events/batch-events.template.json` | Batch Events | Spark batch job events from Spark event logs (application start/end, job start/end, stage info) |
 | `batch-metrics-ds` | Data Stream | `batch-metrics/batch-metrics.template.json` | Batch Metrics | Spark batch job metrics (execution times, task counts, shuffle metrics) |
@@ -131,5 +131,32 @@ graph TB
 - **Rollover Indices**: `batch-events-000001` is managed by ILM and will rollover to `batch-events-000002` when size/age limits are reached
 - **Data Streams**: Most indices use data stream architecture for automatic lifecycle management
 - **Configuration Base**: All configuration file paths are relative to `observability/elasticsearch/` directory
+
+---
+
+## Footnotes
+
+**(¹) metrics-spark-logs-default: Why Not a Data Stream?**
+
+This data is inherently time-series and SHOULD be a data stream for TSDS compression benefits, BUT:
+
+**Elasticsearch Transform Limitation (v8.15):**
+- Transforms CANNOT write to data streams (even when pre-created)
+- Transform tries to CREATE destination as INDEX, not use existing data stream
+- Error: "cannot create index... because it matches with template that creates data streams only"
+- This is a **known limitation** in current Elasticsearch versions
+
+**Verified Attempts:**
+1. ✅ Pre-create data stream → Transform still fails to start
+2. ✅ Remove `composed_of` templates → Transform still fails
+3. ✅ Template with `data_stream: {}` → Transform cannot write
+
+**Workaround (Current Solution):**
+- Use regular index (template has NO `data_stream` definition)
+- Transform creates and manages index automatically
+- Works reliably with full functionality
+- Loses TSDS compression benefits (future enhancement when Elasticsearch supports it)
+
+**Future:** Elasticsearch may add native transform → data stream support in version 9.x or later.
 
 

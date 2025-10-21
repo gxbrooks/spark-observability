@@ -93,7 +93,7 @@ echo ""
 echo "=== STEP 4: PREPARING OUTPUT DIRECTORIES ==="
 # Outputs directory should be created by ansible playbook with correct ownership
 # Create it here as fallback if running manually
-mkdir -p /usr/share/elasticsearch/elasticsearch/outputs 2>/dev/null || true
+mkdir -p elasticsearch/outputs 2>/dev/null || true
 echo "✅ Output directories ready"
 
 # ============================================================================
@@ -133,16 +133,16 @@ echo "=== STEP 5: INITIALIZING BATCH EVENTS ==="
 
 echo "Creating batch-events ILM policy..."
 esapi PUT /_ilm/policy/batch-events elasticsearch/batch-events/batch-events.ilm.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.ilm.out.json
+  > elasticsearch/outputs/batch-events.ilm.out.json
 
 echo "Creating batch-events index template..."
 esapi PUT /_index_template/batch-events elasticsearch/batch-events/batch-events.template.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.template.out.json
+  > elasticsearch/outputs/batch-events.template.out.json
 
 echo "Creating batch-events-000001 index if it doesn't exist..."
 if ! esapi GET /batch-events-000001 >& /dev/null; then
   esapi PUT /batch-events-000001 elasticsearch/batch-events/batch-events.index.json \
-    > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.index.out.json
+    > elasticsearch/outputs/batch-events.index.out.json
 else
   echo "  (index already exists, skipping)"
 fi
@@ -152,8 +152,9 @@ esapi PUT /_watcher/watch/batch-match-join elasticsearch/batch-events/match-join
   > /dev/null 2>&1
 
 echo "Creating batch-events data view..."
-kapi POST /api/data_views/data_view elasticsearch/batch-events/batch-events.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/batch-events.dataview.out.json
+kapi POST /api/data_views/data_view \
+  elasticsearch/batch-events/batch-events.dataview.json \
+  > elasticsearch/outputs/batch-events.dataview.out.json
 
 echo "Creating batch-events searches..."
 kapi POST /api/saved_objects/search/batch-events-events?overwrite=true \
@@ -171,7 +172,7 @@ echo "=== STEP 6: INITIALIZING WATCHER DATA VIEW ==="
 
 echo "Creating watcher data view..."
 kapi POST /api/data_views/data_view elasticsearch/batch-events/watcher.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/watcher.dataview.out.json
+  > elasticsearch/outputs/watcher.dataview.out.json
 
 echo "Creating watcher searches..."
 kapi POST /api/saved_objects/search/match-mustache-watcher-runs?overwrite=true \
@@ -188,16 +189,22 @@ echo ""
 echo "=== STEP 7: INITIALIZING SPARK LOGS ==="
 
 echo "Creating spark-logs ILM policy..."
-esapi PUT /_ilm/policy/spark-logs elasticsearch/spark/spark-logs.ilm.json \
+esapi PUT /_ilm/policy/spark-logs elasticsearch/spark-logs/spark-logs.ilm.json \
   > /dev/null 2>&1
 
-echo "Creating logs-spark-spark index template..."
-esapi PUT /_index_template/logs-spark-spark elasticsearch/spark/logs-spark-spark.template.json \
+echo "Creating logs-spark-default index template..."
+esapi PUT /_index_template/logs-spark-default \
+  elasticsearch/spark-logs/logs-spark-default.template.json \
   > /dev/null 2>&1
 
 echo "Creating spark-logs data view..."
-kapi POST /api/data_views/data_view elasticsearch/spark/spark-logs.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs.dataview.out.json
+kapi POST /api/data_views/data_view \
+  elasticsearch/spark-logs/spark-logs.dataview.json \
+  > elasticsearch/outputs/spark-logs.dataview.out.json
+
+echo "Creating spark-logs default search..."
+kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
+  elasticsearch/spark-logs/spark-logs.search.json > /dev/null 2>&1
 
 echo "✅ Spark logs initialized"
 
@@ -217,7 +224,7 @@ esapi PUT /_index_template/batch-traces elasticsearch/batch-traces/batch-traces.
 
 echo "Creating batch-traces data view..."
 kapi POST /api/data_views/data_view elasticsearch/batch-traces/batch-traces.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/batch-traces.dataview.out.json
+  > elasticsearch/outputs/batch-traces.dataview.out.json
 
 echo "Creating batch-traces searches..."
 kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true \
@@ -248,7 +255,7 @@ esapi PUT /_watcher/watch/batch-metrics elasticsearch/batch-metrics/batch-metric
 
 echo "Creating batch-metrics data view..."
 kapi POST /api/data_views/data_view elasticsearch/batch-metrics/batch-metrics.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/batch-metrics.dataview.out.json
+  > elasticsearch/outputs/batch-metrics.dataview.out.json
 
 echo "Creating batch-metrics searches..."
 kapi POST /api/saved_objects/search/batch-events-counts?overwrite=true \
@@ -264,7 +271,7 @@ echo "=== STEP 10: INITIALIZING SPARK GC ==="
 
 echo "Creating spark-gc ILM policy..."
 esapi PUT /_ilm/policy/spark-gc elasticsearch/spark-gc/spark-gc.ilm.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc.ilm.out.json
+  > elasticsearch/outputs/spark-gc.ilm.out.json
 
 echo "Creating spark-gc index template..."
 esapi PUT /_index_template/spark-gc-ds elasticsearch/spark-gc/spark-gc.template.json \
@@ -272,16 +279,16 @@ esapi PUT /_index_template/spark-gc-ds elasticsearch/spark-gc/spark-gc.template.
 
 echo "Creating spark-gc ingest pipeline..."
 esapi PUT /_ingest/pipeline/logs-spark_gc-default elasticsearch/spark-gc/spark-gc-ingest-pipeline.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc-ingest-pipeline.out.json
+  > elasticsearch/outputs/spark-gc-ingest-pipeline.out.json
 
 echo "Creating spark-gc data view..."
 kapi POST /api/data_views/data_view elasticsearch/spark-gc/spark-gc.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc.dataview.out.json
+  > elasticsearch/outputs/spark-gc.dataview.out.json
 
 echo "Creating spark-gc searches..."
 kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true \
   elasticsearch/spark-gc/spark-gc.search.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-gc.search.out.json
+  > elasticsearch/outputs/spark-gc.search.out.json
 
 echo "✅ Spark GC initialized"
 
@@ -293,44 +300,83 @@ echo "=== STEP 11: INITIALIZING SPARK APPLICATION LOGS ==="
 
 echo "Creating spark-logs ILM policy..."
 esapi PUT /_ilm/policy/spark-logs elasticsearch/spark-logs/spark-logs.ilm.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs.ilm.out.json
+  > elasticsearch/outputs/spark-logs.ilm.out.json
 
 echo "Creating spark-logs ingest pipeline..."
 esapi PUT /_ingest/pipeline/spark-logs-pipeline elasticsearch/spark-logs/spark-logs-ingest-pipeline.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs-ingest-pipeline.out.json
+  > elasticsearch/outputs/spark-logs-ingest-pipeline.out.json
 
 echo "Creating logs-spark-default index template..."
 esapi PUT /_index_template/logs-spark-default elasticsearch/spark-logs/logs-spark-default.template.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/logs-spark-default.template.out.json
+  > elasticsearch/outputs/logs-spark-default.template.out.json 2>&1
+
+echo "Creating logs-spark-default data stream (force creation for transform)..."
+if ! esapi --allow-errors GET /_data_stream/logs-spark-default > /dev/null 2>&1; then
+  esapi PUT /_data_stream/logs-spark-default \
+    > elasticsearch/outputs/logs-spark-default.datastream.out.json 2>&1
+  echo "  Data stream created"
+else
+  echo "  (data stream already exists, skipping)"
+fi
 
 echo "Creating spark-logs data view..."
 kapi POST /api/data_views/data_view elasticsearch/spark-logs/spark-logs.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/spark-logs.dataview.out.json
+  > elasticsearch/outputs/spark-logs.dataview.out.json 2>&1
+
+echo "Creating spark-logs default search..."
+kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
+  elasticsearch/spark-logs/spark-logs.search.json \
+  > elasticsearch/outputs/spark-logs.search.out.json 2>&1
 
 # Create metrics data stream infrastructure
 echo "Creating metrics ILM policy..."
 esapi PUT /_ilm/policy/spark-metrics elasticsearch/spark-logs/metrics-spark-logs.ilm.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/metrics-spark-logs.ilm.out.json
+  > elasticsearch/outputs/metrics-spark-logs.ilm.out.json
 
 echo "Creating metrics index template..."
 esapi PUT /_index_template/metrics-spark-logs-default elasticsearch/spark-logs/metrics-spark-logs.template.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/metrics-spark-logs.template.out.json
+  > elasticsearch/outputs/metrics-spark-logs.template.out.json 2>&1
 
-# Check if logs-spark-default index exists before creating transform
-echo "Checking if logs-spark-default index exists..."
-if esapi GET /logs-spark-default/_count > /dev/null 2>&1; then
-  echo "Index exists, creating transform..."
-  esapi PUT /_transform/spark-log-metrics elasticsearch/spark-logs/spark-log-metrics-transform.json \
-    > /usr/share/elasticsearch/elasticsearch/outputs/spark-log-metrics-transform.out.json
-  
-  echo "Starting spark-log-metrics transform..."
-  esapi POST /_transform/spark-log-metrics/_start \
-    > /dev/null 2>&1
-  echo "✅ Transform created and started"
+echo "Creating metrics data view..."
+kapi POST /api/data_views/data_view elasticsearch/spark-logs/metrics-spark-logs.dataview.json \
+  > elasticsearch/outputs/metrics-spark-logs.dataview.out.json 2>&1
+
+echo "Creating metrics default search..."
+kapi POST /api/saved_objects/search/spark-log-metrics-default?overwrite=true \
+  elasticsearch/spark-logs/metrics-spark-logs.search.json \
+  > elasticsearch/outputs/metrics-spark-logs.search.out.json 2>&1
+
+# Create or update spark-log-metrics transform
+echo "Checking if spark-log-metrics transform exists..."
+if esapi --allow-errors GET /_transform/spark-log-metrics > /dev/null 2>&1; then
+  TRANSFORM_EXISTS=$?
+  if [ $TRANSFORM_EXISTS -eq 0 ]; then
+    echo "Transform exists, updating..."
+    # Stop existing transform
+    esapi POST /_transform/spark-log-metrics/_stop?force=true \
+      > elasticsearch/outputs/spark-log-metrics-stop.out.json 2>&1 || true
+    # Delete existing transform
+    esapi DELETE /_transform/spark-log-metrics?force=true \
+      > elasticsearch/outputs/spark-log-metrics-delete.out.json 2>&1 || true
+  else
+    echo "Transform does not exist, will create..."
+  fi
 else
-  echo "⚠️  Index logs-spark-default doesn't exist yet. Transform will be created when Spark logs start flowing."
-  echo "    To create manually later: kubectl exec -n observability <pod> -- bin/esapi PUT /_transform/spark-log-metrics elasticsearch/spark-logs/spark-log-metrics-transform.json"
+  echo "Transform does not exist, will create..."
 fi
+
+# Create transform (index now exists)
+echo "Creating spark-log-metrics transform..."
+esapi PUT /_transform/spark-log-metrics \
+  elasticsearch/spark-logs/spark-log-metrics-transform.json \
+  > elasticsearch/outputs/spark-log-metrics-transform.out.json 2>&1
+
+# Start transform
+echo "Starting spark-log-metrics transform..."
+esapi POST /_transform/spark-log-metrics/_start \
+  > elasticsearch/outputs/spark-log-metrics-start.out.json 2>&1
+
+echo "✅ Transform created and started"
 
 echo "✅ Spark Application Logs initialized"
 
@@ -341,16 +387,19 @@ echo ""
 echo "=== STEP 12: INITIALIZING OPENTELEMETRY TRACES ==="
 
 echo "Creating otel-traces ILM policy..."
-esapi PUT /_ilm/policy/otel-traces elasticsearch/otel-traces/otel-traces.ilm-policy.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/otel-traces.ilm.out.json
+esapi PUT /_ilm/policy/otel-traces \
+  elasticsearch/otel-traces/otel-traces.ilm-policy.json \
+  > elasticsearch/outputs/otel-traces.ilm.out.json
 
 echo "Creating otel-traces index template..."
-esapi PUT /_index_template/otel-traces elasticsearch/otel-traces/otel-traces.template.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/otel-traces.template.out.json
+esapi PUT /_index_template/otel-traces \
+  elasticsearch/otel-traces/otel-traces.template.json \
+  > elasticsearch/outputs/otel-traces.template.out.json
 
 echo "Creating otel-traces data view..."
-kapi POST /api/data_views/data_view elasticsearch/otel-traces/otel-traces.dataview.json \
-  > /usr/share/elasticsearch/elasticsearch/outputs/otel-traces.dataview.out.json
+kapi POST /api/data_views/data_view \
+  elasticsearch/otel-traces/otel-traces.dataview.json \
+  > elasticsearch/outputs/otel-traces.dataview.out.json
 
 echo "✅ OpenTelemetry traces initialized"
 

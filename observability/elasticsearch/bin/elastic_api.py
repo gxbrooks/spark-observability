@@ -14,6 +14,27 @@ Arguments:
     url_path: API endpoint path (e.g., /_search, /api/data_views/data_view)
     body_path: Optional path to JSON file containing request body
 
+Flags:
+    --noauth: Skip authentication (for availability checks)
+    --allow-errors: Allow 4xx errors without failing (for conditional logic)
+
+Exit Codes:
+    0: Success
+       - HTTP 200 response, OR
+       - HTTP 401/403 with --noauth flag (service is responding)
+    
+    1: Expected HTTP error (with --allow-errors flag)
+       - HTTP 4xx client errors (400-499)
+       - Response body printed to stdout for conditional processing
+    
+    2: Unexpected HTTP error
+       - HTTP 5xx server errors (500-599)
+       - Other unexpected HTTP errors
+    
+    3: System failure
+       - Network error, connection refused, timeout
+       - No HTTP response received
+
 Environment Variables Required:
     For Elasticsearch:
         - ELASTIC_HOST: Elasticsearch hostname
@@ -30,9 +51,19 @@ Environment Variables Required:
         - CA_CERT: Path to CA certificate file
 
 Examples:
+    # Basic usage
     elastic_api.py elasticsearch GET /_cluster/health
     elastic_api.py kibana POST /api/data_views/data_view dataview.json
-    elastic_api.py elasticsearch PUT /_index_template/my-template template.json
+    
+    # Availability check (allows 401/403 as success)
+    elastic_api.py --noauth elasticsearch GET /
+    
+    # Conditional check (test if resource exists)
+    if elastic_api.py --allow-errors elasticsearch GET /_transform/my-transform; then
+        echo "Transform exists"
+    else
+        echo "Transform does not exist (got error code $?)"
+    fi
 """
 
 import argparse
@@ -75,6 +106,11 @@ def parse_arguments():
         action="store_true",
         help="Skip authentication (for availability checks)"
     )
+    parser.add_argument(
+        "--allow-errors",
+        action="store_true",
+        help="Allow 4xx errors without failing (exit code 1, for conditional logic)"
+    )
     
     args = parser.parse_args()
     
@@ -97,7 +133,7 @@ def parse_arguments():
             print(f"Error: Body file '{args.body_path}' does not exist or is not a file", file=sys.stderr)
             sys.exit(1)
     
-    return target, method, args.url_path, args.body_path, args.noauth
+    return target, method, args.url_path, args.body_path, args.noauth, args.allow_errors
 
 
 def get_config(target):
@@ -147,8 +183,15 @@ def get_config(target):
     return config
 
 
-def make_api_request(config, method, url_path, body_path=None, noauth=False):
-    """Make the HTTP request to the API endpoint."""
+def make_api_request(config, method, url_path, body_path=None, noauth=False, allow_errors=False):
+    """
+    Make the HTTP request to the API endpoint.
+    
+    Returns:
+        tuple: (status_code, response_data)
+        - status_code: HTTP status code (int) or None if system failure
+        - response_data: Parsed JSON response (dict) or None
+    """
     url = f"{config['protocol']}://{config['host']}:{config['port']}{url_path}"
     
     headers = {
@@ -175,6 +218,8 @@ def make_api_request(config, method, url_path, body_path=None, noauth=False):
             print(f"Body file: {body_path}", file=sys.stderr)
         if noauth:
             print(f"No authentication (availability check mode)", file=sys.stderr)
+        if allow_errors:
+            print(f"Allow errors mode (4xx will exit with code 1)", file=sys.stderr)
     
     # Make the request
     try:
@@ -195,77 +240,96 @@ def make_api_request(config, method, url_path, body_path=None, noauth=False):
         if DEBUG:
             print(f"Response: HTTP {response.status_code}", file=sys.stderr)
         
-        # For noauth mode (availability checks), any HTTP response means service is up
-        if noauth:
-            # 401/403 are expected without auth - service is responding
-            if response.status_code in (200, 401, 403):
-                return response.status_code, {}
-            # For other codes, still try to get JSON
-            try:
-                return response.status_code, response.json()
-            except:
-                return response.status_code, {}
-        
-        # Normal mode: Raise exception for HTTP errors
-        response.raise_for_status()
-        
-        # Return the JSON response
-        return response.status_code, response.json()
-    
-    except requests.exceptions.HTTPError as e:
-        # HTTP error occurred (4xx or 5xx)
-        status_code = e.response.status_code if e.response else None
+        # Try to get JSON response
         try:
-            error_data = e.response.json() if e.response else None
-            print(f"HTTP {status_code} Error: {e}", file=sys.stderr)
-            if error_data:
-                print(json.dumps(error_data, indent=2))
-            return status_code, error_data
+            response_data = response.json()
         except:
-            print(f"HTTP Error: {e}", file=sys.stderr)
-            if e.response:
-                print(f"Response text: {e.response.text}", file=sys.stderr)
-            return None, None
+            response_data = {"text": response.text} if response.text else {}
+        
+        # Return status and data for caller to handle
+        return response.status_code, response_data
     
     except requests.exceptions.RequestException as e:
-        # Network or connection error
+        # Network or connection error - system failure
         print(f"Request failed: {e}", file=sys.stderr)
         return None, None
     
     except Exception as e:
-        # Unexpected error
+        # Unexpected error - system failure
         print(f"Unexpected error: {e}", file=sys.stderr)
         return None, None
 
 
 def main():
-    """Main entry point."""
-    target, method, url_path, body_path, noauth = parse_arguments()
+    """
+    Main entry point.
+    
+    Exit Codes:
+        0: Success (HTTP 200, or 401/403 with --noauth)
+        1: Expected HTTP error (4xx with --allow-errors)
+        2: Unexpected HTTP error (5xx or other errors)
+        3: System failure (no response)
+    """
+    target, method, url_path, body_path, noauth, allow_errors = parse_arguments()
     
     if DEBUG:
         print(f"Target: {target}, Method: {method}, Path: {url_path}", file=sys.stderr)
+        print(f"Flags: noauth={noauth}, allow_errors={allow_errors}", file=sys.stderr)
     
     config = get_config(target)
-    status, response = make_api_request(config, method, url_path, body_path, noauth)
+    status, response = make_api_request(config, method, url_path, body_path, noauth, allow_errors)
     
+    # Exit code 3: System failure (no HTTP response)
     if status is None:
-        # Error already printed to stderr
+        print(f"Error: System failure - no HTTP response received", file=sys.stderr)
         sys.exit(3)
-    elif response is None:
-        print(f"Warning: No response body with status {status}", file=sys.stderr)
-        sys.exit(0)
-    elif noauth and status in (200, 401, 403):
-        # For availability checks, 401/403 means service is responding (success)
-        sys.exit(0)
-    elif status == 200:
-        # Success - print formatted JSON
-        print(json.dumps(response, indent=2))
-        sys.exit(0)
+    
+    # Print response body to stdout (except for conditional checks or pure noauth)
+    # For conditional checks with --allow-errors, only print on errors
+    if noauth and status in (200, 401, 403):
+        # Pure availability check - no output
+        pass
+    elif allow_errors and status < 400:
+        # Conditional check succeeded - no output needed
+        pass
+    elif allow_errors and status >= 400:
+        # Conditional check failed - print error for diagnostics
+        if response:
+            print(json.dumps(response, indent=2))
+        else:
+            print(f"{{\"error\": \"HTTP {status} with no response body\"}}")
     else:
-        # Non-200 status - print response and exit with warning
-        print(f"Warning: Non-200 status code: {status}", file=sys.stderr)
-        print(json.dumps(response, indent=2))
+        # Normal mode - always print response
+        if response:
+            print(json.dumps(response, indent=2))
+        elif status >= 400:
+            print(f"{{\"error\": \"HTTP {status} with no response body\"}}")
+    
+    # Exit code 0: Success
+    if status == 200:
         sys.exit(0)
+    
+    # Exit code 0: Availability check success (noauth mode)
+    if noauth and status in (200, 401, 403):
+        sys.exit(0)
+    
+    # Exit code 1: Expected HTTP error (4xx with allow-errors)
+    if allow_errors and 400 <= status < 500:
+        if DEBUG:
+            print(f"Expected error: HTTP {status} (exit 1)", file=sys.stderr)
+        sys.exit(1)
+    
+    # Exit code 2: Unexpected HTTP error (5xx or any error without allow-errors)
+    if status >= 400:
+        if not allow_errors:
+            # Print error message to stderr for unexpected errors
+            print(f"Error: HTTP {status} - {method} {url_path}", file=sys.stderr)
+        if DEBUG:
+            print(f"Unexpected error: HTTP {status} (exit 2)", file=sys.stderr)
+        sys.exit(2)
+    
+    # Exit code 0: Other 2xx/3xx success codes
+    sys.exit(0)
 
 
 if __name__ == "__main__":

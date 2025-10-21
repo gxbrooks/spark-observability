@@ -1368,6 +1368,13 @@
               "mode": "off"
             }
           },
+          "links": [
+            {
+              "title": "View Logs",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__data.fields.@timestamp}&to=${__data.fields.bucket_end_time}",
+              "targetBlank": true
+            }
+          ],
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -1520,7 +1527,7 @@
               "field": "log_count"
             }
           ],
-          "query": "_index:metrics-spark-logs-default",
+          "query": "_index:metrics-spark-logs-default AND log_level:($log_levels)",
           "refId": "A",
           "timeField": "@timestamp"
         }
@@ -1539,7 +1546,60 @@
     "metrics"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": null,
+        "current": {
+          "selected": true,
+          "text": [
+            "ERROR",
+            "WARN",
+            "DEBUG"
+          ],
+          "value": [
+            "ERROR",
+            "WARN",
+            "DEBUG"
+          ]
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Log Levels",
+        "multi": true,
+        "name": "log_levels",
+        "options": [
+          {
+            "selected": true,
+            "text": "ERROR",
+            "value": "ERROR"
+          },
+          {
+            "selected": true,
+            "text": "WARN",
+            "value": "WARN"
+          },
+          {
+            "selected": false,
+            "text": "INFO",
+            "value": "INFO"
+          },
+          {
+            "selected": true,
+            "text": "DEBUG",
+            "value": "DEBUG"
+          },
+          {
+            "selected": false,
+            "text": "TRACE",
+            "value": "TRACE"
+          }
+        ],
+        "query": "ERROR,WARN,INFO,DEBUG,TRACE",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
