@@ -92,12 +92,15 @@ install_python_version() {
             return 1
         fi
         
-        # Special handling for Python 3.8
-        if [[ "$version" == "3.8" ]]; then
-            echo "Info    : Installing Python 3.8 with specific packages..."
+        # Try standard installation first
+        echo "Info    : Installing Python ${version} and development packages..."
+        
+        # Standard package names for modern Python versions
+        if ! sudo apt install -y python${version} python${version}-dev python${version}-venv python${version}-distutils 2>/dev/null; then
+            echo "Info    : Standard packages not available, trying with PPA..."
             
-            # Add deadsnakes PPA for Python 3.8
-            echo "Info    : Adding deadsnakes PPA for Python 3.8..."
+            # Add deadsnakes PPA for older/newer Python versions
+            echo "Info    : Adding deadsnakes PPA..."
             if ! sudo apt install -y software-properties-common; then
                 echo "Error   : Failed to install software-properties-common"
                 return 1
@@ -109,19 +112,18 @@ install_python_version() {
                 return 1
             fi
             
-            # Update package list after adding PPA
-            echo "Info    : Updating package list after adding PPA..."
+            # Update and retry
             if ! sudo apt update; then
                 echo "Error   : Failed to update package list after adding PPA"
                 return 1
             fi
             
-            # Install Python 3.8 packages (without pip - will install pip separately)
-            if ! sudo apt install -y python3.8 python3.8-dev python3.8-venv python3.8-distutils; then
-                echo "Error   : Failed to install Python 3.8 packages"
-                echo "Info    : Please run manually: sudo apt install -y python3.8 python3.8-dev python3.8-venv python3.8-distutils"
+            if ! sudo apt install -y python${version} python${version}-dev python${version}-venv python${version}-distutils; then
+                echo "Error   : Failed to install Python ${version} packages"
+                echo "Info    : Please run manually: sudo apt install -y python${version} python${version}-dev python${version}-venv python${version}-distutils"
                 return 1
             fi
+        fi
         else
             # Install Python version and related packages
             echo "Info    : Installing Python ${version} packages..."
@@ -175,14 +177,14 @@ install_pyspark_for_python38() {
     echo "Info    : Installing PySpark for Python 3.8..."
     
     if ! $CHECK; then
-        # Check if Python 3.8 is available
-        if ! command -v python3.8 &> /dev/null; then
-            echo "Error   : Python 3.8 is not installed. Please install it first."
-            echo "Info    : Run: sudo apt install -y python3.8 python3.8-dev python3.8-venv python3.8-distutils python3.8-pip"
+        # Check if Python version is available
+        if ! command -v python${python_ver} &> /dev/null; then
+            echo "Error   : Python ${python_ver} is not installed. Please install it first."
+            echo "Info    : Run: sudo apt install -y python${python_ver} python${python_ver}-dev python${python_ver}-venv python${python_ver}-distutils"
             return 1
         fi
         
-        # Install PySpark and IPython for Python 3.8 in virtual environment
+        # Install PySpark and IPython for specified Python version in virtual environment
         if [ -d "venv" ]; then
             source venv/bin/activate
             pip install pyspark==3.5.1 ipython
@@ -222,8 +224,8 @@ setup_python38_venv() {
         if $CHECK; then
             echo "Check   : Virtual environment does not exist - would create at $venv_dir"
         else
-            echo "Info    : Creating Python 3.8 virtual environment at $venv_dir..."
-            python3.8 -m venv "$venv_dir"
+            echo "Info    : Creating Python ${python_ver} virtual environment at $venv_dir..."
+            python${python_ver} -m venv "$venv_dir"
             
             # Activate virtual environment and install packages
             echo "Info    : Installing PySpark in virtual environment..."

@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 """
 Chapter 10: Machine Learning
-Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
+Spark 4.0.1 with Python 3.11
 """
 
 import os

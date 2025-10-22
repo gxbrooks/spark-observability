@@ -42,7 +42,7 @@ results = words_nonull.groupby(F.col("word")).count()
 print("Results schema:", results)
 results.show()
 
-# Exercise 3.1
+# Exercise 3.1   dkdk 
 print("\n=== Exercise 3.1: Word length analysis ===")
 count_by_size = words_nonull.select(F.length(F.col("word")).alias("length")).groupby("length").count()
 count_by_size.show()

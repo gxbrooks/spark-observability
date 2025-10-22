@@ -11,7 +11,7 @@ Use Elasticsearch to monitor and observe Spark applications running on Kubernete
 ### Prerequisites
 - Ansible installed on the control machine
 - SSH access to target servers
-- Python 3.8 (for Spark 3.5.1 compatibility)
+- Python 3.11 (for Spark 4.0.1 compatibility)
 
 ### Spark Environment Setup
 
@@ -91,7 +91,7 @@ source venv/bin/activate
 - Scripting and automation
 - All current Spark 3.5.1 work
 
-> **Note on JupyterHub:** Multi-user JupyterHub support will be added during the Spark 4.0 migration with Python 3.11 compatibility. Currently using Python 3.8 for stability with Spark 3.5.1.
+> **Note on JupyterHub:** Multi-user JupyterHub support is available with Spark 4.0.1 and Python 3.11 compatibility.
 
 #### Stopping Spark
 ```bash
