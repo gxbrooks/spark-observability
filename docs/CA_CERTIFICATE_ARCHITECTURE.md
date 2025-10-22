@@ -1,320 +1,475 @@
 # CA Certificate Architecture for Elastic Stack in Multi-Host Environment
 
-**Version**: 1.0  
-**Date**: September 30, 2025  
+**Version**: 2.0  
+**Date**: October 22, 2025  
 **Status**: Active
 
 ## Executive Summary
 
-This document defines the architecture for managing the Elastic Stack CA certificate (`ca.crt`) across a multi-host environment with Docker containers on Windows/WSL and future Kubernetes deployments on Linux.
+This document defines the architecture for managing the Elastic Stack CA certificate (`ca.crt`) across a multi-host environment with Docker containers on Windows/WSL and Kubernetes deployments on Linux. The architecture uses a **pull-based model** where services fetch certificates from a standard published location rather than having certificates pushed to them.
 
 ## Design Principles
 
-1. **Best Practices**: Follow industry-standard certificate management patterns
-2. **OS Standards**: Adhere to Windows and Linux certificate storage conventions
-3. **Multi-Host Support**: Enable certificate distribution via Ansible
-4. **Minimal Perturbation**: Preserve existing `init-certs.sh` logic where possible
-5. **Single Source of Truth**: CA certificate generated once, distributed everywhere
+1. **Pull-Based Distribution**: Services fetch certificates from a standard location rather than having them pushed
+2. **Single Source of Truth**: CA certificate published once to a standard location
+3. **Self-Service**: Each service responsible for obtaining required certificates
+4. **OS Standards**: Adhere to Windows and Linux certificate storage conventions
+5. **Layered Architecture**: Clear separation between orchestration and configuration layers
+6. **Idempotency**: All operations safe to run multiple times
+
+## Architecture Overview
+
+### Pull-Based Model vs Push-Based
+
+**Pull-Based (Implemented)**:
+```
+┌──────────────┐
+│  init-certs  │  Generates & publishes CA cert to standard location
+└──────┬───────┘  /mnt/c/Volumes/certs/Elastic/ca.crt
+       │
+       ▼
+┌──────────────────────────────────────────────────────┐
+│  Standard Published Location (NFS/Shared Storage)    │
+│  /mnt/c/Volumes/certs/Elastic/ca.crt                 │
+└───────┬──────────────────┬───────────────────────────┘
+        │                  │
+        ▼                  ▼
+┌───────────────┐  ┌──────────────┐
+│ Elastic Agent │  │ Spark Client │  Each service fetches when needed
+│  (on install) │  │  (on start)  │
+└───────────────┘  └──────────────┘
+```
+
+**Advantages**:
+- ✅ **Scalable**: New services automatically fetch without central coordination
+- ✅ **Decoupled**: Services independent of distribution mechanism
+- ✅ **Self-Healing**: Services can re-fetch if certificate becomes invalid
+- ✅ **Simple**: No complex distribution playbooks needed
+- ✅ **Atomic**: Each service validates certificate after fetching
+
+**Disadvantages**:
+- ⚠️ Services must implement fetch logic
+- ⚠️ Requires shared/accessible storage location
+- ⚠️ Services may have stale certs until next restart
+
+**Push-Based (Not Implemented)**:
+```
+Ansible orchestrates distribution to all known hosts
+```
+
+**Disadvantages**:
+- ❌ Requires knowing all consumers upfront
+- ❌ Tightly coupled to Ansible
+- ❌ Complex to add new services
+- ❌ Race conditions during updates
+- ❌ Violates self-service principle
 
 ## Certificate Storage Architecture
 
 ### 1. Certificate Generation (Docker Container: `init-certs`)
 
 **Location**: Inside `init-certs` container  
-**Path**: `/usr/share/elasticsearch/config/certs/ca/ca.crt`
+**Internal Path**: `/usr/share/elasticsearch/config/certs/ca/ca.crt`  
+**Published Path**: `/etc/ssl/certs/elastic/ca.crt` (mounted to host)
 
-- **Rationale**: Elasticsearch X-Pack mandates this location
-- **Process**: `init-certs.sh` generates CA using OpenSSL
-- **Volume**: Uses Docker named volume `certs:`
-- **Export Path**: Copies to `/etc/ssl/certs/elastic/ca.crt` (mounted volume)
+**Process**:
+1. Checks for existing certificate and version hash
+2. Regenerates if:
+   - `--force` flag provided via `FORCE_REGEN=1` environment variable
+   - Certificate missing or corrupted
+   - Version hash mismatch
+3. Validates certificate after generation
+4. Publishes to standard location
 
-### 2. Host-Level Storage (Windows/WSL)
+**Volumes**:
+- Named volume `certs:` for internal Elasticsearch use
+- Bind mount `/mnt/c/Volumes/certs/Elastic` for publishing
+
+**Security**:
+- Private keys: 640 permissions (owner:rw group:r)
+- Public certs: 644 permissions (world-readable)
+- Directories: 755 permissions
+
+### 2. Standard Published Location (Host-Level Storage)
+
+**Primary Path**: `/mnt/c/Volumes/certs/Elastic/ca.crt`
+
+This is the **Single Source of Truth** for the CA certificate. All services fetch from this location.
 
 **Windows Path**: `C:\Volumes\certs\Elastic\ca.crt`  
 **WSL/Linux Path**: `/mnt/c/Volumes/certs/Elastic/ca.crt`
 
-- **Purpose**: Single location accessible from both Windows and WSL
-- **Permissions**: `644` (readable by all)
-- **Owner**: `ansible` user (or host user on Windows)
-- **Mount Strategy**: 
-  - `init-certs` container mounts `/mnt/c/Volumes/certs/Elastic` to `/etc/ssl/certs/elastic`
-  - Copies CA cert from internal location to this mount point
-  
-### 3. Distribution to Remote Linux Hosts
+**Characteristics**:
+- Accessible from both Windows and WSL
+- Readable by all users (644 permissions)
+- Version-controlled via hash in `.certs_version` file
+- Validated by `init-certs` during publishing
 
-**Path on Lab1/Lab2**: `/etc/ssl/certs/elastic/ca.crt`
+### 3. Service-Level Certificate Fetching
 
-- **Method**: Ansible playbook (`ansible/playbooks/elastic-agent/distribute_elastic_cert.yml`)
-- **Source**: Fetched from GaryPC-WSL at `/mnt/c/Volumes/certs/Elastic/ca.crt`
-- **Trigger**: Manual or automated after certificate regeneration
-- **Permissions**: `644` with `root:root` ownership
-- **Directory**: `/etc/ssl/certs/elastic/` created with `755` permissions
+Each service is responsible for fetching and validating certificates from the standard location.
 
-### 4. Docker Container Access (All Observability Services)
+#### Elastic Agent (Linux Hosts)
 
-**Container Path**: `/etc/ssl/certs/elastic/ca.crt`
+**Fetch Location**: `/etc/ssl/certs/elastic/ca.crt`
 
-- **Mount**: All containers (kibana, logstash, init-* services) mount `/mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic`
-- **Environment Variable**: `CA_CERT_LINUX_PATH=/etc/ssl/certs/elastic/ca.crt`
-- **Rationale**: Consistent path across all containers regardless of host OS
+**Fetch Mechanism**: During `elastic-agent/install.yml` playbook
+```yaml
+- name: Fetch Elasticsearch CA certificate from observability host
+  delegate_to: "{{ groups['observability'][0] }}"
+  fetch:
+    src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+    dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
+    flat: yes
+    
+- name: Copy CA certificate to host
+  copy:
+    src: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
+    dest: "/etc/ssl/certs/elastic/ca.crt"
+    owner: root
+    group: root
+    mode: '0644'
+```
 
-### 5. Elasticsearch Container (Special Case)
+**Validation**: After copy, verify with `openssl x509`
+
+#### Spark Client
+
+**Fetch Location**: Via `spark_env.sh` configuration
+
+**Fetch Mechanism**: During environment setup
+- Spark client references CA cert via environment variables
+- Fetches from standard location during initialization
+
+#### Docker Containers (Observability Stack)
+
+**Fetch Location**: Mounted directly from standard location
+
+**Mount Configuration**:
+```yaml
+volumes:
+  - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+```
+
+All containers (Kibana, Logstash, Grafana, init-index) mount the standard location directly.
+
+### 4. Elasticsearch Container (Special Case)
 
 **Container Path**: `/usr/share/elasticsearch/config/certs/ca/ca.crt`
 
-- **Mount**: Uses named volume `certs:/usr/share/elasticsearch/config/certs:ro`
-- **Rationale**: X-Pack security requires certificates in this specific location
-- **Access Mode**: Read-only (`:ro`)
+**Mount**: Uses named volume `certs:/usr/share/elasticsearch/config/certs:ro`
 
-### 6. Future Kubernetes Pods
+**Rationale**: X-Pack security requires certificates in this specific location. The init-certs container generates certificates directly into this volume, so Elasticsearch reads them from the same volume without additional copying.
 
-**Planned Path**: `/etc/ssl/certs/elastic/ca.crt`
+## Certificate Lifecycle
 
-- **Method**: Kubernetes Secret or ConfigMap
-- **Distribution**: Ansible creates/updates K8s secret from source certificate
-- **Mount**: Secret mounted as file in pod at standard path
+### Generation Triggers
 
-## Certificate Flow Diagram
+Certificates are regenerated when:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ 1. GENERATION (init-certs container)                                 │
-│    /usr/share/elasticsearch/config/certs/ca/ca.crt                   │
-│    Generated by: openssl req -x509 -newkey rsa:4096                  │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ 2. EXPORT (init-certs container)                                     │
-│    cp $CA_CERT_PATH → $CA_CERT                                       │
-│    /usr/share/elasticsearch/config/certs/ca/ca.crt →                 │
-│    /etc/ssl/certs/elastic/ca.crt (mounted volume)                    │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ 3. HOST STORAGE (GaryPC Windows/WSL)                                 │
-│    C:\Volumes\certs\Elastic\ca.crt (Windows)                         │
-│    /mnt/c/Volumes/certs/Elastic/ca.crt (WSL)                         │
-└─────────┬──────────────────────────────┬────────────────────────────┘
-          │                              │
-          ▼                              ▼
-┌───────────────────────┐  ┌──────────────────────────────────────────┐
-│ 4a. DOCKER CONTAINERS │  │ 4b. ANSIBLE DISTRIBUTION                 │
-│  (on GaryPC-WSL)      │  │     ansible-playbook                     │
-│  All mount:           │  │     distribute_elastic_cert.yml          │
-│  /mnt/c/Volumes/      │  └────────────┬─────────────────────────────┘
-│  certs/Elastic:       │               │
-│  /etc/ssl/certs/      │               ▼
-│  elastic              │  ┌──────────────────────────────────────────┐
-│                       │  │ 5. REMOTE LINUX HOSTS (Lab1, Lab2)       │
-│  kibana               │  │    /etc/ssl/certs/elastic/ca.crt         │
-│  logstash             │  │    Used by: Elastic Agent, future apps   │
-│  init-*               │  └──────────────────────────────────────────┘
-│  grafana              │
-└───────────────────────┘
+1. **Force flag**: `FORCE_REGEN=1` environment variable set
+2. **Missing certificate**: CA cert file doesn't exist
+3. **Missing version**: Version hash file doesn't exist
+4. **Hash mismatch**: Current cert doesn't match saved hash
+5. **First run**: `done` marker file doesn't exist
+
+### Validation Process
+
+After generation, `init-certs.sh` validates the certificate:
+
+```bash
+# Verify certificate is valid X.509
+openssl x509 -in "$CA_CERT_PATH" -noout -text > /dev/null 2>&1
+
+# Display certificate details
+openssl x509 -in "$CA_CERT_PATH" -noout -issuer
+openssl x509 -in "$CA_CERT_PATH" -noout -dates
+openssl x509 -in "$CA_CERT_PATH" -noout -fingerprint -sha256
 ```
 
-## Implementation Details
+**Failure Behavior**: If validation fails, `init-certs.sh` exits with code 1, preventing invalid certificates from being published.
 
-### Environment Variables
+### Service Restart Requirements
 
-| Variable | Value | Usage |
-|----------|-------|-------|
-| `CA_CERT_LINUX_PATH` | `/etc/ssl/certs/elastic/ca.crt` | Standard path in all containers and Linux hosts |
-| `CA_CERT_WINDOWS_PATH` | `C:\Volumes\certs\Elastic\ca.crt` | Windows host reference (if needed) |
-| `CA_CERT` | `${CA_CERT_LINUX_PATH}` | Used by `init-certs.sh` as export destination |
+After certificate regeneration, services must be restarted to load new certificates:
 
-### Docker Compose Volume Mounts
+**Pattern**: `stop.yml` → `start.yml`
+
+```bash
+# Stop services
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/stop.yml
+
+# Start services (will fetch latest cert)
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml
+```
+
+**Why no restart.yml?**: Follows standard playbook pattern (install/start/stop/diagnose/uninstall). A restart is simply stop + start.
+
+## Playbook Architecture
+
+### Standard Playbook Pattern
+
+All playbooks follow this pattern:
+
+- **install.yml**: Initial installation and configuration
+- **start.yml**: Start services (validates prerequisites)
+- **stop.yml**: Stop services gracefully
+- **diagnose.yml** (or **status.yml**): Check service health
+- **uninstall.yml**: Remove services and cleanup
+
+### Observability Stack Playbooks
+
+**observability/start.yml**:
+```
+1. Validate Docker available
+2. Create required directories
+3. Initialize certificates (docker compose up init-certs)
+4. Validate CA certificate from published location
+5. Start services (docker compose up -d)
+6. Verify service health
+```
+
+**Key Feature**: Validates certificate from standard location rather than distributing it.
 
 ```yaml
-# init-certs service
-volumes:
-  - certs:/usr/share/elasticsearch/config/certs  # Named volume for ES X-Pack
-  - ./certs:/usr/share/elasticsearch/certs        # Scripts and config
-  - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic  # Export mount
-
-# es01 service  
-volumes:
-  - certs:/usr/share/elasticsearch/config/certs:ro  # Read-only X-Pack certs
-
-# All other services (kibana, logstash, init-*, grafana)
-volumes:
-  - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic  # Shared CA cert
+- name: Validate CA certificate from published location
+  stat:
+    path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+  register: ca_cert_stat
+  
+- name: Verify certificate is valid X.509
+  shell: openssl x509 -in {{ ca_cert_path }} -noout -text
+  register: ca_cert_validation
 ```
 
-### Ansible Playbook Integration
+### Elastic Agent Playbooks
 
-**Playbook**: `ansible/playbooks/elastic-agent/distribute_elastic_cert.yml`
+**elastic-agent/install.yml**:
+```
+1. Install Elastic Agent binary
+2. Fetch CA certificate from standard location
+3. Configure agent (elastic-agent.yml)
+4. Create systemd service
+5. Start service
+```
 
-**Trigger Points**:
-1. Manual: `ansible-playbook -i inventory.yml playbooks/elastic-agent/distribute_elastic_cert.yml`
-2. After certificate regeneration: Can be triggered from `init-certs.sh` if `TRIGGER_ANSIBLE` env var is set
-3. During Elastic Agent installation/updates
+**elastic-agent/start.yml**:
+```
+1. Start elastic-agent service
+2. Verify service running
+3. Display status
+```
 
-**Process**:
-1. Fetch cert from GaryPC-WSL: `/mnt/c/Volumes/certs/Elastic/ca.crt`
-2. Copy to all hosts in inventory at: `/etc/ssl/certs/elastic/ca.crt`
-3. Set permissions: `644` with `root:root` ownership
-4. Verify certificate validity using `openssl x509`
+**elastic-agent/stop.yml**:
+```
+1. Stop elastic-agent service
+2. Display status
+```
 
 ## Certificate Regeneration Process
 
-### When to Regenerate
-
-1. Force regeneration: `--force` flag
-2. CA certificate missing
-3. Version file missing or hash mismatch
-4. Certificate expiration (10 years by default)
-5. Security incident requiring certificate rotation
-
-### Regeneration Steps
+### Manual Regeneration
 
 ```bash
 # 1. Stop observability platform
-ansible-playbook -i inventory.yml playbooks/observability/stop.yml
+ansible-playbook -i ansible/inventory.yml \
+  ansible/playbooks/observability/stop.yml
 
-# 2. Remove old certificates (if needed)
-# On GaryPC-WSL, the init-certs container handles cleanup
+# 2. Force regenerate certificates and start services
+FORCE_REGEN=1 ansible-playbook -i ansible/inventory.yml \
+  ansible/playbooks/observability/start.yml
 
-# 3. Start observability platform (triggers init-certs)
-ansible-playbook -i inventory.yml playbooks/observability/start.yml
-
-# 4. Verify new certificate
-ansible -i inventory.yml GaryPC-WSL -m shell -a \
-  "openssl x509 -in /mnt/c/Volumes/certs/Elastic/ca.crt -text -noout | head -10"
-
-# 5. Distribute to all hosts
-ansible-playbook -i inventory.yml playbooks/elastic-agent/distribute_elastic_cert.yml
-
-# 6. Restart Elastic Agents
-ansible -i inventory.yml linux -b -m systemd -a "name=elastic-agent state=restarted"
+# 3. Restart services on managed hosts (pull new cert)
+ansible-playbook -i ansible/inventory.yml \
+  ansible/playbooks/elastic-agent/stop.yml
+ansible-playbook -i ansible/inventory.yml \
+  ansible/playbooks/elastic-agent/start.yml
 ```
 
-## File Cleanup Strategy
+### Automatic Detection
 
-### Files to Remove (Legacy/Incorrect Locations)
+Services automatically detect certificate changes:
+- Elastic Agent: Checks cert during install/start
+- Docker containers: Mount live directory, see changes on restart
+- Spark: Validates cert before job submission
 
-- **`C:\Volumes\certs\ca.crt`** (incorrect, should be in `Elastic` subdirectory)
-- Any duplicate certificates in non-standard locations
+## Advantages & Trade-offs
 
-### Cleanup Playbook
+### Pull-Based Architecture
 
-```yaml
-- name: Clean up old/incorrect certificate locations
-  hosts: all
-  become: true
-  tasks:
-    - name: Remove old ca.crt from parent directory (Windows)
-      ansible.builtin.file:
-        path: /mnt/c/Volumes/certs/ca.crt
-        state: absent
-      when: ansible_os_family == "Windows" or inventory_hostname == "GaryPC-WSL"
+**Advantages**:
+1. **Scalability**: Adding new services doesn't require updating distribution logic
+2. **Simplicity**: No complex orchestration for certificate distribution
+3. **Fault Tolerance**: Services can re-fetch if certificate becomes corrupted
+4. **Idempotency**: Services fetch same cert multiple times safely
+5. **Decoupling**: Services independent of how certificates are generated
+6. **Testability**: Each service's fetch logic can be tested independently
+
+**Disadvantages**:
+1. **Stale Certificates**: Services keep old cert until restarted
+2. **Implementation Burden**: Each service must implement fetch logic
+3. **Storage Requirement**: Requires shared/accessible storage location
+4. **Discovery**: Services must know where to fetch certificates
+
+**Mitigation Strategies**:
+- Use consistent standard locations across all services
+- Document fetch patterns for common service types
+- Validate certificates after fetching
+- Monitor certificate expiration proactively
+
+### Sequential vs Parallel Flow
+
+**Sequential (Implemented)**:
+```
+init-certs → validate → start services → health check
+```
+
+**Advantages**:
+- Clear failure points
+- Fast failure on cert problems
+- Easy to debug
+- Logs are clean and sequential
+
+**Parallel Alternative**:
+```
+Start all services (including init-certs) → validate → restart if needed
+```
+
+**Why Not Used**:
+- Race conditions possible
+- Services may start with old certs
+- More complex error recovery
+- Only marginally faster
+
+## File Permissions
+
+| File Type | Permissions | Owner | Rationale |
+|-----------|-------------|-------|-----------|
+| `*.key` (Private Keys) | 640 | root:root | Elasticsearch (UID 1000) needs group read access |
+| `*.crt` (Certificates) | 644 | root:root | Public keys, world-readable |
+| `*.csr` (CSR files) | 644 | root:root | Intermediate files, can be public |
+| Directories | 755 | root:root | Standard directory permissions |
+| Published CA cert | 644 | root:root | Must be readable by all services |
+
+**Critical**: Private keys must be 640 (not 600) because Elasticsearch runs as UID 1000 (not root) and needs group read access to keys in the Docker volume.
+
+## Environment Variables
+
+| Variable | Value | Usage |
+|----------|-------|-------|
+| `CA_CERT_LINUX_PATH` | `/etc/ssl/certs/elastic/ca.crt` | Standard path in containers and Linux hosts |
+| `CA_CERT` | `${CA_CERT_LINUX_PATH}` | Used by `init-certs.sh` as publish destination |
+| `FORCE_REGEN` | `1` or empty | Triggers force regeneration when set |
+
+## Adding New Services
+
+To add a new service that needs the CA certificate:
+
+1. **In install/start playbook**: Fetch certificate from standard location
+   ```yaml
+   - name: Fetch CA certificate
+     fetch:
+       src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+       dest: "/path/to/service/ca.crt"
+   ```
+
+2. **Validate after fetch**:
+   ```yaml
+   - name: Validate certificate
+     shell: openssl x509 -in /path/to/service/ca.crt -noout -text
+   ```
+
+3. **Configure service**: Point service to local copy of certificate
+
+4. **No changes to init-certs or distribution logic required**
+
+## Troubleshooting
+
+### Issue: Service reports "certificate signed by unknown authority"
+
+**Diagnosis**:
+```bash
+# Check if cert exists
+ls -la /etc/ssl/certs/elastic/ca.crt
+
+# Check if cert is valid
+openssl x509 -in /etc/ssl/certs/elastic/ca.crt -noout -text
+
+# Compare with published cert
+md5sum /etc/ssl/certs/elastic/ca.crt
+ansible -i ansible/inventory.yml GaryPC-WSL -m shell \
+  -a "md5sum /mnt/c/Volumes/certs/Elastic/ca.crt"
+```
+
+**Resolution**:
+```bash
+# Re-run install to fetch latest cert
+ansible-playbook -i ansible/inventory.yml \
+  ansible/playbooks/elastic-agent/install.yml
+```
+
+### Issue: Elasticsearch can't read private key
+
+**Diagnosis**: Check logs for "not permitted to read"
+
+**Root Cause**: Private key permissions too restrictive
+
+**Resolution**: Regenerate with correct permissions (640)
+```bash
+FORCE_REGEN=1 ansible-playbook -i ansible/inventory.yml \
+  ansible/playbooks/observability/start.yml
+```
+
+### Issue: Services using stale certificate
+
+**Diagnosis**: Certificate regenerated but services still use old cert
+
+**Resolution**: Restart services using stop + start pattern
+```bash
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/SERVICE/stop.yml
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/SERVICE/start.yml
 ```
 
 ## Security Considerations
 
-1. **Private Keys**: Never distributed outside containers; kept in named Docker volume
-2. **CA Certificate**: Public key only, safe to distribute
-3. **Permissions**: 
-   - CA cert: `644` (world-readable)
-   - Private keys: `600` (owner-only)
-   - Directories: `755` (owner write, all read/execute)
-4. **Backup**: CA private key should be backed up from Docker volume for disaster recovery
-5. **Rotation**: Document process for certificate rotation without service disruption
+1. **Private Keys**: Never distributed; kept only in Docker volumes
+2. **CA Certificate**: Public key safe to distribute broadly
+3. **Storage Security**: Published location should be on trusted storage
+4. **Access Control**: Only trusted processes should write to published location
+5. **Validation**: Services must validate certificates after fetching
+6. **Rotation**: Plan for certificate rotation before 10-year expiration
+7. **Monitoring**: Alert on certificate expiration approaching
+8. **Backup**: Back up CA private key for disaster recovery
 
-## Troubleshooting
+## DNS and Network Stability
 
-### Issue: Certificate verification failed
+Certificate management depends on stable DNS resolution. See `docs/DNS_and_IP_Management.md` for:
+- DHCP reservation configuration (recommended)
+- Automated /etc/hosts management (fallback)
+- Network diagnostics playbooks
+- IP change detection and remediation
 
-**Symptoms**: `x509: certificate signed by unknown authority`
-
-**Check**:
-```bash
-# Verify cert exists on host
-ls -la /etc/ssl/certs/elastic/ca.crt
-
-# Check cert details
-openssl x509 -in /etc/ssl/certs/elastic/ca.crt -text -noout | grep -E "(Issuer|Subject|Not)"
-
-# Verify it matches source
-diff <(openssl x509 -in /etc/ssl/certs/elastic/ca.crt -noout -fingerprint) \
-     <(ansible -i inventory.yml GaryPC-WSL -m shell -a "openssl x509 -in /mnt/c/Volumes/certs/Elastic/ca.crt -noout -fingerprint")
-```
-
-**Fix**: Redistribute certificate using Ansible playbook
-
-### Issue: Service certificate not valid for hostname
-
-**Symptoms**: `x509: certificate is valid for localhost, es01, not GaryPC.lan`
-
-**Root Cause**: `instances.yml` doesn't include external hostname/IP
-
-**Fix**:
-1. Update `observability/certs/instances.yml` with correct DNS names and IPs
-2. Regenerate certificates (see Regeneration Process above)
-
-### Issue: Old certificates cached
-
-**Symptoms**: Services still using old certificates after regeneration
-
-**Fix**:
-```bash
-# Stop all services
-ansible-playbook -i inventory.yml playbooks/observability/stop.yml
-
-# Remove Docker volumes (CAUTION: destroys data)
-ansible -i inventory.yml GaryPC-WSL -m shell -a "docker volume rm certs"
-
-# Restart and regenerate
-ansible-playbook -i inventory.yml playbooks/observability/start.yml
-```
+**Critical**: Always use DNS names (e.g., `GaryPC.lan`) in configurations, never IP addresses.
 
 ## Future Enhancements
 
-1. **Automated Distribution**: Trigger Ansible playbook automatically from `init-certs.sh`
-2. **Certificate Monitoring**: Alert when certificates approach expiration
-3. **Kubernetes Integration**: Create K8s secrets management playbook
-4. **Multi-CA Support**: Handle intermediate CAs if needed
-5. **Certificate Rotation**: Zero-downtime rotation procedure
+1. **Certificate Monitoring**: Automated alerts for approaching expiration
+2. **Kubernetes Integration**: ConfigMap/Secret for certificate distribution
+3. **Automated Rotation**: Zero-downtime rotation procedure
+4. **Version API**: RESTful API to check published certificate version
+5. **Webhook Notifications**: Notify services when certificates regenerated
 
 ## References
 
 - Elasticsearch X-Pack Security: https://www.elastic.co/guide/en/elasticsearch/reference/current/security-basic-setup.html
 - Linux Certificate Standards: https://www.pathname.com/fhs/pub/fhs-2.3.html#ETCSSLCERTSRELATEDCA
 - Docker Security Best Practices: https://docs.docker.com/engine/security/certificates/
-
-## Implementation Notes
-
-### Deployment Status (2025-09-30)
-
-**✅ Successfully Deployed:**
-1. Updated `observability/certs/instances.yml` to include `GaryPC.lan` and `192.168.1.115` in SAN
-2. Regenerated certificates with `--force` flag using `docker-compose run`
-3. Verified Elasticsearch certificate now includes: `DNS:localhost, IP:127.0.0.1, DNS:GaryPC.lan, IP:192.168.1.115, DNS:es01`
-4. Distributed CA certificate to all hosts (Lab1, Lab2, GaryPC-WSL) using `distribute_elastic_cert.yml`
-5. Restarted Elastic Agent services on Linux hosts
-6. Confirmed system metrics flowing to Elasticsearch in indices: `metrics-system.load`, `metrics-system.filesystem`
-
-**Certificate Serial Numbers:**
-- CA Certificate: `5c:c7:49:fc:42:1f:bc:86:30:2c:e5:e4:bb:09:f5:88:f7:48:99:bc`
-- Valid: September 30, 2025 - September 28, 2035
-
-**File Locations Verified:**
-- Source (GaryPC-WSL): `/mnt/c/Volumes/certs/Elastic/ca.crt` ✅
-- Lab1/Lab2: `/etc/ssl/certs/elastic/ca.crt` ✅
-- Docker Containers: `/etc/ssl/certs/elastic/ca.crt` ✅
-- Elasticsearch (X-Pack): `/usr/share/elasticsearch/config/certs/ca/ca.crt` ✅
-
-**Cleanup Completed:**
-- Removed incorrect location: `/mnt/c/Volumes/certs/ca.crt` (was in wrong directory)
-- Old certificates from June 2025 replaced with current certificates
+- Pull-based Configuration Management: https://www.thoughtworks.com/insights/blog/push-vs-pull-configuration-management
 
 ## Change Log
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-09-30 | System | Initial architecture document |
-| 1.1 | 2025-09-30 | System | Added implementation notes, verified deployment, metrics flowing |
-
-
+| 1.1 | 2025-09-30 | System | Added implementation notes, verified deployment |
+| 2.0 | 2025-10-22 | System | Refactored to pull-based model, removed push distribution, aligned with playbook patterns |

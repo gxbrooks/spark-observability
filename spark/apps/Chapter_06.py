@@ -7,6 +7,7 @@ Fixed for Python 3.8 compatibility with Apache Spark 3.5.1
 """
 
 import os
+import glob
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
@@ -37,7 +38,9 @@ shows.count()
 #########################################################################################
 #
 # Listing 6.4 Reading multiple JSON documents using the multiLine option 
-three_shows = spark.read.json("/mnt/spark/data/shows/shows-*.json", multiLine=True)
+# Use glob to expand wildcards into file list (avoids Spark 4.0 metadata warnings)
+show_files = sorted(glob.glob("/mnt/spark/data/shows/shows-*.json"))
+three_shows = spark.read.json(show_files, multiLine=True)
  
 three_shows.count()
 # 3

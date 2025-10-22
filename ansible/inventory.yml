@@ -7,6 +7,17 @@ all:
     ansible_user: ansible
     ansible_connection: ssh
     ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Path to your private key
+    
+    # Expected IP addresses (for documentation/reference only - DO NOT USE IN CONFIGS)
+    # Always use DNS names (*.lan) instead of IPs
+    # These should match DHCP reservations if possible
+    expected_ips:
+      GaryPC.lan: 192.168.1.115  # Observability (Docker Desktop on Windows 11)
+      Lab1.lan: 192.168.1.76     # Kubernetes worker
+      Lab2.lan: 192.168.1.48     # Kubernetes master, NFS server
+    
+    # Critical: Define which host runs observability stack
+    observability_host: GaryPC-WSL
   children:
     windows:
       vars:

@@ -18,7 +18,7 @@ JAVA_VERSION:
 
 PYSPARK_PYTHON:
   value: python3.11
-  contexts: [spark-runtime, spark-client]
+  contexts: [spark-runtime, spark-client, devops]
 
 # PYSPARK_DRIVER_PYTHON is redundant - use PYSPARK_PYTHON instead
 # PYSPARK_DRIVER_PYTHON:
@@ -220,8 +220,13 @@ SPARK_EVENTS_DIR:
   value: /mnt/spark/events
   contexts: [spark-runtime, ansible, spark-client, elastic-agent]
 SPARK_CONF_DIR:
-  value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
+  value: ~/repos/elastic-on-spark/spark/conf
   contexts: [spark-client]
+
+# Spark client JAR paths (for spark-defaults.conf)
+SPARK_OTEL_LISTENER_JAR:
+  value: ~/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar
+  contexts: [devops, spark-client-config]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
@@ -242,7 +247,7 @@ USER_SPARK_HOME:
 # OpenTelemetry Configuration for Spark
 OTEL_EXPORTER_OTLP_ENDPOINT:
   value: http://Lab2.lan:31317
-  contexts: [spark-client]
+  contexts: [spark-client, devops]
 OTEL_EXPORTER_OTLP_ENDPOINT_K8S:
   value: http://otel-collector.observability.svc.cluster.local:4317
   contexts: [spark-runtime]

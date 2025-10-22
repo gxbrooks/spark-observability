@@ -42,8 +42,27 @@ else
     echo "Virtual environment already active: $VIRTUAL_ENV"
 fi
 
-# Source Spark client environment variables
+# Source devops environment variables (Python version, OTEL config, etc.)
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+devops_env_file="$project_root/linux/devops_env.sh"
+
+if [ -f "$devops_env_file" ]; then
+    source "$devops_env_file"
+else
+    echo "Warning: devops_env.sh not found. Run: python3 linux/generate_env.py"
+fi
+
+# Generate spark-defaults.conf from template on each login
+# This ensures configuration stays in sync with variables.yaml
+spark_defaults_generator="$project_root/linux/generate_spark_defaults.sh"
+if [ -f "$spark_defaults_generator" ]; then
+    # Run quietly - only show errors
+    if ! "$spark_defaults_generator" > /dev/null 2>&1; then
+        echo "Warning: Failed to generate spark-defaults.conf (run manually if needed)"
+    fi
+fi
+
+# Source Spark client environment variables
 if [ -f "$project_root/spark/spark_env.sh" ]; then
     source "$project_root/spark/spark_env.sh"
     # Set SPARK_MASTER_URL from external host/port

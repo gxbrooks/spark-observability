@@ -6,12 +6,30 @@
 
 ## Benefits
 
-1. **Robustness**: Structured exit codes handle all failure modes explicitly
+1. **Ease of Use**: Elide common parameters to curl, by leveraging environment variables 
+2. **Robustness**: Structured exit codes handle all failure modes explicitly
 2. **Idempotency**: Scripts can safely check for resource existence before creating
 3. **Maintainability**: Clear exit codes make debugging and error handling easier
 4. **Flexibility**: Enables complex conditional logic in shell scripts (if/then/else)
 5. **Simplicity**: Single command replaces multi-line `curl` invocations
 6. **Authentication**: Credentials and certificates managed centrally via environment variables
+
+## Prerequisite 
+Ensure the following environment variables are configured.
+
+For Elasticsearch:
+- ELASTIC_HOST: Elasticsearch hostname
+- ELASTIC_PORT: Elasticsearch port
+- ELASTIC_USER: Username for authentication
+- ELASTIC_PASSWORD: Password for authentication
+- CA_CERT: Path to CA certificate file
+
+For Kibana:
+- KIBANA_HOST: Kibana hostname
+- KIBANA_PORT: Kibana port
+- ELASTIC_USER: Username for authentication (kibana uses elastic user)
+- KIBANA_PASSWORD: Password for authentication
+- CA_CERT: Path to CA certificate file
 
 ## Command Usage
 

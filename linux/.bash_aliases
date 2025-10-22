@@ -41,6 +41,7 @@ alias gtags="git for-each-ref --sort=-creatordate --format '%(creatordate:short)
 alias gtags='git for-each-ref --sort=-creatordate \
   --format "%(creatordate:short)|%(refname:short)|%(subject)" refs/tags \
   | awk -F"|" "{printf \"%-10s %-30.30s %s\n\", \$1, \$2, \$3}"'
+alias glog="git log --pretty=format:"%h %ad | %s" --date=short --follow --all -- "
 
 
 # Kubernetes aliases

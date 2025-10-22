@@ -31,9 +31,10 @@ services:
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
       CA_CERT: "${CA_CERT_LINUX_PATH}"
+      FORCE_REGEN: "${FORCE_REGEN:-}"
       TZ: ${TZ}
     user: "0"
-    entrypoint: ["bash", "-f", "./certs/init-certs.sh"]
+    entrypoint: ["bash", "-c", "./certs/init-certs.sh $${FORCE_REGEN:+--force}"]
     # env_file:
     #   - .env
     

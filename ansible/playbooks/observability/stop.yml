@@ -13,6 +13,15 @@
     delete_volumes: false
     
   tasks:
+    # === CRITICAL: Validate running on correct host ===
+    - name: Verify we are on the designated observability host
+      fail:
+        msg: |
+          ❌ FATAL: Wrong host! Observability stack must run on {{ observability_host }}.
+          
+          Current host: {{ inventory_hostname }}
+          Expected host: {{ observability_host }}
+      when: inventory_hostname != observability_host
     - name: Detect host OS
       set_fact:
         is_windows: "{{ ansible_os_family == 'Windows' }}"

@@ -1,3 +1,4 @@
+import glob
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 
@@ -5,7 +6,9 @@ spark = SparkSession.builder.appName(
     "Ch03 - Analyzing the vocabulary of Pride and Prejudice. - short, multiple files"
 ).getOrCreate()
 
-book = spark.read.text("/spark-data/gutenberg_books/*.txt")
+# Use glob to expand wildcards into file list (avoids Spark 4.0 metadata warnings)
+books = sorted(glob.glob("/spark-data/gutenberg_books/*.txt"))
+book = spark.read.text(books)
 
 results = (
     book.select(F.split(F.col("value"), " ").alias("line"))

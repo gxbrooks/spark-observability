@@ -158,11 +158,23 @@ chmod 644 "$CA_VERSION_FILE"
 cp "$CA_CERT_PATH" "$CA_CERT"
 chmod 644 "$CA_CERT_PATH"
 echo "[init-certs] CA cert distributed to $CA_CERT"
-# Optionally trigger Ansible playbook for CA cert distribution
-if [ -n "${TRIGGER_ANSIBLE:-}" ]; then
-  echo "[init-certs] Triggering Ansible playbook for CA cert distribution..."
-  ansible-playbook /path/to/distribute_ca_cert.yml || echo "[init-certs] Ansible playbook failed or not configured."
+# Verify CA certificate was created correctly
+if openssl x509 -in "$CA_CERT_PATH" -noout -text > /dev/null 2>&1; then
+  echo "[init-certs] ✅ CA certificate verified successfully"
+  echo "[init-certs] CA Issuer: $(openssl x509 -in "$CA_CERT_PATH" -noout -issuer)"
+  echo "[init-certs] CA Validity: $(openssl x509 -in "$CA_CERT_PATH" -noout -dates)"
+  echo "[init-certs] CA Serial: $(openssl x509 -in "$CA_CERT_PATH" -noout -serial)"
+  echo "[init-certs] CA Fingerprint: $(openssl x509 -in "$CA_CERT_PATH" -noout -fingerprint -sha256)"
+else
+  echo "[init-certs] ❌ CA certificate verification failed!"
+  exit 1
 fi
+
+# Certificate published to standard location for pull-based distribution.
+# Services fetch certificates from this location during install/start.
+# Docker Compose does not orchestrate distribution (layered architecture).
+echo "[init-certs] ✅ CA cert published to standard location: $CA_CERT"
+echo "[init-certs] Services will fetch certificate from this location during install/start."
 
 
 echo "[init-certs] Creating Elastic Stack certs"
@@ -217,20 +229,23 @@ echo "Created Grafana certificate at $CERTS_DIR/grafana/grafana.crt"
 
 # 
 echo "[init-certs] Setting certificate file permissions" 
-# chown -R root:root "$CERTS_DIR"
-# Keys need to be kept private, but certificates need to be public
-# directories need to be readable by all
+# Directories need to be readable by all
 find "$CERTS_DIR" -type d -exec chmod 755 {} \;
-echo "S[init-certs] et directory permissions to 755"
-# Keys must be private (read/write for owner only)
-find "$CERTS_DIR" -type f -name "*.key" -exec chmod 644 {} \;
-echo "[init-certs] Set key permissions to 600"
-# Certs readable by all
+echo "[init-certs] Set directory permissions to 755"
+
+# Keys must be readable by owner/group but not world (Elasticsearch runs as UID 1000)
+find "$CERTS_DIR" -type f -name "*.key" -exec chmod 640 {} \;
+echo "[init-certs] Set key permissions to 640 (owner:rw group:r world:none)"
+
+# Certs readable by all (public keys)
 find "$CERTS_DIR" -type f -name "*.crt" -exec chmod 644 {} \;
 echo "[init-certs] Set certificate permissions to 644"
 
-# Remove world-writable permissions from all files (undo previous a+wr for testing)
-find "$CERTS_DIR" -type f -exec chmod o-w,g-w {} \;
+# CSR files can be more permissive
+find "$CERTS_DIR" -type f -name "*.csr" -exec chmod 644 {} \;
+
+# Remove world-writable permissions from all files (safety)
+find "$CERTS_DIR" -type f -exec chmod o-w {} \;
 
 touch "$CERTS_DIR/done"
 chmod 644 "$CERTS_DIR/done"

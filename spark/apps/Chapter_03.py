@@ -5,6 +5,7 @@ Batch job for analyzing word frequencies in Gutenberg books.
 """
 
 import os
+import glob
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 
@@ -20,15 +21,8 @@ print("=== Chapter 03: Word Count Analysis ===")
 print(f"Spark version: {spark.version}")
 print(f"Spark master: {spark.sparkContext.master}")
 
-# Data paths (using NFS mount accessible to all workers)
-books = [
-    "/mnt/spark/data/gutenberg_books/1342-0.txt", 
-    "/mnt/spark/data/gutenberg_books/11-0.txt", 
-    "/mnt/spark/data/gutenberg_books/1661-0.txt",
-    "/mnt/spark/data/gutenberg_books/2701-0.txt",
-    "/mnt/spark/data/gutenberg_books/30254-0.txt",
-    "/mnt/spark/data/gutenberg_books/84-0.txt",
-]
+# Data paths - use glob to expand wildcards into file list (avoids Spark 4.0 metadata warnings)
+books = sorted(glob.glob("/mnt/spark/data/gutenberg_books/*.txt"))
 
 # From Chapter 2 Listing 2.20
 book = spark.read.text(books)
@@ -138,7 +132,7 @@ results = (
 # Exercise 3.3
 print("\n=== Exercise 3.3: Multiple file analysis ===")
 results = (
-    spark.read.text("/mnt/spark/data/gutenberg_books/*.txt")
+    spark.read.text(books)
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -151,7 +145,7 @@ results = (
 print(f"Total distinct words: {results.count()}")
 
 all_results = (
-    spark.read.text("/mnt/spark/data/gutenberg_books/*.txt")
+    spark.read.text(books)
     .select(F.split(F.col("value"), " ").alias("line"))
     .select(F.explode(F.col("line")).alias("word"))
     .select(F.lower(F.col("word")).alias("word"))
@@ -221,7 +215,7 @@ print("\n=== Exercise: Word counts by file ===")
 
 # Step 1: preprocess all the words
 df = (
-    spark.read.text("/mnt/spark/data/gutenberg_books/*.txt")
+    spark.read.text(books)
     .select(F.input_file_name().alias("filename"), F.col("value"))
     .select(F.regexp_extract(F.col("filename"), r"([^/]+)$", 1).alias("basename"),
         F.col("value"))

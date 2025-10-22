@@ -1,6 +1,10 @@
 ---
-# Start Observability Platform
-# Start existing observability services
+# Start Observability Platform with Proper Certificate Management
+# This playbook follows a layered architecture approach:
+# 1. Generate/validate certificates (container layer)
+# 2. Distribute certificates (infrastructure layer)  
+# 3. Start services (container layer)
+# 4. Verify health (validation layer)
 
 - name: Start Observability Platform
   hosts: observability
@@ -9,8 +13,26 @@
   
   vars:
     observability_dir: "/home/ansible/observability"
+    ca_cert_path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
     
   tasks:
+    # === CRITICAL: Validate running on correct host ===
+    - name: Verify we are on the designated observability host
+      fail:
+        msg: |
+          ❌ FATAL: Wrong host! Observability stack must run on {{ observability_host }}.
+          
+          Current host: {{ inventory_hostname }}
+          Expected host: {{ observability_host }}
+          
+          This playbook MUST run on {{ observability_host }} (Docker Desktop on Windows/WSL).
+          
+          Did you mean to run:
+            ssh ansible@GaryPC.lan -p 2222
+            cd ~/repos/elastic-on-spark
+            ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml
+      when: inventory_hostname != observability_host
+    
     - name: Detect host OS
       set_fact:
         is_windows: "{{ ansible_os_family == 'Windows' }}"
@@ -59,8 +81,76 @@
         mode: '0755'
       when: is_linux
       
+    # =====================================================================
+    # STEP 1: Initialize Certificates (Container Layer)
+    # =====================================================================
+    - name: Initialize certificates only
+      command: docker compose up init-certs
+      args:
+        chdir: "{{ observability_dir }}"
+      environment:
+        FORCE_REGEN: "{{ force_cert_regen | default('') }}"
+      when: is_linux
+      register: init_certs_result
+      
+    - name: Display certificate initialization result
+      debug:
+        msg: "Certificate initialization {{ 'completed' if init_certs_result.rc == 0 else 'failed' }}"
+      
+    # =====================================================================
+    # STEP 2: Validate CA Certificate
+    # =====================================================================
+    - name: Check if CA certificate was generated
+      stat:
+        path: "{{ ca_cert_path }}"
+      register: ca_cert_stat
+      
+    - name: Fail if CA certificate not found
+      fail:
+        msg: "CA certificate not found at {{ ca_cert_path }}. Certificate generation failed."
+      when: not ca_cert_stat.stat.exists
+      
+    - name: Validate CA certificate integrity
+      shell: |
+        if ! openssl x509 -in "{{ ca_cert_path }}" -noout -text > /dev/null 2>&1; then
+          echo "INVALID"
+          exit 1
+        fi
+        echo "Issuer: $(openssl x509 -in "{{ ca_cert_path }}" -noout -issuer)"
+        echo "Validity: $(openssl x509 -in "{{ ca_cert_path }}" -noout -dates)"
+        echo "Fingerprint: $(openssl x509 -in "{{ ca_cert_path }}" -noout -fingerprint -sha256)"
+      register: ca_cert_validation
+      changed_when: false
+      
+    - name: Display CA certificate details
+      debug:
+        msg: "{{ ca_cert_validation.stdout_lines }}"
+      
+    # =====================================================================
+    # STEP 2.5: Reminder for Service Restarts (Pull-Based Model)
+    # Services fetch certificates from standard location on install/start.
+    # After cert regeneration, services must be restarted to pull new cert.
+    # =====================================================================
+    - name: Display certificate update instructions
+      debug:
+        msg: |
+          ✅ CA Certificate Published: {{ ca_cert_path }}
+          
+          If certificates were regenerated, restart services to pull new cert:
+          
+          # Elastic Agent (stop + start pattern)
+          ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/stop.yml
+          ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml
+          
+          # Spark or other services follow same pattern
+          
+          Services will automatically fetch the latest certificate from the published location.
+      
+    # =====================================================================
+    # STEP 3: Start Observability Services (Container Layer)
+    # =====================================================================
     - name: Start observability services
-      command: docker-compose up -d
+      command: docker compose up -d
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux
@@ -70,24 +160,68 @@
       debug:
         msg: |
           Services starting...
-          - Docker Compose will start all services in dependency order
+          - Docker Compose starting all services in dependency order
           - Elasticsearch → Kibana → init-index → Logstash → Grafana
-          - init-index will handle password setup and all initializations
+          - init-index handles password setup and index initialization
           - Check logs: docker compose logs -f init-index
       
-    - name: Wait for services to be ready
-      pause:
-        seconds: 15
-        prompt: "Waiting for observability services to start up..."
-        
+    # =====================================================================
+    # STEP 4: Verify Service Health (Validation Layer)
+    # =====================================================================
+    - name: Wait for Elasticsearch to be ready
+      uri:
+        url: "https://localhost:9200"
+        method: GET
+        user: elastic
+        password: "{{ lookup('env', 'ELASTIC_PASSWORD') | default('myElastic2025', true) }}"
+        validate_certs: false
+        status_code: [200, 401]
+      register: es_health
+      until: es_health.status in [200, 401]
+      retries: 30
+      delay: 5
+      ignore_errors: true
+      when: is_linux
+      
+    - name: Wait for Kibana to be ready
+      uri:
+        url: "http://localhost:5601/api/status"
+        method: GET
+        status_code: [200, 302, 401]
+      register: kibana_health
+      until: kibana_health.status in [200, 302, 401]
+      retries: 30
+      delay: 5
+      ignore_errors: true
+      when: is_linux
+      
+    - name: Display service health status
+      debug:
+        msg: |
+          Observability Platform Health:
+          - Elasticsearch: {{ 'Healthy' if es_health.status in [200, 401] else 'Not Ready' }}
+          - Kibana: {{ 'Healthy' if kibana_health.status in [200, 302, 401] else 'Not Ready' }}
+          
     - name: Display start status
       debug:
         msg: |
+          ========================================
           Observability Platform Started!
-          =============================
+          ========================================
           
           Services:
           - Elasticsearch: https://{{ ansible_hostname }}:9200
           - Kibana: http://{{ ansible_hostname }}:5601
           - Grafana: http://{{ ansible_hostname }}:3000
           - Logstash: {{ ansible_hostname }}:5050
+          
+          Credentials:
+          - Username: elastic
+          - Password: {{ lookup('env', 'ELASTIC_PASSWORD') | default('(set in .env)', true) }}
+          
+          Next Steps:
+          - If certs regenerated, restart Elastic Agent on managed hosts:
+            ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/stop.yml
+            ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml
+          - Verify metrics flowing:
+            curl -k -u elastic:password https://localhost:9200/_cat/indices/metrics-*
