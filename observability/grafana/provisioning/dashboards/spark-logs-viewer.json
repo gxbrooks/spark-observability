@@ -10,27 +10,293 @@
   "templating": {
     "list": [
       {
+        "allValue": "",
         "current": {
-          "selected": false,
-          "text": "1m",
-          "value": "1m"
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
         },
-        "hide": 2,
-        "name": "time_range",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Log Level",
+        "multi": true,
+        "name": "log_level",
         "options": [
           {
             "selected": true,
-            "text": "1m",
-            "value": "1m"
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "ERROR",
+            "value": "ERROR"
+          },
+          {
+            "selected": false,
+            "text": "WARN",
+            "value": "WARN"
+          },
+          {
+            "selected": false,
+            "text": "INFO",
+            "value": "INFO"
+          },
+          {
+            "selected": false,
+            "text": "DEBUG",
+            "value": "DEBUG"
           }
         ],
-        "query": "1m",
+        "query": "ERROR,WARN,INFO,DEBUG",
         "skipUrlSync": false,
         "type": "custom"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "spark-elasticsearch"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Hostname",
+        "multi": true,
+        "name": "hostname",
+        "options": [],
+        "query": "{\"find\":\"terms\",\"field\":\"host.hostname.keyword\"}",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "spark-elasticsearch"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Pod Name",
+        "multi": true,
+        "name": "pod_name",
+        "options": [],
+        "query": "{\"find\":\"terms\",\"field\":\"spark.pod_name.keyword\"}",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
       }
     ]
   },
   "panels": [
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Log Count",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "INFO"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEBUG"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 101,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "colorByField": null,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "normal",
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{log_level}} - {{hostname}}",
+          "bucketAggs": [
+            {
+              "field": "log_level",
+              "id": "3",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "hostname",
+              "id": "4",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "sum",
+              "field": "log_count"
+            }
+          ],
+          "query": "_index:metrics-spark-logs-default AND log_level:($log_level)",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Spark Application Logs by Level",
+      "type": "barchart",
+      "description": "Count of Spark application log entries by log level over time"
+    },
     {
       "datasource": {
         "type": "elasticsearch",
@@ -128,7 +394,7 @@
         "h": 24,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 8
       },
       "id": 1,
       "options": {
@@ -136,7 +402,9 @@
         "cellHeight": "sm",
         "footer": {
           "show": false,
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "countRows": false,
           "fields": ""
         }
@@ -258,104 +526,10 @@
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["spark", "logs"],
-  "templating": {
-    "list": [
-      {
-        "allValue": "",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0,
-        "includeAll": true,
-        "label": "Log Level",
-        "multi": true,
-        "name": "log_level",
-        "options": [
-          {
-            "selected": false,
-            "text": "All",
-            "value": "$__all"
-          },
-          {
-            "selected": false,
-            "text": "ERROR",
-            "value": "ERROR"
-          },
-          {
-            "selected": false,
-            "text": "WARN",
-            "value": "WARN"
-          },
-          {
-            "selected": false,
-            "text": "INFO",
-            "value": "INFO"
-          },
-          {
-            "selected": false,
-            "text": "DEBUG",
-            "value": "DEBUG"
-          }
-        ],
-        "query": "ERROR,WARN,INFO,DEBUG",
-        "skipUrlSync": false,
-        "type": "custom"
-      },
-      {
-        "allValue": "",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "elasticsearch",
-          "uid": "spark-elasticsearch"
-        },
-        "definition": "",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Hostname",
-        "multi": true,
-        "name": "hostname",
-        "options": [],
-        "query": "{\"find\":\"terms\",\"field\":\"host.hostname.keyword\"}",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "type": "query"
-      },
-      {
-        "allValue": "",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "elasticsearch",
-          "uid": "spark-elasticsearch"
-        },
-        "definition": "",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Pod Name",
-        "multi": true,
-        "name": "pod_name",
-        "options": [],
-        "query": "{\"find\":\"terms\",\"field\":\"spark.pod_name.keyword\"}",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "type": "query"
-      }
-    ]
-  },
+  "tags": [
+    "spark",
+    "logs"
+  ],
   "time": {
     "from": "now-1h",
     "to": "now"
@@ -367,4 +541,3 @@
   "version": 0,
   "weekStart": ""
 }
-

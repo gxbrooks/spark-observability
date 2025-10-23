@@ -1371,7 +1371,7 @@
           "links": [
             {
               "title": "View Logs",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__data.fields.@timestamp}&to=${__data.fields.bucket_end_time}",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time:date:milliseconds}&to=${__data.fields.bucket_end_time}",
               "targetBlank": true
             }
           ],
@@ -1527,7 +1527,7 @@
               "field": "log_count"
             }
           ],
-          "query": "_index:metrics-spark-logs-default AND log_level:($log_levels)",
+          "query": "_index:metrics-spark-logs-default",
           "refId": "A",
           "timeField": "@timestamp"
         }
