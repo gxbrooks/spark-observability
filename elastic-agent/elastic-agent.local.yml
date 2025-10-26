@@ -1,0 +1,69 @@
+###################### Agent Configuration for Local Spark Client #########################
+# 
+# This configuration is for the local machine where PySpark client applications run
+# It monitors local event logs in /tmp/spark/events/
+#
+
+inputs:
+  # Collecting system metrics
+  - type: system/metrics
+    id: unique-system-metrics-input
+    data_stream.namespace: default
+    use_output: default
+    streams:
+      - metricsets:
+        - cpu
+        data_stream.dataset: system.cpu
+      - metricsets:
+        - memory
+        data_stream.dataset: system.memory
+      - metricsets:
+        - network
+        data_stream.dataset: system.network
+      - metricsets:
+        - filesystem
+        data_stream.dataset: system.filesystem
+
+  # Spark Event Logs - LOCAL CLIENT
+  # Monitor event logs written by local PySpark client applications
+  - id: spark-events-local
+    type: filestream
+    use_output: "spark_events"
+    enabled: true
+    streams:
+      - id: spark-events-json-stream-local
+        data_stream:
+          dataset: spark
+          namespace: spark
+        paths:
+          - "/tmp/spark/events/app-*"
+        exclude_files: ['\.tmp$', '\.lock$', '\.inprogress$']
+        close_inactive: 5m
+        clean_inactive: 24h
+        ignore_older: 72h
+        scan_frequency: 10s
+        tags: ["spark-events", "json", "local-client"]
+        parsers:
+          - ndjson:
+              target: "spark"
+
+outputs:
+  default:
+    type: elasticsearch
+    hosts: ["${ELASTIC_URL_EXTERNAL}"]
+    username: "elastic"
+    password: "myElastic2025"
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      verification_mode: full
+
+  # Spark outputs for events
+  spark_events:
+    type: logstash
+    hosts: ["${LS_HOST_EXTERNAL}:${LS_SPARK_EVENTS_PORT}"]
+
+#####################################################
+#
+# logging
+agent.logging.level: info
+agent.logging.to_files: true

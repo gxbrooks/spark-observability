@@ -217,10 +217,13 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   value: 120s
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
-  value: /mnt/spark/events
-  contexts: [spark-runtime, ansible, spark-client, elastic-agent]
+  value: /opt/spark/events
+  contexts: [spark-runtime, ansible, elastic-agent]
+SPARK_EVENTS_DIR_CLIENT:
+  value: /tmp/spark/events
+  contexts: [spark-client]
 SPARK_CONF_DIR:
-  value: ~/repos/elastic-on-spark/spark/conf
+  value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
   contexts: [spark-client]
 
 # Spark client JAR paths (for spark-defaults.conf)
@@ -274,9 +277,7 @@ SPARK_MOUNT_BASE:
   value: /mnt/spark
   contexts: [spark-runtime, nfs]
 
-SPARK_EVENTS_MOUNT:
-  value: /mnt/spark/events
-  contexts: [spark-runtime, nfs]
+# SPARK_EVENTS_MOUNT: Removed - using local /var/log/spark/events instead of NFS
 
 SPARK_DATA_MOUNT:
   value: /mnt/spark/data
@@ -289,9 +290,7 @@ SPARK_DATA_SOURCE:
   contexts: [spark-runtime, nfs]
 
 # NFS Export Paths
-NFS_SPARK_EVENTS_EXPORT:
-  value: /srv/nfs/spark/events
-  contexts: [nfs]
+# NFS_SPARK_EVENTS_EXPORT: Removed - using local /var/log/spark/events instead of NFS
 
 NFS_SPARK_DATA_EXPORT:
   value: /srv/nfs/spark/data

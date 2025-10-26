@@ -156,7 +156,7 @@ This document defines the standard users, groups, and their roles across all hos
 
 | Group | GID | Purpose | Key Paths |
 |-------|-----|---------|-----------|
-| **spark** | 185 | Spark application files and logs | `/mnt/spark/logs/*`, `/mnt/spark/events/*` |
+| **spark** | 185 | Spark application files and logs | `/mnt/spark/logs/*`, `/opt/spark/events/*` |
 | **elastic-agent** | 984 | Elastic Agent configuration and administration | `/opt/Elastic/Agent/*`, `/var/log/elastic-agent/*` |
 | **gxbrooks** | 1000 | Personal files for gxbrooks user | `/home/gxbrooks/*` |
 | **ansible** | 1001/1002 | Automation files for ansible user | `/home/ansible/*` |

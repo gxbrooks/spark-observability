@@ -105,7 +105,7 @@ spec:
               memory: "4Gi"
           volumeMounts:
             - name: spark-events
-              mountPath: /mnt/spark/events
+              mountPath: /opt/spark/events
             - name: spark-logs-host
               mountPath: /opt/spark/logs
               subPathExpr: $(POD_NAME)
@@ -114,7 +114,7 @@ spec:
       volumes:
         - name: spark-events
           hostPath:
-            path: /mnt/spark/events
+            path: /opt/spark/events
             type: DirectoryOrCreate
         - name: spark-logs-host
           hostPath:

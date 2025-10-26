@@ -9,9 +9,9 @@
 spark.master                           spark://Lab2.lan:31686
 
 # Event logging
-# Both driver and executor logs written to NFS (accessible from cluster nodes)
+# Both driver and executor logs written to local directory (accessible from Elastic Agents)
 spark.eventLog.enabled                 true
-spark.eventLog.dir                     /mnt/spark/events
+spark.eventLog.dir                     /opt/spark/events
 # Disable event log rolling (v2 format) for compatibility with Elastic Agent monitoring
 # V2 format creates compressed .zstd files in directories which Elastic Agent can't parse
 spark.eventLog.rolling.enabled         false
