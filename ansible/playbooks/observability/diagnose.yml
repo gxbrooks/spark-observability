@@ -1,0 +1,119 @@
+---
+- name: Diagnose Observability Platform
+  hosts: "{{ target_hosts | default('observability') }}"
+  gather_facts: yes
+  vars:
+    timeout_seconds: 15
+  
+  tasks:
+    - name: Display diagnostic header
+      debug:
+        msg: |
+          🔍 OBSERVABILITY DIAGNOSTIC
+          ===========================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Target Host: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+    - name: Test Elasticsearch connectivity
+      uri:
+        url: "https://GaryPC:9200/_cluster/health"
+        method: GET
+        user: "elastic"
+        password: "myElastic2025"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: elasticsearch_test
+      ignore_errors: yes
+
+    - name: Test Kibana connectivity
+      uri:
+        url: "http://GaryPC:5601"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: kibana_test
+      ignore_errors: yes
+
+    - name: Test Grafana connectivity
+      uri:
+        url: "http://GaryPC:3000"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: grafana_test
+      ignore_errors: yes
+
+    - name: Test Logstash connectivity
+      shell: "docker ps --filter 'name=logstash01' --filter 'status=running' | grep -q 'logstash01' && echo '200' || echo '000'"
+      register: logstash_test
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Get Grafana dashboards
+      uri:
+        url: "http://GaryPC:3000/api/search"
+        method: GET
+        user: "admin"
+        password: "mysecretpassword"
+        timeout: "{{ timeout_seconds }}"
+        force_basic_auth: yes
+      register: grafana_dashboards
+      ignore_errors: yes
+
+    - name: Display service availability table
+      debug:
+        msg: |
+          📊 SERVICE AVAILABILITY TABLE
+          =============================
+          Service         Status         Response    Time (s)   Details
+          ------------------------------------------------------------
+          Elasticsearch   {{ '✅ AVAILABLE' if elasticsearch_test.status == 200 else '❌ UNAVAILABLE' }}     {{ elasticsearch_test.status | default('ERROR') }}       {{ '%.2f' | format(elasticsearch_test.elapsed | default(0)) }}     Search and analytics engine
+          Kibana          {{ '✅ AVAILABLE' if kibana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ kibana_test.status | default('ERROR') }}       {{ '%.2f' | format(kibana_test.elapsed | default(0)) }}     Data visualization and exploration
+          Grafana         {{ '✅ AVAILABLE' if grafana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ grafana_test.status | default('ERROR') }}       {{ '%.2f' | format(grafana_test.elapsed | default(0)) }}     Metrics and monitoring dashboards
+          Logstash        {{ '✅ AVAILABLE' if logstash_test.stdout == '200' else '❌ UNAVAILABLE' }}     {{ logstash_test.stdout | default('ERROR') }}       N/A       Data processing pipeline (container status)
+
+    - name: Display Grafana dashboards
+      debug:
+        msg: |
+          📋 GRAFANA DASHBOARDS
+          ====================
+          {% if grafana_dashboards.status == 200 and grafana_dashboards.json is defined %}
+          {% for dashboard in grafana_dashboards.json %}
+          {{ '%2d' | format(loop.index) }}. {{ '%-50s' | format(dashboard.title | default('N/A')) }} (UID: {{ dashboard.uid | default('N/A') }})
+          {% endfor %}
+          Total dashboards: {{ grafana_dashboards.json | length }}
+          {% else %}
+          ❌ Error retrieving dashboards: {{ grafana_dashboards.msg | default('Unknown error') }}
+          {% endif %}
+
+    - name: Display connection details
+      debug:
+        msg: |
+          🔧 CONNECTION DETAILS
+          ====================
+          Service         Host                    Port     Protocol
+          --------------------------------------------------------
+          Elasticsearch   {{ inventory_hostname }}               9200     HTTPS
+          Kibana          {{ inventory_hostname }}               5601     HTTP
+          Grafana         {{ inventory_hostname }}               3000     HTTP
+          Logstash        {{ inventory_hostname }}               9600     HTTP
+
+    - name: Check Docker containers
+      shell: "cd /home/ansible/observability && docker-compose ps --format table"
+      register: docker_containers
+      ignore_errors: yes
+
+    - name: Display Docker container status
+      debug:
+        msg: |
+          🐳 DOCKER CONTAINER STATUS
+          =========================
+          {{ docker_containers.stdout | default('Error retrieving container status') }}
+
+    - name: Display diagnostic summary
+      debug:
+        msg: |
+          ✅ DIAGNOSTIC COMPLETE!
+          ======================
+          All observability services have been tested.
+          Check the results above for any issues.

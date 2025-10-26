@@ -79,7 +79,22 @@
         dest: "{{ observability_dir }}/grafana/"
         delete: false
         recursive: true
+        rsync_opts:
+          - "--exclude=plugins/"
       when: is_linux
+      
+    - name: Create Grafana plugins directory (Linux)
+      file:
+        path: "{{ observability_dir }}/grafana/plugins"
+        state: directory
+        mode: '0755'
+        owner: '472'  # Grafana user UID
+        group: '472'  # Grafana group GID
+      when: is_linux
+      become: true
+    
+    # === GRAFANA PLUGIN DEPLOYMENT ===
+      # Plugin will be installed via GF_INSTALL_PLUGINS environment variable
       
     - name: Synchronize logstash directory (Linux)
       synchronize:

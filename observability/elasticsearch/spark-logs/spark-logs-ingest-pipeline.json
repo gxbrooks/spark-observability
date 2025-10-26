@@ -13,9 +13,8 @@
     },
     {
       "script": {
-        "lang": "painless",
-        "description": "Extract stack trace from message if present",
-        "source": "def msg = String.valueOf(ctx.message); if (msg == null || msg == 'null') return; def lines = /\\n/.split(msg, 2); if (lines.length < 2) return; def remainder = lines[1]; if (remainder.length() > 20 && (remainder.contains('at ') || remainder.contains('Exception') || remainder.contains('Error'))) { if (ctx.error == null) { ctx.error = [:]; } ctx.error.stack_trace = remainder; }",
+        "description": "Split message into msg.message (first line) and msg.stack_trace (remaining lines) with HTML escaping",
+        "source": "def msg = String.valueOf(ctx.message);\nif (msg == null || msg == 'null') return;\n\n// Split on first newline\ndef lines = /\\n/.split(msg, 2);\n\n// Build complete message with logger info\ndef completeMessage = lines[0];\nif (ctx.spark?.class != null && ctx.line_number != null) {\n    completeMessage = ctx.spark.class + \":\" + ctx.line_number + \" - \" + completeMessage;\n}\n\n// First line becomes msg.message (with logger info)\nif (ctx.msg == null) { ctx.msg = [:]; }\nctx.msg.message = completeMessage;\n\n// Remaining lines become msg.stack_trace (if present and looks like stack trace)\nif (lines.length > 1) {\n    def remainder = lines[1];\n    if (remainder.length() > 20 && (remainder.contains('at ') || remainder.contains('Exception') || remainder.contains('Error') || remainder.contains('Caused by'))) {\n        // HTML escape the stack trace to prevent Dynamic Text panel from auto-wrapping in <pre>\n        def escaped = remainder\n            .replace('&', '&amp;')\n            .replace('<', '&lt;')\n            .replace('>', '&gt;')\n            .replace('\"', '&quot;')\n            .replace(\"'\", '&#39;');\n        ctx.msg.stack_trace = escaped;\n    }\n}",
         "ignore_failure": true
       }
     },
@@ -47,28 +46,36 @@
     {
       "set": {
         "field": "event.type",
-        "value": ["info"],
+        "value": [
+          "info"
+        ],
         "if": "ctx?.log?.level == 'INFO'"
       }
     },
     {
       "set": {
         "field": "event.type",
-        "value": ["error"],
+        "value": [
+          "error"
+        ],
         "if": "ctx?.log?.level == 'ERROR' || ctx?.log?.level == 'CRITICAL' || ctx?.log?.level == 'FATAL'"
       }
     },
     {
       "set": {
         "field": "event.type",
-        "value": ["warning"],
+        "value": [
+          "warning"
+        ],
         "if": "ctx?.log?.level == 'WARN' || ctx?.log?.level == 'WARNING'"
       }
     },
     {
       "set": {
         "field": "event.type",
-        "value": ["debug"],
+        "value": [
+          "debug"
+        ],
         "if": "ctx?.log?.level == 'DEBUG' || ctx?.log?.level == 'TRACE'"
       }
     }
@@ -82,5 +89,3 @@
     }
   ]
 }
-
-

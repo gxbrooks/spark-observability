@@ -1,0 +1,167 @@
+{
+  "annotations":
+  {
+      "list":
+      [
+          {
+              "builtIn": 1,
+              "datasource":
+              {
+                  "type": "grafana",
+                  "uid": "-- Grafana --"
+              },
+              "enable": true,
+              "hide": true,
+              "iconColor": "rgba(0, 211, 255, 1)",
+              "name": "Annotations & Alerts",
+              "type": "dashboard"
+          }
+      ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 9,
+  "links":
+  [],
+  "panels":
+  [
+      {
+          "datasource":
+          {
+              "type": "elasticsearch",
+              "uid": "spark-elasticsearch"
+          },
+          "fieldConfig":
+          {
+              "defaults":
+              {
+                  "thresholds":
+                  {
+                      "mode": "absolute",
+                      "steps":
+                      [
+                          {
+                              "color": "green",
+                              "value": null
+                          },
+                          {
+                              "color": "red",
+                              "value": 80
+                          }
+                      ]
+                  }
+              },
+              "overrides":
+              []
+          },
+          "gridPos":
+          {
+              "h": 25,
+              "w": 24,
+              "x": 0,
+              "y": 0
+          },
+          "id": 1,
+          "options":
+          {
+              "afterRender": "",
+              "beforeContentRendering": "context.handlebars.registerHelper('escape', function (text) {\n  if (typeof text !== 'string') return text;\n  return text\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#039;');\n});\n\ncontext.handlebars.registerHelper('formatTimestamp', function (ts) {\n  if (!ts || typeof ts !== 'string') return ts;\n  try {\n    const date = new Date(ts);\n    return date.toLocaleString('en-US', {\n      year: 'numeric',\n      month: 'short',\n      day: '2-digit',\n      hour: '2-digit',\n      minute: '2-digit',\n      second: '2-digit',\n      hour12: false\n    });\n  } catch (e) {\n    return ts;\n  }\n});",
+              "content": "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;\">\n\n  {{#with data.[0]}}\n  <!-- Metadata Section - Timestamp first -->\n  <div style=\"display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;\">\n    <div style=\"background: #e0e0e0; padding: 6px; border-radius: 4px;\">\n      <div style=\"font-size: 11px; color: black; margin-bottom: 4px; font-weight: bold;\">TIMESTAMP</div>\n      <div style=\"font-size: 14px; font-weight: 500; color: black;\">{{formatTimestamp (lookup . \"@timestamp\")}}</div>\n    </div>\n    <div style=\"background: #e0e0e0; padding: 6px; border-radius: 4px;\">\n      <div style=\"font-size: 11px; color: black; margin-bottom: 4px; font-weight: bold;\">HOST</div>\n      <div style=\"font-size: 14px; font-weight: 500; color: black;\">{{lookup . \"host.hostname\"}}</div>\n    </div>\n    <div style=\"background: #e0e0e0; padding: 6px; border-radius: 4px;\">\n      <div style=\"font-size: 11px; color: black; margin-bottom: 4px; font-weight: bold;\">POD</div>\n      <div style=\"font-size: 14px; font-weight: 500; color: black;\">{{lookup . \"spark.pod_name\"}}</div>\n    </div>\n    <div style=\"background: #e0e0e0; padding: 6px; border-radius: 4px;\">\n      <div style=\"font-size: 11px; color: black; margin-bottom: 4px; font-weight: bold;\">LEVEL</div>\n      <div style=\"font-size: 14px; font-weight: 500; color: black;\">{{lookup . \"log.level\"}}</div>\n    </div>\n  </div>\n\n  <!-- Message Section -->\n  <div style=\"margin-bottom: 20px;\">\n    <div style=\"font-size: 13px; font-weight: 600; color: white; margin-bottom: 8px;\">MESSAGE</div>\n    <div\n      style=\"background: #e0e0e0; border: 1px solid #ddd; padding: 6px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; color: black;\">\n      {{lookup . \"msg.message\"}}\n    </div>\n  </div>\n\n  <!-- Stack Trace Section - Using custom escape helper -->\n  {{#if (lookup . \"msg.stack_trace\")}}\n  <div>\n    <div style=\"font-size: 13px; font-weight: 600; color: white; margin-bottom: 8px;\">STACK TRACE</div>\n    <div\n      style=\"max-height: 400px; overflow-y: auto; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5; border: 1px solid #555; white-space: pre-wrap;\">\n      <pre\n        style=\"margin: 0; padding: 0; white-space: pre-wrap; font-family: monospace; color: #f8f8f2;\">{{escape (lookup . \"msg.stack_trace\")}}</pre>\n    </div>\n  </div>\n  {{/if}}\n\n  {{/with}}\n</div>",
+              "contentPartials":
+              [],
+              "defaultContent": "Loading log entry details...",
+              "editor":
+              {
+                  "format": "auto",
+                  "language": "html"
+              },
+              "editors":
+              [
+                  "default",
+                  "helpers"
+              ],
+              "externalStyles":
+              [],
+              "helpers": "context.handlebars.registerHelper(\"formatTimestamp\", function (ts) {\n  if (!ts || typeof ts !== \"string\") return ts;\n  try {\n    const date = new Date(ts);\n    return date.toLocaleString(\"en-US\", {\n      year: \"numeric\",\n      month: \"short\",\n      day: \"2-digit\",\n      hour: \"2-digit\",\n      minute: \"2-digit\",\n      second: \"2-digit\",\n      hour12: false\n    });\n  } catch (e) {\n    return ts;\n  }\n});\n\ncontext.handlebars.registerHelper(\"escape\", function (text) {\n  if (typeof text !== \"string\") return text;\n  return text\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#039;\");\n});",
+              "renderMode": "allRows",
+              "styles": "",
+              "wrap": true
+          },
+          "pluginVersion": "6.0.0",
+          "targets":
+          [
+              {
+                  "alias": "",
+                  "bucketAggs":
+                  [
+                      {
+                          "field": "@timestamp",
+                          "id": "2",
+                          "settings":
+                          {
+                              "interval": "auto"
+                          },
+                          "type": "date_histogram"
+                      }
+                  ],
+                  "metrics":
+                  [
+                      {
+                          "id": "1",
+                          "settings":
+                          {
+                              "size": 1
+                          },
+                          "type": "raw_data"
+                      }
+                  ],
+                  "query": "_index:logs-spark-default AND _id:\"$log_id\"",
+                  "refId": "A",
+                  "timeField": "@timestamp"
+              }
+          ],
+          "title": "",
+          "type": "marcusolsson-dynamictext-panel"
+      }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 40,
+  "tags":
+  [
+      "spark",
+      "logs",
+      "detail"
+  ],
+  "templating":
+  {
+      "list":
+      [
+          {
+              "current":
+              {
+                  "text": "",
+                  "value": ""
+              },
+              "hide": 2,
+              "label": "Log Entry ID",
+              "name": "log_id",
+              "query": "hxqZIJoBk_cKvzJZmrS6",
+              "type": "textbox"
+          }
+      ]
+  },
+  "time":
+  {
+      "from": "now-24h",
+      "to": "now"
+  },
+  "timepicker":
+  {},
+  "timezone": "browser",
+  "title": "Spark Log Details",
+  "uid": "spark-log-details",
+  "version": 1,
+  "weekStart": ""
+}

@@ -197,6 +197,7 @@ services:
       - certs:/etc/ssl/private/elastic/certs
       - "./grafana/data:/var/lib/grafana/data"
       - "./grafana/provisioning:/etc/grafana/provisioning"
+      - "./grafana/plugins:/var/lib/grafana/plugins"
       - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
@@ -204,6 +205,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: "mysecretpassword"
       # GF_SERVER_HOST: localhost
       GF_SERVER_HTTP_PORT: ${GF_SERVER_HTTP_PORT}
+      GF_INSTALL_PLUGINS: "marcusolsson-dynamictext-panel"
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       CA_CERT: "${CA_CERT_LINUX_PATH}"
