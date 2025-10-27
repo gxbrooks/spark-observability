@@ -92,7 +92,7 @@ inputs:
           dataset: spark
           namespace: spark
         paths:
-          - "/opt/spark/events/app-*"
+          - "/mnt/spark/events/app-*"
         exclude_files: ['\.tmp$', '\.lock$']
         close_inactive: 5m
         clean_inactive: 24h

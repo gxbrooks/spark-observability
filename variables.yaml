@@ -217,14 +217,11 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   value: 120s
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
-  value: /opt/spark/events
-  contexts: [spark-runtime, ansible, elastic-agent]
-SPARK_EVENTS_DIR_CLIENT:
-  value: /tmp/spark/events
-  contexts: [spark-client]
+  value: /mnt/spark/events
+  contexts: [spark-runtime, ansible, elastic-agent, spark-client]
 SPARK_CONF_DIR:
   value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
-  contexts: [spark-client]
+  contexts: [spark-client, devops]
 
 # Spark client JAR paths (for spark-defaults.conf)
 SPARK_OTEL_LISTENER_JAR:

@@ -224,6 +224,11 @@ $root_dir/linux/assert_spark_user.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
+# Ensure /mnt/spark/events is mounted for event logging
+$root_dir/linux/assert_spark_events_mount.sh \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
 # Install Grafana build utilities for plugin development
 $root_dir/linux/assert_grafana_build_utilities.sh \
     $(append_flag "--Check" "$CHECK") \
