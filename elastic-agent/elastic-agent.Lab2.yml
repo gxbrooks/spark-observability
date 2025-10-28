@@ -1,0 +1,236 @@
+---
+
+inputs:
+  # System metrics - separate stream per metricset to prevent cross-pollution
+  - type: system/metrics
+    id: system-metrics-input
+    data_stream.namespace: default
+    use_output: default
+    streams:
+      - metricsets:
+        - cpu
+        data_stream.dataset: system.cpu
+      - metricsets:
+        - memory
+        data_stream.dataset: system.memory
+      - metricsets:
+        - network
+        data_stream.dataset: system.network
+      - metricsets:
+        - diskio
+        data_stream.dataset: system.diskio
+      - metricsets:
+        - filesystem
+        data_stream.dataset: system.filesystem
+      - metricsets:
+        - load
+        data_stream.dataset: system.load
+      # Process metricset disabled - not needed for Kubernetes hosts
+      # Causes permission errors and index pollution
+    processors:
+      - add_host_metadata: ~
+      - add_cloud_metadata: ~
+  # System logs integration
+  - type: system/logs
+    use_output: default
+    enabled: true
+    streams:
+      - data_stream:
+          dataset: system.auth
+          type: logs
+        paths:
+          - /var/log/auth.log
+          - /var/log/secure
+        processors:
+          - add_host_metadata: ~
+      - data_stream:
+          dataset: system.syslog
+          type: logs
+        paths:
+          - /var/log/syslog
+          - /var/log/messages
+        processors:
+          - add_host_metadata: ~
+  # Kubernetes metrics integration
+  - type: kubernetes/metrics
+    use_output: default
+    enabled: true
+    hosts: ["https://${KUBERNETES_API_SERVER}:10250"]
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+    period: 10s
+    streams:
+      - metricset: state_container
+        data_stream:
+          dataset: kubernetes.container
+          type: metrics
+      - metricset: state_pod
+        data_stream:
+          dataset: kubernetes.pod
+          type: metrics
+      - metricset: state_node
+        data_stream:
+          dataset: kubernetes.node
+          type: metrics
+    processors:
+      - add_cloud_metadata: ~
+  # Spark Section
+  # For Spark Events which need to go through Logstash
+  - id: filestream-minimal
+    type: filestream
+    enabled: true
+    paths:
+      - /tmp/filestream-minimal.log
+  - id: spark-events
+    type: filestream
+    use_output: "spark_events"
+    enabled: true
+    streams:
+      - id: spark-events-json-stream
+        data_stream:
+          dataset: spark
+          namespace: spark
+        paths:
+          - "/mnt/spark/events/app-*"
+        exclude_files: ['\.tmp$', '\.lock$']
+        close_inactive: 5m
+        clean_inactive: 24h
+        ignore_older: 72h
+        scan_frequency: 10s
+        tags: ["spark-events", "json"]
+        parsers:
+          - json:
+              target: "spark"
+  - id: spark-app-logs
+    type: filestream    
+    use_output: "default"
+    enabled: true
+    streams:
+      - id: spark-app-logs-stream
+        paths:
+          # Spark application logs from all components (mounted from Kubernetes pods to host)
+          - '/mnt/spark/logs/*/spark-app.log*'    # Application logs from all Spark components
+        exclude_files: ['\.gz$']
+        tags: ["spark-app-logs"]
+        data_stream:
+          dataset: spark
+          namespace: default
+        ignore_older: 24h
+        close_inactive: 5m
+        clean_inactive: 48h
+        scan_frequency: 10s
+        # Multiline parsing for Java exception stack traces
+        # Lines that DON'T start with a timestamp are part of the previous entry
+        parsers:
+          - multiline:
+              type: pattern
+              pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}'
+              negate: true
+              match: after
+              max_lines: 500
+              timeout: 5s
+              flush_pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}'
+        processors:
+          # Extract pod name from file path
+          - dissect:
+              tokenizer: "/mnt/spark/logs/%{spark.pod_name}/spark-app.log"
+              field: log.file.path
+              target_prefix: ""
+              ignore_failure: true
+          # Detect component type from pod name
+          - script:
+              lang: javascript
+              source: >
+                function process(event) {
+                  var podName = event.Get("spark.pod_name");
+                  if (podName) {
+                    var podNameStr = String(podName);
+                    if (podNameStr.indexOf("spark-master") === 0) {
+                      event.Put("spark.component", "master");
+                    } else if (podNameStr.indexOf("spark-worker") === 0) {
+                      event.Put("spark.component", "worker");
+                    } else if (podNameStr.indexOf("spark-history") === 0) {
+                      event.Put("spark.component", "history");
+                    } else if (podNameStr.indexOf("driver") >= 0) {
+                      event.Put("spark.component", "driver");
+                    } else if (podNameStr.indexOf("executor") >= 0) {
+                      event.Put("spark.component", "executor");
+                    }
+                  }
+                  return event;
+                }
+  - id: spark-gc
+    type: filestream
+    use_output: "spark_gc"
+    enabled: true
+    streams:
+      - id: spark-gc-stream
+        paths:
+          # GC log files from all Spark components - using natural Spark logging paths
+          - '/mnt/spark/logs/*/gc-master.log'    # Master daemon GC logs (current file only)
+          - '/mnt/spark/logs/*/gc-worker.log'    # Worker daemon GC logs (current file only)
+          - '/mnt/spark/logs/*/gc-history.log'   # History server GC logs (current file only)
+          - '/mnt/spark/logs/*/gc-executor.log'  # Executor GC logs (current file only)
+        exclude_files: ['\.0$', '\.1$', '\.2$', '\.3$', '\.4$', '\.5$', '\.6$', '\.7$', '\.8$', '\.9$']
+        tags: ["spark-gc", "test-step1"]
+        data_stream:
+          dataset: spark_gc
+          namespace: default
+        processors:
+          # STEP 1: Test with just file path extraction
+          - dissect:
+              tokenizer: "/mnt/spark/logs/%{pod_name}/gc-%{component}.log"
+              field: log.file.path
+              target_prefix: spark
+              ignore_failure: true
+
+# Providers section removed - not needed for standalone Elastic Agent
+# providers:
+#   kubernetes:
+#     enabled: true
+#     kube_config: "${KUBECONFIG}"
+#     cleanup_timeout: 60
+
+outputs:
+  default:
+    type: elasticsearch
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      verification_mode: full
+  # Spark outputs for events (to Logstash for processing)
+  spark_events:
+    type: logstash
+    hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
+  # Spark outputs for GC logs (directly to Elasticsearch)
+  spark_gc:
+    type: elasticsearch
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      verification_mode: full
+  # Spark outputs for application logs (directly to Elasticsearch)
+  spark_app:
+    type: elasticsearch
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
+    ssl:
+      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      verification_mode: full
+
+agent.logging.level: debug
+agent.logging.to_files: true
+agent.logging.event_data.to_files: true
+agent.logging.event_data.to_stderr: false
+
+agent:
+  monitoring:
+    enabled: true
+    logs: true
+    metrics: true
