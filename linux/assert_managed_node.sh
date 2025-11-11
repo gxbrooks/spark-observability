@@ -80,6 +80,16 @@ append_flag() {
 }
 
 $DEBUG && echo "Starting: $script_name: root_dir = $root_dir"
+
+# Define packages required for managed nodes
+MANAGED_PACKAGES=(jq ncat keychain bind9-dnsutils traceroute)
+
+# Install required packages
+$root_dir/linux/assert_packages.sh \
+    --Packages "${MANAGED_PACKAGES[*]}" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
 $DEBUG && echo "Checking: Is the ssh server running?"
 $root_dir/ssh/assert_ssh_server.sh \
     $(append_flag "--Check" "$CHECK") \
@@ -90,7 +100,7 @@ $root_dir/linux/assert_service_account.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG") \
     --Password "$PASSWORD" \
-    --Username "$USERNAME"
+    --User "$USERNAME"
 
 $DEBUG && echo "Checking: Python version management"
 $root_dir/linux/assert_python_version.sh \

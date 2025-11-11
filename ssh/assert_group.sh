@@ -18,6 +18,7 @@ for arg in "$@"; do
         --Check|-c) CHECK=true ;;
         --Debug|-d) DEBUG=true ;;
     esac
+    shift
 done
 
 if [[ -z "$GROUP_NAME" ]]; then
@@ -26,7 +27,7 @@ if [[ -z "$GROUP_NAME" ]]; then
 fi
 
 # Check if the group exists
-$DEBUG && echo "Checking: Does group '$GROUP_NAME' exist?"
+$DEBUG && echo "Checking: Does group '$GROUP_NAME' exist with GID $GROUP_GID?"
 if ! getent group "$GROUP_NAME" > /dev/null; then
     if $CHECK; then
         if [[ -n "$GROUP_GID" ]]; then

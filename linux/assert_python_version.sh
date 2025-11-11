@@ -123,7 +123,7 @@ install_python_version() {
                 echo "Info    : Please run manually: sudo apt install -y python${version} python${version}-dev python${version}-venv python${version}-distutils"
                 return 1
             fi
-        fi
+#       fi
         else
             # Install Python version and related packages
             echo "Info    : Installing Python ${version} packages..."

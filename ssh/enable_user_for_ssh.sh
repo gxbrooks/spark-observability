@@ -1,16 +1,15 @@
 #!/bin/bash
 
-# Enable SSSSH access for a user by configuring their .ssh directory, authorized_keys file, and SSH keys.
-
-# Parse arguments
-DEBUG=false
-CHECK=false
-USERNAME=$(whoami)
+# DEPRECATED: This script is obsolete and will be removed.
+# Use enable_user_for_ssh_server.sh for server-side setup (authorized_keys, sshuser group)
+# Use enable_user_for_ssh_client.sh for client-side setup (SSH key generation with passphrase)
 
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
 
-echo "Error   : $script_name is now deprecated." 
+echo "Error   : $script_name is now deprecated and obsolete." 
+echo "Info    : Use enable_user_for_ssh_server.sh for SSH server access configuration"
+echo "Info    : Use enable_user_for_ssh_client.sh for SSH client key generation"
 exit 1
 
 while [[ $# -gt 0 ]]; do

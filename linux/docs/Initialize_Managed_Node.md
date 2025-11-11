@@ -34,7 +34,7 @@ cd /home/gxbrooks/repos/elastic-on-spark
 **Step 3: Create Operations User (ansible)**
 ```bash
 # Create the ansible service account with passwordless sudo
-./linux/initialize_managed_node.sh --User ansible --Password <secure_password> --Debug
+./linux/assert_managed_node.sh --User ansible --Password <secure_password> --Debug
 ```
 
 **Step 4: Set Up SSH Access for Ansible**
@@ -95,18 +95,19 @@ ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.ym
 - Sets up SSH configuration from `sshd_config.linux.cfg`
 - Enables and starts SSH service
 
-### `linux/initialize_managed_node.sh`
+### `linux/assert_managed_node.sh`
 - Verifies SSH server is running (`ssh/assert_ssh_server.sh`)
-- Creates and configures the ansible user (`ssh/assert_service_account.sh`)
-- Sets up passwordless sudo for ansible user
-- Creates `/mnt/c/Volumes` directory for cross-platform compatibility
-- Adds ansible user to required groups (sudo, docker, users, sshusers)
+- Creates and configures the ansible service account (`linux/assert_service_account.sh`)
+- Sets up Python version management
+- Ensures spark user and group exist
+- Configures developer user
 
-### `ssh/assert_service_account.sh`
-- Creates the ansible user account
+### `linux/assert_service_account.sh`
+- Creates the service account (ansible) with system-assigned UID/GID
 - Sets up home directory with proper permissions
 - Adds user to required groups: sudo, docker, users, sshusers
-- Configures SSH access
+- Configures SSH server access via `ssh/enable_user_for_ssh_server.sh`
+- Sets up passwordless sudo in `/etc/sudoers.d/`
 
 ## User Access Summary
 

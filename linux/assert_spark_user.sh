@@ -2,6 +2,9 @@
 
 # Assert the spark user and group exist and add the calling user to the spark group
 # This script follows the pattern of other initialization scripts with --Debug and --Check flags
+#
+# Spark UID/GID: 185/185
+# This MUST match the Kubernetes pod securityContext for proper file ownership
 
 # Parse arguments
 DEBUG=false

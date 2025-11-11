@@ -84,25 +84,21 @@ if $DEBUG; then
   echo "Debug   : SPARK_VERSION = $SPARK_VERSION"
 fi
 
-# Install base packages (idempotent - only install if missing)
-if ! $CHECK; then
-  PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven)
-  TO_INSTALL=()
-  
-  for pkg in "${PACKAGES[@]}"; do
-    if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
-      TO_INSTALL+=("$pkg")
-    fi
-  done
-  
-  if [[ ${#TO_INSTALL[@]} -gt 0 ]]; then
-    echo "Info    : Installing ${#TO_INSTALL[@]} missing package(s): ${TO_INSTALL[*]}"
-    sudo apt update -qq
-    sudo apt install -y "${TO_INSTALL[@]}"
-  else
-    echo "Info    : All devops packages already installed"
-  fi
-fi
+# Function to append flags conditionally
+append_flag() {
+    local flag=$1
+    local condition=$2
+    [[ $condition == true ]] && echo "$flag"
+}
+
+# Define packages required for devops client
+PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml)
+
+# Install packages using common package assertion script
+$root_dir/linux/assert_packages.sh \
+  --Packages "${PACKAGES[*]}" \
+  $(append_flag "--Check" "$CHECK") \
+  $(append_flag "--Debug" "$DEBUG")
 
 # Install Java if specified version is not available
 if ! $CHECK && [[ -n "$JAVA_VERSION" ]]; then
@@ -125,12 +121,6 @@ if ! $CHECK; then
     echo "Info    : Git already configured (user: $current_email)"
   fi
 fi
-# Function to append flags conditionally
-append_flag() {
-    local flag=$1
-    local condition=$2
-    [[ $condition == true ]] && echo "$flag"
-}
 
 $root_dir/ssh/install_ssh_client.sh \
   $(append_flag "--Check" "$CHECK") \
