@@ -1,0 +1,19 @@
+---
+# Host-specific variables for Lab1
+#
+# Lab1 is an NFS client that mounts /mnt/spark/events from Lab2
+# To prevent duplicate event log collection, Lab1 does NOT collect Spark events
+# Only Lab2 (the NFS server) collects events
+
+# Disable Spark event log collection on Lab1 (prevent duplicate collection)
+spark_events_enabled: false
+
+# Lab1 collects its own pod logs (workers running on Lab1)
+spark_app_logs_enabled: true
+spark_gc_logs_enabled: true
+
+# Default settings for other inputs
+spark_app_logs_ignore_older: "24h"
+spark_events_path: "/mnt/spark/events/app-*"
+spark_logs_path: "/mnt/spark/logs"
+

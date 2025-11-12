@@ -49,16 +49,19 @@
       ignore_errors: true
       
     - name: Check Kibana status (Linux)
-      uri:
-        url: "http://{{ ansible_hostname }}:5601/api/status"
-        method: GET
-        user: "elastic"
-        password: "myElastic2025"
-        validate_certs: false
-        timeout: 10
-      register: kibana_status
+      shell: |
+        curl -s -m 10 "http://{{ ansible_hostname }}:5601/api/status" | \
+        python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('status', {}).get('overall', {}).get('level', 'unavailable'))"
+      register: kibana_status_raw
       when: is_linux
       ignore_errors: true
+      changed_when: false
+      
+    - name: Set Kibana status fact
+      set_fact:
+        kibana_status_level: "{{ kibana_status_raw.stdout | default('unknown') | trim }}"
+        kibana_status_available: "{{ (kibana_status_raw.stdout | default('') | trim) == 'available' }}"
+      when: is_linux and kibana_status_raw.stdout is defined
       
     # === WINDOWS TASKS ===
     - name: Check Docker Desktop service status (Windows)
@@ -96,10 +99,10 @@
           {% endif %}
           
           Kibana Status:
-          {% if kibana_status.status == 200 %}
-          Status: {{ kibana_status.json.status.overall.state | default('unknown') }}
+          {% if kibana_status_level is defined %}
+          Status: {{ kibana_status_level }}{% if kibana_status_available %} ✅{% endif %}
           {% else %}
-          Status: Not accessible ({{ kibana_status.status | default('timeout') }})
+          Status: Not accessible
           {% endif %}
           
           {% elif is_windows %}

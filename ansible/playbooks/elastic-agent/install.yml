@@ -137,7 +137,9 @@
     elastic_agent_extract_dir: "{{ elastic_agent_temp_base }}/elastic-extract"
     elastic_agent_download_file: "{{ elastic_agent_download_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
     elastic_agent_install_dir: "/opt/Elastic/Agent"
-    elastic_agent_config_src: "{{ playbook_dir }}/../../../elastic-agent/elastic-agent.{{ inventory_hostname }}.yml"
+    # Use OS-based configuration (linux.yml.j2 template) with host-specific variables
+    elastic_agent_config_template: "{{ playbook_dir }}/../../../elastic-agent/elastic-agent.linux.yml.j2"
+    elastic_agent_config_dest: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
     elastic_agent_envconf_src: "{{ playbook_dir }}/../../../elastic-agent/elastic_agent_env_systemd.conf"
     elastic_agent_envconf_dest: "/etc/elastic-agent/elastic_agent_env.conf"
     elastic_agent_service_name: "elastic-agent"
@@ -315,11 +317,10 @@
       register: existing_config_linux
       become: true
 
-    - name: Get checksum of source configuration file (Linux)
+    - name: Check if configuration template exists (Linux)
       ansible.builtin.stat:
-        path: "{{ elastic_agent_config_src }}"
-        get_checksum: yes
-      register: source_config_linux
+        path: "{{ elastic_agent_config_template }}"
+      register: config_template_check
       delegate_to: localhost
 
     - name: Stop Elastic Agent service (for configuration) (Linux)
@@ -329,10 +330,10 @@
       become: true
       ignore_errors: true
 
-    - name: Copy Elastic Agent configuration file (Linux)
-      ansible.builtin.copy:
-        src: "{{ elastic_agent_config_src }}"
-        dest: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
+    - name: Deploy Elastic Agent configuration from template (Linux)
+      ansible.builtin.template:
+        src: "{{ elastic_agent_config_template }}"
+        dest: "{{ elastic_agent_config_dest }}"
         owner: "{{ elastic_agent_user }}"
         group: "{{ elastic_agent_group }}"
         mode: '0640'

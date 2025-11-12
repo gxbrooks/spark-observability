@@ -264,3 +264,18 @@ This architecture provides comprehensive observability for Spark-on-Kubernetes d
 5. **Future-Ready**: Architecture supports direct Logstash integration via Spark listeners
 
 The system is production-ready and provides the foundation for advanced observability features while maintaining simplicity and reliability.
+
+---
+
+## Related Documentation
+
+For comprehensive details on Elastic Agent configuration and telemetry collection:
+- **[Elastic Agent Architecture](../elastic-agent/docs/Elastic_Agent_Architecture.md)** - Complete telemetry collection architecture, including:
+  - System metrics collection strategy
+  - Kubernetes metrics (planned)
+  - Spark log collection (application logs & GC logs)
+  - Spark event collection and duplicate prevention
+  - Configuration management with templates and host variables
+  - Deployment procedures and troubleshooting
+
+This document (Log_Architecture.md) focuses on the overall logging strategy and file system organization, while the Elastic Agent Architecture document provides implementation details for the collection layer.

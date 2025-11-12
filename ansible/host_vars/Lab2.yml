@@ -1,0 +1,18 @@
+---
+# Host-specific variables for Lab2
+#
+# Lab2 is the NFS server hosting /srv/nfs/spark/events
+# Lab2 is responsible for collecting Spark event logs (single collection point)
+
+# Enable Spark event log collection on Lab2 (NFS server)
+spark_events_enabled: true
+
+# Lab2 collects its own pod logs (master, history server, workers on Lab2)
+spark_app_logs_enabled: true
+spark_gc_logs_enabled: true
+
+# Default settings for other inputs
+spark_app_logs_ignore_older: "24h"
+spark_events_path: "/mnt/spark/events/app-*"
+spark_logs_path: "/mnt/spark/logs"
+

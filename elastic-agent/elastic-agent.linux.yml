@@ -8,49 +8,50 @@ inputs:
     use_output: default
     streams:
       - metricsets:
-        - cpu
+          - cpu
         data_stream.dataset: system.cpu
       - metricsets:
-        - memory
+          - memory
         data_stream.dataset: system.memory
       - metricsets:
-        - network
+          - network
         data_stream.dataset: system.network
       - metricsets:
-        - diskio
+          - diskio
         data_stream.dataset: system.diskio
       - metricsets:
-        - filesystem
+          - filesystem
         data_stream.dataset: system.filesystem
       - metricsets:
-        - load
+          - load
         data_stream.dataset: system.load
-      # Process metricset disabled - not needed for Kubernetes hosts
-      # Causes permission errors and index pollution
+    # Process metricset disabled - not needed for Kubernetes hosts
+    # Causes permission errors and index pollution
     processors:
       - add_host_metadata: ~
       - add_cloud_metadata: ~
-  # System logs integration
-  - type: system/logs
-    use_output: default
-    enabled: true
-    streams:
-      - data_stream:
-          dataset: system.auth
-          type: logs
-        paths:
-          - /var/log/auth.log
-          - /var/log/secure
-        processors:
-          - add_host_metadata: ~
-      - data_stream:
-          dataset: system.syslog
-          type: logs
-        paths:
-          - /var/log/syslog
-          - /var/log/messages
-        processors:
-          - add_host_metadata: ~
+  # System logs integration - DISABLED (system/logs type not supported in Elastic Agent 8.15)
+  # Causes "input not supported" error and agent DEGRADED state
+  # - type: system/logs
+  #   use_output: default
+  #   enabled: true
+  #   streams:
+  #     - data_stream:
+  #         dataset: system.auth
+  #         type: logs
+  #       paths:
+  #         - /var/log/auth.log
+  #         - /var/log/secure
+  #       processors:
+  #         - add_host_metadata: ~
+  #     - data_stream:
+  #         dataset: system.syslog
+  #         type: logs
+  #       paths:
+  #         - /var/log/syslog
+  #         - /var/log/messages
+  #       processors:
+  #         - add_host_metadata: ~
   # Kubernetes metrics integration
   - type: kubernetes/metrics
     use_output: default
@@ -99,11 +100,12 @@ inputs:
         ignore_older: 72h
         scan_frequency: 10s
         tags: ["spark-events", "json"]
-        parsers:
-          - ndjson:
-              target: "spark"
+        # JSON parsing handled by Logstash, not Elastic Agent
+        # parsers:
+        #   - ndjson:
+        #       target: "spark"
   - id: spark-app-logs
-    type: filestream    
+    type: filestream
     use_output: "default"
     enabled: true
     streams:
