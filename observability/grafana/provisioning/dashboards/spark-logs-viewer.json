@@ -1,663 +1,571 @@
 {
-    "annotations":
-    {
-        "list":
-        []
-    },
-    "editable": true,
-    "fiscalYearStartMonth": 0,
-    "graphTooltip": 0,
-    "id": null,
-    "links":
-    [],
-    "templating":
-    {
-        "list":
-        [
-            {
-                "allValue": "",
-                "current":
-                {
-                    "selected": true,
-                    "text": "All",
-                    "value": "$__all"
-                },
-                "hide": 0,
-                "includeAll": true,
-                "label": "Log Level",
-                "multi": true,
-                "name": "log_level",
-                "options":
-                [
-                    {
-                        "selected": true,
-                        "text": "All",
-                        "value": "$__all"
-                    },
-                    {
-                        "selected": false,
-                        "text": "ERROR",
-                        "value": "ERROR"
-                    },
-                    {
-                        "selected": false,
-                        "text": "WARN",
-                        "value": "WARN"
-                    },
-                    {
-                        "selected": false,
-                        "text": "INFO",
-                        "value": "INFO"
-                    },
-                    {
-                        "selected": false,
-                        "text": "DEBUG",
-                        "value": "DEBUG"
-                    }
-                ],
-                "query": "ERROR,WARN,INFO,DEBUG",
-                "skipUrlSync": false,
-                "type": "custom"
-            },
-            {
-                "allValue": "",
-                "current":
-                {
-                    "selected": true,
-                    "text": "All",
-                    "value": "$__all"
-                },
-                "datasource":
-                {
-                    "type": "elasticsearch",
-                    "uid": "spark-elasticsearch"
-                },
-                "definition": "",
-                "hide": 0,
-                "includeAll": true,
-                "label": "Hostname",
-                "multi": true,
-                "name": "hostname",
-                "options":
-                [],
-                "query": "{\"find\":\"terms\",\"field\":\"host.hostname.keyword\"}",
-                "refresh": 1,
-                "regex": "",
-                "skipUrlSync": false,
-                "sort": 0,
-                "type": "query"
-            },
-            {
-                "allValue": "",
-                "current":
-                {
-                    "selected": true,
-                    "text": "All",
-                    "value": "$__all"
-                },
-                "datasource":
-                {
-                    "type": "elasticsearch",
-                    "uid": "spark-elasticsearch"
-                },
-                "definition": "",
-                "hide": 0,
-                "includeAll": true,
-                "label": "Pod Name",
-                "multi": true,
-                "name": "pod_name",
-                "options":
-                [],
-                "query": "{\"find\":\"terms\",\"field\":\"spark.pod_name.keyword\"}",
-                "refresh": 1,
-                "regex": "",
-                "skipUrlSync": false,
-                "sort": 0,
-                "type": "query"
-            }
-        ]
-    },
-    "panels":
-    [
-        {
-            "datasource":
-            {
-                "type": "elasticsearch",
-                "uid": "spark-elasticsearch"
-            },
-            "fieldConfig":
-            {
-                "defaults":
-                {
-                    "color":
-                    {
-                        "mode": "palette-classic"
-                    },
-                    "custom":
-                    {
-                        "axisBorderShow": false,
-                        "axisCenteredZero": false,
-                        "axisColorMode": "text",
-                        "axisLabel": "Log Count",
-                        "axisPlacement": "auto",
-                        "fillOpacity": 80,
-                        "gradientMode": "none",
-                        "hideFrom":
-                        {
-                            "tooltip": false,
-                            "viz": false,
-                            "legend": false
-                        },
-                        "lineWidth": 1,
-                        "scaleDistribution":
-                        {
-                            "type": "linear"
-                        },
-                        "thresholdsStyle":
-                        {
-                            "mode": "off"
-                        }
-                    },
-                    "mappings":
-                    [],
-                    "thresholds":
-                    {
-                        "mode": "absolute",
-                        "steps":
-                        [
-                            {
-                                "color": "green",
-                                "value": null
-                            }
-                        ]
-                    }
-                },
-                "overrides":
-                [
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "ERROR"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "color",
-                                "value":
-                                {
-                                    "mode": "fixed",
-                                    "fixedColor": "red"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "WARN"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "color",
-                                "value":
-                                {
-                                    "mode": "fixed",
-                                    "fixedColor": "yellow"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "INFO"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "color",
-                                "value":
-                                {
-                                    "mode": "fixed",
-                                    "fixedColor": "green"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "DEBUG"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "color",
-                                "value":
-                                {
-                                    "mode": "fixed",
-                                    "fixedColor": "blue"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            },
-            "gridPos":
-            {
-                "h": 8,
-                "w": 24,
-                "x": 0,
-                "y": 0
-            },
-            "id": 101,
-            "options":
-            {
-                "barRadius": 0,
-                "barWidth": 0.97,
-                "colorByField": null,
-                "fullHighlight": false,
-                "groupWidth": 0.7,
-                "legend":
-                {
-                    "calcs":
-                    [],
-                    "displayMode": "list",
-                    "placement": "bottom",
-                    "showLegend": true
-                },
-                "orientation": "auto",
-                "showValue": "auto",
-                "stacking": "normal",
-                "tooltip":
-                {
-                    "mode": "multi",
-                    "sort": "none"
-                },
-                "xTickLabelRotation": 0,
-                "xTickLabelSpacing": 0
-            },
-            "pluginVersion": "11.3.0",
-            "targets":
-            [
-                {
-                    "alias": "{{log_level}} - {{hostname}}",
-                    "bucketAggs":
-                    [
-                        {
-                            "field": "log_level",
-                            "id": "3",
-                            "settings":
-                            {
-                                "min_doc_count": "1",
-                                "order": "desc",
-                                "orderBy": "_term",
-                                "size": "10"
-                            },
-                            "type": "terms"
-                        },
-                        {
-                            "field": "hostname",
-                            "id": "4",
-                            "settings":
-                            {
-                                "min_doc_count": "1",
-                                "order": "desc",
-                                "orderBy": "_term",
-                                "size": "10"
-                            },
-                            "type": "terms"
-                        },
-                        {
-                            "field": "@timestamp",
-                            "id": "2",
-                            "settings":
-                            {
-                                "interval": "auto",
-                                "min_doc_count": "0",
-                                "trimEdges": "0"
-                            },
-                            "type": "date_histogram"
-                        }
-                    ],
-                    "datasource":
-                    {
-                        "type": "elasticsearch",
-                        "uid": "spark-elasticsearch"
-                    },
-                    "metrics":
-                    [
-                        {
-                            "id": "1",
-                            "type": "sum",
-                            "field": "log_count"
-                        }
-                    ],
-                    "query": "_index:metrics-spark-logs-default AND log_level:($log_level)",
-                    "refId": "A",
-                    "timeField": "@timestamp"
-                }
-            ],
-            "title": "Spark Application Logs by Level",
-            "type": "barchart",
-            "description": "Count of Spark application log entries by log level over time"
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
         },
-        {
-            "datasource":
-            {
-                "type": "elasticsearch",
-                "uid": "spark-elasticsearch"
-            },
-            "fieldConfig":
-            {
-                "defaults":
-                {
-                    "custom":
-                    {
-                        "align": "left",
-                        "cellOptions":
-                        {
-                            "type": "auto"
-                        },
-                        "inspect": true
-                    }
-                },
-                "overrides":
-                [
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "Level"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "custom.width",
-                                "value": 100
-                            },
-                            {
-                                "id": "custom.displayMode",
-                                "value": "color-text"
-                            },
-                            {
-                                "id": "custom.fontWeight",
-                                "value": "bold"
-                            },
-                            {
-                                "id": "links",
-                                "value":
-                                [
-                                    {
-                                        "title": "🔍 View Details & Stack Trace",
-                                        "url": "/d/spark-log-details/spark-log-details?orgId=1&var-log_id=${__data.fields._id}",
-                                        "targetBlank": true
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "Time"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "custom.width",
-                                "value": 180
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "Host"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "custom.width",
-                                "value": 80
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "Pod"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "custom.width",
-                                "value": 250
-                            }
-                        ]
-                    },
-                    {
-                        "matcher":
-                        {
-                            "id": "byName",
-                            "options": "Message"
-                        },
-                        "properties":
-                        [
-                            {
-                                "id": "custom.width",
-                                "value": 500
-                            },
-                            {
-                                "id": "custom.cellOptions",
-                                "value":
-                                {
-                                    "type": "auto",
-                                    "wrapText": true
-                                }
-                            },
-                            {
-                                "id": "links",
-                                "value":
-                                [
-                                    {
-                                        "title": "📋 View Full JSON",
-                                        "url": "/d/spark-log-detail/spark-log-entry-detail?orgId=1&var-log_id=${__data.fields._id}&viewPanel=2",
-                                        "targetBlank": true
-                                    }
-                                ]
-                            },
-                            {
-                                "id": "custom.displayMode",
-                                "value": "color-text"
-                            }
-                        ]
-                    }
-                ]
-            },
-            "gridPos":
-            {
-                "h": 12,
-                "w": 24,
-                "x": 0,
-                "y": 8
-            },
-            "id": 1,
-            "options":
-            {
-                "showHeader": true,
-                "cellHeight": "sm",
-                "footer":
-                {
-                    "show": false,
-                    "reducer":
-                    [
-                        "sum"
-                    ],
-                    "countRows": false,
-                    "fields": ""
-                }
-            },
-            "pluginVersion": "11.3.0",
-            "targets":
-            [
-                {
-                    "bucketAggs":
-                    [
-                        {
-                            "field": "@timestamp",
-                            "id": "2",
-                            "settings":
-                            {
-                                "interval": "auto",
-                                "min_doc_count": "0"
-                            },
-                            "type": "date_histogram"
-                        }
-                    ],
-                    "datasource":
-                    {
-                        "type": "elasticsearch",
-                        "uid": "spark-elasticsearch"
-                    },
-                    "metrics":
-                    [
-                        {
-                            "id": "1",
-                            "settings":
-                            {
-                                "size": 500
-                            },
-                            "type": "raw_data"
-                        }
-                    ],
-                    "query": "_index:logs-spark-default AND log.level:($log_level)",
-                    "refId": "A",
-                    "timeField": "@timestamp"
-                }
-            ],
-            "title": "Spark Application Logs",
-            "transformations":
-            [
-                {
-                    "id": "organize",
-                    "options":
-                    {
-                        "excludeByName":
-                        {
-                            "_id": false,
-                            "_index": true,
-                            "_type": true,
-                            "sort": true,
-                            "highlight": true,
-                            "agent": true,
-                            "agent.ephemeral_id": true,
-                            "agent.id": true,
-                            "agent.name": true,
-                            "agent.type": true,
-                            "agent.version": true,
-                            "data_stream": true,
-                            "data_stream.dataset": true,
-                            "data_stream.namespace": true,
-                            "data_stream.type": true,
-                            "ecs": true,
-                            "ecs.version": true,
-                            "elastic_agent": true,
-                            "elastic_agent.id": true,
-                            "elastic_agent.snapshot": true,
-                            "elastic_agent.version": true,
-                            "event": true,
-                            "event.category": true,
-                            "event.dataset": true,
-                            "event.kind": true,
-                            "event.type": true,
-                            "host.name": true,
-                            "host.architecture": true,
-                            "host.containerized": true,
-                            "host.id": true,
-                            "host.ip": true,
-                            "host.mac": true,
-                            "host.os": true,
-                            "host.os.codename": true,
-                            "host.os.family": true,
-                            "host.os.kernel": true,
-                            "host.os.name": true,
-                            "host.os.platform": true,
-                            "host.os.type": true,
-                            "host.os.version": true,
-                            "input": true,
-                            "input.type": true,
-                            "tags": true,
-                            "log.file": true,
-                            "log.file.device_id": true,
-                            "log.file.inode": true,
-                            "log.file.path": true,
-                            "log.offset": true,
-                            "log.flags": true,
-                            "log_timestamp": true,
-                            "line_number": true,
-                            "spark.class": true,
-                            "spark.component": true,
-                            "error.stack_trace": true,
-                            "message": true,
-                            "id": true
-                        },
-                        "indexByName":
-                        {
-                            "@timestamp": 0,
-                            "log.level": 1,
-                            "host.hostname": 2,
-                            "spark.pod_name": 3,
-                            "log_message": 4,
-                            "_id": 5,
-                            "error.stack_trace": 6
-                        },
-                        "renameByName":
-                        {
-                            "@timestamp": "Time",
-                            "log.level": "Level",
-                            "host.hostname": "Host",
-                            "spark.pod_name": "Pod",
-                            "log_message": "Message"
-                        },
-                        "exclude":
-                        [
-                            "_id",
-                            "msg.message",
-                            "msg.stack_trace"
-                        ]
-                    }
-                }
-            ],
-            "type": "table"
-        }
-    ],
-    "refresh": "30s",
-    "schemaVersion": 39,
-    "tags":
-    [
-        "spark",
-        "logs",
-        "enhanced"
-    ],
-    "time":
+        "hide": 0,
+        "includeAll": true,
+        "label": "Log Level",
+        "multi": true,
+        "name": "log_level",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "ERROR",
+            "value": "ERROR"
+          },
+          {
+            "selected": false,
+            "text": "WARN",
+            "value": "WARN"
+          },
+          {
+            "selected": false,
+            "text": "INFO",
+            "value": "INFO"
+          },
+          {
+            "selected": false,
+            "text": "DEBUG",
+            "value": "DEBUG"
+          }
+        ],
+        "query": "ERROR,WARN,INFO,DEBUG",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "spark-elasticsearch"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Hostname",
+        "multi": true,
+        "name": "hostname",
+        "options": [],
+        "query": "{\"find\":\"terms\",\"field\":\"host.hostname.keyword\"}",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "spark-elasticsearch"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Pod Name",
+        "multi": true,
+        "name": "pod_name",
+        "options": [],
+        "query": "{\"find\":\"terms\",\"field\":\"spark.pod_name.keyword\"}",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "panels": [
     {
-        "from": "now-1h",
-        "to": "now"
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Log Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "INFO"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEBUG"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 101,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{log_level}} - {{hostname}}",
+          "bucketAggs": [
+            {
+              "field": "log_level",
+              "id": "3",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "hostname",
+              "id": "4",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "sum",
+              "field": "log_count"
+            }
+          ],
+          "query": "_index:metrics-spark-logs-default AND log_level:($log_level)",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Spark Application Logs by Level",
+      "type": "timeseries",
+      "description": "Count of Spark application log entries by log level over time (click-drag to zoom)"
     },
-    "timepicker":
-    {},
-    "timezone": "browser",
-    "title": "Spark Application Logs Viewer",
-    "uid": "spark-logs-viewer",
-    "version": 0,
-    "weekStart": ""
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Level"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "custom.fontWeight",
+                "value": "bold"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "\ud83d\udd0d View Details & Stack Trace",
+                    "url": "/d/spark-log-details/spark-log-details?orgId=1&var-log_id=${__data.fields._id}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Host"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pod"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 280
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Message"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 1,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "settings": {
+                "size": 500
+              },
+              "type": "raw_data"
+            }
+          ],
+          "query": "_index:logs-spark-default AND log.level:($log_level)",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Spark Application Logs",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "msg.message": true,
+              "msg.stack_trace": true,
+              "_index": true,
+              "_type": true,
+              "sort": true,
+              "highlight": true,
+              "agent": true,
+              "agent.ephemeral_id": true,
+              "agent.id": true,
+              "agent.name": true,
+              "agent.type": true,
+              "agent.version": true,
+              "data_stream": true,
+              "data_stream.dataset": true,
+              "data_stream.namespace": true,
+              "data_stream.type": true,
+              "ecs": true,
+              "ecs.version": true,
+              "elastic_agent": true,
+              "elastic_agent.id": true,
+              "elastic_agent.snapshot": true,
+              "elastic_agent.version": true,
+              "event": true,
+              "event.category": true,
+              "event.dataset": true,
+              "event.kind": true,
+              "event.type": true,
+              "host.name": true,
+              "host.architecture": true,
+              "host.containerized": true,
+              "host.id": true,
+              "host.ip": true,
+              "host.mac": true,
+              "host.os": true,
+              "host.os.codename": true,
+              "host.os.family": true,
+              "host.os.kernel": true,
+              "host.os.name": true,
+              "host.os.platform": true,
+              "host.os.type": true,
+              "host.os.version": true,
+              "input": true,
+              "input.type": true,
+              "tags": true,
+              "log.file": true,
+              "log.file.device_id": true,
+              "log.file.inode": true,
+              "log.file.path": true,
+              "log.offset": true,
+              "log.flags": true,
+              "log_timestamp": true,
+              "line_number": true,
+              "spark.class": true,
+              "spark.component": true,
+              "error.stack_trace": true,
+              "message": true,
+              "id": true
+            },
+            "indexByName": {
+              "@timestamp": 0,
+              "log.level": 1,
+              "host.hostname": 2,
+              "spark.pod_name": 3,
+              "log_message": 4,
+              "_id": 5,
+              "error.stack_trace": 6
+            },
+            "renameByName": {
+              "@timestamp": "Time",
+              "log.level": "Level",
+              "host.hostname": "Host",
+              "spark.pod_name": "Pod",
+              "log_message": "Message"
+            },
+            "exclude": [
+              "_id",
+              "msg.message",
+              "msg.stack_trace"
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "spark",
+    "logs",
+    "enhanced"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Spark Application Logs Viewer",
+  "uid": "spark-logs-viewer",
+  "version": 8,
+  "weekStart": ""
 }
