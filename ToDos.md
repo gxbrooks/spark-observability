@@ -118,7 +118,100 @@ Develop and document a comprehensive certificate management strategy for the ent
 **Status**: Not Started  
 **Description**: Replace file-based event log collection with direct SparkListener that pushes events to Elasticsearch via HTTP. This eliminates the need to parse event log files and provides real-time event ingestion.
 
+### Modernize Batch Event Start-End Matching
+**Priority**: Medium  
+**Status**: Not Started  
+**Estimated Effort**: 1-2 days
+
+**Description**:
+Replace the current Watcher-based polling approach for matching Spark batch event Start/End pairs with a more efficient on-demand lookup method using Elasticsearch 8.15 capabilities.
+
+**Current Implementation**:
+- **Mechanism**: Elasticsearch Watcher (`batch-match-join.watcher.json`)
+- **Polling Interval**: Every 5 seconds
+- **Query**: `has_parent` query to find unmatched End events with parent Start events
+- **Actions**: Creates trace records in `batch-traces` and marks events as `matched: true`
+- **Requirements**: Trial/Platinum license for Watcher functionality
+- **Location**: `observability/elasticsearch/config/batch-events/match-join.watcher.json`
+
+**Problems with Current Approach**:
+- Polling overhead (runs every 5 seconds even when no events)
+- 5-second latency between End event arrival and trace creation
+- Watcher complexity and trial license requirement
+- Resource usage from continuous polling
+- Three watcher variants exist (match-join, match-join-error, match-mustache)
+
+**Proposed Solutions** (Choose One):
+
+**Option 1: Enrich Processor (Recommended)**
+- Create enrich policy with Start events as source
+- Use ingest pipeline to enrich End events on arrival
+- Lookup by `start_event_uid` or `trace_id`
+- Immediate matching (no polling delay)
+- No license requirements beyond basic
+
+**Option 2: Ingest Pipeline with Painless Script**
+- Add ingest pipeline to `batch-events` template
+- Use Painless script to lookup Start event when End arrives
+- Calculate duration and create trace record inline
+- Single-stage processing
+
+**Option 3: Transform with Lookup**
+- Continuous transform that processes new End events
+- Uses scripted metric to lookup matching Start
+- More resource-efficient than polling
+- Better suited for batch processing
+
+**Scope**:
+1. Design and implement chosen approach
+2. Create ingest pipeline or enrich policy configuration
+3. Update `init-index.sh` to create new infrastructure
+4. Test matching accuracy and performance
+5. Migrate from Watcher to new approach
+6. Update documentation
+7. Deprecate/remove old Watcher files
+
+**Benefits**:
+- ✅ On-demand processing (no polling overhead)
+- ✅ Lower latency (immediate vs 5-second delay)
+- ✅ No trial license required
+- ✅ Better resource utilization
+- ✅ Simpler architecture
+- ✅ Native ES 8.15 capabilities
+
+**Deliverables**:
+1. **Configuration Files**:
+   - Enrich policy or ingest pipeline JSON
+   - Updated batch-events template
+   - Migration script from Watcher approach
+
+2. **Updated Scripts**:
+   - `init-index.sh` - Add new enrich/pipeline creation
+   - Remove Watcher creation steps
+
+3. **Documentation**:
+   - `docs/Batch_Event_Matching.md` - New architecture
+   - Update `docs/Elasticsearch_indices.md`
+   - Update `docs/Spark_Jobs_Pane.md`
+
+4. **Testing**:
+   - Verify matching accuracy
+   - Performance comparison (latency, resource usage)
+   - Backward compatibility with existing batch-traces
+
+**References**:
+- Current implementation: `observability/elasticsearch/config/batch-events/`
+- Documentation: `docs/Spark_Jobs_Pane.md` (lines 145-168)
+- Index template: `observability/elasticsearch/config/batch-events/batch-events.template.json`
+
+**Success Criteria**:
+- 100% matching accuracy maintained
+- < 1 second latency from End event to trace creation
+- No polling overhead
+- Works with basic Elasticsearch license
+- Existing Grafana dashboards continue to function
+
 ---
 
-**Last Updated**: 2025-10-16
+**Last Updated**: 2025-11-12
 

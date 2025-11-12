@@ -31,6 +31,27 @@ STACK_VERSION:
   value: 8.15.0
   contexts: [observability]
 
+# Elasticsearch Data Retention Policies (for downsampling)
+# Base retention is for the original 30-second sampling interval
+ES_RETENTION_BASE:
+  value: 2d
+  contexts: [observability]
+
+# 5-minute downsampled data retention
+ES_RETENTION_5MIN:
+  value: 4d
+  contexts: [observability]
+
+# 15-minute downsampled data retention
+ES_RETENTION_15MIN:
+  value: 8d
+  contexts: [observability]
+
+# 60-minute downsampled data retention
+ES_RETENTION_60MIN:
+  value: 12d
+  contexts: [observability]
+
 # Logstash Version
 LOGSTASH_VERSION:
   value: 8.15.0
