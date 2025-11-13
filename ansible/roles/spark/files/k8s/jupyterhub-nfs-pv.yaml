@@ -13,7 +13,7 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   nfs:
-    server: Lab2.lan
+    server: Lab2.local
     path: /srv/nfs/jupyterhub
   mountOptions:
     - nfsvers=4.1

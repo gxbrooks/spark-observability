@@ -232,7 +232,7 @@ ansible Lab1,Lab2 -m shell -a "grep 'spark-events' /opt/Elastic/Agent/elastic-ag
 **Check:**
 ```bash
 # Verify data in Elasticsearch
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/_cat/indices/metrics-system*"
+curl -k -u elastic:myElastic2025 "https://GaryPC.local:9200/_cat/indices/metrics-system*"
 
 # Check agent status
 ansible Lab1,Lab2 -m shell -a "sudo /opt/Elastic/Agent/elastic-agent status"

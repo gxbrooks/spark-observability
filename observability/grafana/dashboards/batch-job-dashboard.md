@@ -2,7 +2,7 @@
 
 **Dashboard Name**: Batch Job Dashboard  
 **File**: `provisioning/dashboards/batch-job-dashboard4.json`  
-**URL**: `http://garypc.lan:3000/` (navigate via UI)
+**URL**: `http://garypc.local:3000/` (navigate via UI)
 
 ## Purpose
 

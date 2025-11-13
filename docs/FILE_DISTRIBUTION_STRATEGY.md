@@ -15,7 +15,7 @@ This document outlines the strategy for distributing files across the cluster en
 ### NFS (Network File System)
 
 **Characteristics**:
-- Single source of truth (Lab2.lan:/srv/nfs)
+- Single source of truth (Lab2.local:/srv/nfs)
 - Shared across all nodes via mount points
 - Real-time synchronization (no deployment needed)
 - Single point of failure
@@ -70,7 +70,7 @@ This document outlines the strategy for distributing files across the cluster en
 | **Datasets** (input data for Spark jobs) | **NFS** | Large files, shared read access, no versioning |
 | **Spark Checkpoints** (streaming) | **NFS** | Continuous writes, shared state, fault tolerance |
 | **Python Packages** (pip install) | **Ansible** | Static, versioned, should be in container image |
-| **Docker Images** | **Registry (Lab2.lan:5000)** | Specialized distribution for containers |
+| **Docker Images** | **Registry (Lab2.local:5000)** | Specialized distribution for containers |
 | **Certificates** (SSL/TLS) | **Ansible** | Security-sensitive, versioned, auditable |
 
 ---
@@ -128,7 +128,7 @@ ansible-playbook -i inventory.yml playbooks/spark/start.yml
 5. **Fault Tolerance**: Spark History Server needs access to all event logs
 
 **NFS Mount Path**:
-- **Server**: `Lab2.lan:/srv/nfs/spark`
+- **Server**: `Lab2.local:/srv/nfs/spark`
 - **Mount Point**: `/mnt/spark` on all nodes
 - **Subdirectories**:
   - `/mnt/spark/events` - Spark event logs
@@ -173,7 +173,7 @@ ansible-playbook -i inventory.yml playbooks/spark/start.yml
 
 ### For Docker Images (Registry)
 1. **Build on Lab2** (local registry host)
-2. **Tag with version** (`lab2.lan:5000/spark:4.0.1`)
+2. **Tag with version** (`lab2.local:5000/spark:4.0.1`)
 3. **Push to local registry** (`docker push`)
 4. **Configure containerd** to allow insecure HTTP to local registry
 5. **Pull on managed nodes** via Kubernetes/Ansible
@@ -261,7 +261,7 @@ If a file type needs to move from NFS to Ansible (or vice versa):
 - **Application Binaries (JARs, executables)**: Ansible distribution to local filesystem
 - **Runtime Data (logs, events, datasets)**: NFS for shared access
 - **Configuration Files**: Ansible with Jinja2 templates
-- **Docker Images**: Local registry (Lab2.lan:5000)
+- **Docker Images**: Local registry (Lab2.local:5000)
 
 **Key Principle**: **Match distribution mechanism to access pattern**
 - **Static, versioned, infrequent access**: Ansible

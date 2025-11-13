@@ -439,7 +439,7 @@ ansible-playbook -i ansible/inventory.yml \
 ### Elasticsearch (Default Output)
 
 **Purpose:** Primary data store for metrics and logs  
-**URL:** `https://GaryPC.lan:9200`  
+**URL:** `https://GaryPC.local:9200`  
 **Auth:** Certificate-based (CA: `/etc/ssl/certs/elastic/ca.crt`)
 
 **Receives:**
@@ -463,7 +463,7 @@ outputs:
 ### Logstash (Spark Events Output)
 
 **Purpose:** Complex JSON transformation for Spark events  
-**URL:** `GaryPC.lan:5050`  
+**URL:** `GaryPC.local:5050`  
 **Protocol:** Plain TCP (within trusted network)
 
 **Receives:**
@@ -560,7 +560,7 @@ ansible Lab2 -m shell -a "grep -A 3 'id: spark-events' /opt/Elastic/Agent/elasti
 **Check Elasticsearch:**
 ```bash
 # Should see events only from Lab2
-curl -k -u elastic:pass https://GaryPC.lan:9200/batch-events-*/_search \
+curl -k -u elastic:pass https://GaryPC.local:9200/batch-events-*/_search \
   -d '{"aggs": {"by_host": {"terms": {"field": "host.name"}}}}'
 
 # Expected result: Only "lab2" in aggregation
@@ -628,13 +628,13 @@ Lab2: HEALTHY - spark_events enabled
 **Step 3: Check Data Flow**
 ```bash
 # System metrics (both hosts)
-curl -k -u elastic:pass https://GaryPC.lan:9200/_cat/indices/metrics-system*
+curl -k -u elastic:pass https://GaryPC.local:9200/_cat/indices/metrics-system*
 
 # Spark app logs (both hosts)
-curl -k -u elastic:pass https://GaryPC.lan:9200/.ds-logs-spark-default*/_count
+curl -k -u elastic:pass https://GaryPC.local:9200/.ds-logs-spark-default*/_count
 
 # Spark events (Lab2 only)
-curl -k -u elastic:pass https://GaryPC.lan:9200/batch-events-*/_count
+curl -k -u elastic:pass https://GaryPC.local:9200/batch-events-*/_count
 ```
 
 ### Configuration Updates
@@ -750,10 +750,10 @@ ansible-playbook playbooks/elastic-agent/install.yml -l Lab1,Lab2
 **Check Data Stream:**
 ```bash
 # List all data streams
-curl -k -u elastic:pass https://GaryPC.lan:9200/_data_stream
+curl -k -u elastic:pass https://GaryPC.local:9200/_data_stream
 
 # Check document counts
-curl -k -u elastic:pass https://GaryPC.lan:9200/_cat/indices/metrics-*,logs-*
+curl -k -u elastic:pass https://GaryPC.local:9200/_cat/indices/metrics-*,logs-*
 ```
 
 **Check Agent Logs:**
@@ -779,10 +779,10 @@ ansible Lab1,Lab2 -m shell -a "ps aux | grep elastic-agent | grep -v grep"
 **Data Volume:**
 ```bash
 # Events per day
-curl -k -u elastic:pass https://GaryPC.lan:9200/batch-events-*/_count
+curl -k -u elastic:pass https://GaryPC.local:9200/batch-events-*/_count
 
 # Metrics per hour
-curl -k -u elastic:pass https://GaryPC.lan:9200/metrics-system.*/_search \
+curl -k -u elastic:pass https://GaryPC.local:9200/metrics-system.*/_search \
   -d '{"aggs": {"by_hour": {"date_histogram": {"field": "@timestamp", "interval": "1h"}}}}'
 ```
 

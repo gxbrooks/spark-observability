@@ -6,7 +6,7 @@
 spark_version: "4.0.1"
 
 # Registry and image configuration (using local registry on Lab2)
-registry_host: "lab2.lan:5000"
+registry_host: "lab2.local:5000"
 spark_image: "{{ registry_host }}/spark"
 spark_tag: "{{ spark_version }}"
 

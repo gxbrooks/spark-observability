@@ -3,7 +3,7 @@
 **Dashboard Name**: Spark Cluster Metrics  
 **UID**: `spark-system-metrics`  
 **File**: `provisioning/dashboards/spark-system.json`  
-**URL**: `http://garypc.lan:3000/d/spark-system-metrics/spark-cluster-metrics`
+**URL**: `http://garypc.local:3000/d/spark-system-metrics/spark-cluster-metrics`
 
 ## Purpose
 
@@ -206,7 +206,7 @@ This dashboard provides comprehensive monitoring of Spark cluster infrastructure
 
 ### Direct URL
 ```
-http://garypc.lan:3000/d/<uid>/<dashboard-name>
+http://garypc.local:3000/d/<uid>/<dashboard-name>
 ```
 
 ### Via UI
@@ -218,10 +218,10 @@ http://garypc.lan:3000/d/<uid>/<dashboard-name>
 ### Via API
 ```bash
 # List all dashboards
-curl -u admin:password http://garypc.lan:3000/api/search?type=dash-db
+curl -u admin:password http://garypc.local:3000/api/search?type=dash-db
 
 # Get specific dashboard
-curl -u admin:password http://garypc.lan:3000/api/dashboards/uid/<uid>
+curl -u admin:password http://garypc.local:3000/api/dashboards/uid/<uid>
 ```
 
 ## Customization
@@ -290,7 +290,7 @@ Configure notification channels in Grafana:
 ### No Data Showing
 **Check**:
 1. Time range includes data timestamps
-2. Elasticsearch indices exist: `curl -k -u elastic:password https://garypc.lan:9200/_cat/indices`
+2. Elasticsearch indices exist: `curl -k -u elastic:password https://garypc.local:9200/_cat/indices`
 3. Datasource connection: Configuration → Data Sources → Test
 4. Query inspector: Panel menu → Inspect → Query
 

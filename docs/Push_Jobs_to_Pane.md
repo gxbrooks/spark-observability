@@ -61,7 +61,7 @@ Grafana / Kibana (trace visualization)
 - Memory limiting (512 MiB)
 
 **Outputs**:
-- Destination: Elasticsearch at `https://GaryPC.lan:9200`
+- Destination: Elasticsearch at `https://GaryPC.local:9200`
 - Index: `otel-traces-<date>`
 - Format: Elasticsearch documents
 

@@ -39,7 +39,7 @@ export PYSPARK_DRIVER_PYTHON=ipython
 export PYSPARK_DRIVER_PYTHON_OPTS=""
 
 # Display connection info
-echo -e "${YELLOW}Spark Master: ${SPARK_MASTER_URL:-spark://Lab2.lan:31686}${NC}"
+echo -e "${YELLOW}Spark Master: ${SPARK_MASTER_URL:-spark://Lab2.local:31686}${NC}"
 echo -e "${YELLOW}Python: $(which python)${NC}"
 echo -e "${YELLOW}Press Ctrl+D to exit${NC}"
 echo -e "${GREEN}======================================${NC}"

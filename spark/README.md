@@ -14,7 +14,7 @@ This directory contains Apache Spark applications and client tools for running w
    pip install pyspark==3.5.1 ipython
    ```
 
-2. **Spark Cluster**: Running on Kubernetes (Lab2.lan)
+2. **Spark Cluster**: Running on Kubernetes (Lab2.local)
    ```bash
    # Start cluster if needed
    cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
@@ -47,7 +47,7 @@ deactivate
 **How It Works:**
 - Driver runs **locally** on your machine
 - Executors run **remotely** in Kubernetes cluster
-- Connects to Spark master at `spark://Lab2.lan:31686`
+- Connects to Spark master at `spark://Lab2.local:31686`
 - Event logs written to `/mnt/spark/events` (NFS mount)
 
 ### Interactive Mode (IPython)
@@ -126,16 +126,16 @@ Auto-generated from `variables.yaml`:
 
 **Master Service:**
 - Internal (cluster): `spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077`
-- External (clients): `spark://Lab2.lan:31686`
+- External (clients): `spark://Lab2.local:31686`
 
 **Web UIs:**
-- Spark Master UI: http://Lab2.lan:32636
-- Spark History Server: http://Lab2.lan:31534
+- Spark Master UI: http://Lab2.local:32636
+- Spark History Server: http://Lab2.local:31534
 
 ### Network Requirements
 
 Client applications need:
-- Network access to Lab2.lan on ports 31686 (Spark), 32636 (UI)
+- Network access to Lab2.local on ports 31686 (Spark), 32636 (UI)
 - NFS mount at `/mnt/spark/events` for event logging
 - NFS mount at `/mnt/spark/data` for data access (if needed)
 
@@ -146,7 +146,7 @@ Client applications need:
 **"Connection refused" when running apps:**
 - Check cluster is running: `kubectl get pods -n spark`
 - Start cluster: `cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml`
-- Verify port: `nc -zv Lab2.lan 31686`
+- Verify port: `nc -zv Lab2.local 31686`
 
 **"PySpark not found":**
 - Activate virtual environment: `source venv/bin/activate`

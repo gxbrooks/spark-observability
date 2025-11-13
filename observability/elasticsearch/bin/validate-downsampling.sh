@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 # Load variables from variables.yaml
-ES_HOST="${ELASTIC_HOST_CLIENT:-GaryPC.lan}"
+ES_HOST="${ELASTIC_HOST_CLIENT:-GaryPC.local}"
 ES_PORT="${ELASTIC_PORT:-9200}"
 ES_USER="${ELASTIC_USER:-elastic}"
 ES_PASSWORD="${ELASTIC_PASSWORD:-myElastic2025}"

@@ -34,7 +34,7 @@ Created 4 downsampling policies in Elasticsearch:
 
 **Verified**:
 ```bash
-$ curl https://GaryPC.lan:9200/_ilm/policy/system-metrics-downsampled
+$ curl https://GaryPC.local:9200/_ilm/policy/system-metrics-downsampled
 ✓ Policy exists with 3 downsampling tiers
 ```
 
@@ -54,7 +54,7 @@ Successfully attached to:
 
 **Verified**:
 ```bash
-$ curl https://GaryPC.lan:9200/metrics-system.cpu-default/_ilm/explain
+$ curl https://GaryPC.local:9200/metrics-system.cpu-default/_ilm/explain
 ✓ Policy: system-metrics-downsampled
 ✓ Phase: hot
 ✓ Action: rollover
@@ -64,7 +64,7 @@ $ curl https://GaryPC.lan:9200/metrics-system.cpu-default/_ilm/explain
 
 **Dashboard**: "Spark System Metrics"  
 **UID**: `spark-system-metrics-aggregated`  
-**URL**: http://GaryPC.lan:3000/d/spark-system-metrics-aggregated
+**URL**: http://GaryPC.local:3000/d/spark-system-metrics-aggregated
 
 **Panels** (10 total):
 - Total System CPU Utilization
@@ -85,10 +85,10 @@ $ curl https://GaryPC.lan:9200/metrics-system.cpu-default/_ilm/explain
 #### 5. Observability Stack Restarted ✅
 
 All services running healthy:
-- **Elasticsearch**: https://GaryPC.lan:9200 ✅ Healthy
-- **Kibana**: http://GaryPC.lan:5601 ✅ Healthy
-- **Grafana**: http://GaryPC.lan:3000 ✅ Running
-- **Logstash**: GaryPC.lan:5050 ✅ Running
+- **Elasticsearch**: https://GaryPC.local:9200 ✅ Healthy
+- **Kibana**: http://GaryPC.local:5601 ✅ Healthy
+- **Grafana**: http://GaryPC.local:3000 ✅ Running
+- **Logstash**: GaryPC.local:5050 ✅ Running
 
 ---
 
@@ -197,7 +197,7 @@ OUTPUTS_DIR="${ELASTICSEARCH_DIR}/outputs"
 ### ILM Policies
 
 ```bash
-$ curl -k -u elastic:myElastic2025 https://GaryPC.lan:9200/_ilm/policy/*downsampled | jq keys
+$ curl -k -u elastic:myElastic2025 https://GaryPC.local:9200/_ilm/policy/*downsampled | jq keys
 [
   "docker-metrics-downsampled",
   "spark-gc-downsampled",
@@ -210,7 +210,7 @@ $ curl -k -u elastic:myElastic2025 https://GaryPC.lan:9200/_ilm/policy/*downsamp
 ### Data Stream Policy Attachment
 
 ```bash
-$ curl https://GaryPC.lan:9200/metrics-system.cpu-default/_ilm/explain
+$ curl https://GaryPC.local:9200/metrics-system.cpu-default/_ilm/explain
 "policy": "system-metrics-downsampled"
 "phase": "hot"
 "action": "rollover"
@@ -220,7 +220,7 @@ $ curl https://GaryPC.lan:9200/metrics-system.cpu-default/_ilm/explain
 ### Grafana Dashboard
 
 ```bash
-$ curl http://GaryPC.lan:3000/api/search?query=spark | jq
+$ curl http://GaryPC.local:3000/api/search?query=spark | jq
 ...
 "uid": "spark-system-metrics-aggregated"
 "title": "Spark System Metrics"
@@ -272,13 +272,13 @@ $ curl http://GaryPC.lan:3000/api/search?query=spark | jq
 ## Access URLs
 
 ### Services
-- **Elasticsearch**: https://GaryPC.lan:9200
-- **Kibana**: http://GaryPC.lan:5601  
-- **Grafana**: http://GaryPC.lan:3000
+- **Elasticsearch**: https://GaryPC.local:9200
+- **Kibana**: http://GaryPC.local:5601  
+- **Grafana**: http://GaryPC.local:3000
 
 ### Dashboards
-- **New**: http://GaryPC.lan:3000/d/spark-system-metrics-aggregated (Aggregated)
-- **Original**: http://GaryPC.lan:3000/d/spark-system-metrics (Per-node)
+- **New**: http://GaryPC.local:3000/d/spark-system-metrics-aggregated (Aggregated)
+- **Original**: http://GaryPC.local:3000/d/spark-system-metrics (Per-node)
 
 ### Credentials
 - **Elasticsearch/Kibana**: elastic / myElastic2025

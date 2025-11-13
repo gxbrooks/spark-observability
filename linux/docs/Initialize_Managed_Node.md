@@ -1,6 +1,6 @@
-# Initialize Managed Node (Lab1.lan)
+# Initialize Managed Node (Lab1.local)
 
-This document provides the complete sequence to set up Lab1.lan as a new Kubernetes worker node for Spark operations, with proper user separation between development (`gxbrooks`) and operations (`ansible`).
+This document provides the complete sequence to set up Lab1.local as a new Kubernetes worker node for Spark operations, with proper user separation between development (`gxbrooks`) and operations (`ansible`).
 
 ## User Structure
 
@@ -9,7 +9,7 @@ This document provides the complete sequence to set up Lab1.lan as a new Kuberne
 
 ## Complete Setup Sequence
 
-### 1. On Lab1.lan (Initial Setup)
+### 1. On Lab1.local (Initial Setup)
 
 **Step 1: Install Git and Clone Repository**
 ```bash
@@ -50,7 +50,7 @@ sudo chown ansible:ansible /home/ansible/.ssh
 **Step 5: Copy SSH Keys to Operations User**
 ```bash
 # Copy your SSH public key to the ansible user on Lab1
-ssh-copy-id ansible@Lab1.lan
+ssh-copy-id ansible@Lab1.local
 ```
 
 **Step 6: Test Ansible Connectivity**
@@ -150,8 +150,8 @@ ansible -i ansible/inventory.yml Lab1 -m shell -a "whoami"
 - Verify user exists: `id ansible`
 
 **If Ansible fails:**
-- Test SSH manually: `ssh ansible@Lab1.lan`
-- Check sudo access: `ssh ansible@Lab1.lan "sudo -l"`
+- Test SSH manually: `ssh ansible@Lab1.local`
+- Check sudo access: `ssh ansible@Lab1.local "sudo -l"`
 - Verify inventory: `ansible -i ansible/inventory.yml --list-hosts kubernetes_workers`
 
 **If Kubernetes join fails:**
@@ -162,8 +162,8 @@ ansible -i ansible/inventory.yml Lab1 -m shell -a "whoami"
 ## Next Steps
 
 After successful setup:
-1. Lab1.lan will be available as a Kubernetes worker node
-2. Spark workers can be scheduled on Lab1.lan ++++++++++++++++
+1. Lab1.local will be available as a Kubernetes worker node
+2. Spark workers can be scheduled on Lab1.local ++++++++++++++++
 3. Development work can be done as `gxbrooks` user
 4. Operations automation runs as `ansible` user
 5. Both users can coexist without conflicts

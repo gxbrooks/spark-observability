@@ -28,7 +28,7 @@
           This playbook MUST run on {{ observability_host }} (Docker Desktop on Windows/WSL).
           
           Did you mean to run:
-            ssh ansible@GaryPC.lan -p 2222
+            ssh ansible@GaryPC.local -p 2222
             cd ~/repos/elastic-on-spark
             ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml
       when: inventory_hostname != observability_host

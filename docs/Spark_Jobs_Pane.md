@@ -91,7 +91,7 @@ spark.eventLog.compression.codec       none
 
 **Outputs**:
 - Protocol: Beats protocol (Lumberjack)
-- Destination: `${LS_HOST}:${LS_SPARK_EVENTS_PORT}` (GaryPC.lan:5050)
+- Destination: `${LS_HOST}:${LS_SPARK_EVENTS_PORT}` (GaryPC.local:5050)
 - Target: `spark_events` output (type: logstash)
 
 **Configuration** (See: `elastic-agent/elastic-agent.linux.yml`, lines 85-104):

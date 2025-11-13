@@ -31,7 +31,7 @@ fi
 
 echo "=== Running Spark Application with OpenTelemetry Tracing ==="
 echo "Script: $PYTHON_SCRIPT"
-echo "OTel Endpoint: http://Lab2.lan:31317"
+echo "OTel Endpoint: http://Lab2.local:31317"
 echo ""
 
 # Activate venv
@@ -42,7 +42,7 @@ source venv/bin/activate
 source spark/spark_env.sh
 
 # Set OTel endpoint
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.lan:31317"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.local:31317"
 
 # Add OTel config to PYSPARK_SUBMIT_ARGS if not already there
 export PYSPARK_SUBMIT_ARGS="--conf spark.extraListeners=com.elastic.spark.otel.OTelSparkListener --conf spark.jars=$PROJECT_ROOT/spark/otel-listener/target/spark-otel-listener-1.0.0.jar pyspark-shell"
@@ -53,7 +53,7 @@ python "$PYTHON_SCRIPT"
 
 echo ""
 echo "=== Execution Complete ==="
-echo "Check traces in Kibana: http://GaryPC.lan:5601"
+echo "Check traces in Kibana: http://GaryPC.local:5601"
 echo "  Data View: OpenTelemetry Traces"
 echo "  Index: traces-generic-default"
 

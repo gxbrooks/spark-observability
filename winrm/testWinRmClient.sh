@@ -2,8 +2,8 @@
 
 CERT_PATH=~/.winrm/ansible_client_cert.pem
 KEY_PATH=~/.winrm/ansible_client_private_key.pem
-SELF_SIGNED_CA_PATH=~/.winrm/WinRM_SSL_Cert@GaryPC.lan.pem
-WINRM_ENDPOINT=https://GaryPC.lan:5986/wsman
+SELF_SIGNED_CA_PATH=~/.winrm/WinRM_SSL_Cert@GaryPC.local.pem
+WINRM_ENDPOINT=https://GaryPC.local:5986/wsman
 
 # Extract certificate (if needed)
 if [[ ! -f "$CERT_PATH" ]]; then

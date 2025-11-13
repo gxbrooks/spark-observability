@@ -176,7 +176,7 @@ The "Spark System Metrics" dashboard automatically queries the appropriate data:
 - No special dashboard configuration needed
 - Queries use standard `-default` index patterns
 
-**Dashboard**: http://GaryPC.lan:3000/d/spark-system-metrics-aggregated
+**Dashboard**: http://GaryPC.local:3000/d/spark-system-metrics-aggregated
 
 ## Troubleshooting
 

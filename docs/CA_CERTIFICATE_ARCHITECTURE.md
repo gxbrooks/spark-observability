@@ -449,7 +449,7 @@ Certificate management depends on stable DNS resolution. See `docs/DNS_and_IP_Ma
 - Network diagnostics playbooks
 - IP change detection and remediation
 
-**Critical**: Always use DNS names (e.g., `GaryPC.lan`) in configurations, never IP addresses.
+**Critical**: Always use DNS names (e.g., `GaryPC.local`) in configurations, never IP addresses.
 
 ## Future Enhancements
 

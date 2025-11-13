@@ -22,7 +22,7 @@ The script:
 ## Architecture
 
 ```
-Local Machine                     Kubernetes Cluster (Lab2.lan:31686)
+Local Machine                     Kubernetes Cluster (Lab2.local:31686)
 ┌─────────────────┐              ┌─────────────────────────────┐
 │ IPython Shell   │              │ Spark Master                │
 │ (Local)         │ ────────────▶│ spark-master-0              │
@@ -41,12 +41,12 @@ Local Machine                     Kubernetes Cluster (Lab2.lan:31686)
 - Python 3.8 virtual environment with PySpark 3.5.1
 - IPython installed in venv
 - Spark cluster running on Kubernetes
-- Network access to Lab2.lan:31686
+- Network access to Lab2.local:31686
 
 ## Environment Variables
 
 The `ispark_env.sh` file (auto-generated from `variables.yaml`) provides:
-- `SPARK_MASTER_EXTERNAL_HOST`: Cluster hostname (Lab2.lan)
+- `SPARK_MASTER_EXTERNAL_HOST`: Cluster hostname (Lab2.local)
 - `SPARK_MASTER_EXTERNAL_PORT`: NodePort for client access (31686)
 - Other Spark-related settings
 
@@ -58,7 +58,7 @@ These are automatically sourced by the launch script.
 $ ./spark/ispark/launch_ipython.sh
 
 === Launching PySpark with IPython ===
-Spark Master: spark://Lab2.lan:31686
+Spark Master: spark://Lab2.local:31686
 Python: /home/user/repos/elastic-on-spark/venv/bin/python
 Press Ctrl+D to exit
 ======================================

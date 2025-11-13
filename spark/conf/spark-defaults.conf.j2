@@ -6,7 +6,7 @@
 # To regenerate: python3 linux/generate_env.py && linux/generate_spark_defaults.sh
 
 # Master configuration
-spark.master                           spark://Lab2.lan:31686
+spark.master                           spark://Lab2.local:31686
 
 # Event logging
 # Event logs written by Driver to NFS-shared directory
@@ -27,7 +27,7 @@ spark.eventLog.compression.codec       none
 spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
 spark.jars                             /home/gxbrooks/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar
 # Pass OTel endpoint to executors
-spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT    http://Lab2.lan:31317
+spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT    http://Lab2.local:31317
 
 # SQL optimizations
 spark.sql.adaptive.enabled             true

@@ -151,9 +151,9 @@ Since Ansible depends on a functional network, network management cannot be auto
    hostname -I
    
    # Check DNS resolution
-   getent hosts GaryPC.lan
-   getent hosts Lab1.lan
-   getent hosts Lab2.lan
+   getent hosts GaryPC.local
+   getent hosts Lab1.local
+   getent hosts Lab2.local
    ```
 
 2. **Update /etc/hosts manually** on each affected host:
@@ -162,16 +162,16 @@ Since Ansible depends on a functional network, network management cannot be auto
    sudo nano /etc/hosts
    
    # Add/update entries:
-   192.168.1.115  GaryPC.lan GaryPC  # Observability (Docker Desktop)
-   192.168.1.76   Lab1.lan Lab1      # Kubernetes worker
-   192.168.1.48   Lab2.lan Lab2      # Kubernetes master
+   192.168.1.115  GaryPC.local GaryPC  # Observability (Docker Desktop)
+   192.168.1.76   Lab1.local Lab1      # Kubernetes worker
+   192.168.1.48   Lab2.local Lab2      # Kubernetes master
    ```
 
 3. **Test connectivity**:
    ```bash
-   ping -c 3 GaryPC.lan
-   ping -c 3 Lab1.lan
-   ping -c 3 Lab2.lan
+   ping -c 3 GaryPC.local
+   ping -c 3 Lab1.local
+   ping -c 3 Lab2.local
    ```
 
 4. **Restart affected services**:
@@ -204,7 +204,7 @@ instances:
     dns:
       - "es01"
       - "localhost"
-      - "GaryPC.lan"
+      - "GaryPC.local"
       - "GaryPC"
     ip:
       - "127.0.0.1"
@@ -220,12 +220,12 @@ instances:
 All playbooks should validate DNS before proceeding:
 
 ```yaml
-- name: Validate GaryPC.lan resolves correctly
+- name: Validate GaryPC.local resolves correctly
   shell: |
-    RESOLVED_IP=$(getent hosts GaryPC.lan | awk '{print $1}')
+    RESOLVED_IP=$(getent hosts GaryPC.local | awk '{print $1}')
     EXPECTED_IP="{{ hostvars['GaryPC-WSL']['ansible_host_ip'] | default('192.168.1.115') }}"
     if [ "$RESOLVED_IP" != "$EXPECTED_IP" ]; then
-      echo "ERROR: GaryPC.lan resolves to $RESOLVED_IP, expected $EXPECTED_IP"
+      echo "ERROR: GaryPC.local resolves to $RESOLVED_IP, expected $EXPECTED_IP"
       exit 1
     fi
   changed_when: false
@@ -317,7 +317,7 @@ Since network issues prevent Ansible from running, monitoring must be done manua
 
 3. **Quick Network Test**:
    ```bash
-   ping -c 1 GaryPC.lan && echo "✅ GaryPC reachable" || echo "❌ GaryPC UNREACHABLE"
+   ping -c 1 GaryPC.local && echo "✅ GaryPC reachable" || echo "❌ GaryPC UNREACHABLE"
    ```
 
 ## References

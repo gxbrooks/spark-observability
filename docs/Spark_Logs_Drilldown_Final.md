@@ -26,7 +26,7 @@ Implemented complete drilldown capability from the Spark metrics chart to detail
 
 ### From Metrics to Logs
 1. **View Metrics Dashboard**
-   - http://GaryPC.lan:3000/d/spark-system-metrics
+   - http://GaryPC.local:3000/d/spark-system-metrics
    - Scroll to "Spark Application Logs by Level" panel
 
 2. **Identify Issue**
@@ -152,9 +152,9 @@ Implemented complete drilldown capability from the Spark metrics chart to detail
 
 ## URLs
 
-- **Metrics Dashboard**: http://GaryPC.lan:3000/d/spark-system-metrics
-- **Logs Viewer**: http://GaryPC.lan:3000/d/spark-logs-viewer
-- **Kibana Discover**: https://GaryPC.lan:5601/app/discover
+- **Metrics Dashboard**: http://GaryPC.local:3000/d/spark-system-metrics
+- **Logs Viewer**: http://GaryPC.local:3000/d/spark-logs-viewer
+- **Kibana Discover**: https://GaryPC.local:5601/app/discover
 
 ## Known Limitations
 

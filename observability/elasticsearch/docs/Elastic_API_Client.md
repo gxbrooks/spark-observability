@@ -181,13 +181,13 @@ Both commands read configuration from environment variables:
 
 ```bash
 # Elasticsearch
-export ELASTIC_URL="https://GaryPC.lan:9200"
+export ELASTIC_URL="https://GaryPC.local:9200"
 export ELASTIC_USER="elastic"
 export ELASTIC_PASSWORD="your-password"
 export CA_CERT_PATH="/path/to/ca.crt"
 
 # Kibana
-export KIBANA_URL="http://GaryPC.lan:5601"
+export KIBANA_URL="http://GaryPC.local:5601"
 export KIBANA_USER="elastic"
 export KIBANA_PASSWORD="your-password"
 ```

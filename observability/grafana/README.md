@@ -12,7 +12,7 @@ Grafana provides visualization of metrics collected from:
 
 ## Accessing Grafana
 
-**URL**: `http://garypc.lan:3000/`  
+**URL**: `http://garypc.local:3000/`  
 **Default Credentials**: Check your deployment configuration
 
 ## Available Dashboards

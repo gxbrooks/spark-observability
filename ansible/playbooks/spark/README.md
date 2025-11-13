@@ -130,8 +130,8 @@ This creates a PySpark-enabled pod with IPython shell access.
 ### Monitoring and Troubleshooting
 
 #### Check Spark Web UIs
-- **Spark Master**: http://Lab2.lan:31471 (NodePort)
-- **Spark History**: http://Lab2.lan:31534 (NodePort)
+- **Spark Master**: http://Lab2.local:31471 (NodePort)
+- **Spark History**: http://Lab2.local:31534 (NodePort)
 - **Worker UIs**: Access via `kubectl port-forward`
 
 #### Common Commands
@@ -156,8 +156,8 @@ Spark configuration is managed through the `spark-configmap` ConfigMap, which is
 
 ### Node Affinity
 Workers are distributed using node affinity rules:
-- **Lab1 workers**: Scheduled on `Lab1.lan`
-- **Lab2 workers**: Scheduled on `Lab2.lan`
+- **Lab1 workers**: Scheduled on `Lab1.local`
+- **Lab2 workers**: Scheduled on `Lab2.local`
 
 ### Storage
 - **Spark Events**: NFS mount at `/mnt/spark/events` (shared across all nodes)

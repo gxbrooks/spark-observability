@@ -74,11 +74,11 @@ ELASTIC_HOST:
   value: es01
   contexts: [observability]
 ELASTIC_HOST_CLIENT:
-  value: GaryPC.lan
+  value: GaryPC.local
   contexts: [spark-runtime, devops]
 # For Elastic Agent on hosts, use GaryPC WSL
 ELASTIC_HOST_EXTERNAL:
-  value: GaryPC.lan
+  value: GaryPC.local
   contexts: [elastic-agent]
 ELASTIC_PORT:
   value: 9200
@@ -93,11 +93,11 @@ ELASTIC_URL:
   value: https://es01:9200
   contexts: [observability]
 ELASTIC_URL_EXTERNAL:
-  value: https://GaryPC.lan:9200
+  value: https://GaryPC.local:9200
   contexts: [elastic-agent]
 
 KUBERNETES_API_SERVER:
-  value: Lab2.lan
+  value: Lab2.local
   contexts: [elastic-agent]
 CA_CERT:
   value: /etc/ssl/certs/elastic/ca.crt
@@ -124,7 +124,7 @@ KIBANA_HOST:
   value: kibana
   contexts: [observability]
 KIBANA_HOST_CLIENT:
-  value: GaryPC.lan
+  value: GaryPC.local
   contexts: [devops]
 KIBANA_PORT:
   value: 5601
@@ -144,7 +144,7 @@ LS_HOST:
   value: logstash01
   contexts: [observability]
 LS_HOST_EXTERNAL:
-  value: GaryPC.lan
+  value: GaryPC.local
   contexts: [elastic-agent]
 LOGSTASH_PORT:
   value: 5044
@@ -160,7 +160,7 @@ LS_SPARK_EVENTS_PORT:
 
 # Grafana variables
 GRAFANA_HOST:
-  value: GaryPC.lan
+  value: GaryPC.local
   contexts: [observability]
 GF_SERVER_HTTP_PORT:
   value: 3000
@@ -218,7 +218,7 @@ SPARK_MASTER_PORT:
 
 # External access for local development
 SPARK_MASTER_EXTERNAL_HOST:
-  value: Lab2.lan
+  value: Lab2.local
   contexts: [observability, ispark, spark-client]
 SPARK_MASTER_EXTERNAL_PORT:
   value: 31686
@@ -267,7 +267,7 @@ USER_SPARK_HOME:
 
 # OpenTelemetry Configuration for Spark
 OTEL_EXPORTER_OTLP_ENDPOINT:
-  value: http://Lab2.lan:31317
+  value: http://Lab2.local:31317
   contexts: [spark-client, devops]
 OTEL_EXPORTER_OTLP_ENDPOINT_K8S:
   value: http://otel-collector.observability.svc.cluster.local:4317
@@ -287,7 +287,7 @@ OTEL_DEPLOYMENT_ENVIRONMENT:
 
 # NFS Configuration
 NFS_SERVER:
-  value: Lab2.lan
+  value: Lab2.local
   contexts: [spark-runtime, nfs]
 
 # Spark Mount Points

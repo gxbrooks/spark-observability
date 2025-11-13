@@ -70,7 +70,7 @@ docker-compose restart grafana
 ```
 
 ### Step 4: Access New Dashboard
-Open browser: `http://GaryPC.lan:3000/d/spark-system-metrics-aggregated`
+Open browser: `http://GaryPC.local:3000/d/spark-system-metrics-aggregated`
 
 ### Step 5: Validate
 ```bash
@@ -109,7 +109,7 @@ cd /home/gxbrooks/repos/elastic-on-spark/observability/elasticsearch/system-metr
 ### Check ILM Status
 ```bash
 curl -u elastic:myElastic2025 --cacert /etc/ssl/certs/elastic/ca.crt \
-  https://GaryPC.lan:9200/_ilm/status
+  https://GaryPC.local:9200/_ilm/status
 ```
 
 Expected: `{"operation_mode":"RUNNING"}`
@@ -117,7 +117,7 @@ Expected: `{"operation_mode":"RUNNING"}`
 ### Check Policy Applied
 ```bash
 curl -u elastic:myElastic2025 --cacert /etc/ssl/certs/elastic/ca.crt \
-  https://GaryPC.lan:9200/metrics-system.cpu-default/_ilm/explain?pretty
+  https://GaryPC.local:9200/metrics-system.cpu-default/_ilm/explain?pretty
 ```
 
 Should show: `"policy": "system-metrics-downsampled"`
@@ -125,7 +125,7 @@ Should show: `"policy": "system-metrics-downsampled"`
 ### Monitor Downsampling (after 2+ days)
 ```bash
 curl -u elastic:myElastic2025 --cacert /etc/ssl/certs/elastic/ca.crt \
-  https://GaryPC.lan:9200/_cat/indices/.ds-*downsample*?v
+  https://GaryPC.local:9200/_cat/indices/.ds-*downsample*?v
 ```
 
 ## 📝 Important Notes

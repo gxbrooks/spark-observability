@@ -75,7 +75,7 @@ Status: SUCCESS
 ### Trace Data in Elasticsearch ✅
 ```
 curl -k -u elastic:myElastic2025 \
-  "https://GaryPC.lan:9200/traces-generic-default/_count"
+  "https://GaryPC.local:9200/traces-generic-default/_count"
 
 Response: {"count": 62, ...}
 ```
@@ -93,7 +93,7 @@ Response: {"count": 62, ...}
 
 ### View Traces in Kibana:
 
-1. Open: **http://GaryPC.lan:5601**
+1. Open: **http://GaryPC.local:5601**
 2. Navigate to: **Discover**
 3. Select data view: **"OpenTelemetry Traces"**
 4. You'll see all 62 trace spans!
@@ -119,7 +119,7 @@ spark = SparkSession.builder \
     .config('spark.jars', '/home/gxbrooks/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar') \
     .getOrCreate()
 
-# Set OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.lan:31317" in environment
+# Set OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.local:31317" in environment
 
 # Your code here...
 
@@ -166,7 +166,7 @@ All changes committed. Working tree clean. Ready to push!
 ```
 Spark Client (Lab2) → PySpark 4.0.1 + OTel Listener
                         ↓ OTLP/gRPC
-                      Lab2.lan:31317 (NodePort)
+                      Lab2.local:31317 (NodePort)
                         ↓
                  OTel Collector (K8s)
                    ├─ Receive OTLP traces

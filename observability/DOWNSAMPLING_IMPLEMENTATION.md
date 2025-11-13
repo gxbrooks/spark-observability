@@ -244,9 +244,9 @@ Approximate storage reduction:
 
 ### Accessing the Dashboard
 
-1. Open Grafana: `http://GaryPC.lan:3000`
+1. Open Grafana: `http://GaryPC.local:3000`
 2. Navigate to **Dashboards** → **Spark System Metrics**
-3. Or use direct URL: `http://GaryPC.lan:3000/d/spark-system-metrics-aggregated`
+3. Or use direct URL: `http://GaryPC.local:3000/d/spark-system-metrics-aggregated`
 
 ### Interpreting Metrics
 

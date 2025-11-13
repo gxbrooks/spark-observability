@@ -93,7 +93,7 @@ Spark/System → Elastic Agent → Ingest Pipelines → Data Streams
 Required in docker-compose or shell environment:
 
 **Elasticsearch**:
-- `ELASTIC_HOST` - Hostname (e.g., es01, GaryPC.lan)
+- `ELASTIC_HOST` - Hostname (e.g., es01, GaryPC.local)
 - `ELASTIC_PORT` - Port (default: 9200)
 - `ELASTIC_USER` - Username (default: elastic)
 - `ELASTIC_PASSWORD` - Password

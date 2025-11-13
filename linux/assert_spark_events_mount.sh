@@ -42,7 +42,7 @@ if [[ -f "$root_dir/linux/devops_env.sh" ]]; then
 fi
 
 # Default NFS server (Lab2) - override from environment if available
-NFS_SERVER="${NFS_SERVER:-Lab2.lan}"
+NFS_SERVER="${NFS_SERVER:-Lab2.local}"
 NFS_EXPORT_EVENTS="/srv/nfs/spark/events"
 MOUNT_POINT="/mnt/spark/events"
 

@@ -247,7 +247,7 @@ check_spark_connectivity() {
         source "${root_dir}/spark/ispark/ispark_env.sh"
     fi
     
-    local spark_master_host=${SPARK_MASTER_EXTERNAL_HOST:-"Lab2.lan"}
+    local spark_master_host=${SPARK_MASTER_EXTERNAL_HOST:-"Lab2.local"}
     local spark_master_port=${SPARK_MASTER_EXTERNAL_PORT:-"32601"}
     
     # Check if master is reachable
