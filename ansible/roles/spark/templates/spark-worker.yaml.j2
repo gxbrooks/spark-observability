@@ -68,6 +68,8 @@ spec:
             - configMapRef:
                 name: spark-configmap
           env:
+            - name: SPARK_WORKER_CORES
+              value: "4"
             - name: SPARK_LOCAL_IP
               valueFrom:
                 fieldRef:
@@ -196,6 +198,8 @@ spec:
             - configMapRef:
                 name: spark-configmap
           env:
+            - name: SPARK_WORKER_CORES
+              value: "4"
             - name: SPARK_LOCAL_IP
               valueFrom:
                 fieldRef:

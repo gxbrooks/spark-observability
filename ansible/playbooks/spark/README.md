@@ -71,6 +71,9 @@ ansible-playbook -i ../../inventory.yml launch_ipython.yml
 - **Lab2**: 2 workers (control plane priority with some worker capacity)
 - **Total**: 7 Spark workers for good task distribution
 
+#### **Spark Worker Core Configuration**
+Each worker is configured with `SPARK_WORKER_CORES=4` to match the Kubernetes CPU limit of 4 cores. This ensures Spark respects the K8s resource constraints and prevents workers from over-allocating cores based on host CPU count.
+
 #### **Safety Considerations**
 - **Memory Safety**: All allocations within available RAM limits
 - **OOM Prevention**: Adequate headroom prevents memory pressure

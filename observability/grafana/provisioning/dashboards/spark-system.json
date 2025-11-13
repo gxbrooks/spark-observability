@@ -49,7 +49,8 @@
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
-              "type": "linear"
+              "type": "log",
+              "log": 10
             },
             "showPoints": "auto",
             "spanNulls": false,
@@ -108,7 +109,7 @@
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_count",
-                "size": "10"
+                "size": "0"
               }
             },
             {
@@ -1609,5 +1610,5 @@
   "timezone": "browser",
   "title": "Spark Cluster Metrics",
   "uid": "spark-system-metrics",
-  "version": 1
+  "version": 2
 }

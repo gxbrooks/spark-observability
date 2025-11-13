@@ -62,7 +62,8 @@
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
-              "type": "linear"
+              "type": "log",
+              "log": 10
             },
             "showPoints": "auto",
             "spanNulls": false,
@@ -117,7 +118,7 @@
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_count",
-                "size": "10"
+                "size": "0"
               }
             },
             {
@@ -175,7 +176,8 @@
             },
             "lineWidth": 2,
             "scaleDistribution": {
-              "type": "linear"
+              "type": "log",
+              "log": 10
             },
             "stacking": {
               "group": "A",
@@ -188,7 +190,7 @@
           "links": [
             {
               "title": "View Logs in Detail",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=${__value.time}+5m",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}-30s&to=${__value.time}+30s&var-log_level=${__field.labels.log_level}",
               "targetBlank": true
             }
           ],
@@ -275,7 +277,9 @@
       "id": 100,
       "options": {
         "legend": {
-          "calcs": ["sum"],
+          "calcs": [
+            "sum"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -297,7 +301,7 @@
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_term",
-                "size": "10"
+                "size": "0"
               },
               "type": "terms"
             },
@@ -400,7 +404,11 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": ["mean", "max", "last"]
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ]
         },
         "tooltip": {
           "mode": "single"
@@ -507,7 +515,11 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": ["mean", "max", "last"]
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ]
         },
         "tooltip": {
           "mode": "single"
@@ -581,7 +593,10 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -725,7 +740,10 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -891,7 +909,11 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": ["mean", "max", "last"]
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -988,7 +1010,10 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -1109,7 +1134,11 @@
       "id": 8,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "sum"],
+          "calcs": [
+            "mean",
+            "max",
+            "sum"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1207,7 +1236,11 @@
       "id": 9,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "sum"],
+          "calcs": [
+            "mean",
+            "max",
+            "sum"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1272,5 +1305,5 @@
   "timezone": "browser",
   "title": "Spark System Metrics",
   "uid": "spark-system-metrics-aggregated",
-  "version": 2
+  "version": 3
 }

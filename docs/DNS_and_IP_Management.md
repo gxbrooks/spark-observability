@@ -116,7 +116,7 @@ ip addr show | grep -A 1 "state UP" | grep "link/ether"
 - ❌ Doesn't work well in Docker containers
 - ❌ Windows support requires Bonjour
 - ❌ Not routable across subnets
-- ❌ Can't use custom TLDs like `.lan`
+- ❌ Can't use custom TLDs like `.lan` (router compatibility issues)
 
 **Verdict**: Not suitable for this environment
 
@@ -190,7 +190,7 @@ Since Ansible depends on a functional network, network management cannot be auto
 ### Documentation Reference
 
 **Host Inventory** (`ansible/inventory.yml`):
-- All hosts defined by DNS name (`.lan` suffix)
+- All hosts defined by DNS name (`.local` suffix)
 - Never use IP addresses directly
 - Expected IPs documented in comments for reference only
 
@@ -307,7 +307,7 @@ Since network issues prevent Ansible from running, monitoring must be done manua
    ```bash
    # Check if current IP matches /etc/hosts
    hostname -I
-   getent hosts $(hostname).lan
+   getent hosts $(hostname).local
    ```
 
 2. **Service Health Indicators**:

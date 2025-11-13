@@ -42,6 +42,12 @@ spark.driver.extraJavaOptions          -XX:+UseG1GC -Xlog:gc*:file=/tmp/spark-dr
 spark.executor.extraJavaOptions        -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-executor.log:time,uptime,level,tags:filecount=10,filesize=10M -Dlog4j2.configurationFile=file:///opt/spark/conf/log4j2-executor.properties
 
 
+# Driver configuration for client mode
+# Driver runs on Lab2 host - must be reachable by workers in K8s pods
+# Use IP address since K8s pod DNS cannot resolve Lab2.local
+spark.driver.host                      192.168.1.48
+spark.driver.bindAddress               0.0.0.0
+
 # Network timeouts
 spark.network.timeout                  600s
 spark.rpc.askTimeout                   60s

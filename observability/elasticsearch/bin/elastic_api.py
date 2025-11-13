@@ -7,6 +7,7 @@ Elasticsearch and Kibana services with proper authentication and SSL verificatio
 
 Usage:
     elastic_api.py <target> <method> <url_path> [body_path]
+    elastic_api.py <target> <method> <url_path> -d <json_data>
     
 Arguments:
     target: Either 'elasticsearch' or 'kibana'
@@ -15,6 +16,7 @@ Arguments:
     body_path: Optional path to JSON file containing request body
 
 Flags:
+    -d, --data: Inline JSON data (alternative to body_path, curl-style)
     --noauth: Skip authentication (for availability checks)
     --allow-errors: Allow 4xx errors without failing (for conditional logic)
 
@@ -51,9 +53,13 @@ Environment Variables Required:
         - CA_CERT: Path to CA certificate file
 
 Examples:
-    # Basic usage
+    # Basic usage with file
     elastic_api.py elasticsearch GET /_cluster/health
     elastic_api.py kibana POST /api/data_views/data_view dataview.json
+    
+    # Using inline data (curl-style)
+    elastic_api.py elasticsearch POST /batch-events/_count -d '{"query": {"match_all": {}}}'
+    elastic_api.py elasticsearch POST /index/_search --data '{"size": 10}'
     
     # Availability check (allows 401/403 as success)
     elastic_api.py --noauth elasticsearch GET /
@@ -102,6 +108,11 @@ def parse_arguments():
         help="Optional path to JSON file containing request body"
     )
     parser.add_argument(
+        "-d", "--data",
+        dest="inline_data",
+        help="Inline JSON data (alternative to body_path, curl-style)"
+    )
+    parser.add_argument(
         "--noauth",
         action="store_true",
         help="Skip authentication (for availability checks)"
@@ -113,6 +124,11 @@ def parse_arguments():
     )
     
     args = parser.parse_args()
+    
+    # Validate that body_path and inline_data are mutually exclusive
+    if args.body_path and args.inline_data:
+        print("Error: Cannot specify both body_path and -d/--data flags", file=sys.stderr)
+        sys.exit(1)
     
     # Normalize target
     target = args.target.lower()
@@ -133,7 +149,7 @@ def parse_arguments():
             print(f"Error: Body file '{args.body_path}' does not exist or is not a file", file=sys.stderr)
             sys.exit(1)
     
-    return target, method, args.url_path, args.body_path, args.noauth, args.allow_errors
+    return target, method, args.url_path, args.body_path, args.inline_data, args.noauth, args.allow_errors
 
 
 def get_config(target):
@@ -183,7 +199,7 @@ def get_config(target):
     return config
 
 
-def make_api_request(config, method, url_path, body_path=None, noauth=False, allow_errors=False):
+def make_api_request(config, method, url_path, body_path=None, inline_data=None, noauth=False, allow_errors=False):
     """
     Make the HTTP request to the API endpoint.
     
@@ -199,9 +215,15 @@ def make_api_request(config, method, url_path, body_path=None, noauth=False, all
         "Content-Type": "application/json"
     }
     
-    # Load request body if provided
+    # Load request body from inline data or file
     body = None
-    if body_path:
+    if inline_data:
+        try:
+            body = json.loads(inline_data)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in inline data: {e}", file=sys.stderr)
+            sys.exit(4)
+    elif body_path:
         try:
             with open(body_path, 'r') as f:
                 body = json.load(f)
@@ -277,7 +299,7 @@ def main():
         print(f"Flags: noauth={noauth}, allow_errors={allow_errors}", file=sys.stderr)
     
     config = get_config(target)
-    status, response = make_api_request(config, method, url_path, body_path, noauth, allow_errors)
+    status, response = make_api_request(config, method, url_path, body_path, inline_data, noauth, allow_errors)
     
     # Exit code 3: System failure (no HTTP response)
     if status is None:

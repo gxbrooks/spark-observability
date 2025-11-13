@@ -1,0 +1,205 @@
+---
+# Regenerate Kubernetes certificates with updated Subject Alternative Names (SANs)
+# This playbook is used when DNS names change (e.g., from *.lan to *.local)
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+#
+# After running this playbook, you must also regenerate kubeconfig files:
+#   ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
+#
+# Then restart Kubernetes:
+#   ansible-playbook -i inventory.yml playbooks/k8s/start.yml
+
+- name: Regenerate Kubernetes Certificates
+  hosts: kubernetes_master
+  become: true
+  gather_facts: yes
+  vars:
+    k8s_group: "kubernetes"
+    control_user: "gxbrooks"
+    k8s_master_name: "{{ inventory_hostname }}"
+    k8s_short_hostname: "{{ inventory_hostname | regex_replace('\\..*$', '') }}"
+    k8s_master_host: "{{ ansible_host }}"
+    
+  tasks:
+    - name: Display current hostname configuration
+      debug:
+        msg: |
+          Current hostname configuration:
+          - k8s_master_host: {{ k8s_master_host }}
+          - k8s_master_name: {{ k8s_master_name }}
+          - k8s_short_hostname: {{ k8s_short_hostname }}
+
+    - name: Check current certificate SANs
+      shell: |
+        openssl x509 -in /etc/kubernetes/pki/apiserver.crt -noout -text | grep -A1 "Subject Alternative Name"
+      register: current_cert_sans
+      ignore_errors: yes
+      
+    - name: Display current certificate SANs
+      debug:
+        msg: "Current certificate SANs: {{ current_cert_sans.stdout }}"
+      when: current_cert_sans.rc == 0
+
+    - name: Build certificate SAN list for all nodes
+      set_fact:
+        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.local,Lab1,lab1,Lab2.local,Lab2,lab2,localhost"
+
+    - name: Display new certificate SAN list
+      debug:
+        msg: "New certificate SANs will include: {{ cert_sans }}"
+
+    - name: Confirm certificate regeneration
+      pause:
+        prompt: |
+          
+          ⚠️  WARNING: This will regenerate Kubernetes API server certificates ⚠️
+          
+          Current SANs: {{ current_cert_sans.stdout | default('Unable to read') }}
+          
+          New SANs will include: {{ cert_sans }}
+          
+          This operation will:
+          1. Backup existing certificates
+          2. Delete current apiserver certificates
+          3. Regenerate certificates with new SANs
+          4. Restart Kubernetes API server
+          
+          After this playbook completes, you MUST:
+          1. Run: ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
+          2. Run: ansible-playbook -i inventory.yml playbooks/k8s/start.yml
+          
+          Press ENTER to continue or Ctrl+C to abort
+
+    - name: Create backup directory for old certificates
+      file:
+        path: /etc/kubernetes/pki/backup-{{ ansible_date_time.epoch }}
+        state: directory
+        mode: '0700'
+      register: backup_dir
+
+    - name: Check if certificates exist before backup
+      stat:
+        path: /etc/kubernetes/pki/apiserver.crt
+      register: apiserver_cert_exists
+
+    - name: Backup current certificates
+      shell: |
+        [ -f /etc/kubernetes/pki/apiserver.crt ] && cp -p /etc/kubernetes/pki/apiserver.crt {{ backup_dir.path }}/ || true
+        [ -f /etc/kubernetes/pki/apiserver.key ] && cp -p /etc/kubernetes/pki/apiserver.key {{ backup_dir.path }}/ || true
+        [ -f /etc/kubernetes/pki/apiserver-kubelet-client.crt ] && cp -p /etc/kubernetes/pki/apiserver-kubelet-client.crt {{ backup_dir.path }}/ || true
+        [ -f /etc/kubernetes/pki/apiserver-kubelet-client.key ] && cp -p /etc/kubernetes/pki/apiserver-kubelet-client.key {{ backup_dir.path }}/ || true
+      when: apiserver_cert_exists.stat.exists
+
+    - name: Display backup location
+      debug:
+        msg: "Certificates backed up to: {{ backup_dir.path }}"
+
+    - name: Remove old apiserver certificates
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/pki/apiserver.crt
+        - /etc/kubernetes/pki/apiserver.key
+        - /etc/kubernetes/pki/apiserver-kubelet-client.crt
+        - /etc/kubernetes/pki/apiserver-kubelet-client.key
+
+    - name: Check if kubeadm-config ConfigMap exists
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system get configmap kubeadm-config
+      register: kubeadm_config_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Create kubeadm config file with new SANs
+      copy:
+        dest: /tmp/kubeadm-cert-config.yaml
+        content: |
+          apiVersion: kubeadm.k8s.io/v1beta3
+          kind: ClusterConfiguration
+          kubernetesVersion: v1.28.0
+          controlPlaneEndpoint: "{{ ansible_default_ipv4.address }}:6443"
+          networking:
+            podSubnet: "10.244.0.0/16"
+          apiServer:
+            certSANs:
+          {% for san in cert_sans.split(',') %}
+              - "{{ san }}"
+          {% endfor %}
+        mode: '0644'
+
+    - name: Regenerate API server certificates with new SANs
+      shell: |
+        kubeadm init phase certs apiserver --config=/tmp/kubeadm-cert-config.yaml
+      register: cert_regen
+      failed_when: cert_regen.rc != 0
+
+    - name: Remove temporary kubeadm config file
+      file:
+        path: /tmp/kubeadm-cert-config.yaml
+        state: absent
+
+    - name: Display certificate regeneration result
+      debug:
+        msg: "Certificate regeneration: {{ 'SUCCESS' if cert_regen.rc == 0 else 'FAILED' }}"
+
+    - name: Verify new certificates were created
+      stat:
+        path: /etc/kubernetes/pki/apiserver.crt
+      register: new_cert_check
+      failed_when: not new_cert_check.stat.exists
+
+    - name: Display new certificate SANs
+      shell: |
+        openssl x509 -in /etc/kubernetes/pki/apiserver.crt -noout -text | grep -A1 "Subject Alternative Name"
+      register: new_cert_sans
+      
+    - name: Show new certificate SANs
+      debug:
+        msg: "New certificate SANs: {{ new_cert_sans.stdout }}"
+
+    - name: Restart Kubernetes API server
+      shell: |
+        # Find and kill the kube-apiserver container to force restart
+        crictl ps | grep kube-apiserver | awk '{print $1}' | xargs -r crictl stop || true
+        sleep 5
+      register: apiserver_restart
+      ignore_errors: yes
+
+    - name: Wait for API server to become available
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes
+      register: api_check
+      until: api_check.rc == 0
+      retries: 30
+      delay: 10
+      ignore_errors: yes
+
+    - name: Display API server status
+      debug:
+        msg: "API server status: {{ 'AVAILABLE' if api_check.rc == 0 else 'NOT AVAILABLE - Manual restart may be required' }}"
+
+    - name: Display next steps
+      debug:
+        msg: |
+          
+          ✅ Certificate regeneration complete!
+          
+          Backup location: {{ backup_dir.path }}
+          
+          IMPORTANT - Next steps:
+          
+          1. Regenerate kubeconfig files:
+             cd ansible
+             ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
+          
+          2. Restart Kubernetes services:
+             ansible-playbook -i inventory.yml playbooks/k8s/start.yml
+          
+          3. Verify cluster is working:
+             ansible-playbook -i inventory.yml playbooks/k8s/status.yml
+          
+          4. Deploy Spark with updated certificates:
+             ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
+
