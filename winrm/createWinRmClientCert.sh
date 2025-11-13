@@ -53,7 +53,7 @@ new_client_cert() {
     # The SAN attributes cannot be defined directly on the command line, hence the use of openssl.conf.
     # from https://docs.ansible.com/ansible/latest/os_guide/windows_winrm_certificate.html
     # The UPN is used to identify the client certificate. It must be unique across all Ansible control nodes.
-    # UPN="ansible@${HOSTNAME}.lan"  # Machine-specific UPN
+    # UPN="ansible@${HOSTNAME}.local"  # Machine-specific UPN
     UPN="ansible@localhost"  # Machine-specific UPN
     DAYS_VALID=365
 

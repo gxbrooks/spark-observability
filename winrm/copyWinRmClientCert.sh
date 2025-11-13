@@ -23,10 +23,10 @@ fi
 # REMOTE_PATH="/C/Users/${TARGET%@*}/.winrm/"
 # Despite what you might read in some circles, the drive letter *must* be used in the path.
 # Either slashes or backslashes can be used as path separators.
-# Add .lan to the hostname to make it a FQDN. This FQDN is used in the Ansible inventory.yml file.
+# Add .local to the hostname to make it a FQDN. This FQDN is used in the Ansible inventory.yml file.
 # The rational is that a FQDN will force the use of the DNS server for name resolution. This will 
 # avoid subtle ssh behavior that will map a plain WSL hostname to the loop back address.
-REMOTE_PATH="C:\\Users\\${TARGET%@*}\\.winrm\\ansible_client_cert@${HOSTNAME}.lan.pem"
+REMOTE_PATH="C:\\Users\\${TARGET%@*}\\.winrm\\ansible_client_cert@${HOSTNAME}.local.pem"
 
 # Copy the certificate using scp
 thumbprint=$(openssl x509 -in $PUBLIC_CERT_PATH -noout -fingerprint -sha1 | sed 's/sha1 Fingerprint=//g' | tr -d ':')
