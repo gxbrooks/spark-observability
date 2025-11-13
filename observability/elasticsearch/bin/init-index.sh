@@ -200,10 +200,50 @@ kapi POST /api/saved_objects/search/match-join-watcher-runs?overwrite=true \
 echo "✅ Watcher data view initialized"
 
 # ============================================================================
-# STEP 7: Initialize Spark Logs (ILM, Templates, Data Views)
+# STEP 7: Initialize System Metrics (ILM with Downsampling)
 # ============================================================================
 echo ""
-echo "=== STEP 7: INITIALIZING SPARK LOGS ==="
+echo "=== STEP 7: INITIALIZING SYSTEM METRICS ==="
+
+echo "Creating system-metrics-downsampled ILM policy..."
+esapi PUT /_ilm/policy/system-metrics-downsampled ${CONFIG_DIR}/system-metrics/system-metrics.ilm.json \
+  > ${OUTPUTS_DIR}/system-metrics-downsampled.ilm.out.json
+
+echo "Attaching policy to existing system metrics data streams..."
+for ds in metrics-system.cpu-default metrics-system.memory-default metrics-system.network-default metrics-system.diskio-default metrics-system.load-default; do
+  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
+    echo "  Attaching to ${ds}..."
+    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"system-metrics-downsampled"}' > /dev/null 2>&1 || true
+  fi
+done
+
+echo "✅ System metrics initialized"
+
+# ============================================================================
+# STEP 8: Initialize Docker Metrics (ILM with Downsampling)
+# ============================================================================
+echo ""
+echo "=== STEP 8: INITIALIZING DOCKER METRICS ==="
+
+echo "Creating docker-metrics-downsampled ILM policy..."
+esapi PUT /_ilm/policy/docker-metrics-downsampled ${CONFIG_DIR}/docker-metrics/docker-metrics.ilm.json \
+  > ${OUTPUTS_DIR}/docker-metrics-downsampled.ilm.out.json
+
+echo "Attaching policy to existing docker metrics data streams..."
+for ds in metrics-docker.cpu-default metrics-docker.memory-default metrics-docker.network-default; do
+  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
+    echo "  Attaching to ${ds}..."
+    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"docker-metrics-downsampled"}' > /dev/null 2>&1 || true
+  fi
+done
+
+echo "✅ Docker metrics initialized"
+
+# ============================================================================
+# STEP 9: Initialize Spark Logs (ILM, Templates, Data Views)
+# ============================================================================
+echo ""
+echo "=== STEP 9: INITIALIZING SPARK LOGS ==="
 
 echo "Creating spark-logs ILM policy..."
 esapi PUT /_ilm/policy/spark-logs ${CONFIG_DIR}/spark-logs/spark-logs.ilm.json \
@@ -226,10 +266,10 @@ kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
 echo "✅ Spark logs initialized"
 
 # ============================================================================
-# STEP 8: Initialize Batch Traces (ILM, Templates, Data Views)
+# STEP 10: Initialize Batch Traces (ILM, Templates, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 8: INITIALIZING BATCH TRACES ==="
+echo "=== STEP 10: INITIALIZING BATCH TRACES ==="
 
 echo "Creating batch-traces ILM policy..."
 esapi PUT /_ilm/policy/batch-traces ${CONFIG_DIR}/batch-traces/batch-traces.ilm.json \
@@ -250,10 +290,10 @@ kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true \
 echo "✅ Batch traces initialized"
 
 # ============================================================================
-# STEP 9: Initialize Batch Metrics (Templates, Data Streams, Watchers, Data Views)
+# STEP 11: Initialize Batch Metrics (Templates, Data Streams, Watchers, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 9: INITIALIZING BATCH METRICS ==="
+echo "=== STEP 11: INITIALIZING BATCH METRICS ==="
 
 echo "Creating batch-metrics index template..."
 esapi PUT /_index_template/batch-metrics-ds ${CONFIG_DIR}/batch-metrics/batch-metrics.template.json \
@@ -281,71 +321,18 @@ kapi POST /api/saved_objects/search/batch-events-counts?overwrite=true \
 echo "✅ Batch metrics initialized"
 
 # ============================================================================
-# STEP 10: Initialize Downsampling ILM Policies
+# STEP 12: Initialize Spark GC (ILM, Templates, Ingest Pipelines, Data Views, Downsampling)
 # ============================================================================
 echo ""
-echo "=== STEP 10: INITIALIZING DOWNSAMPLING ILM POLICIES ==="
+echo "=== STEP 12: INITIALIZING SPARK GC ==="
 
-echo "Creating system-metrics-downsampled ILM policy..."
-esapi PUT /_ilm/policy/system-metrics-downsampled ${CONFIG_DIR}/system-metrics/system-metrics.ilm.json \
-  > ${OUTPUTS_DIR}/system-metrics-downsampled.ilm.out.json
-
-echo "Creating docker-metrics-downsampled ILM policy..."
-esapi PUT /_ilm/policy/docker-metrics-downsampled ${CONFIG_DIR}/docker-metrics/docker-metrics.ilm.json \
-  > ${OUTPUTS_DIR}/docker-metrics-downsampled.ilm.out.json
+echo "Creating spark-gc ILM policy..."
+esapi PUT /_ilm/policy/spark-gc ${CONFIG_DIR}/spark-gc/spark-gc.ilm.json \
+  > ${OUTPUTS_DIR}/spark-gc.ilm.out.json
 
 echo "Creating spark-gc-downsampled ILM policy..."
 esapi PUT /_ilm/policy/spark-gc-downsampled ${CONFIG_DIR}/spark-gc/spark-gc-downsampled.ilm.json \
   > ${OUTPUTS_DIR}/spark-gc-downsampled.ilm.out.json
-
-echo "Creating spark-logs-metrics-downsampled ILM policy..."
-esapi PUT /_ilm/policy/spark-logs-metrics-downsampled ${CONFIG_DIR}/spark-logs/spark-logs-metrics-downsampled.ilm.json \
-  > ${OUTPUTS_DIR}/spark-logs-metrics-downsampled.ilm.out.json
-
-echo "✅ Downsampling ILM policies initialized"
-
-echo ""
-echo "Attaching ILM policies to existing data streams..."
-
-# System metrics
-for ds in metrics-system.cpu-default metrics-system.memory-default metrics-system.network-default metrics-system.diskio-default metrics-system.load-default; do
-  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
-    echo "  Attaching system-metrics-downsampled to ${ds}..."
-    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"system-metrics-downsampled"}' > /dev/null 2>&1 || true
-  fi
-done
-
-# Spark GC
-if esapi --allow-errors GET "/_data_stream/logs-spark_gc-default" > /dev/null 2>&1; then
-  echo "  Attaching spark-gc-downsampled to logs-spark_gc-default..."
-  esapi PUT "logs-spark_gc-default/_settings" -d '{"index.lifecycle.name":"spark-gc-downsampled"}' > /dev/null 2>&1 || true
-fi
-
-# Spark log metrics
-if esapi --allow-errors GET "/_data_stream/metrics-spark-logs-default" > /dev/null 2>&1; then
-  echo "  Attaching spark-logs-metrics-downsampled to metrics-spark-logs-default..."
-  esapi PUT "metrics-spark-logs-default/_settings" -d '{"index.lifecycle.name":"spark-logs-metrics-downsampled"}' > /dev/null 2>&1 || true
-fi
-
-# Docker metrics (may not exist yet)
-for ds in metrics-docker.cpu-default metrics-docker.memory-default metrics-docker.network-default; do
-  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
-    echo "  Attaching docker-metrics-downsampled to ${ds}..."
-    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"docker-metrics-downsampled"}' > /dev/null 2>&1 || true
-  fi
-done
-
-echo "✅ ILM policies attached to existing data streams"
-
-# ============================================================================
-# STEP 11: Initialize Spark GC (ILM, Templates, Ingest Pipelines, Data Views)
-# ============================================================================
-echo ""
-echo "=== STEP 11: INITIALIZING SPARK GC ==="
-
-echo "Creating spark-gc ILM policy (legacy)..."
-esapi PUT /_ilm/policy/spark-gc ${CONFIG_DIR}/spark-gc/spark-gc.ilm.json \
-  > ${OUTPUTS_DIR}/spark-gc.ilm.out.json
 
 echo "Creating spark-gc index template..."
 esapi PUT /_index_template/spark-gc-ds ${CONFIG_DIR}/spark-gc/spark-gc.template.json \
@@ -354,6 +341,11 @@ esapi PUT /_index_template/spark-gc-ds ${CONFIG_DIR}/spark-gc/spark-gc.template.
 echo "Creating spark-gc ingest pipeline..."
 esapi PUT /_ingest/pipeline/logs-spark_gc-default ${CONFIG_DIR}/spark-gc/spark-gc-ingest-pipeline.json \
   > ${OUTPUTS_DIR}/spark-gc-ingest-pipeline.out.json
+
+echo "Attaching downsampling policy to GC data stream..."
+if esapi --allow-errors GET "/_data_stream/logs-spark_gc-default" > /dev/null 2>&1; then
+  esapi PUT "logs-spark_gc-default/_settings" -d '{"index.lifecycle.name":"spark-gc-downsampled"}' > /dev/null 2>&1 || true
+fi
 
 echo "Creating spark-gc data view..."
 kapi POST /api/data_views/data_view ${CONFIG_DIR}/spark-gc/spark-gc.dataview.json \
@@ -367,10 +359,10 @@ kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true \
 echo "✅ Spark GC initialized"
 
 # ============================================================================
-# STEP 12: Initialize Spark Application Logs (ILM, Templates, Ingest Pipelines, Data Views, Transform)
+# STEP 13: Initialize Spark Application Logs (ILM, Templates, Ingest Pipelines, Data Views, Transform, Downsampling)
 # ============================================================================
 echo ""
-echo "=== STEP 12: INITIALIZING SPARK APPLICATION LOGS ==="
+echo "=== STEP 13: INITIALIZING SPARK APPLICATION LOGS ==="
 
 echo "Creating spark-logs ILM policy..."
 esapi PUT /_ilm/policy/spark-logs ${CONFIG_DIR}/spark-logs/spark-logs.ilm.json \
@@ -406,6 +398,10 @@ kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
 echo "Creating metrics ILM policy..."
 esapi PUT /_ilm/policy/spark-metrics ${CONFIG_DIR}/spark-logs/metrics-spark-logs.ilm.json \
   > ${OUTPUTS_DIR}/metrics-spark-logs.ilm.out.json
+
+echo "Creating spark-logs-metrics-downsampled ILM policy..."
+esapi PUT /_ilm/policy/spark-logs-metrics-downsampled ${CONFIG_DIR}/spark-logs/spark-logs-metrics-downsampled.ilm.json \
+  > ${OUTPUTS_DIR}/spark-logs-metrics-downsampled.ilm.out.json
 
 echo "Creating metrics index template..."
 esapi PUT /_index_template/metrics-spark-logs-default ${CONFIG_DIR}/spark-logs/metrics-spark-logs.template.json \
@@ -452,13 +448,18 @@ esapi POST /_transform/spark-log-metrics/_start \
 
 echo "✅ Transform created and started"
 
+echo "Attaching downsampling policy to spark log metrics data stream..."
+if esapi --allow-errors GET "/_data_stream/metrics-spark-logs-default" > /dev/null 2>&1; then
+  esapi PUT "metrics-spark-logs-default/_settings" -d '{"index.lifecycle.name":"spark-logs-metrics-downsampled"}' > /dev/null 2>&1 || true
+fi
+
 echo "✅ Spark Application Logs initialized"
 
 # ============================================================================
-# STEP 13: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
+# STEP 14: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 13: INITIALIZING OPENTELEMETRY TRACES ==="
+echo "=== STEP 14: INITIALIZING OPENTELEMETRY TRACES ==="
 
 echo "Creating otel-traces ILM policy..."
 esapi PUT /_ilm/policy/otel-traces \
