@@ -16,8 +16,322 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "View Detailed Logs",
+      "tooltip": "Click to view detailed application logs",
+      "type": "link",
+      "url": "/d/spark-logs-viewer"
+    }
+  ],
   "panels": [
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Active Jobs",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "1",
+              "type": "terms",
+              "field": "class",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "10"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "count"
+            }
+          ],
+          "query": "_index:batch-metrics-ds AND NOT class:\"Task\"",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": ""
+        }
+      ],
+      "title": "Active Spark Jobs (Avg, excl Tasks)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Log Count",
+            "axisPlacement": "auto",
+            "fillOpacity": 30,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineWidth": 2,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [
+            {
+              "title": "View Logs in Detail",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=${__value.time}+5m",
+              "targetBlank": true
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "INFO"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEBUG"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 100,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{log_level}}",
+          "bucketAggs": [
+            {
+              "field": "log_level",
+              "id": "3",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "10"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0",
+                "trimEdges": "0"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "sum",
+              "field": "log_count"
+            }
+          ],
+          "query": "_index:metrics-spark-logs-default",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Total Spark Application Logs by Level",
+      "type": "timeseries",
+      "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs."
+    },
     {
       "datasource": {
         "type": "elasticsearch",
@@ -78,9 +392,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 8
       },
-      "id": 1,
+      "id": 2,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -185,9 +499,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 8
       },
-      "id": 2,
+      "id": 3,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -245,32 +559,23 @@
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
           },
           "unit": "Bps"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Network In"
-            },
-            "properties": [
-              {
-                "id": "custom.transform",
-                "value": "negative-Y"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 16
       },
-      "id": 3,
+      "id": 4,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -383,7 +688,7 @@
       ],
       "title": "Total Network Byte Rate (In/Out)",
       "type": "timeseries",
-      "description": "Aggregated network I/O rates across all hosts. Shows per-host breakdown that can be summed visually."
+      "description": "Aggregated network I/O rates across all hosts. Stacked view shows total cluster throughput."
     },
     {
       "datasource": {
@@ -398,32 +703,23 @@
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
           },
           "unit": "Bps"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Disk Read"
-            },
-            "properties": [
-              {
-                "id": "custom.transform",
-                "value": "negative-Y"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 16
       },
-      "id": 4,
+      "id": 5,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -536,7 +832,7 @@
       ],
       "title": "Total Disk I/O Rate (Read/Write)",
       "type": "timeseries",
-      "description": "Aggregated disk I/O rates across all hosts. Shows per-host breakdown that visualizes total cluster I/O."
+      "description": "Aggregated disk I/O rates across all hosts. Stacked view shows total cluster I/O."
     },
     {
       "datasource": {
@@ -587,7 +883,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 24
       },
       "id": 7,
       "options": {
@@ -604,7 +900,7 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "refId": "Load1",
+          "refId": "A",
           "datasource": {
             "type": "elasticsearch",
             "uid": "spark-elasticsearch"
@@ -627,66 +923,13 @@
               }
             }
           ],
-          "alias": "Total Load 1m",
-          "timeField": "@timestamp"
-        },
-        {
-          "refId": "Load5",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "query": "_index:metrics-system.load-default",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "system.load.5"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval"
-              }
-            }
-          ],
-          "alias": "Total Load 5m",
-          "timeField": "@timestamp"
-        },
-        {
-          "refId": "Load15",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "query": "_index:metrics-system.load-default",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "system.load.15"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval"
-              }
-            }
-          ],
-          "alias": "Total Load 15m",
+          "alias": "Total Load (1-minute)",
           "timeField": "@timestamp"
         }
       ],
-      "title": "Total System Load Average",
-      "type": "timeseries"
+      "title": "Total System Load Average (1-minute)",
+      "type": "timeseries",
+      "description": "Total 1-minute load average across all hosts. For Default granularity. For 5m/15m/60m granularities, this represents the smoothed load over those intervals."
     },
     {
       "datasource": {
@@ -737,9 +980,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 24
       },
-      "id": 5,
+      "id": 6,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -861,7 +1104,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 32
       },
       "id": 8,
       "options": {
@@ -959,7 +1202,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 32
       },
       "id": 9,
       "options": {
@@ -1007,194 +1250,6 @@
       ],
       "title": "Total GC Heap Reclaimed",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Log Count",
-            "axisPlacement": "auto",
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "links": [
-            {
-              "title": "View Logs",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time:date:milliseconds}&to=${__data.fields.bucket_end_time}",
-              "targetBlank": true
-            }
-          ],
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "ERROR"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "WARN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "INFO"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "green"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "DEBUG"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 32
-      },
-      "id": 100,
-      "options": {
-        "barRadius": 0,
-        "barWidth": 0.97,
-        "colorByField": null,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
-        "legend": {
-          "calcs": ["sum"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "orientation": "auto",
-        "showValue": "auto",
-        "stacking": "normal",
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
-      },
-      "pluginVersion": "11.3.0",
-      "targets": [
-        {
-          "alias": "{{log_level}}",
-          "bucketAggs": [
-            {
-              "field": "log_level",
-              "id": "3",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_term",
-                "size": "10"
-              },
-              "type": "terms"
-            },
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "$__interval",
-                "min_doc_count": "0",
-                "trimEdges": "0"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "log_count"
-            }
-          ],
-          "query": "_index:metrics-spark-logs-default",
-          "refId": "A",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Total Spark Application Logs by Level",
-      "type": "barchart",
-      "description": "Aggregated count of Spark application log entries by log level over time"
     }
   ],
   "refresh": "30s",
@@ -1207,123 +1262,7 @@
     "aggregated"
   ],
   "templating": {
-    "list": [
-      {
-        "current": {
-          "selected": false,
-          "text": "Default (30s)",
-          "value": "default"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Granularity",
-        "multi": false,
-        "name": "granularity",
-        "options": [
-          {
-            "selected": true,
-            "text": "Default (30s)",
-            "value": "default"
-          },
-          {
-            "selected": false,
-            "text": "5 Minutes",
-            "value": "5m"
-          },
-          {
-            "selected": false,
-            "text": "15 Minutes",
-            "value": "15m"
-          },
-          {
-            "selected": false,
-            "text": "60 Minutes",
-            "value": "60m"
-          }
-        ],
-        "query": "default : Default (30s),5m : 5 Minutes,15m : 15 Minutes,60m : 60 Minutes",
-        "queryValue": "",
-        "skipUrlSync": false,
-        "type": "custom"
-      },
-      {
-        "current": {
-          "selected": false,
-          "text": "default",
-          "value": "default"
-        },
-        "hide": 2,
-        "includeAll": false,
-        "label": "Index Suffix",
-        "multi": false,
-        "name": "index_suffix",
-        "options": [
-          {
-            "selected": true,
-            "text": "default",
-            "value": "default"
-          },
-          {
-            "selected": false,
-            "text": "5m",
-            "value": "5m"
-          },
-          {
-            "selected": false,
-            "text": "15m",
-            "value": "15m"
-          },
-          {
-            "selected": false,
-            "text": "60m",
-            "value": "60m"
-          }
-        ],
-        "query": "default,5m,15m,60m",
-        "queryValue": "",
-        "skipUrlSync": false,
-        "type": "custom"
-      },
-      {
-        "current": {
-          "selected": false,
-          "text": "30s",
-          "value": "30s"
-        },
-        "description": "Time interval for derivative calculations",
-        "hide": 2,
-        "includeAll": false,
-        "label": "Derivative Unit",
-        "multi": false,
-        "name": "derivative_unit",
-        "options": [
-          {
-            "selected": true,
-            "text": "30s",
-            "value": "30s"
-          },
-          {
-            "selected": false,
-            "text": "5m",
-            "value": "5m"
-          },
-          {
-            "selected": false,
-            "text": "15m",
-            "value": "15m"
-          },
-          {
-            "selected": false,
-            "text": "1h",
-            "value": "1h"
-          }
-        ],
-        "query": "30s,5m,15m,1h",
-        "queryValue": "",
-        "skipUrlSync": false,
-        "type": "custom"
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-6h",
@@ -1333,6 +1272,5 @@
   "timezone": "browser",
   "title": "Spark System Metrics",
   "uid": "spark-system-metrics-aggregated",
-  "version": 1
+  "version": 2
 }
-

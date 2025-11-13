@@ -20,21 +20,17 @@ The scripts have been consolidated from the previous `observability/shared/bin/`
 
 ### In Docker Containers
 
-The scripts are automatically available in the `init-kibana` and `init-index` containers via the volume mount:
+The scripts are automatically available in the `init-index` container via the volume mount:
 ```yaml
 volumes:
   - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
 ```
 
-The init scripts add the bin directory to PATH:
-```bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PATH="${PATH}:${SCRIPT_DIR}"
-```
+The init scripts add the bin directory to PATH automatically.
 
 ### In Client Mode
 
-For client mode usage (outside Docker containers), you need:
+For client mode usage (outside Docker containers):
 
 1. **Python 3 with requests module**:
    
@@ -60,15 +56,19 @@ For client mode usage (outside Docker containers), you need:
    source linux/devops_env.sh
    ```
 
-4. **Run the scripts**:
+4. **Add bin directory to PATH**:
    ```bash
-   # Direct Python script usage
-   observability/elasticsearch/bin/elastic_api.py elasticsearch GET /_cluster/health
-   observability/elasticsearch/bin/elastic_api.py kibana GET /api/status
+   export PATH="${PATH}:/home/gxbrooks/repos/elastic-on-spark/observability/elasticsearch/bin"
+   ```
+
+5. **Run the scripts**:
+   ```bash
+   # Now you can use esapi and kapi directly
+   esapi GET /_cluster/health
+   kapi GET /api/status
    
-   # Via shell wrappers
-   observability/elasticsearch/bin/esapi GET /_cluster/health
-   observability/elasticsearch/bin/kapi GET /api/status
+   # Or use full path
+   /home/gxbrooks/repos/elastic-on-spark/observability/elasticsearch/bin/esapi GET /_cluster/health
    ```
 
 ## Examples
@@ -98,18 +98,6 @@ kapi POST /api/data_views/data_view dataview.json
 # List all data views
 kapi GET /api/data_views
 ```
-
-## Migration Notes
-
-This refactoring (October 2024) simplified the implementation:
-
-1. **Moved scripts** from `observability/shared/bin/` to `observability/elasticsearch/bin/`
-2. **Consolidated Python code**: Combined `esapi.py`, `kapi.py`, `args.py`, and `api.py` into `elastic_api.py`
-3. **Removed Docker detection**: No more `if [[ -f "/.dockerenv" ]]` checks or `docker compose exec` calls
-4. **Simplified environment**: Scripts now use environment variables directly (no `PY_SCRIPTS` or `PYTHONPATH` needed)
-5. **Updated docker-compose.yml**: Removed `/opt/shared` mount as it's no longer needed
-6. **Updated variables.yaml**: Added `devops` context for client mode usage with `ELASTIC_HOST_CLIENT` and `KIBANA_HOST_CLIENT`
-7. **Removed unused scripts**: Deleted `gapi` and all `*.old.sh` backup files
 
 ## Dependencies
 

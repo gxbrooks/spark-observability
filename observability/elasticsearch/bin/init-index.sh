@@ -303,10 +303,39 @@ esapi PUT /_ilm/policy/spark-logs-metrics-downsampled ${CONFIG_DIR}/spark-logs/s
   > ${OUTPUTS_DIR}/spark-logs-metrics-downsampled.ilm.out.json
 
 echo "✅ Downsampling ILM policies initialized"
+
 echo ""
-echo "NOTE: To enable downsampling on existing data streams, run:"
-echo "  cd elasticsearch/bin && ./attach-policies-to-datastreams.sh"
-echo "See: elasticsearch/docs/README.md for details"
+echo "Attaching ILM policies to existing data streams..."
+
+# System metrics
+for ds in metrics-system.cpu-default metrics-system.memory-default metrics-system.network-default metrics-system.diskio-default metrics-system.load-default; do
+  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
+    echo "  Attaching system-metrics-downsampled to ${ds}..."
+    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"system-metrics-downsampled"}' > /dev/null 2>&1 || true
+  fi
+done
+
+# Spark GC
+if esapi --allow-errors GET "/_data_stream/logs-spark_gc-default" > /dev/null 2>&1; then
+  echo "  Attaching spark-gc-downsampled to logs-spark_gc-default..."
+  esapi PUT "logs-spark_gc-default/_settings" -d '{"index.lifecycle.name":"spark-gc-downsampled"}' > /dev/null 2>&1 || true
+fi
+
+# Spark log metrics
+if esapi --allow-errors GET "/_data_stream/metrics-spark-logs-default" > /dev/null 2>&1; then
+  echo "  Attaching spark-logs-metrics-downsampled to metrics-spark-logs-default..."
+  esapi PUT "metrics-spark-logs-default/_settings" -d '{"index.lifecycle.name":"spark-logs-metrics-downsampled"}' > /dev/null 2>&1 || true
+fi
+
+# Docker metrics (may not exist yet)
+for ds in metrics-docker.cpu-default metrics-docker.memory-default metrics-docker.network-default; do
+  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
+    echo "  Attaching docker-metrics-downsampled to ${ds}..."
+    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"docker-metrics-downsampled"}' > /dev/null 2>&1 || true
+  fi
+done
+
+echo "✅ ILM policies attached to existing data streams"
 
 # ============================================================================
 # STEP 11: Initialize Spark GC (ILM, Templates, Ingest Pipelines, Data Views)
