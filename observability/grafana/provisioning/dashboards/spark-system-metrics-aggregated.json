@@ -142,13 +142,13 @@
               "field": "count"
             }
           ],
-          "query": "_index:batch-metrics-ds AND NOT class:\"Task\"",
+          "query": "_index:batch-metrics-ds",
           "refId": "A",
           "timeField": "@timestamp",
           "alias": ""
         }
       ],
-      "title": "Active Spark Jobs (Avg, excl Tasks)",
+      "title": "Active Spark Jobs",
       "type": "timeseries"
     },
     {
@@ -190,7 +190,7 @@
           "links": [
             {
               "title": "View Logs in Detail",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}-30s&to=${__value.time}+30s&var-log_level=${__field.labels.log_level}",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time:date:iso:YYYY-MM-DDTHH:mm:ss}Z&to=${__value.time:date:iso:YYYY-MM-DDTHH:mm:ss}Z&var-log_level=${__field.labels.log_level}",
               "targetBlank": true
             }
           ],
@@ -277,12 +277,10 @@
       "id": 100,
       "options": {
         "legend": {
-          "calcs": [
-            "sum"
-          ],
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": true,
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi",
@@ -332,7 +330,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Total Spark Application Logs by Level",
+      "title": "Spark Application Log Counts",
       "type": "timeseries",
       "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs."
     },
@@ -593,10 +591,7 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -610,7 +605,7 @@
             "uid": "spark-elasticsearch"
           },
           "query": "_index:metrics-system.network-default AND system.network.name:(enp* OR ens* OR wlp* OR eth0 OR eth1) AND NOT system.network.name:lo",
-          "alias": "{{term host.name}} In",
+          "alias": "Total In",
           "metrics": [
             {
               "id": "1",
@@ -624,22 +619,26 @@
               "field": "1",
               "pipelineAgg": "1",
               "settings": {
-                "unit": "30s"
-              }
+                "unit": "$__interval"
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value * -1"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
             }
           ],
           "bucketAggs": [
-            {
-              "id": "3",
-              "type": "terms",
-              "field": "host.name",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "asc",
-                "orderBy": "_key",
-                "size": "10"
-              }
-            },
             {
               "id": "4",
               "type": "date_histogram",
@@ -658,7 +657,7 @@
             "uid": "spark-elasticsearch"
           },
           "query": "_index:metrics-system.network-default AND system.network.name:(enp* OR ens* OR wlp* OR eth0 OR eth1) AND NOT system.network.name:lo",
-          "alias": "{{term host.name}} Out",
+          "alias": "Total Out",
           "metrics": [
             {
               "id": "1",
@@ -672,24 +671,13 @@
               "field": "1",
               "pipelineAgg": "1",
               "settings": {
-                "unit": "30s"
+                "unit": "$__interval"
               }
             }
           ],
           "bucketAggs": [
             {
               "id": "3",
-              "type": "terms",
-              "field": "host.name",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "asc",
-                "orderBy": "_key",
-                "size": "10"
-              }
-            },
-            {
-              "id": "4",
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
@@ -740,10 +728,7 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -757,7 +742,7 @@
             "uid": "spark-elasticsearch"
           },
           "query": "_index:metrics-system.diskio-default AND system.diskio.name:(nvme* OR sd* OR vd*)",
-          "alias": "{{term host.name}} Read",
+          "alias": "Total Read",
           "metrics": [
             {
               "id": "1",
@@ -771,22 +756,26 @@
               "field": "1",
               "pipelineAgg": "1",
               "settings": {
-                "unit": "30s"
-              }
+                "unit": "$__interval"
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value * -1"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
             }
           ],
           "bucketAggs": [
-            {
-              "id": "3",
-              "type": "terms",
-              "field": "host.name",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "asc",
-                "orderBy": "_key",
-                "size": "10"
-              }
-            },
             {
               "id": "4",
               "type": "date_histogram",
@@ -805,7 +794,7 @@
             "uid": "spark-elasticsearch"
           },
           "query": "_index:metrics-system.diskio-default AND system.diskio.name:(nvme* OR sd* OR vd*)",
-          "alias": "{{term host.name}} Write",
+          "alias": "Total Write",
           "metrics": [
             {
               "id": "1",
@@ -819,24 +808,13 @@
               "field": "1",
               "pipelineAgg": "1",
               "settings": {
-                "unit": "30s"
+                "unit": "$__interval"
               }
             }
           ],
           "bucketAggs": [
             {
               "id": "3",
-              "type": "terms",
-              "field": "host.name",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "asc",
-                "orderBy": "_key",
-                "size": "10"
-              }
-            },
-            {
-              "id": "4",
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
