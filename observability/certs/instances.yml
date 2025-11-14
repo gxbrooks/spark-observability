@@ -1,15 +1,41 @@
 instances:
   - name: "es01"
     dns:
+      # Service names
       - "es01"
-      - "localhost"
+      - "kibana"
+      # Short hostnames
+      - "GaryPC"
+      - "garypc"
+      # .local FQDNs (mDNS for home network)
       - "GaryPC.local"
+      # Standard names
+      - "localhost"
+      # Docker/WSL hostnames
+      - "host.docker.internal"
+      - "docker-desktop"
     ip:
+      # Loopback
       - "127.0.0.1"
+      # Primary network IP
+      - "192.168.1.115"
   - name: "kibana"
     dns:
+      # Service names
       - "kibana"
-      - "localhost"
+      - "es01"
+      # Short hostnames
+      - "GaryPC"
+      - "garypc"
+      # .local FQDNs (mDNS for home network)
       - "GaryPC.local"
+      # Standard names
+      - "localhost"
+      # Docker/WSL hostnames
+      - "host.docker.internal"
+      - "docker-desktop"
     ip:
+      # Loopback
       - "127.0.0.1"
+      # Primary network IP
+      - "192.168.1.115"
