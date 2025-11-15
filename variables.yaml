@@ -71,8 +71,10 @@ GRAFANA_VERSION:
 # Elasticsearch variables
 # Inside Docker containers, use service name; for external clients, use DNS hostname
 ELASTIC_HOST:
-  value: es01
-  contexts: [observability]
+  contexts: [observability, devops]
+  values:
+    devops: ${ELASTIC_HOST_CLIENT}
+    observability: es01
 ELASTIC_HOST_CLIENT:
   value: GaryPC.local
   contexts: [spark-runtime, devops]
@@ -112,6 +114,46 @@ CA_CERT_WINDOWS_PATH:
 ES_CA_CERT_PATH:
   value: /usr/share/elasticsearch/config/certs/ca/ca.crt
   contexts: [observability]
+
+# Elasticsearch API Script Environment Variables (ES_* prefix)
+# These variables are exported in init-index.sh for developer use with esapi/kapi commands
+# Standardized naming: ES_* for Elasticsearch (ES already stands for Elasticsearch)
+# Context-specific paths: devops (user dev) vs observability (docker container)
+ES_DIR:
+  contexts: [devops, observability]
+  values:
+    devops: ${HOME}/repos/elastic-on-spark/observability/elasticsearch
+    observability: /usr/share/elasticsearch/elasticsearch
+ES_CONFIG_DIR:
+  value: ${ES_DIR}/config
+  contexts: [devops, observability]
+ES_OUTPUTS_DIR:
+  value: ${ES_DIR}/outputs
+  contexts: [devops, observability]
+ES_BIN_DIR:
+  value: ${ES_DIR}/bin
+  contexts: [devops, observability]
+# ES_* variables for Elasticsearch connection (ES already stands for Elasticsearch)
+ES_HOST:
+  contexts: [devops, observability]
+  values:
+    devops: ${ELASTIC_HOST_CLIENT}
+    observability: ${ELASTIC_HOST}
+ES_PORT:
+  value: ${ELASTIC_PORT}
+  contexts: [devops, observability]
+ES_USER:
+  value: ${ELASTIC_USER}
+  contexts: [devops, observability]
+ES_PASSWORD:
+  value: ${ELASTIC_PASSWORD}
+  contexts: [devops, observability]
+# CA_CERT path for Elasticsearch API scripts (context-specific)
+ES_CA_CERT:
+  contexts: [devops, observability]
+  values:
+    devops: ${CA_CERT}
+    observability: /usr/share/elasticsearch/config/certs/ca/ca.crt
 LICENSE:
   value: basic
   contexts: [observability]
@@ -121,8 +163,10 @@ ENCRYPTION_KEY:
   value: c34d38b3a14956121ff2170e5030b471551370178f43e5626eec58b04a30fae2
   contexts: [observability] 
 KIBANA_HOST:
-  value: kibana
-  contexts: [observability]
+  contexts: [observability, devops]
+  values:
+    devops: ${KIBANA_HOST_CLIENT}
+    observability: kibana
 KIBANA_HOST_CLIENT:
   value: GaryPC.local
   contexts: [devops]
@@ -225,17 +269,18 @@ SPARK_MASTER_EXTERNAL_PORT:
   contexts: [observability, ispark, spark-client]
   
 # Spark network and timeout settings
+# Increased timeouts to handle connection resets and network instability
 SPARK_NETWORK_TIMEOUT:
-  value: 600s
+  value: 900s
   contexts: [spark-runtime]
 SPARK_RPC_ASK_TIMEOUT:
-  value: 60s
+  value: 120s
   contexts: [spark-runtime]
 SPARK_RPC_LOOKUP_TIMEOUT:
-  value: 60s
+  value: 120s
   contexts: [spark-runtime]
 SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
-  value: 120s
+  value: 60s
   contexts: [spark-runtime]
 SPARK_EVENTS_DIR:
   value: /mnt/spark/events

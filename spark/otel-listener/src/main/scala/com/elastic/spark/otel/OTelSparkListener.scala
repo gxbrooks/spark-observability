@@ -85,6 +85,8 @@ class OTelSparkListener extends SparkListener {
   private val applicationSpan: TrieMap[String, Span] = TrieMap.empty
   private val jobSpans: TrieMap[Int, Span] = TrieMap.empty
   private val stageSpans: TrieMap[Int, Span] = TrieMap.empty
+  private val taskSpans: TrieMap[Long, Span] = TrieMap.empty
+  // private val sqlExecutionSpans: TrieMap[Long, Span] = TrieMap.empty  // Disabled until SQL listener interface is available
 
   logger.info(s"OTelSparkListener initialized - OTLP endpoint: $otlpEndpoint, service: $serviceName")
 
@@ -104,6 +106,7 @@ class OTelSparkListener extends SparkListener {
         .setAttribute("spark.app.id", appId)
         .setAttribute("spark.user", user)
         .setAttribute("service.name", serviceName)
+        .setAttribute("span.kind", "Spark.app")
         .startSpan()
 
       applicationSpan.put(appId, span)
@@ -151,6 +154,7 @@ class OTelSparkListener extends SparkListener {
         .setStartTimestamp(Instant.ofEpochMilli(time))
         .setAttribute("spark.job.id", jobId.toLong)
         .setAttribute("spark.job.stage.count", stageIds.length.toLong)
+        .setAttribute("span.kind", "Spark.job")
 
       // Set parent if available
       parentSpan.foreach { parent =>
@@ -161,6 +165,16 @@ class OTelSparkListener extends SparkListener {
       if (stageInfos.nonEmpty) {
         val stageNames = stageInfos.map(_.name).mkString(", ")
         spanBuilder.setAttribute("spark.job.stages", stageNames)
+      }
+
+      // Check if this job was spawned by a SQL execution
+      val sqlExecutionId = jobStart.properties.getProperty("spark.sql.execution.id")
+      if (sqlExecutionId != null && sqlExecutionId.nonEmpty) {
+        spanBuilder.setAttribute("spark.job.sql.execution.id", sqlExecutionId.toLong)
+        // Note: SQL execution span linking disabled until SQL listener interface is available
+        // sqlExecutionSpans.get(sqlExecutionId.toLong).foreach { sqlSpan =>
+        //   spanBuilder.setParent(Context.current().`with`(sqlSpan))
+        // }
       }
 
       val span = spanBuilder.startSpan()
@@ -220,6 +234,7 @@ class OTelSparkListener extends SparkListener {
         .setAttribute("spark.stage.name", stageName)
         .setAttribute("spark.stage.num.tasks", numTasks.toLong)
         .setAttribute("spark.stage.attempt", attemptNumber.toLong)
+        .setAttribute("span.kind", "Spark.stage")
 
       // Set parent if available
       parentSpan.foreach { parent =>
@@ -279,35 +294,58 @@ class OTelSparkListener extends SparkListener {
     }
   }
 
-  override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
+  override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
     // Task-level spans can be high volume - only emit for failed tasks or sample
-    if (!taskEnd.reason.isInstanceOf[org.apache.spark.Success.type]) {
-      try {
-        val stageId = taskEnd.stageId
-        val taskInfo = taskEnd.taskInfo
-        val taskMetrics = taskEnd.taskMetrics
+    // For now, we'll create spans for all tasks, but this can be made configurable
+    try {
+      val stageId = taskStart.stageId
+      val taskInfo = taskStart.taskInfo
 
-        logger.debug(s"Task ${taskInfo.taskId} failed in stage $stageId: ${taskEnd.reason}")
+      logger.debug(s"Task ${taskInfo.taskId} started in stage $stageId")
 
-        // Get parent stage span
-        val parentSpan = stageSpans.get(stageId)
+      // Get parent stage span
+      val parentSpan = stageSpans.get(stageId)
 
-        val spanBuilder = tracer.spanBuilder(s"spark.task.${taskInfo.taskId}")
-          .setSpanKind(SpanKind.INTERNAL)
-          .setStartTimestamp(Instant.ofEpochMilli(taskInfo.launchTime))
-          .setAttribute("spark.task.id", taskInfo.taskId)
-          .setAttribute("spark.task.index", taskInfo.index.toLong)
-          .setAttribute("spark.task.attempt", taskInfo.attemptNumber.toLong)
-          .setAttribute("spark.task.stage.id", stageId.toLong)
-          .setAttribute("spark.task.executor.id", taskInfo.executorId)
+      val spanBuilder = tracer.spanBuilder(s"spark.task.${taskInfo.taskId}")
+        .setSpanKind(SpanKind.INTERNAL)
+        .setStartTimestamp(Instant.ofEpochMilli(taskInfo.launchTime))
+        .setAttribute("spark.task.id", taskInfo.taskId)
+        .setAttribute("spark.task.index", taskInfo.index.toLong)
+        .setAttribute("spark.task.attempt", taskInfo.attemptNumber.toLong)
+        .setAttribute("spark.task.stage.id", stageId.toLong)
+        .setAttribute("spark.task.executor.id", taskInfo.executorId)
+        .setAttribute("span.kind", "Spark.task")
 
-        parentSpan.foreach { parent =>
-          spanBuilder.setParent(Context.current().`with`(parent))
+      // Set parent if available
+      parentSpan.foreach { parent =>
+        spanBuilder.setParent(Context.current().`with`(parent))
+      }
+
+      val span = spanBuilder.startSpan()
+      taskSpans.put(taskInfo.taskId, span)
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error in onTaskStart for task in stage ${taskStart.stageId}", e)
+    }
+  }
+
+  override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
+    try {
+      val taskInfo = taskEnd.taskInfo
+      val taskMetrics = taskEnd.taskMetrics
+
+      // Get the span we created in onTaskStart
+      taskSpans.remove(taskInfo.taskId).foreach { span =>
+        logger.debug(s"Task ${taskInfo.taskId} ended in stage ${taskEnd.stageId}: ${taskEnd.reason}")
+
+        // Add task metrics
+        if (taskMetrics != null) {
+          span.setAttribute("spark.task.executor.run.time.ms", taskMetrics.executorRunTime)
+          span.setAttribute("spark.task.executor.cpu.time.ms", taskMetrics.executorCpuTime / 1000000)
+          span.setAttribute("spark.task.result.size.bytes", taskMetrics.resultSize)
         }
 
-        val span = spanBuilder.startSpan()
-
-        // Add failure information
+        // Set status based on task result
         taskEnd.reason match {
           case _: org.apache.spark.Success.type =>
             span.setStatus(StatusCode.OK)
@@ -316,17 +354,91 @@ class OTelSparkListener extends SparkListener {
             span.setAttribute("spark.task.failure.reason", other.toString)
         }
 
-        if (taskMetrics != null) {
-          span.setAttribute("spark.task.executor.run.time.ms", taskMetrics.executorRunTime)
-          span.setAttribute("spark.task.executor.cpu.time.ms", taskMetrics.executorCpuTime / 1000000)
-          span.setAttribute("spark.task.result.size.bytes", taskMetrics.resultSize)
-        }
-
         span.end(Instant.ofEpochMilli(taskInfo.finishTime))
-      } catch {
-        case e: Exception =>
-          logger.error(s"Error in onTaskEnd for task in stage ${taskEnd.stageId}", e)
       }
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error in onTaskEnd for task in stage ${taskEnd.stageId}", e)
+    }
+  }
+
+  // Note: SQL execution events (SparkListenerSQLExecutionStart/End) are not part of the
+  // standard SparkListener interface in Spark 4.0. They require a separate listener interface
+  // (SparkListenerInterface) or spark-sql dependency. These methods are commented out until
+  // we can verify the correct interface/package for Spark 4.0.
+  //
+  // override def onSQLExecutionStart(sqlExecutionStart: SparkListenerSQLExecutionStart): Unit = {
+  //   ...
+  // }
+  //
+  // override def onSQLExecutionEnd(sqlExecutionEnd: SparkListenerSQLExecutionEnd): Unit = {
+  //   ...
+  // }
+
+  override def onExecutorAdded(executorAdded: SparkListenerExecutorAdded): Unit = {
+    try {
+      val executorId = executorAdded.executorId
+      val executorInfo = executorAdded.executorInfo
+      val time = executorAdded.time
+
+      logger.info(s"Executor $executorId added: ${executorInfo.executorHost}")
+
+      // Get parent application span
+      val parentSpan = applicationSpan.values.headOption
+
+      val spanBuilder = tracer.spanBuilder(s"spark.executor.$executorId")
+        .setSpanKind(SpanKind.INTERNAL)
+        .setStartTimestamp(Instant.ofEpochMilli(time))
+        .setAttribute("spark.executor.id", executorId)
+        .setAttribute("spark.executor.host", executorInfo.executorHost)
+        .setAttribute("spark.executor.total.cores", executorInfo.totalCores.toLong)
+        .setAttribute("span.kind", "Spark.executor")
+
+      // Set parent if available
+      parentSpan.foreach { parent =>
+        spanBuilder.setParent(Context.current().`with`(parent))
+      }
+
+      val span = spanBuilder.startSpan()
+      span.setStatus(StatusCode.OK)
+      // Executor added is a point-in-time event, so we end it immediately
+      span.end(Instant.ofEpochMilli(time))
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error in onExecutorAdded for executor ${executorAdded.executorId}", e)
+    }
+  }
+
+  override def onExecutorRemoved(executorRemoved: SparkListenerExecutorRemoved): Unit = {
+    try {
+      val executorId = executorRemoved.executorId
+      val reason = executorRemoved.reason
+      val time = executorRemoved.time
+
+      logger.info(s"Executor $executorId removed: $reason")
+
+      // Get parent application span
+      val parentSpan = applicationSpan.values.headOption
+
+      val spanBuilder = tracer.spanBuilder(s"spark.executor.$executorId.removed")
+        .setSpanKind(SpanKind.INTERNAL)
+        .setStartTimestamp(Instant.ofEpochMilli(time))
+        .setAttribute("spark.executor.id", executorId)
+        .setAttribute("spark.executor.removal.reason", reason)
+        .setAttribute("span.kind", "Spark.executor.removed")
+
+      // Set parent if available
+      parentSpan.foreach { parent =>
+        spanBuilder.setParent(Context.current().`with`(parent))
+      }
+
+      val span = spanBuilder.startSpan()
+      span.setStatus(StatusCode.OK)
+      // Executor removed is a point-in-time event, so we end it immediately
+      span.end(Instant.ofEpochMilli(time))
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error in onExecutorRemoved for executor ${executorRemoved.executorId}", e)
     }
   }
 }

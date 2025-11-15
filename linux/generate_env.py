@@ -58,12 +58,34 @@ def load_contexts():
 
 
 def get_vars(variables, context_name):
-    """Extract variables applicable to a specific context"""
-    return {
-        k: v['value'] 
-        for k, v in variables.items() 
-        if context_name in v.get('contexts', [])
-    }
+    """Extract variables applicable to a specific context
+    
+    Supports two formats:
+    1. Simple format: {'value': '...', 'contexts': [...]}
+    2. Context-specific format: {'values': {'default': '...', 'context1': '...'}, 'contexts': [...]}
+    """
+    result = {}
+    for k, v in variables.items():
+        if context_name not in v.get('contexts', []):
+            continue
+        
+        # Check for context-specific values
+        if 'values' in v:
+            # Use context-specific value if available, otherwise try default, otherwise empty
+            values_dict = v['values']
+            if context_name in values_dict:
+                value = values_dict[context_name]
+            elif 'default' in values_dict:
+                value = values_dict['default']
+            else:
+                # No match and no default - use first available value as fallback
+                value = list(values_dict.values())[0] if values_dict else ''
+        else:
+            # Fall back to simple 'value' format
+            value = v.get('value', '')
+        
+        result[k] = value
+    return result
 
 
 def write_env(vars_dict, filename):

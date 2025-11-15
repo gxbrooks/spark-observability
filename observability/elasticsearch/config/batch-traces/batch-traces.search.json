@@ -12,15 +12,11 @@
     ],
     "columns": [
       "@timestamp",
-      "class",
-      "serviceName",
-      "duration",
       "traceID",
       "parentID",
-      "start_time",
-      "end_time"
+      "kind"
     ],
-    "description": "A list of all the completed batch jobs along with their durations.",
+    "description": "A list of all batch traces showing timestamp, trace ID, parent trace ID, and Spark event kind (App, Job, Stage, Task, etc.).",
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,

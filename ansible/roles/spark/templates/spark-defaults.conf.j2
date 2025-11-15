@@ -35,6 +35,14 @@ spark.blockManager.port                7079
 # Heartbeat settings
 spark.executor.heartbeatInterval       {{ spark_executor_heartbeat_interval | default('120s') }}
 
+# Network resilience settings to handle connection resets
+spark.network.io.connectionTimeout     120s
+spark.network.io.retryWait             5s
+spark.network.io.numConnectionsPerPeer 1
+spark.shuffle.io.connectionTimeout    120s
+spark.shuffle.io.retryWait             5s
+spark.shuffle.io.maxRetries            3
+
 # JVM options for GC logging and application logging
 # All Spark components write logs to /opt/spark/logs (natural Spark location)
 # Pod-specific hostPath mounts ensure no conflicts between pods

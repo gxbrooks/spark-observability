@@ -1,0 +1,29 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"traces-generic-default\"}"
+    },
+    "title": "OpenTelemetry Traces",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "SpanId",
+      "ParentSpanId",
+      "Attributes.span.kind",
+      "Name"
+    ],
+    "description": "A list of all OpenTelemetry traces showing timestamp, span ID, parent span ID, and Spark event kind (App, Job, Stage, Task, etc.).",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
+  }
+}
+

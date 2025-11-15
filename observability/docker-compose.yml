@@ -62,7 +62,7 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_USER: ${ELASTIC_USER}
       KIBANA_PORT: ${KIBANA_PORT}
-      KIBANA_PASSWORD : ${KIBANA_PASSWORD}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
       node.name: es01
       # are cluster.name and discovery.type needed?
       cluster.name: "${CLUSTER_NAME}"
@@ -130,13 +130,20 @@ services:
         esapi POST /_security/user/kibana_system/_password /tmp/kibana-password.json
         rm -f /tmp/kibana-password.json
     environment:
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
-      ELASTIC_HOST: ${ELASTIC_HOST}
-      ELASTIC_PORT: ${ELASTIC_PORT}
-      ELASTIC_USER: ${ELASTIC_USER}
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
       TZ: ${TZ}
+      # ES_* variables for esapi/kapi commands (ES already stands for Elasticsearch)
+      ES_DIR: /usr/share/elasticsearch/elasticsearch
+      ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
+      ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
+      ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
+      ES_CA_CERT: /usr/share/elasticsearch/config/certs/ca/ca.crt
+      ES_HOST: ${ELASTIC_HOST}
+      ES_PORT: ${ELASTIC_PORT}
+      ES_USER: ${ELASTIC_USER}
+      ES_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_HOST: ${KIBANA_HOST}
+      KIBANA_PORT: ${KIBANA_PORT}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy
@@ -225,17 +232,23 @@ services:
       description: "Unified initialization for Elasticsearch and Kibana"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
+      - certs:/usr/share/elasticsearch/config/certs:ro
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
-      ELASTIC_HOST: ${ELASTIC_HOST}
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-      ELASTIC_PORT: ${ELASTIC_PORT}
-      ELASTIC_USER: ${ELASTIC_USER}
-      KIBANA_HOST: ${KIBANA_HOST}
-      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
-      KIBANA_PORT: ${KIBANA_PORT}
       TZ: ${TZ}
+      # ES_* variables for esapi/kapi commands (ES already stands for Elasticsearch)
+      ES_DIR: /usr/share/elasticsearch/elasticsearch
+      ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
+      ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
+      ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
+      ES_CA_CERT: /usr/share/elasticsearch/config/certs/ca/ca.crt
+      ES_HOST: ${ELASTIC_HOST}
+      ES_PORT: ${ELASTIC_PORT}
+      ES_USER: ${ELASTIC_USER}
+      ES_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_HOST: ${KIBANA_HOST}
+      KIBANA_PORT: ${KIBANA_PORT}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy
@@ -271,7 +284,7 @@ services:
       xpack.monitoring.enabled: "false"
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-      ELASTIC_HOSTS: "https://${ELASTIC-HOST}:${ELASTIC_PORT}"
+      ELASTIC_HOSTS: "https://${ELASTIC_HOST}:${ELASTIC_PORT}"
       ELASTIC_URL: ${ELASTIC_URL}
       LS_HOST: ${LS_HOST}
       LS_SPARK_EVENTS_PORT: ${LS_SPARK_EVENTS_PORT}

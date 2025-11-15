@@ -6,15 +6,43 @@
 
 All variables are defined in `variables.yaml`. Never hardcode versions or configuration values in playbooks, scripts, or templates.
 
-### **2. Required vs Optional Values**
+### **1a. Variable Naming Standards**
 
-**CRITICAL GUIDELINE**: Only specify component versions that have explicit requirements (e.g., "PySpark 4.0.1 is required"). 
+**ES_* Prefix for Elasticsearch API Scripts**: All variables used by `esapi`/`kapi` commands (in `init-index.sh` and related scripts) use the `ES_*` prefix. This distinguishes them from service-level variables used by Docker Compose and other services.
 
-- ✅ **Specify versions**: When compatibility matters (e.g., `SPARK_VERSION: 4.0.1`)
-- ❌ **Don't default**: Scripts MUST error if required variables are missing
-- ✅ **Detect drift**: Missing variables indicate configuration problems
+**Examples**:
+- Service-level: `ELASTIC_HOST`, `ELASTIC_PORT`, `KIBANA_HOST` (used by Docker services)
+- Script-level: `ES_HOST`, `ES_PORT`, `KIBANA_HOST` (used by esapi/kapi)
 
-**Rationale**: The single source of truth model only works if missing values are detected, not silently defaulted.
+### **2. Fail-Fast: No Default Values**
+
+**CRITICAL GUIDELINE**: Never set default values for variables. All variables must be explicitly defined in `variables.yaml` and passed through context files (e.g., `.env` files). Scripts MUST error immediately if required variables are missing.
+
+**Best Practice - Fail-Fast Methodology**:
+- ✅ **Explicit definitions**: All variables must be defined in `variables.yaml` with appropriate contexts
+- ❌ **No defaults**: Scripts MUST NOT provide fallback/default values (e.g., `${VAR:-default}`)
+- ✅ **Fail immediately**: Missing variables indicate configuration problems and should cause immediate failure
+- ✅ **Detect drift**: Missing variables help identify when `variables.yaml` is out of sync with script requirements
+
+**Rationale**: 
+- The single source of truth model only works if missing values are detected, not silently defaulted
+- Default values hide configuration problems and make debugging difficult
+- Fail-fast ensures configuration issues are caught immediately, not discovered later during runtime
+- Explicit variable definitions make dependencies clear and maintainable
+
+**Example** (from `init-index.sh`):
+```bash
+# ❌ BAD: Default values hide configuration problems
+export ES_HOST="${ES_HOST:-es01}"  # What if ES_HOST should be different?
+
+# ✅ GOOD: Fail-fast, no defaults
+export ES_HOST="${ES_HOST}"  # Will error if ES_HOST not set
+# ... later in script ...
+if [[ -z "${ES_HOST}" ]]; then
+  echo "❌ Fatal error: ES_HOST not set (must be provided via .env from variables.yaml)"
+  exit 1
+fi
+```
 
 **Example** (from `linux/assert_devops_client.sh`):
 ```bash
@@ -138,6 +166,22 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 | `toml` | `UPPER_CASE` | `SPARK_VERSION = "4.0.1"` |
 | `configmap` | `UPPER_CASE` | `SPARK_VERSION: "4.0.1"` |
 
+### **Elasticsearch API Script Variables (ES_* prefix)**
+
+**Standardized naming**: Variables used by `esapi`/`kapi` scripts (in `init-index.sh`) use simplified naming:
+- **ES_* for Elasticsearch**: Since ES already stands for Elasticsearch, use `ES_HOST`, `ES_PORT`, `ES_USER`, `ES_PASSWORD` (not `ES_ELASTIC_*`)
+- **KIBANA_* for Kibana**: Use `KIBANA_HOST`, `KIBANA_PORT`, `KIBANA_PASSWORD` (no ES_ prefix needed)
+
+**Examples**:
+- `ES_HOST` (not `ES_ELASTIC_HOST` or `ELASTIC_HOST` in init-index.sh)
+- `ES_PORT` (not `ES_ELASTIC_PORT` or `ELASTIC_PORT` in init-index.sh)
+- `ES_USER`, `ES_PASSWORD` (not `ES_ELASTIC_USER` or `ES_ELASTIC_PASSWORD`)
+- `KIBANA_HOST`, `KIBANA_PORT`, `KIBANA_PASSWORD` (not `ES_KIBANA_*`)
+- `ES_DIR`, `ES_CONFIG_DIR`, `ES_OUTPUTS_DIR`, `ES_BIN_DIR`
+- `ES_CA_CERT`
+
+**Rationale**: This eliminates redundancy (ES_ELASTIC_* is redundant since ES already means Elasticsearch) and confusion between service-level variables (e.g., `ELASTIC_HOST` for Docker services) and script-level variables (e.g., `ES_HOST` for esapi/kapi commands).
+
 ---
 
 ## **Troubleshooting**
@@ -207,4 +251,53 @@ For detailed code examples and technical implementation, see:
 
 ---
 
-**Key Takeaway**: This data-driven architecture ensures **version consistency** across all infrastructure by detecting missing values rather than hiding them with defaults. The two-stage generation process separates platform configuration from user-specific paths.
+## **Variable Definition Syntax in variables.yaml**
+
+### **Simple Format (Single Value)**
+
+When a variable has the same value across all contexts:
+
+```yaml
+ELASTIC_PORT:
+  value: 9200
+  contexts: [observability, spark-runtime, devops]
+```
+
+### **Context-Specific Format (Multiple Values)**
+
+When a variable needs different values for different contexts:
+
+```yaml
+ES_HOST:
+  contexts: [devops, observability]
+  values:
+    devops: ${ELASTIC_HOST_CLIENT}
+    observability: ${ELASTIC_HOST}
+```
+
+**Note**: If all values are identical, use the simple `value:` format instead of `values:` with duplicate entries.
+
+### **Old vs New Syntax**
+
+**Old (deprecated)**:
+```yaml
+# Redundant default when it matches a context value
+ES_ELASTIC_HOST:
+  contexts: [devops, observability]
+  values:
+    default: es01
+    devops: ${ELASTIC_HOST_CLIENT}
+    observability: es01  # Same as default - redundant
+```
+
+**New (preferred)**:
+```yaml
+# No redundant default, simplified naming (ES already stands for Elasticsearch)
+ES_HOST:
+  contexts: [devops, observability]
+  values:
+    devops: ${ELASTIC_HOST_CLIENT}
+    observability: ${ELASTIC_HOST}
+```
+
+**Key Takeaway**: This data-driven architecture ensures **version consistency** across all infrastructure by detecting missing values rather than hiding them with defaults. The two-stage generation process separates platform configuration from user-specific paths. The `ES_*` prefix standardizes naming for Elasticsearch API script variables.

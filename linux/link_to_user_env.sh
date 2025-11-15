@@ -23,8 +23,8 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# Set the 'dir' variable to the directory of this script
-dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Set the 'dir' variable to the project root (parent of linux directory)
+dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Ensure the user's .bash_aliases exists and contains the sourcing command
 bash_aliases="$HOME/.bash_aliases"
