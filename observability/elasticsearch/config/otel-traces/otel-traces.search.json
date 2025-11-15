@@ -1,7 +1,7 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"traces-generic-default\"}"
+      "searchSourceJSON": "{\"query\":{\"query\":\"Attributes.span.kind:Spark.*\",\"language\":\"kuery\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
     },
     "title": "OpenTelemetry Traces",
     "sort": [
@@ -24,6 +24,13 @@
     "timeRestore": false,
     "rowHeight": 3,
     "rowsPerPage": 100
-  }
+  },
+  "references": [
+    {
+      "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+      "type": "index-pattern",
+      "id": "27af13a4-34fb-4057-b0be-12073ed7ac03"
+    }
+  ]
 }
 

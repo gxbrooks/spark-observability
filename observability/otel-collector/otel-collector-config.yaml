@@ -40,9 +40,17 @@ processors:
         value: production
         action: upsert
 
-  # Attributes processor - rename/modify span attributes
+  # Filter processor - only keep Spark spans
+  filter/span:
+    error_mode: ignore
+    traces:
+      span:
+        - 'IsString(attributes["span.kind"]) and IsMatch(attributes["span.kind"], "^Spark.*")'
+
+  # Attributes processor - clean up attributes
   attributes:
     actions:
+      # Delete HTTP-related attributes (optional cleanup)
       - key: http.method
         action: delete
       - key: http.url
@@ -60,7 +68,8 @@ exporters:
       - https://es01:9200
     user: elastic
     password: ${ELASTIC_PASSWORD}
-    index: otel-traces
+    logs_index: otel-traces
+    traces_index: otel-traces
     tls:
       insecure_skip_verify: true
     mapping:
@@ -128,7 +137,7 @@ service:
     # Traces pipeline
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource, attributes]
+      processors: [memory_limiter, filter/span, batch, resource, attributes]
       exporters: [elasticsearch, logging]
       # exporters: [elasticsearch, jaeger, logging]  # Enable Jaeger if needed
 

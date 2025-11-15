@@ -40,16 +40,32 @@ data:
             value: lab-cluster
             action: upsert
 
+      # Filter processor - only keep Spark spans
+      filter/span:
+        error_mode: ignore
+        traces:
+          span:
+            - 'IsString(attributes["span.kind"]) and IsMatch(attributes["span.kind"], "^Spark.*")'
+
+      # Attributes processor - clean up attributes
+      attributes:
+        actions:
+          - key: http.method
+            action: delete
+          - key: http.url
+            action: delete
+
     exporters:
       logging:
         verbosity: detailed
       
       elasticsearch:
         endpoints:
-          - https://GaryPC.local:9200
+          - https://192.168.1.115:9200
         user: elastic
         password: ${ELASTIC_PASSWORD}
-        index: otel-traces
+        logs_index: otel-traces
+        traces_index: otel-traces
         tls:
           insecure_skip_verify: true
 
@@ -65,7 +81,7 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, batch, resource]
+          processors: [memory_limiter, batch, resource, attributes]
           exporters: [elasticsearch, logging]
 
 ---
