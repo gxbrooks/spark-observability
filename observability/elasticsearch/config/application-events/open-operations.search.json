@@ -1,0 +1,31 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"event.state: open\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"app-events\"}"
+    },
+    "title": "Open Operations (No End Event)",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "application",
+      "operation.type",
+      "operation.name",
+      "spark.app.name",
+      "spark.job.id",
+      "spark.stage.id",
+      "event.id"
+    ],
+    "description": "Operations that started but have no corresponding end event - indicates potential failures or hung operations.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
+  }
+}

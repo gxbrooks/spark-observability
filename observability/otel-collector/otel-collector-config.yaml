@@ -1,164 +1,76 @@
 # OpenTelemetry Collector Configuration for Spark Telemetry
-# This collector receives OTLP traces from Spark applications and exports to multiple backends
+# Uses Data Streams for efficient trace storage
 
 receivers:
-  # OTLP Receiver - accepts traces, metrics, and logs via gRPC and HTTP
   otlp:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
-        max_recv_msg_size_mib: 16
       http:
         endpoint: 0.0.0.0:4318
-        cors:
-          allowed_origins:
-            - "*"
 
 processors:
-  # Batch processor - batches telemetry for efficient export
   batch:
     timeout: 1s
     send_batch_size: 1024
     send_batch_max_size: 2048
 
-  # Memory limiter - prevents OOM
   memory_limiter:
     check_interval: 1s
     limit_mib: 512
     spike_limit_mib: 128
 
-  # Resource processor - adds cluster/environment attributes
-  resource:
-    attributes:
-      - key: service.namespace
-        value: spark
-        action: upsert
-      - key: k8s.cluster.name
-        value: lab-cluster
-        action: upsert
-      - key: deployment.environment
-        value: production
-        action: upsert
-
-  # Filter processor - only keep Spark spans
-  filter/span:
-    error_mode: ignore
-    traces:
-      span:
-        - 'IsString(attributes["span.kind"]) and IsMatch(attributes["span.kind"], "^Spark.*")'
-
-  # Attributes processor - clean up attributes
-  attributes:
-    actions:
-      # Delete HTTP-related attributes (optional cleanup)
-      - key: http.method
-        action: delete
-      - key: http.url
-        action: delete
-
-  # Probabilistic sampler - sample high-volume data (disabled by default)
-  # probabilistic_sampler:
-  #   sampling_percentage: 10
-  #   hash_seed: 22
+  # Extract application and operation.type from span.kind for efficient querying
+  transform:
+    trace_statements:
+      - context: span
+        statements:
+          # Extract application from span.kind (e.g., "Spark.job" → "spark")
+          # Store as resource attribute so ECS exporter maps it to top-level field
+          - set(resource.attributes["application"], Split(attributes["span.kind"], ".")[0]) where attributes["span.kind"] != nil
+          # Extract operation.type from span.kind (e.g., "Spark.job" → "job")
+          - set(resource.attributes["operation.type"], Split(attributes["span.kind"], ".")[1]) where attributes["span.kind"] != nil
 
 exporters:
-  # Elasticsearch exporter for traces
+  # Elasticsearch exporter using data streams
   elasticsearch:
     endpoints:
       - https://es01:9200
     user: elastic
-    password: ${ELASTIC_PASSWORD}
-    logs_index: otel-traces
-    traces_index: otel-traces
-    tls:
-      insecure_skip_verify: true
+    password: ${ES_PASSWORD}
+    traces_index: traces-otel-default
     mapping:
-      mode: ecs  # Use Elastic Common Schema
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-  # Elasticsearch exporter for metrics
-  elasticsearch/metrics:
-    endpoints:
-      - https://es01:9200
-    user: elastic
-    password: ${ELASTIC_PASSWORD}
-    index: otel-metrics
+      mode: ecs
     tls:
-      insecure_skip_verify: true
-    retry_on_failure:
-      enabled: true
+      ca_file: /etc/ssl/certs/elastic/ca.crt
+      insecure_skip_verify: false
 
-  # Jaeger exporter - for trace visualization (optional)
-  # jaeger:
-  #   endpoint: jaeger-collector.observability.svc.cluster.local:14250
-  #   tls:
-  #     insecure: true
-
-  # Prometheus Remote Write - for metrics (optional)
-  # prometheusremotewrite:
-  #   endpoint: http://prometheus.observability.svc.cluster.local:9090/api/v1/write
-  #   tls:
-  #     insecure: true
-
-  # Debug logging exporter - for troubleshooting
-  logging:
-    loglevel: info
+  # Debug exporter for troubleshooting
+  debug:
+    verbosity: normal
     sampling_initial: 5
     sampling_thereafter: 200
 
-  # File exporter - backup to disk (optional)
-  # file:
-  #   path: /var/log/otel/traces.json
-  #   rotation:
-  #     max_megabytes: 100
-  #     max_backups: 3
-
 extensions:
-  # Health check extension
   health_check:
     endpoint: :13133
 
-  # PProfextension - for profiling
-  pprof:
-    endpoint: :1777
-
-  # zPages extension - for debugging
-  zpages:
-    endpoint: :55679
-
 service:
-  extensions: [health_check, pprof, zpages]
-
+  extensions: [health_check]
+  
   pipelines:
-    # Traces pipeline
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, filter/span, batch, resource, attributes]
-      exporters: [elasticsearch, logging]
-      # exporters: [elasticsearch, jaeger, logging]  # Enable Jaeger if needed
-
-    # Metrics pipeline
+      processors: [memory_limiter, transform, batch]
+      exporters: [elasticsearch, debug]
+      
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [elasticsearch/metrics, logging]
-      # exporters: [elasticsearch/metrics, prometheusremotewrite, logging]  # Enable Prometheus if needed
-
-    # Logs pipeline (if needed)
-    # logs:
-    #   receivers: [otlp]
-    #   processors: [memory_limiter, batch, resource]
-    #   exporters: [elasticsearch, logging]
-
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+  
   telemetry:
     logs:
       level: info
-      encoding: json
     metrics:
-      address: :8888
       level: detailed
-

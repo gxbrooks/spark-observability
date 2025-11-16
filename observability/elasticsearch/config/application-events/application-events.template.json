@@ -1,0 +1,93 @@
+{
+  "index_patterns": ["app-events-*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "application-events",
+      "index.lifecycle.rollover_alias": "app-events",
+      "index.mapping.total_fields.limit": 2000
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "spark_fields": {
+            "path_match": "spark.*",
+            "mapping": {
+              "type": "{dynamic_type}",
+              "index": true
+            }
+          }
+        },
+        {
+          "eft_fields": {
+            "path_match": "eft.*",
+            "mapping": {
+              "type": "{dynamic_type}",
+              "index": true
+            }
+          }
+        },
+        {
+          "etl_fields": {
+            "path_match": "etl.*",
+            "mapping": {
+              "type": "{dynamic_type}",
+              "index": true
+            }
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "event": {
+          "properties": {
+            "id": {"type": "keyword"},
+            "type": {"type": "keyword"},
+            "category": {"type": "keyword"},
+            "state": {"type": "keyword"},
+            "duration": {"type": "long"}
+          }
+        },
+        "application": {
+          "type": "keyword"
+        },
+        "operation": {
+          "properties": {
+            "type": {"type": "keyword"},
+            "id": {"type": "keyword"},
+            "name": {"type": "text"},
+            "result": {"type": "keyword"},
+            "parent.id": {"type": "keyword"},
+            "duration.ms": {"type": "long"}
+          }
+        },
+        "correlation": {
+          "properties": {
+            "span.id": {"type": "keyword"},
+            "trace.id": {"type": "keyword"},
+            "start.event.id": {"type": "keyword"},
+            "end.event.id": {"type": "keyword"},
+            "parent.event.id": {"type": "keyword"}
+          }
+        },
+        "spark": {
+          "type": "object",
+          "dynamic": true
+        },
+        "eft": {
+          "type": "object",
+          "dynamic": true
+        },
+        "etl": {
+          "type": "object",
+          "dynamic": true
+        }
+      }
+    }
+  }
+}
+

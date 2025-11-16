@@ -133,13 +133,55 @@ Each service is responsible for fetching and validating certificates from the st
 
 **Validation**: After copy, verify with `openssl x509`
 
-#### Spark Client
+#### Spark Client (Java/Scala Applications)
 
-**Fetch Location**: Via `spark_env.sh` configuration
+**Fetch Location**: Java truststore (`$JAVA_HOME/lib/security/cacerts`)
 
-**Fetch Mechanism**: During environment setup
-- Spark client references CA cert via environment variables
-- Fetches from standard location during initialization
+**Fetch Mechanism**: Import CA certificate into Java truststore on each Spark client host
+
+**Installation Process**:
+```bash
+# 1. Fetch CA certificate from observability host
+ansible -i ansible/inventory.yml <spark-host> -m copy \
+  -a "src=/mnt/c/Volumes/certs/Elastic/ca.crt dest=/etc/ssl/certs/elastic/ca.crt mode=0644" \
+  --become
+
+# 2. Import into Java truststore (requires sudo)
+ansible -i ansible/inventory.yml <spark-host> -m shell \
+  -a "keytool -import -trustcacerts -alias elastic-ca \
+      -file /etc/ssl/certs/elastic/ca.crt \
+      -keystore $JAVA_HOME/lib/security/cacerts \
+      -storepass changeit -noprompt" \
+  --become
+
+# 3. Verify import
+keytool -list -keystore $JAVA_HOME/lib/security/cacerts \
+  -storepass changeit | grep elastic-ca
+```
+
+**Environment Variables**: No additional environment variables required. The Spark OTel listener's `EventEmitter` uses the standard Java truststore automatically.
+
+**Hostname Resolution**: Elasticsearch certificate is issued for hostname `es01`. Add hostname mapping:
+```bash
+# Add to /etc/hosts on Spark client hosts
+<observability-host-ip> es01
+
+# Example:
+192.168.1.115 es01
+```
+
+**Configuration in Spark Applications**:
+```bash
+spark-submit \
+  --conf spark.extraListeners=com.elastic.spark.otel.OTelSparkListener \
+  --jars spark-otel-listener-1.0.0.jar \
+  --conf spark.executorEnv.ES_URL="https://es01:9200" \
+  --conf spark.executorEnv.ES_USER="elastic" \
+  --conf spark.executorEnv.ES_PASSWORD="myElastic2025" \
+  your_app.py
+```
+
+**Development/Testing Mode**: For development environments with self-signed certificates, the `EventEmitter` includes a trust-all SSL context (disabled in production). See `spark/otel-listener/src/main/scala/com/elastic/spark/otel/EventEmitter.scala`.
 
 #### Docker Containers (Observability Stack)
 

@@ -291,7 +291,7 @@ SPARK_CONF_DIR:
 
 # Spark client JAR paths (for spark-defaults.conf)
 SPARK_OTEL_LISTENER_JAR:
-  value: ~/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar
+  value: ~/repos/elastic-on-spark/spark/otel-listener/spark-otel-listener-1.0.0.jar
   contexts: [devops, spark-client-config]
 SPARK_NO_DAEMONIZE:
   value: true
@@ -312,7 +312,7 @@ USER_SPARK_HOME:
 
 # OpenTelemetry Configuration for Spark
 OTEL_EXPORTER_OTLP_ENDPOINT:
-  value: http://Lab2.local:31317
+  value: http://GaryPC.local:4317
   contexts: [spark-client, devops]
 OTEL_EXPORTER_OTLP_ENDPOINT_K8S:
   value: http://otel-collector.observability.svc.cluster.local:4317

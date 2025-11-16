@@ -215,3 +215,85 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 
 **Last Updated**: 2025-11-12
 
+### CoreDNS on K8s
+Where Kubernetes resolves GaryPC.local:
+- Inside the OTel collector pods, when the Elasticsearch exporter connects to GaryPC.local:9200.
+- The error lookup GaryPC.local on 10.96.0.10:53: no such host shows it’s using CoreDNS (10.96.0.10:53), not mDNS.
+
+Why mDNS doesn’t work in Kubernetes pods:
+1. Pods use CoreDNS, not the host’s DNS resolver.
+1. CoreDNS doesn’t support mDNS (.local).
+1. Pods run in isolated network namespaces, so mDNS multicast doesn’t reach them.
+
+Best practices:
+- Use Kubernetes Service names for internal communication (e.g., es01.observability.svc.cluster.local:9200).
+- Use DNS names for external services when possible, but .local won’t work from pods.
+- For external services outside the cluster:
+   - Use proper DNS names (if available).
+   - Use IP addresses as a fallback.
+   - Or configure CoreDNS to forward .local queries to the host’s DNS.
+
+**Current situation**:
+* Elasticsearch runs in Docker Compose on GaryPC, not in Kubernetes.
+* The OTel collector runs in Kubernetes and needs to reach Elasticsearch.
+
+**Options**:
+1. Use the IP address (current workaround: 192.168.1.115).
+1. Configure CoreDNS to forward .local queries to the host DNS.
+1. Create a Kubernetes Service/Endpoint pointing to the external Elasticsearch.
+1. Use a proper DNS name if available.
+
+**Recommendation**:
+* Short term: Keep the IP address for now.
+* Long term: Create a Kubernetes Service/Endpoint or configure CoreDNS to forward .local queries.
+
+
+### Why `batch-events` works without `references` but `otel-traces` needs it
+
+**Pattern 1: Direct index name (no references needed)**
+- `batch-events.search.json`: `"index": "batch-events"`
+- `batch-traces.search.json`: `"index": "batch-traces"`
+- `spark-logs.search.json`: `"index": "spark-logs"`
+
+**Pattern 2: Index reference (requires references section)**
+- `otel-traces.search.json`: `"indexRefName": "kibanaSavedObjectMeta.searchSourceJSON.index"` + `references` array
+- `spark-gc.search.json`: `"indexRefName": "..."` + `references`
+- `metrics-spark-logs.search.json`: `"indexRefName": "..."` + `references`
+
+#### Why the difference
+
+1. Automatic resolution: When using `"index": "batch-events"`, Kibana resolves the data view by title/name if it exists. This works when:
+   - The data view title matches the index name
+   - The data view was created before the search
+   - Kibana can find it automatically
+
+2. Explicit references: When using `"indexRefName": "..."`, you must provide a `references` array because:
+   - It references a saved object by ID (not name)
+   - Kibana requires explicit linkage for saved object relationships
+   - It’s the recommended approach for programmatic creation
+
+3. Why `otel-traces` needs it: The working search references UUID `27af13a4-34fb-4057-b0be-12073ed7ac03`, which suggests:
+   - The data view was created manually first (auto-generated UUID)
+   - The search was created to reference that existing data view
+   - Using `"index": "otel-traces"` didn’t resolve because the data view title didn’t match or wasn’t found
+
+#### Best practice
+
+Use `indexRefName` with `references` for:
+- Programmatic creation via API
+- Ensuring the search links to the correct data view
+- Avoiding ambiguity when multiple data views match
+
+The direct `"index": "..."` approach works when:
+- The data view title exactly matches the index name
+- The data view exists before the search is created
+- You’re okay with Kibana’s automatic resolution
+
+#### Recommendation
+
+For consistency and reliability, update all search objects to use `indexRefName` with `references`. This ensures:
+- Explicit linkage to data views
+- Works regardless of data view creation order
+- Aligns with Kibana’s saved objects model
+
+Should I update the other search objects (`batch-events`, `batch-traces`, `spark-logs`) to use the `indexRefName` + `references` pattern for consistency?

@@ -25,9 +25,13 @@ spark.eventLog.compression.codec       none
 # OpenTelemetry Listener for real-time telemetry export  
 # Requires OTEL_EXPORTER_OTLP_ENDPOINT from devops_env.sh
 spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
-spark.jars                             /home/gxbrooks/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar
+spark.jars                             {{ SPARK_OTEL_LISTENER_JAR }}
 # Pass OTel endpoint to executors
-spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT    http://Lab2.local:31317
+spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT    {{ OTEL_EXPORTER_OTLP_ENDPOINT }}
+# Pass Elasticsearch config to executors for event emission
+spark.executorEnv.ES_URL                        {{ ES_URL }}
+spark.executorEnv.ES_USER                       {{ ES_USER }}
+spark.executorEnv.ES_PASSWORD                   {{ ES_PASSWORD }}
 
 # SQL optimizations
 spark.sql.adaptive.enabled             true
@@ -45,6 +49,8 @@ spark.executor.extraJavaOptions        -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/lo
 # Driver configuration for client mode
 # Driver runs on Lab2 host - must be reachable by workers in K8s pods
 # Use IP address since K8s pod DNS cannot resolve Lab2.local
+# Note: Set SPARK_LOCAL_IP environment variable to suppress hostname resolution warnings
+#       (Set in devops_env.sh or .bashrc)
 spark.driver.host                      192.168.1.48
 spark.driver.bindAddress               0.0.0.0
 

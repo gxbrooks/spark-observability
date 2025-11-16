@@ -136,7 +136,7 @@ services:
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      ES_CA_CERT: /usr/share/elasticsearch/config/certs/ca/ca.crt
+      ES_CA_CERT: /etc/ssl/certs/elastic/ca.crt
       ES_HOST: ${ELASTIC_HOST}
       ES_PORT: ${ELASTIC_PORT}
       ES_USER: ${ELASTIC_USER}
@@ -232,7 +232,6 @@ services:
       description: "Unified initialization for Elasticsearch and Kibana"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - certs:/usr/share/elasticsearch/config/certs:ro
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
       TZ: ${TZ}
@@ -241,7 +240,7 @@ services:
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      ES_CA_CERT: /usr/share/elasticsearch/config/certs/ca/ca.crt
+      ES_CA_CERT: /etc/ssl/certs/elastic/ca.crt
       ES_HOST: ${ELASTIC_HOST}
       ES_PORT: ${ELASTIC_PORT}
       ES_USER: ${ELASTIC_USER}
@@ -258,6 +257,37 @@ services:
         condition: service_healthy
       init-certs:
         condition: service_completed_successfully
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    labels:
+      co.elastic.logs/module: otel-collector
+      role: "OpenTelemetry Collector"
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics
+      - "13133:13133" # Health check
+    volumes:
+      - "./otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro"
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic:ro
+    environment:
+      ES_URL: "${ELASTIC_URL}"
+      ES_USER: "elastic"
+      ES_PASSWORD: "${ELASTIC_PASSWORD}"
+      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   logstash01:
     image: docker.elastic.co/logstash/logstash:${LOGSTASH_VERSION} 

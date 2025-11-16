@@ -1,7 +1,7 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"query\":\"Attributes.span.kind:Spark.*\",\"language\":\"kuery\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"otel-traces\"}"
     },
     "title": "OpenTelemetry Traces",
     "sort": [
@@ -12,25 +12,18 @@
     ],
     "columns": [
       "@timestamp",
-      "SpanId",
-      "ParentSpanId",
-      "Attributes.span.kind",
-      "Name"
+      "span.kind",
+      "span.name",
+      "service.name",
+      "event.outcome",
+      "trace.id"
     ],
-    "description": "A list of all OpenTelemetry traces showing timestamp, span ID, parent span ID, and Spark event kind (App, Job, Stage, Task, etc.).",
+    "description": "All OpenTelemetry traces from all applications showing operation hierarchy and outcome.",
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,
     "timeRestore": false,
     "rowHeight": 3,
     "rowsPerPage": 100
-  },
-  "references": [
-    {
-      "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
-      "type": "index-pattern",
-      "id": "27af13a4-34fb-4057-b0be-12073ed7ac03"
-    }
-  ]
+  }
 }
-

@@ -1,0 +1,33 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"span.kind: Spark.* AND NOT event.outcome: success\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"otel-traces\"}"
+    },
+    "title": "Spark Errors and Failures",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "span.kind",
+      "spark.app.name",
+      "spark.job.id",
+      "spark.stage.id",
+      "spark.task.id",
+      "event.outcome",
+      "spark.job.result",
+      "spark.stage.result"
+    ],
+    "description": "All Spark operations that failed or had errors.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
+  }
+}
+

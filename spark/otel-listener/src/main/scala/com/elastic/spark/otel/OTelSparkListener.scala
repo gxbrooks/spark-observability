@@ -1,18 +1,22 @@
 package com.elastic.spark.otel
 
 import org.apache.spark.scheduler._
+import org.apache.spark.sql.execution.ui.{SparkListenerSQLExecutionStart, SparkListenerSQLExecutionEnd}
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.trace.{Span, SpanKind, StatusCode, Tracer}
 import io.opentelemetry.context.Context
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.resources.Resource
 import io.opentelemetry.sdk.trace.SdkTracerProvider
-import io.opentelemetry.sdk.trace.export.BatchSpanProcessor
+import io.opentelemetry.sdk.trace.export.{BatchSpanProcessor, SimpleSpanProcessor}
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter
+import io.opentelemetry.exporter.logging.LoggingSpanExporter
 import io.opentelemetry.semconv.ResourceAttributes
 import org.slf4j.LoggerFactory
 
 import java.time.{Duration, Instant}
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 import scala.collection.concurrent.TrieMap
 import scala.util.Try
 
@@ -45,6 +49,8 @@ class OTelSparkListener extends SparkListener {
   private val serviceName = sys.env.getOrElse("OTEL_SERVICE_NAME", "spark-application")
   private val serviceNamespace = sys.env.getOrElse("OTEL_SERVICE_NAMESPACE", "spark")
   private val deploymentEnvironment = sys.env.getOrElse("OTEL_DEPLOYMENT_ENVIRONMENT", "production")
+  private val enableLoggingExporter = sys.env.getOrElse("OTEL_ENABLE_LOGGING", "false").toLowerCase == "true"
+  private val emitTaskEvents = sys.env.getOrElse("OTEL_EMIT_TASK_EVENTS", "false").toLowerCase == "true"
 
   // Initialize OpenTelemetry
   private val spanExporter: OtlpGrpcSpanExporter = Try {
@@ -63,7 +69,7 @@ class OTelSparkListener extends SparkListener {
     .put(ResourceAttributes.DEPLOYMENT_ENVIRONMENT, deploymentEnvironment)
     .build()
 
-  private val tracerProvider: SdkTracerProvider = SdkTracerProvider.builder()
+  private val tracerProviderBuilder = SdkTracerProvider.builder()
     .addSpanProcessor(
       BatchSpanProcessor.builder(spanExporter)
         .setMaxQueueSize(2048)
@@ -72,7 +78,16 @@ class OTelSparkListener extends SparkListener {
         .build()
     )
     .setResource(resource)
-    .build()
+  
+  // Add logging exporter if enabled (for testing without OTEL Collector)
+  private val tracerProvider: SdkTracerProvider = if (enableLoggingExporter) {
+    logger.info("Logging span exporter ENABLED - spans will be output to console")
+    tracerProviderBuilder
+      .addSpanProcessor(SimpleSpanProcessor.create(LoggingSpanExporter.create()))
+      .build()
+  } else {
+    tracerProviderBuilder.build()
+  }
 
   // Register as global to make it accessible
   private val openTelemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder()
@@ -81,59 +96,171 @@ class OTelSparkListener extends SparkListener {
 
   private val tracer: Tracer = openTelemetry.getTracer("spark-listener", "1.0.0")
 
+  // Initialize Event Emitter
+  private val elasticsearchUrl = sys.env.getOrElse("ES_URL", "https://es01:9200")
+  private val esUsername = sys.env.getOrElse("ES_USER", "elastic")
+  private val esPassword = sys.env.getOrElse("ES_PASSWORD", "changeme")
+  
+  private val eventEmitter = new EventEmitter(elasticsearchUrl, esUsername, esPassword)
+  
   // Track active spans for proper parent-child relationships
   private val applicationSpan: TrieMap[String, Span] = TrieMap.empty
   private val jobSpans: TrieMap[Int, Span] = TrieMap.empty
   private val stageSpans: TrieMap[Int, Span] = TrieMap.empty
   private val taskSpans: TrieMap[Long, Span] = TrieMap.empty
-  // private val sqlExecutionSpans: TrieMap[Long, Span] = TrieMap.empty  // Disabled until SQL listener interface is available
+  private val sqlExecutionSpans: TrieMap[Long, Span] = TrieMap.empty
+
+  // Track event IDs for correlation
+  private val appEventIds: TrieMap[String, String] = TrieMap.empty
+  private val jobEventIds: TrieMap[Int, String] = TrieMap.empty
+  private val stageEventIds: TrieMap[Int, String] = TrieMap.empty
+  private val taskEventIds: TrieMap[Long, String] = TrieMap.empty
+  private val sqlEventIds: TrieMap[Long, String] = TrieMap.empty
+  
+  // Track application names for correlation
+  private val appNames: TrieMap[String, String] = TrieMap.empty
+  
+  // ISO 8601 timestamp formatter
+  private val isoFormatter = DateTimeFormatter.ISO_INSTANT
 
   logger.info(s"OTelSparkListener initialized - OTLP endpoint: $otlpEndpoint, service: $serviceName")
+  logger.info(s"EventEmitter initialized - Elasticsearch URL: $elasticsearchUrl")
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
+    val startNanos = System.nanoTime()
     try {
       val appName = applicationStart.appName
       val appId = applicationStart.appId.getOrElse("unknown")
       val user = applicationStart.sparkUser
       val startTime = applicationStart.time
+      val timestamp = Instant.ofEpochMilli(startTime)
 
       logger.info(s"Application started: $appName (ID: $appId, User: $user)")
 
+      // Generate event ID (standard UUID for clean correlation)
+      val eventId = UUID.randomUUID().toString
+      
+      // Emit START event
+      val startEvent = ApplicationEvent(
+        `@timestamp` = isoFormatter.format(timestamp),
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "app",
+          id = appId,
+          name = appName
+        ),
+        correlation = Correlation(),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = Some(appName),
+          user = Some(user)
+        ))
+      )
+      eventEmitter.emitEvent(startEvent)
+      appEventIds.put(appId, eventId)
+      appNames.put(appId, appName)
+
+      // Create span with event correlation
       val span = tracer.spanBuilder(s"spark.application.$appName")
         .setSpanKind(SpanKind.SERVER)
-        .setStartTimestamp(Instant.ofEpochMilli(startTime))
+        .setStartTimestamp(timestamp)
         .setAttribute("spark.app.name", appName)
         .setAttribute("spark.app.id", appId)
         .setAttribute("spark.user", user)
         .setAttribute("service.name", serviceName)
         .setAttribute("span.kind", "Spark.app")
+        .setAttribute("correlation.event.start.id", eventId)
         .startSpan()
 
       applicationSpan.put(appId, span)
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      logger.debug(s"onApplicationStart completed in ${elapsedMs}ms")
     } catch {
       case e: Exception =>
-        logger.error("Error in onApplicationStart", e)
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onApplicationStart (${elapsedMs}ms)", e)
     }
   }
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    val startNanos = System.nanoTime()
     try {
       val endTime = applicationEnd.time
+      val timestamp = Instant.ofEpochMilli(endTime)
 
       logger.info(s"Application ended at $endTime")
 
-      applicationSpan.values.foreach { span =>
+      applicationSpan.foreach { case (appId, span) =>
+        // Get start event ID and app name
+        val startEventId = appEventIds.get(appId).orNull
+        val appName = appNames.get(appId).getOrElse("unknown")
+        val spanId = span.getSpanContext.getSpanId
+        val traceId = span.getSpanContext.getTraceId
+        
+        // Generate end event ID (standard UUID)
+        val endEventId = UUID.randomUUID().toString
+        
+        // Calculate duration
+        val duration = if (startEventId != null) {
+          // We'd need to track start time, for now use span
+          None
+        } else None
+        
+        // Emit END event
+        val endEvent = ApplicationEvent(
+          `@timestamp` = isoFormatter.format(timestamp),
+          event = EventMetadata(
+            id = endEventId,
+            `type` = "end",
+            state = "closed",
+            duration = duration
+          ),
+          application = "spark",
+          operation = Operation(
+            `type` = "app",
+            id = appId,
+            name = appName,
+            result = Some("SUCCESS")
+          ),
+          correlation = Correlation(
+            `span.id` = Some(spanId),
+            `trace.id` = Some(traceId),
+            `start.event.id` = Option(startEventId)
+          ),
+          spark = Some(SparkMetadata(
+            `app.id` = Some(appId),
+            `app.name` = Some(appName)
+          ))
+        )
+        eventEmitter.emitEvent(endEvent)
+        
+        // Complete span
+        span.setAttribute("correlation.event.end.id", endEventId)
         span.setStatus(StatusCode.OK)
-        span.end(Instant.ofEpochMilli(endTime))
+        span.end(timestamp)
       }
       applicationSpan.clear()
+      appEventIds.clear()
+      appNames.clear()
 
+      // Shutdown event emitter first
+      eventEmitter.shutdown()
+      
       // Shutdown OpenTelemetry to flush remaining spans
       tracerProvider.close()
-      logger.info("OTelSparkListener shutdown complete")
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      logger.info(s"OTelSparkListener shutdown complete (${elapsedMs}ms)")
     } catch {
       case e: Exception =>
-        logger.error("Error in onApplicationEnd", e)
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onApplicationEnd (${elapsedMs}ms)", e)
     }
   }
 
@@ -213,6 +340,7 @@ class OTelSparkListener extends SparkListener {
   }
 
   override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
+    val startNanos = System.nanoTime()
     try {
       val stageInfo = stageSubmitted.stageInfo
       val stageId = stageInfo.stageId
@@ -220,8 +348,45 @@ class OTelSparkListener extends SparkListener {
       val numTasks = stageInfo.numTasks
       val attemptNumber = stageInfo.attemptNumber()
       val submissionTime = stageInfo.submissionTime.getOrElse(System.currentTimeMillis())
+      val timestamp = Instant.ofEpochMilli(submissionTime)
 
       logger.debug(s"Stage $stageId submitted: $stageName ($numTasks tasks)")
+
+      // Generate event ID (standard UUID)
+      val eventId = UUID.randomUUID().toString
+      
+      // Get parent job ID if available
+      val parentJobId = jobSpans.keys.headOption
+      
+      // Emit START event
+      val startEvent = ApplicationEvent(
+        `@timestamp` = isoFormatter.format(timestamp),
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "stage",
+          id = s"stage-$stageId",
+          name = stageName,
+          `parent.id` = parentJobId.map(jid => s"job-$jid")
+        ),
+        correlation = Correlation(
+          `parent.event.id` = parentJobId.flatMap(jobEventIds.get)
+        ),
+        spark = Some(SparkMetadata(
+          `app.id` = applicationSpan.keys.headOption,
+          `stage.id` = Some(stageId.toLong),
+          `stage.name` = Some(stageName),
+          `stage.attempt` = Some(attemptNumber.toLong),
+          `stage.num.tasks` = Some(numTasks.toLong),
+          `job.id` = parentJobId.map(_.toLong)
+        ))
+      )
+      eventEmitter.emitEvent(startEvent)
+      stageEventIds.put(stageId, eventId)
 
       // Try to get parent job span - in Spark 4.0, we need to find it from active jobs
       // For simplicity, we'll use the first available job span
@@ -229,12 +394,13 @@ class OTelSparkListener extends SparkListener {
 
       val spanBuilder = tracer.spanBuilder(s"spark.stage.$stageId")
         .setSpanKind(SpanKind.INTERNAL)
-        .setStartTimestamp(Instant.ofEpochMilli(submissionTime))
+        .setStartTimestamp(timestamp)
         .setAttribute("spark.stage.id", stageId.toLong)
         .setAttribute("spark.stage.name", stageName)
         .setAttribute("spark.stage.num.tasks", numTasks.toLong)
         .setAttribute("spark.stage.attempt", attemptNumber.toLong)
         .setAttribute("span.kind", "Spark.stage")
+        .setAttribute("correlation.event.start.id", eventId)
 
       // Set parent if available
       parentSpan.foreach { parent =>
@@ -248,23 +414,90 @@ class OTelSparkListener extends SparkListener {
 
       val span = spanBuilder.startSpan()
       stageSpans.put(stageId, span)
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      if (elapsedMs > 100) {
+        logger.warn(s"onStageSubmitted took ${elapsedMs}ms for stage $stageId")
+      } else {
+        logger.debug(s"onStageSubmitted completed in ${elapsedMs}ms for stage $stageId")
+      }
     } catch {
       case e: Exception =>
-        logger.error(s"Error in onStageSubmitted for stage ${stageSubmitted.stageInfo.stageId}", e)
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onStageSubmitted for stage ${stageSubmitted.stageInfo.stageId} (${elapsedMs}ms)", e)
     }
   }
 
   override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
+    val startNanos = System.nanoTime()
     try {
       val stageInfo = stageCompleted.stageInfo
       val stageId = stageInfo.stageId
       val completionTime = stageInfo.completionTime.getOrElse(System.currentTimeMillis())
+      val timestamp = Instant.ofEpochMilli(completionTime)
+      val submissionTime = stageInfo.submissionTime.getOrElse(completionTime)
+      val durationMs = completionTime - submissionTime
 
       logger.debug(s"Stage $stageId completed")
 
       stageSpans.remove(stageId).foreach { span =>
-        // Add metrics
+        // Get start event ID
+        val startEventId = stageEventIds.remove(stageId).orNull
+        val spanId = span.getSpanContext.getSpanId
+        val traceId = span.getSpanContext.getTraceId
+        
+        // Generate end event ID (standard UUID)
+        val endEventId = UUID.randomUUID().toString
+        
+        // Determine result
+        val result = if (stageInfo.failureReason.isDefined) "FAILED" else "SUCCESS"
+        
+        // Collect metrics
         val taskMetrics = stageInfo.taskMetrics
+        val metricsData = if (taskMetrics != null) {
+          Some(SparkEventMetrics(
+            `duration.ms` = Some(durationMs),
+            `shuffle.read.bytes` = Some(taskMetrics.shuffleReadMetrics.totalBytesRead),
+            `shuffle.write.bytes` = Some(taskMetrics.shuffleWriteMetrics.bytesWritten),
+            `input.bytes` = Some(taskMetrics.inputMetrics.bytesRead),
+            `output.bytes` = Some(taskMetrics.outputMetrics.bytesWritten),
+            `memory.spilled.bytes` = Some(taskMetrics.memoryBytesSpilled),
+            `disk.spilled.bytes` = Some(taskMetrics.diskBytesSpilled)
+          ))
+        } else None
+        
+        // Emit END event
+        val endEvent = ApplicationEvent(
+          `@timestamp` = isoFormatter.format(timestamp),
+          event = EventMetadata(
+            id = endEventId,
+            `type` = "end",
+            state = "closed",
+            duration = Some(durationMs * 1000000) // Convert to nanoseconds
+          ),
+          application = "spark",
+          operation = Operation(
+            `type` = "stage",
+            id = s"stage-$stageId",
+            name = stageInfo.name,
+            result = Some(result)
+          ),
+          correlation = Correlation(
+            `span.id` = Some(spanId),
+            `trace.id` = Some(traceId),
+            `start.event.id` = Option(startEventId)
+          ),
+          spark = Some(SparkMetadata(
+            `app.id` = applicationSpan.keys.headOption,
+            `stage.id` = Some(stageId.toLong),
+            `stage.name` = Some(stageInfo.name),
+            `stage.result` = Some(result),
+            metrics = metricsData
+          ))
+        )
+        eventEmitter.emitEvent(endEvent)
+        
+        // Add metrics to span
         span.setAttribute("spark.stage.tasks.completed", stageInfo.numTasks.toLong)
         
         if (taskMetrics != null) {
@@ -286,22 +519,68 @@ class OTelSparkListener extends SparkListener {
           span.setAttribute("spark.stage.result", "SUCCESS")
         }
 
-        span.end(Instant.ofEpochMilli(completionTime))
+        // Complete span with end event correlation
+        span.setAttribute("correlation.event.end.id", endEventId)
+        span.end(timestamp)
+      }
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      if (elapsedMs > 100) {
+        logger.warn(s"onStageCompleted took ${elapsedMs}ms for stage $stageId")
+      } else {
+        logger.debug(s"onStageCompleted completed in ${elapsedMs}ms for stage $stageId")
       }
     } catch {
       case e: Exception =>
-        logger.error(s"Error in onStageCompleted for stage ${stageCompleted.stageInfo.stageId}", e)
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onStageCompleted for stage ${stageCompleted.stageInfo.stageId} (${elapsedMs}ms)", e)
     }
   }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
-    // Task-level spans can be high volume - only emit for failed tasks or sample
-    // For now, we'll create spans for all tasks, but this can be made configurable
+    val startNanos = System.nanoTime()
     try {
       val stageId = taskStart.stageId
       val taskInfo = taskStart.taskInfo
 
       logger.debug(s"Task ${taskInfo.taskId} started in stage $stageId")
+
+      // Emit task start event if enabled (opt-in due to high volume)
+      if (emitTaskEvents) {
+        val eventId = UUID.randomUUID().toString
+        taskEventIds.put(taskInfo.taskId, eventId)
+
+        val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+        val appName = appNames.get(appId)
+
+        val event = ApplicationEvent(
+          `@timestamp` = Instant.ofEpochMilli(taskInfo.launchTime).toString,
+          event = EventMetadata(
+            id = eventId,
+            `type` = "start",
+            category = "application",
+            state = "open"
+          ),
+          application = "spark",
+          operation = Operation(
+            `type` = "task",
+            id = s"task-${taskInfo.taskId}",
+            name = s"Task ${taskInfo.taskId}",
+            `parent.id` = Some(s"stage-$stageId")
+          ),
+          correlation = Correlation(),
+          spark = Some(SparkMetadata(
+            `app.id` = Some(appId),
+            `app.name` = appName,
+            `task.id` = Some(taskInfo.taskId),
+            `task.index` = Some(taskInfo.index),
+            `task.executor.id` = Some(taskInfo.executorId),
+            `stage.id` = Some(stageId)
+          ))
+        )
+
+        eventEmitter.emitEvent(event)
+      }
 
       // Get parent stage span
       val parentSpan = stageSpans.get(stageId)
@@ -316,6 +595,13 @@ class OTelSparkListener extends SparkListener {
         .setAttribute("spark.task.executor.id", taskInfo.executorId)
         .setAttribute("span.kind", "Spark.task")
 
+      // Add correlation event ID if task events enabled
+      if (emitTaskEvents) {
+        taskEventIds.get(taskInfo.taskId).foreach { eventId =>
+          spanBuilder.setAttribute("correlation.event.start.id", eventId)
+        }
+      }
+
       // Set parent if available
       parentSpan.foreach { parent =>
         spanBuilder.setParent(Context.current().`with`(parent))
@@ -323,16 +609,85 @@ class OTelSparkListener extends SparkListener {
 
       val span = spanBuilder.startSpan()
       taskSpans.put(taskInfo.taskId, span)
+
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      if (elapsedMs > 100) {
+        logger.warn(s"onTaskStart took ${elapsedMs}ms for task ${taskInfo.taskId}")
+      }
     } catch {
       case e: Exception =>
-        logger.error(s"Error in onTaskStart for task in stage ${taskStart.stageId}", e)
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onTaskStart for task in stage ${taskStart.stageId} (${elapsedMs}ms)", e)
     }
   }
 
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
+    val startNanos = System.nanoTime()
     try {
       val taskInfo = taskEnd.taskInfo
       val taskMetrics = taskEnd.taskMetrics
+
+      // Emit task end event if enabled
+      if (emitTaskEvents) {
+        val startEventId = taskEventIds.remove(taskInfo.taskId)
+        val spanOption = taskSpans.get(taskInfo.taskId)
+        val spanId = spanOption.map(s => s.getSpanContext.getSpanId)
+        val traceId = spanOption.map(s => s.getSpanContext.getTraceId)
+        val endEventId = UUID.randomUUID().toString
+
+        val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+        val appName = appNames.get(appId)
+
+        val result = taskEnd.reason match {
+          case _: org.apache.spark.Success.type => "SUCCESS"
+          case _ => "FAILED"
+        }
+
+        val taskMetricsData = if (taskMetrics != null) {
+          Some(SparkEventMetrics(
+            `duration.ms` = Some(taskMetrics.executorRunTime),
+            `shuffle.read.bytes` = Some(taskMetrics.shuffleReadMetrics.totalBytesRead),
+            `shuffle.write.bytes` = Some(taskMetrics.shuffleWriteMetrics.bytesWritten),
+            `input.bytes` = Some(taskMetrics.inputMetrics.bytesRead),
+            `output.bytes` = Some(taskMetrics.outputMetrics.bytesWritten),
+            `executor.run.time.ms` = Some(taskMetrics.executorRunTime),
+            `executor.cpu.time.ms` = Some(taskMetrics.executorCpuTime / 1000000)
+          ))
+        } else None
+
+        val event = ApplicationEvent(
+          `@timestamp` = Instant.ofEpochMilli(taskInfo.finishTime).toString,
+          event = EventMetadata(
+            id = endEventId,
+            `type` = "end",
+            category = "application",
+            state = "closed"
+          ),
+          application = "spark",
+          operation = Operation(
+            `type` = "task",
+            id = s"task-${taskInfo.taskId}",
+            name = s"Task ${taskInfo.taskId}",
+            result = Some(result)
+          ),
+          correlation = Correlation(
+            `span.id` = spanId,
+            `trace.id` = traceId,
+            `start.event.id` = startEventId
+          ),
+          spark = Some(SparkMetadata(
+            `app.id` = Some(appId),
+            `app.name` = appName,
+            `task.id` = Some(taskInfo.taskId),
+            `task.index` = Some(taskInfo.index),
+            `task.executor.id` = Some(taskInfo.executorId),
+            `stage.id` = Some(taskEnd.stageId),
+            metrics = taskMetricsData
+          ))
+        )
+
+        eventEmitter.emitEvent(event)
+      }
 
       // Get the span we created in onTaskStart
       taskSpans.remove(taskInfo.taskId).foreach { span =>
@@ -343,6 +698,11 @@ class OTelSparkListener extends SparkListener {
           span.setAttribute("spark.task.executor.run.time.ms", taskMetrics.executorRunTime)
           span.setAttribute("spark.task.executor.cpu.time.ms", taskMetrics.executorCpuTime / 1000000)
           span.setAttribute("spark.task.result.size.bytes", taskMetrics.resultSize)
+        }
+
+        // Add correlation event ID if task events enabled
+        if (emitTaskEvents) {
+          span.setAttribute("correlation.event.end.id", UUID.randomUUID().toString)
         }
 
         // Set status based on task result
@@ -356,24 +716,181 @@ class OTelSparkListener extends SparkListener {
 
         span.end(Instant.ofEpochMilli(taskInfo.finishTime))
       }
+
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      if (elapsedMs > 100) {
+        logger.warn(s"onTaskEnd took ${elapsedMs}ms for task ${taskInfo.taskId}")
+      }
     } catch {
       case e: Exception =>
-        logger.error(s"Error in onTaskEnd for task in stage ${taskEnd.stageId}", e)
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onTaskEnd for task in stage ${taskEnd.stageId} (${elapsedMs}ms)", e)
     }
   }
 
-  // Note: SQL execution events (SparkListenerSQLExecutionStart/End) are not part of the
-  // standard SparkListener interface in Spark 4.0. They require a separate listener interface
-  // (SparkListenerInterface) or spark-sql dependency. These methods are commented out until
-  // we can verify the correct interface/package for Spark 4.0.
-  //
-  // override def onSQLExecutionStart(sqlExecutionStart: SparkListenerSQLExecutionStart): Unit = {
-  //   ...
-  // }
-  //
-  // override def onSQLExecutionEnd(sqlExecutionEnd: SparkListenerSQLExecutionEnd): Unit = {
-  //   ...
-  // }
+  // SQL Execution tracking - handle via onOtherEvent
+  override def onOtherEvent(event: SparkListenerEvent): Unit = {
+    event match {
+      case sqlStart: SparkListenerSQLExecutionStart =>
+        onSQLExecutionStart(sqlStart)
+      case sqlEnd: SparkListenerSQLExecutionEnd =>
+        onSQLExecutionEnd(sqlEnd)
+      case _ => // Ignore other events
+    }
+  }
+
+  private def onSQLExecutionStart(sqlStart: SparkListenerSQLExecutionStart): Unit = {
+    val startNanos = System.nanoTime()
+    try {
+      val executionId = sqlStart.executionId
+      val description = sqlStart.description
+      val physicalPlanDescription = sqlStart.physicalPlanDescription
+      val time = sqlStart.time
+      
+      logger.info(s"SQL execution $executionId started: $description")
+
+      // Generate event ID (standard UUID)
+      val eventId = UUID.randomUUID().toString
+      sqlEventIds.put(executionId, eventId)
+      
+      // Get app ID and name
+      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+      val appName = appNames.get(appId)
+      
+      // Emit start event
+      val event = ApplicationEvent(
+        `@timestamp` = Instant.ofEpochMilli(time).toString,
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          category = "application",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "sql",
+          id = s"sql-$executionId",
+          name = description,
+          `parent.id` = None
+        ),
+        correlation = Correlation(),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = appName,
+          `sql.execution.id` = Some(executionId),
+          `sql.description` = Some(description),
+          `sql.query_plan.simplified` = Some(physicalPlanDescription),
+          `sql.query_plan.verbose` = None
+        ))
+      )
+      
+      eventEmitter.emitEvent(event)
+      
+      // Create OTel span
+      val parentSpan = applicationSpan.values.headOption
+      
+      val spanBuilder = tracer.spanBuilder(s"spark.sql.$executionId")
+        .setSpanKind(SpanKind.INTERNAL)
+        .setStartTimestamp(Instant.ofEpochMilli(time))
+        .setAttribute("spark.sql.execution.id", executionId.toLong)
+        .setAttribute("spark.sql.description", description)
+        .setAttribute("spark.sql.physical_plan", physicalPlanDescription)
+        .setAttribute("correlation.event.start.id", eventId)
+        .setAttribute("span.kind", "Spark.SQL")
+      
+      parentSpan.foreach { parent =>
+        spanBuilder.setParent(Context.current().`with`(parent))
+      }
+      
+      val span = spanBuilder.startSpan()
+      sqlExecutionSpans.put(executionId, span)
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      logger.debug(s"SQL execution $executionId span created (${elapsedMs}ms)")
+      
+    } catch {
+      case e: Exception =>
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onSQLExecutionStart for execution ${sqlStart.executionId} (${elapsedMs}ms)", e)
+    }
+  }
+
+  private def onSQLExecutionEnd(sqlEnd: SparkListenerSQLExecutionEnd): Unit = {
+    val startNanos = System.nanoTime()
+    try {
+      val executionId = sqlEnd.executionId
+      val time = sqlEnd.time
+      
+      logger.info(s"SQL execution $executionId ended")
+      
+      // Get start event ID
+      val startEventId = sqlEventIds.get(executionId)
+      
+      // Get span for correlation
+      val spanOption = sqlExecutionSpans.get(executionId)
+      val spanId = spanOption.map(s => s.getSpanContext.getSpanId)
+      val traceId = spanOption.map(s => s.getSpanContext.getTraceId)
+      
+      // Generate end event ID (standard UUID)
+      val endEventId = UUID.randomUUID().toString
+      
+      // Get app ID and name
+      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+      val appName = appNames.get(appId)
+      
+      // Duration will be calculated by Elasticsearch if needed
+      // For now, omit duration as we don't have access to start time from the span
+      
+      // Emit end event
+      val event = ApplicationEvent(
+        `@timestamp` = Instant.ofEpochMilli(time).toString,
+        event = EventMetadata(
+          id = endEventId,
+          `type` = "end",
+          category = "application",
+          state = "closed"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "sql",
+          id = s"sql-$executionId",
+          name = s"SQL $executionId",
+          result = Some("SUCCESS")
+        ),
+        correlation = Correlation(
+          `span.id` = spanId,
+          `trace.id` = traceId,
+          `start.event.id` = startEventId
+        ),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = appName,
+          `sql.execution.id` = Some(executionId)
+        ))
+      )
+      
+      eventEmitter.emitEvent(event)
+      
+      // Complete span
+      spanOption.foreach { span =>
+        span.setAttribute("correlation.event.end.id", endEventId)
+        span.setStatus(StatusCode.OK)
+        span.end(Instant.ofEpochMilli(time))
+      }
+      
+      // Cleanup
+      sqlExecutionSpans.remove(executionId)
+      sqlEventIds.remove(executionId)
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      logger.debug(s"SQL execution $executionId completed (${elapsedMs}ms)")
+      
+    } catch {
+      case e: Exception =>
+        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+        logger.error(s"Error in onSQLExecutionEnd for execution ${sqlEnd.executionId} (${elapsedMs}ms)", e)
+    }
+  }
 
   override def onExecutorAdded(executorAdded: SparkListenerExecutorAdded): Unit = {
     try {

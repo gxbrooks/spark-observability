@@ -1,0 +1,74 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "app-events-*",
+    "id": "app-events",
+    "name": "Application Events",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "event.id": {"customLabel": "Event ID"},
+      "event.type": {"customLabel": "Event Type"},
+      "event.state": {"customLabel": "Event State"},
+      "event.category": {"customLabel": "Category"},
+      "event.duration": {"customLabel": "Duration (ns)"},
+      "application": {"customLabel": "Application"},
+      "operation.type": {"customLabel": "Operation Type"},
+      "operation.id": {"customLabel": "Operation ID"},
+      "operation.name": {"customLabel": "Operation Name"},
+      "operation.result": {"customLabel": "Result"},
+      "operation.parent.id": {"customLabel": "Parent Operation"},
+      "correlation.span.id": {"customLabel": "Span ID"},
+      "correlation.trace.id": {"customLabel": "Trace ID"},
+      "correlation.start.event.id": {"customLabel": "Start Event ID"},
+      "correlation.parent.event.id": {"customLabel": "Parent Event ID"},
+      "spark.app.id": {"customLabel": "Spark App ID"},
+      "spark.app.name": {"customLabel": "Spark App Name"},
+      "spark.job.id": {"customLabel": "Job ID"},
+      "spark.stage.id": {"customLabel": "Stage ID"},
+      "spark.stage.name": {"customLabel": "Stage Name"},
+      "spark.stage.result": {"customLabel": "Stage Result"},
+      "spark.task.id": {"customLabel": "Task ID"},
+      "spark.sql.execution.id": {"customLabel": "SQL Execution ID"},
+      "spark.sql.description": {"customLabel": "SQL Query"},
+      "spark.sql.query_plan.simplified": {"customLabel": "Physical Plan"},
+      "spark.metrics.duration.ms": {"customLabel": "Duration (ms)"},
+      "spark.metrics.shuffle.read.bytes": {"customLabel": "Shuffle Read"},
+      "spark.metrics.shuffle.write.bytes": {"customLabel": "Shuffle Write"},
+      "spark.metrics.input.bytes": {"customLabel": "Input Bytes"},
+      "spark.metrics.output.bytes": {"customLabel": "Output Bytes"}
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "event.duration": {
+        "id": "duration",
+        "params": {"inputFormat": "nanoseconds", "outputFormat": "humanizePrecise"}
+      },
+      "spark.metrics.duration.ms": {
+        "id": "duration",
+        "params": {"inputFormat": "milliseconds", "outputFormat": "humanizePrecise"}
+      },
+      "spark.metrics.shuffle.read.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
+      },
+      "spark.metrics.shuffle.write.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
+      },
+      "spark.metrics.input.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
+      },
+      "spark.metrics.output.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
+      }
+    }
+  }
+}

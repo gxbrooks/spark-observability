@@ -2,82 +2,90 @@
   "override": true,
   "refresh_fields": true,
   "data_view": {
-    "title": "otel-traces",
+    "title": "traces-otel-default*",
     "id": "otel-traces",
     "name": "OpenTelemetry Traces",
     "allowNoIndex": true,
-    "fields": {
-      "@timestamp": {"name": "@timestamp", "customLabel": "Timestamp"},
-      "TraceId": {"name": "TraceId", "customLabel": "Trace ID"},
-      "TraceId.keyword": {"name": "TraceId.keyword", "customLabel": "Trace ID"},
-      "SpanId": {"name": "SpanId", "customLabel": "Span ID"},
-      "SpanId.keyword": {"name": "SpanId.keyword", "customLabel": "Span ID"},
-      "ParentSpanId": {"name": "ParentSpanId", "customLabel": "Parent Span ID"},
-      "ParentSpanId.keyword": {"name": "ParentSpanId.keyword", "customLabel": "Parent Span ID"},
-      "Name": {"name": "Name", "customLabel": "Span Name"},
-      "Name.keyword": {"name": "Name.keyword", "customLabel": "Span Name"},
-      "Kind": {"name": "Kind", "customLabel": "Span Kind"},
-      "Duration": {"name": "Duration", "customLabel": "Duration (ns)"},
-      "EndTimestamp": {"name": "EndTimestamp", "customLabel": "End Time"},
-      "TraceStatus": {"name": "TraceStatus", "customLabel": "Status"},
-      "Attributes.spark.app.name": {"name": "Attributes.spark.app.name", "customLabel": "App Name"},
-      "Attributes.spark.app.name.keyword": {"name": "Attributes.spark.app.name.keyword", "customLabel": "App Name"},
-      "Attributes.spark.app.id": {"name": "Attributes.spark.app.id", "customLabel": "App ID"},
-      "Attributes.spark.app.id.keyword": {"name": "Attributes.spark.app.id.keyword", "customLabel": "App ID"},
-      "Attributes.spark.user": {"name": "Attributes.spark.user", "customLabel": "Spark User"},
-      "Attributes.spark.user.keyword": {"name": "Attributes.spark.user.keyword", "customLabel": "Spark User"},
-      "Attributes.spark.job.id": {"name": "Attributes.spark.job.id", "customLabel": "Job ID"},
-      "Attributes.spark.job.result": {"name": "Attributes.spark.job.result", "customLabel": "Job Result"},
-      "Attributes.spark.job.result.keyword": {"name": "Attributes.spark.job.result.keyword", "customLabel": "Job Result"},
-      "Attributes.span.kind": {"name": "Attributes.span.kind", "customLabel": "Span Kind"},
-      "Attributes.span.kind.keyword": {"name": "Attributes.span.kind.keyword", "customLabel": "Span Kind"},
-      "Attributes.spark.job.stage.count": {"name": "Attributes.spark.job.stage.count", "customLabel": "Stage Count"},
-      "Attributes.spark.stage.id": {"name": "Attributes.spark.stage.id", "customLabel": "Stage ID"},
-      "Attributes.spark.stage.name": {"name": "Attributes.spark.stage.name", "customLabel": "Stage Name"},
-      "Attributes.spark.stage.name.keyword": {"name": "Attributes.spark.stage.name.keyword", "customLabel": "Stage Name"},
-      "Attributes.spark.stage.num.tasks": {"name": "Attributes.spark.stage.num.tasks", "customLabel": "Num Tasks"},
-      "Attributes.spark.stage.tasks.completed": {"name": "Attributes.spark.stage.tasks.completed", "customLabel": "Tasks Completed"},
-      "Attributes.spark.stage.result": {"name": "Attributes.spark.stage.result", "customLabel": "Stage Result"},
-      "Attributes.spark.stage.shuffle.read.bytes": {"name": "Attributes.spark.stage.shuffle.read.bytes", "customLabel": "Shuffle Read"},
-      "Attributes.spark.stage.shuffle.write.bytes": {"name": "Attributes.spark.stage.shuffle.write.bytes", "customLabel": "Shuffle Write"},
-      "Attributes.spark.stage.input.bytes": {"name": "Attributes.spark.stage.input.bytes", "customLabel": "Input Bytes"},
-      "Attributes.spark.stage.output.bytes": {"name": "Attributes.spark.stage.output.bytes", "customLabel": "Output Bytes"},
-      "Resource.service.name": {"name": "Resource.service.name", "customLabel": "Service Name"},
-      "Resource.service.name.keyword": {"name": "Resource.service.name.keyword", "customLabel": "Service Name"},
-      "Resource.service.namespace": {"name": "Resource.service.namespace", "customLabel": "Service Namespace"},
-      "Resource.service.namespace.keyword": {"name": "Resource.service.namespace.keyword", "customLabel": "Service Namespace"},
-      "Resource.k8s.cluster.name": {"name": "Resource.k8s.cluster.name", "customLabel": "K8s Cluster"},
-      "Resource.k8s.cluster.name.keyword": {"name": "Resource.k8s.cluster.name.keyword", "customLabel": "K8s Cluster"},
-      "Resource.deployment.environment": {"name": "Resource.deployment.environment", "customLabel": "Environment"},
-      "Resource.deployment.environment.keyword": {"name": "Resource.deployment.environment.keyword", "customLabel": "Environment"}
+    "timeFieldName": "@timestamp",
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "trace.id": {"customLabel": "Trace ID"},
+      "span.id": {"customLabel": "Span ID"},
+      "parent.id": {"customLabel": "Parent Span ID"},
+      "span.name": {"customLabel": "Span Name"},
+      "span.kind": {"customLabel": "Operation Hierarchy"},
+      "application": {"customLabel": "Application"},
+      "operation.type": {"customLabel": "Operation Type"},
+      "event.outcome": {"customLabel": "Outcome"},
+      "service.name": {"customLabel": "Service Name"},
+      "service.namespace": {"customLabel": "Service Namespace"},
+      "service.environment": {"customLabel": "Environment"},
+      "spark.app.id": {"customLabel": "Spark App ID"},
+      "spark.app.name": {"customLabel": "Spark App Name"},
+      "spark.user": {"customLabel": "Spark User"},
+      "spark.job.id": {"customLabel": "Job ID"},
+      "spark.job.result": {"customLabel": "Job Result"},
+      "spark.job.stage.count": {"customLabel": "Stage Count"},
+      "spark.job.stages": {"customLabel": "Job Stages"},
+      "spark.job.sql.execution.id": {"customLabel": "SQL Execution ID"},
+      "spark.stage.id": {"customLabel": "Stage ID"},
+      "spark.stage.name": {"customLabel": "Stage Name"},
+      "spark.stage.num.tasks": {"customLabel": "Num Tasks"},
+      "spark.stage.tasks.completed": {"customLabel": "Tasks Completed"},
+      "spark.stage.result": {"customLabel": "Stage Result"},
+      "spark.stage.shuffle.read.bytes": {"customLabel": "Shuffle Read"},
+      "spark.stage.shuffle.write.bytes": {"customLabel": "Shuffle Write"},
+      "spark.stage.input.bytes": {"customLabel": "Input Bytes"},
+      "spark.stage.output.bytes": {"customLabel": "Output Bytes"},
+      "spark.task.id": {"customLabel": "Task ID"},
+      "spark.task.index": {"customLabel": "Task Index"},
+      "spark.task.executor.id": {"customLabel": "Executor ID"},
+      "spark.task.executor.run.time.ms": {"customLabel": "Executor Run Time"},
+      "spark.task.executor.cpu.time.ms": {"customLabel": "Executor CPU Time"},
+      "spark.task.result.size.bytes": {"customLabel": "Result Size"},
+      "spark.sql.execution.id": {"customLabel": "SQL Execution ID"},
+      "spark.sql.description": {"customLabel": "SQL Query"},
+      "spark.sql.physical_plan": {"customLabel": "Physical Plan"}
     },
     "fieldFormats": {
       "@timestamp": {
         "id": "date",
         "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
       },
-      "EndTimestamp": {
-        "id": "date",
-        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      "application": {
+        "id": "string"
       },
-      "Duration": {
-        "id": "number",
-        "params": {"pattern": "0,0"}
+      "operation.type": {
+        "id": "string"
       },
-      "Attributes.spark.stage.shuffle.read.bytes": {
-        "id": "bytes"
+      "spark.stage.shuffle.read.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
       },
-      "Attributes.spark.stage.shuffle.write.bytes": {
-        "id": "bytes"
+      "spark.stage.shuffle.write.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
       },
-      "Attributes.spark.stage.input.bytes": {
-        "id": "bytes"
+      "spark.stage.input.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
       },
-      "Attributes.spark.stage.output.bytes": {
-        "id": "bytes"
+      "spark.stage.output.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
+      },
+      "spark.task.result.size.bytes": {
+        "id": "bytes",
+        "params": {"pattern": "0,0.0 b"}
+      },
+      "spark.task.executor.run.time.ms": {
+        "id": "duration",
+        "params": {"inputFormat": "milliseconds", "outputFormat": "humanizePrecise"}
+      },
+      "spark.task.executor.cpu.time.ms": {
+        "id": "duration",
+        "params": {"inputFormat": "milliseconds", "outputFormat": "humanizePrecise"}
       }
-    },
-    "sourceFilters": []
+    }
   }
 }
-

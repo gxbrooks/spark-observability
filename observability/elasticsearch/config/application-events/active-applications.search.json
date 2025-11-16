@@ -1,0 +1,31 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"operation.type: app AND event.state: open\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"app-events\"}"
+    },
+    "title": "Active Applications",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "application",
+      "operation.name",
+      "spark.app.name",
+      "spark.app.id",
+      "spark.user",
+      "event.id"
+    ],
+    "description": "Currently running applications (those with start event but no end event).",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 50
+  }
+}
+

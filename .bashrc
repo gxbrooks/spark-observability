@@ -55,6 +55,10 @@ else
     echo "Warning: devops_env.sh not found. Run: python3 linux/generate_env.py"
 fi
 
+# Set SPARK_LOCAL_IP to suppress hostname resolution warnings
+# This prevents "Your hostname, Lab2, resolves to a loopback address" warning
+export SPARK_LOCAL_IP="${SPARK_LOCAL_IP:-192.168.1.48}"
+
 # Generate spark-defaults.conf from template on each login
 # This ensures configuration stays in sync with variables.yaml
 spark_defaults_generator="$project_root/linux/generate_spark_defaults.sh"

@@ -1,0 +1,31 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"span.kind: Spark.app\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"otel-traces\"}"
+    },
+    "title": "Spark Applications",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "spark.app.name",
+      "spark.app.id",
+      "spark.user",
+      "event.outcome",
+      "span.id",
+      "trace.id"
+    ],
+    "description": "All Spark application-level spans showing app details and trace IDs.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 50
+  }
+}
+

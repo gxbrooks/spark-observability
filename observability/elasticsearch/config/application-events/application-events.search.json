@@ -1,0 +1,31 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"app-events\"}"
+    },
+    "title": "All Application Events",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "event.type",
+      "event.state",
+      "application",
+      "operation.type",
+      "operation.name",
+      "spark.app.name",
+      "operation.result"
+    ],
+    "description": "All application events (Spark, EFT, ETL) showing start/end events and operation details.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
+  }
+}

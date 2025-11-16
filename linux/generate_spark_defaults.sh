@@ -42,8 +42,14 @@ if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ]]; then
     exit 1
 fi
 
-# Set JAR path - expand HOME
-SPARK_OTEL_LISTENER_JAR="${HOME}/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar"
+# Set ES variables with defaults if not set
+ES_URL="${ES_URL:-https://es01:9200}"
+ES_USER="${ES_USER:-elastic}"
+ES_PASSWORD="${ES_PASSWORD:-changeme}"
+
+# Set JAR path - use from devops_env.sh if set, otherwise default, then expand ~
+SPARK_OTEL_LISTENER_JAR="${SPARK_OTEL_LISTENER_JAR:-${HOME}/repos/elastic-on-spark/spark/otel-listener/spark-otel-listener-1.0.0.jar}"
+SPARK_OTEL_LISTENER_JAR="${SPARK_OTEL_LISTENER_JAR/#\~/${HOME}}"
 
 if [ ! -f "$SPARK_OTEL_LISTENER_JAR" ]; then
     echo "Warning: OTel listener JAR not found at: $SPARK_OTEL_LISTENER_JAR" >&2
@@ -62,9 +68,19 @@ fi
 # Generate using appropriate method
 if [ "$USE_SED" = "1" ]; then
     # Fallback: sed-based substitution
-    sed -e "s|{{ PYSPARK_PYTHON }}|${PYSPARK_PYTHON}|g" \
-        -e "s|{{ OTEL_EXPORTER_OTLP_ENDPOINT }}|${OTEL_EXPORTER_OTLP_ENDPOINT}|g" \
-        -e "s|{{ SPARK_OTEL_LISTENER_JAR }}|${SPARK_OTEL_LISTENER_JAR}|g" \
+    # Escape special characters in variables for sed
+    PYSPARK_PYTHON_ESC=$(echo "$PYSPARK_PYTHON" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    OTEL_ENDPOINT_ESC=$(echo "$OTEL_EXPORTER_OTLP_ENDPOINT" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    JAR_PATH_ESC=$(echo "$SPARK_OTEL_LISTENER_JAR" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    ES_URL_ESC=$(echo "$ES_URL" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    ES_USER_ESC=$(echo "$ES_USER" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    ES_PASSWORD_ESC=$(echo "$ES_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    sed -e "s|{{ PYSPARK_PYTHON }}|${PYSPARK_PYTHON_ESC}|g" \
+        -e "s|{{ OTEL_EXPORTER_OTLP_ENDPOINT }}|${OTEL_ENDPOINT_ESC}|g" \
+        -e "s|{{ SPARK_OTEL_LISTENER_JAR }}|${JAR_PATH_ESC}|g" \
+        -e "s|{{ ES_URL }}|${ES_URL_ESC}|g" \
+        -e "s|{{ ES_USER }}|${ES_USER_ESC}|g" \
+        -e "s|{{ ES_PASSWORD }}|${ES_PASSWORD_ESC}|g" \
         "$TEMPLATE" > "$OUTPUT"
 else
     # Preferred: Jinja2 rendering via Python
@@ -82,7 +98,10 @@ with open(template_file, 'r') as f:
 rendered = template.render(
     PYSPARK_PYTHON='$PYSPARK_PYTHON',
     OTEL_EXPORTER_OTLP_ENDPOINT='$OTEL_EXPORTER_OTLP_ENDPOINT',
-    SPARK_OTEL_LISTENER_JAR='$SPARK_OTEL_LISTENER_JAR'
+    SPARK_OTEL_LISTENER_JAR='$SPARK_OTEL_LISTENER_JAR',
+    ES_URL='$ES_URL',
+    ES_USER='$ES_USER',
+    ES_PASSWORD='$ES_PASSWORD'
 )
 
 with open(output_file, 'w') as f:

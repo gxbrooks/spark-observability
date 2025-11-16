@@ -517,29 +517,81 @@ echo "✅ Spark Application Logs initialized"
 # STEP 14: Initialize OpenTelemetry Traces (ILM, Templates, Data Views)
 # ============================================================================
 echo ""
-echo "=== STEP 14: INITIALIZING OPENTELEMETRY TRACES ==="
+echo "=== STEP 14: INITIALIZING OPENTELEMETRY TRACES (DATA STREAM) ==="
+
+echo "Creating extract-application-fields ingest pipeline..."
+esapi PUT /_ingest/pipeline/extract-application-fields \
+  ${ES_CONFIG_DIR}/otel-traces/extract-application-fields-pipeline.json \
+  > ${ES_OUTPUTS_DIR}/otel-traces.pipeline.out.json
 
 echo "Creating otel-traces ILM policy..."
 esapi PUT /_ilm/policy/otel-traces \
   ${ES_CONFIG_DIR}/otel-traces/otel-traces.ilm-policy.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.ilm.out.json
 
-echo "Creating otel-traces index template..."
+echo "Creating otel-traces data stream template..."
 esapi PUT /_index_template/otel-traces \
-  ${ES_CONFIG_DIR}/otel-traces/otel-traces.template.json \
+  ${ES_CONFIG_DIR}/otel-traces/otel-traces.datastream.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.template.out.json
+
+echo "Creating otel-traces data stream..."
+esapi PUT /_data_stream/traces-otel-default \
+  > ${ES_OUTPUTS_DIR}/otel-traces.datastream.out.json
 
 echo "Creating otel-traces data view..."
 kapi POST /api/data_views/data_view \
   ${ES_CONFIG_DIR}/otel-traces/otel-traces.dataview.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.dataview.out.json
 
-echo "Creating otel-traces search..."
+echo "Creating otel-traces searches..."
 kapi POST /api/saved_objects/search/otel-traces?overwrite=true \
-  ${ES_CONFIG_DIR}/otel-traces/otel-traces.search.json \
-  > ${ES_OUTPUTS_DIR}/otel-traces.search.out.json 2>&1
+  ${ES_CONFIG_DIR}/otel-traces/otel-traces.search.json > /dev/null 2>&1
+kapi POST /api/saved_objects/search/spark-applications?overwrite=true \
+  ${ES_CONFIG_DIR}/otel-traces/spark-applications.search.json > /dev/null 2>&1
+kapi POST /api/saved_objects/search/spark-errors?overwrite=true \
+  ${ES_CONFIG_DIR}/otel-traces/spark-errors.search.json > /dev/null 2>&1
 
-echo "✅ OpenTelemetry traces initialized"
+echo "✅ OpenTelemetry traces (data stream) initialized"
+
+# ============================================================================
+# STEP 15: Initialize Application Events (ILM, Templates, Index, Data Views)
+# ============================================================================
+echo ""
+echo "=== STEP 15: INITIALIZING APPLICATION EVENTS ==="
+
+echo "Creating application-events ILM policy..."
+esapi PUT /_ilm/policy/application-events \
+  ${ES_CONFIG_DIR}/application-events/application-events.ilm.json \
+  > ${ES_OUTPUTS_DIR}/application-events.ilm.out.json
+
+echo "Creating application-events index template..."
+esapi PUT /_index_template/application-events \
+  ${ES_CONFIG_DIR}/application-events/application-events.template.json \
+  > ${ES_OUTPUTS_DIR}/application-events.template.out.json
+
+echo "Creating app-events-000001 index if it doesn't exist..."
+if ! esapi GET /app-events-000001 >& /dev/null; then
+  esapi PUT /app-events-000001 \
+    ${ES_CONFIG_DIR}/application-events/application-events.index.json \
+    > ${ES_OUTPUTS_DIR}/application-events.index.out.json
+else
+  echo "  (index already exists, skipping)"
+fi
+
+echo "Creating application-events data view..."
+kapi POST /api/data_views/data_view \
+  ${ES_CONFIG_DIR}/application-events/application-events.dataview.json \
+  > ${ES_OUTPUTS_DIR}/application-events.dataview.out.json
+
+echo "Creating application-events searches..."
+kapi POST /api/saved_objects/search/application-events?overwrite=true \
+  ${ES_CONFIG_DIR}/application-events/application-events.search.json > /dev/null 2>&1
+kapi POST /api/saved_objects/search/open-operations?overwrite=true \
+  ${ES_CONFIG_DIR}/application-events/open-operations.search.json > /dev/null 2>&1
+kapi POST /api/saved_objects/search/active-applications?overwrite=true \
+  ${ES_CONFIG_DIR}/application-events/active-applications.search.json > /dev/null 2>&1
+
+echo "✅ Application events initialized"
 
 # ============================================================================
 # COMPLETION

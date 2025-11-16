@@ -41,6 +41,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Spark SQL (for SQL execution listeners and physical plans) -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_${scala.binary.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- OpenTelemetry API -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
@@ -69,11 +77,25 @@
             <version>${otel.version}</version>
         </dependency>
 
+        <!-- OpenTelemetry Logging Exporter (for testing without collector) -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-logging</artifactId>
+            <version>${otel.version}</version>
+        </dependency>
+
         <!-- OpenTelemetry Semantic Conventions -->
         <dependency>
             <groupId>io.opentelemetry.semconv</groupId>
             <artifactId>opentelemetry-semconv</artifactId>
             <version>1.25.0-alpha</version>
+        </dependency>
+
+        <!-- JSON Serialization -->
+        <dependency>
+            <groupId>org.json4s</groupId>
+            <artifactId>json4s-native_${scala.binary.version}</artifactId>
+            <version>4.0.7</version>
         </dependency>
 
         <!-- Logging -->

@@ -1,0 +1,97 @@
+{
+  "index_patterns": ["traces-otel-*"],
+  "data_stream": {},
+  "priority": 500,
+  "template": {
+    "settings": {
+      "number_of_shards": 2,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "otel-traces",
+      "index.codec": "best_compression",
+      "index.mapping.total_fields.limit": 2000,
+      "index.default_pipeline": "extract-application-fields"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis||strict_date_optional_time||yyyy-MM-dd HH:mm:ss.SSS"
+        },
+        "TraceId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "SpanId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "ParentSpanId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "Name": {
+          "type": "keyword",
+          "ignore_above": 512
+        },
+        "Kind": {
+          "type": "keyword"
+        },
+        "Duration": {
+          "type": "long"
+        },
+        "application": {
+          "type": "keyword"
+        },
+        "operation": {
+          "properties": {
+            "type": {"type": "keyword"}
+          }
+        },
+        "EndTimestamp": {
+          "type": "date"
+        },
+        "TraceStatus": {
+          "type": "long"
+        },
+        "Attributes": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "spark.app.name": {"type": "keyword"},
+            "spark.app.id": {"type": "keyword"},
+            "spark.user": {"type": "keyword"},
+            "spark.job.id": {"type": "long"},
+            "spark.stage.id": {"type": "long"},
+            "spark.task.id": {"type": "long"},
+            "span.kind": {"type": "keyword"},
+            "correlation.event.start.id": {"type": "keyword"},
+            "correlation.event.end.id": {"type": "keyword"}
+          }
+        },
+        "Resource": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "service.name": {"type": "keyword"},
+            "service.namespace": {"type": "keyword"},
+            "deployment.environment": {"type": "keyword"}
+          }
+        },
+        "Scope": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "keyword"},
+            "version": {"type": "keyword"}
+          }
+        },
+        "events": {
+          "type": "nested"
+        },
+        "links": {
+          "type": "nested"
+        }
+      }
+    }
+  }
+}
+

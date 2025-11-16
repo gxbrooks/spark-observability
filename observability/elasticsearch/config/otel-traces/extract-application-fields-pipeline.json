@@ -1,0 +1,12 @@
+{
+  "description": "Extract application and operation.type from span.kind for efficient querying",
+  "processors": [
+    {
+      "script": {
+        "description": "Split span.kind on '.' to extract application and operation.type",
+        "source": "if (ctx.span != null && ctx.span.kind != null) { String kind = ctx.span.kind.toString(); String[] parts = kind.splitOnToken('.'); if (parts.length >= 2) { ctx.application = parts[0].toLowerCase(); if (ctx.operation == null) { ctx.operation = new HashMap(); } ctx.operation.type = parts[1]; } }"
+      }
+    }
+  ]
+}
+
