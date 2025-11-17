@@ -100,12 +100,12 @@ except Exception as e:
 
 from pyspark.sql import SparkSession
  
-spark = SparkSession.builder.config(
-    "spark.jars.packages",
-    "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1", ## 1
-    .config("spark.eventLog.enabled", "true") \
-    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
-).getOrCreate()
+# spark = SparkSession.builder.config(
+#     "spark.jars.packages",
+#     "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1", ## 1
+#     .config("spark.eventLog.enabled", "true") \
+#     .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
+# ).getOrCreate()
 
 # [...]
 # com.google.cloud.spark#spark-bigquery-with-dependencies_2.12 added as a dependency

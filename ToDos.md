@@ -215,6 +215,13 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 
 **Last Updated**: 2025-11-12
 
+### Investigate Elasticsearch SSL Handshake Warnings
+**Priority**: Medium  
+**Status**: In Progress  
+**Description**: Elasticsearch is logging SSL handshake errors (`bad_certificate`) - 6,663+ occurrences detected. All configured services (Logstash, Kibana, OTEL Collector, Grafana) are correctly configured with HTTPS and CA certificates. This indicates a misconfigured client is attempting to connect without proper SSL.  
+**Documentation**: `tmp/20251116_SSL_WARNINGS_ANALYSIS.md`  
+**Action Required**: Identify the source client from `remoteAddress` in error logs and fix its SSL configuration.
+
 ### CoreDNS on K8s
 Where Kubernetes resolves GaryPC.local:
 - Inside the OTel collector pods, when the Elasticsearch exporter connects to GaryPC.local:9200.

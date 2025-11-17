@@ -524,6 +524,11 @@ esapi PUT /_ingest/pipeline/extract-application-fields \
   ${ES_CONFIG_DIR}/otel-traces/extract-application-fields-pipeline.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.pipeline.out.json
 
+echo "Creating spark-semantic-enrichment ingest pipeline..."
+esapi PUT /_ingest/pipeline/spark-semantic-enrichment \
+  ${ES_CONFIG_DIR}/otel-traces/spark-semantic-enrichment-pipeline.json \
+  > ${ES_OUTPUTS_DIR}/otel-traces.semantic-pipeline.out.json
+
 echo "Creating otel-traces ILM policy..."
 esapi PUT /_ilm/policy/otel-traces \
   ${ES_CONFIG_DIR}/otel-traces/otel-traces.ilm-policy.json \
@@ -534,9 +539,8 @@ esapi PUT /_index_template/otel-traces \
   ${ES_CONFIG_DIR}/otel-traces/otel-traces.datastream.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.template.out.json
 
-echo "Creating otel-traces data stream..."
-esapi PUT /_data_stream/traces-otel-default \
-  > ${ES_OUTPUTS_DIR}/otel-traces.datastream.out.json
+echo "Note: Data stream 'traces-otel-default' will be created automatically when the first document is indexed"
+echo "Data view has allowNoIndex:true, so it can be created without the data stream existing"
 
 echo "Creating otel-traces data view..."
 kapi POST /api/data_views/data_view \

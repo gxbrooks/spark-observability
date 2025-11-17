@@ -9,7 +9,7 @@
       "index.lifecycle.name": "otel-traces",
       "index.codec": "best_compression",
       "index.mapping.total_fields.limit": 2000,
-      "index.default_pipeline": "extract-application-fields"
+      "index.default_pipeline": "otel-traces-default"
     },
     "mappings": {
       "properties": {
@@ -62,10 +62,33 @@
             "spark.user": {"type": "keyword"},
             "spark.job.id": {"type": "long"},
             "spark.stage.id": {"type": "long"},
+            "spark.stage.name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
             "spark.task.id": {"type": "long"},
             "span.kind": {"type": "keyword"},
             "correlation.event.start.id": {"type": "keyword"},
             "correlation.event.end.id": {"type": "keyword"}
+          }
+        },
+        "correlation": {
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "keyword"}
+                  }
+                },
+                "end": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "keyword"}
+                  }
+                }
+              }
+            }
           }
         },
         "Resource": {

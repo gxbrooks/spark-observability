@@ -1,0 +1,38 @@
+{
+  "description": "Post-processing enrichment for Spark semantic classification (shuffle reason, performance hints, execution mode)",
+  "processors": [
+    {
+      "script": {
+        "description": "Infer shuffle reason from operation and shuffle classification",
+        "lang": "painless",
+        "source": "if (ctx.Attributes == null) { ctx.Attributes = [:]; }\ndef op = ctx.Attributes['spark.semantic.operation'];\ndef shuffleClass = ctx.Attributes['spark.semantic.shuffle.classification'];\n\nif (shuffleClass == 'shuffle_producer') {\n  if (op == 'aggregation') {\n    ctx.Attributes['spark.semantic.shuffle.reason'] = 'groupby';\n  } else if (op == 'join') {\n    ctx.Attributes['spark.semantic.shuffle.reason'] = 'join';\n  } else if (ctx.Attributes['spark.stage.name'] != null && ctx.Attributes['spark.stage.name'].toString().toLowerCase().contains('sort')) {\n    ctx.Attributes['spark.semantic.shuffle.reason'] = 'sort';\n  } else if (ctx.Attributes['spark.stage.name'] != null && ctx.Attributes['spark.stage.name'].toString().toLowerCase().contains('repartition')) {\n    ctx.Attributes['spark.semantic.shuffle.reason'] = 'repartition';\n  }\n} else if (shuffleClass == 'narrow_transformation') {\n  ctx.Attributes['spark.semantic.shuffle.reason'] = 'none';\n}",
+        "ignore_failure": true
+      }
+    },
+    {
+      "script": {
+        "description": "Extract execution mode from stage name",
+        "lang": "painless",
+        "source": "def stageName = ctx.Attributes?.get('spark.stage.name');\nif (stageName == null) { return; }\n\nif (ctx.Attributes == null) { ctx.Attributes = [:]; }\ndef stageNameStr = stageName.toString().toLowerCase();\n\nif (stageNameStr.contains('wholestagedcodegen')) {\n  ctx.Attributes['spark.semantic.execution.mode'] = 'codegen';\n} else if (stageNameStr.contains('exchange')) {\n  ctx.Attributes['spark.semantic.execution.mode'] = 'shuffle_exchange';\n  if (stageNameStr.contains('hashpartitioning')) {\n    ctx.Attributes['spark.semantic.partitioning.type'] = 'hash';\n  } else if (stageNameStr.contains('rangepartitioning')) {\n    ctx.Attributes['spark.semantic.partitioning.type'] = 'range';\n  }\n}",
+        "ignore_failure": true
+      }
+    },
+    {
+      "script": {
+        "description": "Add performance hints based on patterns",
+        "lang": "painless",
+        "source": "if (ctx.Attributes == null) { ctx.Attributes = [:]; }\ndef op = ctx.Attributes['spark.semantic.operation'];\ndef shuffleWrite = ctx.Attributes?.get('spark.stage.shuffle.write.bytes');\ndef duration = ctx.Duration;\n\ndef hints = [];\n\nif (shuffleWrite != null && shuffleWrite > 100000000 && op == 'aggregation') {\n  hints.add('High-cardinality groupBy - consider pre-aggregation');\n}\nif (shuffleWrite != null && shuffleWrite > 500000000 && op == 'join') {\n  hints.add('Large join shuffle - consider broadcast join if one side is small');\n}\nif (duration != null && duration > 60000000000L) {\n  long durationMs = duration / 1000000;\n  hints.add('Long-running stage (' + durationMs + 'ms) - investigate task skew');\n}\n\nif (hints.size() > 0) {\n  ctx.Attributes['spark.semantic.performance.hint'] = String.join('; ', hints);\n}",
+        "ignore_failure": true
+      }
+    }
+  ],
+  "on_failure": [
+    {
+      "set": {
+        "field": "error.enrichment",
+        "value": "Failed to enrich with semantic information"
+      }
+    }
+  ]
+}
+

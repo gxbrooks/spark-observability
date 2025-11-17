@@ -117,6 +117,9 @@ class OTelSparkListener extends SparkListener {
   private val taskEventIds: TrieMap[Long, String] = TrieMap.empty
   private val sqlEventIds: TrieMap[Long, String] = TrieMap.empty
   
+  // Store semantic operation and confidence for refinement in onStageCompleted
+  private val stageSemanticData: TrieMap[Int, (String, Double)] = TrieMap.empty
+  
   // Track application names for correlation
   private val appNames: TrieMap[String, String] = TrieMap.empty
   
@@ -392,6 +395,34 @@ class OTelSparkListener extends SparkListener {
       // For simplicity, we'll use the first available job span
       val parentSpan = jobSpans.values.headOption
 
+      // Extract semantic information from stage name
+      val operationPattern = """^(\w+)\s+at\s+([^:]+):(\d+)""".r
+      val semanticOperationType = stageName match {
+        case operationPattern(op, _, _) => Some(op)
+        case _ =>
+          // Fallback: try simpler pattern
+          if (stageName.contains(" at ")) {
+            val parts = stageName.split(" at ")
+            if (parts.length > 0) Some(parts(0).trim) else None
+          } else None
+      }
+      
+      val semanticSourceFile = stageName match {
+        case operationPattern(_, file, _) => Some(file)
+        case _ => None
+      }
+      
+      val semanticSourceLine = stageName match {
+        case operationPattern(_, _, line) => Try(line.toInt).toOption
+        case _ => None
+      }
+      
+      // Extract RDD types from stage info
+      val rddInfos = stageInfo.rddInfos
+      val rddTypes = if (rddInfos.nonEmpty) {
+        Some(rddInfos.map(_.name).distinct.mkString(","))
+      } else None
+      
       val spanBuilder = tracer.spanBuilder(s"spark.stage.$stageId")
         .setSpanKind(SpanKind.INTERNAL)
         .setStartTimestamp(timestamp)
@@ -401,6 +432,65 @@ class OTelSparkListener extends SparkListener {
         .setAttribute("spark.stage.attempt", attemptNumber.toLong)
         .setAttribute("span.kind", "Spark.stage")
         .setAttribute("correlation.event.start.id", eventId)
+      
+      // Add semantic attributes
+      semanticOperationType.foreach(op => spanBuilder.setAttribute("spark.semantic.operation.type", op))
+      semanticSourceFile.foreach(file => spanBuilder.setAttribute("spark.semantic.source.file", file))
+      semanticSourceLine.foreach(line => spanBuilder.setAttribute("spark.semantic.source.line", line.toLong))
+      
+      // Multi-signal operation classification with confidence scoring
+      var operationScores = scala.collection.mutable.Map[String, Double]().withDefaultValue(0.0)
+      
+      // Signal 1: Stage name parsing (weight 0.4)
+      semanticOperationType.foreach { op =>
+        val normalizedOp = op.toLowerCase match {
+          case "count" | "groupby" | "reducebykey" | "aggregatebykey" => "aggregation"
+          case "join" | "cogroup" | "leftjoin" | "rightjoin" | "outerjoin" => "join"
+          case "filter" => "filter"
+          case "map" | "mappartitions" | "flatmap" | "mapvalues" => "transformation"
+          case "union" => "union"
+          case "distinct" => "distinct"
+          case _ => "unknown"
+        }
+        if (normalizedOp != "unknown") {
+          operationScores(normalizedOp) += 0.4
+        }
+      }
+      
+      // Signal 2: RDD type analysis (weight 0.3)
+      rddTypes.foreach { types =>
+        spanBuilder.setAttribute("spark.semantic.rdd.types", types)
+        spanBuilder.setAttribute("spark.semantic.rdd.count", rddInfos.length.toLong)
+        
+        if (types.contains("ShuffledRDD")) {
+          if (types.contains("CoGroupedRDD")) {
+            operationScores("join") += 0.3
+          } else {
+            operationScores("aggregation") += 0.3
+          }
+        } else if (types.contains("MapPartitionsRDD")) {
+          operationScores("transformation") += 0.3
+        } else if (types.contains("UnionRDD")) {
+          operationScores("union") += 0.3
+        }
+      }
+      
+      // Select best operation and set confidence
+      if (operationScores.nonEmpty) {
+        val bestOperation = operationScores.maxBy(_._2)
+        val confidence = bestOperation._2
+        
+        spanBuilder.setAttribute("spark.semantic.operation", bestOperation._1)
+        spanBuilder.setAttribute("spark.semantic.confidence", confidence)
+        
+        // Store for refinement in onStageCompleted
+        stageSemanticData.put(stageId, (bestOperation._1, confidence))
+        
+        // Flag low confidence for review
+        if (confidence < 0.7) {
+          spanBuilder.setAttribute("spark.semantic.low_confidence", true)
+        }
+      }
 
       // Set parent if available
       parentSpan.foreach { parent =>
@@ -507,6 +597,57 @@ class OTelSparkListener extends SparkListener {
           span.setAttribute("spark.stage.output.bytes", taskMetrics.outputMetrics.bytesWritten)
           span.setAttribute("spark.stage.memory.spilled.bytes", taskMetrics.memoryBytesSpilled)
           span.setAttribute("spark.stage.disk.spilled.bytes", taskMetrics.diskBytesSpilled)
+          
+          // Shuffle classification
+          val shuffleWrite = taskMetrics.shuffleWriteMetrics.bytesWritten
+          val shuffleRead = taskMetrics.shuffleReadMetrics.totalBytesRead
+          
+          val classification = (shuffleWrite > 0, shuffleRead > 0) match {
+            case (true, false) => "shuffle_producer"
+            case (false, true) => "shuffle_consumer"
+            case (true, true) => "shuffle_exchange"
+            case _ => "narrow_transformation"
+          }
+          span.setAttribute("spark.semantic.shuffle.classification", classification)
+          
+          // Shuffle intensity
+          val intensity = if (shuffleWrite > 100000000) "very_high"      // > 100 MB
+                          else if (shuffleWrite > 10000000) "high"       // > 10 MB
+                          else if (shuffleWrite > 1000000) "medium"      // > 1 MB
+                          else if (shuffleWrite > 0) "low"                // > 0
+                          else "none"
+          span.setAttribute("spark.semantic.shuffle.intensity", intensity)
+          
+          // Signal 3: Shuffle pattern (weight 0.3) - refine operation classification
+          // This is done here because we have shuffle metrics available
+          stageSemanticData.remove(stageId).foreach { case (opStr, currentConfidence) =>
+            var refinedConfidence = currentConfidence
+            
+            // Refine based on shuffle pattern
+            classification match {
+              case "shuffle_producer" =>
+                if (opStr == "aggregation" || opStr == "join") {
+                  refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
+                }
+              case "shuffle_consumer" =>
+                if (opStr == "join") {
+                  refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
+                }
+              case "narrow_transformation" =>
+                if (opStr == "transformation" || opStr == "filter") {
+                  refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
+                }
+              case _ => // shuffle_exchange - no refinement
+            }
+            
+            // Update confidence and low_confidence flag
+            span.setAttribute("spark.semantic.confidence", refinedConfidence: Double)
+            if (refinedConfidence < 0.7) {
+              span.setAttribute("spark.semantic.low_confidence", true)
+            } else {
+              span.setAttribute("spark.semantic.low_confidence", false)
+            }
+          }
         }
 
         // Set status based on failure

@@ -437,8 +437,10 @@ gsod_light.withColumn(
 # answer = randomly assign values in the same partioin to tiles
 
 # Create a Spark session
-    .config("spark.eventLog.enabled", "true") \
-    .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
+# tSpark = SparkSession.builder.appName("DateFunctionExample") \
+#     .config("spark.eventLog.enabled", "true") \
+#     .config("spark.eventLog.dir", os.getenv('SPARK_EVENTS_DIR', '/mnt/spark/events')) \
+#     .getOrCreate()
 tSpark = SparkSession.builder.appName("DateFunctionExample").getOrCreate()
 
 # Example data
