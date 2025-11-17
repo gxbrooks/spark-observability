@@ -211,6 +211,6 @@ Dashboard configuration is provisioned via Grafana's provisioning system:
 ## Related Documentation
 
 - [System Metrics ILM Policies](/observability/elasticsearch/system-metrics/README.md)
-- [Variables Configuration](/variables.yaml) - Retention policy definitions
+- [Variables Configuration](/vars/variables.yaml) - Retention policy definitions
 - [Grafana Dashboard Provisioning](/observability/grafana/README.md)
 

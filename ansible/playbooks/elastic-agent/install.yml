@@ -2,7 +2,7 @@
 - name: Install Elastic Agent on Windows hosts (SSH+cmd, raw module only)
   hosts: windows
   vars_files:
-    - "{{ playbook_dir | dirname | dirname }}/vars/elastic_agent_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/elastic-agent-ansible/elastic_agent_vars.yml"
   vars:
     elastic_agent_windows_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-windows-x86_64.zip"
     elastic_agent_temp_base: "C:/temp"
@@ -129,7 +129,7 @@
 - name: Install Elastic Agent on Native Linux hosts following best practices
   hosts: native
   vars_files:
-    - "{{ playbook_dir | dirname | dirname }}/vars/elastic_agent_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/elastic-agent-ansible/elastic_agent_vars.yml"
   vars:
     elastic_agent_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-linux-x86_64.tar.gz"
     elastic_agent_temp_base: "/tmp"

@@ -32,7 +32,7 @@ elastic-on-spark/
 │   └── ispark/              # Interactive Spark development
 ├── elastic-agent/           # Elastic Agent configuration
 ├── linux/                   # Linux utilities and scripts
-└── variables.yaml           # Central variable definitions
+└── vars/variables.yaml           # Central variable definitions
 ```
 
 ### Key Features
@@ -93,7 +93,7 @@ After deployment, services are accessible at:
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | **Kibana** | http://GaryPC.local:5601 | elastic / myElastic2025 |
-| **Grafana** | http://GaryPC.local:3000 | admin / (check observability/.env) |
+| **Grafana** | http://GaryPC.local:3000 | admin / (see `vars/contexts/observability/.env`) |
 | **Elasticsearch** | https://GaryPC.local:9200 | elastic / myElastic2025 |
 | **Spark History** | http://Lab2.local:31534 | (no auth) |
 
@@ -102,10 +102,10 @@ After deployment, services are accessible at:
 ### Variable Management
 ```bash
 # Regenerate all environment files
-python3 linux/generate_env.py -f
+python3 vars/generate_env.py -f
 
 # Regenerate specific contexts
-python3 linux/generate_env.py spark-client elastic-agent
+python3 vars/generate_env.py spark-client elastic-agent
 ```
 
 ### Running Tests
@@ -128,12 +128,12 @@ Elastic Agent → Logstash → Elasticsearch → Kibana
 
 ### Variable Flow
 ```
-variables.yaml → generate_env.py → Context-specific files → Deployment
+vars/variables.yaml → generate_env.py → Context-specific files → Deployment
 ```
 
 ## 🤝 Contributing
 
-1. Follow the variable management system in `variables.yaml`
+1. Follow the variable management system in `vars/variables.yaml`
 2. Update documentation in `docs/` directory
 3. Test changes with Ansible playbooks
 4. Ensure security best practices are maintained

@@ -111,19 +111,19 @@ ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "spark_comp
 ```
 
 #### Environment Configuration Generation
-The system automatically generates configuration files from `variables.yaml` as needed. The modification time-based generation mechanism compares the modification time of the source `variables.yaml` file with that of the generated files to determine if regeneration is necessary.
+The system automatically generates configuration files from `vars/variables.yaml` as needed. The modification time-based generation mechanism compares the modification time of the source `vars/variables.yaml` file with that of the generated files to determine if regeneration is necessary.
 
-Generated configuration files include:
-- `observability/.env` - Environment variables for Docker Compose
-- `spark/spark-image.toml` - Configuration for Spark image builds
-- `ansible/roles/spark/files/k8s/spark-configmap.yaml` - Kubernetes ConfigMap for Spark runtime (auto-generated)
+Generated configuration files live under `vars/contexts/` and include:
+- `vars/contexts/observability/.env` - Environment variables for Docker Compose
+- `vars/contexts/spark-image/spark-image.toml` - Configuration for Spark image builds
+- `vars/contexts/spark-runtime/spark-configmap.yaml` - Kubernetes ConfigMap for Spark runtime (auto-generated)
 
 These files are only regenerated when:
-1. The source `variables.yaml` file has been modified more recently than the generated files
+1. The source `vars/variables.yaml` file has been modified more recently than the generated files
 2. The target files don't exist
 3. Force regeneration is explicitly requested
 
-> **Important:** If you modify `variables.yaml`, always regenerate the configuration files before running Ansible playbooks.
+> **Important:** If you modify `vars/variables.yaml`, always regenerate the configuration files before running Ansible playbooks.
 
 To force regeneration of these files, use the `force_env_generation` parameter:
 
@@ -137,16 +137,16 @@ You can also manually generate configuration files by running the script directl
 
 ```bash
 # Generate all configuration files
-python3 linux/generate_env.py
+python3 vars/generate_env.py
 
 # Generate specific context files
-python3 linux/generate_env.py observability spark-runtime
+python3 vars/generate_env.py observability spark-runtime
 
 # Force regeneration
-python3 linux/generate_env.py -f
+python3 vars/generate_env.py -f
 
 # Get verbose output
-python3 linux/generate_env.py -v
+python3 vars/generate_env.py -v
 ```
 
 ### Spark History Server
@@ -196,7 +196,7 @@ Then access: http://localhost:18080
      ```bash
      # Regenerate environment files
      cd /home/gxbrooks/repos/elastic-on-spark
-     python3 linux/generate_env.py -f
+     python3 vars/generate_env.py -f
      
      # Then run the playbook from ansible directory
      cd ansible

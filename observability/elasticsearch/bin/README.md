@@ -41,7 +41,7 @@ For client mode usage (outside Docker containers):
    pip install requests
    ```
 
-2. **Required environment variables** (automatically set when you source `linux/devops_env.sh`):
+2. **Required environment variables** (automatically set when you source `vars/contexts/devops/devops_env.sh`):
    - `CA_CERT`: Path to CA certificate
    - `ELASTIC_HOST_CLIENT` or `ELASTIC_HOST`: Elasticsearch hostname
    - `ELASTIC_PORT`: Elasticsearch port
@@ -53,7 +53,7 @@ For client mode usage (outside Docker containers):
 
 3. **Source the devops environment**:
    ```bash
-   source linux/devops_env.sh
+   source vars/contexts/devops/devops_env.sh
    ```
 
 4. **Add bin directory to PATH**:
@@ -125,7 +125,7 @@ pip install requests
 
 Make sure you've sourced the devops environment:
 ```bash
-source linux/devops_env.sh
+source vars/contexts/devops/devops_env.sh
 ```
 
 ### "Error: CA certificate path does not exist"

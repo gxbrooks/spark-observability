@@ -148,7 +148,7 @@ Automatic progressive downsampling for long-term metric retention:
 
 **Configuration**: See `docs/Lifecycle_Policies.md`
 
-**Retention Settings**: `/variables.yaml` (lines 36-53)
+**Retention Settings**: `/vars/variables.yaml` (lines 36-53)
 
 **Important**: Current retention periods are for **test/lab purposes**. Adjust for enterprise deployments.
 

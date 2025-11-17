@@ -72,7 +72,7 @@ Spark Client (Lab2)                    Kubernetes Cluster
 ```bash
 cd /home/gxbrooks/repos/elastic-on-spark
 source venv/bin/activate
-source spark/spark_env.sh
+source vars/contexts/spark-client/spark_env.sh
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.local:31317"
 
 python -c "

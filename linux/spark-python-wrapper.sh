@@ -2,8 +2,8 @@
 #
 # Spark Python Wrapper Script (DEPRECATED)
 # 
-# This script is deprecated. Use linux/devops_env.sh instead:
-#   source linux/devops_env.sh
+# This script is deprecated. Use vars/contexts/devops/devops_env.sh instead:
+#   source vars/contexts/devops/devops_env.sh
 #   python3 spark/apps/Chapter_XX.py
 #
 # This wrapper is kept for backwards compatibility only.
@@ -15,14 +15,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "⚠️  WARNING: This wrapper is deprecated!"
-echo "   Use instead: source linux/devops_env.sh && python3 spark/apps/Chapter_XX.py"
+echo "   Use instead: source vars/contexts/devops/devops_env.sh && python3 spark/apps/Chapter_XX.py"
 echo ""
 
 # Source devops environment for Python version
-if [ -f "${SCRIPT_DIR}/devops_env.sh" ]; then
-    source "${SCRIPT_DIR}/devops_env.sh"
+DEVOPS_ENV_FILE="${ROOT_DIR}/vars/contexts/devops/devops_env.sh"
+if [ -f "${DEVOPS_ENV_FILE}" ]; then
+    source "${DEVOPS_ENV_FILE}"
 else
-    echo "Error: devops_env.sh not found. Run: python3 linux/generate_env.py"
+    echo "Error: devops_env.sh not found at ${DEVOPS_ENV_FILE}. Run: python3 vars/generate_env.py devops"
     exit 1
 fi
 
@@ -43,7 +44,7 @@ if ! python${PYTHON_VERSION} -c "import pyspark" 2>/dev/null; then
     exit 1
 fi
 
-echo "Using Python ${PYTHON_VERSION} from devops_env.sh..."
+echo "Using Python ${PYTHON_VERSION} from vars/contexts/devops/devops_env.sh..."
 echo "PYSPARK_PYTHON=$PYSPARK_PYTHON"
 
 # Execute the command

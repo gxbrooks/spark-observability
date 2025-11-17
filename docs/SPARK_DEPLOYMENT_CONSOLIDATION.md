@@ -95,7 +95,7 @@ The script is ideal for data exploration and interactive development without hav
 The implementation follows Ansible best practices:
 
 1. **Templating and Configuration**:
-   - Uses the same environment variables from `spark-configmap.yaml` that are generated from `variables.yaml`
+   - Uses the same environment variables from `spark-configmap.yaml` that are generated from `vars/variables.yaml`
    - Inherits Spark image settings from the main deployment
    - Uses a Jinja2 template for pod configuration in `ansible/roles/spark_ipython/templates/spark-ipython-pod.yml.j2`
 

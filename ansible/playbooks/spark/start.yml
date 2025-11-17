@@ -11,7 +11,7 @@
   hosts: kubernetes_master
   become: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml"
   vars:
     # Use user's home directory for k8s configs, not /opt/spark
     user_spark_home: "/home/{{ ansible_user }}/spark"
@@ -24,7 +24,7 @@
     - name: Run generate_env.py to ensure configuration files are up-to-date
       delegate_to: localhost
       become: false
-      shell: "python3 linux/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      shell: "python3 vars/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
       args:
         chdir: "{{ project_root }}"
       register: generate_result
@@ -108,7 +108,7 @@
         - spark-worker.yaml
         - spark-history.yaml
 
-    - name: Copy Spark service and env ConfigMap manifests
+    - name: Copy Spark service manifests
       copy:
         src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/{{ item }}"
         dest: "{{ k8s_config_dir }}/{{ item }}"
@@ -117,7 +117,6 @@
         - spark-master-service.yaml
         - spark-master-headless.yaml
         - spark-history-service.yaml
-        - spark-configmap.yaml
 
     - name: Template spark-defaults.conf from template
       template:
@@ -144,7 +143,7 @@
 
     - name: Copy ConfigMap to a temporary file
       copy:
-        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-configmap.yaml"
+        src: "{{ project_root }}/vars/contexts/spark-runtime/spark-configmap.yaml"
         dest: "{{ k8s_config_dir }}/spark-configmap.yaml"
         mode: '0644'
         

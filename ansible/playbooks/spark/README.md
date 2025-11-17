@@ -155,7 +155,7 @@ kubectl get pods -n spark -o wide | grep worker
 ## Configuration
 
 ### Environment Variables
-Spark configuration is managed through the `spark-configmap` ConfigMap, which is generated from `variables.yaml` by `linux/generate_env.py`.
+Spark configuration is managed through the `spark-configmap` ConfigMap, which is generated from `vars/variables.yaml` by `vars/generate_env.py`.
 
 ### Node Affinity
 Workers are distributed using node affinity rules:

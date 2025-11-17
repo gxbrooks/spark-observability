@@ -30,7 +30,7 @@ echo "================================="
 
 # Export ES_* variables for developer use (can be copy/pasted into shell)
 # Standardized naming: ES_* for Elasticsearch (ES already stands for Elasticsearch)
-# All variables must be provided via .env from variables.yaml (fail-fast, no defaults)
+# All variables must be provided via .env from vars/variables.yaml (fail-fast, no defaults)
 export ES_DIR="${ES_DIR}"
 export ES_CONFIG_DIR="${ES_CONFIG_DIR}"
 export ES_OUTPUTS_DIR="${ES_OUTPUTS_DIR}"
@@ -75,7 +75,7 @@ PATH="${PATH}:${ES_BIN_DIR}"
 # Change to elasticsearch directory so relative paths work
 cd "${ES_DIR}"
 
-# Verify required environment variables (fail-fast: all must be provided via .env from variables.yaml)
+# Verify required environment variables (fail-fast: all must be provided via .env from vars/variables.yaml)
 REQUIRED_VARS=(
   "ES_DIR"
   "ES_CONFIG_DIR"
@@ -99,10 +99,10 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
-  echo "❌ Fatal error: Required environment variables not set (must be provided via .env from variables.yaml):"
+  echo "❌ Fatal error: Required environment variables not set (must be provided via .env from vars/variables.yaml):"
   printf "   %s\n" "${MISSING_VARS[@]}"
   echo ""
-  echo "This is a fail-fast check. All variables must be explicitly defined in variables.yaml"
+  echo "This is a fail-fast check. All variables must be explicitly defined in vars/variables.yaml"
   echo "and passed through the .env file. No default values are allowed."
   exit 1
 fi

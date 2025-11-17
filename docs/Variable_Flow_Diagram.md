@@ -1,7 +1,7 @@
 ```mermaid
 flowchart TD
     subgraph "Source Definition"
-        variables["variables.yaml"]
+        variables["vars/variables.yaml"]
     end
 
     subgraph "Processing"

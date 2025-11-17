@@ -20,10 +20,10 @@ This directory contains Apache Spark applications and client tools for running w
    cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
    ```
 
-3. **Configuration**: Environment variables generated from `variables.yaml`
+3. **Configuration**: Environment variables generated from `vars/variables.yaml`
    ```bash
    # Regenerate if needed
-   python3 linux/generate_env.py spark-client ispark
+python3 vars/generate_env.py spark-client ispark
    ```
 
 ## Running Spark Applications
@@ -116,7 +116,7 @@ Client-mode Spark configuration:
 - Network timeouts and settings
 
 ### Generated Environment Files
-Auto-generated from `variables.yaml`:
+Auto-generated from `vars/variables.yaml`:
 - `spark_env.sh`: Environment variables for batch apps
 - `ispark/ispark_env.sh`: Environment variables for interactive mode
 

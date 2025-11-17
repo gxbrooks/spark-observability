@@ -47,12 +47,12 @@ fi
 
 # Source devops environment variables (Python version, OTEL config, etc.)
 project_root="${dir}"
-devops_env_file="$project_root/linux/devops_env.sh"
+devops_env_file="$project_root/vars/contexts/devops/devops_env.sh"
 
 if [ -f "$devops_env_file" ]; then
     source "$devops_env_file"
 else
-    echo "Warning: devops_env.sh not found. Run: python3 linux/generate_env.py"
+    echo "Warning: devops_env.sh not found. Run: python3 vars/generate_env.py devops"
 fi
 
 # Set SPARK_LOCAL_IP to suppress hostname resolution warnings
@@ -70,8 +70,8 @@ if [ -f "$spark_defaults_generator" ]; then
 fi
 
 # Source Spark client environment variables
-if [ -f "$project_root/spark/spark_env.sh" ]; then
-    source "$project_root/spark/spark_env.sh"
+if [ -f "$project_root/vars/contexts/spark-client/spark_env.sh" ]; then
+    source "$project_root/vars/contexts/spark-client/spark_env.sh"
     # Set SPARK_MASTER_URL from external host/port
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_EXTERNAL_HOST}:${SPARK_MASTER_EXTERNAL_PORT}"
 fi

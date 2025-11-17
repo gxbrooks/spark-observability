@@ -53,11 +53,11 @@ Kubernetes configuration for Hadoop DataNode:
 Jinja2 template for Hadoop configuration:
 - Core-site.xml with HDFS default filesystem
 - Hdfs-site.xml with NameNode and DataNode settings
-- Uses variables from `variables.yaml`
+- Uses variables from `vars/variables.yaml`
 
 ## Variables
 
-The playbooks use variables from `variables.yaml` with the `hadoop` context:
+The playbooks use variables from `vars/variables.yaml` with the `hadoop` context:
 
 - `HADOOP_NAMENODE`: NameNode service name and port
 - `HADOOP_CONF_DIR`: Hadoop configuration directory
@@ -114,4 +114,4 @@ After deployment, Hadoop services are available at:
 - The Hadoop configuration uses Kubernetes service names for internal communication
 - NameNode uses StatefulSet for persistent storage
 - DataNode uses Deployment for scalability
-- All configuration is templated using variables from `variables.yaml`
+- All configuration is templated using variables from `vars/variables.yaml`

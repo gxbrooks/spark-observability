@@ -222,7 +222,7 @@ GF_SECURITY_ADMIN_PASSWORD:
 # env.con is in elastic-agent/env.conf
 # there is a playbook to inject env.conf into the Elastic Agent service environment.
 # for Windows there is a task to populate environment variables from the Linux version
-# All this needs to be integrated with linux/generate_env.py
+# All this needs to be integrated with vars/generate_env.py
 ELASTIC_AGENT_VERSION:
   value: 8.15.0
   contexts: [elastic-agent-ansible]

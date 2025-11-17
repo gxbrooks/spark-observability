@@ -92,7 +92,7 @@ Variables are categorized by context to ensure proper usage:
 
 ### Central Variable Definition
 
-All variables are defined in a single source of truth (`variables.yaml`) with their respective contexts:
+All variables are defined in a single source of truth (`vars/variables.yaml`) with their respective contexts:
 
 ```yaml
 SPARK_VERSION:
@@ -116,7 +116,7 @@ USER_SPARK_HOME:
 
 Variables flow from the central definition to deployment following this pattern:
 
-1. **Definition**: Variables are defined in `variables.yaml`
+1. **Definition**: Variables are defined in `vars/variables.yaml`
 2. **Processing**: `generate_env.py` processes these variables based on context
 3. **Context-specific Files**: Variables are written to context-specific files
    - `spark-image.toml` for Docker build
@@ -162,11 +162,11 @@ When using variables in templates:
 
 The elastic-on-spark project implements these best practices through:
 
-1. **Centralized Variable Definition**: All variables in `variables.yaml`
-2. **Variable Processing**: Using `linux/generate_env.py` to generate context-specific files
+1. **Centralized Variable Definition**: All variables in `vars/variables.yaml`
+2. **Variable Processing**: Using `vars/generate_env.py` to generate context-specific files
 3. **Ansible Integration**: 
-   - Playbooks use `spark_vars.yml` generated from the central configuration
-   - Correct path resolution is critical: `{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml`
+   - Playbooks use `vars/contexts/ansible/spark_vars.yml` generated from the central configuration
+   - Correct path resolution is critical: `{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml`
    - This pattern ensures variables are found regardless of which directory contains the executing playbook
 4. **Kubernetes Deployment**: ConfigMaps and deployment manifests use these variables
 
@@ -183,9 +183,9 @@ The elastic-on-spark project implements these best practices through:
    - Verify that templates reference the correct path variables
 
 3. **Configuration Mismatches**:
-   - Always regenerate configuration files after changing `variables.yaml`
+   - Always regenerate configuration files after changing `vars/variables.yaml`
    - Use `linux/validate_variables.sh` to verify consistency
 
 4. **Path Resolution Issues**:
    - When including vars files in roles, ensure proper directory traversal (`dirname` filters)
-   - The pattern `{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml` correctly resolves to the ansible/vars directory from playbooks
+   - The pattern `{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml` correctly resolves to the central vars directory from playbooks

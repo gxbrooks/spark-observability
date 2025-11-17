@@ -53,7 +53,7 @@ Index Lifecycle Management (ILM) policies with automatic downsampling reduce sto
 
 ## Configuration
 
-Retention periods are defined in `/variables.yaml` (lines 36-53):
+Retention periods are defined in `/vars/variables.yaml` (lines 36-53):
 
 ```yaml
 ES_RETENTION_BASE:      2d   # Hot phase retention

@@ -61,13 +61,14 @@ root_dir="$(cd "$dir/.." && pwd)"
 # Note: We use python3 explicitly to handle the bootstrapping issue
 if ! $CHECK; then
   echo "Info    : Generating devops environment configuration..."
-  cd "$root_dir" && python3 linux/generate_env.py devops -f
+  cd "$root_dir" && python3 vars/generate_env.py devops -f
 fi
 
 # Source the generated environment file (if it exists)
-if [[ -f "$root_dir/linux/devops_env.sh" ]]; then
-  source "$root_dir/linux/devops_env.sh"
-  $DEBUG && echo "Debug   : Loaded devops environment from devops_env.sh"
+DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops/devops_env.sh"
+if [[ -f "$DEVOPS_ENV_FILE" ]]; then
+  source "$DEVOPS_ENV_FILE"
+  $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"
 fi
 
 # Override with command-line args if provided
@@ -236,6 +237,6 @@ echo "========================================"
 echo ""
 echo "Next steps:"
 echo "  1. Activate Python venv:  source venv/bin/activate"
-echo "  2. Source Spark env:      source spark/spark_env.sh"
+echo "  2. Source Spark env:      source vars/contexts/spark-client/spark_env.sh"
 echo "  3. Test Spark:            python spark/apps/Chapter_03.py"
 echo ""

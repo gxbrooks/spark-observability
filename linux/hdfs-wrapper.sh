@@ -15,11 +15,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source environment variables from generated files
-if [ -f "${ROOT_DIR}/spark/ispark/ispark_env.sh" ]; then
-    source "${ROOT_DIR}/spark/ispark/ispark_env.sh"
+ISPARK_ENV_FILE="${ROOT_DIR}/vars/contexts/ispark/ispark_env.sh"
+if [ -f "${ISPARK_ENV_FILE}" ]; then
+    source "${ISPARK_ENV_FILE}"
 fi
 
-# Set Hadoop environment variables from variables.yaml
+# Set Hadoop environment variables from vars/variables.yaml
 export HADOOP_NAMENODE="${HADOOP_NAMENODE:-10.101.125.84:9000}"
 export HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-/opt/hadoop/etc/hadoop}"
 export HADOOP_HOME="${HADOOP_HOME:-/opt/hadoop}"

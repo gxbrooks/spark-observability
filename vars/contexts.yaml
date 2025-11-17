@@ -1,5 +1,5 @@
 # Context Specification File
-# Defines how variables from variables.yaml are transformed into context-specific configuration files
+# Defines how variables from vars/variables.yaml are transformed into context-specific configuration files
 #
 # Each context specifies:
 #   - name: Unique identifier for the context
@@ -10,57 +10,57 @@
 contexts:
   - name: observability
     type: env
-    output: observability/.env
+    output: vars/contexts/observability/.env
     description: Environment variables for Docker Compose observability stack (Elasticsearch, Kibana, Grafana)
 
   - name: spark-image
     type: toml
-    output: spark/spark-image.toml
+    output: vars/contexts/spark-image/spark-image.toml
     description: Build-time configuration for Spark Docker images
 
   - name: spark-runtime
     type: configmap
-    output: ansible/roles/spark/files/k8s/spark-configmap.yaml
+    output: vars/contexts/spark-runtime/spark-configmap.yaml
     description: Kubernetes ConfigMap for Spark runtime environment variables
 
   - name: ansible
     type: ansible_vars
-    output: ansible/vars/spark_vars.yml
+    output: vars/contexts/ansible/spark_vars.yml
     description: Ansible variables for Spark deployment playbooks and roles
 
   - name: nfs
     type: ansible_vars
-    output: ansible/vars/nfs_vars.yml
+    output: vars/contexts/nfs/nfs_vars.yml
     description: Ansible variables for NFS server configuration
 
   - name: spark-client
     type: shell_env
-    output: spark/spark_env.sh
+    output: vars/contexts/spark-client/spark_env.sh
     description: Developer environment variables for running Spark applications locally
 
   - name: ispark
     type: shell_env
-    output: spark/ispark/ispark_env.sh
+    output: vars/contexts/ispark/ispark_env.sh
     description: Environment variables for interactive Spark (iPython) sessions
 
   - name: elastic-agent
     type: shell_env
-    output: elastic-agent/elastic_agent_env.sh
+    output: vars/contexts/elastic-agent/elastic_agent_env.sh
     description: Host-level environment variables for Elastic Agent systemd service
 
   - name: elastic-agent-ansible
     type: ansible_vars
-    output: ansible/vars/elastic_agent_vars.yml
+    output: vars/contexts/elastic-agent-ansible/elastic_agent_vars.yml
     description: Ansible variables for Elastic Agent deployment playbooks
 
   - name: devops
     type: shell_env
-    output: linux/devops_env.sh
+    output: vars/contexts/devops/devops_env.sh
     description: Environment variables for devops client initialization (Python, Java versions)
 
   - name: managed-node
     type: shell_env
-    output: linux/managed_node_env.sh
+    output: vars/contexts/managed-node/managed_node_env.sh
     description: Environment variables for managed node initialization (Python, Java versions)
 
 # Supported output types and their generators:

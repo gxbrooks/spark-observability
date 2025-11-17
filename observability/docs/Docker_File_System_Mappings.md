@@ -25,7 +25,7 @@ This document maps file system paths across three contexts:
 │   ├── instances.yml               # Certificate instance definitions
 │   └── ca/                         # CA certificates (generated)
 ├── docker-compose.yml              # Docker Compose service definitions
-├── .env                           # Environment variables (generated from variables.yaml)
+├── .env                           # Environment variables (generated from vars/variables.yaml)
 ├── elasticsearch/                 # Elasticsearch configuration and scripts
 │   ├── bin/                       # API client scripts (esapi, kapi)
 │   │   ├── elastic_api.py         # Unified API client
@@ -62,7 +62,7 @@ This document maps file system paths across three contexts:
 /home/ansible/observability/
 ├── certs/                         # Copied from DevOps repo
 ├── docker-compose.yml             # Copied from DevOps repo
-├── .env                           # Generated from variables.yaml
+├── .env                           # Generated from vars/variables.yaml
 ├── elasticsearch/                 # Copied from DevOps repo
 │   ├── bin/                       # Scripts (esapi, kapi, init-index.sh)
 │   ├── config/                    # Configuration files
@@ -254,7 +254,7 @@ export ES_CA_CERT="/usr/share/elasticsearch/config/certs/ca/ca.crt"  # From cert
 ~/repos/elastic-on-spark/observability/
 ├── All configuration files
 ├── All scripts
-└── .env (generated from variables.yaml)
+└── .env (generated from vars/variables.yaml)
 ```
 
 ### Step 2: Ansible Deployment
@@ -296,7 +296,7 @@ volumes:
 ### For Development (DevOps User)
 
 1. **Edit files in source repository**: Always edit files in `~/repos/elastic-on-spark/observability/`
-2. **Regenerate .env**: Run `python3 linux/generate_env.py -f observability` after changing `variables.yaml`
+2. **Regenerate .env**: Run `python3 vars/generate_env.py -f observability` after changing `vars/variables.yaml`
 3. **Test locally**: Use Docker Compose from the source repository directory
 4. **Commit changes**: Commit all changes to Git before deploying
 
@@ -342,8 +342,8 @@ volumes:
 
 **Check**:
 1. Verify `ES_*` environment variables in `docker-compose.yml`
-2. Check `.env` file is generated correctly from `variables.yaml`
-3. Verify context-specific variable values in `variables.yaml`
+2. Check `.env` file is generated correctly from `vars/variables.yaml`
+3. Verify context-specific variable values in `vars/variables.yaml`
 4. Check script uses environment variables, not hardcoded paths
 
 ## Related Documentation

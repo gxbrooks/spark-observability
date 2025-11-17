@@ -36,9 +36,10 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root_dir="$(cd "$dir/.." && pwd)"
 
 # Load NFS server information from environment
-if [[ -f "$root_dir/linux/devops_env.sh" ]]; then
-  source "$root_dir/linux/devops_env.sh"
-  $DEBUG && echo "Debug   : Loaded devops environment"
+DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops/devops_env.sh"
+if [[ -f "$DEVOPS_ENV_FILE" ]]; then
+  source "$DEVOPS_ENV_FILE"
+  $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"
 fi
 
 # Default NFS server (Lab2) - override from environment if available

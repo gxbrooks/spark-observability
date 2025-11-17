@@ -39,7 +39,13 @@ cd "$PROJECT_ROOT"
 source venv/bin/activate
 
 # Load Spark environment
-source spark/spark_env.sh
+SPARK_ENV_FILE="$PROJECT_ROOT/vars/contexts/spark-client/spark_env.sh"
+if [ ! -f "$SPARK_ENV_FILE" ]; then
+    echo "Error: Spark client environment not found at $SPARK_ENV_FILE" >&2
+    echo "Run: python3 vars/generate_env.py spark-client" >&2
+    exit 1
+fi
+source "$SPARK_ENV_FILE"
 
 # Set OTel endpoint
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.local:31317"

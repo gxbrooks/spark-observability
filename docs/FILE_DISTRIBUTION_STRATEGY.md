@@ -166,7 +166,7 @@ ansible-playbook -i inventory.yml playbooks/spark/start.yml
 ### For Configuration Files (Ansible)
 1. **Use Jinja2 templates** (`.j2` files)
 2. **Store in Git** with full history
-3. **Generate from variables.yaml** via `generate_env.py`
+3. **Generate from vars/variables.yaml** via `generate_env.py`
 4. **Deploy via Ansible** with validation
 5. **Restart services** after configuration changes
 6. **Test configuration syntax** before deployment

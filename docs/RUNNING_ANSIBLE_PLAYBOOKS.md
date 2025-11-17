@@ -26,7 +26,7 @@ Before running any playbooks, ensure your environment configuration files are up
 
 ```bash
 cd /home/gxbrooks/repos/elastic-on-spark
-python3 linux/generate_env.py
+python3 vars/generate_env.py
 ```
 
 Then run your playbooks from the ansible directory:
@@ -107,10 +107,10 @@ If you encounter permission issues when running the playbook:
 4. Ensure all generated configuration files have proper permissions:
    ```bash
    # Check permissions on generated files
-   ls -la roles/spark/files/k8s/spark-configmap.yaml
+   ls -la vars/contexts/spark-runtime/spark-configmap.yaml
    
    # Fix permissions if needed
-   chmod 644 roles/spark/files/k8s/spark-configmap.yaml
+   chmod 644 vars/contexts/spark-runtime/spark-configmap.yaml
    ```
 
 #### ConfigMap Permission Denied Issue
@@ -119,15 +119,15 @@ If you see an error like this when starting Spark:
 
 ```
 TASK [Apply env ConfigMap for pods] *******************************************************************************************************************
-An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ansible_collections.kubernetes.core.plugins.module_utils.k8s.exceptions.CoreException: Failed to load resource definition: [Errno 13] Permission denied: '/home/gxbrooks/repos/elastic-on-spark/ansible/roles/spark/files/k8s/spark-configmap.yaml'
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ansible_collections.kubernetes.core.plugins.module_utils.k8s.exceptions.CoreException: Failed to load resource definition: [Errno 13] Permission denied: '/home/gxbrooks/repos/elastic-on-spark/vars/contexts/spark-runtime/spark-configmap.yaml'
 ```
 
-This is caused by Ansible's k8s module having issues accessing the file directly from the roles directory. To fix this:
+This is caused by Ansible's k8s module having issues accessing the generated file directly from the repository. To fix this:
 
 1. Regenerate the environment variables:
    ```bash
    cd /home/gxbrooks/repos/elastic-on-spark
-   python3 linux/generate_env.py -f
+   python3 vars/generate_env.py -f
    ```
 
 2. Run the Ansible playbook from the ansible directory:

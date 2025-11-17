@@ -4,7 +4,7 @@
 
 ### **1. Single Source of Truth**
 
-All variables are defined in `variables.yaml`. Never hardcode versions or configuration values in playbooks, scripts, or templates.
+All variables are defined in `vars/variables.yaml`. Never hardcode versions or configuration values in playbooks, scripts, or templates.
 
 ### **1a. Variable Naming Standards**
 
@@ -16,13 +16,13 @@ All variables are defined in `variables.yaml`. Never hardcode versions or config
 
 ### **2. Fail-Fast: No Default Values**
 
-**CRITICAL GUIDELINE**: Never set default values for variables. All variables must be explicitly defined in `variables.yaml` and passed through context files (e.g., `.env` files). Scripts MUST error immediately if required variables are missing.
+**CRITICAL GUIDELINE**: Never set default values for variables. All variables must be explicitly defined in `vars/variables.yaml` and passed through context files (e.g., `.env` files). Scripts MUST error immediately if required variables are missing.
 
 **Best Practice - Fail-Fast Methodology**:
-- ✅ **Explicit definitions**: All variables must be defined in `variables.yaml` with appropriate contexts
+- ✅ **Explicit definitions**: All variables must be defined in `vars/variables.yaml` with appropriate contexts
 - ❌ **No defaults**: Scripts MUST NOT provide fallback/default values (e.g., `${VAR:-default}`)
 - ✅ **Fail immediately**: Missing variables indicate configuration problems and should cause immediate failure
-- ✅ **Detect drift**: Missing variables help identify when `variables.yaml` is out of sync with script requirements
+- ✅ **Detect drift**: Missing variables help identify when `vars/variables.yaml` is out of sync with script requirements
 
 **Rationale**: 
 - The single source of truth model only works if missing values are detected, not silently defaulted
@@ -39,7 +39,7 @@ export ES_HOST="${ES_HOST:-es01}"  # What if ES_HOST should be different?
 export ES_HOST="${ES_HOST}"  # Will error if ES_HOST not set
 # ... later in script ...
 if [[ -z "${ES_HOST}" ]]; then
-  echo "❌ Fatal error: ES_HOST not set (must be provided via .env from variables.yaml)"
+  echo "❌ Fatal error: ES_HOST not set (must be provided via .env from vars/variables.yaml)"
   exit 1
 fi
 ```
@@ -72,15 +72,15 @@ All clients and managed nodes MUST run the same versions. This prevents:
 
 ```mermaid
 flowchart LR
-    A[variables.yaml] -->|defines values| B[generate_env.py]
-    C[contexts.yaml] -->|defines outputs| B
+    A[vars/variables.yaml] -->|defines values| B[generate_env.py]
+    C[vars/contexts.yaml] -->|defines outputs| B
     B --> D[Context Files]
     D --> E[Ansible/Docker]
     E --> F[Deployed]
 ```
 
 **Flow**: 
-1. `variables.yaml` + `contexts.yaml` define what and where
+1. `vars/variables.yaml` + `vars/contexts.yaml` define what and where
 2. `generate_env.py` generates context-specific files
 3. Deployment tools consume generated files
 4. Components run with consistent configuration
@@ -91,19 +91,19 @@ flowchart LR
 
 | File | Purpose | Format |
 |------|---------|--------|
-| `variables.yaml` | Variable values + contexts | YAML |
-| `contexts.yaml` | Output specifications | YAML |
-| `linux/generate_env.py` | Code generator | Python |
+| `vars/variables.yaml` | Variable values + contexts | YAML |
+| `vars/contexts.yaml` | Output specifications | YAML |
+| `vars/generate_env.py` | Code generator | Python |
 
 **Generated Files** (examples):
-- `spark/spark-image.toml` → Docker build args
-- `ansible/vars/spark_vars.yml` → Ansible variables
-- `ansible/roles/spark/files/k8s/spark-configmap.yaml` → K8s environment
-- `observability/.env` → Docker Compose
-- `linux/devops_env.sh` → DevOps client environment
+- `vars/contexts/spark-image/spark-image.toml` → Docker build args
+- `vars/contexts/ansible/spark_vars.yml` → Ansible variables
+- `vars/contexts/spark-runtime/spark-configmap.yaml` → K8s environment
+- `vars/contexts/observability/.env` → Docker Compose
+- `vars/contexts/devops/devops_env.sh` → DevOps client environment
 - `spark/conf/spark-defaults.conf` → Spark client configuration (from .j2 template)
 
-See `contexts.yaml` for complete list of outputs.
+See `vars/contexts.yaml` for complete list of outputs.
 
 **Special Case - Jinja2 Templates**:
 
@@ -121,11 +121,11 @@ Some files use Jinja2 templates for additional flexibility:
 ### **Update a Variable**
 
 ```bash
-# 1. Edit variables.yaml
-vim variables.yaml
+# 1. Edit vars/variables.yaml
+vim vars/variables.yaml
 
 # 2. Regenerate all contexts
-python3 linux/generate_env.py -f
+python3 vars/generate_env.py -f
 
 # 3. Regenerate Spark client configuration (if Spark-related variables changed)
 linux/generate_spark_defaults.sh
@@ -139,20 +139,20 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 ### **Add a New Context**
 
 ```bash
-# 1. Edit contexts.yaml - add new context spec
-# 2. Tag variables in variables.yaml with new context name
+# 1. Edit vars/contexts.yaml - add new context spec
+# 2. Tag variables in vars/variables.yaml with new context name
 # 3. Run generator
-./linux/generate_env.py <context-name> -v
+./vars/generate_env.py <context-name> -v
 ```
 
 ### **Check Status**
 
 ```bash
 # See what would be regenerated
-./linux/generate_env.py
+./vars/generate_env.py
 
 # Force regenerate all with verbose output
-./linux/generate_env.py -f -v
+./vars/generate_env.py -f -v
 ```
 
 ---
@@ -187,16 +187,16 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 ## **Troubleshooting**
 
 **Problem**: Generated file has wrong values  
-**Solution**: Check `variables.yaml` - ensure variable has value and correct contexts list
+**Solution**: Check `vars/variables.yaml` - ensure variable has value and correct contexts list
 
 **Problem**: Variable missing in generated file  
-**Solution**: Add context name to variable's `contexts` list in `variables.yaml`
+**Solution**: Add context name to variable's `contexts` list in `vars/variables.yaml`
 
 **Problem**: Script fails with "variable not defined"  
-**Solution**: ✅ **This is correct behavior!** Add the missing variable to `variables.yaml` with appropriate contexts
+**Solution**: ✅ **This is correct behavior!** Add the missing variable to `vars/variables.yaml` with appropriate contexts
 
 **Problem**: Context not generating  
-**Solution**: Verify context exists in `contexts.yaml` and output type is valid
+**Solution**: Verify context exists in `vars/contexts.yaml` and output type is valid
 
 ---
 
@@ -204,18 +204,18 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 
 ### **Stage 1: Core Environment Files**
 
-`python3 linux/generate_env.py` generates environment files from `variables.yaml`:
+`python3 vars/generate_env.py` generates environment files from `vars/variables.yaml`:
 
 ```
-variables.yaml + contexts.yaml
+vars/variables.yaml + vars/contexts.yaml
         ↓
-linux/generate_env.py
+vars/generate_env.py
         ↓
 Generated Files:
-  - linux/devops_env.sh
-  - spark/spark_env.sh
-  - observability/.env
-  - ansible/vars/*.yml
+  - vars/contexts/devops/devops_env.sh
+  - vars/contexts/spark-client/spark_env.sh
+  - vars/contexts/observability/.env
+  - vars/contexts/ansible/*.yml
   - etc.
 ```
 
@@ -224,7 +224,7 @@ Generated Files:
 `linux/generate_spark_defaults.sh` generates `spark-defaults.conf` from Jinja2 template:
 
 ```
-spark/conf/spark-defaults.conf.j2 + linux/devops_env.sh
+spark/conf/spark-defaults.conf.j2 + vars/contexts/devops/devops_env.sh
         ↓
 linux/generate_spark_defaults.sh (uses Jinja2 or sed)
         ↓
@@ -243,15 +243,15 @@ spark/conf/spark-defaults.conf
 ## **Implementation Details**
 
 For detailed code examples and technical implementation, see:
-- `contexts.yaml` - Context specifications (stage 1)
-- `linux/generate_env.py` - Core generator (stage 1)
+- `vars/contexts.yaml` - Context specifications (stage 1)
+- `vars/generate_env.py` - Core generator (stage 1)
 - `spark/conf/spark-defaults.conf.j2` - Jinja2 template (stage 2)
 - `linux/generate_spark_defaults.sh` - Template renderer (stage 2)
 - `linux/.bashrc` - Auto-regeneration on login
 
 ---
 
-## **Variable Definition Syntax in variables.yaml**
+## **Variable Definition Syntax in vars/variables.yaml**
 
 ### **Simple Format (Single Value)**
 

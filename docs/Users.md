@@ -526,5 +526,5 @@ ansible Lab1 -i ansible/inventory.yml -m shell -a "sudo systemctl restart elasti
 - `linux/assert_managed_node.sh` - Complete managed node setup
 - `linux/assert_devops_client.sh` - Complete devops client setup
 - `ansible/playbooks/elastic-agent/install.yml` - Elastic Agent deployment
-- `variables.yaml` - Central configuration for versions and settings
+- `vars/variables.yaml` - Central configuration for versions and settings
 

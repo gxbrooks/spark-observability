@@ -58,7 +58,7 @@ For development machines with full tooling:
 - `-N <passphrase>`: Passphrase for SSH key generation (security requirement)
 
 **Optional:**
-- `-pyv <version>`: Override Python version (default from `variables.yaml`)
+- `-pyv <version>`: Override Python version (default from `vars/variables.yaml`)
 - `-jv <version>`: Override Java version
 - `-sv <version>`: Override Spark version
 
@@ -88,7 +88,7 @@ For development machines with full tooling:
 - Manages multiple Python versions via `update-alternatives`
 - Updates `/usr/bin/python3` symlink
 
-**Python/Java versions** are defined in `variables.yaml` and generated into environment files.
+**Python/Java versions** are defined in `vars/variables.yaml` and generated into environment files.
 
 ### Package Management
 
@@ -100,8 +100,8 @@ For development machines with full tooling:
 ## Environment Configuration System
 
 The project uses a centralized, data-driven configuration system based on:
-- **`variables.yaml`**: Single source of truth for all variables
-- **`contexts.yaml`**: Defines output contexts and formats
+- **`vars/variables.yaml`**: Single source of truth for all variables
+- **`vars/contexts.yaml`**: Defines output contexts and formats
 - **`generate_env.py`**: Transforms variables into context-specific files
 
 This system generates configuration files in multiple formats (shell, YAML, TOML, Kubernetes ConfigMaps) to ensure consistency across Docker, Kubernetes, Ansible, and local development.
@@ -174,7 +174,7 @@ cd ~/repos/elastic-on-spark
 source venv/bin/activate
 
 # 4. Source Spark environment
-source spark/spark_env.sh
+source vars/contexts/spark-client/spark_env.sh
 
 # 5. Test Spark
 python spark/apps/Chapter_03.py
@@ -186,8 +186,8 @@ See `docs/Variable_Flow.md` for complete instructions on updating variables and 
 
 Quick reference:
 ```bash
-# 1. Edit variables.yaml
-# 2. Regenerate: python3 linux/generate_env.py -f
+# 1. Edit vars/variables.yaml
+# 2. Regenerate: python3 vars/generate_env.py -f
 # 3. Deploy changes as needed
 ```
 
@@ -196,7 +196,7 @@ Quick reference:
 1. **Idempotency**: All scripts can be run multiple times safely
 2. **System-Assigned IDs**: Service accounts get system-assigned UID/GID (except Spark which requires 185/185 for K8s)
 3. **Separation of Concerns**: Clear distinction between managed nodes and devops clients
-4. **Centralized Configuration**: Single source of truth in `variables.yaml`
+4. **Centralized Configuration**: Single source of truth in `vars/variables.yaml`
 5. **Consistency**: Same variables used across Docker, Kubernetes, Ansible, and local development
 
 ## Related Documentation
@@ -209,9 +209,9 @@ Quick reference:
 
 ## Notes
 
-- **Python Version**: Default is 3.11, specified in `variables.yaml`
-- **Java Version**: Default is 17, specified in `variables.yaml`
-- **Spark Version**: Default is 4.0.1, specified in `variables.yaml`
+- **Python Version**: Default is 3.11, specified in `vars/variables.yaml`
+- **Java Version**: Default is 17, specified in `vars/variables.yaml`
+- **Spark Version**: Default is 4.0.1, specified in `vars/variables.yaml`
 - **Spark UID/GID**: Must be 185/185 to match Kubernetes pod securityContext
 - **Ansible User**: System-assigned UID/GID for maximum compatibility
 
@@ -219,7 +219,7 @@ Quick reference:
 
 **Environment files not generated:**
 ```bash
-python3 linux/generate_env.py -f -v
+python3 vars/generate_env.py -f -v
 ```
 
 **Python version mismatch:**

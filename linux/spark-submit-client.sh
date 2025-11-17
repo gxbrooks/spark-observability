@@ -3,7 +3,7 @@
 # Spark Client Wrapper
 # 
 # This script ensures Spark client applications have proper configuration
-# from devops_env.sh without hardcoding values in spark-defaults.conf
+# from vars/contexts/devops/devops_env.sh without hardcoding values in spark-defaults.conf
 #
 # Usage: ./spark-submit-client.sh python spark/apps/Chapter_04.py
 #        ./spark-submit-client.sh spark-submit --class MyClass myapp.jar
@@ -13,10 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source devops environment
-if [ -f "${SCRIPT_DIR}/devops_env.sh" ]; then
-    source "${SCRIPT_DIR}/devops_env.sh"
+DEVOPS_ENV_FILE="${ROOT_DIR}/vars/contexts/devops/devops_env.sh"
+if [ -f "${DEVOPS_ENV_FILE}" ]; then
+    source "${DEVOPS_ENV_FILE}"
 else
-    echo "Error: devops_env.sh not found. Run: python3 linux/generate_env.py"
+    echo "Error: devops_env.sh not found at ${DEVOPS_ENV_FILE}. Run: python3 vars/generate_env.py devops"
     exit 1
 fi
 

@@ -7,7 +7,7 @@
   become: false
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname }}/vars/spark_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml"
   
   tasks:
     - name: Check Spark namespace

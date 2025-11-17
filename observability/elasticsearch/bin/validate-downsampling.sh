@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
-# Load variables from variables.yaml
+# Load variables from vars/variables.yaml
 ES_HOST="${ELASTIC_HOST_CLIENT:-GaryPC.local}"
 ES_PORT="${ELASTIC_PORT:-9200}"
 ES_USER="${ELASTIC_USER:-elastic}"
@@ -131,8 +131,8 @@ for ds in "${sample_streams[@]}"; do
     echo ""
 done
 
-# Check retention settings from variables.yaml
-echo -e "${BLUE}Expected Retention Configuration (from variables.yaml):${NC}"
+# Check retention settings from vars/variables.yaml
+echo -e "${BLUE}Expected Retention Configuration (from vars/variables.yaml):${NC}"
 echo "  Base (30s sampling):   2 days  (Hot tier)"
 echo "  5-minute downsampled:  4 days  (Warm tier, cumulative)"
 echo "  15-minute downsampled: 8 days  (Cold tier, cumulative)"

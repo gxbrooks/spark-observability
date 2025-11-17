@@ -45,7 +45,7 @@ Local Machine                     Kubernetes Cluster (Lab2.local:31686)
 
 ## Environment Variables
 
-The `ispark_env.sh` file (auto-generated from `variables.yaml`) provides:
+The `ispark_env.sh` file (auto-generated from `vars/variables.yaml`) provides:
 - `SPARK_MASTER_EXTERNAL_HOST`: Cluster hostname (Lab2.local)
 - `SPARK_MASTER_EXTERNAL_PORT`: NodePort for client access (31686)
 - Other Spark-related settings
@@ -98,7 +98,7 @@ The environment variables are already configured, so it connects to the cluster 
 If cluster configuration changes, regenerate environment files:
 
 ```bash
-python3 linux/generate_env.py ispark
+python3 vars/generate_env.py ispark
 ```
 
-This updates `ispark_env.sh` with the latest values from `variables.yaml`.
+This updates `vars/contexts/ispark/ispark_env.sh` with the latest values from `vars/variables.yaml`.

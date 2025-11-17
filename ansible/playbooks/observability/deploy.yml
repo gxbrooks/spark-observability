@@ -12,6 +12,7 @@
     observability_dir: "/home/ansible/observability"
     docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
     env_file: "{{ observability_dir }}/.env"
+    env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability/.env"
     
   tasks:
     - name: Detect host OS
@@ -52,7 +53,7 @@
       
     - name: Copy .env file (Linux)
       copy:
-        src: "{{ playbook_dir }}/../../../observability/.env"
+        src: "{{ env_source_file }}"
         dest: "{{ env_file }}"
         mode: '0644'
       when: is_linux

@@ -34,7 +34,7 @@ We have implemented a comprehensive solution to address the DNS resolution issue
 - `/ansible/roles/spark/templates/spark-history.yaml.j2` - Added DNS configurations
 - `/ansible/roles/spark/files/k8s/spark-master-headless.yaml` - New headless service
 - `/ansible/roles/spark/files/conf/spark-defaults.conf` - Updated network settings
-- `/ansible/roles/spark/files/k8s/spark-configmap.yaml` - Updated environment variables
+- `/vars/contexts/spark-runtime/spark-configmap.yaml` - Updated environment variables
 - `/spark/check-spark-health.sh` - Enhanced with DNS diagnosis tools
 - `/spark/k8s-readiness.sh` - New readiness probe script
 - `/docs/SPARK_DNS_RESOLUTION_FIX.md` - Documentation of changes

@@ -57,13 +57,14 @@ done
 # Note: We use python3 explicitly to handle the bootstrapping issue
 if ! $CHECK; then
   echo "Info    : Generating managed-node environment configuration..."
-  cd "$root_dir" && python3 linux/generate_env.py managed-node -f
+  cd "$root_dir" && python3 vars/generate_env.py managed-node -f
 fi
 
 # Source the generated environment file (if it exists)
-if [[ -f "$root_dir/linux/managed_node_env.sh" ]]; then
-  source "$root_dir/linux/managed_node_env.sh"
-  $DEBUG && echo "Debug   : Loaded managed-node environment from managed_node_env.sh"
+MANAGED_ENV_FILE="$root_dir/vars/contexts/managed-node/managed_node_env.sh"
+if [[ -f "$MANAGED_ENV_FILE" ]]; then
+  source "$MANAGED_ENV_FILE"
+  $DEBUG && echo "Debug   : Loaded managed-node environment from $MANAGED_ENV_FILE"
 fi
 
 # Override with command-line args or defaults if provided

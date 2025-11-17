@@ -3,7 +3,7 @@
   hosts: nfs_servers
   become: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname }}/vars/nfs_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs/nfs_vars.yml"
   vars:
     nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check,insecure)"
     nfs_export_dirs:

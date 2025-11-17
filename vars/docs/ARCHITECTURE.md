@@ -1,0 +1,237 @@
+# Variable Context Framework: Architecture
+
+## Executive Summary
+
+This document describes the high-level architecture of the variable context framework, which provides centralized management of configuration variables across multiple applications and deployment targets.
+
+## Architecture Overview
+
+The variable context framework operates on a **two-stage generation process**:
+
+1. **Variable Definition**: All variables are defined in `vars/variables.yaml` along with the contexts (e.g., `observability`, `spark-client`, `ansible`) in which they are relevant.
+2. **Context Specification**: `vars/contexts.yaml` defines the output files to be generated for each context, specifying the output format (e.g., `.env`, `shell_env`, `toml`, `configmap`, `ansible_vars`) and the target file path.
+3. **Generation**: `vars/generate_env.py` reads `vars/variables.yaml` and `vars/contexts.yaml` to produce context-specific configuration files in `vars/contexts/<context>/`.
+
+## Component Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Source Files (Version Controlled)                           │
+│                                                              │
+│  vars/                                                       │
+│  ├── variables.yaml          # Single source of truth       │
+│  ├── contexts.yaml            # Context specifications       │
+│  ├── generate_env.py          # Generator script            │
+│  └── README.md                # Module documentation         │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ reads
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Generation Process                                           │
+│                                                              │
+│  generate_env.py                                             │
+│  ├── Load variables.yaml                                     │
+│  ├── Load contexts.yaml                                      │
+│  ├── Filter variables by context                             │
+│  └── Generate context-specific files                         │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ writes
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Generated Files (Gitignored)                                 │
+│                                                              │
+│  vars/contexts/                                              │
+│  ├── observability/                                          │
+│  │   └── .env                                                │
+│  ├── spark-runtime/                                           │
+│  │   └── spark-configmap.yaml                                │
+│  ├── spark-client/                                           │
+│  │   └── spark_env.sh                                        │
+│  ├── devops/                                                 │
+│  │   └── devops_env.sh                                       │
+│  └── ... (other contexts)                                    │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ consumed by
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Consumers                                                    │
+│                                                              │
+│  ├── Ansible Playbooks        (vars_files, copy tasks)      │
+│  ├── Docker Compose           (--env-file, copied .env)     │
+│  ├── Shell Scripts            (source *.sh)                 │
+│  ├── Kubernetes               (kubectl apply ConfigMap)      │
+│  └── Local Development        (direct sourcing)             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow
+
+### 1. Variable Definition (`variables.yaml`)
+
+Variables are defined with:
+- **Value(s)**: Single value or context-specific overrides
+- **Contexts**: List of contexts where the variable is used
+- **Description**: Optional documentation
+
+Example:
+```yaml
+ELASTIC_URL:
+  value: "https://es01:9200"
+  contexts:
+    - observability
+    - spark-client
+    - devops
+  description: "Elasticsearch URL"
+```
+
+### 2. Context Specification (`contexts.yaml`)
+
+Contexts define:
+- **Name**: Unique context identifier
+- **Type**: Output format (env, shell_env, toml, configmap, ansible_vars)
+- **Output**: Target file path relative to repo root
+- **Description**: Purpose of the context
+
+Example:
+```yaml
+contexts:
+  - name: observability
+    type: env
+    output: vars/contexts/observability/.env
+    description: "Docker Compose environment variables"
+```
+
+### 3. Generation Process
+
+The generator:
+1. Loads `variables.yaml` and `contexts.yaml`
+2. For each context:
+   - Filters variables applicable to that context
+   - Applies context-specific value overrides if present
+   - Generates file using appropriate writer function
+   - Writes to `vars/contexts/<context>/<file>`
+
+### 4. Consumption
+
+Generated files are consumed by:
+- **Ansible**: Via `vars_files` directive or `copy` tasks
+- **Docker Compose**: Via `--env-file` or copied `.env` file
+- **Shell Scripts**: Via `source` command
+- **Kubernetes**: Via `kubectl apply` for ConfigMaps
+- **Local Development**: Direct sourcing or copying
+
+## Directory Structure
+
+```
+vars/
+├── variables.yaml              # Source: Variable definitions
+├── contexts.yaml               # Source: Context specifications
+├── generate_env.py             # Source: Generator script
+├── README.md                   # Source: Module overview
+└── contexts/                   # Generated: All context files (gitignored)
+    ├── observability/
+    │   └── .env
+    ├── spark-runtime/
+    │   └── spark-configmap.yaml
+    ├── spark-client/
+    │   └── spark_env.sh
+    ├── devops/
+    │   └── devops_env.sh
+    ├── ispark/
+    │   └── ispark_env.sh
+    ├── elastic-agent/
+    │   └── elastic_agent_env.sh
+    ├── managed-node/
+    │   └── managed_node_env.sh
+    ├── ansible/
+    │   ├── spark_vars.yml
+    │   ├── nfs_vars.yml
+    │   └── elastic_agent_vars.yml
+    ├── elastic-agent-ansible/
+    │   └── elastic_agent_vars.yml
+    ├── nfs/
+    │   └── nfs_vars.yml
+    └── spark-image/
+        └── spark-image.toml
+```
+
+## Context Types
+
+### Environment Files (`.env`)
+- **Format**: `KEY=VALUE` (no export)
+- **Use Case**: Docker Compose environment variables
+- **Example**: `vars/contexts/observability/.env`
+
+### Shell Environment (`.sh`)
+- **Format**: `export KEY="VALUE"`
+- **Use Case**: Shell scripts, `.bashrc`, local development
+- **Example**: `vars/contexts/devops/devops_env.sh`
+
+### YAML Files (`.yml`)
+- **Format**: YAML structure (Ansible vars, Kubernetes ConfigMaps)
+- **Use Case**: Ansible playbooks, Kubernetes resources
+- **Example**: `vars/contexts/ansible/spark_vars.yml`
+
+### TOML Files (`.toml`)
+- **Format**: TOML key-value pairs
+- **Use Case**: Docker build arguments
+- **Example**: `vars/contexts/spark-image/spark-image.toml`
+
+## Deployment Architecture
+
+### Source Environment (DevOps)
+
+```
+vars/contexts/                  # Generated files
+├── observability/.env
+├── spark-runtime/spark-configmap.yaml
+└── ...
+```
+
+### Target Environments
+
+Files are mapped from source structure to target locations:
+
+1. **Observability Node**: `.env` → `{{ observability_dir }}/.env`
+2. **Kubernetes Cluster**: ConfigMap → Applied via `kubectl`
+3. **Local Development**: Direct sourcing from `vars/contexts/`
+
+### Deployment Flow
+
+```
+Source (vars/contexts/) → Ansible Playbooks → Target Locations
+```
+
+- **Ansible** handles the mapping from source structure to target structure
+- **Local development** uses files directly from `vars/contexts/`
+- **Kubernetes** receives ConfigMaps via `kubectl apply`
+
+## Key Design Principles
+
+1. **Single Source of Truth**: All variables defined in `variables.yaml`
+2. **Context-Based Generation**: Variables filtered and formatted per context
+3. **Clear Separation**: Generated files in dedicated directory
+4. **Idempotent Generation**: Generator only updates changed files
+5. **Fail-Fast Validation**: Missing variables cause immediate failure
+6. **Extension-Agnostic**: Works for files without identifying extensions
+
+## Version Control Strategy
+
+- **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`): ✅ Committed
+- **Generated files** (`vars/contexts/`): ❌ Gitignored
+- **`.gitignore` pattern**: `vars/contexts/`
+
+This ensures:
+- Source of truth is version controlled
+- Generated files are never committed
+- Simple, maintainable `.gitignore` pattern
+
+## Related Documents
+
+- `vars/docs/BEST_PRACTICES.md` - Rationale for the approach
+- `vars/docs/IMPLEMENTATION.md` - Detailed implementation and file specifications
+- `vars/README.md` - Module overview and quick reference
+

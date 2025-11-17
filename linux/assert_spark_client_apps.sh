@@ -205,28 +205,28 @@ check_java() {
 check_env_files() {
     $DEBUG && echo "Debug   : Checking for generated environment files..."
     
-    local spark_env="${root_dir}/spark/spark_env.sh"
-    local ispark_env="${root_dir}/spark/ispark/ispark_env.sh"
+    local spark_env="${root_dir}/vars/contexts/spark-client/spark_env.sh"
+    local ispark_env="${root_dir}/vars/contexts/ispark/ispark_env.sh"
     local all_good=true
     
     if [ -f "$spark_env" ]; then
-        report_check "pass" "Spark environment file exists: spark/spark_env.sh"
+        report_check "pass" "Spark environment file exists: vars/contexts/spark-client/spark_env.sh"
     else
-        report_check "fail" "Spark environment file missing: spark/spark_env.sh"
+        report_check "fail" "Spark environment file missing: vars/contexts/spark-client/spark_env.sh"
         all_good=false
     fi
     
     if [ -f "$ispark_env" ]; then
-        report_check "pass" "iSpark environment file exists: spark/ispark/ispark_env.sh"
+        report_check "pass" "iSpark environment file exists: vars/contexts/ispark/ispark_env.sh"
     else
-        report_check "fail" "iSpark environment file missing: spark/ispark/ispark_env.sh"
+        report_check "fail" "iSpark environment file missing: vars/contexts/ispark/ispark_env.sh"
         all_good=false
     fi
     
     if [ "$all_good" = false ]; then
         if $FIX && ! $CHECK; then
             echo "Info    : Generating environment files..."
-            cd "$root_dir" && python3 linux/generate_env.py spark-client ispark
+            cd "$root_dir" && python3 vars/generate_env.py spark-client ispark
         elif $CHECK; then
             echo "Check   : Would generate environment files using generate_env.py"
         fi
@@ -243,8 +243,9 @@ check_spark_connectivity() {
     local venv_dir="${root_dir}/venv"
     
     # Source environment to get Spark master URL
-    if [ -f "${root_dir}/spark/ispark/ispark_env.sh" ]; then
-        source "${root_dir}/spark/ispark/ispark_env.sh"
+    local ispark_env="${root_dir}/vars/contexts/ispark/ispark_env.sh"
+    if [ -f "${ispark_env}" ]; then
+        source "${ispark_env}"
     fi
     
     local spark_master_host=${SPARK_MASTER_EXTERNAL_HOST:-"Lab2.local"}

@@ -27,12 +27,14 @@ else
 fi
 
 # Source devops environment for variable values
-if [ ! -f "${SCRIPT_DIR}/devops_env.sh" ]; then
-    echo "Error: devops_env.sh not found. Run: python3 linux/generate_env.py" >&2
+DEVOPS_ENV="${ROOT_DIR}/vars/contexts/devops/devops_env.sh"
+if [ ! -f "${DEVOPS_ENV}" ]; then
+    echo "Error: devops_env.sh not found at ${DEVOPS_ENV}" >&2
+    echo "Run: python3 vars/generate_env.py devops" >&2
     exit 1
 fi
 
-source "${SCRIPT_DIR}/devops_env.sh"
+source "${DEVOPS_ENV}"
 
 # Validate required variables
 if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ]]; then
