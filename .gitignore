@@ -1,26 +1,10 @@
-logstash/logs 
+
 .vs
 .VSCodeCounter
 
 **/__pycache__/
 *.pyc
 *.pyo
-spark-events
-# init-certs generates these files and directories from scratch.
-docker/certs/ca
-docker/certs/es01
-docker/certs/kibana
-docker/certs/ca.zip
-docker/certs/certs.zip
-docker/certs/grafana
-
-
-# Data directories
-# docker/spark/data/*
-!docker/elasticsearch/outputs/.gitkeep
-docker/elasticsearch/outputs/*
-# TODO: is inputs even needed?
-docker/lasticsearch/inputs/*
 
 # Virtual Python Environments
 ansible_venv/
@@ -29,11 +13,6 @@ venv.python38.backup/
 
 # Primarily for AI agents to use as a scratch space
 tmp/
-
-config.env
-spark-data/
-spark/data/
-spark/images/
 
 # Generated configuration files
 docker/.env
@@ -52,13 +31,27 @@ ansible/vars/elastic_agent_vars.yml
 # Build artifacts
 spark/.last_build_timestamp
 **/target/
+*.class
+
+## JAR files (build artifacts and dependencies)
+*.jar
+### Exception: BigQuery jar is not built from source, keep it in repo
+!shared/spark/jars/spark-bigquery-with-dependencies_2.12-0.32.0.jar
+
+## downloaded Spark images
+spark/images/
+
+## Debug output from @init-index.sh script
+observability/elasticsearch/outputs/
+# Data directories
+# docker/spark/data/*
+!docker/elasticsearch/outputs/.gitkeep
+docker/elasticsearch/outputs/*
+
+# Documentation Artifacts
 
 *.drawio.dtmp
 *.drawio.bkp
 
 
-# JAR files (build artifacts and dependencies)
-*.jar
-# Exception: BigQuery jar is not built from source, keep it in repo
-!shared/spark/jars/spark-bigquery-with-dependencies_2.12-0.32.0.jar
-observability/elasticsearch/outputs/
+
