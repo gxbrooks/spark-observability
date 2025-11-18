@@ -3,8 +3,8 @@
 
 export PYTHON_VERSION="3.8"
 export PYSPARK_PYTHON="python3.8"
-export SPARK_MASTER_EXTERNAL_HOST="Lab2.local"
-export SPARK_MASTER_EXTERNAL_PORT="31472"
+export SPARK_MASTER_HOST="Lab2.local"
+export SPARK_MASTER_PORT="31472"
 export SPARK_EVENTS_DIR="/mnt/spark/events"
 export SPARK_CONF_DIR="/home/gxbrooks/repos/elastic-on-spark/spark/conf"
 export SPARK_DATA_MOUNT="/mnt/spark/data"

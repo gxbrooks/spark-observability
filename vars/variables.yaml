@@ -10,7 +10,7 @@ TZ:
 
 PYTHON_VERSION:
   value: 3.11
-  contexts: [spark-runtime, client, managed-node, spark-client, spark-image, ansible, devops]
+  contexts: [spark-runtime, managed-node, spark-client, spark-image, ansible, devops]
 
 JAVA_VERSION:
   value: 17
@@ -69,34 +69,31 @@ GRAFANA_VERSION:
 # Observability runtime variables
 
 # Elasticsearch variables
+# Standardized naming: ES_* for Elasticsearch (ES already stands for Elasticsearch)
 # Inside Docker containers, use service name; for external clients, use DNS hostname
-ELASTIC_HOST:
-  contexts: [observability, devops]
+ES_HOST:
+  contexts: [observability, spark-runtime, devops, elastic-agent]
   values:
-    devops: ${ELASTIC_HOST_CLIENT}
     observability: es01
-ELASTIC_HOST_CLIENT:
-  value: GaryPC.local
-  contexts: [spark-runtime, devops]
-# For Elastic Agent on hosts, use GaryPC WSL
-ELASTIC_HOST_EXTERNAL:
-  value: GaryPC.local
-  contexts: [elastic-agent]
-ELASTIC_PORT:
+    spark-runtime: GaryPC.local
+    devops: GaryPC.local
+    elastic-agent: GaryPC.local
+ES_PORT:
   value: 9200
-  contexts: [observability, spark-runtime, devops]
-ELASTIC_USER:
+  contexts: [observability, spark-runtime, devops, elastic-agent]
+ES_USER:
   value: elastic
   contexts: [observability, spark-runtime, elastic-agent, devops]
-ELASTIC_PASSWORD:
+ES_PASSWORD:
   value: myElastic2025
   contexts: [observability, spark-runtime, elastic-agent, devops]
+# ELASTIC_URL is kept for applications that expect this name
+# It will be mapped from ES_* variables in docker-compose.yml
 ELASTIC_URL:
-  value: https://es01:9200
-  contexts: [observability]
-ELASTIC_URL_EXTERNAL:
-  value: https://GaryPC.local:9200
-  contexts: [elastic-agent]
+  contexts: [observability, elastic-agent]
+  values:
+    observability: https://es01:9200
+    elastic-agent: https://GaryPC.local:9200
 
 KUBERNETES_API_SERVER:
   value: Lab2.local
@@ -133,21 +130,6 @@ ES_OUTPUTS_DIR:
 ES_BIN_DIR:
   value: ${ES_DIR}/bin
   contexts: [devops, observability]
-# ES_* variables for Elasticsearch connection (ES already stands for Elasticsearch)
-ES_HOST:
-  contexts: [devops, observability]
-  values:
-    devops: ${ELASTIC_HOST_CLIENT}
-    observability: ${ELASTIC_HOST}
-ES_PORT:
-  value: ${ELASTIC_PORT}
-  contexts: [devops, observability]
-ES_USER:
-  value: ${ELASTIC_USER}
-  contexts: [devops, observability]
-ES_PASSWORD:
-  value: ${ELASTIC_PASSWORD}
-  contexts: [devops, observability]
 # CA_CERT path for Elasticsearch API scripts (context-specific)
 ES_CA_CERT:
   contexts: [devops, observability]
@@ -165,11 +147,8 @@ ENCRYPTION_KEY:
 KIBANA_HOST:
   contexts: [observability, devops]
   values:
-    devops: ${KIBANA_HOST_CLIENT}
     observability: kibana
-KIBANA_HOST_CLIENT:
-  value: GaryPC.local
-  contexts: [devops]
+    devops: GaryPC.local
 KIBANA_PORT:
   value: 5601
   contexts: [observability, devops]
@@ -185,11 +164,10 @@ KB_MEM_LIMIT:
 
 # Logstash variables
 LS_HOST:
-  value: logstash01
-  contexts: [observability]
-LS_HOST_EXTERNAL:
-  value: GaryPC.local
-  contexts: [elastic-agent]
+  contexts: [observability, elastic-agent]
+  values:
+    observability: logstash01
+    elastic-agent: GaryPC.local
 LOGSTASH_PORT:
   value: 5044
   contexts: [observability]
@@ -227,10 +205,6 @@ ELASTIC_AGENT_VERSION:
   value: 8.15.0
   contexts: [elastic-agent-ansible]
  
-# TODO: may not be referenced yet
-ELASTIC_AGENT_HOME:
-  value: /usr/share/elastic-agent
-  contexts: []
 
 # Spark runtime variables (moved from deprecated spark-image context)
 SPARK_VERSION:
@@ -254,19 +228,19 @@ SPARK_MASTER:
   value: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
   contexts: [spark-runtime]
 SPARK_MASTER_HOST:
-  value: spark-master-0.spark-master-headless.spark.svc.cluster.local
-  contexts: [spark-runtime]
+  contexts: [spark-runtime, observability, ispark, spark-client]
+  values:
+    spark-runtime: spark-master-0.spark-master-headless.spark.svc.cluster.local
+    observability: Lab2.local
+    ispark: Lab2.local
+    spark-client: Lab2.local
 SPARK_MASTER_PORT:
-  value: 7077
-  contexts: [spark-runtime]
-
-# External access for local development
-SPARK_MASTER_EXTERNAL_HOST:
-  value: Lab2.local
-  contexts: [observability, ispark, spark-client]
-SPARK_MASTER_EXTERNAL_PORT:
-  value: 31686
-  contexts: [observability, ispark, spark-client]
+  contexts: [spark-runtime, observability, ispark, spark-client]
+  values:
+    spark-runtime: 7077
+    observability: 31686
+    ispark: 31686
+    spark-client: 31686
   
 # Spark network and timeout settings
 # Increased timeouts to handle connection resets and network instability
@@ -292,7 +266,7 @@ SPARK_CONF_DIR:
 # Spark client JAR paths (for spark-defaults.conf)
 SPARK_OTEL_LISTENER_JAR:
   value: ~/repos/elastic-on-spark/spark/otel-listener/spark-otel-listener-1.0.0.jar
-  contexts: [devops, spark-client-config]
+  contexts: [devops, spark-client]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]
@@ -312,11 +286,11 @@ USER_SPARK_HOME:
 
 # OpenTelemetry Configuration for Spark
 OTEL_EXPORTER_OTLP_ENDPOINT:
-  value: http://GaryPC.local:4317
-  contexts: [spark-client, devops]
-OTEL_EXPORTER_OTLP_ENDPOINT_K8S:
-  value: http://otel-collector.observability.svc.cluster.local:4317
-  contexts: [spark-runtime]
+  contexts: [spark-client, devops, spark-runtime]
+  values:
+    spark-client: http://GaryPC.local:4317
+    devops: http://GaryPC.local:4317
+    spark-runtime: http://otel-collector.observability.svc.cluster.local:4317
 
 OTEL_SERVICE_NAME:
   value: spark-application
@@ -362,31 +336,17 @@ NFS_SPARK_DATA_EXPORT:
 # Hadoop Configuration
 HADOOP_NAMENODE:
   value: hdfs-namenode:9000
-  contexts: [spark-runtime, ansible, hadoop]
+  contexts: [spark-runtime, ansible]
 
 HADOOP_CONF_DIR:
   value: /opt/hadoop/etc/hadoop
-  contexts: [spark-runtime, ansible, hadoop]
+  contexts: [spark-runtime, ansible]
 
 HADOOP_HOME:
   value: /opt/hadoop
-  contexts: [spark-runtime, ansible, hadoop]
+  contexts: [spark-runtime, ansible]
 
 HDFS_DEFAULT_FS:
   value: hdfs://hdfs-namenode:9000
-  contexts: [spark-runtime, ansible, hadoop, spark-client]
-
-# Hadoop Namespace
-HADOOP_NAMESPACE:
-  value: hdfs
-  contexts: [hadoop]
-
-# Hadoop Service Names
-HADOOP_NAMENODE_SERVICE:
-  value: hdfs-namenode
-  contexts: [hadoop]
-
-HADOOP_DATANODE_SERVICE:
-  value: hdfs-datanode
-  contexts: [hadoop]
+  contexts: [spark-runtime, ansible, spark-client]
 

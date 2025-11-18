@@ -46,8 +46,8 @@ Local Machine                     Kubernetes Cluster (Lab2.local:31686)
 ## Environment Variables
 
 The `ispark_env.sh` file (auto-generated from `vars/variables.yaml`) provides:
-- `SPARK_MASTER_EXTERNAL_HOST`: Cluster hostname (Lab2.local)
-- `SPARK_MASTER_EXTERNAL_PORT`: NodePort for client access (31686)
+- `SPARK_MASTER_HOST`: Cluster hostname (Lab2.local)
+- `SPARK_MASTER_PORT`: NodePort for client access (31686)
 - Other Spark-related settings
 
 These are automatically sourced by the launch script.

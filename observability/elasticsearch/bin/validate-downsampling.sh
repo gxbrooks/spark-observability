@@ -9,12 +9,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 # Load variables from vars/variables.yaml
-ES_HOST="${ELASTIC_HOST_CLIENT:-GaryPC.local}"
-ES_PORT="${ELASTIC_PORT:-9200}"
-ES_USER="${ELASTIC_USER:-elastic}"
-ES_PASSWORD="${ELASTIC_PASSWORD:-myElastic2025}"
-CA_CERT="${CA_CERT_LINUX_PATH:-/etc/ssl/certs/elastic/ca.crt}"
-
+# Source the appropriate environment file first
+if [[ -z "$ES_HOST" ]]; then
+    echo "Error: ES_HOST not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$ES_PORT" ]]; then
+    echo "Error: ES_PORT not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$ES_USER" ]]; then
+    echo "Error: ES_USER not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$ES_PASSWORD" ]]; then
+    echo "Error: ES_PASSWORD not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$CA_CERT_LINUX_PATH" ]]; then
+    echo "Error: CA_CERT_LINUX_PATH not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+CA_CERT="$CA_CERT_LINUX_PATH"
 ES_URL="https://${ES_HOST}:${ES_PORT}"
 
 # Color output

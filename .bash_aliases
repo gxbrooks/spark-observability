@@ -39,6 +39,10 @@ alias hdfs="/home/gxbrooks/repos/elastic-on-spark/linux/hdfs-wrapper.sh"
 
 alias glog="git log --pretty=format:'%h %ad | %s' --date=short --follow --all -- "
 alias gtags='git for-each-ref --sort=-creatordate --format="%(align:left,width=30)%(refname:lstrip=2)%(end) %(align:left,width=12)%(creatordate:short)%(end) %(subject)" refs/tags'
+alias gcsummary='git log --decorate --date=short --pretty=format:"%C(auto,yellow)[%ad] %C(auto,green)%d%C(reset) %s%n%b%n%C(auto,blue)----------------------------------------------------%C(auto,reset)"'
+
+
+alias pscursor="ps -eo pid,ppid,user,%cpu,rss,vsz,comm | awk 'NR==1 {printf \"%-7s %-7s %-10s %4s %7s %10s %s\n\",\$1,\$2,\$3,\$4,\$5,\$6,\$7; next} {printf \"%-7s %-7s %-10s %4.1f %7s %10s %s\n\",\$1,\$2,\$3,\$4,\$5,\$6,\$7}'"
 
 
 # Kubernetes aliases

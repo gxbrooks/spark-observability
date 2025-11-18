@@ -193,7 +193,7 @@ source vars/contexts/ispark/ispark_env.sh
 
 **Note**: The actual file deployed to managed nodes is `elastic-agent/elastic_agent_env_systemd.conf`, which is a source file, not generated.
 
-**Variables Included**: `ELASTIC_HOST_EXTERNAL`, `ELASTIC_URL_EXTERNAL`, `CA_CERT_LINUX_PATH`, etc.
+**Variables Included**: `ELASTIC_URL`, `CA_CERT_LINUX_PATH`, etc.
 
 ---
 

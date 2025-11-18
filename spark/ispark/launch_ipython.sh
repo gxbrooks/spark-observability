@@ -23,7 +23,7 @@ echo -e "${GREEN}=== Launching PySpark with IPython ===${NC}"
 ISPARK_ENV_FILE="${ROOT_DIR}/vars/contexts/ispark/ispark_env.sh"
 if [ -f "${ISPARK_ENV_FILE}" ]; then
     source "${ISPARK_ENV_FILE}"
-    export SPARK_MASTER_URL="spark://${SPARK_MASTER_EXTERNAL_HOST}:${SPARK_MASTER_EXTERNAL_PORT}"
+    export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 else
     echo -e "${RED}Error: ispark environment not found at ${ISPARK_ENV_FILE}${NC}"
     echo "Run: python3 vars/generate_env.py ispark" >&2
@@ -44,7 +44,11 @@ export PYSPARK_DRIVER_PYTHON=ipython
 export PYSPARK_DRIVER_PYTHON_OPTS=""
 
 # Display connection info
-echo -e "${YELLOW}Spark Master: ${SPARK_MASTER_URL:-spark://Lab2.local:31686}${NC}"
+if [[ -z "$SPARK_MASTER_URL" ]]; then
+    echo -e "${YELLOW}Spark Master: (not set)${NC}"
+else
+    echo -e "${YELLOW}Spark Master: ${SPARK_MASTER_URL}${NC}"
+fi
 echo -e "${YELLOW}Python: $(which python)${NC}"
 echo -e "${YELLOW}Press Ctrl+D to exit${NC}"
 echo -e "${GREEN}======================================${NC}"

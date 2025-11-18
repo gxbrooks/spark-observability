@@ -20,11 +20,27 @@ if [ -f "${ISPARK_ENV_FILE}" ]; then
     source "${ISPARK_ENV_FILE}"
 fi
 
-# Set Hadoop environment variables from vars/variables.yaml
-export HADOOP_NAMENODE="${HADOOP_NAMENODE:-10.101.125.84:9000}"
-export HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-/opt/hadoop/etc/hadoop}"
-export HADOOP_HOME="${HADOOP_HOME:-/opt/hadoop}"
-export HDFS_DEFAULT_FS="${HDFS_DEFAULT_FS:-hdfs://10.101.125.84:9000}"
+# Validate Hadoop environment variables from vars/variables.yaml
+if [[ -z "$HADOOP_NAMENODE" ]]; then
+    echo "Error: HADOOP_NAMENODE not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$HADOOP_CONF_DIR" ]]; then
+    echo "Error: HADOOP_CONF_DIR not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$HADOOP_HOME" ]]; then
+    echo "Error: HADOOP_HOME not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+if [[ -z "$HDFS_DEFAULT_FS" ]]; then
+    echo "Error: HDFS_DEFAULT_FS not set. Source the appropriate environment file." >&2
+    exit 1
+fi
+export HADOOP_NAMENODE="$HADOOP_NAMENODE"
+export HADOOP_CONF_DIR="$HADOOP_CONF_DIR"
+export HADOOP_HOME="$HADOOP_HOME"
+export HDFS_DEFAULT_FS="$HDFS_DEFAULT_FS"
 
 # Debug output if needed
 if [ "${DEBUG:-false}" = "true" ]; then

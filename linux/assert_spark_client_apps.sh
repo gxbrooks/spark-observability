@@ -248,8 +248,16 @@ check_spark_connectivity() {
         source "${ispark_env}"
     fi
     
-    local spark_master_host=${SPARK_MASTER_EXTERNAL_HOST:-"Lab2.local"}
-    local spark_master_port=${SPARK_MASTER_EXTERNAL_PORT:-"32601"}
+    if [[ -z "$SPARK_MASTER_HOST" ]]; then
+        report_check "fail" "SPARK_MASTER_HOST not set. Source the appropriate environment file."
+        return 1
+    fi
+    if [[ -z "$SPARK_MASTER_PORT" ]]; then
+        report_check "fail" "SPARK_MASTER_PORT not set. Source the appropriate environment file."
+        return 1
+    fi
+    local spark_master_host="$SPARK_MASTER_HOST"
+    local spark_master_port="$SPARK_MASTER_PORT"
     
     # Check if master is reachable
     if timeout 2 bash -c "echo >/dev/tcp/$spark_master_host/$spark_master_port" 2>/dev/null; then

@@ -72,8 +72,8 @@ fi
 # Source Spark client environment variables
 if [ -f "$project_root/vars/contexts/spark-client/spark_env.sh" ]; then
     source "$project_root/vars/contexts/spark-client/spark_env.sh"
-    # Set SPARK_MASTER_URL from external host/port
-    export SPARK_MASTER_URL="spark://${SPARK_MASTER_EXTERNAL_HOST}:${SPARK_MASTER_EXTERNAL_PORT}"
+    # Set SPARK_MASTER_URL from host/port
+    export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi
 
 # Configure PySpark to use IPython for interactive sessions

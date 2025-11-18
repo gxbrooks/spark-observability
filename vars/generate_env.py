@@ -61,6 +61,48 @@ def load_contexts():
         sys.exit(1)
 
 
+def validate_contexts(variables, contexts):
+    """
+    Validate that all contexts referenced in variables.yaml exist in contexts.yaml
+    
+    Args:
+        variables: Dictionary of variable definitions
+        contexts: List of context specifications from contexts.yaml
+    
+    Returns:
+        List of warnings (empty if no issues found)
+    """
+    warnings = []
+    
+    # Build set of valid context names
+    valid_context_names = {ctx['name'] for ctx in contexts}
+    
+    # Check each variable for invalid contexts
+    for var_name, var_data in variables.items():
+        if not isinstance(var_data, dict):
+            continue
+        
+        # Get contexts list for this variable
+        var_contexts = var_data.get('contexts', [])
+        if not var_contexts:
+            continue
+        
+        # Check each context referenced by this variable
+        invalid_contexts = [ctx for ctx in var_contexts if ctx not in valid_context_names]
+        if invalid_contexts:
+            warnings.append(f"Variable '{var_name}' references undefined context(s): {', '.join(invalid_contexts)}")
+        
+        # Also check contexts in 'values' dictionary if present
+        if 'values' in var_data:
+            values_dict = var_data['values']
+            # Check if any keys in values dict are contexts (not 'default')
+            for key in values_dict.keys():
+                if key != 'default' and key not in valid_context_names:
+                    warnings.append(f"Variable '{var_name}' has context-specific value for undefined context: {key}")
+    
+    return warnings
+
+
 def get_vars(variables, context_name):
     """Extract variables applicable to a specific context
     
@@ -257,6 +299,14 @@ def main(requested_contexts=None, force=False, verbose=False):
     if not contexts:
         print(f"No contexts defined in {CONTEXTS_FILE}")
         return 1
+    
+    # Validate that all contexts referenced in variables exist in contexts.yaml
+    context_warnings = validate_contexts(variables, contexts)
+    if context_warnings:
+        print("⚠ Warning: Variables reference undefined contexts:")
+        for warning in context_warnings:
+            print(f"  {warning}")
+        print()
     
     # Build context lookup by name
     context_map = {ctx['name']: ctx for ctx in contexts}

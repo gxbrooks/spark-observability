@@ -204,7 +204,7 @@ providers:
 outputs:
   default:
     type: elasticsearch
-    hosts: ["${ELASTIC_URL_EXTERNAL}"]
+    hosts: ["${ELASTIC_URL}"]
     # TODO: Move to API keys = https://www.elastic.co/guide/en/fleet/current/grant-access-to-elasticsearch.html
     username: "elastic"
     password: "myElastic2025"

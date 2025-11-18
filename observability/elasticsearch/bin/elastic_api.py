@@ -39,16 +39,16 @@ Exit Codes:
 
 Environment Variables Required:
     For Elasticsearch (ES_* prefix, ES already stands for Elasticsearch):
-        - ES_HOST: Elasticsearch hostname (or ELASTIC_HOST for backward compatibility)
-        - ES_PORT: Elasticsearch port (or ELASTIC_PORT for backward compatibility)
-        - ES_USER: Username for authentication (or ELASTIC_USER for backward compatibility)
-        - ES_PASSWORD: Password for authentication (or ELASTIC_PASSWORD for backward compatibility)
+        - ES_HOST: Elasticsearch hostname
+        - ES_PORT: Elasticsearch port
+        - ES_USER: Username for authentication
+        - ES_PASSWORD: Password for authentication
         - ES_CA_CERT: Path to CA certificate file (or CA_CERT for backward compatibility)
     
     For Kibana (KIBANA_* prefix, no ES_ prefix needed):
         - KIBANA_HOST: Kibana hostname
         - KIBANA_PORT: Kibana port
-        - ES_USER: Username for authentication (or ELASTIC_USER for backward compatibility)
+        - ES_USER: Username for authentication
         - KIBANA_PASSWORD: Password for authentication
         - ES_CA_CERT: Path to CA certificate file (or CA_CERT for backward compatibility)
 
@@ -168,34 +168,44 @@ def get_config(target):
     
     if target == 'elasticsearch':
         try:
-            # Prefer ES_* variables (standardized, ES already stands for Elasticsearch), fall back to ELASTIC_* (backward compatibility)
-            # Also support _CLIENT versions for devops/client contexts
-            config['host'] = os.environ.get('ES_HOST') or os.environ.get('ELASTIC_HOST_CLIENT') or os.environ.get('ELASTIC_HOST')
+            # Use ES_* variables (standardized, ES already stands for Elasticsearch)
+            config['host'] = os.environ.get('ES_HOST')
             if not config['host']:
-                raise KeyError('ES_HOST, ELASTIC_HOST, or ELASTIC_HOST_CLIENT')
-            config['port'] = os.environ.get('ES_PORT') or os.environ.get('ELASTIC_PORT')
-            config['user'] = os.environ.get('ES_USER') or os.environ.get('ELASTIC_USER')
-            config['password'] = os.environ.get('ES_PASSWORD') or os.environ.get('ELASTIC_PASSWORD')
+                raise KeyError('ES_HOST')
+            config['port'] = os.environ.get('ES_PORT')
+            if not config['port']:
+                raise KeyError('ES_PORT')
+            config['user'] = os.environ.get('ES_USER')
+            if not config['user']:
+                raise KeyError('ES_USER')
+            config['password'] = os.environ.get('ES_PASSWORD')
+            if not config['password']:
+                raise KeyError('ES_PASSWORD')
             config['protocol'] = 'https'
         except KeyError as e:
             print(f"Error: Required environment variable not set for Elasticsearch: {e}", file=sys.stderr)
-            print("Required: ES_HOST (or ELASTIC_HOST/ELASTIC_HOST_CLIENT), ES_PORT (or ELASTIC_PORT), ES_USER (or ELASTIC_USER), ES_PASSWORD (or ELASTIC_PASSWORD)", file=sys.stderr)
+            print("Required: ES_HOST, ES_PORT, ES_USER, ES_PASSWORD", file=sys.stderr)
             sys.exit(2)
     
     elif target == 'kibana':
         try:
             # Use KIBANA_* variables (no ES_ prefix needed for Kibana)
-            # Also support _CLIENT versions for devops/client contexts
-            config['host'] = os.environ.get('KIBANA_HOST_CLIENT') or os.environ.get('KIBANA_HOST')
+            config['host'] = os.environ.get('KIBANA_HOST')
             if not config['host']:
-                raise KeyError('KIBANA_HOST or KIBANA_HOST_CLIENT')
+                raise KeyError('KIBANA_HOST')
             config['port'] = os.environ.get('KIBANA_PORT')
-            config['user'] = os.environ.get('ES_USER') or os.environ.get('ELASTIC_USER')
+            if not config['port']:
+                raise KeyError('KIBANA_PORT')
+            config['user'] = os.environ.get('ES_USER')
+            if not config['user']:
+                raise KeyError('ES_USER')
             config['password'] = os.environ.get('KIBANA_PASSWORD')
+            if not config['password']:
+                raise KeyError('KIBANA_PASSWORD')
             config['protocol'] = 'http'  # TODO: Enable TLS encryption on Kibana
         except KeyError as e:
             print(f"Error: Required environment variable not set for Kibana: {e}", file=sys.stderr)
-            print("Required: KIBANA_HOST (or KIBANA_HOST_CLIENT), KIBANA_PORT, ES_USER (or ELASTIC_USER), KIBANA_PASSWORD", file=sys.stderr)
+            print("Required: KIBANA_HOST, KIBANA_PORT, ES_USER, KIBANA_PASSWORD", file=sys.stderr)
             sys.exit(2)
     
     return config

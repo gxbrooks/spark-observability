@@ -44,13 +44,25 @@ if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ]]; then
     exit 1
 fi
 
-# Set ES variables with defaults if not set
-ES_URL="${ES_URL:-https://es01:9200}"
-ES_USER="${ES_USER:-elastic}"
-ES_PASSWORD="${ES_PASSWORD:-changeme}"
+# Validate ES variables are set
+if [[ -z "$ES_URL" ]]; then
+    echo "Error: ES_URL not set in devops_env.sh" >&2
+    exit 1
+fi
+if [[ -z "$ES_USER" ]]; then
+    echo "Error: ES_USER not set in devops_env.sh" >&2
+    exit 1
+fi
+if [[ -z "$ES_PASSWORD" ]]; then
+    echo "Error: ES_PASSWORD not set in devops_env.sh" >&2
+    exit 1
+fi
 
-# Set JAR path - use from devops_env.sh if set, otherwise default, then expand ~
-SPARK_OTEL_LISTENER_JAR="${SPARK_OTEL_LISTENER_JAR:-${HOME}/repos/elastic-on-spark/spark/otel-listener/spark-otel-listener-1.0.0.jar}"
+# Validate JAR path is set, then expand ~
+if [[ -z "$SPARK_OTEL_LISTENER_JAR" ]]; then
+    echo "Error: SPARK_OTEL_LISTENER_JAR not set in devops_env.sh" >&2
+    exit 1
+fi
 SPARK_OTEL_LISTENER_JAR="${SPARK_OTEL_LISTENER_JAR/#\~/${HOME}}"
 
 if [ ! -f "$SPARK_OTEL_LISTENER_JAR" ]; then
