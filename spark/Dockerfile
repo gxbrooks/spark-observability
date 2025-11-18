@@ -41,7 +41,8 @@ RUN /usr/local/bin/python3.11 -m ensurepip && \
 RUN /usr/local/bin/python3.11 -m pip install --no-cache-dir \
     numpy \
     pandas \
-    pyarrow
+    pyarrow \
+    scikit-learn
 
 # Verify Python version
 RUN python3 --version && echo "PySpark will use: $PYSPARK_PYTHON"

@@ -3,13 +3,16 @@
 Standalone NOAA GSOD Data Downloader
 
 Downloads 10 years of NOAA GSOD data from BigQuery without using Spark,
-then writes to Parquet format.
+then writes to Parquet format in two formats:
+1. Single combined file: /mnt/spark/data/gsod_data.parquet
+2. Individual year files: /mnt/spark/data/gsod_noaa/gsod{year}.parquet
 
 Usage:
     python3 GSOD_Download_Standalone.py
 
 Environment Variables:
     TEST_MODE=1  - Download only one year (2023) for testing
+    FORCE=1      - Force re-download even if files already exist
 """
 
 import os
@@ -74,8 +77,9 @@ def get_noaa_gsod_data(year, client):
     
     # Create a 'date' column if it doesn't exist
     # apparently more recent years have a date column
+    # Note: Convert to date (not datetime) to avoid nanosecond precision issues with Spark 4.0.1
     if 'date' in df.columns:
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
     else:
         # Create date from year, mo, da
         df['date'] = pd.to_datetime(
@@ -85,7 +89,7 @@ def get_noaa_gsod_data(year, client):
                 else None, axis=1
             ),
             errors='coerce'
-        )
+        ).dt.date
     
     # Drop rows where date creation failed
     df = df.dropna(subset=['date'])
@@ -140,15 +144,62 @@ def main():
     else:
         # Define years to read data from (2014-2023, 10 years)
         years = range(2014, 2024)
+        force_download = os.environ.get('FORCE', '0') == '1'
+        
+        # Output paths
+        single_file_path = Path("/mnt/spark/data/gsod_data.parquet")
+        year_files_dir = Path("/mnt/spark/data/gsod_noaa")
+        year_files_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Check if files already exist
+        single_file_exists = single_file_path.exists()
+        year_files_exist = all((year_files_dir / f"gsod{year}.parquet").exists() for year in years)
+        
+        if not force_download and single_file_exists and year_files_exist:
+            print("=" * 60)
+            print("All GSOD data files already exist.")
+            print(f"Single file: {single_file_path}")
+            print(f"Year files: {year_files_dir}/gsod{{year}}.parquet")
+            print("Set FORCE=1 to re-download all data.")
+            print("=" * 60)
+            return
+        
         print(f"Downloading NOAA GSOD data for years {years[0]} to {years[-1]} ({len(years)} years)")
+        if force_download:
+            print("FORCE mode: Re-downloading all data")
         print()
         
         # Download data for each year
         dataframes = []
         for year in years:
-            print(f"Processing year {year}...")
-            year_df = get_noaa_gsod_data(year, client)
-            print(f"  Processed {len(year_df)} records")
+            year_file_path = year_files_dir / f"gsod{year}.parquet"
+            
+            # Skip if file exists and not forcing
+            if not force_download and year_file_path.exists():
+                print(f"Year {year}: File already exists, skipping download")
+                print(f"  Loading from {year_file_path}...")
+                year_df = pd.read_parquet(year_file_path)
+                print(f"  Loaded {len(year_df):,} records")
+            else:
+                print(f"Processing year {year}...")
+                year_df = get_noaa_gsod_data(year, client)
+                print(f"  Processed {len(year_df):,} records")
+                
+                # Save individual year file
+                # Convert date to string to avoid Spark 4.0.1 timestamp precision issues
+                print(f"  Saving to {year_file_path}...")
+                year_df_export = year_df.copy()
+                if 'date' in year_df_export.columns:
+                    year_df_export['date'] = year_df_export['date'].astype(str)
+                year_df_export.to_parquet(
+                    year_file_path,
+                    engine='pyarrow',
+                    compression='snappy',
+                    index=False
+                )
+                year_file_size = year_file_path.stat().st_size / (1024 * 1024)  # Size in MB
+                print(f"  Saved {len(year_df):,} records ({year_file_size:.2f} MB)")
+            
             dataframes.append(year_df)
             print()
         
@@ -164,26 +215,32 @@ def main():
         print("\nDataFrame info:")
         print(combined_df.info())
         
-        # Save as Parquet
-        output_path = "/mnt/spark/data/gsod_data.parquet"
-        print(f"\nSaving to {output_path}...")
+        # Save as single combined Parquet file (if not exists or forcing)
+        if force_download or not single_file_exists:
+            print(f"\nSaving combined file to {single_file_path}...")
+            # Convert date to string to avoid Spark 4.0.1 timestamp precision issues
+            combined_df_export = combined_df.copy()
+            if 'date' in combined_df_export.columns:
+                combined_df_export['date'] = combined_df_export['date'].astype(str)
+            combined_df_export.to_parquet(
+                single_file_path,
+                engine='pyarrow',
+                compression='snappy',
+                index=False
+            )
+            
+            # Verify file was created
+            file_size = single_file_path.stat().st_size / (1024 * 1024)  # Size in MB
+            print(f"Successfully saved {total_count:,} records to {single_file_path}")
+            print(f"File size: {file_size:.2f} MB")
+        else:
+            print(f"\nSingle combined file already exists: {single_file_path}")
+            print("Set FORCE=1 to overwrite.")
         
-        # Create directory if it doesn't exist
-        output_dir = Path(output_path).parent
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        combined_df.to_parquet(
-            output_path,
-            engine='pyarrow',
-            compression='snappy',
-            index=False
-        )
-        
-        # Verify file was created
-        file_size = Path(output_path).stat().st_size / (1024 * 1024)  # Size in MB
-        print(f"Successfully saved {total_count:,} records to {output_path}")
-        print(f"File size: {file_size:.2f} MB")
         print("\nDone!")
+        print(f"\nFiles created:")
+        print(f"  Single file: {single_file_path}")
+        print(f"  Year files: {year_files_dir}/gsod{{year}}.parquet (for years {years[0]}-{years[-1]})")
 
 
 if __name__ == "__main__":

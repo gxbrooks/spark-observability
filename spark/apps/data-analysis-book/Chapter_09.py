@@ -146,18 +146,34 @@ def read_df_from_bq(year):                                         ## 1
         )  
         .option("credentialsFile", "./apps/bq-api-key.json")        ## 4
         .load()
-)
+    )
+
+# Use parquet files instead of BigQuery (BigQuery connector not available for Spark 4.0.1)
+def read_df_from_parquet(year):
+    """Read GSOD data from parquet file for a specific year."""
+    return spark.read.parquet(f"/mnt/spark/data/gsod_noaa/gsod{year}.parquet")
  
- 
+# Commented out BigQuery code - using parquet files instead
+# gsod = (
+#     reduce(
+#         lambda x, y: x.unionByName(y, allowMissingColumns=True),
+#         [read_df_from_bq(year) for year in range(2014, 2024)],     ## 5
+#     )
+#     .dropna(subset=["year", "mo", "da", "temp"])
+#     .where(F.col("temp") != 9999.9)
+#     .drop("date")
+# )
+
+# Use parquet files instead
 gsod = (
     reduce(
         lambda x, y: x.unionByName(y, allowMissingColumns=True),
-        # [read_df_from_bq(year) for year in range(2010, 2021)],     ## 5
-        [read_df_from_bq(year) for year in range(2014, 2024)],     ## 5
+        [read_df_from_parquet(year) for year in range(2014, 2024)],
     )
     .dropna(subset=["year", "mo", "da", "temp"])
     .where(F.col("temp") != 9999.9)
-    .drop("date")
+    # Convert date string back to date type if needed
+    .withColumn("date", F.to_date(F.col("date"), "yyyy-MM-dd"))
 )
 
 #########################################################################################
@@ -165,12 +181,27 @@ gsod = (
 # 
 # Listing 9.3 Reading the gsod data from 2010 to 2020 via a loop 
 
-gsod_alt = read_df_from_bq(2010)     # 1
-for year in range(2011, 2020):
+# Commented out BigQuery code - using parquet files instead
+# gsod_alt = read_df_from_bq(2010)     # 1
+# for year in range(2011, 2020):
+#     gsod_alt = gsod_alt.unionByName(
+#         read_df_from_bq(year), allowMissingColumns=True
+#     )
+# gsod_alt = gsod_alt.drop("date")
+
+# Use parquet files instead (2014-2023 available)
+gsod_alt = read_df_from_parquet(2014)
+for year in range(2015, 2024):
     gsod_alt = gsod_alt.unionByName(
-        read_df_from_bq(year), allowMissingColumns=True
+        read_df_from_parquet(year), allowMissingColumns=True
     )
-gsod_alt = gsod_alt.drop("date")
+gsod_alt = (
+    gsod_alt
+    .dropna(subset=["year", "mo", "da", "temp"])
+    .where(F.col("temp") != 9999.9)
+    .withColumn("date", F.to_date(F.col("date"), "yyyy-MM-dd"))
+    .drop("date")
+)
 
 
 #########################################################################################
@@ -267,7 +298,8 @@ gsod.select(
 exo9_1 = pd.Series(["red", "blue", "blue", "yellow"])
  
 # def color_to_num(colors: WHICH_SIGNATURE) -> WHICH_SIGNATURE:
-def color_to_num(colors: pd.Series) -> Iterator[pd.Series]:
+# Exercise 9.1: The signature should be Series -> Series (not Iterator)
+def color_to_num(colors: pd.Series) -> pd.Series:
     return colors.apply(
         lambda x: {"red": 1, "blue": 2, "yellow": 3}.get(x)
     )
@@ -281,7 +313,8 @@ color_to_num(exo9_1)
 # 3    3
 
 # color_to_num_udf = F.pandas_udf(color_to_num, WHICH_TYPE)
-color_to_num_udf = F.pandas_udf(color_to_num, WHICH_TYPE)
+# Exercise 9.1: WHICH_TYPE should be T.IntegerType() for the return type
+color_to_num_udf = F.pandas_udf(color_to_num, T.IntegerType())
 
 #########################################################################################
 #
