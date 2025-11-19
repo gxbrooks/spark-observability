@@ -1,0 +1,107 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "metrics-gpu-default",
+    "id": "gpu-metrics",
+    "name": "GPU Metrics",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fields": {
+      "@timestamp": {
+        "name": "@timestamp",
+        "type": "date",
+        "customLabel": "Timestamp"
+      },
+      "gpu.card": {
+        "name": "gpu.card",
+        "type": "string",
+        "customLabel": "Card"
+      },
+      "gpu.bus.address": {
+        "name": "gpu.bus.address",
+        "type": "string",
+        "customLabel": "PCI Slot"
+      },
+      "gpu.utilization.core_percent": {
+        "name": "gpu.utilization.core_percent",
+        "type": "number",
+        "customLabel": "GPU Utilization % (Raw)"
+      },
+      "gpu.utilization.memory_percent": {
+        "name": "gpu.utilization.memory_percent",
+        "type": "number",
+        "customLabel": "VRAM Utilization % (Raw)"
+      },
+      "gpu.utilization.core_percent_normalized": {
+        "name": "gpu.utilization.core_percent_normalized",
+        "type": "number",
+        "customLabel": "GPU Utilization %"
+      },
+      "gpu.utilization.memory_percent_normalized": {
+        "name": "gpu.utilization.memory_percent_normalized",
+        "type": "number",
+        "customLabel": "VRAM Utilization %"
+      },
+      "gpu.temperature_c.edge": {
+        "name": "gpu.temperature_c.edge",
+        "type": "number",
+        "customLabel": "Edge Temp (°C)"
+      },
+      "gpu.power.watts": {
+        "name": "gpu.power.watts",
+        "type": "number",
+        "customLabel": "Power (W)"
+      },
+      "gpu.clocks.gfx_mhz": {
+        "name": "gpu.clocks.gfx_mhz",
+        "type": "number",
+        "customLabel": "GFX Clock (MHz)"
+      },
+      "gpu.clocks.memory_mhz": {
+        "name": "gpu.clocks.memory_mhz",
+        "type": "number",
+        "customLabel": "VRAM Clock (MHz)"
+      },
+      "gpu.fan.rpm": {
+        "name": "gpu.fan.rpm",
+        "type": "number",
+        "customLabel": "Fan RPM"
+      }
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {
+          "pattern": "YYYY-MM-DD HH:mm:ss.SSS"
+        }
+      },
+      "gpu.power.watts": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "gpu.temperature_c.edge": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "gpu.utilization.core_percent_normalized": {
+        "id": "percent",
+        "params": {
+          "pattern": "0.0%"
+        }
+      },
+      "gpu.utilization.memory_percent_normalized": {
+        "id": "percent",
+        "params": {
+          "pattern": "0.0%"
+        }
+      }
+    },
+    "sourceFilters": []
+  }
+}
+

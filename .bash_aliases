@@ -38,7 +38,7 @@ alias kapi="docker compose exec -it es01 kapi"
 alias hdfs="/home/gxbrooks/repos/elastic-on-spark/linux/hdfs-wrapper.sh"
 
 alias glog="git log --pretty=format:'%h %ad | %s' --date=short --follow --all -- "
-alias gtags='git for-each-ref --sort=-creatordate --format="%(align:left,width=30)%(refname:lstrip=2)%(end) %(align:left,width=12)%(creatordate:short)%(end) %(subject)" refs/tags'
+alias gtags='git for-each-ref --sort=-creatordate --format="%(align:left,width=33)%(refname:lstrip=2)%(end) %(align:left,width=12)%(creatordate:short)%(end) %(subject)" refs/tags'
 alias gcsummary='git log --decorate --date=short --pretty=format:"%C(auto,yellow)[%ad] %C(auto,green)%d%C(reset) %s%n%b%n%C(auto,blue)----------------------------------------------------%C(auto,reset)"'
 
 

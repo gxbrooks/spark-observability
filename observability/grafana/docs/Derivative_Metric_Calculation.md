@@ -5,7 +5,7 @@
 When implementing rate calculations from cumulative counter metrics in Grafana:
 
 ### 1. Use Meaningful Field Names
-- **Query Design**: Structure Elasticsearch queries with descriptive aggregation names that indicate their purpose
+- **Query Design**: Structure Elasticsearch queries with descri aggregation names that indicate their purpose
 - **Alias Patterns**: Leverage Grafana's template variables like `{{term host.name}}` to create dynamic, readable labels
 - **Clarity**: Labels should immediately convey what metric is being displayed (e.g., "lab1 In" vs "lab1 Derivative Max system.network.in.bytes")
 
@@ -1086,4 +1086,10 @@ This configuration is:
 - ✅ **Robust**: Handles edge cases (empty buckets, boundary anomalies, null values)
 
 Following these patterns ensures enterprise-ready dashboards that adapt automatically to infrastructure changes while maintaining clarity and performance.
+
+## References
+
+- Elasticsearch Derivative Aggregation: https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-derivative-aggregation.html
+- Grafana Elasticsearch Datasource: https://grafana.com/docs/grafana/latest/datasources/elasticsearch/
+- Date Histogram Aggregation: https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-datehistogram-aggregation.html
 

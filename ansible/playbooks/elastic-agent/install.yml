@@ -142,6 +142,8 @@
     elastic_agent_config_dest: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
     elastic_agent_envconf_src: "{{ playbook_dir }}/../../../elastic-agent/elastic_agent_env_systemd.conf"
     elastic_agent_envconf_dest: "/etc/elastic-agent/elastic_agent_env.conf"
+    gpu_metrics_script_src: "{{ playbook_dir }}/../../../elastic-agent/bin/gpu-metrics.py"
+    gpu_metrics_script_path: "{{ elastic_agent_install_dir }}/extensions/gpu-metrics.py"
     elastic_agent_service_name: "elastic-agent"
     elastic_agent_versioned_dir: "{{ elastic_agent_extract_dir }}/elastic-agent-{{ elastic_agent_version }}-linux-x86_64"
     elastic_agent_user: "elastic-agent"
@@ -269,6 +271,81 @@
         group: "{{ elastic_agent_group }}"
         mode: '0755'
         remote_src: true
+      become: true
+
+    - name: Ensure Elastic Agent extensions directory exists (Linux)
+      ansible.builtin.file:
+        path: "{{ elastic_agent_install_dir }}/extensions"
+        state: directory
+        owner: "{{ elastic_agent_user }}"
+        group: "{{ elastic_agent_group }}"
+        mode: '0755'
+      become: true
+
+    - name: Deploy GPU metrics collector script (Linux)
+      ansible.builtin.copy:
+        src: "{{ gpu_metrics_script_src }}"
+        dest: "{{ gpu_metrics_script_path }}"
+        owner: "{{ elastic_agent_user }}"
+        group: "{{ elastic_agent_group }}"
+        mode: '0755'
+      become: true
+
+    - name: Create GPU metrics log directory (Linux)
+      ansible.builtin.file:
+        path: /var/log/gpu-metrics
+        state: directory
+        owner: "{{ elastic_agent_user }}"
+        group: "{{ elastic_agent_group }}"
+        mode: '0755'
+      become: true
+
+    - name: Create GPU metrics systemd service (Linux)
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=GPU Metrics Collector
+          After=network.target
+
+          [Service]
+          Type=oneshot
+          User={{ elastic_agent_user }}
+          Group={{ elastic_agent_group }}
+          ExecStart={{ gpu_metrics_script_path }} /var/log/gpu-metrics/gpu.ndjson
+          StandardOutput=journal
+          StandardError=journal
+        dest: /etc/systemd/system/gpu-metrics.service
+        mode: '0644'
+      become: true
+
+    - name: Create GPU metrics systemd timer (Linux)
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=GPU Metrics Collector Timer
+          Requires=gpu-metrics.service
+
+          [Timer]
+          OnBootSec=10s
+          OnUnitActiveSec=10s
+          AccuracySec=1s
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/gpu-metrics.timer
+        mode: '0644'
+      become: true
+
+    - name: Reload systemd daemon (Linux)
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      become: true
+
+    - name: Enable and start GPU metrics timer (Linux)
+      ansible.builtin.systemd:
+        name: gpu-metrics.timer
+        enabled: yes
+        state: started
       become: true
 
     - name: Find Elastic Agent binary directory

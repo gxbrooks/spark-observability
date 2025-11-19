@@ -295,6 +295,39 @@ kapi POST /api/saved_objects/search/derivative-oscillation-diagnostics?overwrite
 echo "✅ System metrics diagnostics initialized"
 
 # ============================================================================
+# STEP 7.8: Initialize GPU Metrics (Data Stream)
+# ============================================================================
+echo ""
+echo "=== STEP 7.8: INITIALIZING GPU METRICS ==="
+
+echo "Creating gpu-metrics ILM policy..."
+esapi PUT /_ilm/policy/gpu-metrics ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.ilm.json \
+  > ${ES_OUTPUTS_DIR}/gpu-metrics.ilm.out.json
+
+echo "Creating gpu-metrics index template..."
+esapi PUT /_index_template/metrics-gpu-default ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.template.json \
+  > ${ES_OUTPUTS_DIR}/gpu-metrics.template.out.json
+
+echo "Creating metrics-gpu-default data stream if it doesn't exist..."
+if ! esapi GET /_data_stream/metrics-gpu-default >& /dev/null; then
+  esapi PUT /_data_stream/metrics-gpu-default \
+    > ${ES_OUTPUTS_DIR}/gpu-metrics.datastream.out.json 2>&1
+else
+  echo "  (data stream already exists, skipping)"
+fi
+
+echo "Creating gpu-metrics data view..."
+kapi POST /api/data_views/data_view \
+  ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.dataview.json \
+  > ${ES_OUTPUTS_DIR}/gpu-metrics.dataview.out.json
+
+echo "Creating gpu-metrics saved search..."
+kapi POST /api/saved_objects/search/gpu-metrics-default?overwrite=true \
+  ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.search.json > /dev/null 2>&1
+
+echo "✅ GPU metrics initialized"
+
+# ============================================================================
 # STEP 8: Initialize Docker Metrics (ILM with Downsampling)
 # ============================================================================
 echo ""

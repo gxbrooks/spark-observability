@@ -30,6 +30,39 @@ inputs:
     processors:
       - add_host_metadata: ~
       - add_cloud_metadata: ~
+  # GPU metrics via filestream (exec input not supported in Elastic Agent 8.15)
+  # Script runs via systemd timer and writes JSON lines to log file
+  - id: gpu-metrics
+    type: filestream
+    use_output: default
+    enabled: true
+    streams:
+      - id: gpu-metrics-stream
+        data_stream:
+          type: metrics
+          dataset: gpu
+          namespace: default
+        paths:
+          - /var/log/gpu-metrics/gpu.ndjson
+        exclude_files: ['\.tmp$', '\.lock$']
+        close_inactive: 5m
+        clean_inactive: 24h
+        ignore_older: 72h
+        scan_frequency: 10s
+        tags: ["gpu-metrics", "hardware"]
+        parsers:
+          - ndjson:
+              target: ""
+        processors:
+          - add_fields:
+              target: event
+              fields:
+                dataset: gpu
+                kind: metric
+                type: info
+                category:
+                  - hardware
+          - add_host_metadata: ~
   # System logs integration - DISABLED (system/logs type not supported in Elastic Agent 8.15)
   # Causes "input not supported" error and agent DEGRADED state
   # - type: system/logs

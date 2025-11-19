@@ -1,0 +1,29 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"gpu-metrics\"}"
+    },
+    "title": "GPU Metrics Overview",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "gpu.card",
+      "gpu.bus.address",
+      "gpu.utilization.core_percent",
+      "gpu.temperature_c.edge",
+      "gpu.power.watts"
+    ],
+    "description": "Realtime GPU utilization, temperature, and power data sourced from AMD sysfs sensors",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 50
+  }
+}
+

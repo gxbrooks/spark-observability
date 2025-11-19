@@ -37,12 +37,13 @@ ansible-playbook playbooks/elastic-agent/status.yml
 
 ## Architecture
 
-The Elastic Agent collects **four types of telemetry**:
+The Elastic Agent collects **five types of telemetry**:
 
 1. **System Metrics** - CPU, memory, network, disk (per-host)
 2. **Kubernetes Metrics** - K8s cluster metrics (currently disabled)
 3. **Spark Logs** - Application logs and GC metrics (per-pod)
 4. **Spark Events** - Job execution events (Lab2 only - NFS server)
+5. **GPU Metrics** - AMD Radeon RX 7600M XT utilization/temperature/power via sysfs
 
 ### Key Design Decisions
 
@@ -60,6 +61,15 @@ The Elastic Agent collects **four types of telemetry**:
 - System metrics → Elasticsearch (direct)
 - Spark logs → Elasticsearch (direct)
 - Spark events → Logstash → Elasticsearch (JSON processing)
+- GPU metrics → Elastic Agent exec input → Elasticsearch data stream `metrics-gpu-default`
+
+### GPU Metrics Collector
+
+- Script: `elastic-agent/bin/gpu-metrics.py`
+- Deployed to: `/opt/Elastic/Agent/extensions/gpu-metrics.py`
+- Runs via the Filebeat `exec` input every 10 seconds (low overhead)
+- Reads utilization, clocks, temperature, power, and fan speed from `/sys/class/drm/card*/device/**`
+- Produces JSON documents tagged with `event.kind: metric` so they land in the `metrics-gpu-default` data stream
 
 ## Host Variables
 

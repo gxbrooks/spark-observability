@@ -1,0 +1,112 @@
+{
+  "index_patterns": [
+    "metrics-gpu-default"
+  ],
+  "data_stream": {},
+  "priority": 210,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "gpu-metrics"
+    },
+    "mappings": {
+      "dynamic": true,
+      "runtime": {
+        "gpu.utilization.core_percent_normalized": {
+          "type": "double",
+          "script": {
+            "source": "emit(doc['gpu.utilization.core_percent'].value / 100.0)"
+          }
+        },
+        "gpu.utilization.memory_percent_normalized": {
+          "type": "double",
+          "script": {
+            "source": "emit(doc['gpu.utilization.memory_percent'].value / 100.0)"
+          }
+        }
+      },
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "gpu": {
+          "properties": {
+            "card": {
+              "type": "keyword"
+            },
+            "bus": {
+              "properties": {
+                "address": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "vendor": {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "device": {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "subsystem_id": {
+                  "type": "keyword"
+                },
+                "subsystem_vendor": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "utilization": {
+              "properties": {
+                "core_percent": {
+                  "type": "float"
+                },
+                "memory_percent": {
+                  "type": "float"
+                }
+              }
+            },
+            "temperature_c": {
+              "properties": {
+                "edge": {
+                  "type": "float"
+                }
+              }
+            },
+            "power": {
+              "properties": {
+                "watts": {
+                  "type": "float"
+                }
+              }
+            },
+            "clocks": {
+              "properties": {
+                "gfx_mhz": {
+                  "type": "float"
+                },
+                "memory_mhz": {
+                  "type": "float"
+                }
+              }
+            },
+            "fan": {
+              "properties": {
+                "rpm": {
+                  "type": "float"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -1297,6 +1297,260 @@
       ],
       "title": "Total GC Heap Reclaimed",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Utilization (%)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "lineStyle": {
+              "dash": []
+            },
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*GPU.*|.*VRAM.*"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Utilization (%)"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [],
+                  "fill": "solid"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*Temp.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "Temperature (\u00b0C)"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#EAB839"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 101,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "graph": {
+          "showBars": false,
+          "showLines": true,
+          "showPoints": false
+        }
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{gpu.card}} GPU %",
+          "bucketAggs": [
+            {
+              "field": "gpu.card",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "5"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "$__interval"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "field": "gpu.utilization.core_percent",
+              "id": "1",
+              "type": "avg"
+            }
+          ],
+          "query": "_index:metrics-gpu-default",
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "alias": "{{gpu.card}} VRAM %",
+          "bucketAggs": [
+            {
+              "field": "gpu.card",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "5"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "$__interval"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "field": "gpu.utilization.memory_percent",
+              "id": "1",
+              "type": "avg"
+            }
+          ],
+          "query": "_index:metrics-gpu-default",
+          "refId": "B",
+          "timeField": "@timestamp"
+        },
+        {
+          "alias": "{{gpu.card}} Edge Temp (\u00b0C)",
+          "bucketAggs": [
+            {
+              "field": "gpu.card",
+              "id": "1",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_term",
+                "size": "5"
+              },
+              "type": "terms"
+            },
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": {
+                "interval": "$__interval"
+              },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "field": "gpu.temperature_c.edge",
+              "id": "1",
+              "type": "avg"
+            }
+          ],
+          "query": "_index:metrics-gpu-default",
+          "refId": "C",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU Metrics (Utilization & Temperature)",
+      "description": "Tracks AMD GPU utilization, VRAM usage, and edge temperature across Lab1/Lab2 nodes",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
