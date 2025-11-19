@@ -557,6 +557,513 @@ Elasticsearch bucket_script requires accessing pipeline variables through the `p
 
 Note: Field override `displayName` with regex capture groups (`$1`) does NOT work in Grafana. Use alias patterns instead.
 
+## Data Transformation Pipeline: From Raw Telemetry to Derivative Rates
+
+This section illustrates the complete data transformation pipeline, showing how raw counter values flow through each aggregation stage to produce derivative rates. Understanding this pipeline is critical for troubleshooting and optimizing derivative calculations.
+
+### Stage 0: Raw Telemetry Data (Elasticsearch Documents)
+
+**Source**: Elastic Agent collects system metrics every 10 seconds (`period: 10s`)
+
+**Raw Document Structure** (JSON):
+```json
+{
+  "@timestamp": "2025-11-18T10:00:00.000Z",
+  "host.name": "lab1",
+  "system.network.name": "enp0s3",
+  "system.network.in.bytes": 21691424182,
+  "system.network.out.bytes": 5432109876,
+  "_index": "metrics-system.network-default"
+}
+```
+
+**Relational View** (Sample Data):
+| @timestamp | host.name | system.network.name | system.network.in.bytes | system.network.out.bytes |
+|------------|-----------|---------------------|------------------------|--------------------------|
+| 10:00:00 | lab1 | enp0s3 | 21691424182 | 5432109876 |
+| 10:00:00 | lab1 | enp0s8 | 1234567890 | 987654321 |
+| 10:00:00 | lab2 | enp0s3 | 50000000000 | 20000000000 |
+| 10:00:10 | lab1 | enp0s3 | 21691439516 | 5432112345 |
+| 10:00:10 | lab1 | enp0s8 | 1234568901 | 987654432 |
+| 10:00:10 | lab2 | enp0s3 | 50000015334 | 20000012345 |
+
+**Key Characteristics**:
+- **Cumulative counters**: Values increase monotonically (except on counter reset)
+- **Multiple interfaces per host**: Each host may have multiple network interfaces
+- **10-second collection period**: New documents arrive every 10 seconds
+- **Per-interface metrics**: Each document represents one interface at one point in time
+
+### Stage 1: Query Filtering
+
+**Grafana Query**:
+```
+_index:metrics-system.network-default AND 
+system.network.name:(enp* OR ens* OR wlp* OR eth0 OR eth1) AND 
+NOT system.network.name:lo AND
+@timestamp: [10:00:00 TO 10:05:00]
+```
+
+**Effect**: Filters documents to:
+- Specific index pattern
+- Physical network interfaces (excludes loopback)
+- Time range (Grafana's selected time window)
+
+**Filtered Data** (Same structure, fewer rows):
+| @timestamp | host.name | system.network.name | system.network.in.bytes | system.network.out.bytes |
+|------------|-----------|---------------------|------------------------|--------------------------|
+| 10:00:00 | lab1 | enp0s3 | 21691424182 | 5432109876 |
+| 10:00:00 | lab1 | enp0s8 | 1234567890 | 987654321 |
+| 10:00:00 | lab2 | enp0s3 | 50000000000 | 20000000000 |
+| 10:00:10 | lab1 | enp0s3 | 21691439516 | 5432112345 |
+| ... | ... | ... | ... | ... |
+
+**Key Parameters**:
+- **Time range**: Determines which documents are included
+- **Interface filter**: Excludes loopback, includes only physical interfaces
+- **Index pattern**: Ensures correct data stream
+
+### Stage 2: Terms Aggregation (Group by Host)
+
+**Aggregation Configuration**:
+```json
+{
+  "id": "4",
+  "type": "terms",
+  "field": "host.name",
+  "settings": {
+    "min_doc_count": "1",
+    "order": "asc",
+    "orderBy": "_key",
+    "size": "10"
+  }
+}
+```
+
+**Effect**: Groups documents by `host.name`, creating separate buckets for each host.
+
+**After Terms Aggregation** (Nested Structure):
+```
+Bucket: host.name = "lab1"
+  Documents:
+    - 10:00:00, enp0s3, 21691424182, 5432109876
+    - 10:00:00, enp0s8, 1234567890, 987654321
+    - 10:00:10, enp0s3, 21691439516, 5432112345
+    - 10:00:10, enp0s8, 1234568901, 987654432
+    - ...
+
+Bucket: host.name = "lab2"
+  Documents:
+    - 10:00:00, enp0s3, 50000000000, 20000000000
+    - 10:00:10, enp0s3, 50000015334, 20000012345
+    - ...
+```
+
+**Key Parameters**:
+- **Field**: `host.name` - Groups by hostname
+- **Size**: Maximum number of host buckets (10)
+- **Order**: Determines which hosts appear first
+
+**Pitfall**: If `size` is too small, some hosts may be excluded from results.
+
+### Stage 3: Date Histogram Aggregation (Time Bucketing)
+
+**Aggregation Configuration**:
+```json
+{
+  "id": "5",
+  "type": "date_histogram",
+  "field": "@timestamp",
+  "settings": {
+    "interval": "10s"
+  }
+}
+```
+
+**Effect**: Groups documents within each host bucket by time intervals of 10 seconds.
+
+**After Date Histogram** (Nested Structure):
+```
+Bucket: host.name = "lab1"
+  Bucket: @timestamp = 10:00:00
+    Documents:
+      - enp0s3, 21691424182, 5432109876
+      - enp0s8, 1234567890, 987654321
+  Bucket: @timestamp = 10:00:10
+    Documents:
+      - enp0s3, 21691439516, 5432112345
+      - enp0s8, 1234568901, 987654432
+  Bucket: @timestamp = 10:00:20
+    Documents:
+      - enp0s3, 21691454850, 5432114814
+      - enp0s8, 1234569912, 987654543
+  ...
+
+Bucket: host.name = "lab2"
+  Bucket: @timestamp = 10:00:00
+    Documents:
+      - enp0s3, 50000000000, 20000000000
+  Bucket: @timestamp = 10:00:10
+    Documents:
+      - enp0s3, 50000015334, 20000012345
+  ...
+```
+
+**Relational View** (Per Host, Per Time Bucket):
+| host.name | bucket_time | interface | in.bytes | out.bytes |
+|-----------|-------------|-----------|----------|-----------|
+| lab1 | 10:00:00 | enp0s3 | 21691424182 | 5432109876 |
+| lab1 | 10:00:00 | enp0s8 | 1234567890 | 987654321 |
+| lab1 | 10:00:10 | enp0s3 | 21691439516 | 5432112345 |
+| lab1 | 10:00:10 | enp0s8 | 1234568901 | 987654432 |
+| lab2 | 10:00:00 | enp0s3 | 50000000000 | 20000000000 |
+| lab2 | 10:00:10 | enp0s3 | 50000015334 | 20000012345 |
+
+**Key Parameters**:
+- **Interval**: `10s` - Must match or exceed data collection period (10s)
+- **Field**: `@timestamp` - Time field for bucketing
+
+**Critical Pitfall: Interval Too Small**
+
+If `interval` < data collection period (10s):
+- Many buckets will be **empty** (no documents)
+- Empty buckets break derivative calculation chain
+- Result: **No data displayed** for short time ranges
+
+**Example of Problem**:
+```
+Interval = 3s (too small)
+Bucket: 10:00:00-10:00:03 → Empty (no data collected yet)
+Bucket: 10:00:03-10:00:06 → Empty
+Bucket: 10:00:06-10:00:09 → Empty
+Bucket: 10:00:09-10:00:12 → Has data (10:00:10 document)
+Bucket: 10:00:12-10:00:15 → Empty
+...
+```
+
+**Solution**: Use fixed interval of `10s` to match data collection period.
+
+### Stage 4: Sum Aggregation (Aggregate Across Interfaces)
+
+**Aggregation Configuration**:
+```json
+{
+  "id": "1",
+  "type": "sum",
+  "field": "system.network.in.bytes",
+  "hide": true
+}
+```
+
+**Effect**: Sums counter values across all interfaces within each time bucket.
+
+**After Sum Aggregation** (Per Host, Per Time Bucket):
+| host.name | bucket_time | sum(in.bytes) | sum(out.bytes) |
+|-----------|-------------|---------------|----------------|
+| lab1 | 10:00:00 | 22925992072 | 6419764197 |
+| lab1 | 10:00:10 | 22926008417 | 6419766777 |
+| lab1 | 10:00:20 | 22926024762 | 6419769357 |
+| lab2 | 10:00:00 | 50000000000 | 20000000000 |
+| lab2 | 10:00:10 | 50000015334 | 20000012345 |
+| lab2 | 10:00:20 | 50000030668 | 20000024690 |
+
+**Calculation Example** (lab1, 10:00:00):
+- enp0s3: 21691424182
+- enp0s8: 1234567890
+- **Sum**: 21691424182 + 1234567890 = 22925992072
+
+**Key Parameters**:
+- **Type**: `sum` - Aggregates across multiple interfaces
+- **Field**: Counter field to aggregate
+- **Hide**: `true` - Hides intermediate result from display
+
+**Alternative Aggregations**:
+- `max`: Takes maximum value (used for per-host metrics)
+- `avg`: Takes average (rarely used for counters)
+- `min`: Takes minimum (rarely used for counters)
+
+**Pitfall: Using Max Instead of Sum for Aggregated Metrics**
+
+When aggregating across multiple hosts/interfaces, use `sum` to get total cluster throughput:
+- **Sum**: Total bytes across all hosts/interfaces (correct for aggregated view)
+- **Max**: Maximum single-host/interface value (incorrect, causes oscillation)
+
+**Example of Problem** (Max Aggregation):
+```
+Time 10:00:00: lab1=100GB, lab2=50GB → Max=100GB
+Time 10:00:10: lab1=101GB, lab2=60GB → Max=101GB (derivative = 1GB/10s)
+Time 10:00:20: lab1=102GB, lab2=70GB → Max=102GB (derivative = 1GB/10s)
+Time 10:00:30: lab1=103GB, lab2=80GB → Max=103GB (derivative = 1GB/10s)
+```
+
+But if max switches between hosts:
+```
+Time 10:00:00: lab1=100GB, lab2=50GB → Max=100GB (lab1)
+Time 10:00:10: lab1=101GB, lab2=60GB → Max=101GB (lab1, derivative = 1GB/10s)
+Time 10:00:20: lab1=102GB, lab2=70GB → Max=102GB (lab1, derivative = 1GB/10s)
+Time 10:00:30: lab1=103GB, lab2=80GB → Max=103GB (lab1, derivative = 1GB/10s)
+Time 10:00:40: lab1=104GB, lab2=90GB → Max=104GB (lab1, derivative = 1GB/10s)
+Time 10:00:50: lab1=105GB, lab2=100GB → Max=105GB (lab1, derivative = 1GB/10s)
+Time 10:01:00: lab1=106GB, lab2=110GB → Max=110GB (lab2!) → derivative = 5GB/10s (spike!)
+Time 10:01:10: lab1=107GB, lab2=111GB → Max=111GB (lab2, derivative = 1GB/10s)
+```
+
+This causes **oscillation** when the max switches between hosts.
+
+**Solution**: Use `sum` for aggregated metrics to ensure monotonically increasing counters.
+
+### Stage 5: Derivative Aggregation (Rate Calculation)
+
+**Aggregation Configuration**:
+```json
+{
+  "id": "2",
+  "type": "derivative",
+  "field": "1",
+  "pipelineAgg": "1",
+  "settings": {
+    "unit": "10s"
+  },
+  "hide": true
+}
+```
+
+**Effect**: Calculates rate of change between consecutive time buckets, normalized by time unit.
+
+**After Derivative Aggregation**:
+| host.name | bucket_time | sum(in.bytes) | derivative(in.bytes) |
+|-----------|-------------|---------------|----------------------|
+| lab1 | 10:00:00 | 22925992072 | **null** (no previous bucket) |
+| lab1 | 10:00:10 | 22926008417 | **16345** bytes/10s = 1634.5 bytes/s |
+| lab1 | 10:00:20 | 22926024762 | **16345** bytes/10s = 1634.5 bytes/s |
+| lab1 | 10:00:30 | 22926041107 | **16345** bytes/10s = 1634.5 bytes/s |
+| lab2 | 10:00:00 | 50000000000 | **null** |
+| lab2 | 10:00:10 | 50000015334 | **15334** bytes/10s = 1533.4 bytes/s |
+| lab2 | 10:00:20 | 50000030668 | **15334** bytes/10s = 1533.4 bytes/s |
+
+**Calculation Formula**:
+```
+derivative = (current_value - previous_value) / time_delta
+           = (22926008417 - 22925992072) / 10s
+           = 16345 bytes / 10s
+           = 1634.5 bytes/s
+```
+
+**Key Parameters**:
+- **unit**: `10s` - Normalization unit (must match date_histogram interval)
+- **pipelineAgg**: `1` - References the sum aggregation (ID "1")
+- **field**: `1` - Also references aggregation ID "1"
+
+**Critical Pitfall: Endpoint Anomalies**
+
+**Problem**: First and last buckets compare with buckets outside the query time window.
+
+**Example**:
+```
+Query time range: 10:00:00 to 10:05:00
+
+Bucket sequence in Elasticsearch:
+  09:59:50 → 10000000000 (outside query window)
+  10:00:00 → 22925992072 (first bucket in query)
+  10:00:10 → 22926008417
+  ...
+  10:05:00 → 22927000000 (last bucket in query)
+  10:05:10 → 50000000000 (outside query window, different counter state!)
+
+Derivative calculation:
+  10:00:00: (22925992072 - 10000000000) / 10s = 1292599207 bytes/s = 1.29 GB/s ❌
+  10:00:10: (22926008417 - 22925992072) / 10s = 1634.5 bytes/s ✅
+  ...
+  10:05:00: (50000000000 - 22927000000) / 10s = 2707300000 bytes/s = 2.7 GB/s ❌
+```
+
+**Root Cause**:
+- Elasticsearch stores continuous data (buckets exist outside query window)
+- Derivative operates on bucket sequence, not query time range
+- Boundary buckets compare with external buckets that may have very different counter values
+
+**Solution**: 
+- Set `nullValueMode: "null"` in Grafana field config to hide null values
+- Set `spanNulls: false` to break lines at null values
+- This hides the first bucket (which is null) and prevents display of anomalous last bucket
+
+**JSON Configuration**:
+```json
+{
+  "fieldConfig": {
+    "defaults": {
+      "nullValueMode": "null",
+      "custom": {
+        "spanNulls": false
+      }
+    }
+  }
+}
+```
+
+### Stage 6: Bucket Script (Wave Envelope - Negation)
+
+**Aggregation Configuration**:
+```json
+{
+  "id": "3",
+  "type": "bucket_script",
+  "pipelineAgg": "2",
+  "settings": {
+    "script": "params._value != null ? params._value * -1 : null"
+  },
+  "pipelineVariables": [
+    {
+      "name": "_value",
+      "pipelineAgg": "2"
+    }
+  ]
+}
+```
+
+**Effect**: Multiplies derivative by -1 for "In" metrics to create wave envelope visualization.
+
+**After Bucket Script** (For "In" metrics only):
+| host.name | bucket_time | derivative | bucket_script (negated) |
+|-----------|-------------|------------|-------------------------|
+| lab1 | 10:00:00 | null | null |
+| lab1 | 10:00:10 | 1634.5 | **-1634.5** bytes/s |
+| lab1 | 10:00:20 | 1634.5 | **-1634.5** bytes/s |
+| lab1 | 10:00:30 | 1634.5 | **-1634.5** bytes/s |
+
+**Key Parameters**:
+- **script**: `params._value * -1` - Negates the derivative value
+- **pipelineVariables**: Maps `_value` to aggregation ID "2" (derivative)
+- **pipelineAgg**: `2` - References the derivative aggregation
+
+**Pitfall: Incorrect Script Syntax**
+
+**Wrong**:
+```json
+{"script": "_value * -1"}  // Missing params. prefix
+```
+
+**Correct**:
+```json
+{"script": "params._value * -1"}  // Must use params. prefix
+```
+
+**Pitfall: Null Handling**
+
+If derivative is null (first bucket), bucket_script should also return null:
+```json
+{"script": "params._value != null ? params._value * -1 : null"}
+```
+
+### Stage 7: Final Output to Grafana
+
+**Elasticsearch Response Structure**:
+```json
+{
+  "aggregations": {
+    "4": {
+      "buckets": [
+        {
+          "key": "lab1",
+          "5": {
+            "buckets": [
+              {
+                "key_as_string": "2025-11-18T10:00:10.000Z",
+                "1": {"value": 22926008417.0},      // sum (hidden)
+                "2": {"value": 1634.5},              // derivative (hidden)
+                "3": {"value": -1634.5}               // bucket_script (displayed)
+              },
+              {
+                "key_as_string": "2025-11-18T10:00:20.000Z",
+                "1": {"value": 22926024762.0},
+                "2": {"value": 1634.5},
+                "3": {"value": -1634.5}
+              }
+            ]
+          }
+        },
+        {
+          "key": "lab2",
+          "5": {"buckets": [...]}
+        }
+      ]
+    }
+  }
+}
+```
+
+**Grafana Time Series Data**:
+| Time | lab1 In | lab1 Out | lab2 In | lab2 Out |
+|------|---------|----------|---------|----------|
+| 10:00:10 | -1634.5 | 1634.5 | -1533.4 | 1533.4 |
+| 10:00:20 | -1634.5 | 1634.5 | -1533.4 | 1533.4 |
+| 10:00:30 | -1634.5 | 1634.5 | -1533.4 | 1533.4 |
+
+**Visual Result**:
+```
+   OUT ─────────▲──────── (positive rates above x-axis)
+                │
+                │    lab1 Out, lab2 Out
+                │
+   ─────────────0─────────────────────────────────────
+                │
+                │    lab1 In, lab2 In
+                │
+   IN  ─────────▼──────── (negative rates below x-axis)
+```
+
+### Complete Pipeline Summary
+
+```
+Raw Documents (Elasticsearch)
+    ↓ [Query Filter]
+Filtered Documents
+    ↓ [Terms Aggregation: group by host.name]
+Host Buckets
+    ↓ [Date Histogram: group by @timestamp, interval=10s]
+Time Buckets (per host)
+    ↓ [Sum Aggregation: sum across interfaces]
+Aggregated Counters (per host, per time bucket)
+    ↓ [Derivative Aggregation: rate calculation]
+Derivative Rates (bytes/second)
+    ↓ [Bucket Script: negation for "In" metrics]
+Final Rates (negative for "In", positive for "Out")
+    ↓ [Grafana Display]
+Time Series Visualization
+```
+
+### Key Parameters Summary
+
+| Stage | Parameter | Value | Critical? | Pitfall |
+|-------|-----------|-------|-----------|---------|
+| Date Histogram | `interval` | `10s` | ✅ Yes | Too small → empty buckets → no data |
+| Derivative | `unit` | `10s` | ✅ Yes | Must match date_histogram interval |
+| Bucket Script | `script` | `params._value * -1` | ✅ Yes | Missing `params.` → compile error |
+| Field Config | `nullValueMode` | `null` | ✅ Yes | Missing → shows null as 0 |
+| Field Config | `spanNulls` | `false` | ✅ Yes | `true` → connects across nulls |
+| Sum | `type` | `sum` | ✅ Yes | `max` → oscillation when max switches hosts |
+
+### Common Pitfalls and Solutions
+
+1. **Empty Buckets (No Data for Short Time Ranges)**
+   - **Cause**: `interval` < data collection period
+   - **Solution**: Use fixed `interval: "10s"` to match collection period
+
+2. **Endpoint Anomalies (Spikes at Beginning/End)**
+   - **Cause**: Derivative compares with buckets outside query time window
+   - **Solution**: Set `nullValueMode: "null"` and `spanNulls: false` to hide boundary anomalies
+
+3. **Oscillation (Values Switching Positive/Negative)**
+   - **Cause**: Using `max` aggregation instead of `sum` for aggregated metrics
+   - **Solution**: Use `sum` to ensure monotonically increasing counters
+
+4. **No Derivative Data (All Nulls)**
+   - **Cause**: Using string metric IDs instead of numeric
+   - **Solution**: Use numeric IDs ("1", "2", "3") for pipeline aggregations
+
+5. **Bucket Script Compile Error**
+   - **Cause**: Missing `params.` prefix in script
+   - **Solution**: Use `params._value` instead of `_value`
+
 ## Summary
 
 The scalable solution for derivative metric calculation combines:
@@ -567,6 +1074,8 @@ The scalable solution for derivative metric calculation combines:
 4. **Bucket Script** - Server-side negation with `params._value * -1` for wave envelope
 5. **Terms Before Date Histogram** - Aggregation order enables per-host breakdown
 6. **Hide Intermediate Metrics** - Clean legends showing only final calculated rates
+7. **Fixed Interval** - Use `10s` to match data collection period and prevent empty buckets
+8. **Null Value Handling** - Configure `nullValueMode` and `spanNulls` to handle boundary cases
 
 This configuration is:
 - ✅ **Scalable**: Works with 2 to 2000+ hosts without modification
@@ -574,6 +1083,7 @@ This configuration is:
 - ✅ **Maintainable**: Zero configuration changes for cluster topology updates
 - ✅ **Clear**: Clean labels and visual distinction (wave envelope)
 - ✅ **Reliable**: Automatic counter reset handling via Elasticsearch derivatives
+- ✅ **Robust**: Handles edge cases (empty buckets, boundary anomalies, null values)
 
 Following these patterns ensures enterprise-ready dashboards that adapt automatically to infrastructure changes while maintaining clarity and performance.
 

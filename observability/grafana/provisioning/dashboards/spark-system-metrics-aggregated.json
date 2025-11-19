@@ -420,7 +420,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -531,7 +531,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -569,12 +569,14 @@
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "mode": "normal",
               "group": "A"
             }
           },
+          "mappings": [],
+          "nullValueMode": "null",
           "unit": "Bps"
         },
         "overrides": []
@@ -609,7 +611,7 @@
           "metrics": [
             {
               "id": "1",
-              "type": "max",
+              "type": "sum",
               "field": "system.network.in.bytes",
               "hide": true
             },
@@ -628,7 +630,7 @@
               "type": "bucket_script",
               "pipelineAgg": "2",
               "settings": {
-                "script": "params._value * -1"
+                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value * -1 : null"
               },
               "pipelineVariables": [
                 {
@@ -644,7 +646,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               }
             }
           ],
@@ -661,7 +663,7 @@
           "metrics": [
             {
               "id": "1",
-              "type": "max",
+              "type": "sum",
               "field": "system.network.out.bytes",
               "hide": true
             },
@@ -672,7 +674,22 @@
               "pipelineAgg": "1",
               "settings": {
                 "unit": "$__interval"
-              }
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value : null"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
             }
           ],
           "bucketAggs": [
@@ -681,7 +698,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               }
             }
           ],
@@ -706,12 +723,14 @@
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "mode": "normal",
               "group": "A"
             }
           },
+          "mappings": [],
+          "nullValueMode": "null",
           "unit": "Bps"
         },
         "overrides": []
@@ -746,7 +765,7 @@
           "metrics": [
             {
               "id": "1",
-              "type": "max",
+              "type": "sum",
               "field": "system.diskio.read.bytes",
               "hide": true
             },
@@ -765,7 +784,7 @@
               "type": "bucket_script",
               "pipelineAgg": "2",
               "settings": {
-                "script": "params._value * -1"
+                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value * -1 : null"
               },
               "pipelineVariables": [
                 {
@@ -781,7 +800,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               }
             }
           ],
@@ -798,7 +817,7 @@
           "metrics": [
             {
               "id": "1",
-              "type": "max",
+              "type": "sum",
               "field": "system.diskio.write.bytes",
               "hide": true
             },
@@ -809,7 +828,22 @@
               "pipelineAgg": "1",
               "settings": {
                 "unit": "$__interval"
-              }
+              },
+              "hide": true
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value : null"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "2"
+                }
+              ]
             }
           ],
           "bucketAggs": [
@@ -818,7 +852,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               }
             }
           ],
@@ -859,9 +893,10 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "mappings": [],
+          "nullValueMode": "null",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -919,7 +954,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               }
             }
           ],
@@ -960,9 +995,10 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "mappings": [],
+          "nullValueMode": "null",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1005,7 +1041,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -1032,7 +1068,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "$__interval"
+                "interval": "10s"
               },
               "type": "date_histogram"
             }
@@ -1135,7 +1171,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "$__interval",
+                "interval": "10s",
                 "min_doc_count": "0"
               },
               "type": "date_histogram"
@@ -1237,7 +1273,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "$__interval",
+                "interval": "10s",
                 "min_doc_count": "0"
               },
               "type": "date_histogram"

@@ -1,30 +1,32 @@
 from pyspark.sql import SparkSession
-from google.cloud import bigquery
 from functools import reduce
-from pyspark.sql import SparkSession, functions as F
+import pyspark.sql.functions as F
 import pyspark.sql.types as T
+import os
 
 
 """
 spark-submit  \
     --master spark://spark-master:7077 \
     --deploy-mode client \
-    --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0 \
+    --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.13:0.37.0 \
     ./apps/GSOD_Download.py
 """
-def get_noaa_gsod_data(year, noaa):
+def get_noaa_gsod_data(year, noaa, api_key_path):
     """
     Reads data from a single year of the NOAA GSOD dataset.
 
     Args:
         year (int): The year to read data for.
-        spark (SparkSession): The SparkSession object.
+        noaa (SparkSession): The SparkSession object.
+        api_key_path (str): Path to the BigQuery API key JSON file.
 
     Returns:
         pyspark.sql.DataFrame: A DataFrame containing the data for the specified year.
     """
     df = noaa.read.format("bigquery") \
                .option("table", f"bigquery-public-data.noaa_gsod.gsod{year}") \
+               .option("credentialsFile", api_key_path) \
                .load()
 
     # Align types with the types expected in the book 
@@ -54,73 +56,88 @@ def get_noaa_gsod_data(year, noaa):
     return df
 
 # Create a SparkSession
+# Note: When using spark-submit, add --packages parameter:
+#   --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0
+# The spark.jars.packages config doesn't work well with spark-submit
 
-"""
-Do not use the config:
-    .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.30.0")
+# Determine API key path based on execution context
+# For cluster mode: /opt/spark/apps/bq-api-key.json
+# For client mode: use relative path from script location
+script_dir = os.path.dirname(os.path.abspath(__file__))
+api_key_path = os.path.join(script_dir, "bq-api-key.json")
 
-As it does not work well with spark-submit even though it works with iPython. Instead you need to call 
-spark-submit and add the packages parameter:
+# Check if running in cluster (keyfile exists at cluster path) or client mode
+if os.path.exists('/opt/spark/apps/bq-api-key.json'):
+    api_key_path = '/opt/spark/apps/bq-api-key.json'
+elif not os.path.exists(api_key_path):
+    raise FileNotFoundError(f"BigQuery API key not found at {api_key_path} or /opt/spark/apps/bq-api-key.json")
 
-    --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0' 
+print(f"Using BigQuery API key: {api_key_path}")
 
-For this code, without the ocnfig (above) for spark.jar.packages, you need to set the 
-environment variable PYSPARK_DRIVER_PYTHON=ipython and then launch the pyspark script with the same 
-package parameter. For example:
-
-    docker compose exec \
-        -e PYSPARK_DRIVER_PYTHON=ipython spark-master \
-        pyspark --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0'
-
-For references see the source code of bin/pyspark 
-"""
+# Note: When running with python3 directly, the packages config may work
+# When using spark-submit, use --packages parameter instead
 noaa = (
     SparkSession.builder 
     .appName("NOAA GSOD Data") 
-    #
-    # Copilot's initial recommendation
-    # .config("spark.jars", "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.23.2.jar") \
-    # The books version
-    # .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.19.1")
-    # Copilot recommended version for Spark 3.5.5
-    # .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0")
-    # .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.30.0")
-    .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") 
-    .config("spark.hadoop.google.cloud.auth.service.account.json.keyfile", '/opt/spark/apps/bq-api-key.json') 
+    .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.13:0.37.0,javax.inject:javax.inject:1")
     .config("spark.sql.execution.arrow.pyspark.enabled", "true") 
     .config("spark.sql.execution.arrow.pyspark.fallback.enabled", "true") 
     .getOrCreate()
 )
 
-noaa = (
-    SparkSession.builder 
-    .appName("NOAA GSOD Data") 
-    .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0")
-    .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") 
-    .config("spark.hadoop.google.cloud.auth.service.account.json.keyfile", '/opt/spark/apps/bq-api-key.json') 
-    .config("spark.sql.execution.arrow.pyspark.enabled", "true") 
-    .config("spark.sql.execution.arrow.pyspark.fallback.enabled", "true") 
-    .getOrCreate()
-)
+# Test mode: Set TEST_MODE environment variable to download just one year
+# Example: TEST_MODE=1 python3 spark/apps/gsod/GSOD_Download.py
+test_mode = os.environ.get('TEST_MODE', '0') == '1'
 
-# Define years to read data from
-years = range(2014, 2024)
-
-# Use reduce to combine DataFrames
-noaa_df = reduce(lambda df1, df2: df1.unionByName(df2), 
-    (get_noaa_gsod_data(year, noaa) for year in years[1:]), 
-    get_noaa_gsod_data(years[0], noaa)) 
-
-# Show the first few rows of the combined DataFrame
-# noaa_df.show(5)
-
-
-# Save as Parquet
-(
-    noaa_df
-    .write.mode("overwrite")
-    .parquet("file:///spark-data/gsod_data.parquet")
-)
+if test_mode:
+    print("=" * 60)
+    print("TEST MODE: Downloading single year (2023) to verify API key")
+    print("=" * 60)
+    # Test with just one year
+    test_year = 2023
+    print(f"Downloading data for year {test_year}...")
+    noaa_df = get_noaa_gsod_data(test_year, noaa, api_key_path)
+    print(f"Successfully downloaded {noaa_df.count()} records for {test_year}")
+    noaa_df.show(5)
+    print(f"Schema:")
+    noaa_df.printSchema()
+    print("=" * 60)
+    print("TEST PASSED: API key is valid and function works correctly")
+    print("To download all years, run without TEST_MODE=1")
+    print("=" * 60)
+else:
+    # Define years to read data from (2014-2023, 10 years)
+    years = range(2014, 2024)
+    print(f"Downloading NOAA GSOD data for years {years[0]} to {years[-1]} ({len(years)} years)")
+    
+    # Use reduce to combine DataFrames
+    print("Downloading first year...")
+    noaa_df = get_noaa_gsod_data(years[0], noaa, api_key_path)
+    print(f"Year {years[0]}: {noaa_df.count()} records")
+    
+    for year in years[1:]:
+        print(f"Downloading year {year}...")
+        year_df = get_noaa_gsod_data(year, noaa, api_key_path)
+        count = year_df.count()
+        print(f"Year {year}: {count} records")
+        noaa_df = noaa_df.unionByName(year_df, allowMissingColumns=True)
+    
+    total_count = noaa_df.count()
+    print(f"\nTotal records across all years: {total_count}")
+    
+    # Show the first few rows of the combined DataFrame
+    print("\nSample data:")
+    noaa_df.show(5)
+    
+    # Save as Parquet
+    output_path = "/mnt/spark/data/gsod_data.parquet"
+    print(f"\nSaving to {output_path}...")
+    (
+        noaa_df
+        .write.mode("overwrite")
+        .parquet(output_path)
+    )
+    print(f"Successfully saved {total_count} records to {output_path}")
 
 # Stop the SparkSession
 noaa.stop()

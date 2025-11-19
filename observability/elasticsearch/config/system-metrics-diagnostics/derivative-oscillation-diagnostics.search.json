@@ -1,0 +1,32 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"(_index:metrics-system.network-default AND (system.network.name:(enp* OR ens* OR wlp* OR eth0 OR eth1) AND NOT system.network.name:lo)) OR (_index:metrics-system.diskio-default AND system.diskio.name:(nvme* OR sd* OR vd*))\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"system-metrics-diagnostics\"}"
+    },
+    "title": "Derivative Oscillation Diagnostics",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "host.name",
+      "system.network.name",
+      "system.network.in.bytes",
+      "system.network.out.bytes",
+      "system.diskio.name",
+      "system.diskio.read.bytes",
+      "system.diskio.write.bytes"
+    ],
+    "description": "Diagnostic view to investigate derivative oscillation issues. Shows raw counter values by host/interface to identify:\n1. Counter resets (sudden decreases)\n2. Missing data points (gaps in time series)\n3. Multiple hosts/interfaces causing aggregation issues\n4. Negative derivatives from counter wraparound\n\nKey things to check:\n- Are counter values monotonically increasing? (should be yes)\n- Do counters reset or decrease? (indicates counter wraparound or host restart)\n- Are there gaps in the time series? (missing data points)\n- Are multiple hosts/interfaces being aggregated? (check host.name and interface names)",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": true,
+    "rowHeight": 3,
+    "rowsPerPage": 100,
+    "viewMode": "documents"
+  }
+}
