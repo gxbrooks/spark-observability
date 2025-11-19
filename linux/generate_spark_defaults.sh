@@ -44,11 +44,17 @@ if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ]]; then
     exit 1
 fi
 
-# Validate ES variables are set
-if [[ -z "$ES_URL" ]]; then
-    echo "Error: ES_URL not set in devops_env.sh" >&2
+# Validate ES variables are set (ES_HOST and ES_PORT, construct ES_URL)
+if [[ -z "$ES_HOST" ]]; then
+    echo "Error: ES_HOST not set in devops_env.sh" >&2
     exit 1
 fi
+if [[ -z "$ES_PORT" ]]; then
+    echo "Error: ES_PORT not set in devops_env.sh" >&2
+    exit 1
+fi
+# Construct ES_URL from ES_HOST and ES_PORT
+ES_URL="https://${ES_HOST}:${ES_PORT}"
 if [[ -z "$ES_USER" ]]; then
     echo "Error: ES_USER not set in devops_env.sh" >&2
     exit 1
@@ -86,6 +92,7 @@ if [ "$USE_SED" = "1" ]; then
     PYSPARK_PYTHON_ESC=$(echo "$PYSPARK_PYTHON" | sed 's/[[\.*^$()+?{|]/\\&/g')
     OTEL_ENDPOINT_ESC=$(echo "$OTEL_EXPORTER_OTLP_ENDPOINT" | sed 's/[[\.*^$()+?{|]/\\&/g')
     JAR_PATH_ESC=$(echo "$SPARK_OTEL_LISTENER_JAR" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    # ES_URL is constructed above from ES_HOST and ES_PORT
     ES_URL_ESC=$(echo "$ES_URL" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_USER_ESC=$(echo "$ES_USER" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_PASSWORD_ESC=$(echo "$ES_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
