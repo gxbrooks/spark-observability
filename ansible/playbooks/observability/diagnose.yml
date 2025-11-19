@@ -99,7 +99,7 @@
           Logstash        {{ inventory_hostname }}               9600     HTTP
 
     - name: Check Docker containers
-      shell: "cd /home/ansible/observability && docker-compose ps --format table"
+      shell: "cd /home/ansible/ops/observability && docker-compose ps --format table"
       register: docker_containers
       ignore_errors: yes
 

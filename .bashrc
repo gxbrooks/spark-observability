@@ -3,9 +3,9 @@ echo "Setting up bash environment for Spark Observability..."
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LS_HOME=/usr/share/logstash
 
-# Add observability/elasticsearch/bin to PATH for esapi and kapi commands
-if [[ ":$PATH:" != *":${dir}/observability/elasticsearch/bin:"* ]]; then
-    export PATH="${dir}/observability/elasticsearch/bin:$PATH"
+# Add ops/observability/elasticsearch/bin to PATH for esapi and kapi commands
+if [[ ":$PATH:" != *":${dir}/ops/observability/elasticsearch/bin:"* ]]; then
+    export PATH="${dir}/ops/observability/elasticsearch/bin:$PATH"
 fi
 
 if ! grep -qi "microsoft\|wsl" /proc/version; then

@@ -9,10 +9,11 @@
   gather_facts: true
   
   vars:
-    observability_dir: "/home/ansible/observability"
+    observability_dir: "/home/ansible/ops/observability"
     docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
     env_file: "{{ observability_dir }}/.env"
     env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability/.env"
+    ops_dir: "/home/ansible/ops"
     
   tasks:
     - name: Detect host OS
@@ -30,6 +31,13 @@
           - Is Linux: {{ is_linux }}
           
     # === LINUX/WSL TASKS ===
+    - name: Create ops directory (Linux)
+      file:
+        path: "{{ ops_dir }}"
+        state: directory
+        mode: '0755'
+      when: is_linux
+      
     - name: Create observability directory (Linux)
       file:
         path: "{{ observability_dir }}"
@@ -122,6 +130,68 @@
         group: ansible
       when: is_linux
       tags: [always]
+      
+    # === BASH CONFIGURATION FILES ===
+    - name: Copy .bashrc to ops directory (Linux)
+      copy:
+        src: "{{ playbook_dir }}/../../../.bashrc"
+        dest: "{{ ops_dir }}/.bashrc"
+        mode: '0644'
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Copy .bash_aliases to ops directory (Linux)
+      copy:
+        src: "{{ playbook_dir }}/../../../.bash_aliases"
+        dest: "{{ ops_dir }}/.bash_aliases"
+        mode: '0644'
+      when: is_linux
+      ignore_errors: true
+      
+    - name: Check if ansible user .bashrc exists
+      stat:
+        path: "/home/ansible/.bashrc"
+      register: ansible_bashrc_stat
+      when: is_linux
+      become: true
+      
+    - name: Create ansible user .bashrc if it doesn't exist (Linux)
+      copy:
+        content: |
+          # ~/.bashrc: executed by bash(1) for non-login shells.
+          # Source ops configuration files
+          if [ -f {{ ops_dir }}/.bashrc ]; then
+            source {{ ops_dir }}/.bashrc
+          fi
+          if [ -f {{ ops_dir }}/.bash_aliases ]; then
+            source {{ ops_dir }}/.bash_aliases
+          fi
+        dest: "/home/ansible/.bashrc"
+        mode: '0644'
+        owner: ansible
+        group: ansible
+      when: is_linux and not ansible_bashrc_stat.stat.exists
+      become: true
+      
+    - name: Ensure ansible user .bashrc sources ops/.bashrc (Linux)
+      lineinfile:
+        path: "/home/ansible/.bashrc"
+        line: "source {{ ops_dir }}/.bashrc"
+        state: present
+        regexp: "^source {{ ops_dir }}/.bashrc"
+        insertafter: EOF
+      when: is_linux and ansible_bashrc_stat.stat.exists
+      become: true
+      
+    - name: Ensure ansible user .bashrc sources ops/.bash_aliases (Linux)
+      lineinfile:
+        path: "/home/ansible/.bashrc"
+        line: "source {{ ops_dir }}/.bash_aliases"
+        state: present
+        regexp: "^source {{ ops_dir }}/.bash_aliases"
+        insertafter: EOF
+      when: is_linux and ansible_bashrc_stat.stat.exists
+      become: true
         
     # === WINDOWS TASKS ===
     - name: Start Docker Desktop service (Windows)
