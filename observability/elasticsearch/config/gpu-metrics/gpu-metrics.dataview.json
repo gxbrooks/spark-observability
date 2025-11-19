@@ -67,6 +67,106 @@
         "name": "gpu.fan.rpm",
         "type": "number",
         "customLabel": "Fan RPM"
+      },
+      "gpu.utilization.active": {
+        "name": "gpu.utilization.active",
+        "type": "boolean",
+        "customLabel": "GPU Active"
+      },
+      "gpu.temperature_c.junction": {
+        "name": "gpu.temperature_c.junction",
+        "type": "number",
+        "customLabel": "Junction Temp (°C)"
+      },
+      "gpu.temperature_c.memory": {
+        "name": "gpu.temperature_c.memory",
+        "type": "number",
+        "customLabel": "Memory Temp (°C)"
+      },
+      "amd.gpu.temperature_c.hotspot": {
+        "name": "amd.gpu.temperature_c.hotspot",
+        "type": "number",
+        "customLabel": "Hotspot Temp (°C)"
+      },
+      "amd.gpu.temperature_c.memory_junction": {
+        "name": "amd.gpu.temperature_c.memory_junction",
+        "type": "number",
+        "customLabel": "Memory Junction Temp (°C)"
+      },
+      "gpu.power.watts_current": {
+        "name": "gpu.power.watts_current",
+        "type": "number",
+        "customLabel": "Current Power (W)"
+      },
+      "gpu.power.cap_watts": {
+        "name": "gpu.power.cap_watts",
+        "type": "number",
+        "customLabel": "Power Cap (W)"
+      },
+      "gpu.clocks.core_mhz": {
+        "name": "gpu.clocks.core_mhz",
+        "type": "number",
+        "customLabel": "Core Clock (MHz)"
+      },
+      "gpu.clocks.core_min_mhz": {
+        "name": "gpu.clocks.core_min_mhz",
+        "type": "number",
+        "customLabel": "Core Clock Min (MHz)"
+      },
+      "gpu.clocks.core_max_mhz": {
+        "name": "gpu.clocks.core_max_mhz",
+        "type": "number",
+        "customLabel": "Core Clock Max (MHz)"
+      },
+      "gpu.clocks.memory_min_mhz": {
+        "name": "gpu.clocks.memory_min_mhz",
+        "type": "number",
+        "customLabel": "Memory Clock Min (MHz)"
+      },
+      "gpu.clocks.memory_max_mhz": {
+        "name": "gpu.clocks.memory_max_mhz",
+        "type": "number",
+        "customLabel": "Memory Clock Max (MHz)"
+      },
+      "gpu.fan.rpm_min": {
+        "name": "gpu.fan.rpm_min",
+        "type": "number",
+        "customLabel": "Fan RPM Min"
+      },
+      "gpu.fan.rpm_max": {
+        "name": "gpu.fan.rpm_max",
+        "type": "number",
+        "customLabel": "Fan RPM Max"
+      },
+      "gpu.voltage.core_v": {
+        "name": "gpu.voltage.core_v",
+        "type": "number",
+        "customLabel": "Core Voltage (V)"
+      },
+      "gpu.temperature_c.min": {
+        "name": "gpu.temperature_c.min",
+        "type": "number",
+        "customLabel": "Temp Min (°C)"
+      },
+      "gpu.temperature_c.max": {
+        "name": "gpu.temperature_c.max",
+        "type": "number",
+        "customLabel": "Temp Max (°C)"
+      },
+      "gpu.temperature_c.critical": {
+        "name": "gpu.temperature_c.critical",
+        "type": "number",
+        "customLabel": "Temp Critical (°C)"
+      },
+      "gpu.power.cap_max_watts": {
+        "name": "gpu.power.cap_max_watts",
+        "type": "number",
+        "customLabel": "Power Cap Max (W)"
+      },
+      "gpu.power.cap_min_watts": {
+        "name": "gpu.power.cap_min_watts",
+        "type": "number",
+        "customLabel": "Power Cap Min (W)"
       }
     },
     "fieldFormats": {
@@ -98,6 +198,48 @@
         "id": "percent",
         "params": {
           "pattern": "0.0%"
+        }
+      },
+      "gpu.temperature_c.junction": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "gpu.temperature_c.memory": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "amd.gpu.temperature_c.hotspot": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "amd.gpu.temperature_c.memory_junction": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "gpu.power.watts_current": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "gpu.power.cap_watts": {
+        "id": "number",
+        "params": {
+          "pattern": "0.0"
+        }
+      },
+      "gpu.voltage.core_v": {
+        "id": "number",
+        "params": {
+          "pattern": "0.000"
         }
       }
     },

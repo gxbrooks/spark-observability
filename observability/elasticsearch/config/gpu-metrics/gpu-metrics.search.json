@@ -13,9 +13,14 @@
     "columns": [
       "gpu.card",
       "gpu.bus.address",
-      "gpu.utilization.core_percent",
+      "gpu.utilization.core_percent_normalized",
+      "gpu.utilization.memory_percent_normalized",
       "gpu.temperature_c.edge",
-      "gpu.power.watts"
+      "amd.gpu.temperature_c.hotspot",
+      "gpu.power.watts",
+      "gpu.power.watts_current",
+      "gpu.clocks.core_mhz",
+      "gpu.clocks.memory_mhz"
     ],
     "description": "Realtime GPU utilization, temperature, and power data sourced from AMD sysfs sensors",
     "hideChart": false,

@@ -69,6 +69,9 @@
                 },
                 "memory_percent": {
                   "type": "float"
+                },
+                "active": {
+                  "type": "boolean"
                 }
               }
             },
@@ -76,12 +79,39 @@
               "properties": {
                 "edge": {
                   "type": "float"
+                },
+                "junction": {
+                  "type": "float"
+                },
+                "memory": {
+                  "type": "float"
+                },
+                "min": {
+                  "type": "float"
+                },
+                "max": {
+                  "type": "float"
+                },
+                "critical": {
+                  "type": "float"
                 }
               }
             },
             "power": {
               "properties": {
                 "watts": {
+                  "type": "float"
+                },
+                "watts_current": {
+                  "type": "float"
+                },
+                "cap_watts": {
+                  "type": "float"
+                },
+                "cap_max_watts": {
+                  "type": "float"
+                },
+                "cap_min_watts": {
                   "type": "float"
                 }
               }
@@ -91,7 +121,22 @@
                 "gfx_mhz": {
                   "type": "float"
                 },
+                "core_mhz": {
+                  "type": "float"
+                },
                 "memory_mhz": {
+                  "type": "float"
+                },
+                "core_min_mhz": {
+                  "type": "float"
+                },
+                "core_max_mhz": {
+                  "type": "float"
+                },
+                "memory_min_mhz": {
+                  "type": "float"
+                },
+                "memory_max_mhz": {
                   "type": "float"
                 }
               }
@@ -100,6 +145,37 @@
               "properties": {
                 "rpm": {
                   "type": "float"
+                },
+                "rpm_min": {
+                  "type": "float"
+                },
+                "rpm_max": {
+                  "type": "float"
+                }
+              }
+            },
+            "voltage": {
+              "properties": {
+                "core_v": {
+                  "type": "float"
+                }
+              }
+            },
+            "amd": {
+              "properties": {
+                "gpu": {
+                  "properties": {
+                    "temperature_c": {
+                      "properties": {
+                        "hotspot": {
+                          "type": "float"
+                        },
+                        "memory_junction": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

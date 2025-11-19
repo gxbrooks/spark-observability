@@ -74,15 +74,40 @@ def collect_card_metrics(card_device: pathlib.Path) -> Optional[Dict]:
 
     hwmon = read_hwmon_path(card_device)
 
+    # Utilization metrics
     gpu_busy = read_float(card_device / "gpu_busy_percent")
     mem_busy = read_float(card_device / "mem_busy_percent")
 
+    # Temperature metrics
     temp_edge = read_float(hwmon / "temp1_input", 1000.0) if hwmon else None
-    power_watts = read_float(hwmon / "power1_average", 1_000_000.0) if hwmon else None
-    fan_rpm = read_float(hwmon / "fan1_input") if hwmon else None
+    temp_junction = read_float(hwmon / "temp2_input", 1000.0) if hwmon else None
+    temp_memory = read_float(hwmon / "temp3_input", 1000.0) if hwmon else None
+    temp_min = read_float(hwmon / "temp1_min", 1000.0) if hwmon else None
+    temp_max = read_float(hwmon / "temp1_max", 1000.0) if hwmon else None
+    temp_crit = read_float(hwmon / "temp1_crit", 1000.0) if hwmon else None
 
+    # Power metrics
+    power_avg = read_float(hwmon / "power1_average", 1_000_000.0) if hwmon else None
+    power_current = read_float(hwmon / "power1_input", 1_000_000.0) if hwmon else None
+    power_cap = read_float(hwmon / "power1_cap", 1_000_000.0) if hwmon else None
+    power_cap_max = read_float(hwmon / "power1_cap_max", 1_000_000.0) if hwmon else None
+    power_cap_min = read_float(hwmon / "power1_cap_min", 1_000_000.0) if hwmon else None
+
+    # Clock metrics
     gfx_clock = read_float(hwmon / "freq1_input", 1_000_000.0) if hwmon else None
     mem_clock = read_float(hwmon / "freq2_input", 1_000_000.0) if hwmon else None
+    gfx_clock_min = read_float(hwmon / "freq1_min", 1_000_000.0) if hwmon else None
+    gfx_clock_max = read_float(hwmon / "freq1_max", 1_000_000.0) if hwmon else None
+    mem_clock_min = read_float(hwmon / "freq2_min", 1_000_000.0) if hwmon else None
+    mem_clock_max = read_float(hwmon / "freq2_max", 1_000_000.0) if hwmon else None
+
+    # Fan metrics
+    fan_rpm = read_float(hwmon / "fan1_input") if hwmon else None
+    fan_rpm_min = read_float(hwmon / "fan1_min") if hwmon else None
+    fan_rpm_max = read_float(hwmon / "fan1_max") if hwmon else None
+
+    # Voltage metrics
+    voltage_core = read_float(hwmon / "in0_input", 1000.0) if hwmon else None
 
     metrics: Dict[str, object] = {
         "event": {
@@ -102,30 +127,100 @@ def collect_card_metrics(card_device: pathlib.Path) -> Optional[Dict]:
         },
     }
 
+    # Utilization
     utilization = {}
     if gpu_busy is not None:
         utilization["core_percent"] = gpu_busy
     if mem_busy is not None:
         utilization["memory_percent"] = mem_busy
+    if gpu_busy is not None or mem_busy is not None:
+        utilization["active"] = (gpu_busy is not None and gpu_busy > 0) or (mem_busy is not None and mem_busy > 0)
     if utilization:
         metrics["gpu"]["utilization"] = utilization
 
+    # Temperature
+    temperature = {}
+    if temp_edge is not None:
+        temperature["edge"] = temp_edge
+    if temp_junction is not None:
+        temperature["junction"] = temp_junction
+    if temp_memory is not None:
+        temperature["memory"] = temp_memory
+    if temp_min is not None:
+        temperature["min"] = temp_min
+    if temp_max is not None:
+        temperature["max"] = temp_max
+    if temp_crit is not None:
+        temperature["critical"] = temp_crit
+    if temperature:
+        metrics["gpu"]["temperature_c"] = temperature
+    # AMD-specific temperature fields
+    if temp_junction is not None:
+        if "amd" not in metrics:
+            metrics["amd"] = {}
+        if "gpu" not in metrics["amd"]:
+            metrics["amd"]["gpu"] = {}
+        if "temperature_c" not in metrics["amd"]["gpu"]:
+            metrics["amd"]["gpu"]["temperature_c"] = {}
+        metrics["amd"]["gpu"]["temperature_c"]["hotspot"] = temp_junction
+    if temp_memory is not None:
+        if "amd" not in metrics:
+            metrics["amd"] = {}
+        if "gpu" not in metrics["amd"]:
+            metrics["amd"]["gpu"] = {}
+        if "temperature_c" not in metrics["amd"]["gpu"]:
+            metrics["amd"]["gpu"]["temperature_c"] = {}
+        metrics["amd"]["gpu"]["temperature_c"]["memory_junction"] = temp_memory
+
+    # Power
+    power = {}
+    if power_avg is not None:
+        power["watts"] = power_avg
+    if power_current is not None:
+        power["watts_current"] = power_current
+    if power_cap is not None:
+        power["cap_watts"] = power_cap
+    if power_cap_max is not None:
+        power["cap_max_watts"] = power_cap_max
+    if power_cap_min is not None:
+        power["cap_min_watts"] = power_cap_min
+    if power:
+        metrics["gpu"]["power"] = power
+
+    # Clocks
     clocks = {}
     if gfx_clock is not None:
-        clocks["gfx_mhz"] = gfx_clock
+        clocks["core_mhz"] = gfx_clock
+        clocks["gfx_mhz"] = gfx_clock  # Keep for backward compatibility
     if mem_clock is not None:
         clocks["memory_mhz"] = mem_clock
+    if gfx_clock_min is not None:
+        clocks["core_min_mhz"] = gfx_clock_min
+    if gfx_clock_max is not None:
+        clocks["core_max_mhz"] = gfx_clock_max
+    if mem_clock_min is not None:
+        clocks["memory_min_mhz"] = mem_clock_min
+    if mem_clock_max is not None:
+        clocks["memory_max_mhz"] = mem_clock_max
     if clocks:
         metrics["gpu"]["clocks"] = clocks
 
-    if temp_edge is not None:
-        metrics["gpu"]["temperature_c"] = {"edge": temp_edge}
-
-    if power_watts is not None:
-        metrics["gpu"]["power"] = {"watts": power_watts}
-
+    # Fan
+    fan = {}
     if fan_rpm is not None:
-        metrics["gpu"]["fan"] = {"rpm": fan_rpm}
+        fan["rpm"] = fan_rpm
+    if fan_rpm_min is not None:
+        fan["rpm_min"] = fan_rpm_min
+    if fan_rpm_max is not None:
+        fan["rpm_max"] = fan_rpm_max
+    if fan:
+        metrics["gpu"]["fan"] = fan
+
+    # Voltage
+    if voltage_core is not None:
+        if "voltage" not in metrics["gpu"]:
+            metrics["gpu"]["voltage"] = {}
+        metrics["gpu"]["voltage"]["core_v"] = voltage_core
 
     return metrics
 
