@@ -45,11 +45,11 @@ Environment Variables Required:
         - ES_PASSWORD: Password for authentication
         - CA_CERT_ES_PATH: Path to CA certificate file (or CA_CERT for backward compatibility)
     
-    For Kibana (KIBANA_* prefix, no ES_ prefix needed):
-        - KIBANA_HOST: Kibana hostname
-        - KIBANA_PORT: Kibana port
+    For Kibana (KB_* prefix, no ES_ prefix needed):
+        - KB_HOST: Kibana hostname
+        - KB_PORT: Kibana port
         - ES_USER: Username for authentication
-        - KIBANA_PASSWORD: Password for authentication
+        - KB_PASSWORD: Password for authentication
         - CA_CERT_ES_PATH: Path to CA certificate file (or CA_CERT for backward compatibility)
 
 Examples:
@@ -189,23 +189,23 @@ def get_config(target):
     
     elif target == 'kibana':
         try:
-            # Use KIBANA_* variables (no ES_ prefix needed for Kibana)
-            config['host'] = os.environ.get('KIBANA_HOST')
+            # Use KB_* variables (no ES_ prefix needed for Kibana)
+            config['host'] = os.environ.get('KB_HOST')
             if not config['host']:
-                raise KeyError('KIBANA_HOST')
-            config['port'] = os.environ.get('KIBANA_PORT')
+                raise KeyError('KB_HOST')
+            config['port'] = os.environ.get('KB_PORT')
             if not config['port']:
-                raise KeyError('KIBANA_PORT')
+                raise KeyError('KB_PORT')
             config['user'] = os.environ.get('ES_USER')
             if not config['user']:
                 raise KeyError('ES_USER')
-            config['password'] = os.environ.get('KIBANA_PASSWORD')
+            config['password'] = os.environ.get('KB_PASSWORD')
             if not config['password']:
-                raise KeyError('KIBANA_PASSWORD')
+                raise KeyError('KB_PASSWORD')
             config['protocol'] = 'http'  # TODO: Enable TLS encryption on Kibana
         except KeyError as e:
             print(f"Error: Required environment variable not set for Kibana: {e}", file=sys.stderr)
-            print("Required: KIBANA_HOST, KIBANA_PORT, ES_USER, KIBANA_PASSWORD", file=sys.stderr)
+            print("Required: KB_HOST, KB_PORT, ES_USER, KB_PASSWORD", file=sys.stderr)
             sys.exit(2)
     
     return config

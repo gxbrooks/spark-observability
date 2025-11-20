@@ -87,16 +87,12 @@ ES_USER:
 ES_PASSWORD:
   value: myElastic2025
   contexts: [observability, spark-runtime, elastic-agent, devops]
-# ELASTIC_URL is kept for applications that expect this name
-# It will be mapped from ES_* variables in docker-compose.yml
-ELASTIC_URL:
-  contexts: [observability]
+# ES_URL: Consolidated Elasticsearch URL (replaces ELASTIC_URL)
+# Used by Docker Compose and Elastic Agent
+ES_URL:
+  contexts: [observability, elastic-agent]
   values:
     observability: https://es01:9200
-
-ES_URL:
-  contexts: [elastic-agent]
-  values:
     elastic-agent: https://GaryPC.lan:9200
 
 KUBERNETES_API_SERVER:
@@ -143,22 +139,22 @@ LICENSE:
   value: basic
   contexts: [observability]
 
-# Kibana variables
-ENCRYPTION_KEY:
+# Kibana variables (KB_* prefix)
+EB_ENCRYPTION_KEY:
   value: c34d38b3a14956121ff2170e5030b471551370178f43e5626eec58b04a30fae2
   contexts: [observability] 
-KIBANA_HOST:
+KB_HOST:
   contexts: [observability, devops]
   values:
     observability: kibana
     devops: GaryPC.lan
-KIBANA_PORT:
+KB_PORT:
   value: 5601
   contexts: [observability, devops]
-KIBANA_USER:
+KB_USER:
   value: kibana_system
   contexts: [observability]
-KIBANA_PASSWORD:
+KB_PASSWORD:
   value: myElastic2025
   contexts: [observability, devops]
 KB_MEM_LIMIT:
@@ -171,7 +167,7 @@ LS_HOST:
   values:
     observability: logstash01
     elastic-agent: GaryPC.lan
-LOGSTASH_PORT:
+LS_PORT:
   value: 5044
   contexts: [observability]
 # currently, metrics are sent straight to Elasticsearch, not via Logstash

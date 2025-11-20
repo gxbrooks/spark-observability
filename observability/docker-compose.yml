@@ -62,8 +62,8 @@ services:
       ELASTIC_HOST: ${ES_HOST}
       ELASTIC_PASSWORD: ${ES_PASSWORD}
       ELASTIC_USER: ${ES_USER}
-      KIBANA_PORT: ${KIBANA_PORT}
-      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      KIBANA_PORT: ${KB_PORT}
+      KIBANA_PASSWORD: ${KB_PASSWORD}
       node.name: es01
       # are cluster.name and discovery.type needed?
       cluster.name: "${CLUSTER_NAME}"
@@ -126,7 +126,7 @@ services:
         SCRIPT_DIR=/usr/share/elasticsearch/elasticsearch/bin
         PATH=$$PATH:$$SCRIPT_DIR
         cat > /tmp/kibana-password.json <<EOF
-        {"password": "$$KIBANA_PASSWORD"}
+        {"password": "$$KB_PASSWORD"}
         EOF
         esapi POST /_security/user/kibana_system/_password /tmp/kibana-password.json
         rm -f /tmp/kibana-password.json
@@ -142,9 +142,9 @@ services:
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
       ES_PASSWORD: ${ES_PASSWORD}
-      KIBANA_HOST: ${KIBANA_HOST}
-      KIBANA_PORT: ${KIBANA_PORT}
-      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      KIBANA_HOST: ${KB_HOST}
+      KIBANA_PORT: ${KB_PORT}
+      KIBANA_PASSWORD: ${KB_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy
@@ -162,18 +162,18 @@ services:
       co.elastic.logs/module: kibana
       role: "Kibana"
     ports:
-      - ${KIBANA_PORT}:5601
+      - ${KB_PORT}:5601
     environment:
       # ELASTICSEARCH_HOSTS: https://${ELASTIC_HOST}:${ELASTIC_PORT}
       ELASTICSEARCH_HOSTS: https://es01:9200
-      ELASTICSEARCH_USERNAME: ${KIBANA_USER}
-      ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD}
+      ELASTICSEARCH_USERNAME: ${KB_USER}
+      ELASTICSEARCH_PASSWORD: ${KB_PASSWORD}
       CA_CERT: "${CA_CERT_LINUX_PATH}"
       ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "${CA_CERT_LINUX_PATH}"
-      XPACK_SECURITY_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
-      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
-      XPACK_REPORTING_ENCRYPTIONKEY: ${ENCRYPTION_KEY}
-      SERVER_PUBLICBASEURL: "http://${KIBANA_HOST}:${KIBANA_PORT}"
+      XPACK_SECURITY_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
+      XPACK_REPORTING_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
+      SERVER_PUBLICBASEURL: "http://${KB_HOST}:${KB_PORT}"
       TZ: ${TZ}    
     mem_limit: ${KB_MEM_LIMIT}
     depends_on:
@@ -187,7 +187,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -I http://localhost:${KIBANA_PORT} | grep -q 'HTTP/1.1'",
+          "curl -s -I http://localhost:${KB_PORT} | grep -q 'HTTP/1.1'",
         ]
       interval: 10s
       timeout: 10s
@@ -246,9 +246,9 @@ services:
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
       ES_PASSWORD: ${ES_PASSWORD}
-      KIBANA_HOST: ${KIBANA_HOST}
-      KIBANA_PORT: ${KIBANA_PORT}
-      KIBANA_PASSWORD: ${KIBANA_PASSWORD}
+      KB_HOST: ${KB_HOST}
+      KB_PORT: ${KB_PORT}
+      KB_PASSWORD: ${KB_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy
@@ -275,7 +275,7 @@ services:
       - "./otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro"
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic:ro
     environment:
-      ES_URL: "${ELASTIC_URL}"
+      ES_URL: "${ES_URL}"
       ES_USER: "elastic"
       ES_PASSWORD: "${ES_PASSWORD}"
       CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
@@ -313,10 +313,11 @@ services:
     environment:
       CA_CERT: "${CA_CERT_LINUX_PATH}"
       xpack.monitoring.enabled: "false"
-      ELASTIC_USER: "elastic"
-      ELASTIC_PASSWORD: ${ES_PASSWORD}
-      ELASTIC_HOSTS: "https://${ES_HOST}:${ES_PORT}"
-      ELASTIC_URL: ${ELASTIC_URL}
+      ES_USER: ${ES_USER}
+      ES_PASSWORD: ${ES_PASSWORD}
+      ES_HOST: ${ES_HOST}
+      ES_PORT: ${ES_PORT}
+      ES_URL: ${ES_URL}
       LS_HOST: ${LS_HOST}
       LS_SPARK_EVENTS_PORT: ${LS_SPARK_EVENTS_PORT}
       LS_DOCKER_METRICS_PORT: ${LS_DOCKER_METRICS_PORT}
