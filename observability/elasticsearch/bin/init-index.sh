@@ -22,7 +22,7 @@ echo "  ES_HOST: ${ES_HOST}"
 echo "  ES_PORT: ${ES_PORT}"
 echo "  ES_USER: ${ES_USER}"
 echo "  ES_PASSWORD: ${ES_PASSWORD}"
-echo "  ES_CA_CERT: ${ES_CA_CERT}"
+echo "  CA_CERT_ES_PATH: ${CA_CERT_ES_PATH}"
 echo "  KIBANA_HOST: ${KIBANA_HOST}"
 echo "  KIBANA_PORT: ${KIBANA_PORT}"
 echo "  KIBANA_PASSWORD: ${KIBANA_PASSWORD}"
@@ -35,7 +35,7 @@ export ES_DIR="${ES_DIR}"
 export ES_CONFIG_DIR="${ES_CONFIG_DIR}"
 export ES_OUTPUTS_DIR="${ES_OUTPUTS_DIR}"
 export ES_BIN_DIR="${ES_BIN_DIR}"
-export ES_CA_CERT="${ES_CA_CERT}"
+export CA_CERT_ES_PATH="${CA_CERT_ES_PATH}"
 export ES_HOST="${ES_HOST}"
 export ES_PORT="${ES_PORT}"
 export ES_USER="${ES_USER}"
@@ -58,7 +58,7 @@ echo "export ES_DIR=\"${ES_DIR}\""
 echo "export ES_CONFIG_DIR=\"${ES_CONFIG_DIR}\""
 echo "export ES_OUTPUTS_DIR=\"${ES_OUTPUTS_DIR}\""
 echo "export ES_BIN_DIR=\"${ES_BIN_DIR}\""
-echo "export ES_CA_CERT=\"${ES_CA_CERT}\""
+echo "export CA_CERT_ES_PATH=\"${CA_CERT_ES_PATH}\""
 echo "export ES_HOST=\"${ES_HOST}\""
 echo "export ES_PORT=\"${ES_PORT}\""
 echo "export ES_USER=\"${ES_USER}\""
@@ -81,7 +81,7 @@ REQUIRED_VARS=(
   "ES_CONFIG_DIR"
   "ES_OUTPUTS_DIR"
   "ES_BIN_DIR"
-  "ES_CA_CERT"
+  "CA_CERT_ES_PATH"
   "ES_HOST"
   "ES_PORT"
   "ES_USER"
@@ -107,9 +107,9 @@ if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
   exit 1
 fi
 
-# Verify ES_CA_CERT file exists
-if [[ ! -f "$ES_CA_CERT" ]]; then
-  echo "❌ Fatal error: ES_CA_CERT='$ES_CA_CERT' is not a file or does not exist"
+# Verify CA_CERT_ES_PATH file exists
+if [[ ! -f "$CA_CERT_ES_PATH" ]]; then
+  echo "❌ Fatal error: CA_CERT_ES_PATH='$CA_CERT_ES_PATH' is not a file or does not exist"
   exit 1
 fi
 

@@ -85,7 +85,7 @@ services:
       xpack.license.self_generated.type: "${LICENSE}"
       # For using Watcher as an HTTPS client
       # xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
-      xpack.http.ssl.certificate_authorities: "${ES_CA_CERT_PATH}"
+      xpack.http.ssl.certificate_authorities: "${CA_CERT_ES_PATH}"
       TZ: ${TZ}    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
@@ -137,7 +137,7 @@ services:
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      ES_CA_CERT: /etc/ssl/certs/elastic/ca.crt
+      CA_CERT_ES_PATH: /etc/ssl/certs/elastic/ca.crt
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
@@ -241,7 +241,7 @@ services:
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      ES_CA_CERT: /etc/ssl/certs/elastic/ca.crt
+      CA_CERT_ES_PATH: /etc/ssl/certs/elastic/ca.crt
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}

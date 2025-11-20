@@ -178,7 +178,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 - `ES_USER`, `ES_PASSWORD` (not `ES_ELASTIC_USER` or `ES_ELASTIC_PASSWORD`)
 - `KIBANA_HOST`, `KIBANA_PORT`, `KIBANA_PASSWORD` (not `ES_KIBANA_*`)
 - `ES_DIR`, `ES_CONFIG_DIR`, `ES_OUTPUTS_DIR`, `ES_BIN_DIR`
-- `ES_CA_CERT`
+- `CA_CERT_ES_PATH`
 
 **Rationale**: This eliminates redundancy (ES_ELASTIC_* is redundant since ES already means Elasticsearch) and confusion between service-level variables (e.g., `ELASTIC_HOST` for Docker services) and script-level variables (e.g., `ES_HOST` for esapi/kapi commands).
 

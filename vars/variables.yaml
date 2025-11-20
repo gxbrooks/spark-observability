@@ -77,7 +77,7 @@ ES_HOST:
     observability: es01
     spark-runtime: GaryPC.local
     devops: GaryPC.local
-    elastic-agent: GaryPC.local
+    elastic-agent: GaryPC.lan
 ES_PORT:
   value: 9200
   contexts: [observability, spark-runtime, devops, elastic-agent]
@@ -97,7 +97,7 @@ ELASTIC_URL:
 ES_URL:
   contexts: [elastic-agent]
   values:
-    elastic-agent: https://${ES_HOST}:${ES_PORT}
+    elastic-agent: https://GaryPC.lan:9200
 
 KUBERNETES_API_SERVER:
   value: Lab2.local
@@ -112,9 +112,14 @@ CA_CERT_LINUX_PATH:
 CA_CERT_WINDOWS_PATH:
   value: C:\\Volumes\\certs\\ca.crt
   contexts: [observability]
-ES_CA_CERT_PATH:
-  value: /usr/share/elasticsearch/config/certs/ca/ca.crt
-  contexts: [observability]
+# CA_CERT_ES_PATH: Consolidated certificate path for Elasticsearch
+# Used in docker-compose.yml for xpack.http.ssl.certificate_authorities
+# and as environment variable for Elasticsearch API scripts (init-index.sh, elastic_api.py)
+CA_CERT_ES_PATH:
+  contexts: [devops, observability]
+  values:
+    devops: ${CA_CERT}
+    observability: /usr/share/elasticsearch/config/certs/ca/ca.crt
 
 # Elasticsearch API Script Environment Variables (ES_* prefix)
 # These variables are exported in init-index.sh for developer use with esapi/kapi commands
@@ -134,12 +139,6 @@ ES_OUTPUTS_DIR:
 ES_BIN_DIR:
   value: ${ES_DIR}/bin
   contexts: [devops, observability]
-# CA_CERT path for Elasticsearch API scripts (context-specific)
-ES_CA_CERT:
-  contexts: [devops, observability]
-  values:
-    devops: ${CA_CERT}
-    observability: /usr/share/elasticsearch/config/certs/ca/ca.crt
 LICENSE:
   value: basic
   contexts: [observability]
