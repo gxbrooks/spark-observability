@@ -4,6 +4,7 @@
   gather_facts: yes
   vars:
     timeout_seconds: 15
+    recent_timeframe_minutes: "{{ recent_timeframe_minutes | default(60) }}"
   
   tasks:
     - name: Display diagnostic header
@@ -49,6 +50,30 @@
       ignore_errors: yes
       changed_when: false
 
+    - name: Check if Elasticsearch container is running
+      shell: "cd /home/ansible/ops/observability && docker compose ps es01 --format json | python3 -c \"import sys, json; d=json.load(sys.stdin); print('running' if d.get('State') == 'running' else 'stopped')\" 2>/dev/null || echo 'unknown'"
+      register: es_container_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Check if Kibana container is running
+      shell: "cd /home/ansible/ops/observability && docker compose ps kibana --format json | python3 -c \"import sys, json; d=json.load(sys.stdin); print('running' if d.get('State') == 'running' else 'stopped')\" 2>/dev/null || echo 'unknown'"
+      register: kibana_container_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Check if Logstash container is running
+      shell: "cd /home/ansible/ops/observability && docker compose ps logstash01 --format json | python3 -c \"import sys, json; d=json.load(sys.stdin); print('running' if d.get('State') == 'running' else 'stopped')\" 2>/dev/null || echo 'unknown'"
+      register: logstash_container_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Check if Otel Collector container is running
+      shell: "cd /home/ansible/ops/observability && docker compose ps otel-collector --format json | python3 -c \"import sys, json; d=json.load(sys.stdin); print('running' if d.get('State') == 'running' else 'stopped')\" 2>/dev/null || echo 'unknown'"
+      register: otel_container_status
+      ignore_errors: yes
+      changed_when: false
+
     - name: Get Grafana dashboards
       uri:
         url: "http://GaryPC:3000/api/search"
@@ -65,12 +90,13 @@
         msg: |
           📊 SERVICE AVAILABILITY TABLE
           =============================
-          Service         Status         Response    Time (s)   Details
-          ------------------------------------------------------------
-          Elasticsearch   {{ '✅ AVAILABLE' if elasticsearch_test.status == 200 else '❌ UNAVAILABLE' }}     {{ elasticsearch_test.status | default('ERROR') }}       {{ '%.2f' | format(elasticsearch_test.elapsed | default(0)) }}     Search and analytics engine
-          Kibana          {{ '✅ AVAILABLE' if kibana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ kibana_test.status | default('ERROR') }}       {{ '%.2f' | format(kibana_test.elapsed | default(0)) }}     Data visualization and exploration
-          Grafana         {{ '✅ AVAILABLE' if grafana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ grafana_test.status | default('ERROR') }}       {{ '%.2f' | format(grafana_test.elapsed | default(0)) }}     Metrics and monitoring dashboards
-          Logstash        {{ '✅ AVAILABLE' if logstash_test.stdout == '200' else '❌ UNAVAILABLE' }}     {{ logstash_test.stdout | default('ERROR') }}       N/A       Data processing pipeline (container status)
+          Service         Status         Response    Time (s)   Container   Details
+          ------------------------------------------------------------------------------------
+          Elasticsearch   {{ '✅ AVAILABLE' if elasticsearch_test.status == 200 else '❌ UNAVAILABLE' }}     {{ elasticsearch_test.status | default('ERROR') }}       {{ '%.2f' | format(elasticsearch_test.elapsed | default(0)) }}     {{ es_container_status.stdout | default('unknown') }}     Search and analytics engine
+          Kibana          {{ '✅ AVAILABLE' if kibana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ kibana_test.status | default('ERROR') }}       {{ '%.2f' | format(kibana_test.elapsed | default(0)) }}     {{ kibana_container_status.stdout | default('unknown') }}     Data visualization and exploration
+          Grafana         {{ '✅ AVAILABLE' if grafana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ grafana_test.status | default('ERROR') }}       {{ '%.2f' | format(grafana_test.elapsed | default(0)) }}     N/A       Metrics and monitoring dashboards
+          Logstash        {{ '✅ AVAILABLE' if logstash_test.stdout == '200' else '❌ UNAVAILABLE' }}     {{ logstash_test.stdout | default('ERROR') }}       N/A       {{ logstash_container_status.stdout | default('unknown') }}     Data processing pipeline
+          Otel Collector  N/A            N/A         N/A       {{ otel_container_status.stdout | default('unknown') }}     OpenTelemetry trace collection
 
     - name: Display Grafana dashboards
       debug:
@@ -110,10 +136,152 @@
           =========================
           {{ docker_containers.stdout | default('Error retrieving container status') }}
 
+    - name: Check for recent Otel traces
+      uri:
+        url: "https://GaryPC.lan:9200/traces-otel-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+          query:
+            range:
+              "@timestamp":
+                gte: "now-{{ recent_timeframe_minutes }}m"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: otel_traces_check
+      ignore_errors: yes
+
+    - name: Check for recent Spark app logs
+      uri:
+        url: "https://GaryPC.lan:9200/logs-spark-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+          query:
+            range:
+              "@timestamp":
+                gte: "now-{{ recent_timeframe_minutes }}m"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: spark_logs_check
+      ignore_errors: yes
+
+    - name: Check for recent system metrics
+      uri:
+        url: "https://GaryPC.lan:9200/metrics-system.cpu-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+          query:
+            range:
+              "@timestamp":
+                gte: "now-{{ recent_timeframe_minutes }}m"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: system_metrics_check
+      ignore_errors: yes
+
+    - name: Check for recent GPU metrics
+      uri:
+        url: "https://GaryPC.lan:9200/metrics-gpu-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+          query:
+            range:
+              "@timestamp":
+                gte: "now-{{ recent_timeframe_minutes }}m"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: gpu_metrics_check
+      ignore_errors: yes
+
+    - name: Check for recent GC logs
+      uri:
+        url: "https://GaryPC.lan:9200/logs-spark_gc-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+          query:
+            range:
+              "@timestamp":
+                gte: "now-{{ recent_timeframe_minutes }}m"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: gc_logs_check
+      ignore_errors: yes
+
+    - name: Get latest timestamps for each index
+      uri:
+        url: "https://GaryPC.lan:9200/{{ item.index }}/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: latest_timestamps
+      loop:
+        - { index: "traces-otel-default", name: "Otel Traces" }
+        - { index: "logs-spark-default", name: "Spark App Logs" }
+        - { index: "metrics-system.cpu-default", name: "System Metrics" }
+        - { index: "metrics-gpu-default", name: "GPU Metrics" }
+        - { index: "logs-spark_gc-default", name: "GC Logs" }
+      ignore_errors: yes
+
+    - name: Display recent data availability
+      debug:
+        msg: |
+          📈 RECENT DATA AVAILABILITY (Last {{ recent_timeframe_minutes }} minutes)
+          ========================================================================
+          Index Type          Recent Data?    Latest Timestamp
+          ------------------------------------------------------------------------
+          Otel Traces         {{ '✅ YES' if (otel_traces_check.json is defined and otel_traces_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[0].json is defined and latest_timestamps.results[0].json.hits.total.value > 0 %}{{ latest_timestamps.results[0].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
+          Spark App Logs      {{ '✅ YES' if (spark_logs_check.json is defined and spark_logs_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[1].json is defined and latest_timestamps.results[1].json.hits.total.value > 0 %}{{ latest_timestamps.results[1].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
+          System Metrics      {{ '✅ YES' if (system_metrics_check.json is defined and system_metrics_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[2].json is defined and latest_timestamps.results[2].json.hits.total.value > 0 %}{{ latest_timestamps.results[2].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
+          GPU Metrics         {{ '✅ YES' if (gpu_metrics_check.json is defined and gpu_metrics_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[3].json is defined and latest_timestamps.results[3].json.hits.total.value > 0 %}{{ latest_timestamps.results[3].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
+          GC Logs             {{ '✅ YES' if (gc_logs_check.json is defined and gc_logs_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[4].json is defined and latest_timestamps.results[4].json.hits.total.value > 0 %}{{ latest_timestamps.results[4].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
+
     - name: Display diagnostic summary
       debug:
         msg: |
           ✅ DIAGNOSTIC COMPLETE!
           ======================
           All observability services have been tested.
+          Recent data availability checked for last {{ recent_timeframe_minutes }} minutes.
           Check the results above for any issues.

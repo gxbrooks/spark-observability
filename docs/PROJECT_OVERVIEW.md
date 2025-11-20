@@ -69,7 +69,7 @@ For quick tests and command-line development on Lab2:
 
 ```bash
 # SSH to Lab2
-ssh ansible@Lab2.local
+ssh ansible@Lab2.lan
 
 # Navigate to project
 cd /home/gxbrooks/repos/elastic-on-spark

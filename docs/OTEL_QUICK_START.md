@@ -5,7 +5,7 @@
 - Spark 4.0.1 deployed in Kubernetes ✅
 - PySpark 4.0.1 in project venv ✅
 - OTel Collector running in observability namespace ✅
-- Elasticsearch accessible at GaryPC.local:9200 ✅
+- Elasticsearch accessible at GaryPC.lan:9200 ✅
 
 ## Run Spark with Traces (3 Steps)
 
@@ -14,7 +14,7 @@
 cd /home/gxbrooks/repos/elastic-on-spark
 source venv/bin/activate
 source vars/contexts/spark-client/spark_env.sh
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.local:31317"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.lan:31317"
 ```
 
 ### Step 2: Create Spark Session with OTel
@@ -35,7 +35,7 @@ spark.stop()
 ```
 
 ### Step 3: View Traces in Kibana
-1. Open: http://GaryPC.local:5601
+1. Open: http://GaryPC.lan:5601
 2. Go to: **Discover**
 3. Select: **OpenTelemetry Traces** data view
 4. Filter: `Name: "spark.application*"` to see your apps
@@ -44,11 +44,11 @@ spark.stop()
 
 ```bash
 # Check trace count
-curl -k -u elastic:myElastic2025 "https://GaryPC.local:9200/traces-generic-default/_count"
+curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_count"
 
 # See recent applications
 curl -k -u elastic:myElastic2025 -s \
-  "https://GaryPC.local:9200/traces-generic-default/_search?q=spark.application*&size=5" \
+  "https://GaryPC.lan:9200/traces-generic-default/_search?q=spark.application*&size=5" \
   | python3 -m json.tool | grep "spark.app.name"
 ```
 

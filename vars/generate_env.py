@@ -302,7 +302,7 @@ def write_ansible_vars(vars_dict, filename):
               
             # Write registry configuration
             f.write('# Registry and image configuration (using local registry on Lab2)\n')
-            f.write('registry_host: "lab2.local:5000"\n')
+            f.write('registry_host: "lab2.lan:5000"\n')
             f.write('spark_image: "{{ registry_host }}/spark"\n')
             f.write('spark_tag: "{{ spark_version }}"\n\n')
               

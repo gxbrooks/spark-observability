@@ -12,9 +12,9 @@ all:
     # Always use DNS names (*.local) instead of IPs
     # These should match DHCP reservations if possible
     expected_ips:
-      GaryPC.local: 192.168.1.115  # Observability (Docker Desktop on Windows 11)
-      Lab1.local: 192.168.1.76     # Kubernetes worker
-      Lab2.local: 192.168.1.48     # Kubernetes master, NFS server
+      GaryPC.lan: 192.168.1.115  # Observability (Docker Desktop on Windows 11)
+      Lab1.lan: 192.168.1.76     # Kubernetes worker
+      Lab2.lan: 192.168.1.48     # Kubernetes master, NFS server
     
     # Critical: Define which host runs observability stack
     observability_host: GaryPC-WSL
@@ -29,7 +29,7 @@ all:
         ansible_python_interpreter: "C:\\Program Files\\Python312\\python.exe"
       hosts:
         GaryPC:
-          ansible_host: GaryPC.local
+          ansible_host: GaryPC.lan
     linux:
       vars:
         elastic_agent_os: "linux"
@@ -46,31 +46,31 @@ all:
             nfs_servers:  # NFS is independent of Kubernetes
               hosts:
                 Lab2:  # Using Lab2 as NFS server for now
-                  ansible_host: Lab2.local
+                  ansible_host: Lab2.lan
             hadoop:  # Hadoop cluster for Spark data storage
               hosts:
                 Lab2:
-                  ansible_host: Lab2.local
+                  ansible_host: Lab2.lan
             jupyter_servers:  # JupyterHub for interactive Spark development
               hosts:
                 Lab2:
-                  ansible_host: Lab2.local
+                  ansible_host: Lab2.lan
             docker_build_hosts:  # Docker for building images (Lab2 only)
               hosts:
                 Lab2:
-                  ansible_host: Lab2.local
+                  ansible_host: Lab2.lan
             spark_kubernetes:
               children:
                 kubernetes_master:
                   hosts:
                     Lab2:
-                      ansible_host: Lab2.local
+                      ansible_host: Lab2.lan
                 kubernetes_workers:
                   hosts:
                     Lab2:  # Same host is both master and worker for now
-                      ansible_host: Lab2.local
+                      ansible_host: Lab2.lan
                     Lab1:  # New worker node
-                      ansible_host: Lab1.local
+                      ansible_host: Lab1.lan
         wsl:
           vars:
             ansible_port: 2222
@@ -78,4 +78,4 @@ all:
             observability:
               hosts:
                 GaryPC-WSL:
-                  ansible_host: GaryPC.local
+                  ansible_host: GaryPC.lan

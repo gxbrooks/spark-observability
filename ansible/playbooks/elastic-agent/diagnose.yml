@@ -1,0 +1,205 @@
+---
+- name: Diagnose Elastic Agent
+  hosts: "{{ target_hosts | default('native') }}"
+  gather_facts: yes
+  vars:
+    log_error_threshold: 10
+    log_warning_threshold: 50
+  
+  tasks:
+    - name: Display diagnostic header
+      debug:
+        msg: |
+          🔍 ELASTIC AGENT DIAGNOSTIC
+          ===========================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Target Host: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+    - name: Check Elastic Agent service status
+      systemd:
+        name: elastic-agent
+      register: agent_status
+      ignore_errors: yes
+
+    - name: Get Elastic Agent service details
+      shell: systemctl status elastic-agent --no-pager | head -15
+      register: agent_status_details
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Check if Elastic Agent is generating data
+      shell: |
+        if [ -d /var/log/elastic-agent ]; then
+          latest_log=$(ls -t /var/log/elastic-agent/elastic-agent-*.ndjson 2>/dev/null | head -1)
+          if [ -n "$latest_log" ]; then
+            # Check if log file was modified in last 5 minutes
+            if [ $(find "$latest_log" -mmin -5 2>/dev/null | wc -l) -gt 0 ]; then
+              echo "yes"
+            else
+              echo "no"
+            fi
+          else
+            echo "no_logs"
+          fi
+        else
+          echo "no_directory"
+        fi
+      register: agent_generating_data
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Get latest log file modification time
+      shell: |
+        if [ -d /var/log/elastic-agent ]; then
+          latest_log=$(ls -t /var/log/elastic-agent/elastic-agent-*.ndjson 2>/dev/null | head -1)
+          if [ -n "$latest_log" ]; then
+            stat -c '%y' "$latest_log" 2>/dev/null || echo "unknown"
+          else
+            echo "no_logs"
+          fi
+        else
+          echo "no_directory"
+        fi
+      register: latest_log_mtime
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Count errors in recent logs
+      shell: |
+        if [ -d /var/log/elastic-agent ]; then
+          latest_log=$(ls -t /var/log/elastic-agent/elastic-agent-*.ndjson 2>/dev/null | head -1)
+          if [ -n "$latest_log" ]; then
+            # Count errors in last 1000 lines
+            tail -1000 "$latest_log" 2>/dev/null | python3 -c "
+            import sys, json
+            errors = 0
+            for line in sys.stdin:
+              try:
+                entry = json.loads(line)
+                if entry.get('log', {}).get('level') == 'error' or 'error' in entry.get('message', '').lower():
+                  errors += 1
+              except:
+                pass
+            print(errors)
+            " || echo "0"
+          else
+            echo "0"
+          fi
+        else
+          echo "0"
+        fi
+      register: log_error_count
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Count warnings in recent logs
+      shell: |
+        if [ -d /var/log/elastic-agent ]; then
+          latest_log=$(ls -t /var/log/elastic-agent/elastic-agent-*.ndjson 2>/dev/null | head -1)
+          if [ -n "$latest_log" ]; then
+            # Count warnings in last 1000 lines
+            tail -1000 "$latest_log" 2>/dev/null | python3 -c "
+            import sys, json
+            warnings = 0
+            for line in sys.stdin:
+              try:
+                entry = json.loads(line)
+                if entry.get('log', {}).get('level') == 'warn' or 'warning' in entry.get('message', '').lower():
+                  warnings += 1
+              except:
+                pass
+            print(warnings)
+            " || echo "0"
+          else
+            echo "0"
+          fi
+        else
+          echo "0"
+        fi
+      register: log_warning_count
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Get recent error messages
+      shell: |
+        if [ -d /var/log/elastic-agent ]; then
+          latest_log=$(ls -t /var/log/elastic-agent/elastic-agent-*.ndjson 2>/dev/null | head -1)
+          if [ -n "$latest_log" ]; then
+            tail -500 "$latest_log" 2>/dev/null | python3 -c "
+            import sys, json
+            errors = []
+            for line in sys.stdin:
+              try:
+                entry = json.loads(line)
+                if entry.get('log', {}).get('level') == 'error' or 'error' in entry.get('message', '').lower():
+                  msg = entry.get('message', '')[:150]
+                  if msg:
+                    errors.append(msg)
+              except:
+                pass
+            for err in errors[-5:]:
+              print(err)
+            " || echo ""
+          else
+            echo ""
+          fi
+        else
+          echo ""
+        fi
+      register: recent_errors
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Check Elastic Agent configuration file
+      stat:
+        path: /opt/Elastic/Agent/elastic-agent.yml
+      register: config_file_stat
+
+    - name: Check Elastic Agent environment file
+      stat:
+        path: /etc/elastic-agent/elastic_agent_env.conf
+      register: env_file_stat
+
+    - name: Display Elastic Agent status
+      debug:
+        msg: |
+          📊 ELASTIC AGENT STATUS
+          ======================
+          Service Status:     {{ '✅ RUNNING' if agent_status.status.ActiveState == 'active' else '❌ STOPPED' }}
+          Service State:      {{ agent_status.status.ActiveState | default('unknown') }}
+          Configuration:      {{ '✅ EXISTS' if config_file_stat.stat.exists else '❌ MISSING' }}
+          Environment File:   {{ '✅ EXISTS' if env_file_stat.stat.exists else '❌ MISSING' }}
+          Generating Data:   {{ '✅ YES' if agent_generating_data.stdout == 'yes' else '❌ NO' if agent_generating_data.stdout == 'no' else '⚠️  NO LOGS' }}
+          Latest Log Update: {{ latest_log_mtime.stdout | default('unknown') }}
+
+    - name: Display service details
+      debug:
+        msg: |
+          {{ agent_status_details.stdout | default('Unable to retrieve service details') }}
+
+    - name: Display log analysis
+      debug:
+        msg: |
+          📋 LOG ANALYSIS (Last 1000 entries)
+          ====================================
+          Error Count:   {{ log_error_count.stdout | default('0') }} {{ '⚠️  HIGH' if (log_error_count.stdout | default('0') | int) > log_error_threshold else '✅ OK' }}
+          Warning Count: {{ log_warning_count.stdout | default('0') }} {{ '⚠️  HIGH' if (log_warning_count.stdout | default('0') | int) > log_warning_threshold else '✅ OK' }}
+          
+          {% if recent_errors.stdout %}
+          Recent Errors:
+          {% for error in recent_errors.stdout_lines %}
+          - {{ error }}
+          {% endfor %}
+          {% else %}
+          No recent errors found.
+          {% endif %}
+
+    - name: Display diagnostic summary
+      debug:
+        msg: |
+          ✅ DIAGNOSTIC COMPLETE!
+          ======================
+          Elastic Agent diagnostic completed for {{ inventory_hostname }}.
+          Check the results above for any issues.
+

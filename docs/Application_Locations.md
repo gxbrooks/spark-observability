@@ -23,8 +23,8 @@ This document provides a comprehensive overview of where applications are instal
 | **Python 3.11** | `/usr/bin/python3.11` or `/usr/local/bin/python3.11` | System Python | `python3.11` or `python3` |
 | **PySpark** | `venv/lib/python3.11/site-packages/` | Spark Python API | `source venv/bin/activate` then `python` |
 | **IPython** | `venv/bin/ipython` | Interactive Spark (client-mode) | `source venv/bin/activate` then `ipython` |
-| **Spark Master UI** | `http://Lab2.local:32290` | Spark cluster monitoring | Web browser |
-| **Spark History Server** | `http://Lab2.local:31534` | Historical job analysis | Web browser |
+| **Spark Master UI** | `http://Lab2.lan:32290` | Spark cluster monitoring | Web browser |
+| **Spark History Server** | `http://Lab2.lan:31534` | Historical job analysis | Web browser |
 | **HDFS Client** | `/usr/bin/hdfs` | Hadoop HDFS CLI | `hdfs` (via wrapper) |
 | **Spark Submit** | `venv/bin/spark-submit` | Spark job submission | `source venv/bin/activate` then `spark-submit` |
 | **Git** | `/usr/bin/git` | Version control | `git` |

@@ -4,7 +4,7 @@
 
 The Spark Application Logs Viewer provides a table-based interface for viewing and analyzing Spark application logs collected from all cluster components.
 
-**URL:** http://GaryPC.local:3000/d/spark-logs-viewer
+**URL:** http://GaryPC.lan:3000/d/spark-logs-viewer
 
 ## Table Columns
 
@@ -116,7 +116,7 @@ The dashboard includes three filter dropdowns at the top:
 
 You can navigate to this viewer from the Spark Cluster Metrics dashboard:
 
-1. Go to: http://GaryPC.local:3000/d/spark-system-metrics
+1. Go to: http://GaryPC.lan:3000/d/spark-system-metrics
 2. Scroll to "Spark Application Logs by Level" panel
 3. Click any bar on the chart
 4. Select "View ... Logs (1-minute window)"
@@ -180,7 +180,7 @@ Click again to reverse sort order.
 **Check:**
 1. Time range includes data (try "Last 24 hours")
 2. Filters aren't too restrictive (set all to "All")
-3. Elasticsearch is running: `curl https://GaryPC.local:9200/_cluster/health`
+3. Elasticsearch is running: `curl https://GaryPC.lan:9200/_cluster/health`
 
 ### Columns Not Appearing
 **Check:**
@@ -202,12 +202,12 @@ Click again to reverse sort order.
 
 ## Related Dashboards
 
-- **Spark Cluster Metrics**: http://GaryPC.local:3000/d/spark-system-metrics
+- **Spark Cluster Metrics**: http://GaryPC.lan:3000/d/spark-system-metrics
   - Overview of cluster health
   - Log counts by level (drilldown to this viewer)
   - GC metrics, system metrics
 
-- **Spark GC Analysis**: http://GaryPC.local:3000/d/spark-gc-analysis
+- **Spark GC Analysis**: http://GaryPC.lan:3000/d/spark-gc-analysis
   - Garbage collection metrics
   - GC pause times
   - Memory usage

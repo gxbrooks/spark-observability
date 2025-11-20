@@ -88,7 +88,7 @@ ES_HOST:
   contexts: [observability, elastic-agent-systemd]
   values:
     observability: es01
-    elastic-agent-systemd: GaryPC.local
+    elastic-agent-systemd: GaryPC.lan
 
 ELASTIC_URL:
   contexts: [observability]
@@ -103,7 +103,7 @@ ES_HOST:
   contexts: [observability, spark-runtime]
   values:
     observability: es01
-    spark-runtime: GaryPC.local
+    spark-runtime: GaryPC.lan
 
 ELASTICSEARCH_HOST:
   contexts: [elastic-agent-systemd]
@@ -134,7 +134,7 @@ ES_HOST:
   contexts: [observability, spark-runtime]
   values:
     observability: es01
-    spark-runtime: GaryPC.local
+    spark-runtime: GaryPC.lan
 
 ES_PORT:
   value: 9200
