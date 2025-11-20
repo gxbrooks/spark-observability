@@ -120,6 +120,14 @@
         delete: false
         recursive: true
       when: is_linux
+
+    - name: Synchronize otel-collector directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/otel-collector/"
+        dest: "{{ observability_dir }}/otel-collector/"
+        delete: false
+        recursive: true
+      when: is_linux
       
     - name: Create elasticsearch outputs directory with proper ownership (Linux)
       file:

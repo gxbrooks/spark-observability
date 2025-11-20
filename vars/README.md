@@ -47,7 +47,7 @@ python3 vars/generate_env.py -v devops
 | `nfs` | `nfs_vars.yml` | Ansible variables for NFS playbooks |
 | `spark-client` | `spark_env.sh` | Local Spark client environment |
 | `ispark` | `ispark_env.sh` | Interactive Spark (iPython) environment |
-| `elastic-agent` | `elastic_agent_env.sh` | Elastic Agent systemd service env |
+| `elastic-agent` | `elastic_agent_env.sh` | Elastic Agent environment (reference only, unused) |
 | `elastic-agent-ansible` | `elastic_agent_vars.yml` | Ansible variables for Elastic Agent |
 | `devops` | `devops_env.sh` | DevOps client tooling environment |
 | `managed-node` | `managed_node_env.sh` | Managed node validation environment |

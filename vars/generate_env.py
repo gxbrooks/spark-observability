@@ -34,6 +34,7 @@ CONTEXTS_FILE = SCRIPT_DIR / 'contexts.yaml'
 WRITER_FUNCTIONS = {
     'env': 'write_env',
     'shell_env': 'write_shell_env',
+    'systemd_env': 'write_systemd_env',
     'toml': 'write_toml',
     'configmap': 'write_configmap',
     'ansible_vars': 'write_ansible_vars',
@@ -103,35 +104,98 @@ def validate_contexts(variables, contexts):
     return warnings
 
 
+def get_var_value(var_def, context_name):
+    """Extract the value of a variable for a specific context"""
+    if 'values' in var_def:
+        values_dict = var_def['values']
+        if context_name in values_dict:
+            return values_dict[context_name]
+        elif 'default' in values_dict:
+            return values_dict['default']
+        else:
+            # No match and no default - use first available value as fallback
+            return list(values_dict.values())[0] if values_dict else ''
+    else:
+        # Fall back to simple 'value' format
+        return var_def.get('value', '')
+
+
 def get_vars(variables, context_name):
     """Extract variables applicable to a specific context
     
     Supports two formats:
     1. Simple format: {'value': '...', 'contexts': [...]}
     2. Context-specific format: {'values': {'default': '...', 'context1': '...'}, 'contexts': [...]}
+    
+    Also supports linear variable expansion with context-specific references:
+    - ${VAR_NAME} - references VAR_NAME in the current context
+    - ${context:VAR_NAME} - references VAR_NAME in the specified context
+    Variables are expanded in order - only earlier variables can be referenced by later ones.
+    This prevents infinite recursion and ensures deterministic expansion.
     """
-    result = {}
+    import re
+    
+    # Extract variables in the order they appear in variables.yaml
+    # This preserves the dependency order (earlier variables can be referenced by later ones)
+    ordered_vars = []
     for k, v in variables.items():
         if context_name not in v.get('contexts', []):
             continue
         
-        # Check for context-specific values
-        if 'values' in v:
-            # Use context-specific value if available, otherwise try default, otherwise empty
-            values_dict = v['values']
-            if context_name in values_dict:
-                value = values_dict[context_name]
-            elif 'default' in values_dict:
-                value = values_dict['default']
-            else:
-                # No match and no default - use first available value as fallback
-                value = list(values_dict.values())[0] if values_dict else ''
-        else:
-            # Fall back to simple 'value' format
-            value = v.get('value', '')
+        value = get_var_value(v, context_name)
+        ordered_vars.append((k, value))
+    
+    # Linear expansion: process variables in order, expanding each using already-expanded variables
+    # Pattern to match ${VAR_NAME} or ${context:VAR_NAME}
+    # Group 1: context name (if present) or variable name
+    # Group 2: variable name (if context prefix exists)
+    pattern = r'\$\{([a-zA-Z_][a-zA-Z0-9_-]*)(?::([A-Z_][A-Z0-9_]*))?\}'
+    expanded = {}
+    
+    for var_name, var_value in ordered_vars:
+        if not isinstance(var_value, str):
+            expanded[var_name] = var_value
+            continue
         
-        result[k] = value
-    return result
+        # Expand variable references using only already-expanded variables
+        def replace_var(match):
+            # Pattern captures: ${VAR_NAME} or ${context:VAR_NAME}
+            # group(1) = context name (if group(2) exists) or variable name (if no group(2))
+            # group(2) = variable name (if context prefix exists)
+            if match.group(2):
+                # Format: ${context:VAR_NAME}
+                ref_context = match.group(1)
+                ref_var_name = match.group(2)
+                
+                # Look up variable in specified context
+                if ref_var_name in variables:
+                    var_def = variables[ref_var_name]
+                    if ref_context in var_def.get('contexts', []):
+                        return str(get_var_value(var_def, ref_context))
+                # Context or variable not found
+                return match.group(0)
+            else:
+                # Format: ${VAR_NAME} - use current context
+                ref_var_name = match.group(1)
+                
+                # First check if variable is already expanded in current context
+                if ref_var_name in expanded:
+                    return str(expanded[ref_var_name])
+                
+                # Variable not yet expanded (defined later) - return original to indicate error
+                # This will help catch ordering issues
+                return match.group(0)
+        
+        # Single pass expansion (linear, not recursive)
+        expanded_value = re.sub(pattern, replace_var, var_value)
+        
+        # Warn if expansion failed (variable referenced before it's defined)
+        if '${' in expanded_value:
+            print(f"⚠ Warning: Variable '{var_name}' references undefined or later-defined variable in: {expanded_value}")
+        
+        expanded[var_name] = expanded_value
+    
+    return expanded
 
 
 def write_env(vars_dict, filename):
@@ -157,6 +221,23 @@ def write_shell_env(vars_dict, filename):
             
             for k, v in vars_dict.items():
                 f.write(f'export {k}="{v}"\n')
+        return True
+    except IOError as e:
+        print(f"Error writing to {filename}: {e}")
+        return False
+
+
+def write_systemd_env(vars_dict, filename):
+    """Write variables to systemd EnvironmentFile format (Environment="KEY=VALUE")"""
+    try:
+        with open(filename, 'w') as f:
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# Do not edit manually!\n\n')
+            
+            for k, v in vars_dict.items():
+                # Escape quotes in values for systemd
+                escaped_value = str(v).replace('"', '\\"')
+                f.write(f'Environment={k}="{escaped_value}"\n')
         return True
     except IOError as e:
         print(f"Error writing to {filename}: {e}")
@@ -336,7 +417,12 @@ def main(requested_contexts=None, force=False, verbose=False):
         context_name = context['name']
         output_type = context['type']
         output_file = context['output']
-        output_path = (REPO_ROOT / output_file).resolve()
+        # All paths in contexts.yaml are relative to vars/contexts/ by default
+        # If path doesn't start with vars/, assume it's relative to vars/contexts/
+        if not output_file.startswith('vars/'):
+            output_path = (REPO_ROOT / 'vars' / 'contexts' / output_file).resolve()
+        else:
+            output_path = (REPO_ROOT / output_file).resolve()
         description = context.get('description', 'No description')
         
         # Validate output type

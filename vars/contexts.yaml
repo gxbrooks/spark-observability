@@ -44,9 +44,9 @@ contexts:
     description: Environment variables for interactive Spark (iPython) sessions
 
   - name: elastic-agent
-    type: shell_env
-    output: vars/contexts/elastic-agent/elastic_agent_env.sh
-    description: Host-level environment variables for Elastic Agent systemd service
+    type: systemd_env
+    output: vars/contexts/elastic-agent/elastic_agent_env.conf
+    description: Systemd EnvironmentFile for Elastic Agent (Linux hosts)
 
   - name: elastic-agent-ansible
     type: ansible_vars

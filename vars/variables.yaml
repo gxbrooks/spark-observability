@@ -90,10 +90,14 @@ ES_PASSWORD:
 # ELASTIC_URL is kept for applications that expect this name
 # It will be mapped from ES_* variables in docker-compose.yml
 ELASTIC_URL:
-  contexts: [observability, elastic-agent]
+  contexts: [observability]
   values:
     observability: https://es01:9200
-    elastic-agent: https://GaryPC.local:9200
+
+ES_URL:
+  contexts: [elastic-agent]
+  values:
+    elastic-agent: https://${ES_HOST}:${ES_PORT}
 
 KUBERNETES_API_SERVER:
   value: Lab2.local

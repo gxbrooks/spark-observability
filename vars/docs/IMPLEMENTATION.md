@@ -181,19 +181,34 @@ source vars/contexts/ispark/ispark_env.sh
 
 ---
 
-### 8. Elastic Agent Context
+### 8. Elastic Agent Context (DEPRECATED/UNUSED)
 
 **Generated File**: `vars/contexts/elastic-agent/elastic_agent_env.sh`  
 **Format**: Shell environment file (`export KEY="VALUE"`)  
-**Purpose**: Host-level environment variables for Elastic Agent systemd service
+**Purpose**: ~~Host-level environment variables for Elastic Agent (reference only)~~ **NOT USED**
+
+**Status**: This context is **not used** by any playbooks or scripts. The actual deployment uses the `elastic-agent-systemd` context instead.
+
+**Note**: The actual file deployed to managed nodes is generated via `elastic-agent-systemd` context.
+
+**Variables Included**: `ELASTIC_URL`, `CA_CERT_LINUX_PATH`, etc. (same variables as `elastic-agent-systemd` but in shell format)
+
+---
+
+### 8a. Elastic Agent Systemd Context
+
+**Generated File**: `elastic-agent/elastic_agent_env_systemd.conf`  
+**Format**: Systemd EnvironmentFile format (`Environment="KEY=VALUE"`)  
+**Purpose**: Systemd environment file for Elastic Agent service on Linux hosts
 
 **Consumers**:
-- **Systemd Service**: Referenced in Elastic Agent service file (not directly sourced)
-- **Control Node Only**: Never deployed to managed nodes (different file used on managed nodes)
+- **Systemd Service**: Referenced in Elastic Agent systemd service file via `EnvironmentFile=` directive
+- **Deployed to**: `/etc/elastic-agent/elastic_agent_env.conf` on managed nodes via Ansible
 
-**Note**: The actual file deployed to managed nodes is `elastic-agent/elastic_agent_env_systemd.conf`, which is a source file, not generated.
-
-**Variables Included**: `ELASTIC_URL`, `CA_CERT_LINUX_PATH`, etc.
+**Variables Included**: 
+- **Canonical Elastic Agent variables** (preferred): `ELASTICSEARCH_HOST`, `ELASTICSEARCH_USERNAME`, `ELASTICSEARCH_PASSWORD`, `ELASTICSEARCH_CA`, `ELASTICSEARCH_INSECURE`
+- **Other variables**: `LS_HOST`, `LS_SPARK_EVENTS_PORT`, `KUBERNETES_API_SERVER`, `SPARK_EVENTS_DIR`
+- **Legacy variables** (for backward compatibility): `ES_*`, `ELASTIC_*`, `CA_CERT_LINUX_PATH`
 
 ---
 
