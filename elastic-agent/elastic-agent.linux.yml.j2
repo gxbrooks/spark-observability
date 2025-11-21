@@ -92,7 +92,7 @@ inputs:
     hosts: ["https://${KUBERNETES_API_SERVER}:10250"]
     bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
     ssl:
-      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      certificate_authorities: ["${CA_CERT}"]
     period: 10s
     streams:
       - metricset: state_container
@@ -234,7 +234,7 @@ outputs:
     username: "${ES_USER}"
     password: "${ES_PASSWORD}"
     ssl:
-      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
   # Spark outputs for events (to Logstash for processing)
   spark_events:
@@ -247,7 +247,7 @@ outputs:
     username: "${ES_USER}"
     password: "${ES_PASSWORD}"
     ssl:
-      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
   # Spark outputs for application logs (directly to Elasticsearch)
   spark_app:
@@ -256,7 +256,7 @@ outputs:
     username: "${ES_USER}"
     password: "${ES_PASSWORD}"
     ssl:
-      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
 
 agent.logging.level: debug

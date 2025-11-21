@@ -204,7 +204,7 @@ spark/
 ├── otel-listener/                     # OpenTelemetry listener for Spark
 │   ├── src/                           # Scala source code
 │   ├── pom.xml                        # Maven build configuration
-│   ├── spark-otel-listener-1.0.0.jar # Compiled JAR
+│   ├── spark-otel-listener-1.0.0.jar  # Compiled JAR
 │   └── README.md                      # OTel listener documentation
 ├── images/                            # Spark distribution archives
 │   ├── spark-3.5.1-bin-hadoop3.tgz

@@ -23,29 +23,35 @@
 #         ├── kibana.crt
 #         └── kibana.key
 #
-# Docker certificate best practices place the certificates in a directory that is mounted as a volume:
+# Docker certificate best practices place pubic certificates in a directory that is mounted 
+# as a volume - /mnt/c/Volumes/certs/Elastic.
 #
 # /etc/ssl/
 # ├── private/         # 700 permissions
-#     ├── server.key   # 600 permissions  
+# │   ├── server.key   # 600 permissions  
 # │   └── ca.key       # 600 permissions
 # └── certs/           # 755 permissions
 #     ├── server.crt   # 644 permissions
 #     ├── ca.crt       # 644 permissions
 #     └── chain.crt    # 644 permissions
 #
-# This represents a significant impedence mispatch with the way that the Elastic Stack expects 
-# certificates to be stored. To handle
-# host-level instlalations of Elastic Agent we will copy out just the Elasticsearch certficates
-# to /etc/ssl. Also, we will store the whole Elasticsearch certs directory in /etc/ss/private, to 
-# be used by Elasticsearch in its native structure. 
-# 
+# We don't follow the private/ convention and instead leave the private keys where the application
+# require them.To handle
+# host-level instlalations of Elastic Agent we will copy out just the Elasticsearch certficate
+# to /etc/ssl on linux.  
+
+# CA_CERT is *always* the path to the public version of the CA cert in any context
+# Elasticsearch requires all of it's certificates to be in /usr/share/elasticsearch/config/certs
+# We copy ca.crt to /etc/ssl/certs/elastic to a host mounted volume (/mnt/c/Volumes/certs/Elastic)
+# for distribution to other services.
+
 # ----------------------| ------------------------------------ | --------------------------------------|
 #  Service              | Host Mount Point                     |  ContainerMount Point                 | 
 # ----------------------| ------------------------------------ | --------------------------------------|
 #  init-cert            | certs:                               | /usr/share/elasticsearch/config/certs |     
 #  init-cert            | /etc/ssl/certs/elastic               | /etc/ssl/certs/elastic                |
 #  elasticsearch        | certs:                               | /usr/share/elasticsearch/config/certs |
+#  elasticsearch        | /etc/ssl/certs/elastic               | /etc/ssl/certs/elastic                |
 #  kibana               | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
 #  init-kibana          | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
 #  init-kibana-password | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
@@ -89,7 +95,7 @@ fi
 
 mkdir -p $(dirname "$CA_CERT")
 
-# Follows the Elasticsearch convention (mandate) of storing the CA certs in 
+# Follows the Elasticsearch requirement of storing the CA certs in 
 # /usr/share/elasticsearch/config
 CA_BASE_DIR="/usr/share/elasticsearch/config" 
 CERTS_DIR="$CA_BASE_DIR/certs"

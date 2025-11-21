@@ -54,7 +54,7 @@ outputs:
     username: "elastic"
     password: "myElastic2025"
     ssl:
-      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
 
   # Spark outputs for events

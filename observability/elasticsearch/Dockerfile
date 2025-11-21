@@ -1,5 +1,5 @@
 # required arguments to build Elasticsearch
-ARG STACK_VERSION=8.7.1
+ARG STACK_VERSION
 
 FROM docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
 

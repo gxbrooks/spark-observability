@@ -30,7 +30,7 @@ services:
       # provides host-level access to the elastic CA cert
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
+      CA_CERT: "${CA_CERT}"
       FORCE_REGEN: "${FORCE_REGEN}"
       TZ: ${TZ}
     user: "0"
@@ -55,6 +55,7 @@ services:
     volumes:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs:ro
+      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
     environment:
       # Map ES_* variables to ELASTIC_* for Elasticsearch service expectations
@@ -71,7 +72,6 @@ services:
       bootstrap.memory_lock: "true"
       # Xpack is rooted at /usr/share/elasticsearch/config, so start all certificate 
       # paths with "certs/"!!!
-      # CA_CERT: "${CA_CERT_LINUX_PATH}"
       xpack.security.enabled: "true"
       xpack.security.http.ssl.enabled: "true"
       xpack.security.http.ssl.key: "certs/es01/es01.key"
@@ -84,8 +84,9 @@ services:
       xpack.security.transport.ssl.verification_mode: "certificate"
       xpack.license.self_generated.type: "${LICENSE}"
       # For using Watcher as an HTTPS client
-      # xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
-      xpack.http.ssl.certificate_authorities: "${CA_CERT_ES_PATH}"
+      # SSL resources must be in /usr/share/elasticsearch/config directory
+      # The certs volume is mounted at /usr/share/elasticsearch/config/certs
+      xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
       TZ: ${TZ}    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
@@ -137,7 +138,8 @@ services:
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      CA_CERT_ES_PATH: /etc/ssl/certs/elastic/ca.crt
+      # This  looks wrong.
+      CA_CERT: ${CA_CERT}
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
@@ -157,6 +159,7 @@ services:
     volumes:
       - kibanadata:/usr/share/kibana/data
       - certs:/etc/ssl/private/elastic/certs
+      # for CA_CERT
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     labels:
       co.elastic.logs/module: kibana
@@ -164,12 +167,13 @@ services:
     ports:
       - ${KB_PORT}:5601
     environment:
-      # ELASTICSEARCH_HOSTS: https://${ELASTIC_HOST}:${ELASTIC_PORT}
-      ELASTICSEARCH_HOSTS: https://es01:9200
+       # should be = https://es01:9200
+      ELASTICSEARCH_HOSTS: "https://${ES_HOST}:#{ES_PORT}"
+      # FIXME: ELASTICSEARCH_USERNAME and ELASTICSEARCH_PASSWORD should be ${ES_USER} and ${ES_PASSWORD}
       ELASTICSEARCH_USERNAME: ${KB_USER}
       ELASTICSEARCH_PASSWORD: ${KB_PASSWORD}
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
-      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "${CA_CERT_LINUX_PATH}"
+      # Kibana needs to know where the CA certificate is located
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "${CA_CERT}"
       XPACK_SECURITY_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       XPACK_REPORTING_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
@@ -216,7 +220,8 @@ services:
       # GF_INSTALL_PLUGINS: "marcusolsson-dynamictext-panel"  # Disabled due to permission issues
       ELASTIC_USER: "elastic"
       ELASTIC_PASSWORD: ${ES_PASSWORD}
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
+      # Grafana should not need the CA cert
+      CA_CERT: "${CA_CERT}"
       TZ: ${TZ}    
     depends_on:
       es01:
@@ -236,12 +241,13 @@ services:
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
       TZ: ${TZ}
-      # ES_* variables for esapi/kapi commands (ES already stands for Elasticsearch)
+      # variables for esapi and kapi commands 
       ES_DIR: /usr/share/elasticsearch/elasticsearch
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      CA_CERT_ES_PATH: /etc/ssl/certs/elastic/ca.crt
+      # for use by esapi & kapi commands
+      CA_CERT: ${CA_CERT}
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
@@ -278,7 +284,7 @@ services:
       ES_URL: "${ES_URL}"
       ES_USER: "elastic"
       ES_PASSWORD: "${ES_PASSWORD}"
-      CA_CERT: "/etc/ssl/certs/elastic/ca.crt"
+      CA_CERT: ${CA_CERT}
     depends_on:
       es01:
         condition: service_healthy
@@ -311,7 +317,7 @@ services:
       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
       - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
     environment:
-      CA_CERT: "${CA_CERT_LINUX_PATH}"
+      CA_CERT: "${CA_CERT}"
       xpack.monitoring.enabled: "false"
       ES_USER: ${ES_USER}
       ES_PASSWORD: ${ES_PASSWORD}

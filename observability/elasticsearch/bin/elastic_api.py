@@ -43,14 +43,14 @@ Environment Variables Required:
         - ES_PORT: Elasticsearch port
         - ES_USER: Username for authentication
         - ES_PASSWORD: Password for authentication
-        - CA_CERT_ES_PATH: Path to CA certificate file (or CA_CERT for backward compatibility)
+        - CA_CERT: Path to CA certificate file
     
     For Kibana (KB_* prefix, no ES_ prefix needed):
         - KB_HOST: Kibana hostname
         - KB_PORT: Kibana port
         - ES_USER: Username for authentication
         - KB_PASSWORD: Password for authentication
-        - CA_CERT_ES_PATH: Path to CA certificate file (or CA_CERT for backward compatibility)
+        - CA_CERT: Path to CA certificate file
 
 Examples:
     # Basic usage with file
@@ -156,10 +156,9 @@ def get_config(target):
     """Get configuration for the specified target service."""
     config = {}
     
-    # Prefer CA_CERT_ES_PATH (standardized), fall back to ES_CA_CERT or CA_CERT (backward compatibility)
-    config['ca_cert'] = os.environ.get('CA_CERT_ES_PATH', os.environ.get('ES_CA_CERT', os.environ.get('CA_CERT')))
+    config['ca_cert'] = os.environ.get('CA_CERT')
     if not config['ca_cert']:
-        print("Error: CA_CERT_ES_PATH, ES_CA_CERT, or CA_CERT environment variable not set", file=sys.stderr)
+        print("Error: CA_CERT environment variable not set", file=sys.stderr)
         sys.exit(2)
     
     if not os.path.exists(config['ca_cert']):

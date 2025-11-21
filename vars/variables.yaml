@@ -72,7 +72,7 @@ GRAFANA_VERSION:
 # Standardized naming: ES_* for Elasticsearch (ES already stands for Elasticsearch)
 # Inside Docker containers, use service name; for external clients, use DNS hostname
 ES_HOST:
-  contexts: [observability, spark-runtime, devops, elastic-agent]
+  contexts: [observability, spark-runtime, elastic-agent, devops]
   values:
     observability: es01
     spark-runtime: GaryPC.lan
@@ -80,7 +80,7 @@ ES_HOST:
     elastic-agent: GaryPC.lan
 ES_PORT:
   value: 9200
-  contexts: [observability, spark-runtime, devops, elastic-agent]
+  contexts: [observability, spark-runtime, elastic-agent, devops]
 ES_USER:
   value: elastic
   contexts: [observability, spark-runtime, elastic-agent, devops]
@@ -100,22 +100,11 @@ KUBERNETES_API_SERVER:
   contexts: [elastic-agent]
 CA_CERT:
   value: /etc/ssl/certs/elastic/ca.crt
-  contexts: [devops]
-CA_CERT_LINUX_PATH:
-  value: /etc/ssl/certs/elastic/ca.crt
-  contexts: [observability, spark-runtime, elastic-agent]
+  contexts: [devops, observability, spark-runtime, elastic-agent]
 # Not clear where needed.
 CA_CERT_WINDOWS_PATH:
   value: C:\\Volumes\\certs\\ca.crt
   contexts: [observability]
-# CA_CERT_ES_PATH: Consolidated certificate path for Elasticsearch
-# Used in docker-compose.yml for xpack.http.ssl.certificate_authorities
-# and as environment variable for Elasticsearch API scripts (init-index.sh, elastic_api.py)
-CA_CERT_ES_PATH:
-  contexts: [devops, observability]
-  values:
-    devops: ${CA_CERT}
-    observability: /usr/share/elasticsearch/config/certs/ca/ca.crt
 
 # Elasticsearch API Script Environment Variables (ES_* prefix)
 # These variables are exported in init-index.sh for developer use with esapi/kapi commands
