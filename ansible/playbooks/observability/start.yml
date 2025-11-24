@@ -76,6 +76,19 @@
         msg: "Docker is not available. Please install Docker Desktop."
       when: is_linux and docker_check.rc != 0
       
+    - name: Check if Docker network 'elastic' exists
+      command: docker network inspect elastic
+      register: network_check
+      ignore_errors: true
+      when: is_linux
+      changed_when: false
+      
+    - name: Create Docker network 'elastic' if it doesn't exist
+      command: docker network create elastic
+      when: is_linux and network_check.rc != 0
+      register: network_create
+      changed_when: network_create.rc == 0
+      
     - name: Create elasticsearch outputs directory
       file:
         path: "{{ observability_dir }}/elasticsearch/outputs"
