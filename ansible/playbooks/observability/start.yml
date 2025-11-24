@@ -13,6 +13,8 @@
   
   vars:
     observability_dir: "/home/ansible/ops/observability"
+    # Standard published path where init-certs publishes the CA certificate
+    # This matches CA_CERT_PUBLISHED_PATH from vars/contexts/observability/.env
     ca_cert_path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
     
   tasks:

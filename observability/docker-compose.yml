@@ -59,13 +59,17 @@ services:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
     environment:
       # Map ES_* variables to ELASTIC_* for Elasticsearch service expectations
-      ELASTIC_PORT: ${ES_PORT}
-      ELASTIC_HOST: ${ES_HOST}
-      ELASTIC_PASSWORD: ${ES_PASSWORD}
-      ELASTIC_USER: ${ES_USER}
+      # ES_* variables for scripts that may be run inside the container (esapi, kapi, etc.)
+      ES_HOST: ${ES_HOST}
+      ES_PORT: ${ES_PORT}
+      ES_USER: ${ES_USER}
+      ES_PASSWORD: ${ES_PASSWORD}
       KIBANA_PORT: ${KB_PORT}
       KIBANA_PASSWORD: ${KB_PASSWORD}
-      node.name: es01
+      # Elasticsearch environment variables. See observability\docs\Elastic_Stack_Environment_Variables.md
+      ELASTIC_PASSWORD: ${ES_PASSWORD}
+      ELASTIC_USERNAME: ${ES_USER}      
+      node.name: es01 # this one is questionable
       # are cluster.name and discovery.type needed?
       cluster.name: "${CLUSTER_NAME}"
       discovery.type: "single-node"
@@ -87,6 +91,8 @@ services:
       # SSL resources must be in /usr/share/elasticsearch/config directory
       # The certs volume is mounted at /usr/share/elasticsearch/config/certs
       xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
+      # CA_CERT for scripts that may be run inside the container (esapi, kapi, etc.)
+      CA_CERT: ${CA_CERT}
       TZ: ${TZ}    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
@@ -138,7 +144,7 @@ services:
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      # This  looks wrong.
+      # CA_CERT for esapi/kapi commands
       CA_CERT: ${CA_CERT}
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
@@ -147,6 +153,7 @@ services:
       KIBANA_HOST: ${KB_HOST}
       KIBANA_PORT: ${KB_PORT}
       KIBANA_PASSWORD: ${KB_PASSWORD}
+      KB_PASSWORD: ${KB_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy
@@ -168,7 +175,7 @@ services:
       - ${KB_PORT}:5601
     environment:
        # should be = https://es01:9200
-      ELASTICSEARCH_HOSTS: "https://${ES_HOST}:#{ES_PORT}"
+      ELASTICSEARCH_HOSTS: "https://${ES_HOST}:${ES_PORT}"
       # FIXME: ELASTICSEARCH_USERNAME and ELASTICSEARCH_PASSWORD should be ${ES_USER} and ${ES_PASSWORD}
       ELASTICSEARCH_USERNAME: ${KB_USER}
       ELASTICSEARCH_PASSWORD: ${KB_PASSWORD}
@@ -255,6 +262,8 @@ services:
       KB_HOST: ${KB_HOST}
       KB_PORT: ${KB_PORT}
       KB_PASSWORD: ${KB_PASSWORD}
+      # Required by elasticsearch
+      ELASTIC_PASSWORD: ${ES_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy

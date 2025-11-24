@@ -98,13 +98,18 @@ ES_URL:
 KUBERNETES_API_SERVER:
   value: Lab2.lan
   contexts: [elastic-agent]
+# CA Certificate Paths
+# CA_CERT: Path where services expect to find the certificate
+# (same path for Docker containers and Linux hosts)
 CA_CERT:
   value: /etc/ssl/certs/elastic/ca.crt
   contexts: [devops, observability, spark-runtime, elastic-agent]
-# Not clear where needed.
-CA_CERT_WINDOWS_PATH:
-  value: C:\\Volumes\\certs\\ca.crt
-  contexts: [observability]
+
+# CA_CERT_PUBLISHED_PATH: Where init-certs publishes the CA certificate
+# Services fetch from this location during install/start (pull-based model)
+CA_CERT_PUBLISHED_PATH:
+  value: /mnt/c/Volumes/certs/Elastic/ca.crt
+  contexts: [observability, elastic-agent]
 
 # Elasticsearch API Script Environment Variables (ES_* prefix)
 # These variables are exported in init-index.sh for developer use with esapi/kapi commands

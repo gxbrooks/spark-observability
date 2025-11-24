@@ -426,7 +426,8 @@
         mode: '0640'
       become: true
       
-    # Fetch Elasticsearch CA certificate from observability host
+    # Fetch Elasticsearch CA certificate from observability host (pull-based model)
+    # Uses standard published path (matches CA_CERT_PUBLISHED_PATH from vars/contexts/elastic-agent/elastic_agent_env.conf)
     - name: Fetch Elasticsearch CA certificate from observability host
       delegate_to: "{{ groups['observability'][0] }}"
       fetch:

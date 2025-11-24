@@ -1,7 +1,7 @@
 
 # Elastic Stack 
 ## 1.  Logstash Environment Variables
-## 1.1  Java/JVM Variables
+### 1.1 Java/JVM Variables
 Since Logstash runs on Java, it inherits all standard Java environment variables:
 
 | Variable | Description |
@@ -11,7 +11,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | LS_JAVA_OPTS | Logstash-specific JVM options |
 | JSVC_OPTS | Java Service Wrapper options (when running as service) |
 
-## 1.1  Path and Home Variables
+### 1.1 Path and Home Variables
 
 | Variable | Description |
 |----------|------------|
@@ -21,7 +21,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | LS_PATH_LOGS | Log directory (default: LS_HOME/logs) |
 | LS_PLUGIN_PATH | Additional plugin directories |
 
-## 1.1  Configuration Variables
+### 1.1 Configuration Variables
 
 | Variable | Description |
 |----------|------------|
@@ -29,7 +29,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | PATH_CONF | Directory containing pipelines.yml and pipeline configs |
 | LS_PIPELINES_FILE | Path to pipelines.yml file |
 
-## 1.1  Performance and Memory Variables
+### 1.1 Performance and Memory Variables
 
 | Variable | Description |
 |----------|------------|
@@ -38,7 +38,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | LS_OPEN_FILES | Maximum number of open file descriptors |
 
 ## 1.  Kibana Environment Variables
-## 1.1  Server Configuration
+### 1.1 Server Configuration
 
 | Variable | Description |
 |----------|------------|
@@ -50,7 +50,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | SERVER_SSL_CERTIFICATE | Path to SSL certificate |
 | SERVER_SSL_KEY | Path to SSL key |
 
-## 1.1  Elasticsearch Connection
+### 1.1 Elasticsearch Connection
 
 | Variable | Description |
 |----------|------------|
@@ -61,7 +61,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | ELASTICSEARCH_SSL_VERIFICATIONMODE | Certificate verification (none, certificate, full) |
 | ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES | Path to CA certificate |
 
-## 1.1  Security & Authentication
+### 1.1 Security & Authentication
 
 | Variable | Description |
 |----------|------------|
@@ -70,7 +70,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | XPACK_SECURITY_SECURECOOKIES_ENABLED | Enable secure cookies |
 | XPACK_SECURITY_SAMESITE_COOKIES | SameSite cookie setting |
 
-## 1.1  Feature Toggles
+### 1.1 Feature Toggles
 
 | Variable | Description |
 |----------|------------|
@@ -81,7 +81,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | XPACK_MAPS_ENABLED | Enable Maps feature |
 
 ## 1.  Elasticsearch Environment Variables
-## 1.1  Java/JVM Variables
+### 1.1  Java/JVM Variables
 
 | Variable | Description |
 |----------|------------|
@@ -90,7 +90,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | ES_JAVA_OPTS | Additional JVM options for Elasticsearch |
 | JAVA_OPTS | General JVM options (used if ES_JAVA_OPTS not set) |
 
-## 1.1  Path and Directory Variables
+### 1.1  Path and Directory Variables
 
 | Variable | Description |
 |----------|------------|
@@ -101,7 +101,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | ES_TMPDIR | Temporary directory path |
 | ES_PLUGINS | Plugins directory path |
 
-## 1.1  Cluster and Node Variables
+3## 1.1  Cluster and Node Variables
 
 | Variable | Description |
 |----------|------------|
@@ -110,7 +110,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | NODE_ROLES | Comma-separated list of node roles |
 | DISCOVERY_TYPE | Discovery mechanism type |
 
-## 1.1  Network and Discovery Variables
+#3# 1.1  Network and Discovery Variables
 
 | Variable | Description |
 |----------|------------|
@@ -122,7 +122,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | DISCOVERY_SEED_HOSTS | Comma-separated list of seed nodes for discovery |
 | INITIAL_MASTER_NODES | Comma-separated list of initial master-eligible nodes |
 
-## 1.1  Security Variables
+### 1.1  Security Variables
 
 | Variable | Description |
 |----------|------------|
@@ -133,7 +133,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | xpack.security.authc anonymous.username | Anonymous access username |
 | xpack.security.authc anonymous.roles | Anonymous access roles |
 
-## 1.1  SSL/TLS Certificate Variables
+### 1.1  SSL/TLS Certificate Variables
 
 | Variable | Description |
 |----------|------------|
@@ -143,7 +143,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | xpack.security.transport.ssl.truststore.path | Transport SSL truststore path |
 | CERTS_DIR | Directory containing SSL certificates |
 
-## 1.1  Memory and Performance Variables
+### 1.1  Memory and Performance Variables
 
 | Variable | Description |
 |----------|------------|
@@ -152,7 +152,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | MAX_LOCKED_MEMORY | Maximum locked memory limit |
 | MAX_MAP_COUNT | Maximum memory map count (Linux) |
 
-## 1.1  Bootstrap and System Variables
+### 1.1  Bootstrap and System Variables
 
 | Variable | Description |
 |----------|------------|
@@ -161,7 +161,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | ES_DISTRIBUTION_FLAVOR | Distribution flavor (default, oss) |
 | ES_DISTRIBUTION_TYPE | Distribution type (tar, docker, rpm, deb) |
 
-## 1.1  Docker-Specific Variables
+### 1.1  Docker-Specific Variables
 
 | Variable | Description |
 |----------|------------|
@@ -169,7 +169,7 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 | ELASTICSEARCH_PLUGINS | Comma-separated list of plugins to install |
 | ELASTICSEARCH_OPTS | Additional command line options |
 
-## 1.1  License and Feature Variables
+### 1.1  License and Feature Variables
 
 | Variable | Description |
 |----------|------------|

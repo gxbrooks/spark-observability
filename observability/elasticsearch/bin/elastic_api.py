@@ -257,15 +257,17 @@ def make_api_request(config, method, url_path, body_path=None, inline_data=None,
     # Make the request
     try:
         auth = None if noauth else (config['user'], config['password'])
+        # Add timeout to prevent hanging (60 seconds for connection, 300 seconds for read)
+        timeout = (60, 300)
         
         if method == 'GET':
-            response = requests.get(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'])
+            response = requests.get(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'], timeout=timeout)
         elif method == 'POST':
-            response = requests.post(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'])
+            response = requests.post(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'], timeout=timeout)
         elif method == 'PUT':
-            response = requests.put(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'])
+            response = requests.put(url, auth=auth, headers=headers, json=body, verify=config['ca_cert'], timeout=timeout)
         elif method == 'DELETE':
-            response = requests.delete(url, auth=auth, headers=headers, verify=config['ca_cert'])
+            response = requests.delete(url, auth=auth, headers=headers, verify=config['ca_cert'], timeout=timeout)
         else:
             print(f"Error: Unsupported HTTP method: {method}", file=sys.stderr)
             sys.exit(1)

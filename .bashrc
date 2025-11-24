@@ -18,15 +18,11 @@ else
     systemctl --user start ssh-agent
 fi
 
-# Setup ssh-agent entry for GitHub and ssh
-# will prompt for passphrase if not already in ssh-agent
-eval $(keychain --eval --agents ssh id_rsa id_ed25519)
+# ~/.bashrc
 
-# Add to ~/.bashrc
-if ! pgrep -f ssh-agent > /dev/null; then
-    eval "$(ssh-agent -s)"
-    ssh-add # Add your keys here if you want them added automatically
-fi
+# Use keychain to manage SSH keys
+eval $(keychain --quiet --eval id_ed25519 id_rsa)
+
 
 # Activate project virtual environment (only if not already activated)
 if [ -z "$VIRTUAL_ENV" ]; then

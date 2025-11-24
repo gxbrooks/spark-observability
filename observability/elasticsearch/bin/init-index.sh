@@ -22,7 +22,7 @@ echo "  ES_HOST: ${ES_HOST}"
 echo "  ES_PORT: ${ES_PORT}"
 echo "  ES_USER: ${ES_USER}"
 echo "  ES_PASSWORD: ${ES_PASSWORD}"
-echo "  CA_CERT_ES_PATH: ${CA_CERT_ES_PATH}"
+echo "  CA_CERT: ${CA_CERT}"
 echo "  KB_HOST: ${KB_HOST}"
 echo "  KB_PORT: ${KB_PORT}"
 echo "  KB_PASSWORD: ${KB_PASSWORD}"
@@ -35,7 +35,7 @@ export ES_DIR="${ES_DIR}"
 export ES_CONFIG_DIR="${ES_CONFIG_DIR}"
 export ES_OUTPUTS_DIR="${ES_OUTPUTS_DIR}"
 export ES_BIN_DIR="${ES_BIN_DIR}"
-export CA_CERT_ES_PATH="${CA_CERT_ES_PATH}"
+export CA_CERT="${CA_CERT}"
 export ES_HOST="${ES_HOST}"
 export ES_PORT="${ES_PORT}"
 export ES_USER="${ES_USER}"
@@ -58,7 +58,7 @@ echo "export ES_DIR=\"${ES_DIR}\""
 echo "export ES_CONFIG_DIR=\"${ES_CONFIG_DIR}\""
 echo "export ES_OUTPUTS_DIR=\"${ES_OUTPUTS_DIR}\""
 echo "export ES_BIN_DIR=\"${ES_BIN_DIR}\""
-echo "export CA_CERT_ES_PATH=\"${CA_CERT_ES_PATH}\""
+echo "export CA_CERT=\"${CA_CERT}\""
 echo "export ES_HOST=\"${ES_HOST}\""
 echo "export ES_PORT=\"${ES_PORT}\""
 echo "export ES_USER=\"${ES_USER}\""
@@ -81,7 +81,7 @@ REQUIRED_VARS=(
   "ES_CONFIG_DIR"
   "ES_OUTPUTS_DIR"
   "ES_BIN_DIR"
-  "CA_CERT_ES_PATH"
+  "CA_CERT"
   "ES_HOST"
   "ES_PORT"
   "ES_USER"
@@ -107,9 +107,9 @@ if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
   exit 1
 fi
 
-# Verify CA_CERT_ES_PATH file exists
-if [[ ! -f "$CA_CERT_ES_PATH" ]]; then
-  echo "❌ Fatal error: CA_CERT_ES_PATH='$CA_CERT_ES_PATH' is not a file or does not exist"
+# Verify CA_CERT file exists
+if [[ ! -f "$CA_CERT" ]]; then
+  echo "❌ Fatal error: CA_CERT='$CA_CERT' is not a file or does not exist"
   exit 1
 fi
 
@@ -142,7 +142,8 @@ fi
 # ============================================================================
 echo ""
 echo "=== STEP 2: WAITING FOR KIBANA AVAILABILITY ==="
-MAX_RETRIES=30
+MAX_RETRIES=60
+KIBANA_RETRY_DELAY=5
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   echo "Kibana health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
@@ -150,8 +151,8 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     echo "✅ Kibana is available and responding"
     break
   else
-    echo "⏳ Kibana not ready yet, waiting 2 seconds..."
-    sleep 2
+    echo "⏳ Kibana not ready yet, waiting ${KIBANA_RETRY_DELAY} seconds..."
+    sleep ${KIBANA_RETRY_DELAY}
     RETRY_COUNT=$((RETRY_COUNT + 1))
   fi
 done
