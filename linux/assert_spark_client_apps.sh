@@ -76,21 +76,36 @@ report_check() {
     fi
 }
 
-# Check if Python 3.8 is available
-check_python38() {
-    $DEBUG && echo "Debug   : Checking for Python 3.8..."
+# Check if required Python version is available (from variables.yaml)
+# Spark 4.0+ requires Python 3.11+
+check_python_version() {
+    $DEBUG && echo "Debug   : Checking for required Python version..."
     
-    if command -v python3.8 >/dev/null 2>&1; then
-        local version=$(python3.8 --version 2>&1)
-        report_check "pass" "Python 3.8 found: $version"
+    # Extract PYTHON_VERSION from variables.yaml using system Python
+    local required_version=$(
+        python3 -c "
+import yaml, sys
+try:
+    with open('$root_dir/vars/variables.yaml') as f:
+        vars = yaml.safe_load(f)
+        version = vars.get('PYTHON_VERSION', {}).get('value', '3.11')
+        print(version)
+except Exception as e:
+    print('3.11')  # fallback
+" 2>/dev/null || echo "3.11"
+    )
+    
+    if command -v "python${required_version}" >/dev/null 2>&1; then
+        local version=$(python${required_version} --version 2>&1)
+        report_check "pass" "Python ${required_version} found: $version"
         return 0
     else
-        report_check "fail" "Python 3.8 not found (required for Spark 3.5.1 compatibility)"
+        report_check "fail" "Python ${required_version} not found (required for Spark 4.0+ compatibility)"
         if $FIX && ! $CHECK; then
-            echo "Info    : Installing Python 3.8..."
-            "$script_dir/assert_python_version.sh" --PythonVersion 3.8
+            echo "Info    : Installing Python ${required_version}..."
+            "$script_dir/assert_python_version.sh" --PythonVersion "$required_version"
         elif $CHECK; then
-            echo "Check   : Would install Python 3.8 using assert_python_version.sh"
+            echo "Check   : Would install Python ${required_version} using assert_python_version.sh"
         fi
         return 1
     fi
@@ -226,9 +241,9 @@ check_env_files() {
     if [ "$all_good" = false ]; then
         if $FIX && ! $CHECK; then
             echo "Info    : Generating environment files..."
-            cd "$root_dir" && python3 vars/generate_env.py spark-client ispark
+            cd "$root_dir" && bash vars/generate_env.sh spark-client ispark
         elif $CHECK; then
-            echo "Check   : Would generate environment files using generate_env.py"
+            echo "Check   : Would generate environment files using generate_env.sh"
         fi
         return 1
     fi
@@ -476,7 +491,7 @@ echo ""
 
 # Section 1: Python Environment
 echo -e "${BLUE}[1/6] Python Environment${NC}"
-check_python38
+check_python_version
 check_venv
 
 echo ""

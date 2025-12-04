@@ -38,15 +38,15 @@ Local Machine                     Kubernetes Cluster (Lab2.local:31686)
 
 ## Requirements
 
-- Python 3.8 virtual environment with PySpark 3.5.1
+- Python 3.11+ virtual environment with PySpark 4.0.1 (Spark 4.0+ requires Python 3.11+)
 - IPython installed in venv
 - Spark cluster running on Kubernetes
-- Network access to Lab2.local:31686
+- Network access to Lab2.lan:31686
 
 ## Environment Variables
 
 The `ispark_env.sh` file (auto-generated from `vars/variables.yaml`) provides:
-- `SPARK_MASTER_HOST`: Cluster hostname (Lab2.local)
+- `SPARK_MASTER_HOST`: Cluster hostname (Lab2.lan)
 - `SPARK_MASTER_PORT`: NodePort for client access (31686)
 - Other Spark-related settings
 
@@ -58,12 +58,12 @@ These are automatically sourced by the launch script.
 $ ./spark/ispark/launch_ipython.sh
 
 === Launching PySpark with IPython ===
-Spark Master: spark://Lab2.local:31686
+Spark Master: spark://Lab2.lan:31686
 Python: /home/user/repos/elastic-on-spark/venv/bin/python
 Press Ctrl+D to exit
 ======================================
 
-Python 3.8.20 (default, ...)
+Python 3.11.x (default, ...)
 IPython 8.x.x
 
 In [1]: # SparkSession is automatically created as 'spark'
@@ -98,6 +98,10 @@ The environment variables are already configured, so it connects to the cluster 
 If cluster configuration changes, regenerate environment files:
 
 ```bash
+# Recommended - uses wrapper script
+bash vars/generate_env.sh ispark
+
+# Or directly (requires PyYAML installed)
 python3 vars/generate_env.py ispark
 ```
 

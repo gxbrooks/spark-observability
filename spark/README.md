@@ -22,7 +22,10 @@ This directory contains Apache Spark applications and client tools for running w
 
 3. **Configuration**: Environment variables generated from `vars/variables.yaml`
    ```bash
-   # Regenerate if needed
+   # Regenerate if needed (use wrapper script - recommended)
+   bash vars/generate_env.sh devops spark-client ispark
+   
+   # Or directly (requires PyYAML installed)
    python3 vars/generate_env.py devops spark-client ispark
    ```
 

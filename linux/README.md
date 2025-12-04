@@ -187,9 +187,12 @@ See `docs/Variable_Flow.md` for complete instructions on updating variables and 
 Quick reference:
 ```bash
 # 1. Edit vars/variables.yaml
-# 2. Regenerate: python3 vars/generate_env.py -f
+# 2. Regenerate: bash vars/generate_env.sh -f
+#    (or: python3 vars/generate_env.py -f)
 # 3. Deploy changes as needed
 ```
+
+**Note**: Use `vars/generate_env.sh` wrapper script to ensure system Python is used and avoid circular dependencies.
 
 ## Key Design Principles
 
@@ -219,6 +222,10 @@ Quick reference:
 
 **Environment files not generated:**
 ```bash
+# Use the wrapper script (recommended - uses system Python)
+bash vars/generate_env.sh -f -v
+
+# Or directly (requires PyYAML installed)
 python3 vars/generate_env.py -f -v
 ```
 

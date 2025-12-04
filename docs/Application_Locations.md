@@ -6,13 +6,14 @@ This document provides a comprehensive overview of where applications are instal
 
 ### **Python Environment**
 - **Location**: `/home/gxbrooks/repos/elastic-on-spark/venv/`
-- **Python Version**: 3.8.20 (matches Apache Spark 3.5.1 workers)
+- **Python Version**: 3.11 (required for Apache Spark 4.0+)
 - **Activation**: `source venv/bin/activate`
 - **Deactivation**: `deactivate`
+- **Note**: Python version is defined in `vars/variables.yaml` and is the single source of truth
 
 ### **PySpark Installation**
 - **Location**: Virtual environment (`venv/lib/python3.11/site-packages/`)
-- **Version**: 4.0.1
+- **Version**: 4.0.1 (matches Spark cluster version)
 - **Installation Method**: Virtual environment (no system pollution)
 - **Access**: Available when virtual environment is activated
 

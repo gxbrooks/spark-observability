@@ -10,7 +10,9 @@ The variable context framework operates on a **two-stage generation process**:
 
 1. **Variable Definition**: All variables are defined in `vars/variables.yaml` along with the contexts (e.g., `observability`, `spark-client`, `ansible`) in which they are relevant.
 2. **Context Specification**: `vars/contexts.yaml` defines the output files to be generated for each context, specifying the output format (e.g., `.env`, `shell_env`, `toml`, `configmap`, `ansible_vars`) and the target file path.
-3. **Generation**: `vars/generate_env.py` reads `vars/variables.yaml` and `vars/contexts.yaml` to produce context-specific configuration files in `vars/contexts/<context>/`.
+3. **Generation**: `vars/generate_env.sh` (bootstrap wrapper) uses system Python to call `vars/generate_env.py`, which reads `vars/variables.yaml` and `vars/contexts.yaml` to produce context-specific configuration files in `vars/contexts/<context>/`.
+
+**Modular Design**: The `vars/` module is **independent** and uses **system Python** (not project venv) to break circular dependencies. This allows environment files to be generated before Python version is determined or virtual environment exists.
 
 ## Component Architecture
 
@@ -21,20 +23,26 @@ The variable context framework operates on a **two-stage generation process**:
 │  vars/                                                       │
 │  ├── variables.yaml          # Single source of truth       │
 │  ├── contexts.yaml            # Context specifications       │
-│  ├── generate_env.py          # Generator script            │
+│  ├── generate_env.sh          # Bootstrap wrapper (system Python) │
+│  ├── generate_env.py          # Core generator script       │
 │  └── README.md                # Module documentation         │
 └─────────────────────────────────────────────────────────────┘
                           │
                           │ reads
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Generation Process                                           │
+│ Generation Process (Modular, Layered Architecture)          │
 │                                                              │
-│  generate_env.py                                             │
-│  ├── Load variables.yaml                                     │
-│  ├── Load contexts.yaml                                      │
-│  ├── Filter variables by context                             │
-│  └── Generate context-specific files                         │
+│  Layer 1: generate_env.sh (Bootstrap Wrapper)               │
+│  ├── Uses system Python (breaks circular dependencies)      │
+│  ├── Auto-installs PyYAML if missing                        │
+│  └── Calls generate_env.py                                  │
+│                                                              │
+│  Layer 2: generate_env.py (Core Generator)                  │
+│  ├── Load variables.yaml                                    │
+│  ├── Load contexts.yaml                                     │
+│  ├── Filter variables by context                            │
+│  └── Generate context-specific files                        │
 └─────────────────────────────────────────────────────────────┘
                           │
                           │ writes
@@ -129,7 +137,8 @@ Generated files are consumed by:
 vars/
 ├── variables.yaml              # Source: Variable definitions
 ├── contexts.yaml               # Source: Context specifications
-├── generate_env.py             # Source: Generator script
+├── generate_env.sh             # Source: Bootstrap wrapper
+├── generate_env.py             # Source: Core generator script
 ├── README.md                   # Source: Module overview
 └── contexts/                   # Generated: All context files (gitignored)
     ├── observability/
@@ -220,7 +229,7 @@ Source (vars/contexts/) → Ansible Playbooks → Target Locations
 
 ## Version Control Strategy
 
-- **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`): ✅ Committed
+- **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.sh`, `generate_env.py`): ✅ Committed
 - **Generated files** (`vars/contexts/`): ❌ Gitignored
 - **`.gitignore` pattern**: `vars/contexts/`
 

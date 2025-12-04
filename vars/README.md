@@ -2,6 +2,36 @@
 
 This directory (`vars/`) contains the core components of the project's data-driven variable management framework. It serves as the single source of truth for all configuration variables used across the Spark and Observability stacks.
 
+## Modular, Layered Architecture
+
+The `vars/` module is designed as a **standalone, independent module** that can operate without dependencies on the rest of the project:
+
+### **Layer 1: Bootstrap (System Python)**
+- **`generate_env.sh`** - Wrapper script that uses system Python (any 3.x)
+- **Purpose**: Breaks circular dependencies by using system Python instead of project venv
+- **Dependencies**: Only requires system `python3` and `pyyaml` (auto-installs if missing)
+- **Can run**: Before any virtual environment exists, before Python version is determined
+
+### **Layer 2: Core Generator (Python Script)**
+- **`generate_env.py`** - Main generator script
+- **Purpose**: Transforms `variables.yaml` + `contexts.yaml` into context-specific files
+- **Dependencies**: Python 3.x with PyYAML
+- **Called by**: `generate_env.sh` wrapper or directly (if PyYAML is installed)
+
+### **Layer 3: Configuration (YAML)**
+- **`variables.yaml`** - Single source of truth for all variable values
+- **`contexts.yaml`** - Specification of output formats and file paths
+- **Purpose**: Declarative configuration, no code dependencies
+
+### **Layer 4: Generated Output**
+- **`contexts/`** directory - All generated files (gitignored)
+- **Purpose**: Context-specific configuration files consumed by deployment tools
+
+**Key Design Principle**: The `vars/` module is **independent** and uses **system Python** to avoid circular dependencies. This allows environment files to be generated even when:
+- No virtual environment exists
+- Python version is not yet determined
+- Project dependencies are not installed
+
 ## Organization
 
 ```
@@ -9,7 +39,8 @@ vars/
 ├── README.md                # This file - module overview
 ├── variables.yaml           # Single source of truth for all variables
 ├── contexts.yaml            # Context specifications (output formats and paths)
-├── generate_env.py          # Generator script
+├── generate_env.sh          # Bootstrap wrapper (uses system Python)
+├── generate_env.py          # Core generator script
 └── contexts/                # Generated files (gitignored)
     ├── observability/
     ├── spark-runtime/
@@ -20,14 +51,17 @@ vars/
 ## Quick Start
 
 ```bash
-# Generate all contexts
-python3 vars/generate_env.py
+# Generate all contexts (recommended - uses wrapper)
+bash vars/generate_env.sh
 
 # Force regeneration of specific contexts
-python3 vars/generate_env.py -f observability spark-runtime
+bash vars/generate_env.sh -f observability spark-runtime
 
 # Verbose mode
-python3 vars/generate_env.py -v devops
+bash vars/generate_env.sh -v devops
+
+# Or directly (requires PyYAML installed)
+python3 vars/generate_env.py -f observability spark-runtime
 ```
 
 ## Documentation
@@ -56,7 +90,8 @@ python3 vars/generate_env.py -v devops
 
 1. Edit `vars/variables.yaml` to add or update values
 2. Tag variables with relevant contexts
-3. Run `python3 vars/generate_env.py -f <context>` to regenerate
+3. Run `bash vars/generate_env.sh -f <context>` to regenerate (recommended)
+   - Or: `python3 vars/generate_env.py -f <context>` (if PyYAML installed)
 4. Commit `vars/variables.yaml` (generated files remain gitignored)
 
 ## Key Principles
@@ -66,10 +101,12 @@ python3 vars/generate_env.py -v devops
 - **Clear Separation**: Generated files in dedicated `contexts/` directory
 - **Idempotent**: Generator only updates changed files
 - **Fail-Fast**: Missing variables cause immediate failure
+- **Modular Independence**: `vars/` module uses system Python, no project dependencies
+- **Circular Dependency Resolution**: Wrapper script breaks dependency chain
 
 ## Version Control
 
-- ✅ **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`): Committed
+- ✅ **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`, `generate_env.sh`): Committed
 - ❌ **Generated files** (`contexts/`): Gitignored
 
 ## See Also

@@ -117,7 +117,7 @@ USER_SPARK_HOME:
 Variables flow from the central definition to deployment following this pattern:
 
 1. **Definition**: Variables are defined in `vars/variables.yaml`
-2. **Processing**: `generate_env.py` processes these variables based on context
+2. **Processing**: `generate_env.sh` (wrapper) or `generate_env.py` processes these variables based on context
 3. **Context-specific Files**: Variables are written to context-specific files
    - `spark-image.toml` for Docker build
    - `spark_vars.yml` for Ansible
@@ -163,7 +163,7 @@ When using variables in templates:
 The elastic-on-spark project implements these best practices through:
 
 1. **Centralized Variable Definition**: All variables in `vars/variables.yaml`
-2. **Variable Processing**: Using `vars/generate_env.py` to generate context-specific files
+2. **Variable Processing**: Using `vars/generate_env.sh` (wrapper) or `vars/generate_env.py` to generate context-specific files
 3. **Ansible Integration**: 
    - Playbooks use `vars/contexts/ansible/spark_vars.yml` generated from the central configuration
    - Correct path resolution is critical: `{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml`

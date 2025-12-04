@@ -26,6 +26,10 @@ Before running any playbooks, ensure your environment configuration files are up
 
 ```bash
 cd /home/gxbrooks/repos/elastic-on-spark
+# Recommended - uses wrapper script
+bash vars/generate_env.sh
+
+# Or directly (requires PyYAML installed)
 python3 vars/generate_env.py
 ```
 
@@ -127,7 +131,7 @@ This is caused by Ansible's k8s module having issues accessing the generated fil
 1. Regenerate the environment variables:
    ```bash
    cd /home/gxbrooks/repos/elastic-on-spark
-   python3 vars/generate_env.py -f
+   bash vars/generate_env.sh -f
    ```
 
 2. Run the Ansible playbook from the ansible directory:

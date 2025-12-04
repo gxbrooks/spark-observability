@@ -321,9 +321,9 @@ http://Lab2.local:32080/?token=your-generated-token
 
 **Current Python**: 3.11.6 (from jupyter/pyspark-notebook:latest)
 **Spark Version**: 3.5.1
-**Compatibility**: ✓ PySpark 3.5.1 supports Python 3.8, 3.9, 3.10, 3.11
+**Compatibility**: ✓ Spark 4.0+ requires Python 3.11 or later
 
-The Python 3.11 environment is fully compatible with Spark 3.5.1. If you specifically need Python 3.8, you can:
+The Python 3.11 environment is required for Spark 4.0+. For Spark 3.5.1, Python 3.8-3.11 was supported, but Spark 4.0+ requires 3.11+.
 
 1. Use an older Jupyter image:
 ```yaml

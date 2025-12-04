@@ -9,12 +9,45 @@ CHECK=false
 FORCE=false
 SETUP_VENV=true  # Default to setting up venv (best practice)
 SKIP_VENV=false  # Flag to skip venv setup
-PYTHON_VERSION="3.12"
+PYTHON_VERSION=""  # Must be provided via --PythonVersion or read from variables.yaml
 
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
 script_dir="$(cd "$(dirname "$script_path")" && pwd)"
 root_dir="$(cd "$script_dir/.." && pwd)"
+
+# If PYTHON_VERSION not provided, try to read from variables.yaml
+if [[ -z "$PYTHON_VERSION" ]]; then
+    if [[ -f "$root_dir/vars/variables.yaml" ]]; then
+        PYTHON_VERSION=$(
+            python3 -c "
+import yaml, sys
+try:
+    with open('$root_dir/vars/variables.yaml') as f:
+        vars = yaml.safe_load(f)
+        version = vars.get('PYTHON_VERSION', {}).get('value', '')
+        if version:
+            print(version)
+        else:
+            print('3.11', file=sys.stderr)
+            sys.exit(1)
+except Exception as e:
+    print('3.11', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null || echo "3.11"
+        )
+    else
+        # Fallback if variables.yaml doesn't exist
+        PYTHON_VERSION="3.11"
+    fi
+fi
+
+# Validate PYTHON_VERSION is set
+if [[ -z "$PYTHON_VERSION" ]]; then
+    echo "Error   : PYTHON_VERSION must be specified via --PythonVersion or variables.yaml" >&2
+    echo "Usage   : $script_name [--PythonVersion|-v <version>] [other options...]" >&2
+    exit 1
+fi
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -125,12 +158,20 @@ install_python_version() {
             fi
 #       fi
         else
-            # Install Python version and related packages
+            # Install Python version and related packages (without pip package for 3.11+)
             echo "Info    : Installing Python ${version} packages..."
-            if ! sudo apt install -y "python${version}" "python${version}-dev" "python${version}-venv" "python${version}-pip"; then
-                echo "Error   : Failed to install Python ${version} packages"
-                echo "Info    : Please run manually: sudo apt install -y python${version} python${version}-dev python${version}-venv python${version}-pip"
-                return 1
+            if [[ "$version" == "3.11" ]] || [[ "$version" == "3.12" ]] || [[ "$version" == "3.13" ]]; then
+                # Python 3.11+ doesn't have a pip package, we'll use ensurepip
+                if ! sudo apt install -y "python${version}" "python${version}-dev" "python${version}-venv"; then
+                    echo "Error   : Failed to install Python ${version} packages"
+                    return 1
+                fi
+            else
+                # Python 3.8-3.10 can use pip package
+                if ! sudo apt install -y "python${version}" "python${version}-dev" "python${version}-venv" "python${version}-pip"; then
+                    echo "Error   : Failed to install Python ${version} packages"
+                    return 1
+                fi
             fi
         fi
         
@@ -142,21 +183,26 @@ install_python_version() {
                 echo "Info    : Installing pip for Python ${version}..."
             fi
             
-            if [[ "$version" == "3.8" ]]; then
-                # For Python 3.8, install pip using get-pip.py
-                echo "Info    : Installing pip for Python 3.8 using get-pip.py..."
-                if ! sudo apt install -y curl; then
-                    echo "Error   : Failed to install curl"
-                    return 1
-                fi
-                if ! curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | sudo python3.8; then
-                    echo "Error   : Failed to install pip for Python 3.8"
-                    echo "Info    : Please run manually: curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | sudo python3.8"
-                    return 1
+            # For Python 3.11+, use ensurepip (pip package doesn't exist in Ubuntu repos)
+            # For Python 3.8-3.10, try the pip package first, fall back to ensurepip
+            if [[ "$version" == "3.8" ]] || [[ "$version" == "3.9" ]] || [[ "$version" == "3.10" ]]; then
+                # Try package first for older versions
+                if sudo apt install -y "python${version}-pip" 2>/dev/null; then
+                    echo "Info    : Installed pip for Python ${version} via package"
+                else
+                    # Fall back to ensurepip
+                    echo "Info    : Package not available, using ensurepip for Python ${version}..."
+                    if ! sudo "$(command -v python${version})" -m ensurepip --upgrade 2>/dev/null; then
+                        echo "Error   : Failed to install pip for Python ${version}"
+                        return 1
+                    fi
                 fi
             else
-                if ! sudo apt install -y "python${version}-pip"; then
-                    echo "Error   : Failed to install pip for Python ${version}"
+                # Python 3.11+ uses ensurepip (no pip package available)
+                echo "Info    : Installing pip for Python ${version} using ensurepip..."
+                if ! sudo "$(command -v python${version})" -m ensurepip --upgrade 2>/dev/null; then
+                    echo "Error   : Failed to install pip for Python ${version} using ensurepip"
+                    echo "Info    : Please ensure Python ${version} is properly installed"
                     return 1
                 fi
             fi
@@ -172,87 +218,8 @@ install_python_version() {
     fi
 }
 
-# Function to install PySpark for Python 3.8
-install_pyspark_for_python38() {
-    echo "Info    : Installing PySpark for Python 3.8..."
-    
-    if ! $CHECK; then
-        # Check if Python version is available
-        if ! command -v python${python_ver} &> /dev/null; then
-            echo "Error   : Python ${python_ver} is not installed. Please install it first."
-            echo "Info    : Run: sudo apt install -y python${python_ver} python${python_ver}-dev python${python_ver}-venv python${python_ver}-distutils"
-            return 1
-        fi
-        
-        # Install PySpark and IPython for specified Python version in virtual environment
-        if [ -d "venv" ]; then
-            source venv/bin/activate
-            pip install pyspark==3.5.1 ipython
-        else
-            echo "Warning: Virtual environment not found. Please run with --SetupVenv flag."
-            return 1
-        fi
-        
-        # Verify installation
-        if python3.8 -c "import pyspark" 2>/dev/null; then
-            echo "Success : PySpark installed for Python 3.8"
-        else
-            echo "Error   : Failed to install PySpark for Python 3.8"
-            return 1
-        fi
-    else
-        echo "Check   : Would install PySpark for Python 3.8"
-    fi
-}
-
-# Function to setup Python 3.8 virtual environment
-setup_python38_venv() {
-    $DEBUG && echo "Debug   : Checking if Python 3.8 virtual environment exists..."
-    
-    # Get the root directory (parent of linux directory)
-    local root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    local venv_dir="${root_dir}/venv"
-    
-    if [ -d "$venv_dir" ]; then
-        $DEBUG && echo "Debug   : Virtual environment already exists at $venv_dir"
-        if $CHECK; then
-            echo "Check   : Virtual environment already exists - no change needed"
-        else
-            echo "Info    : Virtual environment already exists - no change needed"
-        fi
-    else
-        if $CHECK; then
-            echo "Check   : Virtual environment does not exist - would create at $venv_dir"
-        else
-            echo "Info    : Creating Python ${python_ver} virtual environment at $venv_dir..."
-            python${python_ver} -m venv "$venv_dir"
-            
-            # Activate virtual environment and install packages
-            echo "Info    : Installing PySpark in virtual environment..."
-            source "$venv_dir/bin/activate"
-            
-            # Upgrade pip
-            python -m pip install --upgrade pip
-            
-            # Install PySpark and development tools
-            pip install pyspark==3.5.1 ipython jupyter
-            
-            # Verify installation
-            if python -c "import pyspark" 2>/dev/null; then
-                echo "Success : PySpark installed in virtual environment"
-            else
-                echo "Error   : Failed to install PySpark in virtual environment"
-                return 1
-            fi
-            
-            # Setup PATH in project .bashrc if not already present
-            setup_venv_path "$root_dir"
-            
-            echo "Info    : Virtual environment setup complete"
-            echo "Info    : To activate: source $venv_dir/bin/activate"
-        fi
-    fi
-}
+# Note: Python 3.8-specific functions removed - Spark 4.0+ requires Python 3.11+
+# Virtual environment setup is now handled in assert_devops_client.sh
 
 # Function to setup venv PATH in project .bashrc
 setup_venv_path() {
@@ -296,18 +263,8 @@ verify_python_installation() {
             return 1
         fi
         
-        # Special handling for Python 3.8 - install PySpark and setup venv
-        if [[ "$version" == "3.8" ]]; then
-            if ! python3.8 -c "import pyspark" 2>/dev/null; then
-                echo "Info    : Installing PySpark for Python 3.8..."
-                install_pyspark_for_python38
-            else
-                echo "Success : PySpark already available for Python 3.8"
-            fi
-            
-            # Setup virtual environment for Python 3.8
-            setup_python38_venv
-        fi
+        # Note: PySpark installation and venv setup are handled in assert_devops_client.sh
+        # This script only ensures the Python version is installed
     else
         echo "Error   : Python ${version} not found"
         return 1
@@ -331,14 +288,10 @@ else
     fi
 fi
 
-# Setup virtual environment (default behavior, idempotent)
-if $SETUP_VENV && [[ "$PYTHON_VERSION" == "3.8" ]]; then
-    $DEBUG && echo "Debug   : Setting up virtual environment (idempotent)..."
-    setup_python38_venv
-elif $SKIP_VENV; then
-    echo "Info    : Skipping virtual environment setup (--SkipVenv flag)"
-else
-    echo "Info    : Virtual environment setup only supported for Python 3.8"
+# Note: Virtual environment setup is now handled in assert_devops_client.sh
+# This script only ensures the Python version is installed and available
+if $SETUP_VENV || $SKIP_VENV; then
+    echo "Info    : Virtual environment setup is handled by assert_devops_client.sh"
 fi
 
 # Set up environment variables for the current session

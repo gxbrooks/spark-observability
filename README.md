@@ -101,11 +101,14 @@ After deployment, services are accessible at:
 
 ### Variable Management
 ```bash
-# Regenerate all environment files
-python3 vars/generate_env.py -f
+# Regenerate all environment files (recommended - uses wrapper)
+bash vars/generate_env.sh -f
 
 # Regenerate specific contexts
-python3 vars/generate_env.py spark-client elastic-agent
+bash vars/generate_env.sh spark-client elastic-agent
+
+# Or directly (requires PyYAML installed)
+python3 vars/generate_env.py -f
 ```
 
 ### Running Tests
@@ -126,10 +129,20 @@ Spark Applications → Event Logs (NFS) → Spark History Server
 Elastic Agent → Logstash → Elasticsearch → Kibana
 ```
 
-### Variable Flow
+### Variable Flow (Modular Architecture)
 ```
-vars/variables.yaml → generate_env.py → Context-specific files → Deployment
+vars/variables.yaml + vars/contexts.yaml
+        ↓
+vars/generate_env.sh (bootstrap wrapper - uses system Python)
+        ↓
+vars/generate_env.py (core generator)
+        ↓
+Context-specific files (vars/contexts/*/)
+        ↓
+Deployment (Ansible/Docker/Kubernetes)
 ```
+
+**Key Design**: The `vars/` module is **independent** and uses **system Python** to break circular dependencies, allowing environment files to be generated before project dependencies are installed.
 
 ## 🤝 Contributing
 

@@ -3,6 +3,28 @@ echo "Setting up bash environment for Spark Observability..."
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LS_HOME=/usr/share/logstash
 
+# Bootstrap: Ensure environment files are generated before sourcing them
+# This must use system Python to avoid circular dependencies
+# Only check if generate_env.sh exists (don't fail if vars/ doesn't exist)
+if [ -f "$dir/vars/generate_env.sh" ]; then
+    # Check if any required env files are missing or stale
+    NEEDS_GEN=false
+    for env_file in "$dir/vars/contexts/devops/devops_env.sh" \
+                    "$dir/vars/contexts/spark-client/spark_env.sh"; do
+        if [ ! -f "$env_file" ] || \
+           [ "$dir/vars/variables.yaml" -nt "$env_file" ] 2>/dev/null || \
+           [ "$dir/vars/contexts.yaml" -nt "$env_file" ] 2>/dev/null; then
+            NEEDS_GEN=true
+            break
+        fi
+    done
+    
+    if [ "$NEEDS_GEN" = "true" ]; then
+        # Generate missing/stale environment files (quietly, don't fail if it errors)
+        "$dir/vars/generate_env.sh" devops spark-client >/dev/null 2>&1 || true
+    fi
+fi
+
 # Add ops/observability/elasticsearch/bin to PATH for esapi and kapi commands
 if [[ ":$PATH:" != *":${dir}/ops/observability/elasticsearch/bin:"* ]]; then
     export PATH="${dir}/ops/observability/elasticsearch/bin:$PATH"
@@ -48,7 +70,7 @@ devops_env_file="$project_root/vars/contexts/devops/devops_env.sh"
 if [ -f "$devops_env_file" ]; then
     source "$devops_env_file"
 else
-    echo "Warning: devops_env.sh not found. Run: python3 vars/generate_env.py devops"
+    echo "Warning: devops_env.sh not found. Run: bash vars/generate_env.sh devops"
 fi
 
 # Set SPARK_LOCAL_IP to suppress hostname resolution warnings

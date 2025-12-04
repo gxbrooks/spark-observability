@@ -5,7 +5,8 @@ flowchart TD
     end
 
     subgraph "Processing"
-        generate_env["generate_env.py"]
+        generate_env["generate_env.sh\n(wrapper)"]
+        generate_env_py["generate_env.py\n(core)"]
     end
 
     subgraph "Context-Specific Files"
@@ -26,11 +27,12 @@ flowchart TD
     end
 
     variables -->|"SPARK_VERSION: 3.5.1"| generate_env
+    generate_env -->|"uses system Python"| generate_env_py
     
-    generate_env -->|"SPARK_VERSION = '3.5.1'"| spark_image
-    generate_env -->|"spark_version: '3.5.1'"| spark_vars
-    generate_env -->|"SPARK_VERSION: '3.5.1'"| spark_configmap
-    generate_env -->|"SPARK_VERSION=3.5.1"| docker_env
+    generate_env_py -->|"SPARK_VERSION = '3.5.1'"| spark_image
+    generate_env_py -->|"spark_version: '3.5.1'"| spark_vars
+    generate_env_py -->|"SPARK_VERSION: '3.5.1'"| spark_configmap
+    generate_env_py -->|"SPARK_VERSION=3.5.1"| docker_env
     
     spark_vars -->|"spark_version, spark_image, spark_tag"| playbooks
     
@@ -44,6 +46,6 @@ flowchart TD
     classDef output fill:#bfb,stroke:#333,stroke-width:2px;
     
     class variables source;
-    class generate_env,playbooks,templates processor;
+    class generate_env,generate_env_py,playbooks,templates processor;
     class spark_image,spark_vars,spark_configmap,docker_env,k8s_manifest,docker_container output;
 ```

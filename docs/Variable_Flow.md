@@ -66,22 +66,39 @@ All clients and managed nodes MUST run the same versions. This prevents:
 - API incompatibilities (Elasticsearch/Kibana)
 - Unexpected behavior from version drift
 
+**Python Version Requirements**:
+- **Spark 4.0+**: Requires Python 3.11 or later
+- **Python version is defined in `vars/variables.yaml`** as the single source of truth
+- Scripts read Python version from `variables.yaml` to avoid hardcoded defaults
+- `assert_python_version.sh` automatically reads version from `variables.yaml` if not provided
+
 ---
 
 ## **Architecture Overview**
 
 ```mermaid
 flowchart LR
-    A[vars/variables.yaml] -->|defines values| B[generate_env.py]
+    A[vars/variables.yaml] -->|defines values| B[generate_env.sh]
     C[vars/contexts.yaml] -->|defines outputs| B
-    B --> D[Context Files]
-    D --> E[Ansible/Docker]
-    E --> F[Deployed]
+    B -->|uses system Python| D[generate_env.py]
+    D --> E[Context Files]
+    E --> F[Ansible/Docker]
+    F --> G[Deployed]
+    
+    style B fill:#e1f5ff
+    style D fill:#fff4e1
 ```
+
+**Circular Dependency Resolution**:
+- `generate_env.sh` wrapper uses system Python (not venv) to break dependency chain
+- This allows environment files to be generated before Python version is determined
+- `.bashrc` automatically generates missing/stale environment files on login
 
 **Flow**: 
 1. `vars/variables.yaml` + `vars/contexts.yaml` define what and where
-2. `generate_env.py` generates context-specific files
+2. `generate_env.sh` (wrapper) or `generate_env.py` generates context-specific files
+   - **Important**: Use `generate_env.sh` wrapper to avoid circular dependencies
+   - Wrapper uses system Python (not venv) to break dependency chain
 3. Deployment tools consume generated files
 4. Components run with consistent configuration
 
@@ -94,6 +111,7 @@ flowchart LR
 | `vars/variables.yaml` | Variable values + contexts | YAML |
 | `vars/contexts.yaml` | Output specifications | YAML |
 | `vars/generate_env.py` | Code generator | Python |
+| `vars/generate_env.sh` | Bootstrap wrapper (uses system Python) | Bash |
 
 **Generated Files** (examples):
 - `vars/contexts/spark-image/spark-image.toml` → Docker build args
@@ -124,7 +142,10 @@ Some files use Jinja2 templates for additional flexibility:
 # 1. Edit vars/variables.yaml
 vim vars/variables.yaml
 
-# 2. Regenerate all contexts
+# 2. Regenerate all contexts (use wrapper script - recommended)
+bash vars/generate_env.sh -f
+
+# Or directly (requires PyYAML installed)
 python3 vars/generate_env.py -f
 
 # 3. Regenerate Spark client configuration (if Spark-related variables changed)
@@ -141,18 +162,24 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 ```bash
 # 1. Edit vars/contexts.yaml - add new context spec
 # 2. Tag variables in vars/variables.yaml with new context name
-# 3. Run generator
-./vars/generate_env.py <context-name> -v
+# 3. Run generator (use wrapper script - recommended)
+bash vars/generate_env.sh <context-name> -v
+
+# Or directly
+python3 vars/generate_env.py <context-name> -v
 ```
 
 ### **Check Status**
 
 ```bash
-# See what would be regenerated
-./vars/generate_env.py
+# See what would be regenerated (use wrapper - recommended)
+bash vars/generate_env.sh
 
 # Force regenerate all with verbose output
-./vars/generate_env.py -f -v
+bash vars/generate_env.sh -f -v
+
+# Or directly (requires PyYAML installed)
+python3 vars/generate_env.py -f -v
 ```
 
 ---
@@ -204,12 +231,14 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 
 ### **Stage 1: Core Environment Files**
 
-`python3 vars/generate_env.py` generates environment files from `vars/variables.yaml`:
+`bash vars/generate_env.sh` (or `python3 vars/generate_env.py`) generates environment files from `vars/variables.yaml`:
 
 ```
 vars/variables.yaml + vars/contexts.yaml
         ↓
-vars/generate_env.py
+vars/generate_env.sh (wrapper - uses system Python)
+        ↓
+vars/generate_env.py (actual generator)
         ↓
 Generated Files:
   - vars/contexts/devops/devops_env.sh
@@ -218,6 +247,8 @@ Generated Files:
   - vars/contexts/ansible/*.yml
   - etc.
 ```
+
+**Note**: The wrapper script (`generate_env.sh`) uses system Python to break circular dependencies. It can run before any virtual environment is set up, allowing environment files to be generated even when Python version is not yet determined.
 
 ### **Stage 2: User-Specific Configuration**
 

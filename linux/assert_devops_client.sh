@@ -58,10 +58,32 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root_dir="$(cd "$dir/.." && pwd)"
 
 # Bootstrap: Generate environment configuration using system Python
-# Note: We use python3 explicitly to handle the bootstrapping issue
+# Use the wrapper script to ensure system Python is used (breaks circular dependency)
 if ! $CHECK; then
   echo "Info    : Generating devops environment configuration..."
-  cd "$root_dir" && python3 vars/generate_env.py devops -f
+  cd "$root_dir" && bash vars/generate_env.sh devops -f
+fi
+
+# Extract PYTHON_VERSION from variables.yaml if not provided via command line
+# This must use system Python to avoid circular dependency
+if [[ -z "$PYTHON_VERSION" ]] && [[ -f "$root_dir/vars/variables.yaml" ]]; then
+  PYTHON_VERSION=$(
+    python3 -c "
+import yaml, sys
+try:
+    with open('$root_dir/vars/variables.yaml') as f:
+        vars = yaml.safe_load(f)
+        version = vars.get('PYTHON_VERSION', {}).get('value', '')
+        if version:
+            print(version)
+        else:
+            print('3.11', file=sys.stderr)
+            sys.exit(1)
+except Exception as e:
+    print('3.11', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null || echo "3.11"
+  )
 fi
 
 # Source the generated environment file (if it exists)
@@ -69,10 +91,12 @@ DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops/devops_env.sh"
 if [[ -f "$DEVOPS_ENV_FILE" ]]; then
   source "$DEVOPS_ENV_FILE"
   $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"
+  # PYTHON_VERSION from env file will be used if not already set
 fi
 
-# Override with command-line args if provided
-[[ -n "$PYTHON_VERSION" ]] || PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+# Override with command-line args if provided (command line takes precedence)
+# If still not set, use fallback
+[[ -n "$PYTHON_VERSION" ]] || PYTHON_VERSION="3.11"
 [[ -n "$JAVA_VERSION" ]] || JAVA_VERSION="${JAVA_VERSION:-17}"
 [[ -n "$SPARK_VERSION" ]] || SPARK_VERSION="${SPARK_VERSION:-4.0.1}"
 

@@ -136,17 +136,20 @@ ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml -e "force_env
 You can also manually generate configuration files by running the script directly:
 
 ```bash
-# Generate all configuration files
-python3 vars/generate_env.py
+# Generate all configuration files (recommended - uses wrapper)
+bash vars/generate_env.sh
 
 # Generate specific context files
-python3 vars/generate_env.py observability spark-runtime
+bash vars/generate_env.sh observability spark-runtime
 
 # Force regeneration
-python3 vars/generate_env.py -f
+bash vars/generate_env.sh -f
 
 # Get verbose output
-python3 vars/generate_env.py -v
+bash vars/generate_env.sh -v
+
+# Or directly (requires PyYAML installed)
+python3 vars/generate_env.py -f
 ```
 
 ### Spark History Server
@@ -196,7 +199,7 @@ Then access: http://localhost:18080
      ```bash
      # Regenerate environment files
      cd /home/gxbrooks/repos/elastic-on-spark
-     python3 vars/generate_env.py -f
+     bash vars/generate_env.sh -f
      
      # Then run the playbook from ansible directory
      cd ansible
