@@ -8,15 +8,19 @@ The `vars/` module is designed as a **standalone, independent module** that can 
 
 ### **Layer 1: Bootstrap (System Python)**
 - **`generate_env.sh`** - Wrapper script that uses system Python (any 3.x)
+- **`vars-grid.sh`** - Wrapper script for analysis tool (uses system Python)
 - **Purpose**: Breaks circular dependencies by using system Python instead of project venv
 - **Dependencies**: Only requires system `python3` and `pyyaml` (auto-installs if missing)
 - **Can run**: Before any virtual environment exists, before Python version is determined
 
-### **Layer 2: Core Generator (Python Script)**
+### **Layer 2: Core Scripts (Python)**
 - **`generate_env.py`** - Main generator script
-- **Purpose**: Transforms `variables.yaml` + `contexts.yaml` into context-specific files
+  - **Purpose**: Transforms `variables.yaml` + `contexts.yaml` into context-specific files
+  - **Called by**: `generate_env.sh` wrapper or directly (if PyYAML is installed)
+- **`vars-grid.py`** - Variable-context grid generator (analysis tool)
+  - **Purpose**: Generates grid showing which variables are used in which contexts
+  - **Called by**: `vars-grid.sh` wrapper or directly (if PyYAML is installed)
 - **Dependencies**: Python 3.x with PyYAML
-- **Called by**: `generate_env.sh` wrapper or directly (if PyYAML is installed)
 
 ### **Layer 3: Configuration (YAML)**
 - **`variables.yaml`** - Single source of truth for all variable values
@@ -39,8 +43,10 @@ vars/
 ├── README.md                # This file - module overview
 ├── variables.yaml           # Single source of truth for all variables
 ├── contexts.yaml            # Context specifications (output formats and paths)
-├── generate_env.sh          # Bootstrap wrapper (uses system Python)
+├── generate_env.sh          # Bootstrap wrapper for generate_env.py (uses system Python)
 ├── generate_env.py          # Core generator script
+├── vars-grid.sh             # Bootstrap wrapper for vars-grid.py (uses system Python)
+├── vars-grid.py             # Variable-context grid generator (analysis tool)
 └── contexts/                # Generated files (gitignored)
     ├── observability/
     ├── spark-runtime/
@@ -104,9 +110,16 @@ python3 vars/generate_env.py -f observability spark-runtime
 - **Modular Independence**: `vars/` module uses system Python, no project dependencies
 - **Circular Dependency Resolution**: Wrapper script breaks dependency chain
 
+## Utility Scripts
+
+- **`generate_env.sh`** - Wrapper for `generate_env.py` (uses system Python)
+- **`vars-grid.sh`** - Wrapper for `vars-grid.py` (uses system Python)
+- **`generate_env.py`** - Core generator script
+- **`vars-grid.py`** - Variable-context grid generator (analysis tool)
+
 ## Version Control
 
-- ✅ **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`, `generate_env.sh`): Committed
+- ✅ **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`, `generate_env.sh`, `vars-grid.py`, `vars-grid.sh`): Committed
 - ❌ **Generated files** (`contexts/`): Gitignored
 
 ## See Also

@@ -10,11 +10,16 @@ This helps identify:
 - Missing context definitions
 
 Usage:
+    # Recommended - use wrapper script (uses system Python)
+    bash vars/vars-grid.sh                    # Generate grid for all contexts
+    bash vars/vars-grid.sh --missing          # Show only missing contexts
+    bash vars/vars-grid.sh --summary          # Show summary statistics
+    bash vars/vars-grid.sh -c devops,spark-client  # Show grid for specific contexts
+    
+    # Or directly (requires PyYAML installed)
     python3 vars/vars-grid.py                    # Generate grid for all contexts
     python3 vars/vars-grid.py --missing          # Show only missing contexts
     python3 vars/vars-grid.py --summary          # Show summary statistics
-    python3 vars/vars-grid.py -c devops,spark-client  # Show grid for specific contexts
-    python3 vars/vars-grid.py --contexts observability,spark-runtime
     python3 vars/vars-grid.py -c devops,spark-client -ov  # Show only variables in one or more specified contexts
     python3 vars/vars-grid.py -ov  # Show only variables in ALL contexts
     python3 vars/vars-grid.py -oc  # Omit context columns that have no variables
