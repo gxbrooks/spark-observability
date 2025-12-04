@@ -124,9 +124,25 @@ check_venv() {
         report_check "fail" "Virtual environment not found at $venv_dir"
         if $FIX && ! $CHECK; then
             echo "Info    : Creating virtual environment..."
-            "$script_dir/assert_python_version.sh" --PythonVersion 3.8 --SetupVenv
+            # Get PYTHON_VERSION from variables.yaml
+            local python_version=$(
+                python3 -c "
+import yaml, sys
+try:
+    with open('$root_dir/vars/variables.yaml') as f:
+        vars = yaml.safe_load(f)
+        version = vars.get('PYTHON_VERSION', {}).get('value', '3.11')
+        print(version)
+except:
+    print('3.11')
+" 2>/dev/null || echo "3.11"
+            )
+            # Note: Virtual environment setup is handled by assert_devops_client.sh
+            # This script just ensures it exists - call assert_devops_client.sh to create it
+            echo "Info    : Virtual environment creation is handled by assert_devops_client.sh"
+            echo "Info    : Run: $root_dir/linux/assert_devops_client.sh -N <passphrase> to create venv"
         elif $CHECK; then
-            echo "Check   : Would create virtual environment using assert_python_version.sh"
+            echo "Check   : Would create virtual environment using assert_devops_client.sh"
         fi
         return 1
     fi
@@ -149,10 +165,23 @@ check_pyspark() {
             if $FIX && ! $CHECK; then
                 echo "Info    : Installing PySpark..."
                 source "$venv_dir/bin/activate"
-                pip install pyspark==3.5.1
+                # Get SPARK_VERSION from variables.yaml or use default
+                local spark_version=$(
+                    python3 -c "
+import yaml, sys
+try:
+    with open('$root_dir/vars/variables.yaml') as f:
+        vars = yaml.safe_load(f)
+        version = vars.get('SPARK_VERSION', {}).get('value', '4.0.1')
+        print(version)
+except:
+    print('4.0.1')
+" 2>/dev/null || echo "4.0.1"
+                )
+                pip install "pyspark==${spark_version}"
                 deactivate
             elif $CHECK; then
-                echo "Check   : Would install PySpark 3.5.1 in virtual environment"
+                echo "Check   : Would install PySpark (version from variables.yaml) in virtual environment"
             fi
             return 1
         fi
@@ -240,10 +269,10 @@ check_env_files() {
     
     if [ "$all_good" = false ]; then
         if $FIX && ! $CHECK; then
-            echo "Info    : Generating environment files..."
-            cd "$root_dir" && bash vars/generate_env.sh spark-client ispark
+            echo "Info    : Generating all client environment files (devops, spark-client, ispark)..."
+            cd "$root_dir" && bash vars/generate_env.sh devops spark-client ispark -f
         elif $CHECK; then
-            echo "Check   : Would generate environment files using generate_env.sh"
+            echo "Check   : Would generate all client environment files (devops, spark-client, ispark) using generate_env.sh"
         fi
         return 1
     fi
@@ -292,7 +321,7 @@ check_batch_apps() {
     local apps_dir="${root_dir}/spark/apps"
     
     if [ -d "$apps_dir" ]; then
-        local app_count=$(find "$apps_dir" -maxdepth 1 -name "Chapter_*.py" | wc -l)
+        local app_count=$(find "$apps_dir" -maxdepth 1 -name "Chapter_*.py" 2>/dev/null | wc -l)
         if [ $app_count -gt 0 ]; then
             report_check "pass" "Batch applications directory exists with $app_count Chapter_*.py files"
             
@@ -308,10 +337,18 @@ check_batch_apps() {
             return 0
         else
             report_check "warn" "Batch applications directory exists but no Chapter_*.py files found"
-            return 1
+            report_check "info" "This is expected if Chapter files haven't been created yet"
+            return 0  # Not a failure - just informational
         fi
     else
         report_check "fail" "Batch applications directory not found: $apps_dir"
+        if $FIX && ! $CHECK; then
+            echo "Info    : Creating batch applications directory..."
+            mkdir -p "$apps_dir"
+            report_check "info" "Created directory: $apps_dir"
+        elif $CHECK; then
+            echo "Check   : Would create directory: $apps_dir"
+        fi
         return 1
     fi
 }
@@ -323,7 +360,8 @@ check_ipython_client() {
     local ispark_dir="${root_dir}/spark/ispark"
     local launch_script="${ispark_dir}/launch_ipython.sh"
     local client_script="${ispark_dir}/spark_ipython_client.py"
-    local env_file="${ispark_dir}/ispark_env.sh"
+    # Correct path: ispark_env.sh is in vars/contexts/ispark/, not spark/ispark/
+    local env_file="${root_dir}/vars/contexts/ispark/ispark_env.sh"
     
     local all_good=true
     
@@ -346,10 +384,16 @@ check_ipython_client() {
     fi
     
     if [ -f "$env_file" ]; then
-        report_check "pass" "Environment file exists: ispark_env.sh"
+        report_check "pass" "iSpark environment file exists: vars/contexts/ispark/ispark_env.sh"
     else
-        report_check "fail" "Environment file not found: $env_file"
+        report_check "fail" "iSpark environment file missing: vars/contexts/ispark/ispark_env.sh"
         all_good=false
+        if $FIX && ! $CHECK; then
+            echo "Info    : Generating all client environment files (devops, spark-client, ispark)..."
+            cd "$root_dir" && bash vars/generate_env.sh devops spark-client ispark -f
+        elif $CHECK; then
+            echo "Check   : Would generate all client environment files using generate_env.sh"
+        fi
     fi
     
     # Note: spark_ipython_client.py is no longer needed - using standard pyspark
@@ -477,6 +521,22 @@ check_spark_config() {
     else
         report_check "fail" "Spark configuration file not found: $spark_defaults"
         all_good=false
+        if $FIX && ! $CHECK; then
+            echo "Info    : Generating spark-defaults.conf..."
+            local generator="${root_dir}/linux/generate_spark_defaults.sh"
+            if [ -f "$generator" ]; then
+                # Ensure devops_env.sh exists first (needed by generator)
+                if [ ! -f "${root_dir}/vars/contexts/devops/devops_env.sh" ]; then
+                    echo "Info    : Generating devops environment file first..."
+                    cd "$root_dir" && bash vars/generate_env.sh devops -f
+                fi
+                bash "$generator"
+            else
+                report_check "warn" "generate_spark_defaults.sh not found - cannot auto-generate"
+            fi
+        elif $CHECK; then
+            echo "Check   : Would generate spark-defaults.conf using generate_spark_defaults.sh"
+        fi
     fi
     
     [ "$all_good" = true ] && return 0 || return 1

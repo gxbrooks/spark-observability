@@ -59,9 +59,10 @@ root_dir="$(cd "$dir/.." && pwd)"
 
 # Bootstrap: Generate environment configuration using system Python
 # Use the wrapper script to ensure system Python is used (breaks circular dependency)
+# Generate all client contexts (devops, spark-client, ispark) to keep them in sync
 if ! $CHECK; then
-  echo "Info    : Generating devops environment configuration..."
-  cd "$root_dir" && bash vars/generate_env.sh devops -f
+  echo "Info    : Generating client environment configurations..."
+  cd "$root_dir" && bash vars/generate_env.sh devops spark-client ispark -f
 fi
 
 # Extract PYTHON_VERSION from variables.yaml if not provided via command line

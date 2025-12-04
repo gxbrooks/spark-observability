@@ -30,7 +30,7 @@ fi
 DEVOPS_ENV="${ROOT_DIR}/vars/contexts/devops/devops_env.sh"
 if [ ! -f "${DEVOPS_ENV}" ]; then
     echo "Error: devops_env.sh not found at ${DEVOPS_ENV}" >&2
-    echo "Run: python3 vars/generate_env.py devops" >&2
+    echo "Run: bash vars/generate_env.sh devops" >&2
     exit 1
 fi
 
