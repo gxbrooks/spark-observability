@@ -17,6 +17,58 @@
           - Memory: {{ ansible_memtotal_mb }}MB
           - CPU: {{ ansible_processor_vcpus }} cores
 
+    # === Certificate Diagnostics ===
+    - name: Check for required Kubernetes certificates
+      stat:
+        path: "{{ item }}"
+      register: required_certs
+      loop:
+        - /etc/kubernetes/pki/ca.crt
+        - /etc/kubernetes/pki/ca.key
+        - /etc/kubernetes/pki/apiserver.crt
+        - /etc/kubernetes/pki/apiserver.key
+        - /etc/kubernetes/pki/apiserver-kubelet-client.crt
+        - /etc/kubernetes/pki/apiserver-kubelet-client.key
+        - /etc/kubernetes/pki/front-proxy-ca.crt
+        - /etc/kubernetes/pki/front-proxy-client.crt
+        - /etc/kubernetes/pki/front-proxy-client.key
+        - /etc/kubernetes/pki/sa.key
+        - /etc/kubernetes/pki/sa.pub
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display certificate status
+      debug:
+        msg: |
+          Certificate Status:
+          {% for cert in required_certs.results | default([]) %}
+          - {{ cert.item | basename }}: {{ '✓ EXISTS' if cert.stat.exists else '✗ MISSING' }}
+          {% endfor %}
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check for missing certificates
+      set_fact:
+        missing_certs: "{{ required_certs.results | default([]) | selectattr('stat.exists', 'equalto', false) | map(attribute='item') | list }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display missing certificates warning
+      debug:
+        msg: |
+          ⚠️  WARNING: Missing Kubernetes certificates detected!
+          
+          Missing certificates:
+          {% for cert in missing_certs | default([]) %}
+          - {{ cert }}
+          {% endfor %}
+          
+          To fix, run:
+          ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+          
+          Or to regenerate just the missing client certificate:
+          kubeadm init phase certs apiserver-kubelet-client
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - missing_certs | default([]) | length > 0
+
     - name: Check swap status
       shell: swapon --show
       register: swap_status

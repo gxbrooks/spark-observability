@@ -143,6 +143,12 @@
       register: cert_regen
       failed_when: cert_regen.rc != 0
 
+    - name: Regenerate API server kubelet client certificate
+      shell: |
+        kubeadm init phase certs apiserver-kubelet-client
+      register: client_cert_regen
+      failed_when: client_cert_regen.rc != 0
+
     - name: Remove temporary kubeadm config file
       file:
         path: /tmp/kubeadm-cert-config.yaml
@@ -150,13 +156,26 @@
 
     - name: Display certificate regeneration result
       debug:
-        msg: "Certificate regeneration: {{ 'SUCCESS' if cert_regen.rc == 0 else 'FAILED' }}"
+        msg: |
+          Certificate regeneration:
+          - API server: {{ 'SUCCESS' if cert_regen.rc == 0 else 'FAILED' }}
+          - API server kubelet client: {{ 'SUCCESS' if client_cert_regen.rc == 0 else 'FAILED' }}
 
     - name: Verify new certificates were created
       stat:
-        path: /etc/kubernetes/pki/apiserver.crt
-      register: new_cert_check
-      failed_when: not new_cert_check.stat.exists
+        path: "{{ item }}"
+      register: new_cert_checks
+      loop:
+        - /etc/kubernetes/pki/apiserver.crt
+        - /etc/kubernetes/pki/apiserver.key
+        - /etc/kubernetes/pki/apiserver-kubelet-client.crt
+        - /etc/kubernetes/pki/apiserver-kubelet-client.key
+      failed_when: not item.stat.exists
+
+    - name: Display certificate verification results
+      debug:
+        msg: "Certificate {{ item.item }}: {{ 'EXISTS' if item.stat.exists else 'MISSING' }}"
+      loop: "{{ new_cert_checks.results }}"
 
     - name: Display new certificate SANs
       shell: |

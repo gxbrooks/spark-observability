@@ -24,6 +24,54 @@
         msg: "Swap is enabled on this system. Kubernetes requires swap to be disabled. Run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml' to disable swap."
       when: swap_status.stdout != ""
 
+    # === Certificate Validation ===
+    - name: Check for required Kubernetes certificates
+      stat:
+        path: "{{ item }}"
+      register: required_certs
+      loop:
+        - /etc/kubernetes/pki/ca.crt
+        - /etc/kubernetes/pki/ca.key
+        - /etc/kubernetes/pki/apiserver.crt
+        - /etc/kubernetes/pki/apiserver.key
+        - /etc/kubernetes/pki/apiserver-kubelet-client.crt
+        - /etc/kubernetes/pki/apiserver-kubelet-client.key
+        - /etc/kubernetes/pki/front-proxy-ca.crt
+        - /etc/kubernetes/pki/front-proxy-client.crt
+        - /etc/kubernetes/pki/front-proxy-client.key
+        - /etc/kubernetes/pki/sa.key
+        - /etc/kubernetes/pki/sa.pub
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display missing certificates
+      debug:
+        msg: "Missing certificate: {{ item.item }}"
+      loop: "{{ required_certs.results | default([]) }}"
+      when: 
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - not item.stat.exists | default(false)
+
+    - name: Fail if required certificates are missing
+      fail:
+        msg: |
+          One or more required Kubernetes certificates are missing!
+          
+          Missing certificates:
+          {% for cert in required_certs.results | default([]) %}
+          {% if not cert.stat.exists | default(false) %}
+          - {{ cert.item }}
+          {% endif %}
+          {% endfor %}
+          
+          To regenerate certificates, run:
+          ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+          
+          Or to regenerate just the missing client certificate:
+          kubeadm init phase certs apiserver-kubelet-client
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - required_certs.results | default([]) | selectattr('stat.exists', 'equalto', false) | list | length > 0
+
     - name: Enable and start containerd
       systemd:
         name: containerd
