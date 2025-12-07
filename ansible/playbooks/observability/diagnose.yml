@@ -4,7 +4,7 @@
   gather_facts: yes
   vars:
     timeout_seconds: 15
-    recent_timeframe_minutes: "{{ recent_timeframe_minutes | default(60) }}"
+    recent_timeframe_minutes: 60
   
   tasks:
     - name: Display diagnostic header

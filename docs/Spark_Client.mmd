@@ -8,7 +8,7 @@ graph TB
     end
     
     subgraph "Kubernetes Cluster"
-        F[Spark Master<br/>Lab2.local:32582]
+        F[Spark Master<br/>Lab2.lan:32582]
         G[Spark Workers<br/>Lab1: 5 pods<br/>Lab2: 2 pods]
         H[Spark History Server<br/>Web UI & Monitoring]
         I[Kubernetes Services<br/>Pod Management<br/>Load Balancing]
@@ -19,7 +19,7 @@ graph TB
     C --> D
     E --> A
     
-    B -.->|"spark://Lab2.local:32582"| F
+    B -.->|"spark://Lab2.lan:32582"| F
     F --> G
     F --> H
     G --> I

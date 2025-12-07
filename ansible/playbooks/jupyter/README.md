@@ -58,7 +58,7 @@ ansible-playbook -i inventory.yml playbooks/jupyter/status_jupyter.yml
 ## Access JupyterHub
 
 Once deployed, JupyterHub is accessible at:
-- **URL**: https://Lab2.local:32443 (HTTPS with self-signed certificate)
+- **URL**: https://Lab2.lan:32443 (HTTPS with self-signed certificate)
 - **Authentication**: NativeAuthenticator (sign up + admin approval)
 - **Python Version**: 3.11 (compatible with PySpark 3.5.1)
 - **Certificate**: Self-signed (accept browser warning for internal use)
@@ -100,7 +100,7 @@ Notebooks have access to:
 
 ### Creating a PySpark Notebook
 
-1. Access JupyterHub at http://Lab2.local:32080
+1. Access JupyterHub at http://Lab2.lan:32080
 2. Create a new notebook (Python 3)
 3. Use PySpark:
 
@@ -125,9 +125,9 @@ data.show(10)
 ### Monitoring Spark Jobs
 
 Jobs submitted from JupyterHub are visible in:
-- **Spark Master UI**: http://Lab2.local:32636
-- **Spark History Server**: http://Lab2.local:31534
-- **Kibana**: http://GaryPC.local:5601 (observability)
+- **Spark Master UI**: http://Lab2.lan:32636
+- **Spark History Server**: http://Lab2.lan:31534
+- **Kibana**: http://GaryPC.lan:5601 (observability)
 
 ## Troubleshooting
 
@@ -149,7 +149,7 @@ kubectl logs -n spark -l app=jupyterhub
 1. Verify pod is running: `kubectl get pods -n spark -l app=jupyterhub`
 2. Check service: `kubectl get svc jupyterhub -n spark`
 3. Verify NodePort: Should be `32080`
-4. Test network: `curl http://Lab2.local:32080`
+4. Test network: `curl http://Lab2.lan:32080`
 
 ### PySpark Not Connecting to Cluster
 
@@ -164,7 +164,7 @@ kubectl logs -n spark -l app=jupyterhub
 
 1. Verify NFS mounts on Lab2:
    ```bash
-   ssh ansible@Lab2.local
+   ssh ansible@Lab2.lan
    ls -la /mnt/spark/data
    ls -la /mnt/spark/events
    ls -la /mnt/spark/jupyter
@@ -302,7 +302,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 3. Access with token:
 ```
-http://Lab2.local:32080/?token=your-generated-token
+http://Lab2.lan:32080/?token=your-generated-token
 ```
 
 ### Authentication Comparison

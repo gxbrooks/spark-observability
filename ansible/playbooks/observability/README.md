@@ -67,10 +67,10 @@ ansible-playbook -i inventory.yml playbooks/observability/uninstall.yml
 
 After installation, services are accessible at:
 
-- **Elasticsearch**: https://GaryPC.local:9200
-- **Kibana**: http://GaryPC.local:5601
-- **Grafana**: http://GaryPC.local:3000
-- **Logstash**: GaryPC.local:5050
+- **Elasticsearch**: https://GaryPC.lan:9200
+- **Kibana**: http://GaryPC.lan:5601
+- **Grafana**: http://GaryPC.lan:3000
+- **Logstash**: GaryPC.lan:5050
 
 ## Credentials
 

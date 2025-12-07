@@ -104,7 +104,7 @@
               - ReadWriteOnce
             persistentVolumeReclaimPolicy: Retain
             nfs:
-              server: Lab2.local
+              server: Lab2.lan
               path: /srv/nfs/jupyterhub
             mountOptions:
               - nfsvers=4.1
@@ -134,8 +134,8 @@
         -key /tmp/jupyterhub-certs/tls.key
         -out /tmp/jupyterhub-certs/tls.crt
         -days 3650
-        -subj "/C=US/ST=State/L=City/O=Lab/CN=Lab2.local"
-        -addext "subjectAltName=DNS:Lab2.local,DNS:*.Lab2.local,IP:192.168.1.48"
+        -subj "/C=US/ST=State/L=City/O=Lab/CN=Lab2.lan"
+        -addext "subjectAltName=DNS:Lab2.lan,DNS:*.Lab2.lan,IP:192.168.1.48"
       when: not cert_exists.stat.exists
     
     - name: Set certificate file permissions
@@ -259,7 +259,7 @@
           - "Services:"
           - "{{ svc_details.stdout }}"
           - ""
-          - "Access JupyterHub at: https://Lab2.local:32443"
+          - "Access JupyterHub at: https://Lab2.lan:32443"
           - "(Self-signed certificate - accept browser warning)"
           - ""
           - "Default Admin User: admin"
@@ -274,7 +274,7 @@
           - "  - Resource limits: 1-2 CPU, 2-4G memory per user"
           - ""
           - "Next Steps:"
-          - "  1. Access https://Lab2.local:32443"
+          - "  1. Access https://Lab2.lan:32443"
           - "  2. Accept self-signed certificate warning in browser"
           - "  3. Click 'Sign Up' to create admin account"
           - "  4. Login as admin"

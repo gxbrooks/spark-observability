@@ -158,11 +158,11 @@ After startup, services are accessible at:
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **Kibana** | http://GaryPC.local:5601 | elastic / myElastic2025 |
-| **Grafana** | http://GaryPC.local:3000 | admin / (see `vars/contexts/observability/.env`) |
-| **Elasticsearch** | https://GaryPC.local:9200 | elastic / myElastic2025 |
-| **Spark History Server** | http://Lab2.local:31534 | (no auth) |
-| **Spark Master UI** | http://Lab2.local:32290 | (no auth) |
+| **Kibana** | http://GaryPC.lan:5601 | elastic / myElastic2025 |
+| **Grafana** | http://GaryPC.lan:3000 | admin / (see `vars/contexts/observability/.env`) |
+| **Elasticsearch** | https://GaryPC.lan:9200 | elastic / myElastic2025 |
+| **Spark History Server** | http://Lab2.lan:31534 | (no auth) |
+| **Spark Master UI** | http://Lab2.lan:32290 | (no auth) |
 
 > **Note:** JupyterHub will be added during Spark 4.0 migration with Python 3.11 support.
 
@@ -260,7 +260,7 @@ ansible-playbook -i inventory.yml playbooks/<playbook-name>.yml
 - Check that `ansible.cfg` exists in the ansible directory
 
 **SSH connection failures:**
-- Verify SSH keys are set up: `ssh ansible@Lab1.local`
+- Verify SSH keys are set up: `ssh ansible@Lab1.lan`
 - Check inventory.yml has correct hostnames/IPs
 
 **Docker not available on GaryPC:**
@@ -275,7 +275,7 @@ ansible-playbook -i inventory.yml playbooks/<playbook-name>.yml
 **Observability services not accessible:**
 - Check Docker containers: `docker ps`
 - Check logs: `docker-compose logs` (in observability directory)
-- Verify network connectivity: `ping GaryPC.local`
+- Verify network connectivity: `ping GaryPC.lan`
 
 ## Additional Resources
 

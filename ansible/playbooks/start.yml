@@ -61,13 +61,13 @@
           ✓ NFS Server: Running on Lab2
           ✓ Kubernetes: Master on Lab2, Workers on Lab1+Lab2
           ✓ Observability Platform: Running on GaryPC-WSL
-            - Elasticsearch: https://GaryPC.local:9200
-            - Kibana: http://GaryPC.local:5601
-            - Grafana: http://GaryPC.local:3000
+            - Elasticsearch: https://GaryPC.lan:9200
+            - Kibana: http://GaryPC.lan:5601
+            - Grafana: http://GaryPC.lan:3000
           ✓ Spark: Master, Workers, History Server on Kubernetes
-            - Spark History: http://Lab2.local:31534
+            - Spark History: http://Lab2.lan:31534
           ✓ JupyterHub: Running on Kubernetes (Lab2)
-            - JupyterHub: http://Lab2.local:32080
+            - JupyterHub: http://Lab2.lan:32080
           
           Next Steps:
           ================================================
@@ -82,10 +82,10 @@
              python3 spark/apps/Chapter_03.py
           
           4. Access web interfaces:
-             - Kibana: http://GaryPC.local:5601 (elastic / myElastic2025)
-             - Grafana: http://GaryPC.local:3000
-             - Spark History: http://Lab2.local:31534
-             - JupyterHub: https://Lab2.local:32443
+             - Kibana: http://GaryPC.lan:5601 (elastic / myElastic2025)
+             - Grafana: http://GaryPC.lan:3000
+             - Spark History: http://Lab2.lan:31534
+             - JupyterHub: https://Lab2.lan:32443
           
           ================================================
 

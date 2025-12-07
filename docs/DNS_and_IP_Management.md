@@ -190,7 +190,7 @@ Since Ansible depends on a functional network, network management cannot be auto
 ### Documentation Reference
 
 **Host Inventory** (`ansible/inventory.yml`):
-- All hosts defined by DNS name (`.local` suffix)
+- All hosts defined by DNS name (`.lan` suffix)
 - Never use IP addresses directly
 - Expected IPs documented in comments for reference only
 

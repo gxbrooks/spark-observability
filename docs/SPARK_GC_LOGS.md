@@ -111,7 +111,7 @@ gc.level: "info"
 Created in Elasticsearch with:
 ```bash
 curl -X PUT -k -u elastic:password \
-  "https://garypc.local:9200/_ingest/pipeline/logs-spark_gc-default" \
+  "https://garypc.lan:9200/_ingest/pipeline/logs-spark_gc-default" \
   -d @tmp/gc-ingest-pipeline.json
 ```
 
@@ -124,7 +124,7 @@ Pipeline includes:
 ### 3. Index Template Update
 ```bash
 curl -X PUT -k -u elastic:password \
-  "https://garypc.local:9200/_index_template/logs-spark_gc-default" \
+  "https://garypc.lan:9200/_index_template/logs-spark_gc-default" \
   -d '{
     "index_patterns": ["logs-spark_gc-default*"],
     "template": {
@@ -239,25 +239,25 @@ GET logs-spark_gc-default/_search
 **Check 1: Events Exist**
 ```bash
 curl -k -u elastic:password \
-  "https://garypc.local:9200/logs-spark_gc-default/_count"
+  "https://garypc.lan:9200/logs-spark_gc-default/_count"
 ```
 
 **Check 2: Fields Parsed**
 ```bash
 curl -k -u elastic:password \
-  "https://garypc.local:9200/logs-spark_gc-default/_search?size=1" | \
+  "https://garypc.lan:9200/logs-spark_gc-default/_search?size=1" | \
   jq '.hits.hits[0]._source.gc.paused'
 ```
 
 **Check 3: Pipeline Working**
 ```bash
 curl -k -u elastic:password \
-  "https://garypc.local:9200/_ingest/pipeline/logs-spark_gc-default"
+  "https://garypc.lan:9200/_ingest/pipeline/logs-spark_gc-default"
 ```
 
 **Check 4: Elastic Agent Status**
 ```bash
-ssh ansible@lab2.local "sudo systemctl status elastic-agent.service"
+ssh ansible@lab2.lan "sudo systemctl status elastic-agent.service"
 ```
 
 ### Events Not Parsing
@@ -265,7 +265,7 @@ ssh ansible@lab2.local "sudo systemctl status elastic-agent.service"
 **Test Pipeline**:
 ```bash
 curl -X POST -k -u elastic:password \
-  "https://garypc.local:9200/_ingest/pipeline/logs-spark_gc-default/_simulate" \
+  "https://garypc.lan:9200/_ingest/pipeline/logs-spark_gc-default/_simulate" \
   -d '{
     "docs": [{
       "_source": {
@@ -277,7 +277,7 @@ curl -X POST -k -u elastic:password \
 
 **Check Logs**:
 ```bash
-ssh ansible@lab2.local \
+ssh ansible@lab2.lan \
   "sudo cat /var/log/elastic-agent/*.ndjson | \
    grep spark_gc | grep -i error"
 ```
