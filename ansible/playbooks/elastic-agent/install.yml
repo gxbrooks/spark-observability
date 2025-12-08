@@ -427,31 +427,48 @@
       become: true
       
     # Fetch Elasticsearch CA certificate from observability host (pull-based model)
-    # Fetches directly from Docker volume - no WSL mount dependency
-    - name: Get Docker volume mount point for certs
+    # Uses published path (CA_CERT) - works for both Docker volume and WSL mounts
+    - name: Fetch Elasticsearch CA certificate from published location
+      delegate_to: "{{ groups['observability'][0] }}"
+      fetch:
+        src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+        dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
+        flat: yes
+      run_once: false
+      ignore_errors: yes
+      register: cert_fetch_result
+      
+    # Fallback: Try Docker volume if WSL mount fails
+    - name: Get Docker volume mount point for certs (fallback)
       delegate_to: "{{ groups['observability'][0] }}"
       shell: |
-        # Try common volume names
-        docker volume inspect observability_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
-        docker volume inspect ops_observability_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
+        # Try to find certs volume
+        for vol in $(docker volume ls -q); do
+          if docker volume inspect "$vol" --format '{{ "{{" }} .Name {{ "}}" }}' 2>/dev/null | grep -q certs; then
+            docker volume inspect "$vol" --format '{{ "{{" }} .Mountpoint {{ "}}" }}'
+            exit 0
+          fi
+        done
         echo ""
       register: cert_volume_path
       changed_when: false
       failed_when: false
+      when: cert_fetch_result.failed
       
-    - name: Verify Docker volume path found
-      fail:
-        msg: "Could not find Docker volume for certificates. Ensure observability stack is deployed."
-      when: cert_volume_path.stdout == ""
-      delegate_to: "{{ groups['observability'][0] }}"
-      
-    - name: Fetch Elasticsearch CA certificate from Docker volume
+    - name: Fetch from Docker volume (fallback)
       delegate_to: "{{ groups['observability'][0] }}"
       fetch:
         src: "{{ cert_volume_path.stdout }}/ca/ca.crt"
         dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
         flat: yes
-      run_once: false
+      when: 
+        - cert_fetch_result.failed
+        - cert_volume_path.stdout != ""
+      
+    - name: Fail if certificate fetch failed
+      fail:
+        msg: "Could not fetch CA certificate from observability host. Check that observability stack is running and certificates are generated."
+      when: cert_fetch_result.failed and (cert_volume_path.stdout == "" or cert_volume_path is not defined)
       
     - name: Create Elastic certificate directory
       file:
