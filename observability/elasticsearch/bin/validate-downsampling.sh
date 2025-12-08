@@ -26,11 +26,10 @@ if [[ -z "$ES_PASSWORD" ]]; then
     echo "Error: ES_PASSWORD not set. Source the appropriate environment file." >&2
     exit 1
 fi
-if [[ -z "$CA_CERT_LINUX_PATH" ]]; then
-    echo "Error: CA_CERT_LINUX_PATH not set. Source the appropriate environment file." >&2
+if [[ -z "$CA_CERT" ]]; then
+    echo "Error: CA_CERT not set. Source the appropriate environment file." >&2
     exit 1
 fi
-CA_CERT="$CA_CERT_LINUX_PATH"
 ES_URL="https://${ES_HOST}:${ES_PORT}"
 
 # Color output

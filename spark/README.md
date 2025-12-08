@@ -158,7 +158,7 @@ export SPARK_HOME="${SPARK_HOME:-/opt/spark}"
 # Using spark-submit from Kubernetes pod (recommended)
 kubectl exec -n spark spark-master-0 -c spark-master -- \
   /opt/spark/bin/spark-submit \
-  --master spark://spark-master-0.spark-master-headless.spark.svc.cluster.lan:7077 \
+  --master spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077 \
   --deploy-mode cluster \
   --conf spark.kubernetes.container.image=spark:4.0.1 \
   --conf spark.kubernetes.namespace=spark \
@@ -241,7 +241,7 @@ Auto-generated from `vars/variables.yaml` via `vars/generate_env.py`:
 ### Spark Cluster Access
 
 **Master Service:**
-- Internal (cluster): `spark://spark-master-0.spark-master-headless.spark.svc.cluster.lan:7077`
+- Internal (cluster): `spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077`
 - External (clients): `spark://Lab2.lan:31686`
 
 **Web UIs:**

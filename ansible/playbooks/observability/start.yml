@@ -13,9 +13,9 @@
   
   vars:
     observability_dir: "/home/ansible/ops/observability"
-    # Standard published path where init-certs publishes the CA certificate
-    # This matches CA_CERT_PUBLISHED_PATH from vars/contexts/observability/.env
-    ca_cert_path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+    # Standard CA certificate path (from vars/variables.yaml CA_CERT variable)
+    # This is the path where init-certs publishes the CA certificate
+    ca_cert_path: "/etc/ssl/certs/elastic/ca.crt"
     
   tasks:
     # === CRITICAL: Validate running on correct host ===
@@ -115,27 +115,64 @@
     # =====================================================================
     # STEP 2: Validate CA Certificate
     # =====================================================================
-    - name: Check if CA certificate was generated
+    # Check certificate in Docker volume (source of truth)
+    - name: Get Docker volume mount point for certs
+      shell: |
+        docker volume inspect observability_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
+        docker volume inspect {{ observability_dir | basename }}_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
+        echo ""
+      register: cert_volume_path
+      changed_when: false
+      failed_when: false
+      when: is_linux
+      
+    - name: Check if CA certificate was generated in Docker volume
       stat:
-        path: "{{ ca_cert_path }}"
+        path: "{{ cert_volume_path.stdout }}/ca/ca.crt"
       register: ca_cert_stat
+      when: is_linux and cert_volume_path.stdout != ""
+      
+    - name: Check if CA certificate exists at published path (fallback - Windows/WSL mount)
+      stat:
+        path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+      register: ca_cert_published_stat
+      when: is_linux
       
     - name: Fail if CA certificate not found
       fail:
-        msg: "CA certificate not found at {{ ca_cert_path }}. Certificate generation failed."
-      when: not ca_cert_stat.stat.exists
+        msg: |
+          CA certificate not found. Certificate generation may have failed.
+          Checked locations:
+          - Docker volume: {{ cert_volume_path.stdout }}/ca/ca.crt
+          - Published path (WSL): /mnt/c/Volumes/certs/Elastic/ca.crt
+          Check init-certs logs: cd {{ observability_dir }} && docker compose logs init-certs
+      when: 
+        - is_linux
+        - (cert_volume_path.stdout == "" or not ca_cert_stat.stat.exists)
+        - not ca_cert_published_stat.stat.exists
+      
+    - name: Set certificate path for validation
+      set_fact:
+        cert_path_to_validate: "{{ cert_volume_path.stdout }}/ca/ca.crt"
+      when: is_linux and cert_volume_path.stdout != "" and ca_cert_stat.stat.exists
+      
+    - name: Set certificate path for validation (fallback to WSL mount)
+      set_fact:
+        cert_path_to_validate: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+      when: is_linux and (cert_volume_path.stdout == "" or not ca_cert_stat.stat.exists) and ca_cert_published_stat.stat.exists
       
     - name: Validate CA certificate integrity
       shell: |
-        if ! openssl x509 -in "{{ ca_cert_path }}" -noout -text > /dev/null 2>&1; then
+        if ! openssl x509 -in "{{ cert_path_to_validate }}" -noout -text > /dev/null 2>&1; then
           echo "INVALID"
           exit 1
         fi
-        echo "Issuer: $(openssl x509 -in "{{ ca_cert_path }}" -noout -issuer)"
-        echo "Validity: $(openssl x509 -in "{{ ca_cert_path }}" -noout -dates)"
-        echo "Fingerprint: $(openssl x509 -in "{{ ca_cert_path }}" -noout -fingerprint -sha256)"
+        echo "Issuer: $(openssl x509 -in "{{ cert_path_to_validate }}" -noout -issuer)"
+        echo "Validity: $(openssl x509 -in "{{ cert_path_to_validate }}" -noout -dates)"
+        echo "Fingerprint: $(openssl x509 -in "{{ cert_path_to_validate }}" -noout -fingerprint -sha256)"
       register: ca_cert_validation
       changed_when: false
+      when: is_linux and cert_path_to_validate is defined
       
     - name: Display CA certificate details
       debug:

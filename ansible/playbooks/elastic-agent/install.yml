@@ -427,11 +427,28 @@
       become: true
       
     # Fetch Elasticsearch CA certificate from observability host (pull-based model)
-    # Uses standard published path (matches CA_CERT_PUBLISHED_PATH from vars/contexts/elastic-agent/elastic_agent_env.conf)
-    - name: Fetch Elasticsearch CA certificate from observability host
+    # Fetches directly from Docker volume - no WSL mount dependency
+    - name: Get Docker volume mount point for certs
+      delegate_to: "{{ groups['observability'][0] }}"
+      shell: |
+        # Try common volume names
+        docker volume inspect observability_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
+        docker volume inspect ops_observability_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
+        echo ""
+      register: cert_volume_path
+      changed_when: false
+      failed_when: false
+      
+    - name: Verify Docker volume path found
+      fail:
+        msg: "Could not find Docker volume for certificates. Ensure observability stack is deployed."
+      when: cert_volume_path.stdout == ""
+      delegate_to: "{{ groups['observability'][0] }}"
+      
+    - name: Fetch Elasticsearch CA certificate from Docker volume
       delegate_to: "{{ groups['observability'][0] }}"
       fetch:
-        src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+        src: "{{ cert_volume_path.stdout }}/ca/ca.crt"
         dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
         flat: yes
       run_once: false

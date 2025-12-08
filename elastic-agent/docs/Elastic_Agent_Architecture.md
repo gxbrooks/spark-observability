@@ -456,7 +456,7 @@ outputs:
     username: "${ELASTIC_USER}"
     password: "${ELASTIC_PASSWORD}"
     ssl:
-      certificate_authorities: ["${CA_CERT_LINUX_PATH}"]
+      certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
 ```
 

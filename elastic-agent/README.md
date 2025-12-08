@@ -194,7 +194,7 @@ Agent configuration uses environment variables from systemd:
 - `ELASTIC_URL` - Elasticsearch endpoint
 - `ELASTIC_USER` - Elasticsearch username
 - `ELASTIC_PASSWORD` - Elasticsearch password
-- `CA_CERT_LINUX_PATH` - CA certificate path
+- `CA_CERT` - CA certificate path (standard path for all services)
 - `LS_HOST` - Logstash hostname
 - `LS_SPARK_EVENTS_PORT` - Logstash port for Spark events
 

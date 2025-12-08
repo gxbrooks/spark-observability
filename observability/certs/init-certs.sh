@@ -1,78 +1,50 @@
 #!/usr/bin/bash
 
-# Create all the private keys and public certificates needed for Spark Observability. 
+# Create all the private keys and public certificates needed for Spark Observability.
+#
+# For comprehensive architecture documentation, see:
+#   docs/CA_CERTIFICATE_ARCHITECTURE.md
+#
+# This script implements the certificate generation and publishing layer of the pull-based
+# certificate distribution architecture.
 
-# Elasticsearch's Xpack requires that any Xpack attribute configurations are rooted
-# at /usr/share/elasticsearch/config. 
+# Elasticsearch X-Pack Requirement:
+# X-Pack requires all certificates to be rooted at /usr/share/elasticsearch/config/certs.
+# This path is hardcoded in this script (CA_BASE_DIR) as it's a mandatory X-Pack requirement.
 
 # This file needs to run as root
 
-# The elasticsearch certificate utility (elasticsearch-certutil) creates a zip file bsed
-# on the ./certs/instances.yml file with the following structure:
+# Certificate Structure:
+# The elasticsearch-certutil creates a zip file based on ./certs/instances.yml with:
 #
-#     certs
-#     ├── ca
-#     │   ├── ca.crt
-#     │   ├── ca.key
-#     │   └── ca.srl
-#     ├── certs.zip
-#     ├── es01
-#     │   ├── es01.crt
-#     │   └── es01.key
-#     └── kibana
+#     certs/
+#     ├── ca/
+#     │   ├── ca.crt          # CA certificate (public)
+#     │   ├── ca.key          # CA private key
+#     │   └── ca.srl         # Serial number file
+#     ├── certs.zip          # Archive of all certificates
+#     ├── es01/
+#     │   ├── es01.crt
+#     │   └── es01.key
+#     └── kibana/
 #         ├── kibana.crt
 #         └── kibana.key
+
+# Certificate Paths:
+# - Internal (Elasticsearch): /usr/share/elasticsearch/config/certs/ca/ca.crt
+#   (Hardcoded X-Pack requirement - see CA_BASE_DIR below)
+# - Published (CA_CERT): /etc/ssl/certs/elastic/ca.crt
+#   (Standard path for all services - defined in vars/variables.yaml)
 #
-# Docker certificate best practices place pubic certificates in a directory that is mounted 
-# as a volume - /mnt/c/Volumes/certs/Elastic.
-#
-# /etc/ssl/
-# ├── private/         # 700 permissions
-# │   ├── server.key   # 600 permissions  
-# │   └── ca.key       # 600 permissions
-# └── certs/           # 755 permissions
-#     ├── server.crt   # 644 permissions
-#     ├── ca.crt       # 644 permissions
-#     └── chain.crt    # 644 permissions
-#
-# We don't follow the private/ convention and instead leave the private keys where the application
-# require them.To handle
-# host-level instlalations of Elastic Agent we will copy out just the Elasticsearch certficate
-# to /etc/ssl on linux.  
+# The CA certificate is published to CA_CERT for distribution to:
+# - Docker containers (via mount in docker-compose.yml)
+# - Linux hosts (via Ansible fetch from Docker volume)
+# - Windows hosts (if needed, via WSL mount)
 
-# CA_CERT is *always* the path to the public version of the CA cert in any context
-# Elasticsearch requires all of it's certificates to be in /usr/share/elasticsearch/config/certs
-# We copy ca.crt to /etc/ssl/certs/elastic to a host mounted volume (/mnt/c/Volumes/certs/Elastic)
-# for distribution to other services.
-
-# ----------------------| ------------------------------------ | --------------------------------------|
-#  Service              | Host Mount Point                     |  ContainerMount Point                 | 
-# ----------------------| ------------------------------------ | --------------------------------------|
-#  init-cert            | certs:                               | /usr/share/elasticsearch/config/certs |     
-#  init-cert            | /etc/ssl/certs/elastic               | /etc/ssl/certs/elastic                |
-#  elasticsearch        | certs:                               | /usr/share/elasticsearch/config/certs |
-#  elasticsearch        | /etc/ssl/certs/elastic               | /etc/ssl/certs/elastic                |
-#  kibana               | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
-#  init-kibana          | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
-#  init-kibana-password | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
-#  init-index           | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
-#  logstash             | /mnt/c/Volumes/certs/Elastic         | /etc/ssl/certs/elastic                |
-# ----------------------| ------------------------------------ | --------------------------------------|
-
-# Container directory structure for certificates
-#
-# /usr/share/elasticsearch/config/certs
-#  ├── ca
-#  ├── certs.zip
-#  ├── es01
-#  ├── kibana
-#  └── grafana     
-
-# /etc/ssl/certs/elastic 
-# └── certs/
-#     └── elastic
-#         └── ca.crt
-
+# Environment Variable:
+# CA_CERT: Path where the public CA certificate should be published
+#          Default: /etc/ssl/certs/elastic/ca.crt (from vars/variables.yaml)
+#          This is the single source of truth path used by all services.
 
 # exit the script immediately if any command fails
 set -e
@@ -85,24 +57,26 @@ for arg in "$@"; do
   fi
 done
 
-# Follows the Linux convention of storing the CA certs in /etc/ssl/public
-# $CA_CERT is where the public version of the CA cert is stored
-# it is passed into the environment by the docker-compose.yml file
+# CA_CERT environment variable is required (set by docker-compose.yml from vars/variables.yaml)
+# This is the standard path where all services expect to find the CA certificate
 if [ ! -v CA_CERT ] ; then
-  echo "CA_CERT ('$CA_CERT') not defined in the environment"
+  echo "❌ Error: CA_CERT environment variable not defined"
+  echo "   CA_CERT should be set to /etc/ssl/certs/elastic/ca.crt (from vars/variables.yaml)"
   exit 1
 fi
 
+# Create the published certificate directory
 mkdir -p $(dirname "$CA_CERT")
 
-# Follows the Elasticsearch requirement of storing the CA certs in 
-# /usr/share/elasticsearch/config
+# Elasticsearch X-Pack Requirement (hardcoded - cannot be parameterized):
+# X-Pack requires all certificates to be in /usr/share/elasticsearch/config/certs
+# This is a mandatory requirement and cannot be changed.
 CA_BASE_DIR="/usr/share/elasticsearch/config" 
 CERTS_DIR="$CA_BASE_DIR/certs"
 CA_CERT_DIR="$CERTS_DIR/ca"
-CA_CERT_PATH="$CA_CERT_DIR/ca.crt"
-CA_KEY_PATH="$CA_CERT_DIR/ca.key"
-CA_VERSION_FILE="$CA_CERT_DIR/.certs_version"
+CA_CERT_PATH="$CA_CERT_DIR/ca.crt"      # Internal path (X-Pack requirement)
+CA_KEY_PATH="$CA_CERT_DIR/ca.key"       # Internal path (private key)
+CA_VERSION_FILE="$CA_CERT_DIR/.certs_version"  # Version tracking file
 
 
 # Helper: get CA cert hash

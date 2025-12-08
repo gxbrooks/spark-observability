@@ -25,18 +25,21 @@ This document defines the architecture for managing the Elastic Stack CA certifi
 ```
 ┌──────────────┐
 │  init-certs  │  Generates & publishes CA cert to standard location
-└──────┬───────┘  /mnt/c/Volumes/certs/Elastic/ca.crt
+└──────┬───────┘  CA_CERT=/etc/ssl/certs/elastic/ca.crt
        │
        ▼
 ┌──────────────────────────────────────────────────────┐
-│  Standard Published Location (NFS/Shared Storage)    │
-│  /mnt/c/Volumes/certs/Elastic/ca.crt                 │
+│  Standard Published Location (CA_CERT variable)     │
+│  /etc/ssl/certs/elastic/ca.crt                       │
+│  (Docker volume: certs:/usr/share/elasticsearch/    │
+│   config/certs/ca/ca.crt)                           │
 └───────┬──────────────────┬───────────────────────────┘
         │                  │
         ▼                  ▼
 ┌───────────────┐  ┌──────────────┐
 │ Elastic Agent │  │ Spark Client │  Each service fetches when needed
-│  (on install) │  │  (on start)  │
+│  (via Ansible │  │  (on start)  │  from Docker volume or CA_CERT path
+│   from volume)│  │              │
 └───────────────┘  └──────────────┘
 ```
 
@@ -69,8 +72,8 @@ Ansible orchestrates distribution to all known hosts
 ### 1. Certificate Generation (Docker Container: `init-certs`)
 
 **Location**: Inside `init-certs` container  
-**Internal Path**: `/usr/share/elasticsearch/config/certs/ca/ca.crt`  
-**Published Path**: `/etc/ssl/certs/elastic/ca.crt` (mounted to host)
+**Internal Path**: `/usr/share/elasticsearch/config/certs/ca/ca.crt` (hardcoded X-Pack requirement)  
+**Published Path**: `/etc/ssl/certs/elastic/ca.crt` (defined by `CA_CERT` variable)
 
 **Process**:
 1. Checks for existing certificate and version hash
@@ -79,28 +82,33 @@ Ansible orchestrates distribution to all known hosts
    - Certificate missing or corrupted
    - Version hash mismatch
 3. Validates certificate after generation
-4. Publishes to standard location
+4. Publishes to `CA_CERT` path (standard location for all services)
 
 **Volumes**:
-- Named volume `certs:` for internal Elasticsearch use
-- Bind mount `/mnt/c/Volumes/certs/Elastic` for publishing
+- Named volume `certs:` for internal Elasticsearch use (Docker volume)
+- Bind mount `/mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic` (for Windows/WSL access, optional)
 
 **Security**:
 - Private keys: 640 permissions (owner:rw group:r)
 - Public certs: 644 permissions (world-readable)
 - Directories: 755 permissions
 
-### 2. Standard Published Location (Host-Level Storage)
+**Script Reference**: See `observability/certs/init-certs.sh` for implementation details.
 
-**Primary Path**: `/mnt/c/Volumes/certs/Elastic/ca.crt`
+### 2. Standard Published Location
 
-This is the **Single Source of Truth** for the CA certificate. All services fetch from this location.
+**Path**: `/etc/ssl/certs/elastic/ca.crt` (defined by `CA_CERT` variable in `vars/variables.yaml`)
 
-**Windows Path**: `C:\Volumes\certs\Elastic\ca.crt`  
-**WSL/Linux Path**: `/mnt/c/Volumes/certs/Elastic/ca.crt`
+This is the **Single Source of Truth** path where all services expect to find the CA certificate.
+
+**Distribution Methods**:
+1. **Docker Containers**: Mounted from host path (via docker-compose.yml)
+2. **Linux Hosts**: Fetched via Ansible from Docker volume on observability host
+3. **Windows/WSL**: Optional mount from `/mnt/c/Volumes/certs/Elastic` (if needed)
 
 **Characteristics**:
-- Accessible from both Windows and WSL
+- Single variable (`CA_CERT`) for all contexts
+- Standard Linux certificate location (`/etc/ssl/certs/`)
 - Readable by all users (644 permissions)
 - Version-controlled via hash in `.certs_version` file
 - Validated by `init-certs` during publishing
@@ -113,12 +121,17 @@ Each service is responsible for fetching and validating certificates from the st
 
 **Fetch Location**: `/etc/ssl/certs/elastic/ca.crt`
 
-**Fetch Mechanism**: During `elastic-agent/install.yml` playbook
+**Fetch Mechanism**: During `elastic-agent/install.yml` playbook (pull-based model)
 ```yaml
-- name: Fetch Elasticsearch CA certificate from observability host
+- name: Get Docker volume mount point for certs
+  delegate_to: "{{ groups['observability'][0] }}"
+  shell: docker volume inspect observability_certs --format '{{ .Mountpoint }}'
+  register: cert_volume_path
+  
+- name: Fetch Elasticsearch CA certificate from Docker volume
   delegate_to: "{{ groups['observability'][0] }}"
   fetch:
-    src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
+    src: "{{ cert_volume_path.stdout }}/ca/ca.crt"
     dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
     flat: yes
     
@@ -130,6 +143,12 @@ Each service is responsible for fetching and validating certificates from the st
     group: root
     mode: '0644'
 ```
+
+**Advantages**:
+- No WSL mount dependency
+- Direct access to Docker volume (source of truth)
+- Works on any Linux host
+- Simple and reliable
 
 **Validation**: After copy, verify with `openssl x509`
 
@@ -399,9 +418,12 @@ Start all services (including init-certs) → validate → restart if needed
 
 | Variable | Value | Usage |
 |----------|-------|-------|
-| `CA_CERT_LINUX_PATH` | `/etc/ssl/certs/elastic/ca.crt` | Standard path in containers and Linux hosts |
-| `CA_CERT` | `${CA_CERT_LINUX_PATH}` | Used by `init-certs.sh` as publish destination |
+| `CA_CERT` | `/etc/ssl/certs/elastic/ca.crt` | **Single variable** for all contexts (containers and Linux hosts) |
 | `FORCE_REGEN` | `1` or empty | Triggers force regeneration when set |
+
+**Key Design**: `CA_CERT` is the **only** variable needed for CA certificate paths. All services use this single variable, eliminating the need for context-specific paths like `CA_CERT_LINUX_PATH` or `CA_CERT_PUBLISHED_PATH`.
+
+**Elasticsearch Internal Paths**: The path `/usr/share/elasticsearch/config/certs` is hardcoded in `init-certs.sh` as it's a mandatory X-Pack requirement and cannot be parameterized.
 
 ## Adding New Services
 

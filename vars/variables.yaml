@@ -98,18 +98,14 @@ ES_URL:
 KUBERNETES_API_SERVER:
   value: Lab2.lan
   contexts: [elastic-agent]
-# CA Certificate Paths
-# CA_CERT: Path where services expect to find the certificate
-# (same path for Docker containers and Linux hosts)
+# CA Certificate Path
+# CA_CERT: Standard path where services expect to find the CA certificate
+# This path works for both Docker containers (via mount) and Linux hosts
+# All services use this single variable - no need for context-specific paths
 CA_CERT:
   value: /etc/ssl/certs/elastic/ca.crt
   contexts: [devops, observability, spark-runtime, elastic-agent]
-
-# CA_CERT_PUBLISHED_PATH: Where init-certs publishes the CA certificate
-# Services fetch from this location during install/start (pull-based model)
-CA_CERT_PUBLISHED_PATH:
-  value: /mnt/c/Volumes/certs/Elastic/ca.crt
-  contexts: [observability, elastic-agent]
+  comment: "Standard CA certificate path for all services (containers and Linux hosts). Elasticsearch uses /usr/share/elasticsearch/config/certs internally (hardcoded X-Pack requirement)."
 
 # Elasticsearch API Script Environment Variables (ES_* prefix)
 # These variables are exported in init-index.sh for developer use with esapi/kapi commands
@@ -218,12 +214,12 @@ GOOGLE_APPLICATION_CREDENTIALS:
 
 # Spark runtime variables (for K8s ConfigMap)
 SPARK_MASTER:
-  value: spark://spark-master-0.spark-master-headless.spark.svc.cluster.lan:7077
+  value: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
   contexts: [spark-runtime]
 SPARK_MASTER_HOST:
   contexts: [spark-runtime, observability, ispark, spark-client]
   values:
-    spark-runtime: spark-master-0.spark-master-headless.spark.svc.cluster.lan
+    spark-runtime: spark-master-0.spark-master-headless.spark.svc.cluster.local
     observability: Lab2.lan
     ispark: Lab2.lan
     spark-client: Lab2.lan
@@ -283,7 +279,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT:
   values:
     spark-client: http://GaryPC.lan:4317
     devops: http://GaryPC.lan:4317
-    spark-runtime: http://otel-collector.observability.svc.cluster.lan:4317
+    spark-runtime: http://otel-collector.observability.svc.cluster.local:4317
 
 OTEL_SERVICE_NAME:
   value: spark-application
