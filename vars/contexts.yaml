@@ -3,70 +3,80 @@
 #
 # Each context specifies:
 #   - name: Unique identifier for the context
-#   - type: Output file format (env, shell_env, toml, configmap, ansible_vars)
-#   - output: Path to the generated file (relative to project root)
+#   - type: Output file format (docker-env, shell_env, toml, configmap, ansible_vars, systemd_env)
+#   - output: Path to the generated file (relative to vars/contexts/ directory)
 #   - description: Purpose of this context
+#
+# File Naming Conventions:
+# 1. Mandated names: Use when a context requires a specific name (e.g., Docker Compose expects .env)
+# 2. Standard conventions: Use industry-standard naming (e.g., spark-configmap.yaml for Kubernetes ConfigMaps)
+# 3. Shell environment scripts: Use *_env.sh suffix (e.g., spark_client_env.sh, devops_env.sh)
+# 4. Ansible variables: Use *_ansible_vars.yml suffix (e.g., spark_ansible_vars.yml)
+# 5. Systemd environment files: Use *_env.conf suffix (e.g., elastic_agent_env.conf)
+#
+# Directory Structure:
+# All context files are stored directly in vars/contexts/ (flattened structure, no subdirectories)
 
 contexts:
   - name: observability
-    type: env
-    output: vars/contexts/observability/.env
+    type: docker-env
+    output: observability_docker.env
     description: Environment variables for Docker Compose observability stack (Elasticsearch, Kibana, Grafana)
 
   - name: spark-image
     type: toml
-    output: vars/contexts/spark-image/spark-image.toml
+    output: spark-image.toml
     description: Build-time configuration for Spark Docker images
 
   - name: spark-runtime
     type: configmap
-    output: vars/contexts/spark-runtime/spark-configmap.yaml
+    output: spark-configmap.yaml
     description: Kubernetes ConfigMap for Spark runtime environment variables
 
   - name: ansible
     type: ansible_vars
-    output: vars/contexts/ansible/spark_vars.yml
+    output: spark_ansible_vars.yml
     description: Ansible variables for Spark deployment playbooks and roles
 
   - name: nfs
     type: ansible_vars
-    output: vars/contexts/nfs/nfs_vars.yml
+    output: nfs_ansible_vars.yml
     description: Ansible variables for NFS server configuration
 
   - name: spark-client
     type: shell_env
-    output: vars/contexts/spark-client/spark_env.sh
+    output: spark_client_env.sh
     description: Developer environment variables for running Spark applications locally
 
   - name: ispark
     type: shell_env
-    output: vars/contexts/ispark/ispark_env.sh
+    output: ispark_client_env.sh
     description: Environment variables for interactive Spark (iPython) sessions
 
   - name: elastic-agent
     type: systemd_env
-    output: vars/contexts/elastic-agent/elastic_agent_env.conf
+    output: elastic_agent_env.conf
     description: Systemd EnvironmentFile for Elastic Agent (Linux hosts)
 
   - name: elastic-agent-ansible
     type: ansible_vars
-    output: vars/contexts/elastic-agent-ansible/elastic_agent_vars.yml
+    output: elastic_agent_ansible_vars.yml
     description: Ansible variables for Elastic Agent deployment playbooks
 
   - name: devops
     type: shell_env
-    output: vars/contexts/devops/devops_env.sh
+    output: devops_env.sh
     description: Environment variables for devops client initialization (Python, Java versions)
 
   - name: managed-node
     type: shell_env
-    output: vars/contexts/managed-node/managed_node_env.sh
+    output: managed_node_env.sh
     description: Environment variables for managed node initialization (Python, Java versions)
 
 # Supported output types and their generators:
-#   - env: Simple KEY=VALUE format (no export)
-#   - shell_env: Shell environment file with export statements
+#   - docker-env: Simple KEY=VALUE format for Docker Compose .env files (no export)
+#   - shell_env: Shell environment file with export statements (*_env.sh)
+#   - systemd_env: Systemd EnvironmentFile format (*_env.conf)
 #   - toml: TOML format with [env] section
-#   - configmap: Kubernetes ConfigMap YAML
-#   - ansible_vars: Ansible variables YAML with structured formatting
-
+#   - configmap: Kubernetes ConfigMap YAML (standard naming: *-configmap.yaml)
+#   - ansible_vars: Ansible variables YAML with structured formatting (*_ansible_vars.yml)

@@ -9,8 +9,8 @@ LS_HOME=/usr/share/logstash
 if [ -f "$dir/vars/generate_env.sh" ]; then
     # Check if any required env files are missing or stale
     NEEDS_GEN=false
-    for env_file in "$dir/vars/contexts/devops/devops_env.sh" \
-                    "$dir/vars/contexts/spark-client/spark_env.sh"; do
+    for env_file in "$dir/vars/contexts/devops_env.sh" \
+                    "$dir/vars/contexts/spark_client_env.sh"; do
         if [ ! -f "$env_file" ] || \
            [ "$dir/vars/variables.yaml" -nt "$env_file" ] 2>/dev/null || \
            [ "$dir/vars/contexts.yaml" -nt "$env_file" ] 2>/dev/null; then
@@ -65,7 +65,7 @@ fi
 
 # Source devops environment variables (Python version, OTEL config, etc.)
 project_root="${dir}"
-devops_env_file="$project_root/vars/contexts/devops/devops_env.sh"
+devops_env_file="$project_root/vars/contexts/devops_env.sh"
 
 if [ -f "$devops_env_file" ]; then
     source "$devops_env_file"
@@ -88,8 +88,8 @@ if [ -f "$spark_defaults_generator" ]; then
 fi
 
 # Source Spark client environment variables
-if [ -f "$project_root/vars/contexts/spark-client/spark_env.sh" ]; then
-    source "$project_root/vars/contexts/spark-client/spark_env.sh"
+if [ -f "$project_root/vars/contexts/spark_client_env.sh" ]; then
+    source "$project_root/vars/contexts/spark_client_env.sh"
     # Set SPARK_MASTER_URL from host/port
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi

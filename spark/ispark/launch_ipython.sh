@@ -20,7 +20,7 @@ NC='\033[0m'
 echo -e "${GREEN}=== Launching PySpark with IPython ===${NC}"
 
 # Source environment variables
-ISPARK_ENV_FILE="${ROOT_DIR}/vars/contexts/ispark/ispark_env.sh"
+ISPARK_ENV_FILE="${ROOT_DIR}/vars/contexts/ispark_client_env.sh"
 if [ -f "${ISPARK_ENV_FILE}" ]; then
     source "${ISPARK_ENV_FILE}"
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"

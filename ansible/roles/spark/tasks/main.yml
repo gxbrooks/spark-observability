@@ -3,7 +3,7 @@
 
 # Always include centralized variables
 - name: Include centralized Spark variables
-  include_vars: "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml"
+  include_vars: "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
 
 # Ensure that the spark_version variable is available
 - name: Display Spark version being used

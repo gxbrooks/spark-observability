@@ -249,21 +249,21 @@ check_java() {
 check_env_files() {
     $DEBUG && echo "Debug   : Checking for generated environment files..."
     
-    local spark_env="${root_dir}/vars/contexts/spark-client/spark_env.sh"
-    local ispark_env="${root_dir}/vars/contexts/ispark/ispark_env.sh"
+    local spark_env="${root_dir}/vars/contexts/spark_client_env.sh"
+    local ispark_env="${root_dir}/vars/contexts/ispark_client_env.sh"
     local all_good=true
     
     if [ -f "$spark_env" ]; then
-        report_check "pass" "Spark environment file exists: vars/contexts/spark-client/spark_env.sh"
+        report_check "pass" "Spark environment file exists: vars/contexts/spark_client_env.sh"
     else
-        report_check "fail" "Spark environment file missing: vars/contexts/spark-client/spark_env.sh"
+        report_check "fail" "Spark environment file missing: vars/contexts/spark_client_env.sh"
         all_good=false
     fi
     
     if [ -f "$ispark_env" ]; then
-        report_check "pass" "iSpark environment file exists: vars/contexts/ispark/ispark_env.sh"
+        report_check "pass" "iSpark environment file exists: vars/contexts/ispark_client_env.sh"
     else
-        report_check "fail" "iSpark environment file missing: vars/contexts/ispark/ispark_env.sh"
+        report_check "fail" "iSpark environment file missing: vars/contexts/ispark_client_env.sh"
         all_good=false
     fi
     
@@ -287,7 +287,7 @@ check_spark_connectivity() {
     local venv_dir="${root_dir}/venv"
     
     # Source environment to get Spark master URL
-    local ispark_env="${root_dir}/vars/contexts/ispark/ispark_env.sh"
+    local ispark_env="${root_dir}/vars/contexts/ispark_client_env.sh"
     if [ -f "${ispark_env}" ]; then
         source "${ispark_env}"
     fi
@@ -360,8 +360,8 @@ check_ipython_client() {
     local ispark_dir="${root_dir}/spark/ispark"
     local launch_script="${ispark_dir}/launch_ipython.sh"
     local client_script="${ispark_dir}/spark_ipython_client.py"
-    # Correct path: ispark_env.sh is in vars/contexts/ispark/, not spark/ispark/
-    local env_file="${root_dir}/vars/contexts/ispark/ispark_env.sh"
+    # Correct path: ispark_client_env.sh is in vars/contexts/, not spark/ispark/
+    local env_file="${root_dir}/vars/contexts/ispark_client_env.sh"
     
     local all_good=true
     
@@ -384,9 +384,9 @@ check_ipython_client() {
     fi
     
     if [ -f "$env_file" ]; then
-        report_check "pass" "iSpark environment file exists: vars/contexts/ispark/ispark_env.sh"
+        report_check "pass" "iSpark environment file exists: vars/contexts/ispark_client_env.sh"
     else
-        report_check "fail" "iSpark environment file missing: vars/contexts/ispark/ispark_env.sh"
+        report_check "fail" "iSpark environment file missing: vars/contexts/ispark_client_env.sh"
         all_good=false
         if $FIX && ! $CHECK; then
             echo "Info    : Generating all client environment files (devops, spark-client, ispark)..."
@@ -526,7 +526,7 @@ check_spark_config() {
             local generator="${root_dir}/linux/generate_spark_defaults.sh"
             if [ -f "$generator" ]; then
                 # Ensure devops_env.sh exists first (needed by generator)
-                if [ ! -f "${root_dir}/vars/contexts/devops/devops_env.sh" ]; then
+                if [ ! -f "${root_dir}/vars/contexts/devops_env.sh" ]; then
                     echo "Info    : Generating devops environment file first..."
                     cd "$root_dir" && bash vars/generate_env.sh devops -f
                 fi

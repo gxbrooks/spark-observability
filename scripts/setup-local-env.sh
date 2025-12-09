@@ -20,16 +20,16 @@ if [ ! -d "vars/contexts" ]; then
 fi
 
 # Copy observability .env file
-if [ -f "vars/contexts/observability/.env" ]; then
-    if [ ! -f "observability/.env" ] || [ "vars/contexts/observability/.env" -nt "observability/.env" ]; then
-        cp "vars/contexts/observability/.env" "observability/.env"
+if [ -f "vars/contexts/observability_docker.env" ]; then
+    if [ ! -f "observability/.env" ] || [ "vars/contexts/observability_docker.env" -nt "observability/.env" ]; then
+        cp "vars/contexts/observability_docker.env" "observability/.env"
         echo "✅ Copied observability/.env"
     else
         echo "ℹ️  observability/.env already up to date"
     fi
 else
-    echo "⚠️  Warning: vars/contexts/observability/.env not found"
-    echo "   Run: python3 vars/generate_env.py -f observability"
+    echo "⚠️  Warning: vars/contexts/observability_docker.env not found"
+    echo "   Run: bash vars/generate_env.sh -f observability"
 fi
 
 echo ""
@@ -38,5 +38,5 @@ echo ""
 echo "Next steps:"
 echo "  - Start observability: cd observability && docker compose up -d"
 echo "  - Source env files: source vars/contexts/devops/devops_env.sh"
-echo "  - Run Spark apps: source vars/contexts/spark-client/spark_env.sh"
+echo "  - Run Spark apps: source vars/contexts/spark_client_env.sh"
 

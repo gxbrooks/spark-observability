@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source environment variables from generated files
-ISPARK_ENV_FILE="${ROOT_DIR}/vars/contexts/ispark/ispark_env.sh"
+ISPARK_ENV_FILE="${ROOT_DIR}/vars/contexts/ispark_client_env.sh"
 if [ -f "${ISPARK_ENV_FILE}" ]; then
     source "${ISPARK_ENV_FILE}"
 fi

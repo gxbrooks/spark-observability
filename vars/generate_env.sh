@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-# Bootstrap wrapper for generate_env.py
+# Bootstrap wrapper for generate_contexts.py
 # Uses system Python3 to avoid circular dependencies
 # Safe to run before any environment is set up
 #
-# This script ensures generate_env.py can run even when:
+# This script ensures generate_contexts.py can run even when:
 # - No virtual environment exists
 # - Environment variables are not set
 # - Python version is not yet determined
 #
-# Usage: Same as generate_env.py
+# Usage: Same as generate_contexts.py
 #   ./generate_env.sh                    # Generate all contexts
 #   ./generate_env.sh spark-client       # Generate specific context
 #   ./generate_env.sh -f                 # Force regeneration
@@ -50,7 +50,7 @@ if ! "$PYTHON_CMD" -c "import yaml" 2>/dev/null; then
     fi
 fi
 
-# Run generate_env.py with system Python
+# Run generate_contexts.py with system Python
 cd "$REPO_ROOT"
-exec "$PYTHON_CMD" "$SCRIPT_DIR/generate_env.py" "$@"
+exec "$PYTHON_CMD" "$SCRIPT_DIR/generate_contexts.py" "$@"
 

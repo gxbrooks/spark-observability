@@ -7,13 +7,13 @@ Generates context-specific configuration files from centralized variable definit
 Architecture:
   vars/variables.yaml  - Single source of truth for all variables
   vars/contexts.yaml   - Specification of output contexts and file formats
-  generate_env.py - This script: transforms variables into context-specific files
+  generate_contexts.py - This script: transforms variables into context-specific files
 
 Usage:
-  ./generate_env.py                    # Generate all contexts
-  ./generate_env.py spark-client       # Generate specific context
-  ./generate_env.py -f                 # Force regeneration of all
-  ./generate_env.py -v spark-image     # Verbose output for specific context
+  ./generate_contexts.py                    # Generate all contexts
+  ./generate_contexts.py spark-client       # Generate specific context
+  ./generate_contexts.py -f                 # Force regeneration of all
+  ./generate_contexts.py -v spark-image     # Verbose output for specific context
 """
 import yaml
 import os
@@ -32,7 +32,8 @@ CONTEXTS_FILE = SCRIPT_DIR / 'contexts.yaml'
 
 # Type to writer function mapping
 WRITER_FUNCTIONS = {
-    'env': 'write_env',
+    'docker-env': 'write_env',  # Docker Compose .env format (renamed from 'env')
+    'env': 'write_env',  # Legacy support (deprecated, use docker-env)
     'shell_env': 'write_shell_env',
     'systemd_env': 'write_systemd_env',
     'toml': 'write_toml',
@@ -423,7 +424,7 @@ def main(requested_contexts=None, force=False, verbose=False):
         context_name = context['name']
         output_type = context['type']
         output_file = context['output']
-        # All paths in contexts.yaml are relative to vars/contexts/ by default
+        # All paths in contexts.yaml are relative to vars/contexts/ (flattened structure)
         # If path doesn't start with vars/, assume it's relative to vars/contexts/
         if not output_file.startswith('vars/'):
             output_path = (REPO_ROOT / 'vars' / 'contexts' / output_file).resolve()
