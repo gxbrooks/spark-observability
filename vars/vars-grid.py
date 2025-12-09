@@ -191,23 +191,83 @@ def generate_grid(variables, contexts, show_missing=False, filter_contexts=None,
         filters.append(f"variable name matches: {var_pattern}")
     if filters:
         print(f"({', '.join(filters)})")
-    print("=" * (max(len(c) for c in display_contexts) + 60))
+    
+    # Column widths
+    VAR_COL_WIDTH = 35
+    CTX_COL_WIDTH = 15
+    
+    # Helper function to wrap context names at punctuation marks
+    def wrap_context_name(name, max_width):
+        """Wrap context name at punctuation marks if it exceeds max_width"""
+        if len(name) <= max_width:
+            return [name]
+        
+        # Try to break at punctuation marks (dash, underscore, dot)
+        for sep in ['-', '_', '.']:
+            if sep in name:
+                parts = name.split(sep)
+                result = []
+                current = parts[0]
+                for part in parts[1:]:
+                    if len(current) + len(sep) + len(part) <= max_width:
+                        current += sep + part
+                    else:
+                        if current:
+                            result.append(current)
+                        current = part
+                if current:
+                    result.append(current)
+                if len(result) > 1:
+                    return result
+        
+        # If no punctuation found or wrapping didn't help, break at max_width
+        result = []
+        for i in range(0, len(name), max_width):
+            result.append(name[i:i+max_width])
+        return result
+    
+    # Prepare wrapped context headers
+    wrapped_headers = {}
+    max_header_lines = 1
+    for ctx in display_contexts:
+        wrapped = wrap_context_name(ctx, CTX_COL_WIDTH)
+        wrapped_headers[ctx] = wrapped
+        max_header_lines = max(max_header_lines, len(wrapped))
+    
+    # Calculate total width for separator
+    total_width = VAR_COL_WIDTH + len(display_contexts) * CTX_COL_WIDTH
+    print("=" * total_width)
     
     # Build set of valid contexts from contexts.yaml
     valid_contexts_set = set(contexts)
     
-    # Header
-    print(f"{'Variable':<40}", end='')
-    for ctx in display_contexts:
-        print(f'{ctx:<15}', end='')
-    print()
+    # Header - print wrapped context names line by line
+    for line_num in range(max_header_lines):
+        if line_num == 0:
+            # First line: show "Variable" label
+            print(f"{'Variable':<{VAR_COL_WIDTH}}", end='')
+        else:
+            # Subsequent lines: blank space for variable column
+            print(' ' * VAR_COL_WIDTH, end='')
+        
+        # Print each context's header line (or blank if no more lines)
+        for ctx in display_contexts:
+            wrapped = wrapped_headers[ctx]
+            if line_num < len(wrapped):
+                print(f'{wrapped[line_num].center(CTX_COL_WIDTH)}', end='')
+            else:
+                print(' ' * CTX_COL_WIDTH, end='')
+        print()
     
     # Separator
-    print('-' * (40 + len(display_contexts) * 15))
+    print('-' * total_width)
     
     # Grid rows - only show filtered variables
     for var_name in sorted(filtered_variables.keys()):
         var_data = filtered_variables[var_name]
+        
+        # Truncate variable name if too long
+        display_var_name = var_name[:VAR_COL_WIDTH] if len(var_name) <= VAR_COL_WIDTH else var_name[:VAR_COL_WIDTH-3] + '...'
         
         # Get contexts for this variable (empty list if not a dict or no contexts)
         var_contexts = []
@@ -215,12 +275,12 @@ def generate_grid(variables, contexts, show_missing=False, filter_contexts=None,
             var_contexts = var_data['contexts']
         
         # Show the variable
-        print(f'{var_name:<40}', end='')
+        print(f'{display_var_name:<{VAR_COL_WIDTH}}', end='')
         for ctx in display_contexts:
             if ctx in var_contexts:
-                print('X'.center(15), end='')
+                print('X'.center(CTX_COL_WIDTH), end='')
             else:
-                print(' '.center(15), end='')
+                print(' '.center(CTX_COL_WIDTH), end='')
         print()
     
     # Show missing contexts warning if any displayed contexts are not in contexts.yaml
