@@ -215,7 +215,6 @@ spark/
 ├── requirements/                      # Python dependencies
 │   ├── requirements.in                # Source dependencies
 │   └── requirements.txt               # Generated requirements
-├── run_with_otel.sh                   # Helper script for OTel-enabled runs
 └── README.md                          # This file
 ```
 

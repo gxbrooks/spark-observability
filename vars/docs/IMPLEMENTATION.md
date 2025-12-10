@@ -143,7 +143,7 @@ vars_files:
 **Purpose**: Developer environment variables for running Spark applications locally
 
 **Consumers**:
-- **Shell Scripts**: Sourced by `spark/run_with_otel.sh`, `.bashrc`
+- **Shell Scripts**: Sourced by `.bashrc`
 - **Local Development**: Sourced directly by developers
 - **Control Node Only**: Never deployed to managed nodes
 
