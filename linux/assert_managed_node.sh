@@ -54,10 +54,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Bootstrap: Generate environment configuration using system Python
-# Note: We use python3 explicitly to handle the bootstrapping issue
+# Use the wrapper script to ensure system Python is used (breaks circular dependency)
 if ! $CHECK; then
   echo "Info    : Generating managed-node environment configuration..."
-  cd "$root_dir" && python3 vars/generate_env.py managed-node -f
+  cd "$root_dir" && bash vars/generate_env.sh managed-node -f
 fi
 
 # Source the generated environment file (if it exists)

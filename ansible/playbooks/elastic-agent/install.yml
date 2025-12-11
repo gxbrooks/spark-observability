@@ -153,6 +153,16 @@
     ops_user: "ansible"
 
   tasks:
+    - name: Install AMD GPU monitoring packages (Linux)
+      apt:
+        name:
+          - radeontop
+          - rocm-smi
+        state: present
+        update_cache: yes
+      become: true
+      when: ansible_architecture == "x86_64"
+
     - name: Create elastic-agent user (Linux)
       ansible.builtin.user:
         name: "{{ elastic_agent_user }}"

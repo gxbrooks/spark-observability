@@ -118,7 +118,7 @@ append_flag() {
 }
 
 # Define packages required for devops client
-PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml)
+PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml make tree tmux yamllint hdfs-cli)
 
 # Install packages using common package assertion script
 $root_dir/linux/assert_packages.sh \
@@ -202,6 +202,8 @@ if ! $CHECK; then
     "$VENV_PATH/bin/pip" install --quiet -r "$root_dir/spark/requirements/requirements.txt"
     # Install dependencies for generate_env.py and API scripts (esapi/kapi)
     "$VENV_PATH/bin/pip" install --quiet pyyaml toml requests
+    # Install Flask and Kubernetes Python clients (moved from system packages)
+    "$VENV_PATH/bin/pip" install --quiet flask kubernetes
     echo "Info    : Python requirements installed successfully"
   fi
   
