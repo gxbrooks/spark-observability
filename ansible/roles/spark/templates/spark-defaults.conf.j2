@@ -6,6 +6,8 @@
 # For dynamic runtime variables, use vars/variables.yaml with spark-runtime context
 #
 # Default Spark configurations
+# Workers inside cluster use: spark://spark-master:7077 (internal service)
+# Clients outside cluster use: spark://Lab2.lan:31686 (NodePort)
 spark.master                           spark://spark-master:7077
 spark.eventLog.enabled                 true
 spark.eventLog.dir                     /mnt/spark/events

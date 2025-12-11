@@ -24,7 +24,7 @@
     - name: Run generate_env.py to ensure configuration files are up-to-date
       delegate_to: localhost
       become: false
-      shell: "python3 vars/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
+      shell: "bash vars/generate_env.sh {{ '-f' if force_env_generation | default(false) else '' }}"
       args:
         chdir: "{{ project_root }}"
       register: generate_result

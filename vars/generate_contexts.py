@@ -315,6 +315,14 @@ def write_ansible_vars(vars_dict, filename):
                 f.write(f'spark_home: "{vars_dict["SPARK_HOME"]}"\n')
             f.write('\n')
             
+            # Write Spark master settings (for templates)
+            if 'SPARK_MASTER_HOST' in vars_dict:
+                f.write('# Spark master hostname (used in spark-master.yaml.j2 template)\n')
+                f.write(f'SPARK_MASTER_HOST: "{vars_dict["SPARK_MASTER_HOST"]}"\n')
+            if 'SPARK_MASTER_PORT' in vars_dict:
+                f.write(f'SPARK_MASTER_PORT: "{vars_dict["SPARK_MASTER_PORT"]}"\n')
+            f.write('\n')
+            
             # Write Elastic related settings
             elastic_vars = {k: v for k, v in vars_dict.items() if k.startswith('ELASTIC_')}
             if elastic_vars:

@@ -241,3 +241,63 @@
     - name: Display rp_filter settings
       debug:
         msg: "rp_filter settings: {{ rp_filter_settings.stdout_lines }}"
+
+    # === Cgroup Driver Mismatch Detection ===
+    - name: Get containerd cgroup driver setting
+      shell: grep -E "SystemdCgroup\s*=" /etc/containerd/config.toml 2>/dev/null | tail -1 | awk -F'=' '{print $2}' | tr -d ' '
+      register: containerd_cgroup
+      failed_when: false
+
+    - name: Get kubelet cgroup driver setting
+      shell: grep -E "cgroupDriver:" /var/lib/kubelet/config.yaml 2>/dev/null | awk '{print $2}'
+      register: kubelet_cgroup
+      failed_when: false
+
+    - name: Set cgroup driver facts
+      set_fact:
+        containerd_uses_systemd: "{{ containerd_cgroup.stdout | lower == 'true' }}"
+        kubelet_uses_systemd: "{{ kubelet_cgroup.stdout | lower == 'systemd' }}"
+
+    - name: Display cgroup driver configuration
+      debug:
+        msg: |
+          Cgroup Driver Configuration:
+          - Containerd SystemdCgroup: {{ containerd_cgroup.stdout | default('not found') }}
+          - Kubelet cgroupDriver: {{ kubelet_cgroup.stdout | default('not found') }}
+          - Status: {{ 'MATCH ✓' if (containerd_uses_systemd == kubelet_uses_systemd) else 'MISMATCH ✗ - CRITICAL!' }}
+
+    - name: CRITICAL - Cgroup driver mismatch detected
+      debug:
+        msg: |
+          ⚠️  CRITICAL: Cgroup Driver Mismatch Detected!
+          
+          Problem:
+          - Containerd is using: {{ 'systemd' if containerd_uses_systemd else 'cgroupfs' }}
+          - Kubelet is using: {{ 'systemd' if kubelet_uses_systemd else 'cgroupfs' }}
+          
+          Impact:
+          - Container resource accounting will be incorrect
+          - Pods will be killed unexpectedly (exit code 137)
+          - Control plane components will crash repeatedly
+          - Cascading failures across the cluster
+          
+          Fix:
+          1. Edit /etc/containerd/config.toml:
+             Set: SystemdCgroup = {{ 'true' if kubelet_uses_systemd else 'false' }}
+          
+          2. Restart containerd: sudo systemctl restart containerd
+          
+          3. Restart kubelet: sudo systemctl restart kubelet
+      when: containerd_uses_systemd != kubelet_uses_systemd
+
+    # === Disk Sync Performance Check ===
+    - name: Test disk sync write performance (etcd health indicator)
+      shell: |
+        dd if=/dev/zero of=/tmp/disk_test bs=4k count=100 oflag=dsync 2>&1 | tail -1
+        rm -f /tmp/disk_test
+      register: disk_perf
+      failed_when: false
+
+    - name: Display disk sync performance
+      debug:
+        msg: "Disk sync performance: {{ disk_perf.stdout }} (etcd requires fast sync writes)"

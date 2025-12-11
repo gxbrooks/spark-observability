@@ -216,20 +216,25 @@ GOOGLE_APPLICATION_CREDENTIALS:
 SPARK_MASTER:
   value: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
   contexts: [spark-runtime]
+# SPARK_MASTER_HOST: The hostname the Spark master binds to and advertises
+# - For K8s pods (spark-runtime): NOT included - workers use SPARK_MASTER connection string
+# - For external clients: Lab2.lan (NodePort access)
+# - For Ansible templates: Lab2.lan (used in spark-master.yaml.j2)
 SPARK_MASTER_HOST:
-  contexts: [spark-runtime, observability, ispark, spark-client]
+  contexts: [observability, ispark, spark-client, ansible]
   values:
-    spark-runtime: spark-master-0.spark-master-headless.spark.svc.cluster.local
     observability: Lab2.lan
     ispark: Lab2.lan
     spark-client: Lab2.lan
+    ansible: Lab2.lan
 SPARK_MASTER_PORT:
-  contexts: [spark-runtime, observability, ispark, spark-client]
+  contexts: [spark-runtime, observability, ispark, spark-client, ansible]
   values:
     spark-runtime: 7077
     observability: 31686
     ispark: 31686
     spark-client: 31686
+    ansible: 31686
   
 # Spark network and timeout settings
 # Increased timeouts to handle connection resets and network instability
@@ -245,6 +250,13 @@ SPARK_RPC_LOOKUP_TIMEOUT:
 SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   value: 60s
   contexts: [spark-runtime]
+
+# Spark worker memory configuration
+# Set to 12g to leave ~2GB headroom within the 14GB pod limit
+SPARK_WORKER_MEMORY:
+  value: 12g
+  contexts: [spark-runtime]
+
 SPARK_EVENTS_DIR:
   value: /mnt/spark/events
   contexts: [spark-runtime, ansible, elastic-agent, spark-client]

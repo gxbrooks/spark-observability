@@ -48,16 +48,17 @@ spark.executor.extraJavaOptions        -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/lo
 
 # Driver configuration for client mode
 # Driver runs on Lab2 host - must be reachable by workers in K8s pods
-# Use IP address since K8s pod DNS cannot resolve Lab2.local
+# Use DNS name Lab2.lan for external access
 # Note: Set SPARK_LOCAL_IP environment variable to suppress hostname resolution warnings
 #       (Set in vars/contexts/devops/devops_env.sh or .bashrc)
 spark.driver.host                      192.168.1.48
 spark.driver.bindAddress               0.0.0.0
 
 # Network timeouts
-spark.network.timeout                  600s
-spark.rpc.askTimeout                   60s
-spark.rpc.lookupTimeout                60s
+# Increased timeouts to handle DNS resolution and connection establishment
+spark.network.timeout                  900s
+spark.rpc.askTimeout                   120s
+spark.rpc.lookupTimeout                120s
 
 # Memory settings
 spark.executor.memory                  2g
