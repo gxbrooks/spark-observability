@@ -316,6 +316,7 @@ services:
     user: root
     ports: 
         - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
+        - "5051:5051"  # System metrics rate computation
         # TODO: Evantually metrics should be sent to reginal Logstash servers
         # and then fed up into Elasticsearch
         # - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"

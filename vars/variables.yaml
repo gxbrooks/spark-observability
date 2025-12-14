@@ -32,7 +32,12 @@ STACK_VERSION:
   contexts: [observability]
 
 # Elasticsearch Data Retention Policies (for downsampling)
-# Base retention is for the original 30-second sampling interval
+# Base metric sampling frequency (Elastic Agent collection period)
+ES_METRIC_SAMPLING_INTERVAL:
+  value: 10s
+  contexts: [observability]
+
+# Base retention is for the original sampling interval data
 ES_RETENTION_BASE:
   value: 2d
   contexts: [observability]
@@ -47,9 +52,9 @@ ES_RETENTION_15MIN:
   value: 8d
   contexts: [observability]
 
-# 60-minute downsampled data retention
+# 60-minute downsampled data retention (2 years as per Elastic best practice)
 ES_RETENTION_60MIN:
-  value: 12d
+  value: 730d
   contexts: [observability]
 
 # Logstash Version
@@ -83,17 +88,18 @@ ES_PORT:
   contexts: [observability, spark-runtime, elastic-agent, devops]
 ES_USER:
   value: elastic
-  contexts: [observability, spark-runtime, elastic-agent, devops]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
 ES_PASSWORD:
   value: myElastic2025
-  contexts: [observability, spark-runtime, elastic-agent, devops]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
 # ES_URL: Consolidated Elasticsearch URL (replaces ELASTIC_URL)
 # Used by Docker Compose and Elastic Agent
 ES_URL:
-  contexts: [observability, elastic-agent]
+  contexts: [observability, elastic-agent, spark-client]
   values:
     observability: https://es01:9200
     elastic-agent: https://GaryPC.lan:9200
+    spark-client: https://GaryPC.lan:9200
 
 KUBERNETES_API_SERVER:
   value: Lab2.lan

@@ -276,6 +276,21 @@ for ds in metrics-system.cpu-default metrics-system.memory-default metrics-syste
   fi
 done
 
+# Network rates pipeline and enrichment policy
+echo "Creating network-rates-pipeline ingest pipeline..."
+esapi PUT /_ingest/pipeline/network-rates-pipeline ${ES_CONFIG_DIR}/system-metrics/network-rates-pipeline.json \
+  > ${ES_OUTPUTS_DIR}/network-rates-pipeline.out.json 2>&1
+
+echo "Creating network-latest-values enrichment policy..."
+esapi PUT /_enrich/policy/network-latest-values ${ES_CONFIG_DIR}/system-metrics/network-latest-values-enrich-policy.json \
+  > ${ES_OUTPUTS_DIR}/network-latest-values-enrich-policy.out.json 2>&1
+
+echo "Executing network-latest-values enrichment policy (creates enrichment index from network datastream)..."
+echo "  Note: This will work even with empty index - enrichment index will be created but empty"
+echo "  The enrichment index will be populated as documents with _network_key arrive"
+esapi POST /_enrich/policy/network-latest-values/_execute \
+  > ${ES_OUTPUTS_DIR}/network-latest-values-enrich-execute.out.json 2>&1 || echo "  (Note: Policy execution may fail if no network data exists yet - this is OK, it will work once data arrives)"
+
 echo "✅ System metrics initialized"
 
 # ============================================================================

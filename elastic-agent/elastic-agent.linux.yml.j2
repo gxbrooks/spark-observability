@@ -14,17 +14,23 @@ inputs:
           - memory
         data_stream.dataset: system.memory
       - metricsets:
-          - network
-        data_stream.dataset: system.network
-      - metricsets:
-          - diskio
-        data_stream.dataset: system.diskio
-      - metricsets:
           - filesystem
         data_stream.dataset: system.filesystem
       - metricsets:
           - load
         data_stream.dataset: system.load
+  # Network and diskio metrics - route to Logstash for rate computation
+  - type: system/metrics
+    id: system-metrics-rates-input
+    data_stream.namespace: default
+    use_output: system_metrics_rates
+    streams:
+      - metricsets:
+          - network
+        data_stream.dataset: system.network
+      - metricsets:
+          - diskio
+        data_stream.dataset: system.diskio
     # Process metricset disabled - not needed for Kubernetes hosts
     # Causes permission errors and index pollution
     processors:
@@ -240,6 +246,10 @@ outputs:
   spark_events:
     type: logstash
     hosts: ["${LS_HOST}:${LS_SPARK_EVENTS_PORT}"]
+  # System metrics with cumulative counters (to Logstash for rate computation)
+  system_metrics_rates:
+    type: logstash
+    hosts: ["${LS_HOST}:5051"]
   # Spark outputs for GC logs (directly to Elasticsearch)
   spark_gc:
     type: elasticsearch

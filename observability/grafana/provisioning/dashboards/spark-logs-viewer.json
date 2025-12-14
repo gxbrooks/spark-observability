@@ -10,7 +10,7 @@
   "templating": {
     "list": [
       {
-        "allValue": "",
+        "allValue": "ERROR OR WARN OR INFO OR DEBUG",
         "current": {
           "selected": true,
           "text": "All",
@@ -243,22 +243,11 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "alias": "{{log_level}} - {{hostname}}",
+          "alias": "{{log_level}}",
           "bucketAggs": [
             {
               "field": "log_level",
               "id": "3",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_term",
-                "size": "10"
-              },
-              "type": "terms"
-            },
-            {
-              "field": "hostname",
-              "id": "4",
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
@@ -289,7 +278,7 @@
               "field": "log_count"
             }
           ],
-          "query": "_index:metrics-spark-logs-default AND log_level:($log_level)",
+          "query": "_index:metrics-spark-logs-default* AND (log_level:($log_level))",
           "refId": "A",
           "timeField": "@timestamp"
         }
