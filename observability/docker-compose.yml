@@ -186,7 +186,7 @@ services:
       XPACK_REPORTING_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       SERVER_PUBLICBASEURL: "http://${KB_HOST}:${KB_PORT}"
       TZ: ${TZ}    
-    mem_limit: ${KB_MEM_LIMIT}
+    mem_limit: 1073741824
     depends_on:
       es01:
         condition: service_healthy
@@ -230,6 +230,10 @@ services:
       # Grafana should not need the CA cert
       CA_CERT: "${CA_CERT}"
       TZ: ${TZ}    
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     depends_on:
       es01:
         condition: service_healthy 
@@ -294,6 +298,10 @@ services:
       ES_USER: "elastic"
       ES_PASSWORD: "${ES_PASSWORD}"
       CA_CERT: ${CA_CERT}
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     depends_on:
       es01:
         condition: service_healthy
@@ -339,6 +347,10 @@ services:
       LS_DOCKER_METRICS_PORT: ${LS_DOCKER_METRICS_PORT}
       # TODO: environment variables to include time zone. 
       TZ: ${TZ}
+    deploy:
+      resources:
+        limits:
+          memory: 2g
     depends_on:
       es01:
         condition: service_healthy

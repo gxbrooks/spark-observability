@@ -276,21 +276,6 @@ for ds in metrics-system.cpu-default metrics-system.memory-default metrics-syste
   fi
 done
 
-# Network rates pipeline and enrichment policy
-echo "Creating network-rates-pipeline ingest pipeline..."
-esapi PUT /_ingest/pipeline/network-rates-pipeline ${ES_CONFIG_DIR}/system-metrics/network-rates-pipeline.json \
-  > ${ES_OUTPUTS_DIR}/network-rates-pipeline.out.json 2>&1
-
-echo "Creating network-latest-values enrichment policy..."
-esapi PUT /_enrich/policy/network-latest-values ${ES_CONFIG_DIR}/system-metrics/network-latest-values-enrich-policy.json \
-  > ${ES_OUTPUTS_DIR}/network-latest-values-enrich-policy.out.json 2>&1
-
-echo "Executing network-latest-values enrichment policy (creates enrichment index from network datastream)..."
-echo "  Note: This will work even with empty index - enrichment index will be created but empty"
-echo "  The enrichment index will be populated as documents with _network_key arrive"
-esapi POST /_enrich/policy/network-latest-values/_execute \
-  > ${ES_OUTPUTS_DIR}/network-latest-values-enrich-execute.out.json 2>&1 || echo "  (Note: Policy execution may fail if no network data exists yet - this is OK, it will work once data arrives)"
-
 echo "✅ System metrics initialized"
 
 # ============================================================================
@@ -342,6 +327,26 @@ kapi POST /api/saved_objects/search/gpu-metrics-default?overwrite=true \
   ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.search.json > /dev/null 2>&1
 
 echo "✅ GPU metrics initialized"
+
+# ============================================================================
+# STEP 7.9: Initialize Elastic Agent Logs (ILM Policy)
+# ============================================================================
+echo ""
+echo "=== STEP 7.9: INITIALIZING ELASTIC AGENT LOGS ILM POLICY ==="
+
+echo "Creating elastic-agent-logs ILM policy (14 days OR 1GB retention)..."
+esapi PUT /_ilm/policy/elastic-agent-logs ${ES_CONFIG_DIR}/elastic-agent-logs/elastic-agent-logs.ilm.json \
+  > ${ES_OUTPUTS_DIR}/elastic-agent-logs.ilm.out.json
+
+echo "Attaching policy to existing elastic agent log data streams..."
+for ds in logs-elastic_agent-default logs-elastic_agent.filebeat-default logs-elastic_agent.metricbeat-default; do
+  if esapi --allow-errors GET "/_data_stream/${ds}" > /dev/null 2>&1; then
+    echo "  Attaching to ${ds}..."
+    esapi PUT "${ds}/_settings" -d '{"index.lifecycle.name":"elastic-agent-logs"}' > /dev/null 2>&1 || true
+  fi
+done
+
+echo "✅ Elastic Agent logs ILM policy initialized"
 
 # ============================================================================
 # STEP 8: Initialize Docker Metrics (ILM with Downsampling)

@@ -513,11 +513,7 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max",
-            "last"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "single"
@@ -736,32 +732,7 @@
           "nullValueMode": "null",
           "unit": "Bps"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*Total In.*"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Total In"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*Total Out.*"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Total Out"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -789,20 +760,21 @@
             "type": "elasticsearch",
             "uid": "spark-elasticsearch"
           },
-          "query": "_index:metrics-system.network-default* AND NOT system.network.name:lo",
+          "query": "_index:metrics-system.network-default* AND NOT system.network.name:lo AND NOT system.network.name:veth* AND NOT system.network.name:docker* AND NOT system.network.name:br-* AND NOT system.network.name:virbr* AND _exists_:system.network.in.bytes_rate",
           "alias": "Total In",
           "metrics": [
             {
               "id": "1",
-              "type": "avg",
-              "field": "system.network.in.bytes_rate"
+              "type": "sum",
+              "field": "system.network.in.bytes_rate",
+              "hide": true
             },
             {
               "id": "2",
               "type": "bucket_script",
               "pipelineAgg": "1",
               "settings": {
-                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value * -1 : null"
+                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
               },
               "pipelineVariables": [
                 {
@@ -831,20 +803,21 @@
             "type": "elasticsearch",
             "uid": "spark-elasticsearch"
           },
-          "query": "_index:metrics-system.network-default* AND NOT system.network.name:lo",
+          "query": "_index:metrics-system.network-default* AND NOT system.network.name:lo AND NOT system.network.name:veth* AND NOT system.network.name:docker* AND NOT system.network.name:br-* AND NOT system.network.name:virbr* AND _exists_:system.network.out.bytes_rate",
           "alias": "Total Out",
           "metrics": [
             {
               "id": "1",
-              "type": "avg",
-              "field": "system.network.out.bytes_rate"
+              "type": "sum",
+              "field": "system.network.out.bytes_rate",
+              "hide": true
             },
             {
               "id": "2",
               "type": "bucket_script",
               "pipelineAgg": "1",
               "settings": {
-                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value : null"
+                "script": "params._value != null && params._value >= 0 ? params._value : null"
               },
               "pipelineVariables": [
                 {
@@ -869,7 +842,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Total Network Byte Rate (In/Out) - Multi-Phase",
+      "title": "Total Network Byte Rate (In/Out) - Logstash",
       "type": "timeseries",
       "description": "Aggregated network I/O rates using precomputed rates from Logstash aggregate filter"
     },
@@ -1041,6 +1014,143 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "mappings": [],
+          "nullValueMode": "null",
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.diskio-default* AND system.diskio.name:(nvme* OR sd* OR vd*) AND _exists_:system.diskio.read.bytes_rate",
+          "alias": "Total Read",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "sum",
+              "field": "system.diskio.read.bytes_rate",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "1"
+                }
+              ]
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "$__interval",
+                "min_doc_count": 0
+              }
+            }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "query": "_index:metrics-system.diskio-default* AND system.diskio.name:(nvme* OR sd* OR vd*) AND _exists_:system.diskio.write.bytes_rate",
+          "alias": "Total Write",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "sum",
+              "field": "system.diskio.write.bytes_rate",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params._value != null && params._value >= 0 ? params._value : null"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "1"
+                }
+              ]
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "$__interval",
+                "min_doc_count": 0
+              }
+            }
+          ],
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Total Disk I/O Rate (Read/Write) - Logstash",
+      "type": "timeseries",
+      "description": "Aggregated disk I/O rates using precomputed rates from Logstash aggregate filter"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
             "axisLabel": "Load",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1080,7 +1190,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 32
       },
       "id": 7,
       "options": {
@@ -1181,8 +1291,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 24
+        "x": 12,
+        "y": 32
       },
       "id": 6,
       "options": {
@@ -1411,7 +1521,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 40
       },
       "id": 9,
       "options": {
@@ -1581,7 +1691,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "id": 101,
       "options": {
@@ -1603,19 +1713,8 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "alias": "{{gpu.card}} GPU %",
+          "alias": "Average GPU %",
           "bucketAggs": [
-            {
-              "field": "gpu.card",
-              "id": "1",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_term",
-                "size": "5"
-              },
-              "type": "terms"
-            },
             {
               "field": "@timestamp",
               "id": "2",
@@ -1641,19 +1740,8 @@
           "timeField": "@timestamp"
         },
         {
-          "alias": "{{gpu.card}} VRAM %",
+          "alias": "Average VRAM %",
           "bucketAggs": [
-            {
-              "field": "gpu.card",
-              "id": "1",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_term",
-                "size": "5"
-              },
-              "type": "terms"
-            },
             {
               "field": "@timestamp",
               "id": "2",
@@ -1679,19 +1767,8 @@
           "timeField": "@timestamp"
         },
         {
-          "alias": "{{gpu.card}} Edge Temp (\u00b0C)",
+          "alias": "Average Edge Temp (\u00b0C)",
           "bucketAggs": [
-            {
-              "field": "gpu.card",
-              "id": "1",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_term",
-                "size": "5"
-              },
-              "type": "terms"
-            },
             {
               "field": "@timestamp",
               "id": "2",
