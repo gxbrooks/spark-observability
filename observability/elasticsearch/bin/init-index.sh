@@ -279,23 +279,6 @@ done
 echo "✅ System metrics initialized"
 
 # ============================================================================
-# STEP 7.5: Initialize System Metrics Diagnostics (Data View, Saved Search)
-# ============================================================================
-echo ""
-echo "=== STEP 7.5: INITIALIZING SYSTEM METRICS DIAGNOSTICS ==="
-
-echo "Creating system-metrics-diagnostics data view..."
-kapi POST /api/data_views/data_view \
-  ${ES_CONFIG_DIR}/system-metrics-diagnostics/system-metrics-diagnostics.dataview.json \
-  > ${ES_OUTPUTS_DIR}/system-metrics-diagnostics.dataview.out.json
-
-echo "Creating derivative-oscillation-diagnostics saved search..."
-kapi POST /api/saved_objects/search/derivative-oscillation-diagnostics?overwrite=true \
-  ${ES_CONFIG_DIR}/system-metrics-diagnostics/derivative-oscillation-diagnostics.search.json > /dev/null 2>&1
-
-echo "✅ System metrics diagnostics initialized"
-
-# ============================================================================
 # STEP 7.8: Initialize GPU Metrics (Data Stream)
 # ============================================================================
 echo ""
