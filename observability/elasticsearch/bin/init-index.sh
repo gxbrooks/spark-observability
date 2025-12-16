@@ -593,10 +593,32 @@ esapi PUT /_index_template/otel-traces \
   ${ES_CONFIG_DIR}/otel-traces/otel-traces.datastream.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.template.out.json
 
-echo "Note: Data stream 'traces-otel-default' will be created automatically when the first document is indexed"
-echo "Data view has allowNoIndex:true, so it can be created without the data stream existing"
+echo "Creating traces-otel-default data stream if it doesn't exist..."
+if ! esapi GET /_data_stream/traces-otel-default >& /dev/null; then
+  esapi PUT /_data_stream/traces-otel-default \
+    > ${ES_OUTPUTS_DIR}/otel-traces.datastream.out.json 2>&1
+  echo "  Data stream created"
+else
+  echo "  (data stream already exists, skipping)"
+fi
 
-echo "Creating otel-traces data view..."
+echo "Creating/updating otel-traces data view..."
+# Note: Kibana doesn't have a cache flush API. When the title/index pattern changes,
+# we need to delete and recreate the data view to ensure Kibana UI picks up the change.
+# The override: true parameter may not be sufficient if Kibana has cached the old metadata.
+# Extract desired title from JSON (using grep/sed as fallback if python3/jq unavailable)
+DESIRED_TITLE=$(grep -o '"title"[[:space:]]*:[[:space:]]*"[^"]*"' ${ES_CONFIG_DIR}/otel-traces/otel-traces.dataview.json 2>/dev/null | sed 's/.*"title"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo "")
+if [ -n "$DESIRED_TITLE" ]; then
+  # Check if data view exists and get its current title
+  if kapi --allow-errors GET /api/data_views/data_view/otel-traces > /tmp/otel-dataview-check.json 2>&1; then
+    CURRENT_TITLE=$(grep -o '"title"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/otel-dataview-check.json 2>/dev/null | sed 's/.*"title"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | head -1 || echo "")
+    if [ "$CURRENT_TITLE" != "$DESIRED_TITLE" ] && [ -n "$CURRENT_TITLE" ]; then
+      echo "  Title mismatch (current: '$CURRENT_TITLE', desired: '$DESIRED_TITLE'), deleting old data view..."
+      kapi DELETE /api/data_views/data_view/otel-traces > /dev/null 2>&1 || true
+      sleep 1  # Brief pause to ensure deletion completes
+    fi
+  fi
+fi
 kapi POST /api/data_views/data_view \
   ${ES_CONFIG_DIR}/otel-traces/otel-traces.dataview.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.dataview.out.json
