@@ -156,7 +156,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Jump to logs at this time",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=now&viewPanel=102"
+            }
+          ]
         },
         "overrides": [
           {
@@ -444,7 +450,7 @@
               "type": "raw_data"
             }
           ],
-          "query": "_index:logs-spark-default AND log.level:($log_level)",
+          "query": "_index:logs-spark-default AND log.level:($log_level) AND host.hostname:($hostname) AND spark.pod_name:($pod_name)",
           "refId": "A",
           "timeField": "@timestamp"
         }

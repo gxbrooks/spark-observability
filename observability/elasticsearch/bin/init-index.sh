@@ -674,6 +674,77 @@ kapi POST /api/saved_objects/search/active-applications?overwrite=true \
 echo "✅ Application events initialized"
 
 # ============================================================================
+# STEP 16: Initialize Application Events Metrics (Templates, Data Streams, Watchers, Data Views)
+# ============================================================================
+echo ""
+echo "=== STEP 16: INITIALIZING APPLICATION EVENTS METRICS ==="
+
+echo "Creating application-events-metrics ILM policy..."
+esapi PUT /_ilm/policy/application-events-metrics ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.ilm.json \
+  > ${ES_OUTPUTS_DIR}/application-events-metrics.ilm.out.json
+
+echo "Creating application-events-metrics index template..."
+esapi PUT /_index_template/application-events-metrics-ds ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.template.json \
+  > /dev/null 2>&1
+
+echo "Creating application-events-metrics data stream if it doesn't exist..."
+if ! esapi GET /_data_stream/application-events-metrics-ds >& /dev/null; then
+  esapi PUT /_data_stream/application-events-metrics-ds > /dev/null 2>&1
+else
+  echo "  (data stream already exists, skipping)"
+fi
+
+echo "Creating application-events-match watcher..."
+esapi PUT /_watcher/watch/application-events-match ${ES_CONFIG_DIR}/application-events-metrics/application-events-match.watcher.json \
+  > /dev/null 2>&1
+
+echo "Creating application-events-metrics watcher..."
+esapi PUT /_watcher/watch/application-events-metrics ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.watcher.json \
+  > /dev/null 2>&1
+
+echo "Creating application-events-metrics data view..."
+kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.dataview.json \
+  > ${ES_OUTPUTS_DIR}/application-events-metrics.dataview.out.json
+
+echo "Creating application-events-metrics searches..."
+kapi POST /api/saved_objects/search/application-events-counts?overwrite=true \
+  ${ES_CONFIG_DIR}/application-events-metrics/application-events-counts.search.json > /dev/null 2>&1
+
+echo "✅ Application events metrics initialized"
+
+# ============================================================================
+# STEP 17: Initialize Spark OTel Errors (Index Template, ILM Policy, Data View, Saved Search)
+# ============================================================================
+echo ""
+echo "=== STEP 17: INITIALIZING SPARK OTEL ERRORS ==="
+
+echo "Creating spark-otel-errors ILM policy..."
+esapi PUT /_ilm/policy/spark-otel-errors \
+  ${ES_CONFIG_DIR}/spark-otel-errors/spark-otel-errors.ilm.json \
+  > /dev/null 2>&1
+
+echo "Creating spark-otel-errors index template..."
+esapi PUT /_index_template/spark-otel-errors ${ES_CONFIG_DIR}/spark-otel-errors/spark-otel-errors.template.json \
+  > /dev/null 2>&1
+
+echo "Creating spark-otel-errors data stream if it doesn't exist..."
+if ! esapi GET /_data_stream/logs-spark-otel-errors-default >& /dev/null; then
+  esapi PUT /_data_stream/logs-spark-otel-errors-default > /dev/null 2>&1
+else
+  echo "  (data stream already exists, skipping)"
+fi
+
+echo "Creating spark-otel-errors data view..."
+kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/spark-otel-errors/spark-otel-errors.dataview.json \
+  > ${ES_OUTPUTS_DIR}/spark-otel-errors.dataview.out.json
+
+echo "Creating spark-otel-errors searches..."
+kapi POST /api/saved_objects/search/spark-otel-errors?overwrite=true \
+  ${ES_CONFIG_DIR}/spark-otel-errors/spark-otel-errors.search.json > /dev/null 2>&1
+
+echo "✅ Spark OTel errors initialized"
+
+# ============================================================================
 # COMPLETION
 # ============================================================================
 echo ""

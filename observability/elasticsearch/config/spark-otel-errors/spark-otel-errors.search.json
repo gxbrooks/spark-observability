@@ -1,0 +1,34 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"spark-otel-errors\"}"
+    },
+    "title": "Spark OTel Errors",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "log.level",
+      "log.logger",
+      "message",
+      "error.type",
+      "spark.app.id",
+      "spark.app.name",
+      "elasticsearch.operation",
+      "elasticsearch.http_status",
+      "elasticsearch.retry_count"
+    ],
+    "description": "Errors and retries from Spark OTel listener EventEmitter",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 100
+  }
+}
+

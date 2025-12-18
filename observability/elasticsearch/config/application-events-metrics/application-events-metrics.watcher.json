@@ -1,0 +1,49 @@
+{
+  "trigger": {"schedule": {"interval": "5s"}},
+  "input": {
+    "search": {
+      "request": {
+        "indices": ["app-events-*"],
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {"term": {"event.type": "start"}},
+                {"term": {"event.state": "open"}}
+              ]
+            }
+          },
+          "aggs": {
+            "by_operation_type": {
+              "terms": {"field": "operation.type"},
+              "aggs": {
+                "by_application": {
+                  "terms": {"field": "application"},
+                  "aggs": {
+                    "_doc": {"value_count": {"field": "event.id"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {"compare": {"ctx.payload.hits.total": {"gt": 0}}},
+  "actions": {
+    "index_payload": {
+      "transform": {
+        "script": {
+              "source": "def recs = []; for (opType in ctx.payload.aggregations.by_operation_type.buckets) { for (app in opType.by_application.buckets) { recs.add([ '@timestamp': ctx.execution_time, 'application': app.key, 'operation': ['type': opType.key], 'count': app.doc_count ]); } } return ['_doc': recs];"
+        }
+      },
+      "index": {
+        "index": "application-events-metrics-ds",
+        "op_type": "create",
+        "execution_time_field": "@timestamp"
+      }
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "index_patterns": ["logs-spark-otel-errors-default"],
+  "data_stream": {},
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "spark-otel-errors"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "log": {
+          "properties": {
+            "level": {"type": "keyword"},
+            "logger": {"type": "keyword"},
+            "message": {"type": "text"}
+          }
+        },
+        "error": {
+          "properties": {
+            "type": {"type": "keyword"},
+            "message": {"type": "text"},
+            "stack_trace": {"type": "text"}
+          }
+        },
+        "event": {
+          "properties": {
+            "id": {"type": "keyword"},
+            "type": {"type": "keyword"},
+            "operation": {
+              "properties": {
+                "type": {"type": "keyword"},
+                "id": {"type": "keyword"}
+              }
+            }
+          }
+        },
+        "spark": {
+          "properties": {
+            "app.id": {"type": "keyword"},
+            "app.name": {"type": "keyword"}
+          }
+        },
+        "elasticsearch": {
+          "properties": {
+            "url": {"type": "keyword"},
+            "operation": {"type": "keyword"},
+            "http_status": {"type": "integer"},
+            "response_body": {"type": "text"},
+            "retry_count": {"type": "integer"},
+            "failed": {"type": "boolean"}
+          }
+        },
+        "message": {"type": "text"},
+        "service": {
+          "properties": {
+            "name": {"type": "keyword"}
+          }
+        }
+      }
+    }
+  }
+}
+

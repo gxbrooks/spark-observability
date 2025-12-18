@@ -1,0 +1,23 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "application-events-metrics-ds",
+    "id": "application-events-metrics-ds",
+    "name": "Application Events Metrics",
+    "allowNoIndex": true,
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "application": {"customLabel": "Application"},
+      "count": {"customLabel": "Count"}
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "count": {"id": "number", "params": {"pattern": "0,0"}}
+    }
+  }
+}
+

@@ -1,0 +1,62 @@
+{
+  "trigger": {"schedule": {"interval": "5s"}},
+  "input": {
+    "chain": {
+      "inputs": [
+        {
+          "unmatched_ends": {
+            "search": {
+              "request": {
+                "indices": ["app-events-*"],
+                "body": {
+                  "size": 500,
+                  "query": {
+                    "bool": {
+                      "filter": [
+                        {"term": {"event.type": "end"}},
+                        {"exists": {"field": "correlation.start.event.id"}}
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "start_event_ids": {
+            "transform": {
+              "script": "def ids = []; for (h in ctx.payload.unmatched_ends.hits.hits) { def endEvent = h._source; if (endEvent.correlation != null && endEvent.correlation.start != null && endEvent.correlation.start.event != null && endEvent.correlation.start.event.id != null) { ids.add(endEvent.correlation.start.event.id); } } return ['_value': ids];"
+            }
+          }
+        },
+        {
+          "open_starts": {
+            "search": {
+              "request": {
+                "indices": ["app-events-*"],
+                "template": {
+                  "source": "{\"size\": 500, \"query\": {\"bool\": {\"filter\": [{\"terms\": {\"event.id\": {{#toJson}}ctx.payload.start_event_ids._value{{/toJson}}}}, {\"term\": {\"event.type\": \"start\"}}, {\"term\": {\"event.state\": \"open\"}}]}}}",
+                  "lang": "mustache"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "condition": {"compare": {"ctx.payload.open_starts.hits.total": {"gt": 0}}},
+  "actions": {
+    "update-starts": {
+      "transform": {
+        "script": "def recs = []; for (h in ctx.payload.open_starts.hits.hits) { def s = h._source; s.event.state = 'closed'; s._id = h._id; recs.add(s); } return ['_doc': recs];"
+      },
+      "index": {
+        "index": "app-events-*",
+        "op_type": "index"
+      }
+    }
+  }
+}
+

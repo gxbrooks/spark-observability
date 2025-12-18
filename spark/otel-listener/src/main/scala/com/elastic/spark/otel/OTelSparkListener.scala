@@ -97,7 +97,18 @@ class OTelSparkListener extends SparkListener {
   private val tracer: Tracer = openTelemetry.getTracer("spark-listener", "1.0.0")
 
   // Initialize Event Emitter
-  private val elasticsearchUrl = sys.env.getOrElse("ES_URL", "https://es01:9200")
+  // ES_URL or ES_HOST must be defined - es01 is a Docker service name not resolvable from Kubernetes
+  private val elasticsearchUrl = sys.env.get("ES_URL").getOrElse {
+    val esHost = sys.env.get("ES_HOST").getOrElse {
+      val errorMsg = "ES_URL or ES_HOST environment variable must be defined. " +
+        "ES_URL should be the full Elasticsearch URL (e.g., https://GaryPC.lan:9200). " +
+        "ES_HOST should be the Elasticsearch hostname (e.g., GaryPC.lan)."
+      logger.error(errorMsg)
+      throw new IllegalStateException(errorMsg)
+    }
+    val esPort = sys.env.getOrElse("ES_PORT", "9200")
+    s"https://$esHost:$esPort"
+  }
   private val esUsername = sys.env.getOrElse("ES_USER", "elastic")
   private val esPassword = sys.env.getOrElse("ES_PASSWORD", "changeme")
   
@@ -242,6 +253,11 @@ class OTelSparkListener extends SparkListener {
           ))
         )
         eventEmitter.emitEvent(endEvent)
+        
+        // Update the corresponding START event to "closed" if we have the start event ID
+        if (startEventId != null) {
+          eventEmitter.updateEventState(startEventId, "closed")
+        }
         
         // Complete span
         span.setAttribute("correlation.event.end.id", endEventId)
@@ -587,6 +603,11 @@ class OTelSparkListener extends SparkListener {
         )
         eventEmitter.emitEvent(endEvent)
         
+        // Update the corresponding START event to "closed" if we have the start event ID
+        if (startEventId != null) {
+          eventEmitter.updateEventState(startEventId, "closed")
+        }
+        
         // Add metrics to span
         span.setAttribute("spark.stage.tasks.completed", stageInfo.numTasks.toLong)
         
@@ -828,6 +849,11 @@ class OTelSparkListener extends SparkListener {
         )
 
         eventEmitter.emitEvent(event)
+        
+        // Update the corresponding START event to "closed" if we have the start event ID
+        startEventId.foreach { id =>
+          eventEmitter.updateEventState(id, "closed")
+        }
       }
 
       // Get the span we created in onTaskStart
@@ -1011,6 +1037,11 @@ class OTelSparkListener extends SparkListener {
       )
       
       eventEmitter.emitEvent(event)
+      
+      // Update the corresponding START event to "closed" if we have the start event ID
+      startEventId.foreach { id =>
+        eventEmitter.updateEventState(id, "closed")
+      }
       
       // Complete span
       spanOption.foreach { span =>

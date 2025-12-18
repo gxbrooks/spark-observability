@@ -1,6 +1,25 @@
 ---
+- name: Check if source JAR exists
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_root: "{{ playbook_dir }}/../../.."
+    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
+    source_jar: "{{ project_root }}/spark/otel-listener/{{ otel_listener_jar }}"
+  tasks:
+    - name: Check if source JAR exists
+      stat:
+        path: "{{ source_jar }}"
+      register: source_jar_stat
+
+    - name: Fail if source JAR does not exist
+      fail:
+        msg: "Source JAR not found: {{ source_jar }}. Run build-otel-listener.yml first."
+      when: not source_jar_stat.stat.exists
+
 - name: Deploy Spark OpenTelemetry Listener to Managed Nodes
-  hosts: k8s_nodes
+  hosts: spark_kubernetes
   become: yes
   become_user: ansible
   gather_facts: false
@@ -12,18 +31,6 @@
     dest_jar: "{{ dest_dir }}/{{ otel_listener_jar }}"
   
   tasks:
-    - name: Check if source JAR exists
-      local_action:
-        module: stat
-        path: "{{ source_jar }}"
-      register: source_jar_stat
-      run_once: true
-
-    - name: Fail if source JAR does not exist
-      fail:
-        msg: "Source JAR not found: {{ source_jar }}. Run build-otel-listener.yml first."
-      when: not source_jar_stat.stat.exists
-      run_once: true
 
     - name: Create OpenTelemetry directory on managed nodes
       file:
@@ -62,7 +69,7 @@
           - "============================================"
           - "OpenTelemetry Listener Deployment Complete"
           - "============================================"
-          - "Deployed to: {{ groups['k8s_nodes'] | join(', ') }}"
+          - "Deployed to: {{ groups['spark_kubernetes'] | join(', ') }}"
           - "Location: {{ dest_jar }}"
           - "Next Steps:"
           - "  1. Deploy OpenTelemetry Collector: kubectl apply -f observability/otel-collector/otel-collector-deployment.yaml"

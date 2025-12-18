@@ -49,8 +49,8 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -59,13 +59,12 @@
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
+            "lineWidth": 1,
+            "pointSize": 1,
             "scaleDistribution": {
-              "type": "log",
-              "log": 10
+              "type": "linear"
             },
-            "showPoints": "auto",
+            "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -103,7 +102,7 @@
           "calcs": []
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
@@ -165,6 +164,125 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
+            "axisLabel": "Active Jobs",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 101,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "1",
+              "type": "terms",
+              "field": "operation.type",
+              "settings": {
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "_count",
+                "size": "0"
+              }
+            },
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "$__interval",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "avg",
+              "field": "count"
+            }
+          ],
+          "query": "_index:application-events-metrics-ds AND _exists_:operation.type",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": ""
+        }
+      ],
+      "title": "Active Application Jobs",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "Log Count",
             "axisPlacement": "auto",
             "fillOpacity": 30,
@@ -189,9 +307,9 @@
           },
           "links": [
             {
-              "title": "View Logs in Detail",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time:date:iso:YYYY-MM-DDTHH:mm:ss}Z&to=${__value.time:date:iso:YYYY-MM-DDTHH:mm:ss}Z&var-log_level=${__field.labels.log_level}",
-              "targetBlank": true
+              "title": "View Logs from This Time",
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=now&var-log_level=${__field.labels.log_level}&viewPanel=102",
+              "targetBlank": false
             }
           ],
           "mappings": [],
@@ -332,7 +450,21 @@
       ],
       "title": "Spark Application Log Counts",
       "type": "timeseries",
-      "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs."
+      "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "fillOpacity": 100,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          }
+        }
+      }
     },
     {
       "datasource": {
@@ -394,7 +526,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 16
       },
       "id": 2,
       "options": {
@@ -505,7 +637,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 16
       },
       "id": 3,
       "options": {
@@ -581,7 +713,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 24
       },
       "id": 4,
       "options": {
@@ -738,7 +870,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 32
       },
       "id": 10,
       "options": {
@@ -875,7 +1007,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 24
       },
       "id": 5,
       "options": {
@@ -1032,7 +1164,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 32
       },
       "id": 11,
       "options": {
@@ -1190,7 +1322,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 40
       },
       "id": 7,
       "options": {
@@ -1292,7 +1424,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 40
       },
       "id": 6,
       "options": {
@@ -1419,7 +1551,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "id": 8,
       "options": {
@@ -1521,7 +1653,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 48
       },
       "id": 9,
       "options": {

@@ -21,7 +21,7 @@ spark.driver.memory                    4g
 
 # OpenTelemetry Listener for real-time telemetry export
 spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
-spark.jars                             /home/ansible/spark/otel/spark-otel-listener-1.0.0.jar
+spark.jars                             /mnt/spark/data/spark-otel-listener-1.0.0.jar
 
 # Network configuration for better DNS resolution
 spark.driver.host                      ${SPARK_LOCAL_HOSTNAME}

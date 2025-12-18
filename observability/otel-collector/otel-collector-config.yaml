@@ -33,6 +33,10 @@ processors:
 
 exporters:
   # Elasticsearch exporter using data streams
+  # When using ECS mapping mode, the exporter automatically uses data streams
+  # Default data stream name: traces-apm-default
+  # Template pattern changed to "traces-apm-*" to match exporter default
+  # Do NOT use traces_index - it forces index API instead of data stream API
   elasticsearch:
     endpoints:
       - https://es01:9200
@@ -71,6 +75,6 @@ service:
   
   telemetry:
     logs:
-      level: info
+      level: debug
     metrics:
       level: detailed

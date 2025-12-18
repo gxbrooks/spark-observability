@@ -1,0 +1,24 @@
+{
+  "index_patterns": ["application-events-metrics-ds"],
+  "data_stream": {},
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "application-events-metrics"
+    },
+      "mappings": {
+        "properties": {
+          "@timestamp": {"type": "date"},
+          "application": {"type": "keyword"},
+          "operation": {
+            "properties": {
+              "type": {"type": "keyword"}
+            }
+          },
+          "count": {"type": "long"}
+        }
+      }
+  }
+}

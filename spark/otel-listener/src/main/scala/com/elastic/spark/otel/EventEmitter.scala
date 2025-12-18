@@ -9,7 +9,9 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import java.time.{Duration, Instant}
 import java.util.{Base64, UUID}
-import java.util.concurrent.{CompletableFuture, ConcurrentLinkedQueue, Executors, TimeUnit}
+import java.util.concurrent.{ConcurrentLinkedQueue, Executors, TimeUnit}
+import java.util.concurrent.locks.ReentrantLock
+import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Success, Try}
 import javax.net.ssl.{SSLContext, TrustManager, X509TrustManager}
 import java.security.cert.X509Certificate
@@ -19,9 +21,10 @@ import java.security.SecureRandom
  * Event emitter for sending application events to Elasticsearch.
  * 
  * Supports:
- * - Async, non-blocking event emission
- * - Retry queue for failed emissions
- * - Configurable timeout
+ * - Synchronous event emission with retries
+ * - Batching for events and state updates
+ * - Error logging to file (via SLF4J) and Elasticsearch
+ * - Configurable timeout and retry counts
  * - Correlation with OpenTelemetry spans
  */
 class EventEmitter(elasticsearchUrl: String, username: String, password: String) {
@@ -30,6 +33,12 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   
   // JSON serialization
   private implicit val formats: Formats = DefaultFormats
+  
+  // Configuration
+  private val BATCH_SIZE = 100
+  private val BATCH_FLUSH_INTERVAL_SECONDS = 5
+  private val MAX_RETRIES = 3
+  private val RETRY_DELAY_MS = 1000
   
   // Trust manager that accepts all certificates (for development/testing)
   private val trustAllCerts: Array[TrustManager] = Array(new X509TrustManager {
@@ -56,141 +65,339 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
     s"$username:$password".getBytes("UTF-8")
   )
   
-  // Retry queue for failed emissions
-  private val retryQueue: ConcurrentLinkedQueue[ApplicationEvent] = new ConcurrentLinkedQueue()
+  // Event batching
+  private val eventBatch: ArrayBuffer[ApplicationEvent] = new ArrayBuffer[ApplicationEvent]()
+  private val eventBatchLock = new ReentrantLock()
   
-  // Background retry thread
-  private val retryExecutor = Executors.newSingleThreadScheduledExecutor()
+  // State update batching (eventId -> state)
+  private val stateUpdateBatch: ArrayBuffer[(String, String)] = new ArrayBuffer[(String, String)]()
+  private val stateUpdateBatchLock = new ReentrantLock()
   
-  // Start retry thread
-  retryExecutor.scheduleWithFixedDelay(
-    () => processRetryQueue(),
-    5, 5, TimeUnit.SECONDS
+  // Batch flush executor
+  private val batchExecutor = Executors.newSingleThreadScheduledExecutor()
+  
+  // Start periodic batch flush
+  batchExecutor.scheduleWithFixedDelay(
+    () => flushBatches(),
+    BATCH_FLUSH_INTERVAL_SECONDS, BATCH_FLUSH_INTERVAL_SECONDS, TimeUnit.SECONDS
   )
   
-  logger.info(s"EventEmitter initialized - Elasticsearch URL: $elasticsearchUrl")
+  logger.info(s"EventEmitter initialized - Elasticsearch URL: $elasticsearchUrl, Batch size: $BATCH_SIZE, Flush interval: ${BATCH_FLUSH_INTERVAL_SECONDS}s")
   
   /**
+   * Update an existing event's state field in Elasticsearch.
+   * Batched - added to batch queue, flushed periodically or when batch size reached.
+   */
+  def updateEventState(eventId: String, state: String): Unit = {
+    stateUpdateBatchLock.lock()
+    try {
+      stateUpdateBatch += ((eventId, state))
+      if (stateUpdateBatch.size >= BATCH_SIZE) {
+        flushStateUpdates()
+      }
+    } finally {
+      stateUpdateBatchLock.unlock()
+    }
+  }
+
+  /**
    * Emit an application event to Elasticsearch.
-   * Non-blocking - returns immediately.
+   * Batched - added to batch queue, flushed periodically or when batch size reached.
    */
   def emitEvent(event: ApplicationEvent): Unit = {
-    val startTime = System.nanoTime()
-    
+    eventBatchLock.lock()
     try {
-      val json = write(event)
-      val eventId = event.event.id
+      eventBatch += event
+      if (eventBatch.size >= BATCH_SIZE) {
+        flushEvents()
+      }
+    } finally {
+      eventBatchLock.unlock()
+    }
+  }
+  
+  /**
+   * Flush all batches (events and state updates).
+   */
+  private def flushBatches(): Unit = {
+    flushEvents()
+    flushStateUpdates()
+  }
+  
+  /**
+   * Flush event batch - send all events in batch synchronously with retries.
+   */
+  private def flushEvents(): Unit = {
+    var eventsToFlush: ArrayBuffer[ApplicationEvent] = ArrayBuffer.empty
+    
+    eventBatchLock.lock()
+    try {
+      if (eventBatch.nonEmpty) {
+        eventsToFlush = eventBatch.clone()
+        eventBatch.clear()
+      }
+    } finally {
+      eventBatchLock.unlock()
+    }
+    
+    if (eventsToFlush.nonEmpty) {
+      logger.debug(s"Flushing ${eventsToFlush.size} events to Elasticsearch")
+      sendEventsBatchWithRetry(eventsToFlush.toSeq)
+    }
+  }
+  
+  /**
+   * Flush state update batch - send all updates in batch synchronously with retries.
+   */
+  private def flushStateUpdates(): Unit = {
+    var updatesToFlush: ArrayBuffer[(String, String)] = ArrayBuffer.empty
+    
+    stateUpdateBatchLock.lock()
+    try {
+      if (stateUpdateBatch.nonEmpty) {
+        updatesToFlush = stateUpdateBatch.clone()
+        stateUpdateBatch.clear()
+      }
+    } finally {
+      stateUpdateBatchLock.unlock()
+    }
+    
+    if (updatesToFlush.nonEmpty) {
+      logger.debug(s"Flushing ${updatesToFlush.size} state updates to Elasticsearch")
+      sendStateUpdatesBatchWithRetry(updatesToFlush.toSeq)
+    }
+  }
+  
+  /**
+   * Send events batch with retry logic (synchronous).
+   */
+  private def sendEventsBatchWithRetry(events: Seq[ApplicationEvent], retryCount: Int = 0): Unit = {
+    Try {
+      sendEventsBatch(events)
+    } match {
+      case Success(_) =>
+        logger.debug(s"Successfully sent ${events.size} events to Elasticsearch")
+      case Failure(e) if retryCount < MAX_RETRIES =>
+        val delay = RETRY_DELAY_MS * (retryCount + 1)
+        val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
+        logger.warn(s"Failed to send ${events.size} events (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying in ${delay}ms: $errorMsg")
+        logError("event_emission_batch_failed", e, eventInfo = events.headOption.map(e => (e.event.id, e.operation.`type`, e.spark.flatMap(_.`app.id`), e.spark.flatMap(_.`app.name`))), retryCount = Some(retryCount + 1))
+        Thread.sleep(delay)
+        sendEventsBatchWithRetry(events, retryCount + 1)
+      case Failure(e) =>
+        val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
+        logger.error(s"Failed to send ${events.size} events after $MAX_RETRIES retries: $errorMsg", e)
+        logError("event_emission_batch_failed_final", e, eventInfo = events.headOption.map(e => (e.event.id, e.operation.`type`, e.spark.flatMap(_.`app.id`), e.spark.flatMap(_.`app.name`))), retryCount = Some(MAX_RETRIES))
+        // Re-queue events for retry by background processor
+        events.foreach { event =>
+          eventBatchLock.lock()
+          try {
+            eventBatch += event
+          } finally {
+            eventBatchLock.unlock()
+          }
+        }
+    }
+  }
+  
+  /**
+   * Send events batch using Elasticsearch bulk API (synchronous).
+   */
+  private def sendEventsBatch(events: Seq[ApplicationEvent]): Unit = {
+    if (events.isEmpty) return
+    
+    val bulkBody = events.map { event =>
+      val action = s"""{"index":{"_index":"app-events","_id":"${event.event.id}"}}"""
+      val source = write(event)
+      s"$action\n$source"
+    }.mkString("\n") + "\n"
+    
+    val request = HttpRequest.newBuilder()
+      .uri(URI.create(s"$elasticsearchUrl/_bulk"))
+      .header("Content-Type", "application/x-ndjson")
+      .header("Authorization", s"Basic $credentials")
+      .timeout(Duration.ofSeconds(30))
+      .POST(HttpRequest.BodyPublishers.ofString(bulkBody))
+      .build()
+    
+    val startTime = System.nanoTime()
+    val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+    val elapsedMs = (System.nanoTime() - startTime) / 1000000
+    
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      // Parse bulk response to check for errors
+      val responseBody = response.body()
+      if (responseBody.contains("\"errors\":true")) {
+        throw new Exception(s"Bulk API returned errors: ${responseBody.take(500)}")
+      }
+      logger.debug(s"Bulk sent ${events.size} events successfully (${elapsedMs}ms)")
+    } else {
+      throw new Exception(s"HTTP ${response.statusCode()}: ${response.body().take(500)}")
+    }
+  }
+  
+  /**
+   * Send state updates batch with retry logic (synchronous).
+   */
+  private def sendStateUpdatesBatchWithRetry(updates: Seq[(String, String)], retryCount: Int = 0): Unit = {
+    Try {
+      sendStateUpdatesBatch(updates)
+    } match {
+      case Success(_) =>
+        logger.debug(s"Successfully sent ${updates.size} state updates to Elasticsearch")
+      case Failure(e) if retryCount < MAX_RETRIES =>
+        val delay = RETRY_DELAY_MS * (retryCount + 1)
+        val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
+        logger.warn(s"Failed to send ${updates.size} state updates (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying in ${delay}ms: $errorMsg")
+        logError("state_update_batch_failed", e, eventInfo = None, updates = Some(updates), retryCount = Some(retryCount + 1))
+        Thread.sleep(delay)
+        sendStateUpdatesBatchWithRetry(updates, retryCount + 1)
+      case Failure(e) =>
+        val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
+        logger.error(s"Failed to send ${updates.size} state updates after $MAX_RETRIES retries: $errorMsg", e)
+        logError("state_update_batch_failed_final", e, eventInfo = None, updates = Some(updates), retryCount = Some(MAX_RETRIES))
+        // Re-queue updates for retry
+        updates.foreach { case (eventId, state) =>
+          stateUpdateBatchLock.lock()
+          try { stateUpdateBatch += ((eventId, state)) } finally { stateUpdateBatchLock.unlock() }
+        }
+    }
+  }
+  
+  /**
+   * Send state updates batch using Elasticsearch bulk update API (synchronous).
+   */
+  private def sendStateUpdatesBatch(updates: Seq[(String, String)]): Unit = {
+    if (updates.isEmpty) return
+    
+    val bulkBody = updates.map { case (eventId, state) =>
+      val action = s"""{"update":{"_index":"app-events","_id":"$eventId"}}"""
+      val doc = s"""{"script":{"source":"ctx._source.event.state = params.state","lang":"painless","params":{"state":"$state"}}}"""
+      s"$action\n$doc"
+    }.mkString("\n") + "\n"
+    
+    val request = HttpRequest.newBuilder()
+      .uri(URI.create(s"$elasticsearchUrl/_bulk"))
+      .header("Content-Type", "application/x-ndjson")
+      .header("Authorization", s"Basic $credentials")
+      .timeout(Duration.ofSeconds(30))
+      .POST(HttpRequest.BodyPublishers.ofString(bulkBody))
+      .build()
+    
+    val startTime = System.nanoTime()
+    val response = Try {
+      httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+    }.getOrElse(throw new Exception(s"Failed to send HTTP request to $elasticsearchUrl/_bulk: connection failed or timeout"))
+    val elapsedMs = (System.nanoTime() - startTime) / 1000000
+    
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      // Parse bulk response to check for errors
+      val responseBody = response.body()
+      if (responseBody.contains("\"errors\":true")) {
+        throw new Exception(s"Bulk update API returned errors: ${responseBody.take(500)}")
+      }
+      logger.debug(s"Bulk updated ${updates.size} event states successfully (${elapsedMs}ms)")
+    } else {
+      throw new Exception(s"HTTP ${response.statusCode()}: ${response.body().take(500)}")
+    }
+  }
+  
+  /**
+   * Log error to file (via SLF4J) and to Elasticsearch.
+   */
+  private def logError(
+    errorType: String,
+    exception: Throwable,
+    eventInfo: Option[(String, String, Option[String], Option[String])] = None,
+    updates: Option[Seq[(String, String)]] = None,
+    httpStatus: Option[Int] = None,
+    responseBody: Option[String] = None,
+    retryCount: Option[Int] = None
+  ): Unit = {
+    val errorId = UUID.randomUUID().toString
+    val timestamp = Instant.now().toString
+    
+    // Log to file via SLF4J (will be picked up by Elastic Agent)
+    val errorMsg = Option(exception.getMessage).getOrElse(exception.getClass.getName)
+    val logMessage = s"[$errorType] $errorMsg"
+    logger.error(logMessage, exception)
+    
+    // Log to Elasticsearch (async, best effort)
+    Try {
+      val errorDoc = Map(
+        "@timestamp" -> timestamp,
+        "log.level" -> "ERROR",
+        "log.logger" -> classOf[EventEmitter].getName,
+        "message" -> logMessage,
+        "error.type" -> exception.getClass.getName,
+        "error.message" -> errorMsg,
+        "error.stack_trace" -> exception.getStackTrace.map(_.toString).mkString("\n"),
+        "elasticsearch.url" -> elasticsearchUrl,
+        "elasticsearch.operation" -> errorType,
+        "elasticsearch.failed" -> true
+      ) ++ (eventInfo.map { case (eventId, opType, appId, appName) =>
+        Map(
+          "event.id" -> eventId,
+          "event.operation.type" -> opType,
+          "spark.app.id" -> appId.getOrElse(""),
+          "spark.app.name" -> appName.getOrElse("")
+        )
+      }.getOrElse(Map.empty)) ++
+      (httpStatus.map(s => Map("elasticsearch.http_status" -> s)).getOrElse(Map.empty)) ++
+      (responseBody.map(b => Map("elasticsearch.response_body" -> b.take(1000))).getOrElse(Map.empty)) ++
+      (retryCount.map(r => Map("elasticsearch.retry_count" -> r)).getOrElse(Map.empty)) ++
+      (updates.map(u => Map("state_updates.count" -> u.size)).getOrElse(Map.empty)) ++
+      Map(
+        "service.name" -> "spark-otel-listener",
+        "error.id" -> errorId
+      )
       
-      // Build HTTP request
+      val json = write(errorDoc)
+      val errorIndexUrl = s"$elasticsearchUrl/logs-spark-otel-errors-default/_doc/$errorId"
       val request = HttpRequest.newBuilder()
-        .uri(URI.create(s"$elasticsearchUrl/app-events/_doc/$eventId"))
+        .uri(URI.create(errorIndexUrl))
         .header("Content-Type", "application/json")
         .header("Authorization", s"Basic $credentials")
         .timeout(Duration.ofSeconds(5))
         .POST(HttpRequest.BodyPublishers.ofString(json))
         .build()
       
-      // Send async
+      // Send async for error logging (best effort, don't block)
       httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
         .thenAccept { response =>
-          val elapsedMs = (System.nanoTime() - startTime) / 1000000
-          
           if (response.statusCode() >= 200 && response.statusCode() < 300) {
-            logger.debug(s"Event $eventId emitted successfully (${elapsedMs}ms)")
+            logger.debug(s"Error logged to Elasticsearch: $errorId")
           } else {
-            logger.warn(s"Event $eventId emission failed: HTTP ${response.statusCode()} - ${response.body()} (${elapsedMs}ms)")
-            retryQueue.offer(event)
+            logger.warn(s"Failed to log error to Elasticsearch: HTTP ${response.statusCode()}")
           }
         }
         .exceptionally { throwable =>
-          val elapsedMs = (System.nanoTime() - startTime) / 1000000
-          logger.warn(s"Event $eventId emission failed: ${throwable.getMessage} (${elapsedMs}ms), queuing for retry")
-          retryQueue.offer(event)
+          logger.warn(s"Failed to log error to Elasticsearch: ${throwable.getMessage}")
           null
         }
-        
-    } catch {
-      case e: Exception =>
-        logger.error(s"Error preparing event ${event.event.id} for emission", e)
-        // Don't propagate - event emission failure should not fail Spark job
+    }.recover { case e =>
+      logger.warn(s"Failed to prepare error log for Elasticsearch: ${e.getMessage}")
     }
   }
   
   /**
-   * Process retry queue - attempt to resend failed events.
-   */
-  private def processRetryQueue(): Unit = {
-    try {
-      val maxRetries = 10
-      var processed = 0
-      
-      while (processed < maxRetries && !retryQueue.isEmpty) {
-        val event = retryQueue.poll()
-        if (event != null) {
-          logger.debug(s"Retrying event ${event.event.id}")
-          emitEventSync(event) match {
-            case Success(_) =>
-              logger.info(s"Retry successful for event ${event.event.id}")
-            case Failure(e) =>
-              logger.warn(s"Retry failed for event ${event.event.id}: ${e.getMessage}, re-queuing")
-              retryQueue.offer(event)
-          }
-          processed += 1
-        }
-      }
-      
-    } catch {
-      case e: Exception =>
-        logger.error("Error processing retry queue", e)
-    }
-  }
-  
-  /**
-   * Synchronous event emission (for retries).
-   */
-  private def emitEventSync(event: ApplicationEvent): Try[Unit] = Try {
-    val json = write(event)
-    val eventId = event.event.id
-    
-    val request = HttpRequest.newBuilder()
-      .uri(URI.create(s"$elasticsearchUrl/app-events/_doc/$eventId"))
-      .header("Content-Type", "application/json")
-      .header("Authorization", s"Basic $credentials")
-      .timeout(Duration.ofSeconds(5))
-      .POST(HttpRequest.BodyPublishers.ofString(json))
-      .build()
-    
-    val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-    
-    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-      ()
-    } else {
-      throw new Exception(s"HTTP ${response.statusCode()}: ${response.body()}")
-    }
-  }
-  
-  /**
-   * Shutdown the emitter, flushing any remaining events.
+   * Shutdown the emitter, flushing any remaining batches.
    */
   def shutdown(): Unit = {
     logger.info("Shutting down EventEmitter...")
     
-    // Process remaining retries
-    val remaining = retryQueue.size()
-    if (remaining > 0) {
-      logger.info(s"Processing $remaining remaining events...")
-      processRetryQueue()
-    }
+    // Flush remaining batches
+    flushBatches()
     
-    // Shutdown retry executor
-    retryExecutor.shutdown()
+    // Shutdown batch executor
+    batchExecutor.shutdown()
     try {
-      if (!retryExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
-        retryExecutor.shutdownNow()
+      if (!batchExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+        batchExecutor.shutdownNow()
       }
     } catch {
       case e: InterruptedException =>
-        retryExecutor.shutdownNow()
+        batchExecutor.shutdownNow()
     }
     
     logger.info("EventEmitter shutdown complete")
@@ -264,4 +471,3 @@ case class SparkEventMetrics(
   `executor.run.time.ms`: Option[Long] = None,
   `executor.cpu.time.ms`: Option[Long] = None
 )
-

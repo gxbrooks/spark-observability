@@ -1,0 +1,43 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "logs-spark-otel-errors-default",
+    "id": "spark-otel-errors",
+    "name": "Spark OTel Errors",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "log.level": {"customLabel": "Log Level"},
+      "log.logger": {"customLabel": "Logger"},
+      "log.message": {"customLabel": "Message"},
+      "error.type": {"customLabel": "Error Type"},
+      "error.message": {"customLabel": "Error Message"},
+      "event.id": {"customLabel": "Event ID"},
+      "event.type": {"customLabel": "Event Type"},
+      "event.operation.type": {"customLabel": "Operation Type"},
+      "spark.app.id": {"customLabel": "Spark App ID"},
+      "spark.app.name": {"customLabel": "Spark App Name"},
+      "elasticsearch.operation": {"customLabel": "ES Operation"},
+      "elasticsearch.http_status": {"customLabel": "HTTP Status"},
+      "elasticsearch.retry_count": {"customLabel": "Retry Count"},
+      "message": {"customLabel": "Message"}
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "elasticsearch.http_status": {
+        "id": "number",
+        "params": {"pattern": "0,0"}
+      },
+      "elasticsearch.retry_count": {
+        "id": "number",
+        "params": {"pattern": "0,0"}
+      }
+    }
+  }
+}
+
