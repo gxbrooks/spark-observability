@@ -11,7 +11,7 @@
   hosts: kubernetes_master
   become: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
   vars:
     # Use user's home directory for k8s configs, not /opt/spark
     user_spark_home: "/home/{{ ansible_user }}/spark"
@@ -143,7 +143,7 @@
 
     - name: Copy ConfigMap to a temporary file
       copy:
-        src: "{{ project_root }}/vars/contexts/spark-runtime/spark-configmap.yaml"
+        src: "{{ project_root }}/vars/contexts/spark-configmap.yaml"
         dest: "{{ k8s_config_dir }}/spark-configmap.yaml"
         mode: '0644'
         
