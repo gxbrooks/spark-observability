@@ -294,7 +294,10 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       // Parse bulk response to check for errors
       val responseBody = response.body()
       if (responseBody.contains("\"errors\":true")) {
-        throw new Exception(s"Bulk update API returned errors: ${responseBody.take(500)}")
+        // Parse individual errors from bulk response
+        val errorPattern = """"error":\s*\{[^}]*"reason":\s*"([^"]+)"""".r
+        val errors = errorPattern.findAllMatchIn(responseBody).map(_.group(1)).take(5).mkString("; ")
+        throw new Exception(s"Bulk update API returned errors: $errors. Full response: ${responseBody.take(1000)}")
       }
       logger.debug(s"Bulk updated ${updates.size} event states successfully (${elapsedMs}ms)")
     } else {
