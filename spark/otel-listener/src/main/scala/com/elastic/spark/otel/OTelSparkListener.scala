@@ -50,7 +50,7 @@ class OTelSparkListener extends SparkListener {
   private val serviceNamespace = sys.env.getOrElse("OTEL_SERVICE_NAMESPACE", "spark")
   private val deploymentEnvironment = sys.env.getOrElse("OTEL_DEPLOYMENT_ENVIRONMENT", "production")
   private val enableLoggingExporter = sys.env.getOrElse("OTEL_ENABLE_LOGGING", "false").toLowerCase == "true"
-  private val emitTaskEvents = sys.env.getOrElse("OTEL_EMIT_TASK_EVENTS", "false").toLowerCase == "true"
+  private val emitTaskEvents = sys.env.getOrElse("OTEL_EMIT_TASK_EVENTS", "true").toLowerCase == "true"
 
   // Initialize OpenTelemetry
   private val spanExporter: OtlpGrpcSpanExporter = Try {
@@ -292,12 +292,47 @@ class OTelSparkListener extends SparkListener {
 
       logger.debug(s"Job $jobId started with ${stageIds.length} stages")
 
+      // Generate event ID (standard UUID)
+      val eventId = UUID.randomUUID().toString
+      val timestamp = Instant.ofEpochMilli(time)
+      
+      // Get application info
+      val (appId, appName) = applicationSpan.keys.headOption.map { id =>
+        (id, appNames.getOrElse(id, "unknown"))
+      }.getOrElse(("unknown", "unknown"))
+      
+      // Emit START event
+      val startEvent = ApplicationEvent(
+        `@timestamp` = isoFormatter.format(timestamp),
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          category = "application",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "job",
+          id = s"job-$jobId",
+          name = s"Job $jobId"
+        ),
+        correlation = Correlation(),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = Some(appName),
+          `job.id` = Some(jobId),
+          `job.stage.count` = Some(stageIds.length.toLong)
+        ))
+      )
+      eventEmitter.emitEvent(startEvent)
+      jobEventIds.put(jobId, eventId)
+
       // Get parent context from application span
       val parentSpan = applicationSpan.values.headOption
 
       val spanBuilder = tracer.spanBuilder(s"spark.job.$jobId")
         .setSpanKind(SpanKind.INTERNAL)
-        .setStartTimestamp(Instant.ofEpochMilli(time))
+        .setStartTimestamp(timestamp)
         .setAttribute("spark.job.id", jobId.toLong)
         .setAttribute("spark.job.stage.count", stageIds.length.toLong)
         .setAttribute("span.kind", "Spark.job")
@@ -338,6 +373,59 @@ class OTelSparkListener extends SparkListener {
 
       logger.debug(s"Job $jobId ended: ${jobEnd.jobResult}")
 
+      // Get application info
+      val (appId, appName) = applicationSpan.keys.headOption.map { id =>
+        (id, appNames.getOrElse(id, "unknown"))
+      }.getOrElse(("unknown", "unknown"))
+      
+      // Generate end event ID
+      val endEventId = UUID.randomUUID().toString
+      val timestamp = Instant.ofEpochMilli(time)
+      
+      // Get start event ID
+      val startEventId = jobEventIds.get(jobId).orNull
+      
+      // Determine result
+      val result = jobEnd.jobResult match {
+        case JobSucceeded => "SUCCESS"
+        case JobFailed(_) => "FAILED"
+      }
+      
+      // Emit END event
+      val endEvent = ApplicationEvent(
+        `@timestamp` = isoFormatter.format(timestamp),
+        event = EventMetadata(
+          id = endEventId,
+          `type` = "end",
+          category = "application",
+          state = "closed"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "job",
+          id = s"job-$jobId",
+          name = s"Job $jobId",
+          result = Some(result)
+        ),
+        correlation = Correlation(
+          `start.event.id` = Option(startEventId)
+        ),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = Some(appName),
+          `job.id` = Some(jobId)
+        ))
+      )
+      eventEmitter.emitEvent(endEvent)
+      
+      // Update the corresponding START event to "closed" if we have the start event ID
+      if (startEventId != null) {
+        eventEmitter.updateEventState(startEventId, "closed")
+      }
+      
+      // Clean up
+      jobEventIds.remove(jobId)
+
       jobSpans.remove(jobId).foreach { span =>
         // Set status based on job result
         jobEnd.jobResult match {
@@ -350,7 +438,7 @@ class OTelSparkListener extends SparkListener {
             span.setAttribute("spark.job.error", exception.getMessage)
             span.recordException(exception)
         }
-        span.end(Instant.ofEpochMilli(time))
+        span.end(timestamp)
       }
     } catch {
       case e: Exception =>
