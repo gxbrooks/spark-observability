@@ -87,6 +87,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   /**
    * Update an existing event's state field in Elasticsearch.
    * Batched - added to batch queue, flushed periodically or when batch size reached.
+   * Use this for high-volume updates (e.g., tasks).
    */
   def updateEventState(eventId: String, state: String): Unit = {
     stateUpdateBatchLock.lock()
@@ -97,6 +98,91 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       }
     } finally {
       stateUpdateBatchLock.unlock()
+    }
+  }
+
+  /**
+   * Update an existing event's state field in Elasticsearch immediately (synchronous).
+   * Use this for critical updates (e.g., app, job, stage end events) where we need
+   * guaranteed delivery before application termination.
+   * 
+   * @param eventId The event ID to update
+   * @param state The new state (typically "closed")
+   * @param maxRetries Maximum number of retry attempts (default: 5)
+   */
+  def updateEventStateImmediate(eventId: String, state: String, maxRetries: Int = 5): Unit = {
+    if (eventId == null || eventId.isEmpty) {
+      logger.warn(s"Cannot update event state: eventId is null or empty")
+      return
+    }
+
+    var retryCount = 0
+    var success = false
+
+    while (!success && retryCount < maxRetries) {
+      Try {
+        sendSingleStateUpdate(eventId, state)
+        success = true
+        logger.debug(s"Immediately updated event $eventId state to $state")
+      } match {
+        case Success(_) =>
+          // Success, exit loop
+        case Failure(e) if retryCount < maxRetries - 1 =>
+          val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
+          // Don't retry "document missing" errors - the START event doesn't exist
+          if (errorMsg.contains("document missing") || errorMsg.contains("not_found")) {
+            logger.warn(s"Event $eventId not found in Elasticsearch, skipping update (START event may not have been indexed)")
+            success = true // Mark as handled to exit loop
+          } else {
+            retryCount += 1
+            val delay = RETRY_DELAY_MS * retryCount
+            logger.warn(s"Failed to immediately update event $eventId state (attempt $retryCount/$maxRetries), retrying in ${delay}ms: $errorMsg")
+            Thread.sleep(delay)
+          }
+        case Failure(e) =>
+          retryCount += 1
+          val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
+          logger.error(s"Failed to immediately update event $eventId state after $maxRetries retries: $errorMsg", e)
+          logError("state_update_immediate_failed_final", e, eventInfo = Some((eventId, "state_update", None, None)), retryCount = Some(maxRetries))
+          // Fallback to batching if immediate update fails
+          logger.info(s"Falling back to batched update for event $eventId")
+          updateEventState(eventId, state)
+      }
+    }
+  }
+
+  /**
+   * Send a single state update synchronously (for immediate updates).
+   */
+  private def sendSingleStateUpdate(eventId: String, state: String): Unit = {
+    val bulkBody = s"""{"update":{"_index":"app-events","_id":"$eventId"}}\n""" +
+                   s"""{"script":{"source":"ctx._source.event.state = params.state","lang":"painless","params":{"state":"$state"}}}\n"""
+
+    val request = HttpRequest.newBuilder()
+      .uri(URI.create(s"$elasticsearchUrl/_bulk"))
+      .header("Content-Type", "application/x-ndjson")
+      .header("Authorization", s"Basic $credentials")
+      .timeout(Duration.ofSeconds(10)) // Shorter timeout for immediate updates
+      .POST(HttpRequest.BodyPublishers.ofString(bulkBody))
+      .build()
+
+    val startTime = System.nanoTime()
+    val response = Try {
+      httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+    }.getOrElse(throw new Exception(s"Failed to send HTTP request to $elasticsearchUrl/_bulk: connection failed or timeout"))
+    val elapsedMs = (System.nanoTime() - startTime) / 1000000
+
+    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+      val responseBody = response.body()
+      if (responseBody.contains("\"errors\":true")) {
+        // Parse individual errors from bulk response
+        val errorPattern = """"error":\s*\{[^}]*"reason":\s*"([^"]+)"""".r
+        val errors = errorPattern.findAllMatchIn(responseBody).map(_.group(1)).take(3).mkString("; ")
+        throw new Exception(s"Bulk update API returned errors: $errors")
+      }
+      logger.debug(s"Immediate state update for event $eventId succeeded (${elapsedMs}ms)")
+    } else {
+      throw new Exception(s"HTTP ${response.statusCode()}: ${response.body().take(500)}")
     }
   }
 

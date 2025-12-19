@@ -254,9 +254,9 @@ class OTelSparkListener extends SparkListener {
         )
         eventEmitter.emitEvent(endEvent)
         
-        // Update the corresponding START event to "closed" if we have the start event ID
+        // Update the corresponding START event to "closed" immediately (critical: app end)
         if (startEventId != null) {
-          eventEmitter.updateEventState(startEventId, "closed")
+          eventEmitter.updateEventStateImmediate(startEventId, "closed")
         }
         
         // Complete span
@@ -418,9 +418,9 @@ class OTelSparkListener extends SparkListener {
       )
       eventEmitter.emitEvent(endEvent)
       
-      // Update the corresponding START event to "closed" if we have the start event ID
+      // Update the corresponding START event to "closed" immediately (critical: job end)
       if (startEventId != null) {
-        eventEmitter.updateEventState(startEventId, "closed")
+        eventEmitter.updateEventStateImmediate(startEventId, "closed")
       }
       
       // Clean up
@@ -691,9 +691,9 @@ class OTelSparkListener extends SparkListener {
         )
         eventEmitter.emitEvent(endEvent)
         
-        // Update the corresponding START event to "closed" if we have the start event ID
+        // Update the corresponding START event to "closed" immediately (critical: app end)
         if (startEventId != null) {
-          eventEmitter.updateEventState(startEventId, "closed")
+          eventEmitter.updateEventStateImmediate(startEventId, "closed")
         }
         
         // Add metrics to span
