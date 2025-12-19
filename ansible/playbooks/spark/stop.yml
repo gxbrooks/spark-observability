@@ -9,97 +9,66 @@
     user_spark_home: "/home/{{ ansible_user }}/spark"
     k8s_config_dir: "{{ user_spark_home }}/k8s"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
-  pre_tasks:
-    - name: Run generate_env.py to ensure configuration files are up-to-date
-      delegate_to: localhost
-      become: false
-      shell: "python3 vars/generate_env.py {{ '-f' if force_env_generation | default(false) else '' }}"
-      args:
-        chdir: "{{ project_root }}"
-      register: generate_result
-      changed_when: "'Generating' in generate_result.stdout"
   tasks:
-    - name: Ensure kubernetes config directory exists
-      file:
-        path: "{{ k8s_config_dir }}"
-        state: directory
-        mode: '0755'
-
-    # Copy service and configmap files
-    - name: Copy Spark service manifests
-      copy:
-        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/{{ item }}"
-        dest: "{{ k8s_config_dir }}/{{ item }}"
-        mode: '0644'
-      loop:
-        - spark-master-service.yaml
-        - spark-master-headless.yaml
-        - spark-history-service.yaml
-        
-    - name: Copy Spark ConfigMap manifest
-      copy:
-        src: "{{ project_root }}/vars/contexts/spark-runtime/spark-configmap.yaml"
-        dest: "{{ k8s_config_dir }}/spark-configmap.yaml"
-        mode: '0644'
-        
-    # Template deployment files
-    - name: Template Spark deployment files
-      template:
-        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/{{ item }}.j2"
-        dest: "{{ k8s_config_dir }}/{{ item }}"
-        mode: '0644'
-      vars:
-        SPARK_VERSION: "{{ spark_version }}"
-      loop:
-        - spark-master.yaml
-        - spark-worker.yaml
-        - spark-history.yaml
-
     # Step 1: Stop workers first to ensure graceful disconnection from master
     - name: Stop Spark Workers
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-worker.yaml"
+        kind: Deployment
+        name: spark-worker
+        namespace: default
 
     # Step 2: Stop history server as it's independent of master/worker relationship
     - name: Stop Spark History Server
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-history.yaml"
+        kind: Deployment
+        name: spark-history
+        namespace: default
         
     # Step 2.5: Remove the history service
     - name: Remove Spark History Service
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-history-service.yaml"
+        kind: Service
+        name: spark-history
+        namespace: default
 
     # Step 3: Stop the master deployment after workers are gone
     - name: Stop Spark Master
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-master.yaml"
+        kind: Deployment
+        name: spark-master
+        namespace: default
 
     # Step 4: Remove the master service after the deployment is gone
     - name: Remove Spark Master Service
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-master-service.yaml"
+        kind: Service
+        name: spark-master
+        namespace: default
         
     # Step 5: Remove the headless service
     - name: Remove Spark Master Headless Service
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-master-headless.yaml"
+        kind: Service
+        name: spark-master-headless
+        namespace: default
 
-    # Step 5: Finally remove the configmap after all pods are gone
+    # Step 6: Finally remove the configmap after all pods are gone
     - name: Remove Spark ConfigMap
       k8s:
         kubeconfig: /home/{{ ansible_user }}/.kube/config
         state: absent
-        src: "{{ k8s_config_dir }}/spark-configmap.yaml"
+        kind: ConfigMap
+        name: spark-config
+        namespace: default
