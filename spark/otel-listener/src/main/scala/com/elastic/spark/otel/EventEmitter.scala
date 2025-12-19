@@ -106,6 +106,9 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
    * Use this for critical updates (e.g., app, job, stage end events) where we need
    * guaranteed delivery before application termination.
    * 
+   * IMPORTANT: Flushes any pending event batches first to ensure the START event
+   * is indexed before attempting the update.
+   * 
    * @param eventId The event ID to update
    * @param state The new state (typically "closed")
    * @param maxRetries Maximum number of retry attempts (default: 5)
@@ -115,6 +118,10 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       logger.warn(s"Cannot update event state: eventId is null or empty")
       return
     }
+
+    // CRITICAL: Flush pending event batches first to ensure START events are indexed
+    // before we try to update them
+    flushEvents()
 
     var retryCount = 0
     var success = false
@@ -129,10 +136,12 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
           // Success, exit loop
         case Failure(e) if retryCount < maxRetries - 1 =>
           val errorMsg = Option(e.getMessage).getOrElse(e.getClass.getName)
-          // Don't retry "document missing" errors - the START event doesn't exist
+          // For "document missing" errors, wait a bit and retry (START event may still be indexing)
           if (errorMsg.contains("document missing") || errorMsg.contains("not_found")) {
-            logger.warn(s"Event $eventId not found in Elasticsearch, skipping update (START event may not have been indexed)")
-            success = true // Mark as handled to exit loop
+            retryCount += 1
+            val delay = RETRY_DELAY_MS * retryCount * 2 // Longer delay for indexing to complete
+            logger.warn(s"Event $eventId not found in Elasticsearch (attempt $retryCount/$maxRetries), waiting ${delay}ms for indexing to complete")
+            Thread.sleep(delay)
           } else {
             retryCount += 1
             val delay = RETRY_DELAY_MS * retryCount
