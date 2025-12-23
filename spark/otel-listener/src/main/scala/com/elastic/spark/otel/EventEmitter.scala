@@ -399,9 +399,8 @@ class EventAnalytics {
   private val logger = LoggerFactory.getLogger(classOf[EventAnalytics])
   
   // CSV writer and file - initialized via helper method
-  private val (logFile, writer): (java.io.File, PrintWriter) = createWriter()
-  
-  private def createWriter(): (java.io.File, PrintWriter) = {
+  // Using lazy initialization pattern
+  private lazy val writerAndFile: (java.io.File, PrintWriter) = {
     val sparkLogDir = sys.env.getOrElse("SPARK_LOG_DIR", "/opt/spark/logs")
     val logDir = Paths.get(sparkLogDir)
     
@@ -428,6 +427,9 @@ class EventAnalytics {
     pw.flush()
     (file, pw)
   }
+  
+  val logFile: java.io.File = writerAndFile._1
+  private val writer: PrintWriter = writerAndFile._2
   
   /**
    * Format timestamp for LibreOffice Calc (MM/dd/yyyy HH:mm:ss.SSS)
