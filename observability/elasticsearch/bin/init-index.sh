@@ -694,10 +694,6 @@ else
   echo "  (data stream already exists, skipping)"
 fi
 
-echo "Creating application-events-match watcher..."
-esapi PUT /_watcher/watch/application-events-match ${ES_CONFIG_DIR}/application-events-metrics/application-events-match.watcher.json \
-  > /dev/null 2>&1
-
 echo "Creating application-events-metrics watcher..."
 esapi PUT /_watcher/watch/application-events-metrics ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.watcher.json \
   > /dev/null 2>&1
@@ -745,6 +741,33 @@ kapi POST /api/saved_objects/search/spark-otel-errors?overwrite=true \
 echo "✅ Spark OTel errors initialized"
 
 # ============================================================================
+# STEP 18: Initialize Watcher History Cleanup (ILM Policy, Template, Cleanup Watcher)
+# ============================================================================
+echo ""
+echo "=== STEP 18: INITIALIZING WATCHER HISTORY CLEANUP ==="
+
+echo "Creating watcher-history ILM policy..."
+esapi PUT /_ilm/policy/watcher-history \
+  ${ES_CONFIG_DIR}/watcher-history/watcher-history.ilm.json \
+  > ${ES_OUTPUTS_DIR}/watcher-history.ilm.out.json
+
+echo "Creating watcher-history index template..."
+esapi PUT /_index_template/watcher-history \
+  ${ES_CONFIG_DIR}/watcher-history/watcher-history.template.json \
+  > ${ES_OUTPUTS_DIR}/watcher-history.template.out.json
+
+echo "Applying ILM policy to existing watcher history indices..."
+# Apply ILM policy to any existing watcher history indices
+esapi POST "/.watcher-history-*/_settings" -d '{"index.lifecycle.name":"watcher-history"}' > /dev/null 2>&1 || true
+
+echo "Creating watcher-history-cleanup watcher..."
+esapi PUT /_watcher/watch/watcher-history-cleanup \
+  ${ES_CONFIG_DIR}/watcher-history/watcher-history-cleanup.watcher.json \
+  > ${ES_OUTPUTS_DIR}/watcher-history-cleanup.watcher.out.json
+
+echo "✅ Watcher history cleanup initialized"
+
+# ============================================================================
 # COMPLETION
 # ============================================================================
 echo ""
@@ -757,7 +780,7 @@ echo "  - Elasticsearch: Available and configured"
 echo "  - Kibana: Available with password set"
 echo "  - ILM Policies: Created for all indices"
 echo "  - Index Templates: Created for all indices"
-echo "  - Watchers: Configured for batch events and metrics"
+echo "  - Watchers: Configured for batch events, metrics, and history cleanup"
 echo "  - Data Views: Created for all data sources"
 echo "  - Searches: Created for all data views"
 echo ""
