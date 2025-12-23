@@ -121,12 +121,12 @@ class OTelSparkListener extends SparkListener {
   private val taskSpans: TrieMap[Long, Span] = TrieMap.empty
   private val sqlExecutionSpans: TrieMap[Long, Span] = TrieMap.empty
 
-  // Track event IDs for correlation
-  private val appEventIds: TrieMap[String, String] = TrieMap.empty
-  private val jobEventIds: TrieMap[Int, String] = TrieMap.empty
-  private val stageEventIds: TrieMap[Int, String] = TrieMap.empty
-  private val taskEventIds: TrieMap[Long, String] = TrieMap.empty
-  private val sqlEventIds: TrieMap[Long, String] = TrieMap.empty
+  // Unified event metadata maps (replaces separate eventIds and startTimes maps)
+  private val appEventMetadata: TrieMap[String, EventStartMetadata] = TrieMap.empty  // key: appId
+  private val jobEventMetadata: TrieMap[String, EventStartMetadata] = TrieMap.empty  // key: composite job key
+  private val stageEventMetadata: TrieMap[String, EventStartMetadata] = TrieMap.empty  // key: composite stage key
+  private val taskEventMetadata: TrieMap[String, EventStartMetadata] = TrieMap.empty  // key: composite task key
+  private val sqlEventMetadata: TrieMap[String, EventStartMetadata] = TrieMap.empty  // key: composite sql key
   
   // Store semantic operation and confidence for refinement in onStageCompleted
   private val stageSemanticData: TrieMap[Int, (String, Double)] = TrieMap.empty
@@ -134,27 +134,199 @@ class OTelSparkListener extends SparkListener {
   // Track application names for correlation
   private val appNames: TrieMap[String, String] = TrieMap.empty
   
+  // Composite key helper functions for unique event identification
+  // Format: EventType:{appId}:{id1}:{id2}... to avoid name conflicts and ensure uniqueness
+  private def appKey(appId: String): String = s"App:$appId"
+  private def taskKey(appId: String, stageId: Int, taskId: Long): String = s"Task:$appId:$stageId:$taskId"
+  private def stageKey(appId: String, jobId: Int, stageId: Int): String = s"Stage:$appId:$jobId:$stageId"
+  private def jobKey(appId: String, jobId: Int): String = s"Job:$appId:$jobId"
+  private def sqlKey(appId: String, executionId: Long): String = s"SQL:$appId:$executionId"
+  
+  /**
+   * Close residual child events (events that didn't get an onEnd call due to errors).
+   * Uses prefix matching on correlation keys to find child events.
+   * 
+   * @param parentKey The parent correlation key (e.g., "App:app-123" or "Job:app-123:5")
+   * @param parentType The type of parent event ("App", "Job", or "Stage")
+   */
+  private def closeResidualChildEvents(parentKey: String, parentType: String): Unit = {
+    if (parentType == "App") {
+      // Extract appId from App:appId
+      val appId = parentKey.substring(4)  // Remove "App:" prefix
+      
+      // Close residual SQL events: SQL:appId:*
+      val residualSql = sqlEventMetadata.iterator.filter { case (key, _) =>
+        key.startsWith(s"SQL:$appId:")
+      }.toSeq
+      if (residualSql.nonEmpty) {
+        logger.info(s"Closing ${residualSql.size} residual SQL events for application $appId")
+        residualSql.foreach { case (key, metadata) =>
+          eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
+          sqlEventMetadata.remove(key)
+        }
+      }
+      
+      // Close residual Job events: Job:appId:*
+      val residualJobs = jobEventMetadata.iterator.filter { case (key, _) =>
+        key.startsWith(s"Job:$appId:")
+      }.toSeq
+        if (residualJobs.nonEmpty) {
+        logger.info(s"Closing ${residualJobs.size} residual Job events and their children for application $appId")
+        residualJobs.foreach { case (jobKey, jobMetadata) =>
+          // Recursively close children of this job
+          closeResidualChildEvents(jobKey, "Job")
+          eventEmitter.closeStartEvent(jobMetadata.eventId, closedBy = "parent")
+          jobEventMetadata.remove(jobKey)
+        }
+      }
+      
+      // Close residual Stage events: Stage:appId:* (both Stage:appId:jobId:stageId and Stage:appId:stageId)
+      val residualStages = stageEventMetadata.iterator.filter { case (key, _) =>
+        key.startsWith(s"Stage:$appId:")
+      }.toSeq
+        if (residualStages.nonEmpty) {
+        logger.info(s"Closing ${residualStages.size} residual Stage events and their children for application $appId")
+        residualStages.foreach { case (stageKey, stageMetadata) =>
+          // Recursively close children of this stage
+          closeResidualChildEvents(stageKey, "Stage")
+          eventEmitter.closeStartEvent(stageMetadata.eventId, closedBy = "parent")
+          stageEventMetadata.remove(stageKey)
+        }
+      }
+      
+      // Close residual Task events: Task:appId:*
+      val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
+        key.startsWith(s"Task:$appId:")
+      }.toSeq
+      if (residualTasks.nonEmpty) {
+        logger.info(s"Closing ${residualTasks.size} residual Task events for application $appId")
+        residualTasks.foreach { case (key, metadata) =>
+          eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
+          taskEventMetadata.remove(key)
+        }
+      }
+      
+    } else if (parentType == "Job") {
+      // Extract appId and jobId from Job:appId:jobId
+      val parts = parentKey.split(":")
+      if (parts.length >= 3) {
+        val appId = parts(1)
+        val jobId = parts(2)
+        
+        // Close residual Stage events: Stage:appId:jobId:*
+        val residualStages = stageEventMetadata.iterator.filter { case (key, _) =>
+          key.startsWith(s"Stage:$appId:$jobId:")
+        }.toSeq
+        if (residualStages.nonEmpty) {
+          logger.debug(s"Closing ${residualStages.size} residual Stage events for job $jobId")
+          residualStages.foreach { case (stageKey, stageMetadata) =>
+            // Recursively close children of this stage
+            closeResidualChildEvents(stageKey, "Stage")
+            eventEmitter.closeStartEvent(stageMetadata.eventId, closedBy = "parent")
+            stageEventMetadata.remove(stageKey)
+          }
+        }
+        
+        // Close residual Task events: Task:appId:* (tasks under stages of this job)
+        // Note: We can't directly match tasks to jobs, so we close tasks of all stages in this job
+        // We already handled stages above, so this is a fallback for orphaned tasks
+      }
+      
+    } else if (parentType == "Stage") {
+      // Extract appId and stageId from Stage:appId:jobId:stageId or Stage:appId:stageId
+      val parts = parentKey.split(":")
+      if (parts.length >= 4) {
+        // Format: Stage:appId:jobId:stageId
+        val appId = parts(1)
+        val stageId = parts(3)
+        
+        // Close residual Task events: Task:appId:stageId:*
+        val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
+          key.startsWith(s"Task:$appId:$stageId:")
+        }.toSeq
+        if (residualTasks.nonEmpty) {
+          logger.debug(s"Closing ${residualTasks.size} residual Task events for stage $stageId")
+          residualTasks.foreach { case (key, metadata) =>
+            eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
+            taskEventMetadata.remove(key)
+          }
+        }
+      } else if (parts.length == 3) {
+        // Format: Stage:appId:stageId (fallback format)
+        val appId = parts(1)
+        val stageId = parts(2)
+        
+        // Close residual Task events: Task:appId:stageId:*
+        val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
+          key.startsWith(s"Task:$appId:$stageId:")
+        }.toSeq
+        if (residualTasks.nonEmpty) {
+          logger.debug(s"Closing ${residualTasks.size} residual Task events for stage $stageId")
+          residualTasks.foreach { case (key, metadata) =>
+            eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
+            taskEventMetadata.remove(key)
+          }
+        }
+      }
+    }
+  }
+  
   // ISO 8601 timestamp formatter
   private val isoFormatter = DateTimeFormatter.ISO_INSTANT
 
   logger.info(s"OTelSparkListener initialized - OTLP endpoint: $otlpEndpoint, service: $serviceName")
   logger.info(s"EventEmitter initialized - Elasticsearch URL: $elasticsearchUrl")
 
+  // Generate unique app ID when Spark doesn't provide one
+  private def generateAppId(): String = {
+    val timestamp = java.time.LocalDateTime.now().format(
+      java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+    )
+    val random = java.util.concurrent.ThreadLocalRandom.current().nextInt(10000)
+    s"app-$timestamp-$random"
+  }
+
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
     val startNanos = System.nanoTime()
     try {
       val appName = applicationStart.appName
-      val appId = applicationStart.appId.getOrElse("unknown")
+      val appId = applicationStart.appId.getOrElse {
+        val generatedId = generateAppId()
+        logger.error(s"CRITICAL: Application ID not provided by Spark for app '$appName', generated unique ID: $generatedId")
+        generatedId
+      }
       val user = applicationStart.sparkUser
       val startTime = applicationStart.time
       val timestamp = Instant.ofEpochMilli(startTime)
 
       logger.info(s"Application started: $appName (ID: $appId, User: $user)")
 
-      // Generate event ID (standard UUID for clean correlation)
+      // Generate event ID and correlation key
       val eventId = UUID.randomUUID().toString
+      val correlationKey = appKey(appId)
       
-      // Emit START event
+      // Store unified metadata BEFORE emitting (prevents race condition)
+      val metadata = EventStartMetadata(eventId, startTime, correlationKey)
+      appEventMetadata.put(correlationKey, metadata)  // Use correlationKey (App:appId) as map key
+      appNames.put(appId, appName)
+      
+      // Create span first to get span ID for correlation
+      val span = tracer.spanBuilder(s"spark.application.$appName")
+        .setSpanKind(SpanKind.SERVER)
+        .setStartTimestamp(timestamp)
+        .setAttribute("spark.app.name", appName)
+        .setAttribute("spark.app.id", appId)
+        .setAttribute("spark.user", user)
+        .setAttribute("service.name", serviceName)
+        .setAttribute("span.kind", "Spark.app")
+        .setAttribute("correlation.event.start.id", eventId)
+        .startSpan()
+      
+      val spanId = span.getSpanContext.getSpanId
+      val traceId = span.getSpanContext.getTraceId
+      applicationSpan.put(appId, span)
+      
+      // Emit START event with correlation key and span ID
       val startEvent = ApplicationEvent(
         `@timestamp` = isoFormatter.format(timestamp),
         event = EventMetadata(
@@ -166,32 +338,21 @@ class OTelSparkListener extends SparkListener {
         operation = Operation(
           `type` = "app",
           id = appId,
-          name = appName
+          name = appName,
+          `correlation.key` = Some(correlationKey)
         ),
-        correlation = Correlation(),
+        correlation = Correlation(
+          `span.id` = Some(spanId),
+          `trace.id` = Some(traceId),
+          `correlation.key` = Some(correlationKey)
+        ),
         spark = Some(SparkMetadata(
           `app.id` = Some(appId),
           `app.name` = Some(appName),
           user = Some(user)
         ))
       )
-      eventEmitter.emitEvent(startEvent)
-      appEventIds.put(appId, eventId)
-      appNames.put(appId, appName)
-
-      // Create span with event correlation
-      val span = tracer.spanBuilder(s"spark.application.$appName")
-        .setSpanKind(SpanKind.SERVER)
-        .setStartTimestamp(timestamp)
-        .setAttribute("spark.app.name", appName)
-        .setAttribute("spark.app.id", appId)
-        .setAttribute("spark.user", user)
-        .setAttribute("service.name", serviceName)
-        .setAttribute("span.kind", "Spark.app")
-        .setAttribute("correlation.event.start.id", eventId)
-        .startSpan()
-
-      applicationSpan.put(appId, span)
+      eventEmitter.emitStartEvent(startEvent, correlationKey)
       
       val elapsedMs = (System.nanoTime() - startNanos) / 1000000
       logger.debug(s"onApplicationStart completed in ${elapsedMs}ms")
@@ -211,22 +372,33 @@ class OTelSparkListener extends SparkListener {
       logger.info(s"Application ended at $endTime")
 
       applicationSpan.foreach { case (appId, span) =>
-        // Get start event ID and app name
-        val startEventId = appEventIds.get(appId).orNull
+        // Get unified metadata and app name (use correlationKey: App:appId)
+        val correlationKey = appKey(appId)
+        val metadata = appEventMetadata.get(correlationKey)
         val appName = appNames.get(appId).getOrElse("unknown")
         val spanId = span.getSpanContext.getSpanId
         val traceId = span.getSpanContext.getTraceId
         
+        // Error if metadata is missing
+        if (metadata.isEmpty) {
+          logger.error(s"CRITICAL: START event metadata missing for app $appId in onApplicationEnd - START event will remain open!")
+        }
+        
         // Generate end event ID (standard UUID)
         val endEventId = UUID.randomUUID().toString
+        // correlationKey already defined above (line 246)
         
-        // Calculate duration
-        val duration = if (startEventId != null) {
-          // We'd need to track start time, for now use span
-          None
-        } else None
+        // Calculate duration: end time - start time
+        val duration = metadata match {
+          case Some(m) =>
+            val durationMs = endTime - m.startTime
+            Some(durationMs * 1000000)  // Convert to nanoseconds
+          case None =>
+            logger.error(s"CRITICAL: Start metadata missing for app $appId - cannot calculate duration")
+            None
+        }
         
-        // Emit END event
+        // Emit END event with correlation key and span ID
         val endEvent = ApplicationEvent(
           `@timestamp` = isoFormatter.format(timestamp),
           event = EventMetadata(
@@ -240,35 +412,51 @@ class OTelSparkListener extends SparkListener {
             `type` = "app",
             id = appId,
             name = appName,
-            result = Some("SUCCESS")
+            result = Some("SUCCESS"),
+            `correlation.key` = Some(correlationKey)
           ),
           correlation = Correlation(
             `span.id` = Some(spanId),
             `trace.id` = Some(traceId),
-            `start.event.id` = Option(startEventId)
+            `start.event.id` = metadata.map(_.eventId),
+            `correlation.key` = Some(correlationKey)
           ),
           spark = Some(SparkMetadata(
             `app.id` = Some(appId),
             `app.name` = Some(appName)
           ))
         )
-        eventEmitter.emitEvent(endEvent)
+        eventEmitter.emitEndEvent(endEvent, correlationKey)
         
-        // Update the corresponding START event to "closed" immediately (critical: app end)
-        if (startEventId != null) {
-          eventEmitter.updateEventStateImmediate(startEventId, "closed")
+        // Close the corresponding START event
+        metadata match {
+          case Some(m) =>
+            eventEmitter.closeStartEvent(m.eventId)
+            appEventMetadata.remove(correlationKey)  // Use correlationKey (App:appId) as map key
+          case None =>
+            logger.error(s"CRITICAL: Cannot close START event for app $appId - metadata is None")
         }
+        
+        // Close residual child events (events that didn't get an onEnd call due to errors)
+        logger.info(s"Checking for residual child events for application $appId")
+        closeResidualChildEvents(correlationKey, "App")
         
         // Complete span
         span.setAttribute("correlation.event.end.id", endEventId)
         span.setStatus(StatusCode.OK)
         span.end(timestamp)
       }
-      applicationSpan.clear()
-      appEventIds.clear()
-      appNames.clear()
+      // CRITICAL: Flush all pending events to Elasticsearch before clearing maps.
+      eventEmitter.flushAll()
 
-      // Shutdown event emitter first
+      // Cleanup application-level structures only
+      applicationSpan.clear()
+      appNames.clear()
+      // NOTE: Job/stage/task/sql metadata maps are cleared when their END events are processed
+      // DO NOT clear stageSemanticData - used by stages
+
+      // Shutdown event emitter (events already flushed above, shutdown just stops the executor)
+      // Use a shorter timeout to avoid blocking Spark shutdown
       eventEmitter.shutdown()
       
       // Shutdown OpenTelemetry to flush remaining spans
@@ -301,32 +489,13 @@ class OTelSparkListener extends SparkListener {
         (id, appNames.getOrElse(id, "unknown"))
       }.getOrElse(("unknown", "unknown"))
       
-      // Emit START event
-      val startEvent = ApplicationEvent(
-        `@timestamp` = isoFormatter.format(timestamp),
-        event = EventMetadata(
-          id = eventId,
-          `type` = "start",
-          category = "application",
-          state = "open"
-        ),
-        application = "spark",
-        operation = Operation(
-          `type` = "job",
-          id = s"job-$jobId",
-          name = s"Job $jobId"
-        ),
-        correlation = Correlation(),
-        spark = Some(SparkMetadata(
-          `app.id` = Some(appId),
-          `app.name` = Some(appName),
-          `job.id` = Some(jobId),
-          `job.stage.count` = Some(stageIds.length.toLong)
-        ))
-      )
-      eventEmitter.emitEvent(startEvent)
-      jobEventIds.put(jobId, eventId)
-
+      // Generate composite correlation key
+      val correlationKey = jobKey(appId, jobId)
+      
+      // Store unified metadata BEFORE emitting (prevents race condition)
+      val metadata = EventStartMetadata(eventId, time, correlationKey)
+      jobEventMetadata.put(correlationKey, metadata)
+      
       // Get parent context from application span
       val parentSpan = applicationSpan.values.headOption
 
@@ -359,7 +528,39 @@ class OTelSparkListener extends SparkListener {
       }
 
       val span = spanBuilder.startSpan()
+      val spanId = span.getSpanContext.getSpanId
+      val traceId = span.getSpanContext.getTraceId
       jobSpans.put(jobId, span)
+      
+      // Emit START event with correlation key and span ID
+      val startEvent = ApplicationEvent(
+        `@timestamp` = isoFormatter.format(timestamp),
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          category = "application",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "job",
+          id = s"job-$jobId",
+          name = s"Job $jobId",
+          `correlation.key` = Some(correlationKey)
+        ),
+        correlation = Correlation(
+          `span.id` = Some(spanId),
+          `trace.id` = Some(traceId),
+          `correlation.key` = Some(correlationKey)
+        ),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = Some(appName),
+          `job.id` = Some(jobId),
+          `job.stage.count` = Some(stageIds.length.toLong)
+        ))
+      )
+      eventEmitter.emitStartEvent(startEvent, correlationKey)
     } catch {
       case e: Exception =>
         logger.error(s"Error in onJobStart for job ${jobStart.jobId}", e)
@@ -378,12 +579,28 @@ class OTelSparkListener extends SparkListener {
         (id, appNames.getOrElse(id, "unknown"))
       }.getOrElse(("unknown", "unknown"))
       
-      // Generate end event ID
+      // Generate end event ID and correlation key
       val endEventId = UUID.randomUUID().toString
       val timestamp = Instant.ofEpochMilli(time)
+      val correlationKey = jobKey(appId, jobId)
       
-      // Get start event ID
-      val startEventId = jobEventIds.get(jobId).orNull
+      // Get unified metadata
+      val metadata = jobEventMetadata.get(correlationKey)
+      
+      // Error if metadata is missing
+      if (metadata.isEmpty) {
+        logger.error(s"CRITICAL: START event metadata missing for job $jobId (key: $correlationKey) in onJobEnd - START event will remain open!")
+      }
+      
+      // Calculate duration: end time - start time
+      val duration = metadata match {
+        case Some(m) =>
+          val durationMs = time - m.startTime
+          Some(durationMs * 1000000)  // Convert to nanoseconds
+        case None =>
+          logger.error(s"CRITICAL: Start metadata missing for job $jobId - cannot calculate duration")
+          None
+      }
       
       // Determine result
       val result = jobEnd.jobResult match {
@@ -391,24 +608,34 @@ class OTelSparkListener extends SparkListener {
         case JobFailed(_) => "FAILED"
       }
       
-      // Emit END event
+      // Get span for span ID
+      val spanOption = jobSpans.get(jobId)
+      val spanId = spanOption.map(s => s.getSpanContext.getSpanId)
+      val traceId = spanOption.map(s => s.getSpanContext.getTraceId)
+      
+      // Emit END event with correlation key and span ID
       val endEvent = ApplicationEvent(
         `@timestamp` = isoFormatter.format(timestamp),
         event = EventMetadata(
           id = endEventId,
           `type` = "end",
           category = "application",
-          state = "closed"
+          state = "closed",
+          duration = duration
         ),
         application = "spark",
         operation = Operation(
           `type` = "job",
           id = s"job-$jobId",
           name = s"Job $jobId",
-          result = Some(result)
+          result = Some(result),
+          `correlation.key` = Some(correlationKey)
         ),
         correlation = Correlation(
-          `start.event.id` = Option(startEventId)
+          `span.id` = spanId,
+          `trace.id` = traceId,
+          `start.event.id` = metadata.map(_.eventId),
+          `correlation.key` = Some(correlationKey)
         ),
         spark = Some(SparkMetadata(
           `app.id` = Some(appId),
@@ -416,15 +643,24 @@ class OTelSparkListener extends SparkListener {
           `job.id` = Some(jobId)
         ))
       )
-      eventEmitter.emitEvent(endEvent)
+      eventEmitter.emitEndEvent(endEvent, correlationKey)
       
-      // Update the corresponding START event to "closed" immediately (critical: job end)
-      if (startEventId != null) {
-        eventEmitter.updateEventStateImmediate(startEventId, "closed")
+      // Close the corresponding START event
+      metadata match {
+        case Some(m) =>
+          eventEmitter.closeStartEvent(m.eventId)
+          jobEventMetadata.remove(correlationKey)
+          
+          // Close residual child events (events that didn't get an onEnd call due to errors)
+          logger.debug(s"Checking for residual child events for job $jobId")
+          closeResidualChildEvents(correlationKey, "Job")
+        case None =>
+          logger.error(s"CRITICAL: Cannot close START event for job $jobId - metadata is None")
       }
       
-      // Clean up
-      jobEventIds.remove(jobId)
+      
+      // Clean up job-level structures (but NOT lower-level events like tasks/stages)
+      // Metadata is already removed in the closeStartEvent call above
 
       jobSpans.remove(jobId).foreach { span =>
         // Set status based on job result
@@ -462,38 +698,19 @@ class OTelSparkListener extends SparkListener {
       // Generate event ID (standard UUID)
       val eventId = UUID.randomUUID().toString
       
-      // Get parent job ID if available
+      // Get parent job ID and app ID for composite key
       val parentJobId = jobSpans.keys.headOption
+      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
       
-      // Emit START event
-      val startEvent = ApplicationEvent(
-        `@timestamp` = isoFormatter.format(timestamp),
-        event = EventMetadata(
-          id = eventId,
-          `type` = "start",
-          state = "open"
-        ),
-        application = "spark",
-        operation = Operation(
-          `type` = "stage",
-          id = s"stage-$stageId",
-          name = stageName,
-          `parent.id` = parentJobId.map(jid => s"job-$jid")
-        ),
-        correlation = Correlation(
-          `parent.event.id` = parentJobId.flatMap(jobEventIds.get)
-        ),
-        spark = Some(SparkMetadata(
-          `app.id` = applicationSpan.keys.headOption,
-          `stage.id` = Some(stageId.toLong),
-          `stage.name` = Some(stageName),
-          `stage.attempt` = Some(attemptNumber.toLong),
-          `stage.num.tasks` = Some(numTasks.toLong),
-          `job.id` = parentJobId.map(_.toLong)
-        ))
-      )
-      eventEmitter.emitEvent(startEvent)
-      stageEventIds.put(stageId, eventId)
+      // Generate composite correlation key
+      val correlationKey = parentJobId match {
+        case Some(jid) => stageKey(appId, jid, stageId)
+        case None => s"Stage:$appId:$stageId"  // Fallback: Stage:{appId}:{stageId} if no job context
+      }
+      
+      // Store unified metadata BEFORE emitting (prevents race condition)
+      val metadata = EventStartMetadata(eventId, submissionTime, correlationKey)
+      stageEventMetadata.put(correlationKey, metadata)
 
       // Try to get parent job span - in Spark 4.0, we need to find it from active jobs
       // For simplicity, we'll use the first available job span
@@ -607,14 +824,51 @@ class OTelSparkListener extends SparkListener {
       }
 
       val span = spanBuilder.startSpan()
+      val spanId = span.getSpanContext.getSpanId
+      val traceId = span.getSpanContext.getTraceId
       stageSpans.put(stageId, span)
       
-      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
-      if (elapsedMs > 100) {
-        logger.warn(s"onStageSubmitted took ${elapsedMs}ms for stage $stageId")
-      } else {
-        logger.debug(s"onStageSubmitted completed in ${elapsedMs}ms for stage $stageId")
+      // Get parent job event ID for correlation
+      val parentJobEventId = parentJobId.flatMap { jid =>
+        val jobCorrelationKey = jobKey(appId, jid)
+        jobEventMetadata.get(jobCorrelationKey).map(_.eventId)
       }
+      
+      // Emit START event with correlation key and span ID
+      val startEvent = ApplicationEvent(
+        `@timestamp` = isoFormatter.format(timestamp),
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "stage",
+          id = s"stage-$stageId",
+          name = stageName,
+          `parent.id` = parentJobId.map(jid => s"job-$jid"),
+          `correlation.key` = Some(correlationKey)
+        ),
+        correlation = Correlation(
+          `span.id` = Some(spanId),
+          `trace.id` = Some(traceId),
+          `parent.event.id` = parentJobEventId,
+          `correlation.key` = Some(correlationKey)
+        ),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `stage.id` = Some(stageId.toLong),
+          `stage.name` = Some(stageName),
+          `stage.attempt` = Some(attemptNumber.toLong),
+          `stage.num.tasks` = Some(numTasks.toLong),
+          `job.id` = parentJobId.map(_.toLong)
+        ))
+      )
+      eventEmitter.emitStartEvent(startEvent, correlationKey)
+      
+      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
+      logger.debug(s"onStageSubmitted completed in ${elapsedMs}ms for stage $stageId")
     } catch {
       case e: Exception =>
         val elapsedMs = (System.nanoTime() - startNanos) / 1000000
@@ -634,14 +888,40 @@ class OTelSparkListener extends SparkListener {
 
       logger.debug(s"Stage $stageId completed")
 
-      stageSpans.remove(stageId).foreach { span =>
-        // Get start event ID
-        val startEventId = stageEventIds.remove(stageId).orNull
+      // Get app ID and parent job ID for composite key
+      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+      val parentJobId = jobSpans.keys.headOption
+      
+      // Generate composite correlation key (must match onStageSubmitted)
+      val correlationKey = parentJobId match {
+        case Some(jid) => stageKey(appId, jid, stageId)
+        case None => s"Stage:$appId:$stageId"  // Fallback: Stage:{appId}:{stageId} if no job context
+      }
+      
+      // Get unified metadata
+      val metadata = stageEventMetadata.get(correlationKey)
+      
+      stageSpans.get(stageId).foreach { span =>
         val spanId = span.getSpanContext.getSpanId
         val traceId = span.getSpanContext.getTraceId
         
+        // Error if metadata is missing
+        if (metadata.isEmpty) {
+          logger.error(s"CRITICAL: START event metadata missing for stage $stageId (key: $correlationKey) in onStageCompleted - START event will remain open!")
+        }
+        
         // Generate end event ID (standard UUID)
         val endEventId = UUID.randomUUID().toString
+        
+        // Calculate duration: end time - start time
+        val duration = metadata match {
+          case Some(m) =>
+            val durationMs = completionTime - m.startTime
+            Some(durationMs * 1000000)  // Convert to nanoseconds
+          case None =>
+            logger.error(s"CRITICAL: Start metadata missing for stage $stageId - cannot calculate duration")
+            None
+        }
         
         // Determine result
         val result = if (stageInfo.failureReason.isDefined) "FAILED" else "SUCCESS"
@@ -660,26 +940,28 @@ class OTelSparkListener extends SparkListener {
           ))
         } else None
         
-        // Emit END event
+        // Emit END event with correlation key and span ID
         val endEvent = ApplicationEvent(
           `@timestamp` = isoFormatter.format(timestamp),
           event = EventMetadata(
             id = endEventId,
             `type` = "end",
             state = "closed",
-            duration = Some(durationMs * 1000000) // Convert to nanoseconds
+            duration = duration
           ),
           application = "spark",
           operation = Operation(
             `type` = "stage",
             id = s"stage-$stageId",
             name = stageInfo.name,
-            result = Some(result)
+            result = Some(result),
+            `correlation.key` = Some(correlationKey)
           ),
           correlation = Correlation(
             `span.id` = Some(spanId),
             `trace.id` = Some(traceId),
-            `start.event.id` = Option(startEventId)
+            `start.event.id` = metadata.map(_.eventId),
+            `correlation.key` = Some(correlationKey)
           ),
           spark = Some(SparkMetadata(
             `app.id` = applicationSpan.keys.headOption,
@@ -689,12 +971,23 @@ class OTelSparkListener extends SparkListener {
             metrics = metricsData
           ))
         )
-        eventEmitter.emitEvent(endEvent)
+        eventEmitter.emitEndEvent(endEvent, correlationKey)
         
-        // Update the corresponding START event to "closed" immediately (critical: app end)
-        if (startEventId != null) {
-          eventEmitter.updateEventStateImmediate(startEventId, "closed")
+        // Close the corresponding START event
+        metadata match {
+          case Some(m) =>
+            eventEmitter.closeStartEvent(m.eventId)
+            stageEventMetadata.remove(correlationKey)
+            
+            // Close residual child events (events that didn't get an onEnd call due to errors)
+            logger.debug(s"Checking for residual child events for stage $stageId")
+            closeResidualChildEvents(correlationKey, "Stage")
+          case None =>
+            logger.error(s"CRITICAL: Cannot close START event for stage $stageId - metadata is None")
         }
+        
+        // Remove span after update
+        stageSpans.remove(stageId)
         
         // Add metrics to span
         span.setAttribute("spark.stage.tasks.completed", stageInfo.numTasks.toLong)
@@ -795,43 +1088,24 @@ class OTelSparkListener extends SparkListener {
 
       logger.debug(s"Task ${taskInfo.taskId} started in stage $stageId")
 
-      // Emit task start event if enabled (opt-in due to high volume)
-      if (emitTaskEvents) {
+      val launchTime = taskInfo.launchTime
+      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+      val appName = appNames.get(appId)
+      
+      // Generate event ID and correlation key for tasks (if enabled)
+      val (eventIdOpt, correlationKeyOpt) = if (emitTaskEvents) {
         val eventId = UUID.randomUUID().toString
-        taskEventIds.put(taskInfo.taskId, eventId)
-
-        val appId = applicationSpan.keys.headOption.getOrElse("unknown")
-        val appName = appNames.get(appId)
-
-        val event = ApplicationEvent(
-          `@timestamp` = Instant.ofEpochMilli(taskInfo.launchTime).toString,
-          event = EventMetadata(
-            id = eventId,
-            `type` = "start",
-            category = "application",
-            state = "open"
-          ),
-          application = "spark",
-          operation = Operation(
-            `type` = "task",
-            id = s"task-${taskInfo.taskId}",
-            name = s"Task ${taskInfo.taskId}",
-            `parent.id` = Some(s"stage-$stageId")
-          ),
-          correlation = Correlation(),
-          spark = Some(SparkMetadata(
-            `app.id` = Some(appId),
-            `app.name` = appName,
-            `task.id` = Some(taskInfo.taskId),
-            `task.index` = Some(taskInfo.index),
-            `task.executor.id` = Some(taskInfo.executorId),
-            `stage.id` = Some(stageId)
-          ))
-        )
-
-        eventEmitter.emitEvent(event)
+        val correlationKey = taskKey(appId, stageId, taskInfo.taskId)
+        
+        // Store unified metadata BEFORE emitting
+        val metadata = EventStartMetadata(eventId, launchTime, correlationKey)
+        taskEventMetadata.put(correlationKey, metadata)
+        
+        (Some(eventId), Some(correlationKey))
+      } else {
+        (None, None)
       }
-
+      
       // Get parent stage span
       val parentSpan = stageSpans.get(stageId)
 
@@ -846,10 +1120,8 @@ class OTelSparkListener extends SparkListener {
         .setAttribute("span.kind", "Spark.task")
 
       // Add correlation event ID if task events enabled
-      if (emitTaskEvents) {
-        taskEventIds.get(taskInfo.taskId).foreach { eventId =>
-          spanBuilder.setAttribute("correlation.event.start.id", eventId)
-        }
+      eventIdOpt.foreach { eventId =>
+        spanBuilder.setAttribute("correlation.event.start.id", eventId)
       }
 
       // Set parent if available
@@ -859,11 +1131,50 @@ class OTelSparkListener extends SparkListener {
 
       val span = spanBuilder.startSpan()
       taskSpans.put(taskInfo.taskId, span)
+      
+      // Emit START event for tasks if enabled (after span creation to get span ID)
+      (eventIdOpt, correlationKeyOpt) match {
+        case (Some(eventId), Some(correlationKey)) =>
+          val spanId = span.getSpanContext.getSpanId
+          val traceId = span.getSpanContext.getTraceId
+          
+          val event = ApplicationEvent(
+            `@timestamp` = Instant.ofEpochMilli(launchTime).toString,
+            event = EventMetadata(
+              id = eventId,
+              `type` = "start",
+              category = "application",
+              state = "open"
+            ),
+            application = "spark",
+            operation = Operation(
+              `type` = "task",
+              id = s"task-${taskInfo.taskId}",
+              name = s"Task ${taskInfo.taskId}",
+              `parent.id` = Some(s"stage-$stageId"),
+              `correlation.key` = Some(correlationKey)
+            ),
+            correlation = Correlation(
+              `span.id` = Some(spanId),
+              `trace.id` = Some(traceId),
+              `correlation.key` = Some(correlationKey)
+            ),
+            spark = Some(SparkMetadata(
+              `app.id` = Some(appId),
+              `app.name` = appName,
+              `task.id` = Some(taskInfo.taskId),
+              `task.index` = Some(taskInfo.index),
+              `task.executor.id` = Some(taskInfo.executorId),
+              `stage.id` = Some(stageId)
+            ))
+          )
+          eventEmitter.emitStartEvent(event, correlationKey)
+        case _ =>
+          // Task events disabled, skip
+      }
 
       val elapsedMs = (System.nanoTime() - startNanos) / 1000000
-      if (elapsedMs > 100) {
-        logger.warn(s"onTaskStart took ${elapsedMs}ms for task ${taskInfo.taskId}")
-      }
+      logger.debug(s"onTaskStart completed in ${elapsedMs}ms for task ${taskInfo.taskId}")
     } catch {
       case e: Exception =>
         val elapsedMs = (System.nanoTime() - startNanos) / 1000000
@@ -879,14 +1190,43 @@ class OTelSparkListener extends SparkListener {
 
       // Emit task end event if enabled
       if (emitTaskEvents) {
-        val startEventId = taskEventIds.remove(taskInfo.taskId)
+        val stageId = taskEnd.stageId
+        val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+        
+        // Generate composite correlation key (must match onTaskStart)
+        val correlationKey = taskKey(appId, stageId, taskInfo.taskId)
+        
+        // Get unified metadata
+        val metadata = taskEventMetadata.get(correlationKey)
+        
+        // Error if metadata is missing
+        if (metadata.isEmpty) {
+          logger.error(s"CRITICAL: START event metadata missing for task ${taskInfo.taskId} (key: $correlationKey) in onTaskEnd! Map contains ${taskEventMetadata.size} entries. This means either:")
+          logger.error(s"  1. onTaskStart was never called for this task, OR")
+          logger.error(s"  2. The correlation key doesn't match (onTaskStart used different key), OR")
+          logger.error(s"  3. The map was cleared prematurely")
+          // List some keys in the map for debugging
+          val sampleKeys = taskEventMetadata.keys.take(5).mkString(", ")
+          logger.error(s"  Sample correlation keys in map: $sampleKeys")
+        }
+        
         val spanOption = taskSpans.get(taskInfo.taskId)
         val spanId = spanOption.map(s => s.getSpanContext.getSpanId)
         val traceId = spanOption.map(s => s.getSpanContext.getTraceId)
         val endEventId = UUID.randomUUID().toString
-
-        val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+        // appId already defined above (line 1052)
         val appName = appNames.get(appId)
+        val finishTime = taskInfo.finishTime
+
+        // Calculate duration: end time - start time
+        val duration = metadata match {
+          case Some(m) =>
+            val durationMs = finishTime - m.startTime
+            Some(durationMs * 1000000)  // Convert to nanoseconds
+          case None =>
+            logger.error(s"CRITICAL: Start metadata missing for task ${taskInfo.taskId} - cannot calculate duration")
+            None
+        }
 
         val result = taskEnd.reason match {
           case _: org.apache.spark.Success.type => "SUCCESS"
@@ -906,24 +1246,27 @@ class OTelSparkListener extends SparkListener {
         } else None
 
         val event = ApplicationEvent(
-          `@timestamp` = Instant.ofEpochMilli(taskInfo.finishTime).toString,
+          `@timestamp` = Instant.ofEpochMilli(finishTime).toString,
           event = EventMetadata(
             id = endEventId,
             `type` = "end",
             category = "application",
-            state = "closed"
+            state = "closed",
+            duration = duration
           ),
           application = "spark",
           operation = Operation(
             `type` = "task",
             id = s"task-${taskInfo.taskId}",
             name = s"Task ${taskInfo.taskId}",
-            result = Some(result)
+            result = Some(result),
+            `correlation.key` = Some(correlationKey)
           ),
           correlation = Correlation(
             `span.id` = spanId,
             `trace.id` = traceId,
-            `start.event.id` = startEventId
+            `start.event.id` = metadata.map(_.eventId),
+            `correlation.key` = Some(correlationKey)
           ),
           spark = Some(SparkMetadata(
             `app.id` = Some(appId),
@@ -936,11 +1279,15 @@ class OTelSparkListener extends SparkListener {
           ))
         )
 
-        eventEmitter.emitEvent(event)
+        eventEmitter.emitEndEvent(event, correlationKey)
         
-        // Update the corresponding START event to "closed" if we have the start event ID
-        startEventId.foreach { id =>
-          eventEmitter.updateEventState(id, "closed")
+        // Close the corresponding START event
+        metadata match {
+          case Some(m) =>
+            eventEmitter.closeStartEvent(m.eventId)
+            taskEventMetadata.remove(correlationKey)
+          case None =>
+            logger.error(s"CRITICAL: Cannot close START event for task ${taskInfo.taskId} - metadata is None")
         }
       }
 
@@ -1004,44 +1351,19 @@ class OTelSparkListener extends SparkListener {
       
       logger.info(s"SQL execution $executionId started: $description")
 
-      // Generate event ID (standard UUID)
-      val eventId = UUID.randomUUID().toString
-      sqlEventIds.put(executionId, eventId)
-      
       // Get app ID and name
       val appId = applicationSpan.keys.headOption.getOrElse("unknown")
       val appName = appNames.get(appId)
       
-      // Emit start event
-      val event = ApplicationEvent(
-        `@timestamp` = Instant.ofEpochMilli(time).toString,
-        event = EventMetadata(
-          id = eventId,
-          `type` = "start",
-          category = "application",
-          state = "open"
-        ),
-        application = "spark",
-        operation = Operation(
-          `type` = "sql",
-          id = s"sql-$executionId",
-          name = description,
-          `parent.id` = None
-        ),
-        correlation = Correlation(),
-        spark = Some(SparkMetadata(
-          `app.id` = Some(appId),
-          `app.name` = appName,
-          `sql.execution.id` = Some(executionId),
-          `sql.description` = Some(description),
-          `sql.query_plan.simplified` = Some(physicalPlanDescription),
-          `sql.query_plan.verbose` = None
-        ))
-      )
+      // Generate event ID and composite correlation key
+      val eventId = UUID.randomUUID().toString
+      val correlationKey = sqlKey(appId, executionId)
       
-      eventEmitter.emitEvent(event)
+      // Store unified metadata BEFORE emitting
+      val metadata = EventStartMetadata(eventId, time, correlationKey)
+      sqlEventMetadata.put(correlationKey, metadata)
       
-      // Create OTel span
+      // Create OTel span first to get span ID
       val parentSpan = applicationSpan.values.headOption
       
       val spanBuilder = tracer.spanBuilder(s"spark.sql.$executionId")
@@ -1058,7 +1380,43 @@ class OTelSparkListener extends SparkListener {
       }
       
       val span = spanBuilder.startSpan()
+      val spanId = span.getSpanContext.getSpanId
+      val traceId = span.getSpanContext.getTraceId
       sqlExecutionSpans.put(executionId, span)
+      
+      // Emit start event with correlation key and span ID
+      val event = ApplicationEvent(
+        `@timestamp` = Instant.ofEpochMilli(time).toString,
+        event = EventMetadata(
+          id = eventId,
+          `type` = "start",
+          category = "application",
+          state = "open"
+        ),
+        application = "spark",
+        operation = Operation(
+          `type` = "sql",
+          id = s"sql-$executionId",
+          name = description,
+          `parent.id` = None,
+          `correlation.key` = Some(correlationKey)
+        ),
+        correlation = Correlation(
+          `span.id` = Some(spanId),
+          `trace.id` = Some(traceId),
+          `correlation.key` = Some(correlationKey)
+        ),
+        spark = Some(SparkMetadata(
+          `app.id` = Some(appId),
+          `app.name` = appName,
+          `sql.execution.id` = Some(executionId),
+          `sql.description` = Some(description),
+          `sql.query_plan.simplified` = Some(physicalPlanDescription),
+          `sql.query_plan.verbose` = None
+        ))
+      )
+      
+      eventEmitter.emitStartEvent(event, correlationKey)
       
       val elapsedMs = (System.nanoTime() - startNanos) / 1000000
       logger.debug(s"SQL execution $executionId span created (${elapsedMs}ms)")
@@ -1078,8 +1436,20 @@ class OTelSparkListener extends SparkListener {
       
       logger.info(s"SQL execution $executionId ended")
       
-      // Get start event ID
-      val startEventId = sqlEventIds.get(executionId)
+      // Get app ID and name
+      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
+      val appName = appNames.get(appId)
+      
+      // Generate composite correlation key (must match onSQLExecutionStart)
+      val correlationKey = sqlKey(appId, executionId)
+      
+      // Get unified metadata
+      val metadata = sqlEventMetadata.get(correlationKey)
+      
+      // Error if metadata is missing
+      if (metadata.isEmpty) {
+        logger.error(s"CRITICAL: START event metadata missing for SQL execution $executionId (key: $correlationKey) in onSQLExecutionEnd - START event will remain open!")
+      }
       
       // Get span for correlation
       val spanOption = sqlExecutionSpans.get(executionId)
@@ -1089,33 +1459,39 @@ class OTelSparkListener extends SparkListener {
       // Generate end event ID (standard UUID)
       val endEventId = UUID.randomUUID().toString
       
-      // Get app ID and name
-      val appId = applicationSpan.keys.headOption.getOrElse("unknown")
-      val appName = appNames.get(appId)
+      // Calculate duration: end time - start time
+      val duration = metadata match {
+        case Some(m) =>
+          val durationMs = time - m.startTime
+          Some(durationMs * 1000000)  // Convert to nanoseconds
+        case None =>
+          logger.error(s"CRITICAL: Start metadata missing for SQL execution $executionId - cannot calculate duration")
+          None
+      }
       
-      // Duration will be calculated by Elasticsearch if needed
-      // For now, omit duration as we don't have access to start time from the span
-      
-      // Emit end event
+      // Emit end event with correlation key and span ID
       val event = ApplicationEvent(
         `@timestamp` = Instant.ofEpochMilli(time).toString,
         event = EventMetadata(
           id = endEventId,
           `type` = "end",
           category = "application",
-          state = "closed"
+          state = "closed",
+          duration = duration
         ),
         application = "spark",
         operation = Operation(
           `type` = "sql",
           id = s"sql-$executionId",
           name = s"SQL $executionId",
-          result = Some("SUCCESS")
+          result = Some("SUCCESS"),
+          `correlation.key` = Some(correlationKey)
         ),
         correlation = Correlation(
           `span.id` = spanId,
           `trace.id` = traceId,
-          `start.event.id` = startEventId
+          `start.event.id` = metadata.map(_.eventId),
+          `correlation.key` = Some(correlationKey)
         ),
         spark = Some(SparkMetadata(
           `app.id` = Some(appId),
@@ -1124,12 +1500,19 @@ class OTelSparkListener extends SparkListener {
         ))
       )
       
-      eventEmitter.emitEvent(event)
+      eventEmitter.emitEndEvent(event, correlationKey)
       
-      // Update the corresponding START event to "closed" if we have the start event ID
-      startEventId.foreach { id =>
-        eventEmitter.updateEventState(id, "closed")
+      // Close the corresponding START event
+      metadata match {
+        case Some(m) =>
+          eventEmitter.closeStartEvent(m.eventId)
+          sqlEventMetadata.remove(correlationKey)
+        case None =>
+          logger.error(s"CRITICAL: Cannot close START event for SQL execution $executionId - metadata is None")
       }
+      
+      // Remove span after update
+      sqlExecutionSpans.remove(executionId)
       
       // Complete span
       spanOption.foreach { span =>
@@ -1137,10 +1520,6 @@ class OTelSparkListener extends SparkListener {
         span.setStatus(StatusCode.OK)
         span.end(Instant.ofEpochMilli(time))
       }
-      
-      // Cleanup
-      sqlExecutionSpans.remove(executionId)
-      sqlEventIds.remove(executionId)
       
       val elapsedMs = (System.nanoTime() - startNanos) / 1000000
       logger.debug(s"SQL execution $executionId completed (${elapsedMs}ms)")
