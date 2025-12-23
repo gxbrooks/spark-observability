@@ -16,10 +16,8 @@ tmp/
 
 # Generated configuration files
 vars/contexts/
-spark/conf/spark-defaults.conf
 
 # Build artifacts
-spark/.last_build_timestamp
 **/target/
 *.class
 
@@ -28,15 +26,15 @@ spark/.last_build_timestamp
 ### Exception: BigQuery jar is not built from source, keep it in repo
 !shared/spark/jars/spark-bigquery-with-dependencies_2.12-0.32.0.jar
 
-## downloaded Spark images
+## Spark files
+spark/.last_build_timestamp # build artifact
 spark/images/
+spark/conf/spark-defaults.conf
+spark/logs
 
 ## Debug output from @init-index.sh script
-observability/elasticsearch/outputs/
-# Data directories
-# docker/spark/data/*
-!docker/elasticsearch/outputs/.gitkeep
-docker/elasticsearch/outputs/*
+!observability/elasticsearch/outputs/.gitkeep
+observability/elasticsearch/outputs/*
 
 # Documentation Artifacts
 

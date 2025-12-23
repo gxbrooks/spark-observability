@@ -41,7 +41,6 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   // Configuration
   private val WATCHER_FREQUENCY_SECONDS = 5
   private val FLUSH_INTERVAL_SECONDS = WATCHER_FREQUENCY_SECONDS / 2.0 // 2.5 seconds
-  private val MAX_BUFFER_SIZE = 1000 // Flush immediately if buffer exceeds this size
   private val MAX_RETRIES = 3
   private val RETRY_DELAY_MS = 1000
   
@@ -86,8 +85,8 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   private val flushExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
   private val isShutdown = new AtomicBoolean(false)
   
-  // Analytics logging - unified single file for all event types
-  private val analyticsWriter: PrintWriter = createAnalyticsWriter()
+  // Analytics logging - EventAnalytics class handles all CSV writing
+  private val eventStats: EventAnalytics = new EventAnalytics()
   
   // Initialize periodic flushing
   flushExecutor.scheduleAtFixedRate(
@@ -105,104 +104,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   
   logger.info(s"EventEmitter initialized - Elasticsearch URL: $elasticsearchUrl")
   logger.info(s"Batching: Flush interval ${FLUSH_INTERVAL_SECONDS}s with refresh=wait_for")
-  
-  // ========================================================================
-  // CSV Helper Functions Section
-  // ========================================================================
-  
-  /**
-   * Format timestamp for LibreOffice Calc (MM/dd/yyyy HH:mm:ss.SSS)
-   */
-  private def formatTimestamp(millis: Long): String = {
-    val instant = Instant.ofEpochMilli(millis)
-    val dateTime = java.time.LocalDateTime.ofInstant(instant, java.time.ZoneId.systemDefault())
-    val formatter = java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss.SSS")
-    dateTime.format(formatter)
-  }
-  
-  /**
-   * Create unified analytics log file writer with timestamped filename.
-   */
-  private def createAnalyticsWriter(): PrintWriter = {
-    val sparkLogDir = sys.env.getOrElse("SPARK_LOG_DIR", "/opt/spark/logs")
-    val logDir = Paths.get(sparkLogDir)
-    
-    val writableLogDir = Try {
-      if (!Files.exists(logDir)) {
-        Files.createDirectories(logDir)
-      }
-      val testFile = logDir.resolve(".write-test")
-      Files.write(testFile, "test".getBytes)
-      Files.delete(testFile)
-      logDir
-    }.getOrElse {
-      logger.warn(s"Cannot write to $sparkLogDir, using /tmp for analytics logs")
-      Paths.get("/tmp")
-    }
-    
-    val timestampSuffix = java.time.LocalDateTime.now().format(
-      java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-    )
-    
-    val logFile = writableLogDir.resolve(s"event-analytics-$timestampSuffix.csv").toFile
-    
-    val writer = new PrintWriter(new FileWriter(logFile, true))
-    writeCsvHeader(writer)
-    writer.flush()
-    logger.info(s"Analytics log file: $logFile")
-    writer
-  }
-  
-  /**
-   * Write CSV header line.
-   */
-  private def writeCsvHeader(writer: PrintWriter): Unit = {
-    writer.println("timestamp,op_type,correlation_id,event_id,start_time_ms,duration_nanos,event_type,event_count")
-  }
-  
-  /**
-   * Write start or end event to CSV.
-   */
-  private def writeCsvStartEndEvent(
-    writer: PrintWriter,
-    timestamp: String,
-    opType: String,
-    correlationKey: String,
-    eventId: String,
-    startTimeMs: Long,
-    durationNanos: Long,
-    eventType: String
-  ): Unit = {
-    writer.println(
-      s"$timestamp,$opType,$correlationKey,$eventId,$startTimeMs,$durationNanos,$eventType,"
-    )
-  }
-  
-  /**
-   * Write close_start event to CSV.
-   */
-  private def writeCsvCloseStartEvent(
-    writer: PrintWriter,
-    timestamp: String,
-    eventId: String
-  ): Unit = {
-    writer.println(s"$timestamp,close_start,,$eventId,,,,")
-  }
-  
-  /**
-   * Write flush start marker to CSV.
-   */
-  private def writeCsvFlushStart(writer: PrintWriter, timestamp: String, eventCount: Int): Unit = {
-    writer.println(s"$timestamp,flush_start,,,,,,$eventCount")
-  }
-  
-  /**
-   * Write flush end marker to CSV.
-   */
-  private def writeCsvFlushEnd(writer: PrintWriter, timestamp: String, durationNanos: Long, eventCount: Int, isError: Boolean = false): Unit = {
-    val opType = if (isError) "flush_end_error" else "flush_end"
-    writer.println(s"$timestamp,$opType,,,,$durationNanos,,$eventCount")
-  }
+  logger.info(s"Analytics log file: ${eventStats.logFile}")
   
   /**
    * Emit a START event (queued for batch transmission).
@@ -214,31 +116,10 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
     
     bufferLock.synchronized {
       eventBuffer += StartEvent(event, correlationKey)
-      if (eventBuffer.size >= MAX_BUFFER_SIZE) {
-        logger.debug(s"Event buffer size (${eventBuffer.size}) exceeds ${MAX_BUFFER_SIZE}, triggering flush")
-        // Trigger flush in background to avoid blocking
-        flushExecutor.submit(new Runnable {
-          def run(): Unit = flushAll()
-        })
-      }
     }
     
     val emitDurationNanos = System.nanoTime() - emitStartNanos
-    val timestamp = formatTimestamp(startTimeMs)
-    
-    analyticsWriter.synchronized {
-      writeCsvStartEndEvent(
-        analyticsWriter,
-        timestamp,
-        "start",
-        correlationKey,
-        event.event.id,
-        startTimeMs,
-        emitDurationNanos,
-        event.operation.`type`
-      )
-      analyticsWriter.flush()
-    }
+    eventStats.logStartEvent(correlationKey, event.event.id, startTimeMs, emitDurationNanos, event.operation.`type`)
     
     emitDurationNanos
   }
@@ -250,17 +131,11 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
    * @param closedBy How the event was closed: "end" (matched END event) or "parent" (hierarchical closure)
    */
   def closeStartEvent(eventId: String, closedBy: String = "end"): Unit = {
-    val closeTimeMs = System.currentTimeMillis()
-    val timestamp = formatTimestamp(closeTimeMs)
-    
     bufferLock.synchronized {
       eventBuffer += CloseStartEvent(eventId, closedBy)
     }
     
-    analyticsWriter.synchronized {
-      writeCsvCloseStartEvent(analyticsWriter, timestamp, eventId)
-      analyticsWriter.flush()
-    }
+    eventStats.logCloseStartEvent(eventId)
   }
   
   /**
@@ -276,21 +151,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
     }
     
     val emitDurationNanos = System.nanoTime() - emitStartNanos
-    val timestamp = formatTimestamp(startTimeMs)
-    
-    analyticsWriter.synchronized {
-      writeCsvStartEndEvent(
-        analyticsWriter,
-        timestamp,
-        "end",
-        correlationKey,
-        event.event.id,
-        startTimeMs,
-        emitDurationNanos,
-        event.operation.`type`
-      )
-      analyticsWriter.flush()
-    }
+    eventStats.logEndEvent(correlationKey, event.event.id, startTimeMs, emitDurationNanos, event.operation.`type`)
     
     emitDurationNanos
   }
@@ -401,13 +262,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
     val totalEvents = eventsToProcess.size
     
     if (totalEvents > 0) {
-      val flushStartTimestamp = formatTimestamp(flushStartTimeMs)
-      
-      // Log flush start marker
-      analyticsWriter.synchronized {
-        writeCsvFlushStart(analyticsWriter, flushStartTimestamp, totalEvents)
-        analyticsWriter.flush()
-      }
+      eventStats.logFlushStart(flushStartTimeMs, totalEvents)
       
       var flushError: Option[Throwable] = None
       
@@ -428,20 +283,11 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       // Calculate duration and log flush end marker (always executed)
       val flushDurationNanos = System.nanoTime() - flushStartNanos
       val flushEndTimeMs = System.currentTimeMillis()
-      val flushEndTimestamp = formatTimestamp(flushEndTimeMs)
       
-      analyticsWriter.synchronized {
-        writeCsvFlushEnd(analyticsWriter, flushEndTimestamp, flushDurationNanos, totalEvents, isError = flushError.isDefined)
-        analyticsWriter.flush()
-      }
-      
-      // Count events by type for debug logging
-      val startCount = eventsToProcess.count(_.isInstanceOf[StartEvent])
-      val closeCount = eventsToProcess.count(_.isInstanceOf[CloseStartEvent])
-      val endCount = eventsToProcess.count(_.isInstanceOf[EndEvent])
+      eventStats.logFlushEnd(flushEndTimeMs, flushDurationNanos, totalEvents, isError = flushError.isDefined)
       
       if (flushError.isEmpty) {
-        logger.debug(s"Flushed $totalEvents events ($startCount START, $closeCount CLOSE, $endCount END) in ${flushDurationNanos / 1000000}ms")
+        logger.debug(s"Flushed $totalEvents events in ${flushDurationNanos / 1000000}ms")
       }
     }
   }
@@ -465,7 +311,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       }
       
       flushAll()
-      analyticsWriter.close()
+      eventStats.close()
       
       logger.info("EventEmitter shutdown complete")
     }
@@ -542,6 +388,123 @@ case class SparkEventMetrics(
   `executor.run.time.ms`: Option[Long] = None,
   `executor.cpu.time.ms`: Option[Long] = None
 )
+
+/**
+ * EventAnalytics class handles all CSV analytics logging.
+ * Encapsulates CSV file creation and writing operations.
+ * Log file location: ${SPARK_LOG_DIR}/event-analytics-YYYYMMDD-HHMMSS.csv (default: /opt/spark/logs)
+ * Falls back to /tmp if SPARK_LOG_DIR is not writable.
+ */
+class EventAnalytics {
+  private val logger = LoggerFactory.getLogger(classOf[EventAnalytics])
+  
+  // CSV writer and file - initialized via helper method
+  private val (logFile, writer): (java.io.File, PrintWriter) = createWriter()
+  
+  private def createWriter(): (java.io.File, PrintWriter) = {
+    val sparkLogDir = sys.env.getOrElse("SPARK_LOG_DIR", "/opt/spark/logs")
+    val logDir = Paths.get(sparkLogDir)
+    
+    val writableLogDir = Try {
+      if (!Files.exists(logDir)) {
+        Files.createDirectories(logDir)
+      }
+      val testFile = logDir.resolve(".write-test")
+      Files.write(testFile, "test".getBytes)
+      Files.delete(testFile)
+      logDir
+    }.getOrElse {
+      logger.warn(s"Cannot write to $sparkLogDir, using /tmp for analytics logs")
+      Paths.get("/tmp")
+    }
+    
+    val timestampSuffix = java.time.LocalDateTime.now().format(
+      java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+    )
+    
+    val file = writableLogDir.resolve(s"event-analytics-$timestampSuffix.csv").toFile
+    val pw = new PrintWriter(new FileWriter(file, true))
+    pw.println("timestamp,op_type,correlation_id,event_id,start_time_ms,duration_nanos,event_type,event_count")
+    pw.flush()
+    (file, pw)
+  }
+  
+  /**
+   * Format timestamp for LibreOffice Calc (MM/dd/yyyy HH:mm:ss.SSS)
+   */
+  private def formatTimestamp(millis: Long): String = {
+    val instant = Instant.ofEpochMilli(millis)
+    val dateTime = java.time.LocalDateTime.ofInstant(instant, java.time.ZoneId.systemDefault())
+    val formatter = java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss.SSS")
+    dateTime.format(formatter)
+  }
+  
+  
+  /**
+   * Log start event to CSV.
+   */
+  def logStartEvent(correlationKey: String, eventId: String, startTimeMs: Long, durationNanos: Long, eventType: String): Unit = {
+    val timestamp = formatTimestamp(startTimeMs)
+    writer.synchronized {
+      writer.println(s"$timestamp,start,$correlationKey,$eventId,$startTimeMs,$durationNanos,$eventType,")
+      writer.flush()
+    }
+  }
+  
+  /**
+   * Log end event to CSV.
+   */
+  def logEndEvent(correlationKey: String, eventId: String, startTimeMs: Long, durationNanos: Long, eventType: String): Unit = {
+    val timestamp = formatTimestamp(startTimeMs)
+    writer.synchronized {
+      writer.println(s"$timestamp,end,$correlationKey,$eventId,$startTimeMs,$durationNanos,$eventType,")
+      writer.flush()
+    }
+  }
+  
+  /**
+   * Log close_start event to CSV.
+   */
+  def logCloseStartEvent(eventId: String): Unit = {
+    val timestamp = formatTimestamp(System.currentTimeMillis())
+    writer.synchronized {
+      writer.println(s"$timestamp,close_start,,$eventId,,,,")
+      writer.flush()
+    }
+  }
+  
+  /**
+   * Log flush start marker to CSV.
+   */
+  def logFlushStart(flushStartTimeMs: Long, eventCount: Int): Unit = {
+    val timestamp = formatTimestamp(flushStartTimeMs)
+    writer.synchronized {
+      writer.println(s"$timestamp,flush_start,,,,,,$eventCount")
+      writer.flush()
+    }
+  }
+  
+  /**
+   * Log flush end marker to CSV.
+   */
+  def logFlushEnd(flushEndTimeMs: Long, durationNanos: Long, eventCount: Int, isError: Boolean = false): Unit = {
+    val timestamp = formatTimestamp(flushEndTimeMs)
+    val opType = if (isError) "flush_end_error" else "flush_end"
+    writer.synchronized {
+      writer.println(s"$timestamp,$opType,,,,$durationNanos,,$eventCount")
+      writer.flush()
+    }
+  }
+  
+  /**
+   * Close the analytics writer.
+   */
+  def close(): Unit = {
+    writer.synchronized {
+      writer.close()
+    }
+  }
+}
 
 /**
  * Metadata for START events stored in-memory for correlation and closure.

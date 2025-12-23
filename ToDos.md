@@ -304,3 +304,8 @@ For consistency and reliability, update all search objects to use `indexRefName`
 - Aligns with Kibana’s saved objects model
 
 Should I update the other search objects (`batch-events`, `batch-traces`, `spark-logs`) to use the `indexRefName` + `references` pattern for consistency?
+
+
+### Revisit where all the spark files go for client mode
+- Decide on where Spark logs should go on a client i.e /opt/spark/logs -> spark/logs?
+- what to do with events? It is a similar issue, but events are going on an NFS share? That may not be necessary
