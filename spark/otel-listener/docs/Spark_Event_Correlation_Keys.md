@@ -127,4 +127,4 @@ Correlation keys are used to:
 
 4. **Ensure Uniqueness**: Including the event type prefix and `appId` in all keys ensures that events from different Spark application runs or different event types are distinct, even if they have the same numeric IDs.
 
-5. **Hierarchical Event Closing**: When parent events complete (e.g., application ends), correlation keys enable finding and closing all child events (jobs, stages, tasks, SQL queries) by prefix matching on the correlation key structure.
+5. **Hierarchical Event Closing**: When parent events complete (e.g., application ends), correlation keys enable finding and closing all child events (jobs, stages, tasks, SQL queries) by prefix matching on the correlation key structure. Events closed via hierarchical closure are marked with `event.closed_by = "parent"` to distinguish them from events closed by their matching END event (`event.closed_by = "end"`).
