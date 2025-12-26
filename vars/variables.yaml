@@ -132,8 +132,9 @@ ES_BIN_DIR:
   value: ${ES_DIR}/bin
   contexts: [devops, observability]
 LICENSE:
-  value: basic
+  value: trial
   contexts: [observability]
+  comment: "License type: 'basic' (free, no Watcher), 'trial' (30 days, includes Watcher), 'platinum' or 'enterprise' (paid, includes Watcher). Note: Gold licenses cannot be self-generated and must be installed via license API."
 
 # Kibana variables (KB_* prefix)
 EB_ENCRYPTION_KEY:

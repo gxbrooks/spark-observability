@@ -1,0 +1,27 @@
+{
+  "index_patterns": [".watcher-history-*"],
+  "priority": 1,
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "watcher-history"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {"type": "date"},
+        "watch_id": {"type": "keyword"},
+        "result": {
+          "properties": {
+            "condition": {
+              "properties": {
+                "met": {"type": "boolean"}
+              }
+            },
+            "execution_time": {"type": "date"},
+            "execution_duration": {"type": "long"}
+          }
+        }
+      }
+    }
+  }
+}
+

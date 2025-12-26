@@ -124,7 +124,7 @@ The file system architecture uses a layered approach:
 | `esdata:` | Elasticsearch indices and data | es01 | Persistent (Docker managed) |
 | `kibanadata:` | Kibana saved objects and settings | kibana | Persistent (Docker managed) |
 
-**Environment Variables** (set in docker-compose.yml for init-index): `ES_DIR=/usr/share/elasticsearch/elasticsearch`, `ES_CONFIG_DIR=/usr/share/elasticsearch/elasticsearch/config`, `ES_OUTPUTS_DIR=/usr/share/elasticsearch/elasticsearch/outputs`, `ES_BIN_DIR=/usr/share/elasticsearch/elasticsearch/bin`, `CA_CERT_ES_PATH=/usr/share/elasticsearch/config/certs/ca/ca.crt`
+**Environment Variables** (set in docker-compose.yml for init-index): `ES_DIR=/usr/share/elasticsearch/elasticsearch`, `ES_CONFIG_DIR=/usr/share/elasticsearch/elasticsearch/config`, `ES_OUTPUTS_DIR=/usr/share/elasticsearch/elasticsearch/outputs`, `ES_BIN_DIR=/usr/share/elasticsearch/elasticsearch/bin`, `CA_CERT=/usr/share/elasticsearch/config/certs/ca/ca.crt`
 
 ### 4. Kubernetes File Systems
 

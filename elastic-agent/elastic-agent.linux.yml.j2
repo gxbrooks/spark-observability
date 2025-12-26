@@ -236,9 +236,9 @@ inputs:
 outputs:
   default:
     type: elasticsearch
-    hosts: ["${ES_URL}"]
-    username: "${ES_USER}"
-    password: "${ES_PASSWORD}"
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
     ssl:
       certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
@@ -253,18 +253,18 @@ outputs:
   # Spark outputs for GC logs (directly to Elasticsearch)
   spark_gc:
     type: elasticsearch
-    hosts: ["${ES_URL}"]
-    username: "${ES_USER}"
-    password: "${ES_PASSWORD}"
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
     ssl:
       certificate_authorities: ["${CA_CERT}"]
       verification_mode: full
   # Spark outputs for application logs (directly to Elasticsearch)
   spark_app:
     type: elasticsearch
-    hosts: ["${ES_URL}"]
-    username: "${ES_USER}"
-    password: "${ES_PASSWORD}"
+    hosts: ["${ELASTIC_URL}"]
+    username: "${ELASTIC_USER}"
+    password: "${ELASTIC_PASSWORD}"
     ssl:
       certificate_authorities: ["${CA_CERT}"]
       verification_mode: full

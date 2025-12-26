@@ -8,80 +8,78 @@ Correlation keys are used to uniquely identify and link START and END events for
 
 ### Design Principles
 
-1. **Event Type Prefix**: All correlation keys are prefixed with the event type (App, Job, Stage, Task, SQL) separated by a colon (`:`) to avoid name conflicts. For example, a Job ID could conflict with a SQL execution ID if they have the same numeric value. The type prefix ensures uniqueness.
+1. **Hierarchical Structure**: Correlation keys use a hierarchical format where each level includes its type prefix and ID, separated by pipe (`|`) characters. This allows for clear prefix matching when identifying child events.
 
-2. **appId Inclusion**: All correlation keys include the `appId` to ensure uniqueness across different Spark application runs.
+2. **Type Prefixes**: Each component in the correlation key is prefixed with its type (App, Job, Stage, Task, SQL) followed by a colon (`:`) and its ID. This avoids name conflicts (e.g., a Job ID could conflict with a SQL execution ID).
 
-3. **Colon Separator**: Colons (`:`) are used as separators between key components for:
-   - Shorter, more efficient key names
-   - Better readability
-   - Avoiding Elasticsearch field length limits (see [Elasticsearch Limits](#elasticsearch-limits) below)
+3. **Pipe Separator**: Pipe characters (`|`) are used as level separators between key components, while colons (`:`) separate type names from IDs. This format:
+   - Makes hierarchical relationships explicit and easy to parse
+   - Enables reliable prefix matching for finding child events
+   - Avoids string slicing and parsing errors
+   - Stays within Elasticsearch field length limits (see [Elasticsearch Limits](#elasticsearch-limits) below)
 
 ## Correlation Key Patterns
 
 ### 1. Application Events
 - **Pattern**: `App:{appId}`
 - **Example**: `App:app-20251222104624-0178`
-- **Components**: 2 (EventType:appId)
 - **Definition**: Event type prefix "App" followed by the application ID (provided by Spark or generated if missing)
 
 ### 2. Job Events
-- **Pattern**: `Job:{appId}:{jobId}`
-- **Example**: `Job:app-20251222104624-0178:46`
-- **Components**: 3 (EventType:appId:jobId)
+- **Pattern**: `App:{appId}|Job:{jobId}`
+- **Example**: `App:app-20251222104624-0178|Job:46`
 - **Helper Function**: `jobKey(appId, jobId)`
 
 ### 3. Stage Events
-- **Pattern**: `Stage:{appId}:{jobId}:{stageId}`
-- **Example**: `Stage:app-20251222104624-0178:46:86`
-- **Components**: 4 (EventType:appId:jobId:stageId)
+- **Pattern**: `App:{appId}|Job:{jobId}|Stage:{stageId}`
+- **Example**: `App:app-20251222104624-0178|Job:46|Stage:86`
 - **Helper Function**: `stageKey(appId, jobId, stageId)`
-- **Fallback**: `Stage:{appId}:{stageId}` if job context is unavailable
+- **Note**: Stages always have a parent Job per SPARK_EVENT_HIERARCHY.md
 
 ### 4. Task Events
-- **Pattern**: `Task:{appId}:{stageId}:{taskId}`
-- **Example**: `Task:app-20251222104624-0178:86:143`
-- **Components**: 4 (EventType:appId:stageId:taskId)
-- **Helper Function**: `taskKey(appId, stageId, taskId)`
-- **Note**: StageId is unique within an application, so jobId is not required for task keys.
+- **Pattern**: `App:{appId}|Job:{jobId}|Stage:{stageId}|Task:{taskId}`
+- **Example**: `App:app-20251222104624-0178|Job:46|Stage:86|Task:143`
+- **Helper Function**: `taskKey(stageCorrelationKey, taskId)`
+- **Note**: Task keys extend the stage's correlation key by appending `|Task:{taskId}`
 
 ### 5. SQL Query Events
-- **Pattern**: `SQL:{appId}:{executionId}`
-- **Example**: `SQL:app-20251222104624-0178:15`
-- **Components**: 3 (EventType:appId:executionId)
+- **Pattern**: `App:{appId}|SQL:{executionId}`
+- **Example**: `App:app-20251222104624-0178|SQL:15`
 - **Helper Function**: `sqlKey(appId, executionId)`
 
 ## Event Hierarchy
 
-The correlation keys reflect Spark's execution hierarchy:
+The correlation keys reflect Spark's execution hierarchy with explicit type prefixes at each level:
 
 ```
 Application: App:{appId}
-├── Job: Job:{appId}:{jobId}
-│   └── Stage: Stage:{appId}:{jobId}:{stageId}
-│       └── Task: Task:{appId}:{stageId}:{taskId}
-└── SQL: SQL:{appId}:{executionId}
+├── Job: App:{appId}|Job:{jobId}
+│   └── Stage: App:{appId}|Job:{jobId}|Stage:{stageId}
+│       └── Task: App:{appId}|Job:{jobId}|Stage:{stageId}|Task:{taskId}
+└── SQL: App:{appId}|SQL:{executionId}
 ```
 
-### Component Count by Event Type
+### Key Structure by Event Type
 
-| Event Type | Components | Pattern |
-|------------|-----------|---------|
-| Application | 2 | `App:{appId}` |
-| Job | 3 | `Job:{appId}:{jobId}` |
-| Stage | 4 | `Stage:{appId}:{jobId}:{stageId}` |
-| Task | 4 | `Task:{appId}:{stageId}:{taskId}` |
-| SQL | 3 | `SQL:{appId}:{executionId}` |
+| Event Type | Levels | Pattern |
+|------------|--------|---------|
+| Application | 1 | `App:{appId}` |
+| Job | 2 | `App:{appId}\|Job:{jobId}` |
+| Stage | 3 | `App:{appId}\|Job:{jobId}\|Stage:{stageId}` |
+| Task | 4 | `App:{appId}\|Job:{jobId}\|Stage:{stageId}\|Task:{taskId}` |
+| SQL | 2 | `App:{appId}\|SQL:{executionId}` |
 
-### Why Event Type Prefixes Matter
+### Why Type Prefixes and Pipe Separators Matter
 
-Without event type prefixes, name conflicts can occur. For example:
-- A Job with ID `46` and a SQL execution with execution ID `46` would both generate the key `app-20251222104624-0178:46`
-- This would cause conflicts when storing metadata in maps or querying Elasticsearch
+The hierarchical format with type prefixes and pipe separators provides several benefits:
 
-By prefixing with the event type, we ensure uniqueness:
-- Job: `Job:app-20251222104624-0178:46`
-- SQL: `SQL:app-20251222104624-0178:46`
+1. **Uniqueness**: Without type prefixes, name conflicts can occur. For example, a Job with ID `46` and a SQL execution with execution ID `46` would conflict. With prefixes:
+   - Job: `App:app-20251222104624-0178|Job:46`
+   - SQL: `App:app-20251222104624-0178|SQL:46`
+
+2. **Hierarchical Matching**: The pipe-separated format enables reliable prefix matching. To find all child stages of a job, we can search for keys that start with the job's correlation key followed by `|Stage:`. This avoids string slicing and parsing errors.
+
+3. **Clear Structure**: Each level's type is explicit, making the hierarchy immediately apparent and eliminating ambiguity about which component is which.
 
 ## Elasticsearch Limits
 
@@ -93,27 +91,30 @@ When constructing correlation keys, it is essential to ensure their length does 
 
 ### Example Key Lengths
 
-**New Format Examples**:
+**Pipe-Separated Format Examples**:
 - Application: `App:app-20251222104624-0178` (29 characters)
-- Job: `Job:app-20251222104624-0178:46` (32 characters)
-- Stage: `Stage:app-20251222104624-0178:46:86` (35 characters)
-- Task: `Task:app-20251222104624-0178:86:143` (36 characters)
-- SQL: `SQL:app-20251222104624-0178:15` (31 characters)
+- Job: `App:app-20251222104624-0178|Job:46` (38 characters)
+- Stage: `App:app-20251222104624-0178|Job:46|Stage:86` (49 characters)
+- Task: `App:app-20251222104624-0178|Job:46|Stage:86|Task:143` (60 characters)
+- SQL: `App:app-20251222104624-0178|SQL:15` (38 characters)
 
-All examples stay well within the 256-character default limit while maintaining readability, uniqueness, and type safety.
+All examples stay well within the 256-character default limit while maintaining clear hierarchical structure, uniqueness, and type safety.
 
 ## Implementation
 
-Correlation key helper functions are defined in `OTelSparkListener.scala`. The current implementation uses event type prefixes, colon separators, and includes `appId` in all keys for hierarchical matching and uniqueness across application runs.
+Correlation key helper functions are defined in `OTelSparkListener.scala`. The implementation uses type prefixes at each level, pipe separators between levels, and colons to separate type names from IDs.
 
 ```scala
-// Correlation key helpers using event type prefix, colon separator, and appId for uniqueness
-// Format: EventType:{appId}:{id1}:{id2}... to avoid name conflicts and ensure uniqueness
-private def taskKey(appId: String, stageId: Int, taskId: Long): String = s"Task:$appId:$stageId:$taskId"
-private def stageKey(appId: String, jobId: Int, stageId: Int): String = s"Stage:$appId:$jobId:$stageId"
-private def jobKey(appId: String, jobId: Int): String = s"Job:$appId:$jobId"
-private def sqlKey(appId: String, executionId: Long): String = s"SQL:$appId:$executionId"
+// Correlation key helpers using hierarchical format with pipe separators
+// Format: App:{AppID}|Job:{JobId}|Stage:{StageID}|Task:{TaskID}
+private def appKey(appId: String): String = s"App:$appId"
+private def jobKey(appId: String, jobId: Int): String = s"App:$appId|Job:$jobId"
+private def stageKey(appId: String, jobId: Int, stageId: Int): String = s"App:$appId|Job:$jobId|Stage:$stageId"
+private def taskKey(stageCorrelationKey: String, taskId: Long): String = s"$stageCorrelationKey|Task:$taskId"
+private def sqlKey(appId: String, executionId: Long): String = s"App:$appId|SQL:$executionId"
 ```
+
+Note: The `taskKey` function takes the stage's correlation key as input, extending it to include the task ID. This ensures the full hierarchy is preserved.
 
 ## Usage
 
@@ -127,4 +128,6 @@ Correlation keys are used to:
 
 4. **Ensure Uniqueness**: Including the event type prefix and `appId` in all keys ensures that events from different Spark application runs or different event types are distinct, even if they have the same numeric IDs.
 
-5. **Hierarchical Event Closing**: When parent events complete (e.g., application ends), correlation keys enable finding and closing all child events (jobs, stages, tasks, SQL queries) by prefix matching on the correlation key structure. Events closed via hierarchical closure are marked with `event.closed_by = "parent"` to distinguish them from events closed by their matching END event (`event.closed_by = "end"`).
+5. **Hierarchical Event Closing**: When parent events complete (e.g., application ends), correlation keys enable finding and closing all residual child events (jobs, stages, tasks, SQL queries) by prefix matching on the correlation key structure. The pipe-separated format makes prefix matching reliable and efficient. Events closed via hierarchical closure are marked with `event.closed_by = "parent"` to distinguish them from events closed by their matching END event (`event.closed_by = "end"`).
+
+6. **Residual Event Closure**: The hierarchical closing functions (`appCloseResidualChildren`, `jobCloseResidualChildren`, `stageCloseResidualChildren`) use TrieMap iterators to find events that still exist in metadata maps (indicating they have START events but no corresponding END events). These are closed with `closed_by = "parent"` before the parent event itself is closed with `closed_by = "end"`.

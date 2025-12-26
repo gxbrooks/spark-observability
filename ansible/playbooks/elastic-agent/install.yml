@@ -140,7 +140,7 @@
     # Use OS-based configuration (linux.yml.j2 template) with host-specific variables
     elastic_agent_config_template: "{{ playbook_dir }}/../../../elastic-agent/elastic-agent.linux.yml.j2"
     elastic_agent_config_dest: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
-    elastic_agent_envconf_src: "{{ playbook_dir }}/../../../vars/contexts/elastic-agent/elastic_agent_env.conf"
+    elastic_agent_envconf_src: "{{ playbook_dir }}/../../../vars/contexts/elastic_agent_env.conf"
     elastic_agent_envconf_dest: "/etc/elastic-agent/elastic_agent_env.conf"
     gpu_metrics_script_src: "{{ playbook_dir }}/../../../elastic-agent/bin/gpu-metrics.py"
     gpu_metrics_script_path: "{{ elastic_agent_install_dir }}/extensions/gpu-metrics.py"

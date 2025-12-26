@@ -185,8 +185,9 @@ services:
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       XPACK_REPORTING_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       SERVER_PUBLICBASEURL: "http://${KB_HOST}:${KB_PORT}"
+      NODE_OPTIONS: "--max-old-space-size=1536"
       TZ: ${TZ}    
-    mem_limit: 1073741824
+    mem_limit: 2147483648
     depends_on:
       es01:
         condition: service_healthy
@@ -231,9 +232,9 @@ services:
       CA_CERT: "${CA_CERT}"
       TZ: ${TZ}    
     deploy:
-      resources:
-        limits:
-          memory: 512m
+        resources:
+          limits:
+            memory: 2g
     depends_on:
       es01:
         condition: service_healthy 

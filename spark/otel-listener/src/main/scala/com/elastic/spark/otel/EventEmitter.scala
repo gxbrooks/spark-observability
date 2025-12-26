@@ -78,6 +78,9 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   // Single unified event buffer (maintains arrival order)
   private val eventBuffer: mutable.Buffer[BufferedEvent] = mutable.Buffer.empty
   
+  // Map to track eventId -> correlationKey for start events (for close_start CSV logging)
+  private val eventIdToCorrelationKey: mutable.Map[String, String] = mutable.Map.empty
+  
   // Lock for buffer access
   private val bufferLock = new Object
   
@@ -109,6 +112,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   /**
    * Emit a START event (queued for batch transmission).
    * Lean routine - just adds to buffer, no HTTP body generation.
+   * Stores eventId -> correlationKey mapping for later use in close_start CSV logging.
    */
   def emitStartEvent(event: ApplicationEvent, correlationKey: String): Long = {
     val emitStartNanos = System.nanoTime()
@@ -116,6 +120,8 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
     
     bufferLock.synchronized {
       eventBuffer += StartEvent(event, correlationKey)
+      // Store mapping for close_start CSV logging
+      eventIdToCorrelationKey(event.event.id) = correlationKey
     }
     
     val emitDurationNanos = System.nanoTime() - emitStartNanos
@@ -129,13 +135,20 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
    * Lean routine - just adds to buffer.
    * @param eventId The ID of the start event to close
    * @param closedBy How the event was closed: "end" (matched END event) or "parent" (hierarchical closure)
+   * @param correlationKey Optional correlation key. If not provided, will be looked up from stored mapping.
    */
-  def closeStartEvent(eventId: String, closedBy: String = "end"): Unit = {
+  def closeStartEvent(eventId: String, closedBy: String = "end", correlationKey: Option[String] = None): Unit = {
     bufferLock.synchronized {
       eventBuffer += CloseStartEvent(eventId, closedBy)
+      
+      // Look up correlation key if not provided
+      val key = correlationKey.getOrElse(eventIdToCorrelationKey.getOrElse(eventId, ""))
+      
+      eventStats.logCloseStartEvent(eventId, key, closedBy)
+      
+      // Clean up mapping after use (optional - helps with memory)
+      // eventIdToCorrelationKey.remove(eventId)
     }
-    
-    eventStats.logCloseStartEvent(eventId)
   }
   
   /**
@@ -423,7 +436,7 @@ class EventAnalytics {
     
     val file = writableLogDir.resolve(s"event-analytics-$timestampSuffix.csv").toFile
     val pw = new PrintWriter(new FileWriter(file, true))
-    pw.println("timestamp,op_type,correlation_id,event_id,start_time_ms,duration_nanos,event_type,event_count")
+    pw.println("timestamp,op_type,correlation_id,event_id,start_time_ms,duration_nanos,event_type,event_count,closed_by")
     pw.flush()
     (file, pw)
   }
@@ -447,8 +460,9 @@ class EventAnalytics {
    */
   def logStartEvent(correlationKey: String, eventId: String, startTimeMs: Long, durationNanos: Long, eventType: String): Unit = {
     val timestamp = formatTimestamp(startTimeMs)
+    val startTimeFormatted = formatTimestamp(startTimeMs)  // Format as date-time instead of millis
     writer.synchronized {
-      writer.println(s"$timestamp,start,$correlationKey,$eventId,$startTimeMs,$durationNanos,$eventType,")
+      writer.println(s"$timestamp,start,$correlationKey,$eventId,$startTimeFormatted,$durationNanos,$eventType,,")
       writer.flush()
     }
   }
@@ -458,19 +472,23 @@ class EventAnalytics {
    */
   def logEndEvent(correlationKey: String, eventId: String, startTimeMs: Long, durationNanos: Long, eventType: String): Unit = {
     val timestamp = formatTimestamp(startTimeMs)
+    val startTimeFormatted = formatTimestamp(startTimeMs)  // Format as date-time instead of millis
     writer.synchronized {
-      writer.println(s"$timestamp,end,$correlationKey,$eventId,$startTimeMs,$durationNanos,$eventType,")
+      writer.println(s"$timestamp,end,$correlationKey,$eventId,$startTimeFormatted,$durationNanos,$eventType,,")
       writer.flush()
     }
   }
   
   /**
    * Log close_start event to CSV.
+   * @param eventId The ID of the start event being closed
+   * @param correlationKey The correlation key of the start event
+   * @param closedBy How the event was closed: "end" or "parent"
    */
-  def logCloseStartEvent(eventId: String): Unit = {
+  def logCloseStartEvent(eventId: String, correlationKey: String, closedBy: String): Unit = {
     val timestamp = formatTimestamp(System.currentTimeMillis())
     writer.synchronized {
-      writer.println(s"$timestamp,close_start,,$eventId,,,,")
+      writer.println(s"$timestamp,close_start,$correlationKey,$eventId,,,,,$closedBy")
       writer.flush()
     }
   }
@@ -481,7 +499,7 @@ class EventAnalytics {
   def logFlushStart(flushStartTimeMs: Long, eventCount: Int): Unit = {
     val timestamp = formatTimestamp(flushStartTimeMs)
     writer.synchronized {
-      writer.println(s"$timestamp,flush_start,,,,,,$eventCount")
+      writer.println(s"$timestamp,flush_start,,,,,,$eventCount,")
       writer.flush()
     }
   }
@@ -493,7 +511,7 @@ class EventAnalytics {
     val timestamp = formatTimestamp(flushEndTimeMs)
     val opType = if (isError) "flush_end_error" else "flush_end"
     writer.synchronized {
-      writer.println(s"$timestamp,$opType,,,,$durationNanos,,$eventCount")
+      writer.println(s"$timestamp,$opType,,,,$durationNanos,,$eventCount,")
       writer.flush()
     }
   }

@@ -42,7 +42,7 @@ cp vars/contexts/observability/.env observability/.env
 docker compose --env-file vars/contexts/observability/.env up -d
 ```
 
-**Variables Included**: `ELASTIC_URL`, `ELASTIC_PASSWORD`, `STACK_VERSION`, `CA_CERT_LINUX_PATH`, etc.
+**Variables Included**: `ELASTIC_URL`, `ELASTIC_PASSWORD`, `STACK_VERSION`, `CA_CERT`, etc.
 
 ---
 
@@ -191,7 +191,7 @@ source vars/contexts/ispark/ispark_env.sh
 
 **Note**: The actual file deployed to managed nodes is generated via `elastic-agent-systemd` context.
 
-**Variables Included**: `ELASTIC_URL`, `CA_CERT_LINUX_PATH`, etc. (same variables as `elastic-agent-systemd` but in shell format)
+**Variables Included**: `ELASTIC_URL`, `CA_CERT`, etc. (same variables as `elastic-agent-systemd` but in shell format)
 
 ---
 
@@ -207,8 +207,8 @@ source vars/contexts/ispark/ispark_env.sh
 
 **Variables Included**: 
 - **Canonical Elastic Agent variables** (preferred): `ELASTICSEARCH_HOST`, `ELASTICSEARCH_USERNAME`, `ELASTICSEARCH_PASSWORD`, `ELASTICSEARCH_CA`, `ELASTICSEARCH_INSECURE`
-- **Other variables**: `LS_HOST`, `LS_SPARK_EVENTS_PORT`, `KUBERNETES_API_SERVER`, `SPARK_EVENTS_DIR`
-- **Legacy variables** (for backward compatibility): `ES_*`, `ELASTIC_*`, `CA_CERT_LINUX_PATH`
+- **Other variables**: `LS_HOST`, `LS_SPARK_EVENTS_PORT`, `KUBERNETES_API_SERVER`, `SPARK_EVENTS_DIR`, `CA_CERT`
+- **Legacy variables** (for backward compatibility): `ES_*`, `ELASTIC_*`
 
 ---
 

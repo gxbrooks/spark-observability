@@ -1,0 +1,40 @@
+{
+  "trigger": {"schedule": {"interval": "10m"}},
+  "input": {
+    "search": {
+      "request": {
+        "indices": [".watcher-history-*"],
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {"term": {"result.condition.met": false}},
+                {
+                  "range": {
+                    "@timestamp": {
+                      "lt": "now-1h"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {"compare": {"ctx.payload.hits.total": {"gt": 0}}},
+  "actions": {
+    "cleanup_non_executed": {
+      "webhook": {
+        "method": "POST",
+        "url": "https://es01:9200/.watcher-history-*/_delete_by_query?wait_for_completion=false&requests_per_second=100&scroll_size=1000",
+        "auth": {"basic": {"username": "elastic", "password": "myElastic2025"}},
+        "headers": {"Content-Type": "application/json"},
+        "body": "{ \"query\": { \"bool\": { \"filter\": [ { \"term\": { \"result.condition.met\": false } }, { \"range\": { \"@timestamp\": { \"lt\": \"now-1h\" } } } ] } }, \"max_docs\": 10000 }"
+      }
+    }
+  }
+}
+

@@ -45,8 +45,8 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Active Jobs",
-            "axisPlacement": "auto",
+            "axisLabel": "Jobs",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "bars",
@@ -72,7 +72,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisWidth": 80
           },
           "mappings": [],
           "thresholds": {
@@ -83,7 +84,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "none"
         },
         "overrides": []
       },
@@ -164,8 +166,8 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Active Jobs",
-            "axisPlacement": "auto",
+            "axisLabel": "Jobs",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "bars",
@@ -191,7 +193,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisWidth": 80
           },
           "mappings": [],
           "thresholds": {
@@ -202,15 +205,16 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 8
+        "x": 12,
+        "y": 0
       },
       "id": 101,
       "options": {
@@ -276,121 +280,33 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Log Count",
-            "axisPlacement": "auto",
-            "fillOpacity": 30,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineWidth": 2,
-            "scaleDistribution": {
-              "type": "log",
-              "log": 10
-            },
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "fillOpacity": 100,
             "stacking": {
               "group": "A",
               "mode": "normal"
             },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "axisLabel": "Count",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
-          "links": [
-            {
-              "title": "View Logs from This Time",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=now&var-log_level=${__field.labels.log_level}&viewPanel=102",
-              "targetBlank": false
-            }
-          ],
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
           }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "ERROR"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "WARN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "INFO"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "green"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "DEBUG"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
+        }
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 0
+        "x": 0,
+        "y": 8
       },
       "id": 100,
       "options": {
@@ -450,21 +366,7 @@
       ],
       "title": "Spark Application Log Counts",
       "type": "timeseries",
-      "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs.",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "bars",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "fillOpacity": 100,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            }
-          }
-        }
-      }
+      "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs."
     },
     {
       "datasource": {
@@ -481,7 +383,7 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "CPU Utilization %",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -498,7 +400,8 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "axisWidth": 80
           },
           "mappings": [],
           "thresholds": {
@@ -518,15 +421,15 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 16
+        "x": 12,
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -534,11 +437,7 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max",
-            "last"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "single"
@@ -591,8 +490,8 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Memory %",
-            "axisPlacement": "auto",
+            "axisLabel": "Memory Utilization %",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -609,7 +508,8 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "axisWidth": 80
           },
           "mappings": [],
           "thresholds": {
@@ -629,14 +529,14 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 16
       },
       "id": 3,
@@ -701,19 +601,25 @@
             "stacking": {
               "mode": "normal",
               "group": "A"
-            }
+            },
+            "axisLabel": "Bytes/sec",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "nullValueMode": "null",
-          "unit": "Bps"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 24
+        "x": 12,
+        "y": 16
       },
       "id": 4,
       "options": {
@@ -858,11 +764,17 @@
             "stacking": {
               "mode": "normal",
               "group": "A"
-            }
+            },
+            "axisLabel": "Bytes/sec",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "nullValueMode": "null",
-          "unit": "Bps"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -870,7 +782,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 24
       },
       "id": 10,
       "options": {
@@ -995,11 +907,17 @@
             "stacking": {
               "mode": "normal",
               "group": "A"
-            }
+            },
+            "axisLabel": "Bytes/sec",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "nullValueMode": "null",
-          "unit": "Bps"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -1152,18 +1070,24 @@
             "stacking": {
               "mode": "normal",
               "group": "A"
-            }
+            },
+            "axisLabel": "Bytes/sec",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "nullValueMode": "null",
-          "unit": "Bps"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 32
       },
       "id": 11,
@@ -1284,7 +1208,7 @@
           },
           "custom": {
             "axisLabel": "Load",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -1301,7 +1225,11 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false
+            "spanNulls": false,
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "nullValueMode": "null",
@@ -1314,15 +1242,15 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 40
+        "x": 12,
+        "y": 32
       },
       "id": 7,
       "options": {
@@ -1330,11 +1258,7 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max",
-            "last"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -1386,7 +1310,7 @@
           },
           "custom": {
             "axisLabel": "Faults/sec",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -1403,7 +1327,11 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false
+            "spanNulls": false,
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "nullValueMode": "null",
@@ -1416,14 +1344,14 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 40
       },
       "id": 6,
@@ -1432,10 +1360,7 @@
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true,
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -1515,8 +1440,8 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "GC Pause Time (ms)",
-            "axisPlacement": "auto",
+            "axisLabel": "Milliseconds",
+            "axisPlacement": "left",
             "fillOpacity": 20,
             "gradientMode": "none",
             "hideFrom": {
@@ -1530,7 +1455,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisWidth": 80
           },
           "links": [],
           "mappings": [],
@@ -1543,25 +1469,21 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 48
+        "x": 12,
+        "y": 40
       },
       "id": 8,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max",
-            "sum"
-          ],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -1618,8 +1540,8 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Heap Reclaimed (KB)",
-            "axisPlacement": "auto",
+            "axisLabel": "Bytes",
+            "axisPlacement": "left",
             "fillOpacity": 20,
             "gradientMode": "none",
             "hideFrom": {
@@ -1633,7 +1555,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisWidth": 80
           },
           "mappings": [],
           "thresholds": {
@@ -1645,25 +1568,21 @@
               }
             ]
           },
-          "unit": "deckbytes"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 48
       },
       "id": 9,
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max",
-            "sum"
-          ],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -1718,7 +1637,7 @@
           },
           "custom": {
             "axisLabel": "Utilization (%)",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -1738,7 +1657,11 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "axisWidth": 80,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
           },
           "mappings": [],
           "thresholds": {
@@ -1754,7 +1677,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "percentunit"
         },
         "overrides": [
           {
@@ -1769,7 +1692,7 @@
               },
               {
                 "id": "custom.axisLabel",
-                "value": "Utilization (%)"
+                "value": "Utilization %"
               },
               {
                 "id": "custom.lineStyle",
@@ -1822,7 +1745,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 48
       },
       "id": 101,

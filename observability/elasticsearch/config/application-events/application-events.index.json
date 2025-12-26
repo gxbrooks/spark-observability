@@ -1,4 +1,8 @@
 {
-  "aliases": {"app-events": {"is_write_index": true}}
+  "aliases": {"app-events": {"is_write_index": true}},
+  "settings": {
+    "index.lifecycle.name": "application-events",
+    "index.lifecycle.rollover_alias": "app-events"
+  }
 }
 

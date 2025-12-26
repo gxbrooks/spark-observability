@@ -1,5 +1,24 @@
 #!/usr/bin/bash
 
+# Docker aliases
+alias dkill='docker rm $(docker ps -aq)'
+alias dlsi='docker image ls'
+alias drmi='docker rmi $(docker images -q)'
+
+
+#Docker Compose aliases
+# Docker Compose with project-specific .env
+alias dc='docker compose --env-file ../vars/contexts/observability/.env'
+# Docker container stats table
+alias dcpsstats='dc ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" | sed 1d | while read id name status; do stats=$(docker stats --no-stream --format "{{.CPUPerc}}\t{{.MemPerc}}\t{{.BlockIO}}\t{{.NetIO}}" $id); printf "%-12s %-25s %-20s %s\n" "$id" "$name" "$status" "$stats"; done | sed "1i CONTAINER ID   NAME                      STATUS               CPU%   MEM%   BLOCK I/O     NET I/O"'
+
+# removal of containers
+alias dc='docker compose --env-file ./vars/contexts/observability/.env'
+
+alias dcrm='docker rm $(docker ps -aq)'
+alias dcrmid='docker rmi $(docker images -q --filter "dangling=true")'
+
+
 alias dcps="docker ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Status}}'"
 alias dcps2="docker ps -a --format 'table {{.ID}}\t{index .Config.Labels \"com.docker.compose.service\"}\t{{.Names}}\t{{.Status}}'"
 
@@ -7,7 +26,7 @@ alias dcps2="docker ps -a --format 'table {{.ID}}\t{index .Config.Labels \"com.d
 # alias dcpss='docker ps --format "{{.ID}}" | xargs -I {} docker inspect --format "{{.Name}} {{index .Config.Labels \"com.docker.compose.service\"}}" {}'
 # alias dcpss='printf "%-12s %-15s %-15s %-15s\n" "CONTAINER_ID" "NAME" "STATUS" "SERVICE"; docker ps --format "{{.ID}}" | xargs -I {} docker inspect --format "{{.ID}}\t{{.Name}}\t{{.State.Status}}\t{{index .Config.Labels \"com.docker.compose.service\"}}" {} | awk -F"\t" "{printf \"%-12s %-15s %-15s %-15s\\n\", substr(\$1, 1, 12), \$2, \$3, \$4}"'
 
-alias dckill='docker rm $(docker ps -aq)'
+
 
 alias dcd='docker compose down '
 alias dcdv='docker compose down -v --remove-orphans'
@@ -21,15 +40,12 @@ alias dclogs="docker compose logs "
 alias dccp="docker compose cp "
 alias dcr="docker compose restart "
 
-alias dlsi='docker image ls'
-alias drmi='docker rmi $(docker images -q)'
-# removal of containers
-alias dcrm='docker rm $(docker ps -aq)'
-alias dcrmid='docker rmi $(docker images -q --filter "dangling=true")'
+
 
 alias dcipython='docker compose exec \
 	-e PYSPARK_DRIVER_PYTHON=ipython spark-master \
 	pyspark --packages com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0'
+
 
 alias esapi="docker compose exec -it es01 esapi"
 alias kapi="docker compose exec -it es01 kapi"

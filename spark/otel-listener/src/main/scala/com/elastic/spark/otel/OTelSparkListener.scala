@@ -135,138 +135,106 @@ class OTelSparkListener extends SparkListener {
   private val appNames: TrieMap[String, String] = TrieMap.empty
   
   // Composite key helper functions for unique event identification
-  // Format: EventType:{appId}:{id1}:{id2}... to avoid name conflicts and ensure uniqueness
+  // Format: App:{AppID}|Job:{JobId}|Stage:{StageID}|Task:{TaskID}
+  // Uses | as level separator and : to separate level name from level ID
   private def appKey(appId: String): String = s"App:$appId"
-  private def taskKey(appId: String, stageId: Int, taskId: Long): String = s"Task:$appId:$stageId:$taskId"
-  private def stageKey(appId: String, jobId: Int, stageId: Int): String = s"Stage:$appId:$jobId:$stageId"
-  private def jobKey(appId: String, jobId: Int): String = s"Job:$appId:$jobId"
-  private def sqlKey(appId: String, executionId: Long): String = s"SQL:$appId:$executionId"
+  private def jobKey(appId: String, jobId: Int): String = s"App:$appId|Job:$jobId"
+  private def stageKey(appId: String, jobId: Int, stageId: Int): String = s"App:$appId|Job:$jobId|Stage:$stageId"
+  private def taskKey(stageCorrelationKey: String, taskId: Long): String = {
+    // Task correlation key extends stage correlation key: App|Job|Stage|Task
+    s"$stageCorrelationKey|Task:$taskId"
+  }
+  private def sqlKey(appId: String, executionId: Long): String = s"App:$appId|SQL:$executionId"
   
   /**
-   * Close residual child events (events that didn't get an onEnd call due to errors).
-   * Uses prefix matching on correlation keys to find child events.
+   * Close residual child tasks of a stage.
+   * Only closes events that are still in the taskEventMetadata map (have START but no END).
+   * Uses correlation key prefix matching with | separator.
    * 
-   * @param parentKey The parent correlation key (e.g., "App:app-123" or "Job:app-123:5")
-   * @param parentType The type of parent event ("App", "Job", or "Stage")
+   * @param stageCorrelationKey The stage's correlation key (e.g., "App:appId|Job:jobId|Stage:stageId")
    */
-  private def closeResidualChildEvents(parentKey: String, parentType: String): Unit = {
-    if (parentType == "App") {
-      // Extract appId from App:appId
-      val appId = parentKey.substring(4)  // Remove "App:" prefix
-      
-      // Close residual SQL events: SQL:appId:*
-      val residualSql = sqlEventMetadata.iterator.filter { case (key, _) =>
-        key.startsWith(s"SQL:$appId:")
-      }.toSeq
-      if (residualSql.nonEmpty) {
-        logger.info(s"Closing ${residualSql.size} residual SQL events for application $appId")
-        residualSql.foreach { case (key, metadata) =>
-          eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
-          sqlEventMetadata.remove(key)
-        }
+  private def stageCloseResidualChildren(stageCorrelationKey: String): Unit = {
+    // Task correlation key format: App:appId|Job:jobId|Stage:stageId|Task:taskId
+    // Find tasks that start with the stage's correlation key followed by |Task:
+    val taskPrefix = s"$stageCorrelationKey|Task:"
+    
+    // Use TrieMap iterator directly
+    val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
+      key.startsWith(taskPrefix)
+    }.toSeq
+    
+    if (residualTasks.nonEmpty) {
+      logger.debug(s"Closing ${residualTasks.size} residual Task events for stage (key: $stageCorrelationKey)")
+      residualTasks.foreach { case (key, metadata) =>
+        eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent", correlationKey = Some(key))
+        taskEventMetadata.remove(key)
       }
-      
-      // Close residual Job events: Job:appId:*
-      val residualJobs = jobEventMetadata.iterator.filter { case (key, _) =>
-        key.startsWith(s"Job:$appId:")
-      }.toSeq
-        if (residualJobs.nonEmpty) {
-        logger.info(s"Closing ${residualJobs.size} residual Job events and their children for application $appId")
-        residualJobs.foreach { case (jobKey, jobMetadata) =>
-          // Recursively close children of this job
-          closeResidualChildEvents(jobKey, "Job")
-          eventEmitter.closeStartEvent(jobMetadata.eventId, closedBy = "parent")
-          jobEventMetadata.remove(jobKey)
-        }
+    }
+  }
+  
+  /**
+   * Close residual child stages and tasks of a job.
+   * Only closes events that are still in the metadata maps (have START but no END).
+   * Recursively processes child stages before closing them.
+   * 
+   * @param jobCorrelationKey The job's correlation key (e.g., "App:appId|Job:jobId")
+   */
+  private def jobCloseResidualChildren(jobCorrelationKey: String): Unit = {
+    // Stage correlation key format: App:appId|Job:jobId|Stage:stageId
+    // Find stages that start with the job's correlation key followed by |Stage:
+    val stagePrefix = s"$jobCorrelationKey|Stage:"
+    
+    // Use TrieMap iterator directly
+    val residualStages = stageEventMetadata.iterator.filter { case (key, _) =>
+      key.startsWith(stagePrefix)
+    }.toSeq
+    
+    if (residualStages.nonEmpty) {
+      logger.debug(s"Closing ${residualStages.size} residual Stage events for job (key: $jobCorrelationKey)")
+      residualStages.foreach { case (stageKey, stageMetadata) =>
+        // Recursively close children of this stage (tasks)
+        stageCloseResidualChildren(stageKey)
+        // Close the stage itself
+        eventEmitter.closeStartEvent(stageMetadata.eventId, closedBy = "parent", correlationKey = Some(stageKey))
+        stageEventMetadata.remove(stageKey)
       }
-      
-      // Close residual Stage events: Stage:appId:* (both Stage:appId:jobId:stageId and Stage:appId:stageId)
-      val residualStages = stageEventMetadata.iterator.filter { case (key, _) =>
-        key.startsWith(s"Stage:$appId:")
-      }.toSeq
-        if (residualStages.nonEmpty) {
-        logger.info(s"Closing ${residualStages.size} residual Stage events and their children for application $appId")
-        residualStages.foreach { case (stageKey, stageMetadata) =>
-          // Recursively close children of this stage
-          closeResidualChildEvents(stageKey, "Stage")
-          eventEmitter.closeStartEvent(stageMetadata.eventId, closedBy = "parent")
-          stageEventMetadata.remove(stageKey)
-        }
+    }
+  }
+  
+  /**
+   * Close residual child jobs, stages, tasks, and SQL executions of an application.
+   * Only closes events that are still in the metadata maps (have START but no END).
+   * Recursively processes children before closing parents.
+   * 
+   * @param appCorrelationKey The application's correlation key (e.g., "App:appId")
+   */
+  private def appCloseResidualChildren(appCorrelationKey: String): Unit = {
+    // SQL correlation key format: App:appId|SQL:executionId
+    val sqlPrefix = s"$appCorrelationKey|SQL:"
+    val residualSql = sqlEventMetadata.iterator.filter { case (key, _) =>
+      key.startsWith(sqlPrefix)
+    }.toSeq
+    if (residualSql.nonEmpty) {
+      logger.info(s"Closing ${residualSql.size} residual SQL events for application (key: $appCorrelationKey)")
+      residualSql.foreach { case (key, metadata) =>
+        eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent", correlationKey = Some(key))
+        sqlEventMetadata.remove(key)
       }
-      
-      // Close residual Task events: Task:appId:*
-      val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
-        key.startsWith(s"Task:$appId:")
-      }.toSeq
-      if (residualTasks.nonEmpty) {
-        logger.info(s"Closing ${residualTasks.size} residual Task events for application $appId")
-        residualTasks.foreach { case (key, metadata) =>
-          eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
-          taskEventMetadata.remove(key)
-        }
-      }
-      
-    } else if (parentType == "Job") {
-      // Extract appId and jobId from Job:appId:jobId
-      val parts = parentKey.split(":")
-      if (parts.length >= 3) {
-        val appId = parts(1)
-        val jobId = parts(2)
-        
-        // Close residual Stage events: Stage:appId:jobId:*
-        val residualStages = stageEventMetadata.iterator.filter { case (key, _) =>
-          key.startsWith(s"Stage:$appId:$jobId:")
-        }.toSeq
-        if (residualStages.nonEmpty) {
-          logger.debug(s"Closing ${residualStages.size} residual Stage events for job $jobId")
-          residualStages.foreach { case (stageKey, stageMetadata) =>
-            // Recursively close children of this stage
-            closeResidualChildEvents(stageKey, "Stage")
-            eventEmitter.closeStartEvent(stageMetadata.eventId, closedBy = "parent")
-            stageEventMetadata.remove(stageKey)
-          }
-        }
-        
-        // Close residual Task events: Task:appId:* (tasks under stages of this job)
-        // Note: We can't directly match tasks to jobs, so we close tasks of all stages in this job
-        // We already handled stages above, so this is a fallback for orphaned tasks
-      }
-      
-    } else if (parentType == "Stage") {
-      // Extract appId and stageId from Stage:appId:jobId:stageId or Stage:appId:stageId
-      val parts = parentKey.split(":")
-      if (parts.length >= 4) {
-        // Format: Stage:appId:jobId:stageId
-        val appId = parts(1)
-        val stageId = parts(3)
-        
-        // Close residual Task events: Task:appId:stageId:*
-        val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
-          key.startsWith(s"Task:$appId:$stageId:")
-        }.toSeq
-        if (residualTasks.nonEmpty) {
-          logger.debug(s"Closing ${residualTasks.size} residual Task events for stage $stageId")
-          residualTasks.foreach { case (key, metadata) =>
-            eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
-            taskEventMetadata.remove(key)
-          }
-        }
-      } else if (parts.length == 3) {
-        // Format: Stage:appId:stageId (fallback format)
-        val appId = parts(1)
-        val stageId = parts(2)
-        
-        // Close residual Task events: Task:appId:stageId:*
-        val residualTasks = taskEventMetadata.iterator.filter { case (key, _) =>
-          key.startsWith(s"Task:$appId:$stageId:")
-        }.toSeq
-        if (residualTasks.nonEmpty) {
-          logger.debug(s"Closing ${residualTasks.size} residual Task events for stage $stageId")
-          residualTasks.foreach { case (key, metadata) =>
-            eventEmitter.closeStartEvent(metadata.eventId, closedBy = "parent")
-            taskEventMetadata.remove(key)
-          }
-        }
+    }
+    
+    // Job correlation key format: App:appId|Job:jobId
+    val jobPrefix = s"$appCorrelationKey|Job:"
+    val residualJobs = jobEventMetadata.iterator.filter { case (key, _) =>
+      key.startsWith(jobPrefix)
+    }.toSeq
+    if (residualJobs.nonEmpty) {
+      logger.info(s"Closing ${residualJobs.size} residual Job events and their children for application (key: $appCorrelationKey)")
+      residualJobs.foreach { case (jobKey, jobMetadata) =>
+        // Recursively close children of this job (stages and tasks)
+        jobCloseResidualChildren(jobKey)
+        // Close the job itself
+        eventEmitter.closeStartEvent(jobMetadata.eventId, closedBy = "parent", correlationKey = Some(jobKey))
+        jobEventMetadata.remove(jobKey)
       }
     }
   }
@@ -428,18 +396,18 @@ class OTelSparkListener extends SparkListener {
         )
         eventEmitter.emitEndEvent(endEvent, correlationKey)
         
-        // Close the corresponding START event
+        // Close residual child events FIRST (before closing the application itself)
+        logger.info(s"Checking for residual child events for application $appId")
+        appCloseResidualChildren(correlationKey)
+        
+        // Close the corresponding START event with close_by="end"
         metadata match {
           case Some(m) =>
-            eventEmitter.closeStartEvent(m.eventId)
+            eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey))
             appEventMetadata.remove(correlationKey)  // Use correlationKey (App:appId) as map key
           case None =>
             logger.error(s"CRITICAL: Cannot close START event for app $appId - metadata is None")
         }
-        
-        // Close residual child events (events that didn't get an onEnd call due to errors)
-        logger.info(s"Checking for residual child events for application $appId")
-        closeResidualChildEvents(correlationKey, "App")
         
         // Complete span
         span.setAttribute("correlation.event.end.id", endEventId)
@@ -645,15 +613,15 @@ class OTelSparkListener extends SparkListener {
       )
       eventEmitter.emitEndEvent(endEvent, correlationKey)
       
-      // Close the corresponding START event
+      // Close residual child events FIRST (before closing the job itself)
+      logger.debug(s"Checking for residual child events for job $jobId")
+      jobCloseResidualChildren(correlationKey)
+      
+      // Close the corresponding START event with close_by="end"
       metadata match {
         case Some(m) =>
-          eventEmitter.closeStartEvent(m.eventId)
+          eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey))
           jobEventMetadata.remove(correlationKey)
-          
-          // Close residual child events (events that didn't get an onEnd call due to errors)
-          logger.debug(s"Checking for residual child events for job $jobId")
-          closeResidualChildEvents(correlationKey, "Job")
         case None =>
           logger.error(s"CRITICAL: Cannot close START event for job $jobId - metadata is None")
       }
@@ -699,14 +667,15 @@ class OTelSparkListener extends SparkListener {
       val eventId = UUID.randomUUID().toString
       
       // Get parent job ID and app ID for composite key
-      val parentJobId = jobSpans.keys.headOption
+      // Stages always have jobs per SPARK_EVENT_HIERARCHY.md
+      val parentJobId = jobSpans.keys.headOption.getOrElse {
+        logger.error(s"CRITICAL: Stage $stageId submitted without parent job context")
+        throw new IllegalStateException(s"Stage $stageId requires parent job")
+      }
       val appId = applicationSpan.keys.headOption.getOrElse("unknown")
       
-      // Generate composite correlation key
-      val correlationKey = parentJobId match {
-        case Some(jid) => stageKey(appId, jid, stageId)
-        case None => s"Stage:$appId:$stageId"  // Fallback: Stage:{appId}:{stageId} if no job context
-      }
+      // Generate composite correlation key (stages always have jobs)
+      val correlationKey = stageKey(appId, parentJobId, stageId)
       
       // Store unified metadata BEFORE emitting (prevents race condition)
       val metadata = EventStartMetadata(eventId, submissionTime, correlationKey)
@@ -829,10 +798,8 @@ class OTelSparkListener extends SparkListener {
       stageSpans.put(stageId, span)
       
       // Get parent job event ID for correlation
-      val parentJobEventId = parentJobId.flatMap { jid =>
-        val jobCorrelationKey = jobKey(appId, jid)
-        jobEventMetadata.get(jobCorrelationKey).map(_.eventId)
-      }
+      val jobCorrelationKey = jobKey(appId, parentJobId)
+      val parentJobEventId = jobEventMetadata.get(jobCorrelationKey).map(_.eventId)
       
       // Emit START event with correlation key and span ID
       val startEvent = ApplicationEvent(
@@ -847,7 +814,7 @@ class OTelSparkListener extends SparkListener {
           `type` = "stage",
           id = s"stage-$stageId",
           name = stageName,
-          `parent.id` = parentJobId.map(jid => s"job-$jid"),
+          `parent.id` = Some(s"job-$parentJobId"),
           `correlation.key` = Some(correlationKey)
         ),
         correlation = Correlation(
@@ -862,7 +829,7 @@ class OTelSparkListener extends SparkListener {
           `stage.name` = Some(stageName),
           `stage.attempt` = Some(attemptNumber.toLong),
           `stage.num.tasks` = Some(numTasks.toLong),
-          `job.id` = parentJobId.map(_.toLong)
+          `job.id` = Some(parentJobId.toLong)
         ))
       )
       eventEmitter.emitStartEvent(startEvent, correlationKey)
@@ -889,14 +856,15 @@ class OTelSparkListener extends SparkListener {
       logger.debug(s"Stage $stageId completed")
 
       // Get app ID and parent job ID for composite key
+      // Stages always have jobs per SPARK_EVENT_HIERARCHY.md
       val appId = applicationSpan.keys.headOption.getOrElse("unknown")
-      val parentJobId = jobSpans.keys.headOption
+      val parentJobId = jobSpans.keys.headOption.getOrElse {
+        logger.error(s"CRITICAL: Stage $stageId completed without parent job context")
+        throw new IllegalStateException(s"Stage $stageId requires parent job")
+      }
       
       // Generate composite correlation key (must match onStageSubmitted)
-      val correlationKey = parentJobId match {
-        case Some(jid) => stageKey(appId, jid, stageId)
-        case None => s"Stage:$appId:$stageId"  // Fallback: Stage:{appId}:{stageId} if no job context
-      }
+      val correlationKey = stageKey(appId, parentJobId, stageId)
       
       // Get unified metadata
       val metadata = stageEventMetadata.get(correlationKey)
@@ -973,15 +941,15 @@ class OTelSparkListener extends SparkListener {
         )
         eventEmitter.emitEndEvent(endEvent, correlationKey)
         
-        // Close the corresponding START event
+        // Close residual child events FIRST (before closing the stage itself)
+        logger.debug(s"Checking for residual child events for stage $stageId")
+        stageCloseResidualChildren(correlationKey)
+        
+        // Close the corresponding START event with close_by="end"
         metadata match {
           case Some(m) =>
-            eventEmitter.closeStartEvent(m.eventId)
+            eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey))
             stageEventMetadata.remove(correlationKey)
-            
-            // Close residual child events (events that didn't get an onEnd call due to errors)
-            logger.debug(s"Checking for residual child events for stage $stageId")
-            closeResidualChildEvents(correlationKey, "Stage")
           case None =>
             logger.error(s"CRITICAL: Cannot close START event for stage $stageId - metadata is None")
         }
@@ -1093,9 +1061,20 @@ class OTelSparkListener extends SparkListener {
       val appName = appNames.get(appId)
       
       // Generate event ID and correlation key for tasks (if enabled)
+      // Task key needs the stage's correlation key to include full hierarchy
       val (eventIdOpt, correlationKeyOpt) = if (emitTaskEvents) {
         val eventId = UUID.randomUUID().toString
-        val correlationKey = taskKey(appId, stageId, taskInfo.taskId)
+        // Look up stage's correlation key to build full task hierarchy
+        // Find the stage correlation key from stageEventMetadata (ends with |Stage:stageId)
+        val stageCorrelationKey = stageEventMetadata.keys.find { key =>
+          key.endsWith(s"|Stage:$stageId")
+        }.getOrElse {
+          logger.error(s"CRITICAL: Stage $stageId not found in metadata when creating task ${taskInfo.taskId}")
+          // Fallback: construct from available context (shouldn't happen normally)
+          val parentJobId = jobSpans.keys.headOption.getOrElse(0)
+          stageKey(appId, parentJobId, stageId)
+        }
+        val correlationKey = taskKey(stageCorrelationKey, taskInfo.taskId)
         
         // Store unified metadata BEFORE emitting
         val metadata = EventStartMetadata(eventId, launchTime, correlationKey)
@@ -1194,7 +1173,16 @@ class OTelSparkListener extends SparkListener {
         val appId = applicationSpan.keys.headOption.getOrElse("unknown")
         
         // Generate composite correlation key (must match onTaskStart)
-        val correlationKey = taskKey(appId, stageId, taskInfo.taskId)
+        // Look up stage's correlation key to build full task hierarchy
+        val stageCorrelationKey = stageEventMetadata.keys.find { key =>
+          key.endsWith(s"|Stage:$stageId")
+        }.getOrElse {
+          logger.error(s"CRITICAL: Stage $stageId not found in metadata when ending task ${taskInfo.taskId}")
+          // Fallback: construct from available context (shouldn't happen normally)
+          val parentJobId = jobSpans.keys.headOption.getOrElse(0)
+          stageKey(appId, parentJobId, stageId)
+        }
+        val correlationKey = taskKey(stageCorrelationKey, taskInfo.taskId)
         
         // Get unified metadata
         val metadata = taskEventMetadata.get(correlationKey)
@@ -1281,10 +1269,10 @@ class OTelSparkListener extends SparkListener {
 
         eventEmitter.emitEndEvent(event, correlationKey)
         
-        // Close the corresponding START event
+        // Close the corresponding START event with close_by="end"
         metadata match {
           case Some(m) =>
-            eventEmitter.closeStartEvent(m.eventId)
+            eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey))
             taskEventMetadata.remove(correlationKey)
           case None =>
             logger.error(s"CRITICAL: Cannot close START event for task ${taskInfo.taskId} - metadata is None")
@@ -1502,10 +1490,10 @@ class OTelSparkListener extends SparkListener {
       
       eventEmitter.emitEndEvent(event, correlationKey)
       
-      // Close the corresponding START event
+      // Close the corresponding START event with close_by="end"
       metadata match {
         case Some(m) =>
-          eventEmitter.closeStartEvent(m.eventId)
+          eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey))
           sqlEventMetadata.remove(correlationKey)
         case None =>
           logger.error(s"CRITICAL: Cannot close START event for SQL execution $executionId - metadata is None")

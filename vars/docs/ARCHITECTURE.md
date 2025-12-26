@@ -19,25 +19,25 @@ The variable context framework operates on a **two-stage generation process**:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Source Files (Version Controlled)                           │
-│                                                              │
-│  vars/                                                       │
+│                                                             │
+│  vars/                                                      │
 │  ├── variables.yaml          # Single source of truth       │
-│  ├── contexts.yaml            # Context specifications       │
-│  ├── generate_env.sh          # Bootstrap wrapper (system Python) │
+│  ├── contexts.yaml            # Context specifications      │
+│  ├── generate_env.sh          # Wrapper (system Python)     │
 │  ├── generate_env.py          # Core generator script       │
-│  └── README.md                # Module documentation         │
+│  └── README.md                # Module documentation        │
 └─────────────────────────────────────────────────────────────┘
                           │
                           │ reads
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ Generation Process (Modular, Layered Architecture)          │
-│                                                              │
+│                                                             │
 │  Layer 1: generate_env.sh (Bootstrap Wrapper)               │
 │  ├── Uses system Python (breaks circular dependencies)      │
 │  ├── Auto-installs PyYAML if missing                        │
 │  └── Calls generate_env.py                                  │
-│                                                              │
+│                                                             │
 │  Layer 2: generate_env.py (Core Generator)                  │
 │  ├── Load variables.yaml                                    │
 │  ├── Load contexts.yaml                                     │
@@ -48,29 +48,29 @@ The variable context framework operates on a **two-stage generation process**:
                           │ writes
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Generated Files (Gitignored)                                 │
-│                                                              │
-│  vars/contexts/                                              │
-│  ├── observability/                                          │
-│  │   └── .env                                                │
-│  ├── spark-runtime/                                           │
-│  │   └── spark-configmap.yaml                                │
-│  ├── spark-client/                                           │
-│  │   └── spark_env.sh                                        │
-│  ├── devops/                                                 │
-│  │   └── devops_env.sh                                       │
-│  └── ... (other contexts)                                    │
+│ Generated Files (Gitignored)                                │
+│                                                             │
+│  vars/contexts/                                             │
+│  ├── observability/                                         │
+│  │   └── .env                                               │
+│  ├── spark-runtime/                                         │
+│  │   └── spark-configmap.yaml                               │
+│  ├── spark-client/                                          │
+│  │   └── spark_env.sh                                       │
+│  ├── devops/                                                │
+│  │   └── devops_env.sh                                      │
+│  └── ... (other contexts)                                   │
 └─────────────────────────────────────────────────────────────┘
                           │
                           │ consumed by
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Consumers                                                    │
-│                                                              │
+│ Consumers                                                   │
+│                                                             │
 │  ├── Ansible Playbooks        (vars_files, copy tasks)      │
 │  ├── Docker Compose           (--env-file, copied .env)     │
 │  ├── Shell Scripts            (source *.sh)                 │
-│  ├── Kubernetes               (kubectl apply ConfigMap)      │
+│  ├── Kubernetes               (kubectl apply ConfigMap)     │
 │  └── Local Development        (direct sourcing)             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -141,31 +141,19 @@ vars/
 ├── generate_env.py             # Source: Core generator script
 ├── README.md                   # Source: Module overview
 └── contexts/                   # Generated: All context files (gitignored)
-    ├── observability/
-    │   └── .env
-    ├── spark-runtime/
-    │   └── spark-configmap.yaml
-    ├── spark-client/
-    │   └── spark_env.sh
-    ├── devops/
-    │   └── devops_env.sh
-    ├── ispark/
-    │   └── ispark_env.sh
-    ├── elastic-agent/
-    │   └── elastic_agent_env.sh
-    ├── managed-node/
-    │   └── managed_node_env.sh
-    ├── ansible/
-    │   ├── spark_vars.yml
-    │   ├── nfs_vars.yml
-    │   └── elastic_agent_vars.yml
-    ├── elastic-agent-ansible/
-    │   └── elastic_agent_vars.yml
-    ├── nfs/
-    │   └── nfs_vars.yml
-    └── spark-image/
-        └── spark-image.toml
+    ├── devops_env.sh
+    ├── elastic_agent_ansible_vars.yml
+    ├── elastic_agent_env.conf
+    ├── ispark_client_env.sh
+    ├── managed_node_env.sh
+    ├── nfs_ansible_vars.yml
+    ├── observability_docker.env
+    ├── spark_ansible_vars.yml
+    ├── spark_client_env.sh
+    ├── spark-configmap.yaml
+    ├── spark-image.toml
 ```
+
 
 ## Context Types
 

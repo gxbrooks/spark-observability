@@ -1,21 +1,24 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"watch_id:\\\"batch-match-join\\\" and result.condition.met:true \"},\"filter\":[],\"index\":\"watcher-dataview\"}"
+      "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"watch_id:\\\"batch-match-join\\\" and result.condition.met:true\"},\"filter\":[{\"meta\":{\"index\":\"watcher-dataview\",\"negate\":false,\"disabled\":false,\"alias\":null,\"type\":\"phrase\",\"key\":\"@timestamp\",\"params\":{\"query\":\"now-7d\"},\"value\":\"now\"},\"query\":{\"range\":{\"@timestamp\":{\"gte\":\"now-7d\",\"lte\":\"now\"}}},\"$state\":{\"store\":\"appState\"}}],\"index\":\"watcher-dataview\"}"
     },
     "title": "Batch Join Match Watcher Runs",
-    "sort": [["@timestamp"]],
+    "sort": [["@timestamp", "desc"]],
     "columns": [
+      "@timestamp",
       "result.execution_time",
       "watch_id",
       "result.condition.compare.resolved_values.ctx.payload.hits.total",
       "result.execution_duration"
     ],
-    "description": "List of all the batch join match watcher runs",
+    "description": "List of all the batch join match watcher runs (most recent first, limited to 1000 results)",
     "hideChart": false,
     "isTextBasedQuery": false,
     "usesAdHocDataView": false,
     "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 1000,
     "breakdownField": "watch_id"
   }
 }

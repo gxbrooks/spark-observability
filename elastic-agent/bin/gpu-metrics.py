@@ -7,6 +7,8 @@ metrics.
 
 from __future__ import annotations
 
+import datetime
+import gzip
 import json
 import pathlib
 import re
@@ -225,10 +227,90 @@ def collect_card_metrics(card_device: pathlib.Path) -> Optional[Dict]:
     return metrics
 
 
+def rotate_log_file(log_file: pathlib.Path, max_size_mb: int = 100, keep_days: int = 7) -> None:
+    """
+    Rotate log file if it exceeds size limit or if it's a new day.
+    
+    Best practices for system metrics:
+    - Rotate daily at midnight (time-based)
+    - Rotate when file exceeds size limit (size-based)
+    - Keep last N days of rotated files
+    - Compress files older than 1 day to save space
+    
+    Args:
+        log_file: Path to the log file
+        max_size_mb: Maximum file size in MB before rotation (default: 100MB)
+        keep_days: Number of days of rotated files to keep (default: 7)
+    """
+    if not log_file.exists():
+        return
+    
+    # Check if file needs rotation (size-based)
+    file_size_mb = log_file.stat().st_size / (1024 * 1024)
+    if file_size_mb < max_size_mb:
+        # Check if we need daily rotation (time-based)
+        # Only check on first write of a new day
+        # Since this script runs every 10s, we check file modification time
+        file_mtime = datetime.datetime.fromtimestamp(log_file.stat().st_mtime)
+        now = datetime.datetime.now()
+        # If file was last modified yesterday or earlier, rotate for new day
+        if file_mtime.date() < now.date():
+            # File hasn't been written to today - rotate for new day
+            pass
+        else:
+            # File is current, no rotation needed
+            return
+    
+    # Perform rotation
+    log_dir = log_file.parent
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    rotated_file = log_dir / f"{log_file.name}.{timestamp}"
+    
+    # Move current file to rotated location
+    log_file.rename(rotated_file)
+    
+    # Compress rotated file if it's older than 1 day (save space)
+    # We compress immediately since we're rotating, but only if size > 1MB
+    if rotated_file.stat().st_size > 1024 * 1024:  # > 1MB
+        compressed_file = rotated_file.with_suffix(rotated_file.suffix + ".gz")
+        with rotated_file.open("rb") as f_in:
+            with gzip.open(compressed_file, "wb") as f_out:
+                f_out.writelines(f_in)
+        rotated_file.unlink()
+        rotated_file = compressed_file
+    
+    # Clean up old rotated files (keep only last keep_days)
+    cutoff_date = datetime.datetime.now() - datetime.timedelta(days=keep_days)
+    pattern = f"{log_file.name}.*"
+    
+    for old_file in log_dir.glob(pattern):
+        if old_file == log_file:
+            continue
+        
+        # Extract timestamp from filename
+        # Format: gpu.ndjson.YYYYMMDD-HHMMSS[.gz]
+        try:
+            # Remove base name and extension
+            suffix = old_file.name.replace(log_file.name + ".", "")
+            if suffix.endswith(".gz"):
+                suffix = suffix[:-3]
+            file_timestamp = datetime.datetime.strptime(suffix, "%Y%m%d-%H%M%S")
+            
+            if file_timestamp < cutoff_date:
+                old_file.unlink()
+        except (ValueError, AttributeError):
+            # If we can't parse timestamp, skip cleanup for this file
+            pass
+
+
 def main() -> None:
     # If a log file path is provided as argument, append to it; otherwise print to stdout
     if len(sys.argv) > 1:
         log_file = pathlib.Path(sys.argv[1])
+        
+        # Rotate log file if needed (before appending)
+        rotate_log_file(log_file, max_size_mb=100, keep_days=7)
+        
         with log_file.open("a") as f:
             for card_device in sorted(SYSFS_ROOT.glob("card*/device")):
                 metrics = collect_card_metrics(card_device)
