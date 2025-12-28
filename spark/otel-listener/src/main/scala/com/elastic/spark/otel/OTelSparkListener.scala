@@ -111,8 +111,9 @@ class OTelSparkListener extends SparkListener {
   }
   private val esUsername = sys.env.getOrElse("ES_USER", "elastic")
   private val esPassword = sys.env.getOrElse("ES_PASSWORD", "changeme")
+  private val enableCsvLogging = sys.env.getOrElse("SPARK_EVENT_CSV", "true").toLowerCase == "true"
   
-  private val eventEmitter = new EventEmitter(elasticsearchUrl, esUsername, esPassword)
+  private val eventEmitter = new EventEmitter(elasticsearchUrl, esUsername, esPassword, enableCsvLogging)
   
   // Track active spans for proper parent-child relationships
   private val applicationSpan: TrieMap[String, Span] = TrieMap.empty
@@ -120,6 +121,10 @@ class OTelSparkListener extends SparkListener {
   private val stageSpans: TrieMap[Int, Span] = TrieMap.empty
   private val taskSpans: TrieMap[Long, Span] = TrieMap.empty
   private val sqlExecutionSpans: TrieMap[Long, Span] = TrieMap.empty
+  
+  // Track stage-to-job mapping (populated in onJobStart, used in onStageSubmitted/onStageCompleted)
+  // This is more reliable than jobSpans.keys.headOption which fails when job ends before stage completes
+  private val stageIdToJobId: TrieMap[Int, Int] = TrieMap.empty
 
   // Unified event metadata maps (replaces separate eventIds and startTimes maps)
   private val appEventMetadata: TrieMap[String, EventStartMetadata] = TrieMap.empty  // key: appId
@@ -527,6 +532,11 @@ class OTelSparkListener extends SparkListener {
       val spanId = span.getSpanContext.getSpanId
       val traceId = span.getSpanContext.getTraceId
       jobSpans.put(jobId, span)
+      
+      // Map all stages in this job to the job ID (for reliable lookup in onStageSubmitted/onStageCompleted)
+      stageIds.foreach { stageId =>
+        stageIdToJobId.put(stageId, jobId)
+      }
     } catch {
       case e: Exception =>
         logger.error(s"Error in onJobStart for job ${jobStart.jobId}", e)
@@ -666,11 +676,19 @@ class OTelSparkListener extends SparkListener {
       // Generate event ID and correlation key - emit as early as possible
       val eventId = UUID.randomUUID().toString
       
-      // Get parent job ID and app ID for composite key
-      // Stages usually have jobs, but handle gracefully if job context is missing
-      val parentJobId = jobSpans.keys.headOption.getOrElse {
-        logger.warn(s"Stage $stageId submitted without parent job context - using job ID 0 as fallback")
-        0
+      // Get parent job ID from stage-to-job mapping (populated in onJobStart)
+      // This is more reliable than jobSpans.keys.headOption
+      val parentJobId = stageIdToJobId.get(stageId).getOrElse {
+        // Fallback: try jobSpans if mapping not found (shouldn't happen normally)
+        val fallbackJobId = jobSpans.keys.headOption.getOrElse {
+          logger.warn(s"Stage $stageId submitted without parent job context - using job ID 0 as fallback")
+          0
+        }
+        // Store the fallback for future reference
+        if (fallbackJobId != 0) {
+          stageIdToJobId.put(stageId, fallbackJobId)
+        }
+        fallbackJobId
       }
       val appId = applicationSpan.keys.headOption.getOrElse("unknown")
       
@@ -856,11 +874,19 @@ class OTelSparkListener extends SparkListener {
       logger.debug(s"Stage $stageId completed")
 
       // Get app ID and parent job ID for composite key
-      // Stages usually have jobs, but handle gracefully if job context is missing
+      // Use stage-to-job mapping (populated in onJobStart) - more reliable than jobSpans.keys.headOption
       val appId = applicationSpan.keys.headOption.getOrElse("unknown")
-      val parentJobId = jobSpans.keys.headOption.getOrElse {
-        logger.warn(s"Stage $stageId completed without parent job context - using job ID 0 as fallback")
-        0
+      val parentJobId = stageIdToJobId.get(stageId).getOrElse {
+        // Fallback: try jobSpans if mapping not found (shouldn't happen normally)
+        val fallbackJobId = jobSpans.keys.headOption.getOrElse {
+          logger.warn(s"Stage $stageId completed without parent job context - using job ID 0 as fallback")
+          0
+        }
+        // Store the fallback for future reference
+        if (fallbackJobId != 0) {
+          stageIdToJobId.put(stageId, fallbackJobId)
+        }
+        fallbackJobId
       }
       
       // Generate composite correlation key (must match onStageSubmitted)
@@ -869,27 +895,26 @@ class OTelSparkListener extends SparkListener {
       // Get unified metadata
       val metadata = stageEventMetadata.get(correlationKey)
       
-      stageSpans.get(stageId).foreach { span =>
-        val spanId = span.getSpanContext.getSpanId
-        val traceId = span.getSpanContext.getTraceId
-        
-        // Error if metadata is missing
-        if (metadata.isEmpty) {
-          logger.error(s"CRITICAL: START event metadata missing for stage $stageId (key: $correlationKey) in onStageCompleted - START event will remain open!")
-        }
-        
+      // Get span if it exists (may not exist for synthetic stages)
+      val spanOption = stageSpans.get(stageId)
+      val spanId = spanOption.map(s => s.getSpanContext.getSpanId)
+      val traceId = spanOption.map(s => s.getSpanContext.getTraceId)
+      
+      // Process stage completion - error if metadata is missing (indicates onStageSubmitted wasn't called or failed)
+      if (metadata.isEmpty) {
+        logger.error(s"CRITICAL: START event metadata missing for stage $stageId (key: $correlationKey) in onStageCompleted - START event will remain open!")
+        logger.error(s"  This indicates onStageSubmitted was never called for this stage, or it failed with an exception.")
+        logger.error(s"  Check logs for errors in onStageSubmitted for stage $stageId")
+      }
+      
+      if (metadata.isDefined) {
         // Generate end event ID (standard UUID)
         val endEventId = UUID.randomUUID().toString
         
         // Calculate duration: end time - start time
-        val duration = metadata match {
-          case Some(m) =>
-            val durationMs = completionTime - m.startTime
-            Some(durationMs * 1000000)  // Convert to nanoseconds
-          case None =>
-            logger.error(s"CRITICAL: Start metadata missing for stage $stageId - cannot calculate duration")
-            None
-        }
+        val m = metadata.get
+        val durationMs = completionTime - m.startTime
+        val duration = Some(durationMs * 1000000)  // Convert to nanoseconds
         
         // Determine result
         val result = if (stageInfo.failureReason.isDefined) "FAILED" else "SUCCESS"
@@ -926,9 +951,9 @@ class OTelSparkListener extends SparkListener {
             `correlation.key` = Some(correlationKey)
           ),
           correlation = Correlation(
-            `span.id` = Some(spanId),
-            `trace.id` = Some(traceId),
-            `start.event.id` = metadata.map(_.eventId),
+            `span.id` = spanId,
+            `trace.id` = traceId,
+            `start.event.id` = Some(m.eventId),
             `correlation.key` = Some(correlationKey)
           ),
           spark = Some(SparkMetadata(
@@ -948,93 +973,88 @@ class OTelSparkListener extends SparkListener {
         eventEmitter.emitEndEvent(endEvent, correlationKey)
         
         // Close the corresponding START event with close_by="end" AFTER emitting end event
-        metadata match {
-          case Some(m) =>
-            eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey), eventType = Some("stage"))
-            stageEventMetadata.remove(correlationKey)
-          case None =>
-            logger.error(s"CRITICAL: Cannot close START event for stage $stageId - metadata is None")
+        eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey), eventType = Some("stage"))
+        stageEventMetadata.remove(correlationKey)
+        
+        // Update span if it exists
+        spanOption.foreach { span =>
+          span.setAttribute("spark.stage.tasks.completed", stageInfo.numTasks.toLong)
+          
+          if (taskMetrics != null) {
+            span.setAttribute("spark.stage.shuffle.read.bytes", taskMetrics.shuffleReadMetrics.totalBytesRead)
+            span.setAttribute("spark.stage.shuffle.write.bytes", taskMetrics.shuffleWriteMetrics.bytesWritten)
+            span.setAttribute("spark.stage.input.bytes", taskMetrics.inputMetrics.bytesRead)
+            span.setAttribute("spark.stage.output.bytes", taskMetrics.outputMetrics.bytesWritten)
+            span.setAttribute("spark.stage.memory.spilled.bytes", taskMetrics.memoryBytesSpilled)
+            span.setAttribute("spark.stage.disk.spilled.bytes", taskMetrics.diskBytesSpilled)
+            
+            // Shuffle classification
+            val shuffleWrite = taskMetrics.shuffleWriteMetrics.bytesWritten
+            val shuffleRead = taskMetrics.shuffleReadMetrics.totalBytesRead
+            
+            val classification = (shuffleWrite > 0, shuffleRead > 0) match {
+              case (true, false) => "shuffle_producer"
+              case (false, true) => "shuffle_consumer"
+              case (true, true) => "shuffle_exchange"
+              case _ => "narrow_transformation"
+            }
+            span.setAttribute("spark.semantic.shuffle.classification", classification)
+            
+            // Shuffle intensity
+            val intensity = if (shuffleWrite > 100000000) "very_high"      // > 100 MB
+                            else if (shuffleWrite > 10000000) "high"       // > 10 MB
+                            else if (shuffleWrite > 1000000) "medium"      // > 1 MB
+                            else if (shuffleWrite > 0) "low"                // > 0
+                            else "none"
+            span.setAttribute("spark.semantic.shuffle.intensity", intensity)
+            
+            // Signal 3: Shuffle pattern (weight 0.3) - refine operation classification
+            // This is done here because we have shuffle metrics available
+            stageSemanticData.remove(stageId).foreach { case (opStr, currentConfidence) =>
+              var refinedConfidence = currentConfidence
+              
+              // Refine based on shuffle pattern
+              classification match {
+                case "shuffle_producer" =>
+                  if (opStr == "aggregation" || opStr == "join") {
+                    refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
+                  }
+                case "shuffle_consumer" =>
+                  if (opStr == "join") {
+                    refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
+                  }
+                case "narrow_transformation" =>
+                  if (opStr == "transformation" || opStr == "filter") {
+                    refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
+                  }
+                case _ => // shuffle_exchange - no refinement
+              }
+              
+              // Update confidence and low_confidence flag
+              span.setAttribute("spark.semantic.confidence", refinedConfidence: Double)
+              if (refinedConfidence < 0.7) {
+                span.setAttribute("spark.semantic.low_confidence", true)
+              } else {
+                span.setAttribute("spark.semantic.low_confidence", false)
+              }
+            }
+          }
+          
+          // Set status based on failure
+          if (stageInfo.failureReason.isDefined) {
+            span.setStatus(StatusCode.ERROR, stageInfo.failureReason.get)
+            span.setAttribute("spark.stage.result", "FAILED")
+            span.setAttribute("spark.stage.error", stageInfo.failureReason.get)
+          } else {
+            span.setStatus(StatusCode.OK)
+            span.setAttribute("spark.stage.result", "SUCCESS")
+          }
+          
+          span.end()
         }
         
-        // Remove span after update
+        // Remove span from map
         stageSpans.remove(stageId)
-        
-        // Add metrics to span
-        span.setAttribute("spark.stage.tasks.completed", stageInfo.numTasks.toLong)
-        
-        if (taskMetrics != null) {
-          span.setAttribute("spark.stage.shuffle.read.bytes", taskMetrics.shuffleReadMetrics.totalBytesRead)
-          span.setAttribute("spark.stage.shuffle.write.bytes", taskMetrics.shuffleWriteMetrics.bytesWritten)
-          span.setAttribute("spark.stage.input.bytes", taskMetrics.inputMetrics.bytesRead)
-          span.setAttribute("spark.stage.output.bytes", taskMetrics.outputMetrics.bytesWritten)
-          span.setAttribute("spark.stage.memory.spilled.bytes", taskMetrics.memoryBytesSpilled)
-          span.setAttribute("spark.stage.disk.spilled.bytes", taskMetrics.diskBytesSpilled)
-          
-          // Shuffle classification
-          val shuffleWrite = taskMetrics.shuffleWriteMetrics.bytesWritten
-          val shuffleRead = taskMetrics.shuffleReadMetrics.totalBytesRead
-          
-          val classification = (shuffleWrite > 0, shuffleRead > 0) match {
-            case (true, false) => "shuffle_producer"
-            case (false, true) => "shuffle_consumer"
-            case (true, true) => "shuffle_exchange"
-            case _ => "narrow_transformation"
-          }
-          span.setAttribute("spark.semantic.shuffle.classification", classification)
-          
-          // Shuffle intensity
-          val intensity = if (shuffleWrite > 100000000) "very_high"      // > 100 MB
-                          else if (shuffleWrite > 10000000) "high"       // > 10 MB
-                          else if (shuffleWrite > 1000000) "medium"      // > 1 MB
-                          else if (shuffleWrite > 0) "low"                // > 0
-                          else "none"
-          span.setAttribute("spark.semantic.shuffle.intensity", intensity)
-          
-          // Signal 3: Shuffle pattern (weight 0.3) - refine operation classification
-          // This is done here because we have shuffle metrics available
-          stageSemanticData.remove(stageId).foreach { case (opStr, currentConfidence) =>
-            var refinedConfidence = currentConfidence
-            
-            // Refine based on shuffle pattern
-            classification match {
-              case "shuffle_producer" =>
-                if (opStr == "aggregation" || opStr == "join") {
-                  refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
-                }
-              case "shuffle_consumer" =>
-                if (opStr == "join") {
-                  refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
-                }
-              case "narrow_transformation" =>
-                if (opStr == "transformation" || opStr == "filter") {
-                  refinedConfidence = math.min(currentConfidence + 0.3, 1.0)
-                }
-              case _ => // shuffle_exchange - no refinement
-            }
-            
-            // Update confidence and low_confidence flag
-            span.setAttribute("spark.semantic.confidence", refinedConfidence: Double)
-            if (refinedConfidence < 0.7) {
-              span.setAttribute("spark.semantic.low_confidence", true)
-            } else {
-              span.setAttribute("spark.semantic.low_confidence", false)
-            }
-          }
-        }
-
-        // Set status based on failure
-        if (stageInfo.failureReason.isDefined) {
-          span.setStatus(StatusCode.ERROR, stageInfo.failureReason.get)
-          span.setAttribute("spark.stage.result", "FAILED")
-          span.setAttribute("spark.stage.error", stageInfo.failureReason.get)
-        } else {
-          span.setStatus(StatusCode.OK)
-          span.setAttribute("spark.stage.result", "SUCCESS")
-        }
-
-        // Complete span with end event correlation
-        span.setAttribute("correlation.event.end.id", endEventId)
-        span.end(timestamp)
       }
       
       val elapsedMs = (System.nanoTime() - startNanos) / 1000000
@@ -1062,51 +1082,22 @@ class OTelSparkListener extends SparkListener {
       val appId = applicationSpan.keys.headOption.getOrElse("unknown")
       val appName = appNames.get(appId)
       
-      // CRITICAL: Check if stage start event exists - if not, create it now
-      // This handles cases where onStageSubmitted was never called (e.g., skipped stages, immediate failures)
+      // Get parent job ID from stage-to-job mapping
+      val parentJobId = stageIdToJobId.get(stageId).getOrElse {
+        // Fallback: try jobSpans if mapping not found
+        jobSpans.keys.headOption.getOrElse(0)
+      }
+      
+      // Find stage correlation key - if not found, it means onStageSubmitted wasn't called
       val stageCorrelationKey = stageEventMetadata.keys.find { key =>
         key.endsWith(s"|Stage:$stageId")
       }.getOrElse {
-        logger.warn(s"Stage $stageId not found in metadata when creating task ${taskInfo.taskId} - creating synthetic stage start event")
-        // Fallback: construct from available context
-        val parentJobId = jobSpans.keys.headOption.getOrElse(0)
-        val syntheticStageKey = stageKey(appId, parentJobId, stageId)
-        
-        // Create synthetic stage start event
-        val stageEventId = UUID.randomUUID().toString
-        val syntheticStageEvent = ApplicationEvent(
-          `@timestamp` = isoFormatter.format(Instant.ofEpochMilli(launchTime)),
-          event = EventMetadata(
-            id = stageEventId,
-            `type` = "start",
-            state = "open"
-          ),
-          application = "spark",
-          operation = Operation(
-            `type` = "stage",
-            id = s"stage-$stageId",
-            name = s"Stage $stageId (synthetic)",
-            `parent.id` = Some(s"job-$parentJobId"),
-            `correlation.key` = Some(syntheticStageKey)
-          ),
-          correlation = Correlation(
-            `span.id` = None,
-            `trace.id` = None,
-            `correlation.key` = Some(syntheticStageKey)
-          ),
-          spark = Some(SparkMetadata(
-            `app.id` = Some(appId),
-            `stage.id` = Some(stageId.toLong),
-            `job.id` = Some(parentJobId.toLong)
-          ))
-        )
-        eventEmitter.emitStartEvent(syntheticStageEvent, syntheticStageKey)
-        
-        // Store metadata
-        val metadata = EventStartMetadata(stageEventId, launchTime, syntheticStageKey)
-        stageEventMetadata.put(syntheticStageKey, metadata)
-        
-        syntheticStageKey
+        // Construct key for task correlation, but log error about missing stage start event
+        logger.error(s"CRITICAL: Stage $stageId not found in metadata when creating task ${taskInfo.taskId}")
+        logger.error(s"  This indicates onStageSubmitted was never called for stage $stageId")
+        logger.error(s"  Check logs for errors in onStageSubmitted")
+        // Construct key for task correlation, but stage start event will be missing
+        stageKey(appId, parentJobId, stageId)
       }
       
       // Generate event ID and correlation key for tasks (if enabled) - emit as early as possible
@@ -1189,163 +1180,6 @@ class OTelSparkListener extends SparkListener {
       case e: Exception =>
         val elapsedMs = (System.nanoTime() - startNanos) / 1000000
         logger.error(s"Error in onTaskStart for task in stage ${taskStart.stageId} (${elapsedMs}ms)", e)
-    }
-  }
-
-  override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
-    val startNanos = System.nanoTime()
-    try {
-      val taskInfo = taskEnd.taskInfo
-      val taskMetrics = taskEnd.taskMetrics
-
-      // Emit task end event if enabled
-      if (emitTaskEvents) {
-        val stageId = taskEnd.stageId
-        val appId = applicationSpan.keys.headOption.getOrElse("unknown")
-        
-        // Generate composite correlation key (must match onTaskStart)
-        // Look up stage's correlation key to build full task hierarchy
-        val stageCorrelationKey = stageEventMetadata.keys.find { key =>
-          key.endsWith(s"|Stage:$stageId")
-        }.getOrElse {
-          logger.error(s"CRITICAL: Stage $stageId not found in metadata when ending task ${taskInfo.taskId}")
-          // Fallback: construct from available context (shouldn't happen normally)
-          val parentJobId = jobSpans.keys.headOption.getOrElse(0)
-          stageKey(appId, parentJobId, stageId)
-        }
-        val correlationKey = taskKey(stageCorrelationKey, taskInfo.taskId)
-        
-        // Get unified metadata
-        val metadata = taskEventMetadata.get(correlationKey)
-        
-        // Error if metadata is missing
-        if (metadata.isEmpty) {
-          logger.error(s"CRITICAL: START event metadata missing for task ${taskInfo.taskId} (key: $correlationKey) in onTaskEnd! Map contains ${taskEventMetadata.size} entries. This means either:")
-          logger.error(s"  1. onTaskStart was never called for this task, OR")
-          logger.error(s"  2. The correlation key doesn't match (onTaskStart used different key), OR")
-          logger.error(s"  3. The map was cleared prematurely")
-          // List some keys in the map for debugging
-          val sampleKeys = taskEventMetadata.keys.take(5).mkString(", ")
-          logger.error(s"  Sample correlation keys in map: $sampleKeys")
-        }
-        
-        val spanOption = taskSpans.get(taskInfo.taskId)
-        val spanId = spanOption.map(s => s.getSpanContext.getSpanId)
-        val traceId = spanOption.map(s => s.getSpanContext.getTraceId)
-        val endEventId = UUID.randomUUID().toString
-        // appId already defined above (line 1052)
-        val appName = appNames.get(appId)
-        val finishTime = taskInfo.finishTime
-
-        // Calculate duration: end time - start time
-        val duration = metadata match {
-          case Some(m) =>
-            val durationMs = finishTime - m.startTime
-            Some(durationMs * 1000000)  // Convert to nanoseconds
-          case None =>
-            logger.error(s"CRITICAL: Start metadata missing for task ${taskInfo.taskId} - cannot calculate duration")
-            None
-        }
-
-        val result = taskEnd.reason match {
-          case _: org.apache.spark.Success.type => "SUCCESS"
-          case _ => "FAILED"
-        }
-
-        val taskMetricsData = if (taskMetrics != null) {
-          Some(SparkEventMetrics(
-            `duration.ms` = Some(taskMetrics.executorRunTime),
-            `shuffle.read.bytes` = Some(taskMetrics.shuffleReadMetrics.totalBytesRead),
-            `shuffle.write.bytes` = Some(taskMetrics.shuffleWriteMetrics.bytesWritten),
-            `input.bytes` = Some(taskMetrics.inputMetrics.bytesRead),
-            `output.bytes` = Some(taskMetrics.outputMetrics.bytesWritten),
-            `executor.run.time.ms` = Some(taskMetrics.executorRunTime),
-            `executor.cpu.time.ms` = Some(taskMetrics.executorCpuTime / 1000000)
-          ))
-        } else None
-
-        val event = ApplicationEvent(
-          `@timestamp` = Instant.ofEpochMilli(finishTime).toString,
-          event = EventMetadata(
-            id = endEventId,
-            `type` = "end",
-            category = "application",
-            state = "closed",
-            duration = duration
-          ),
-          application = "spark",
-          operation = Operation(
-            `type` = "task",
-            id = s"task-${taskInfo.taskId}",
-            name = s"Task ${taskInfo.taskId}",
-            result = Some(result),
-            `correlation.key` = Some(correlationKey)
-          ),
-          correlation = Correlation(
-            `span.id` = spanId,
-            `trace.id` = traceId,
-            `start.event.id` = metadata.map(_.eventId),
-            `correlation.key` = Some(correlationKey)
-          ),
-          spark = Some(SparkMetadata(
-            `app.id` = Some(appId),
-            `app.name` = appName,
-            `task.id` = Some(taskInfo.taskId),
-            `task.index` = Some(taskInfo.index),
-            `task.executor.id` = Some(taskInfo.executorId),
-            `stage.id` = Some(taskEnd.stageId),
-            metrics = taskMetricsData
-          ))
-        )
-
-        eventEmitter.emitEndEvent(event, correlationKey)
-        
-        // Close the corresponding START event with close_by="end"
-        metadata match {
-          case Some(m) =>
-            eventEmitter.closeStartEvent(m.eventId, closedBy = "end", correlationKey = Some(correlationKey), eventType = Some("task"))
-            taskEventMetadata.remove(correlationKey)
-          case None =>
-            logger.error(s"CRITICAL: Cannot close START event for task ${taskInfo.taskId} - metadata is None")
-        }
-      }
-
-      // Get the span we created in onTaskStart
-      taskSpans.remove(taskInfo.taskId).foreach { span =>
-        logger.debug(s"Task ${taskInfo.taskId} ended in stage ${taskEnd.stageId}: ${taskEnd.reason}")
-
-        // Add task metrics
-        if (taskMetrics != null) {
-          span.setAttribute("spark.task.executor.run.time.ms", taskMetrics.executorRunTime)
-          span.setAttribute("spark.task.executor.cpu.time.ms", taskMetrics.executorCpuTime / 1000000)
-          span.setAttribute("spark.task.result.size.bytes", taskMetrics.resultSize)
-        }
-
-        // Add correlation event ID if task events enabled
-        if (emitTaskEvents) {
-          span.setAttribute("correlation.event.end.id", UUID.randomUUID().toString)
-        }
-
-        // Set status based on task result
-        taskEnd.reason match {
-          case _: org.apache.spark.Success.type =>
-            span.setStatus(StatusCode.OK)
-          case other =>
-            span.setStatus(StatusCode.ERROR, other.toString)
-            span.setAttribute("spark.task.failure.reason", other.toString)
-        }
-
-        span.end(Instant.ofEpochMilli(taskInfo.finishTime))
-      }
-
-      val elapsedMs = (System.nanoTime() - startNanos) / 1000000
-      if (elapsedMs > 100) {
-        logger.warn(s"onTaskEnd took ${elapsedMs}ms for task ${taskInfo.taskId}")
-      }
-    } catch {
-      case e: Exception =>
-        val elapsedMs = (System.nanoTime() - startNanos) / 1000000
-        logger.error(s"Error in onTaskEnd for task in stage ${taskEnd.stageId} (${elapsedMs}ms)", e)
     }
   }
 

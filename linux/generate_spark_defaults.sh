@@ -26,19 +26,22 @@ else
     USE_SED=0
 fi
 
-# Source devops environment for variable values
-DEVOPS_ENV="${ROOT_DIR}/vars/contexts/devops/devops_env.sh"
-if [ ! -f "${DEVOPS_ENV}" ]; then
-    echo "Error: devops_env.sh not found at ${DEVOPS_ENV}" >&2
-    echo "Run: bash vars/generate_env.sh devops" >&2
+# Source Spark client environment for variable values (if not already sourced)
+SPARK_CLIENT_ENV="${ROOT_DIR}/vars/contexts/spark_client_env.sh"
+if [ ! -f "${SPARK_CLIENT_ENV}" ]; then
+    echo "Error: spark_client_env.sh not found at ${SPARK_CLIENT_ENV}" >&2
+    echo "Run: bash vars/generate_env.sh spark-client" >&2
     exit 1
 fi
 
-source "${DEVOPS_ENV}"
+# Only source if required variables aren't already set (avoids redundant sourcing)
+if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" || -z "$ES_HOST" ]]; then
+    source "${SPARK_CLIENT_ENV}"
+fi
 
 # Validate required variables
 if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ]]; then
-    echo "Error: Required variables not set in devops_env.sh" >&2
+    echo "Error: Required variables not set in spark_client_env.sh" >&2
     echo "  PYSPARK_PYTHON: ${PYSPARK_PYTHON:-(not set)}" >&2
     echo "  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-(not set)}" >&2
     exit 1
@@ -46,27 +49,27 @@ fi
 
 # Validate ES variables are set (ES_HOST and ES_PORT, construct ES_URL)
 if [[ -z "$ES_HOST" ]]; then
-    echo "Error: ES_HOST not set in devops_env.sh" >&2
+    echo "Error: ES_HOST not set in spark_client_env.sh" >&2
     exit 1
 fi
 if [[ -z "$ES_PORT" ]]; then
-    echo "Error: ES_PORT not set in devops_env.sh" >&2
+    echo "Error: ES_PORT not set in spark_client_env.sh" >&2
     exit 1
 fi
 # Construct ES_URL from ES_HOST and ES_PORT
 ES_URL="https://${ES_HOST}:${ES_PORT}"
 if [[ -z "$ES_USER" ]]; then
-    echo "Error: ES_USER not set in devops_env.sh" >&2
+    echo "Error: ES_USER not set in spark_client_env.sh" >&2
     exit 1
 fi
 if [[ -z "$ES_PASSWORD" ]]; then
-    echo "Error: ES_PASSWORD not set in devops_env.sh" >&2
+    echo "Error: ES_PASSWORD not set in spark_client_env.sh" >&2
     exit 1
 fi
 
 # Validate JAR path is set, then expand ~
 if [[ -z "$SPARK_OTEL_LISTENER_JAR" ]]; then
-    echo "Error: SPARK_OTEL_LISTENER_JAR not set in devops_env.sh" >&2
+    echo "Error: SPARK_OTEL_LISTENER_JAR not set in spark_client_env.sh" >&2
     exit 1
 fi
 SPARK_OTEL_LISTENER_JAR="${SPARK_OTEL_LISTENER_JAR/#\~/${HOME}}"
@@ -96,12 +99,14 @@ if [ "$USE_SED" = "1" ]; then
     ES_URL_ESC=$(echo "$ES_URL" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_USER_ESC=$(echo "$ES_USER" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_PASSWORD_ESC=$(echo "$ES_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    SPARK_EVENT_CSV_ESC=$(echo "${SPARK_EVENT_CSV:-true}" | sed 's/[[\.*^$()+?{|]/\\&/g')
     sed -e "s|{{ PYSPARK_PYTHON }}|${PYSPARK_PYTHON_ESC}|g" \
         -e "s|{{ OTEL_EXPORTER_OTLP_ENDPOINT }}|${OTEL_ENDPOINT_ESC}|g" \
         -e "s|{{ SPARK_OTEL_LISTENER_JAR }}|${JAR_PATH_ESC}|g" \
         -e "s|{{ ES_URL }}|${ES_URL_ESC}|g" \
         -e "s|{{ ES_USER }}|${ES_USER_ESC}|g" \
         -e "s|{{ ES_PASSWORD }}|${ES_PASSWORD_ESC}|g" \
+        -e "s|{{ SPARK_EVENT_CSV }}|${SPARK_EVENT_CSV_ESC}|g" \
         "$TEMPLATE" > "$OUTPUT"
 else
     # Preferred: Jinja2 rendering via Python
@@ -122,7 +127,8 @@ rendered = template.render(
     SPARK_OTEL_LISTENER_JAR='$SPARK_OTEL_LISTENER_JAR',
     ES_URL='$ES_URL',
     ES_USER='$ES_USER',
-    ES_PASSWORD='$ES_PASSWORD'
+    ES_PASSWORD='$ES_PASSWORD',
+    SPARK_EVENT_CSV='${SPARK_EVENT_CSV:-true}'
 )
 
 with open(output_file, 'w') as f:

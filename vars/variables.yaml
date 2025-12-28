@@ -77,15 +77,16 @@ GRAFANA_VERSION:
 # Standardized naming: ES_* for Elasticsearch (ES already stands for Elasticsearch)
 # Inside Docker containers, use service name; for external clients, use DNS hostname
 ES_HOST:
-  contexts: [observability, spark-runtime, elastic-agent, devops]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
   values:
     observability: es01
     spark-runtime: GaryPC.lan
     devops: GaryPC.lan
     elastic-agent: GaryPC.lan
+    spark-client: GaryPC.lan
 ES_PORT:
   value: 9200
-  contexts: [observability, spark-runtime, elastic-agent, devops]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
 ES_USER:
   value: elastic
   contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
@@ -266,12 +267,15 @@ SPARK_EVENTS_DIR:
   contexts: [spark-runtime, ansible, elastic-agent, spark-client]
 SPARK_CONF_DIR:
   value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
-  contexts: [spark-client, devops]
+  contexts: [spark-client]
 
 # Spark client JAR paths (for spark-defaults.conf)
 SPARK_OTEL_LISTENER_JAR:
   value: ~/repos/elastic-on-spark/spark/otel-listener/spark-otel-listener-1.0.0.jar
-  contexts: [devops, spark-client]
+  contexts: [spark-client]
+SPARK_EVENT_CSV:
+  value: true
+  contexts: [spark-runtime, spark-client]
 SPARK_NO_DAEMONIZE:
   value: true
   contexts: [spark-runtime]

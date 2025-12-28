@@ -31,7 +31,7 @@ import scala.util.{Failure, Success, Try}
  * WATCHER_FREQUENCY: 5 seconds (Grafana watcher polling interval)
  * FLUSH_INTERVAL: 2.5 seconds (WATCHER_FREQUENCY/2, ensures continuous graph)
  */
-class EventEmitter(elasticsearchUrl: String, username: String, password: String) {
+class EventEmitter(elasticsearchUrl: String, username: String, password: String, enableCsvLogging: Boolean = true) {
   
   private val logger = LoggerFactory.getLogger(classOf[EventEmitter])
   
@@ -91,8 +91,8 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   private val flushExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
   private val isShutdown = new AtomicBoolean(false)
   
-  // Analytics logging - EventAnalytics class handles all CSV writing
-  private val eventStats: EventAnalytics = new EventAnalytics()
+  // Disk logging - DiskLog class handles all CSV writing (optional)
+  private val diskLog: Option[DiskLog] = if (enableCsvLogging) Some(new DiskLog()) else None
   
   // Initialize periodic flushing
   flushExecutor.scheduleAtFixedRate(
@@ -110,7 +110,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
   
   logger.info(s"EventEmitter initialized - Elasticsearch URL: $elasticsearchUrl")
   logger.info(s"Batching: Flush interval ${FLUSH_INTERVAL_SECONDS}s with refresh=wait_for")
-  logger.info(s"Analytics log file: ${eventStats.logFile}")
+  diskLog.foreach { log => logger.info(s"Disk log file: ${log.logFile}") }
   
   /**
    * Emit a START event (queued for batch transmission).
@@ -133,11 +133,13 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       
       // CSV logging is secondary - don't let it fail the event emission
       val emitDurationNanos = System.nanoTime() - emitStartNanos
-      Try {
-        eventStats.logStartEvent(correlationKey, event.event.id, startTimeMs, emitDurationNanos, event.operation.`type`)
-      }.recover {
-        case e: Exception =>
-          logger.warn(s"Failed to log start event to CSV for ${event.event.id}: ${e.getMessage}", e)
+      diskLog.foreach { log =>
+        Try {
+          log.logStartEvent(correlationKey, event.event.id, startTimeMs, emitDurationNanos, event.operation.`type`)
+        }.recover {
+          case e: Exception =>
+            logger.warn(s"Failed to log start event to CSV for ${event.event.id}: ${e.getMessage}", e)
+        }
       }
       
       emitDurationNanos
@@ -168,11 +170,13 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
         val eType = eventType.getOrElse(eventIdToEventType.getOrElse(eventId, ""))
         
         // CSV logging is secondary - don't let it fail the event emission
-        Try {
-          eventStats.logCloseStartEvent(eventId, key, closedBy, eType)
-        }.recover {
-          case e: Exception =>
-            logger.warn(s"Failed to log close_start event to CSV for $eventId: ${e.getMessage}", e)
+        diskLog.foreach { log =>
+          Try {
+            log.logCloseStartEvent(eventId, key, closedBy, eType)
+          }.recover {
+            case e: Exception =>
+              logger.warn(s"Failed to log close_start event to CSV for $eventId: ${e.getMessage}", e)
+          }
         }
         
         // Clean up mapping after use (optional - helps with memory)
@@ -202,11 +206,13 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       
       // CSV logging is secondary - don't let it fail the event emission
       val emitDurationNanos = System.nanoTime() - emitStartNanos
-      Try {
-        eventStats.logEndEvent(correlationKey, event.event.id, startTimeMs, emitDurationNanos, event.operation.`type`)
-      }.recover {
-        case e: Exception =>
-          logger.warn(s"Failed to log end event to CSV for ${event.event.id}: ${e.getMessage}", e)
+      diskLog.foreach { log =>
+        Try {
+          log.logEndEvent(correlationKey, event.event.id, startTimeMs, emitDurationNanos, event.operation.`type`)
+        }.recover {
+          case e: Exception =>
+            logger.warn(s"Failed to log end event to CSV for ${event.event.id}: ${e.getMessage}", e)
+        }
       }
       
       emitDurationNanos
@@ -323,7 +329,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
     val totalEvents = eventsToProcess.size
     
     if (totalEvents > 0) {
-      eventStats.logFlushStart(flushStartTimeMs, totalEvents)
+      diskLog.foreach(_.logFlushStart(flushStartTimeMs, totalEvents))
       
       var flushError: Option[Throwable] = None
       
@@ -345,7 +351,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       val flushDurationNanos = System.nanoTime() - flushStartNanos
       val flushEndTimeMs = System.currentTimeMillis()
       
-      eventStats.logFlushEnd(flushEndTimeMs, flushDurationNanos, totalEvents, isError = flushError.isDefined)
+      diskLog.foreach(_.logFlushEnd(flushEndTimeMs, flushDurationNanos, totalEvents, isError = flushError.isDefined))
       
       if (flushError.isEmpty) {
         logger.debug(s"Flushed $totalEvents events in ${flushDurationNanos / 1000000}ms")
@@ -372,7 +378,7 @@ class EventEmitter(elasticsearchUrl: String, username: String, password: String)
       }
       
       flushAll()
-      eventStats.close()
+      diskLog.foreach(_.close())
       
       logger.info("EventEmitter shutdown complete")
     }
@@ -451,13 +457,13 @@ case class SparkEventMetrics(
 )
 
 /**
- * EventAnalytics class handles all CSV analytics logging.
+ * DiskLog class handles all CSV disk logging.
  * Encapsulates CSV file creation and writing operations.
  * Log file location: ${SPARK_LOG_DIR}/event-analytics-YYYYMMDD-HHMMSS.csv (default: /opt/spark/logs)
  * Falls back to /tmp if SPARK_LOG_DIR is not writable.
  */
-class EventAnalytics {
-  private val logger = LoggerFactory.getLogger(classOf[EventAnalytics])
+class DiskLog {
+  private val logger = LoggerFactory.getLogger(classOf[DiskLog])
   
   // CSV writer and file - initialized via helper method
   // Using lazy initialization pattern

@@ -77,21 +77,22 @@ fi
 # This prevents "Your hostname, Lab2, resolves to a loopback address" warning
 export SPARK_LOCAL_IP="${SPARK_LOCAL_IP:-192.168.1.48}"
 
+# Source Spark client environment variables (before generating spark-defaults.conf)
+if [ -f "$project_root/vars/contexts/spark_client_env.sh" ]; then
+    source "$project_root/vars/contexts/spark_client_env.sh"
+    # Set SPARK_MASTER_URL from host/port
+    export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
+fi
+
 # Generate spark-defaults.conf from template on each login
 # This ensures configuration stays in sync with variables.yaml
+# Note: generate_spark_defaults.sh sources spark_client_env.sh if variables aren't already set
 spark_defaults_generator="$project_root/linux/generate_spark_defaults.sh"
 if [ -f "$spark_defaults_generator" ]; then
     # Run quietly - only show errors
     if ! "$spark_defaults_generator" > /dev/null 2>&1; then
         echo "Warning: Failed to generate spark-defaults.conf (run manually if needed)"
     fi
-fi
-
-# Source Spark client environment variables
-if [ -f "$project_root/vars/contexts/spark_client_env.sh" ]; then
-    source "$project_root/vars/contexts/spark_client_env.sh"
-    # Set SPARK_MASTER_URL from host/port
-    export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi
 
 # Configure PySpark to use IPython for interactive sessions

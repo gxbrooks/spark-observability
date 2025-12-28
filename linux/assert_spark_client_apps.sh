@@ -525,10 +525,10 @@ check_spark_config() {
             echo "Info    : Generating spark-defaults.conf..."
             local generator="${root_dir}/linux/generate_spark_defaults.sh"
             if [ -f "$generator" ]; then
-                # Ensure devops_env.sh exists first (needed by generator)
-                if [ ! -f "${root_dir}/vars/contexts/devops_env.sh" ]; then
-                    echo "Info    : Generating devops environment file first..."
-                    cd "$root_dir" && bash vars/generate_env.sh devops -f
+                # Ensure spark_client_env.sh exists first (needed by generator)
+                if [ ! -f "${root_dir}/vars/contexts/spark_client_env.sh" ]; then
+                    echo "Info    : Generating spark-client environment file first..."
+                    cd "$root_dir" && bash vars/generate_env.sh spark-client -f
                 fi
                 bash "$generator"
             else
