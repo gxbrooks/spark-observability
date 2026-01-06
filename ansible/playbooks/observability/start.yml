@@ -91,7 +91,7 @@
           
           Did you mean to run:
             ssh ansible@GaryPC.lan -p 2222
-            cd ~/repos/elastic-on-spark
+            cd ~/repos/spark-observability
             ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml
       when: inventory_hostname != observability_host
     

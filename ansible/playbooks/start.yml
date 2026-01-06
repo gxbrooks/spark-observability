@@ -41,10 +41,13 @@
 # Step 4: Start Spark on Kubernetes
 - import_playbook: spark/start.yml
 
-# Step 5: Start JupyterHub (deferred to Spark 4.0)
+# Step 5: Start Elastic Agent (host-level metrics collection)
+- import_playbook: elastic-agent/start.yml
+
+# Step 6: Start JupyterHub (deferred to Spark 4.0)
 # - import_playbook: jupyter/start_jupyter.yml
 
-# Step 6: Display final status
+# Step 7: Display final status
 - name: Display startup completion status
   hosts: localhost
   connection: local

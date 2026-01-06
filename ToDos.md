@@ -309,3 +309,5 @@ Should I update the other search objects (`batch-events`, `batch-traces`, `spark
 ### Revisit where all the spark files go for client mode
 - Decide on where Spark logs should go on a client i.e /opt/spark/logs -> spark/logs?
 - what to do with events? It is a similar issue, but events are going on an NFS share? That may not be necessary
+### Watcher credentials
+- Note: The watcher uses hardcoded credentials (elastic:changeme). For production, consider using Elasticsearch Watcher secrets for secure credential storage.

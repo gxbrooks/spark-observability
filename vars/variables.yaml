@@ -128,7 +128,7 @@ CA_CERT:
 ES_DIR:
   contexts: [devops, observability]
   values:
-    devops: ${HOME}/repos/elastic-on-spark/observability/elasticsearch
+    devops: ${HOME}/repos/spark-observability/observability/elasticsearch
     observability: /usr/share/elasticsearch/elasticsearch
 ES_CONFIG_DIR:
   value: ${ES_DIR}/config
@@ -279,12 +279,12 @@ SPARK_EVENTS_DIR:
   value: /mnt/spark/events
   contexts: [spark-runtime, ansible, elastic-agent, spark-client]
 SPARK_CONF_DIR:
-  value: /home/gxbrooks/repos/elastic-on-spark/spark/conf
+  value: /home/gxbrooks/repos/spark-observability/spark/conf
   contexts: [spark-client]
 
 # Spark client JAR paths (for spark-defaults.conf)
 SPARK_OTEL_LISTENER_JAR:
-  value: ~/repos/elastic-on-spark/spark/otel-listener/spark-otel-listener-1.0.0.jar
+  value: ~/repos/spark-observability/spark/otel-listener/spark-otel-listener-1.0.0.jar
   contexts: [spark-client]
 SPARK_EVENT_CSV:
   value: true
@@ -345,7 +345,7 @@ SPARK_DATA_MOUNT:
 # Spark Data Source
 # TODO: This is wrong. Spark data is now in /mnt/spark/data. Must be unused.
 SPARK_DATA_SOURCE:
-  value: /home/gxbrooks/repos/elastic-on-spark/spark/data
+  value: /home/gxbrooks/repos/spark-observability/spark/data
   contexts: [spark-runtime, nfs]
 
 # NFS Export Paths

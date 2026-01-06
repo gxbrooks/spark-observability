@@ -2,13 +2,13 @@
 
 ## Overview
 
-This document describes the file system architecture for the elastic-on-spark project, covering all file system types, host environments, and the mappings between them. The architecture supports three host types: Native Linux, WSL (Windows Subsystem for Linux), and Windows 11.
+This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. The architecture supports three host types: Native Linux, WSL (Windows Subsystem for Linux), and Windows 11.
 
 ## Summary
 
 The file system architecture uses a layered approach:
 
-- **DevOps Environment**: Source repository on development machines (`~/repos/elastic-on-spark/`)
+- **DevOps Environment**: Source repository on development machines (`~/repos/spark-observability/`)
 - **Ops Environment**: Deployed files on managed hosts (`~/ansible/ops/`)
 - **Docker File Systems**: Container runtime paths with volume mounts
 - **Kubernetes File Systems**: Pod filesystems for Spark and OpenTelemetry
@@ -30,11 +30,11 @@ The file system architecture uses a layered approach:
 
 ### 1. DevOps Environment
 
-**Location**: `~/repos/elastic-on-spark/` on development machines
+**Location**: `~/repos/spark-observability/` on development machines
 
 **Purpose**: Source repository for all project files, version controlled in Git
 
-**Structure**: `~/repos/elastic-on-spark/` containing `ansible/` (Ansible playbooks and roles), `docs/` (documentation), `elastic-agent/` (Elastic Agent configurations and scripts), `observability/` (observability stack), `spark/` (Spark applications and configurations), `vars/` (variable definitions and generators), and other project directories.
+**Structure**: `~/repos/spark-observability/` containing `ansible/` (Ansible playbooks and roles), `docs/` (documentation), `elastic-agent/` (Elastic Agent configurations and scripts), `observability/` (observability stack), `spark/` (Spark applications and configurations), `vars/` (variable definitions and generators), and other project directories.
 
 **Characteristics**:
 - Source of truth for all configuration and code
@@ -51,7 +51,7 @@ The file system architecture uses a layered approach:
 **Structure**: `~/ansible/ops/` containing `observability/` (observability stack deployment with `certs/`, `docker-compose.yml`, `.env`, `elasticsearch/`, `grafana/`, `logstash/` subdirectories) and other deployed services.
 
 **Mapping from DevOps**:
-- `~/repos/elastic-on-spark/observability/` → `~/ansible/ops/observability/`
+- `~/repos/spark-observability/observability/` → `~/ansible/ops/observability/`
 - Deployed via Ansible playbooks (`ansible/playbooks/observability/deploy.yml`)
 
 **Characteristics**:
@@ -295,13 +295,13 @@ Kubernetes API server certificates are managed separately:
 
 ### DevOps → Ops Mapping
 
-**Source**: `~/repos/elastic-on-spark/[module]/`  
+**Source**: `~/repos/spark-observability/[module]/`  
 **Target**: `~/ansible/ops/[module]/`  
 **Method**: Ansible playbooks (synchronize/copy tasks)
 
 **Examples**:
-- `~/repos/elastic-on-spark/observability/` → `~/ansible/ops/observability/`
-- `~/repos/elastic-on-spark/elastic-agent/bin/gpu-metrics.py` → `~/ansible/ops/elastic-agent/bin/gpu-metrics.py` (if applicable)
+- `~/repos/spark-observability/observability/` → `~/ansible/ops/observability/`
+- `~/repos/spark-observability/elastic-agent/bin/gpu-metrics.py` → `~/ansible/ops/elastic-agent/bin/gpu-metrics.py` (if applicable)
 
 ### Ops → Docker Mapping
 
@@ -339,7 +339,7 @@ Kubernetes API server certificates are managed separately:
 
 ### For Development (DevOps User)
 
-1. **Edit files in source repository**: Always edit files in `~/repos/elastic-on-spark/`
+1. **Edit files in source repository**: Always edit files in `~/repos/spark-observability/`
 2. **Regenerate .env**: Run `bash vars/generate_contexts.sh -f observability` after changing `vars/variables.yaml`
 3. **Test locally**: Use Docker Compose from the source repository directory
 4. **Commit changes**: Commit all changes to Git before deploying

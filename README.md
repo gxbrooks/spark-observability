@@ -1,4 +1,4 @@
-# Elastic-on-Spark
+# Spark Observability
 
 A comprehensive observability platform for Apache Spark applications running on Kubernetes, integrated with Elasticsearch, Kibana, Grafana, and Logstash.
 
@@ -7,7 +7,7 @@ A comprehensive observability platform for Apache Spark applications running on 
 ### Core Components
 
 ```
-elastic-on-spark/
+spark-observability/
 ├── ansible/                    # Infrastructure automation
 │   ├── inventory.yml          # Host definitions
 │   ├── playbooks/             # Ansible playbooks

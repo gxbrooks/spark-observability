@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to start Elastic Agent and then Docker containers for elastic-on-spark
-# Assumes current directory is the project root (elastic-on-spark)
+# Script to start Elastic Agent and then Docker containers for spark-observability
+# Assumes current directory is the project root (spark-observability)
 
 set -e
 

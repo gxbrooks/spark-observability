@@ -195,11 +195,97 @@
           No recent errors found.
           {% endif %}
 
+    - name: Check GPU metrics timer status
+      systemd:
+        name: gpu-metrics.timer
+      register: gpu_timer_status
+      ignore_errors: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Check GPU metrics log file
+      stat:
+        path: /var/log/gpu-metrics/gpu.ndjson
+      register: gpu_log_file
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Get GPU metrics log file info
+      shell: |
+        if [ -f /var/log/gpu-metrics/gpu.ndjson ]; then
+          ls -lh /var/log/gpu-metrics/gpu.ndjson
+          echo "---"
+          tail -1 /var/log/gpu-metrics/gpu.ndjson 2>/dev/null | head -c 200
+        else
+          echo "File does not exist"
+        fi
+      register: gpu_log_info
+      when: 
+        - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+        - gpu_log_file.stat.exists
+      changed_when: false
+    
+    - name: Check Elastic Agent environment file
+      stat:
+        path: /etc/elastic-agent/elastic_agent_env.conf
+      register: env_file_stat
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Verify Elastic Agent environment variables
+      shell: |
+        if [ -f /etc/elastic-agent/elastic_agent_env.conf ]; then
+          grep -E '^[A-Z_]+=' /etc/elastic-agent/elastic_agent_env.conf | cut -d'=' -f1 | sort
+        else
+          echo "Environment file not found"
+        fi
+      register: env_vars
+      when: 
+        - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+        - env_file_stat.stat.exists
+      changed_when: false
+    
+    - name: Display GPU metrics status
+      debug:
+        msg: |
+          🎮 GPU METRICS STATUS
+          ====================
+          Timer Status: {{ '✅ RUNNING' if (gpu_timer_status is defined and gpu_timer_status.status.ActiveState == 'active') else '❌ NOT RUNNING' if gpu_timer_status is defined else '⚠️  NOT CHECKED' }}
+          Log File: {{ '✅ EXISTS' if (gpu_log_file is defined and gpu_log_file.stat.exists) else '❌ MISSING' }}
+          {% if gpu_log_file is defined and gpu_log_file.stat.exists %}
+          Log Size: {{ gpu_log_file.stat.size | default(0) }} bytes
+          Log Modified: {{ gpu_log_file.stat.mtime | default('unknown') }}
+          {% endif %}
+          {% if gpu_log_info is defined and gpu_log_info.stdout %}
+          Latest Entry Preview:
+          {{ gpu_log_info.stdout }}
+          {% endif %}
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Display environment file status
+      debug:
+        msg: |
+          📋 ENVIRONMENT CONFIGURATION
+          ============================
+          Environment File: {{ '✅ EXISTS' if (env_file_stat is defined and env_file_stat.stat.exists) else '❌ MISSING' }}
+          {% if env_vars is defined and env_vars.stdout %}
+          Configured Variables:
+          {{ env_vars.stdout }}
+          {% endif %}
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
     - name: Display diagnostic summary
       debug:
         msg: |
           ✅ DIAGNOSTIC COMPLETE!
           ======================
           Elastic Agent diagnostic completed for {{ inventory_hostname }}.
+          
+          Summary:
+          - Elastic Agent: {{ '✅ RUNNING' if agent_status.status.ActiveState == 'active' else '❌ STOPPED' }}
+          {% if gpu_timer_status is defined %}
+          - GPU Metrics Timer: {{ '✅ RUNNING' if gpu_timer_status.status.ActiveState == 'active' else '❌ NOT RUNNING' }}
+          {% endif %}
+          - Generating Data: {{ '✅ YES' if agent_generating_data.stdout == 'yes' else '❌ NO' if agent_generating_data.stdout == 'no' else '⚠️  NO LOGS' }}
+          - Errors: {{ log_error_count.stdout | default('0') }}
+          - Warnings: {{ log_warning_count.stdout | default('0') }}
+          
           Check the results above for any issues.
 

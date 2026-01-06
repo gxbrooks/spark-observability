@@ -51,7 +51,7 @@ alias esapi="docker compose exec -it es01 esapi"
 alias kapi="docker compose exec -it es01 kapi"
 
 # HDFS wrapper for seamless Hadoop access
-alias hdfs="/home/gxbrooks/repos/elastic-on-spark/linux/hdfs-wrapper.sh"
+alias hdfs="/home/gxbrooks/repos/spark-observability/linux/hdfs-wrapper.sh"
 
 alias glog="git log --pretty=format:'%h %ad | %s' --date=short --follow --all -- "
 alias gtags='git for-each-ref --sort=-creatordate --format="%(align:left,width=33)%(refname:lstrip=2)%(end) %(align:left,width=12)%(creatordate:short)%(end) %(subject)" refs/tags'

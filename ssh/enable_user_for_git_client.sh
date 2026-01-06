@@ -133,7 +133,7 @@ $DEBUG && echo "Checking: Is Git URL is in SSH format."
 if $CHECK; then
     echo "Result  : Don't forget to change the git url."
 else
-    git remote set-url origin git@github.com:gxbrooks/elastic-on-spark
+    git remote set-url origin git@github.com:gxbrooks/spark-observability
     echo "Result  : Set the git url to SSH format."
 fi
 

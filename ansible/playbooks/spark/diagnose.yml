@@ -1,0 +1,338 @@
+---
+# Comprehensive diagnostic playbook for Spark cluster and telemetry
+# Usage: ansible-playbook -i inventory.yml playbooks/spark/diagnose.yml
+#
+# This playbook diagnoses:
+# - Spark cluster status (Kubernetes pods, services)
+# - Spark telemetry flow (event files, log files, Elastic Agent configuration)
+# - Logstash connectivity for Spark events
+
+- name: Diagnose Spark Cluster Status
+  hosts: kubernetes_master
+  become: false
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+  vars:
+    k8s_namespace: "spark"
+  
+  tasks:
+    - name: Display diagnostic header
+      debug:
+        msg: |
+          🔍 SPARK CLUSTER DIAGNOSTIC
+          ===========================
+          Timestamp: {{ ansible_date_time.iso8601 | default('N/A') }}
+          Target Host: {{ inventory_hostname }}
+
+    - name: Check if kubeconfig exists
+      stat:
+        path: "{{ ansible_env.HOME }}/.kube/config"
+      register: kubeconfig_file
+
+    - name: Check Spark namespace
+      kubernetes.core.k8s_info:
+        kind: Namespace
+        name: "{{ k8s_namespace }}"
+      register: spark_namespace
+      when: kubeconfig_file.stat.exists
+      ignore_errors: yes
+    
+    - name: Get Spark master pods
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=spark-master
+      register: spark_master_pods
+      when: 
+        - kubeconfig_file.stat.exists
+        - spark_namespace.resources | length > 0
+    
+    - name: Get Spark worker pods
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=spark-worker
+      register: spark_worker_pods
+      when: 
+        - kubeconfig_file.stat.exists
+        - spark_namespace.resources | length > 0
+    
+    - name: Get Spark history server pods
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=spark-history
+      register: spark_history_pods
+      when: 
+        - kubeconfig_file.stat.exists
+        - spark_namespace.resources | length > 0
+    
+    - name: Get Spark services
+      kubernetes.core.k8s_info:
+        kind: Service
+        namespace: "{{ k8s_namespace }}"
+      register: spark_services
+      when: 
+        - kubeconfig_file.stat.exists
+        - spark_namespace.resources | length > 0
+    
+    - name: Display Spark cluster status
+      debug:
+        msg: |
+          📊 SPARK CLUSTER STATUS
+          =======================
+          {% if not kubeconfig_file.stat.exists %}
+          ⚠️  Kubeconfig not found at {{ ansible_env.HOME }}/.kube/config
+          {% elif spark_namespace.failed %}
+          ❌ Error accessing Kubernetes cluster
+          {% else %}
+          Namespace: {{ '✅ EXISTS' if spark_namespace.resources | length > 0 else '❌ NOT FOUND' }}
+          Master Pods: {{ spark_master_pods.resources | length | default(0) }}
+          Worker Pods: {{ spark_worker_pods.resources | length | default(0) }}
+          History Server Pods: {{ spark_history_pods.resources | length | default(0) }}
+          Services: {{ spark_services.resources | length | default(0) }}
+          {% endif %}
+    
+    - name: Prepare pod status list
+      set_fact:
+        all_pods: "{{ (spark_master_pods.resources | default([])) + (spark_worker_pods.resources | default([])) + (spark_history_pods.resources | default([])) }}"
+      when: 
+        - kubeconfig_file.stat.exists
+        - spark_namespace.resources | length > 0
+        - (spark_master_pods.resources | default([])) | length > 0 or (spark_worker_pods.resources | default([])) | length > 0 or (spark_history_pods.resources | default([])) | length > 0
+    
+    - name: Display pod status header
+      debug:
+        msg: |
+          📋 POD STATUS SUMMARY
+          ====================
+          Pod Name                              | Type            | Status      | Ready
+          ------------------------------------------------------------------------------------
+      when: all_pods is defined
+    
+    - name: Display pod status
+      debug:
+        msg: "{{ '%s | %s | %s | %s' | format(
+              (item.metadata.name | truncate(40, True, '')),
+              (item.metadata.labels.app | default('unknown')),
+              (item.status.phase | default('Unknown')),
+              ('✅' if (item.status.containerStatuses[0].ready | default(false) if item.status.containerStatuses else false) else '❌')
+            ) }}"
+      loop: "{{ all_pods | default([]) }}"
+      when: all_pods is defined
+      loop_control:
+        label: "{{ item.metadata.name }}"
+
+- name: Diagnose Spark Telemetry Flow
+  hosts: linux
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Display telemetry diagnostic header
+      debug:
+        msg: |
+          🔍 SPARK TELEMETRY DIAGNOSTIC
+          =============================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Target Host: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+    - name: Check if /mnt/spark/events directory exists
+      ansible.builtin.stat:
+        path: /mnt/spark/events
+      register: events_dir
+    
+    - name: Check if /mnt/spark/logs directory exists
+      ansible.builtin.stat:
+        path: /mnt/spark/logs
+      register: logs_dir
+    
+    - name: List event files
+      ansible.builtin.shell: |
+        ls -lh /mnt/spark/events/app-* 2>&1 | tail -10 || echo "No event files found"
+      register: event_files
+      when: events_dir.stat.exists
+      changed_when: false
+    
+    - name: Count event files
+      ansible.builtin.shell: |
+        ls -1 /mnt/spark/events/app-* 2>&1 | wc -l || echo "0"
+      register: event_file_count
+      when: events_dir.stat.exists
+      changed_when: false
+    
+    - name: Get latest event file info
+      ansible.builtin.shell: |
+        latest=$(ls -t /mnt/spark/events/app-* 2>/dev/null | head -1)
+        if [ -n "$latest" ]; then
+          echo "File: $(basename $latest)"
+          echo "Size: $(ls -lh $latest | awk '{print $5}')"
+          echo "Modified: $(stat -c '%y' $latest | cut -d'.' -f1)"
+        else
+          echo "No event files found"
+        fi
+      register: latest_event_file
+      when: events_dir.stat.exists
+      changed_when: false
+    
+    - name: Find application log files
+      ansible.builtin.shell: |
+        find /mnt/spark/logs -name "spark-app.log*" -type f 2>&1 | head -10 || echo "No log files found"
+      register: log_files
+      when: logs_dir.stat.exists
+      changed_when: false
+    
+    - name: Count log files
+      ansible.builtin.shell: |
+        find /mnt/spark/logs -name "spark-app.log*" -type f 2>&1 | wc -l || echo "0"
+      register: log_file_count
+      when: logs_dir.stat.exists
+      changed_when: false
+    
+    - name: Check Elastic Agent configuration for spark-events
+      ansible.builtin.shell: |
+        if [ -f /opt/Elastic/Agent/elastic-agent.yml ]; then
+          grep -A15 "id: spark-events" /opt/Elastic/Agent/elastic-agent.yml | head -16
+        else
+          echo "Elastic Agent configuration file not found"
+        fi
+      register: spark_events_config
+      changed_when: false
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Check Elastic Agent configuration for spark-app-logs
+      ansible.builtin.shell: |
+        if [ -f /opt/Elastic/Agent/elastic-agent.yml ]; then
+          grep -A15 "id: spark-app-logs" /opt/Elastic/Agent/elastic-agent.yml | head -16
+        else
+          echo "Elastic Agent configuration file not found"
+        fi
+      register: spark_app_logs_config
+      changed_when: false
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Check environment variables
+      ansible.builtin.shell: |
+        if [ -f /etc/elastic-agent/elastic_agent_env.conf ]; then
+          grep -E "LS_HOST|LS_SPARK_EVENTS_PORT|SPARK_EVENTS_DIR" /etc/elastic-agent/elastic_agent_env.conf
+        else
+          echo "Environment file not found"
+        fi
+      register: env_vars
+      changed_when: false
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Test Logstash connectivity
+      ansible.builtin.shell: |
+        timeout 5 bash -c "echo > /dev/tcp/GaryPC.lan/5050" 2>&1 && echo "REACHABLE" || echo "NOT_REACHABLE"
+      register: logstash_connectivity
+      changed_when: false
+      ignore_errors: true
+    
+    - name: Check Elastic Agent status
+      ansible.builtin.shell: |
+        /opt/Elastic/Agent/elastic-agent status 2>&1 | head -30
+      register: agent_status
+      changed_when: false
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      ignore_errors: true
+    
+    - name: Check recent Elastic Agent logs for Spark
+      ansible.builtin.shell: |
+        journalctl -u elastic-agent --since '1 hour ago' --no-pager | grep -iE "spark|error|fail" | tail -20 || echo "No relevant logs found"
+      register: agent_logs
+      changed_when: false
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      ignore_errors: true
+    
+    - name: Display Spark telemetry diagnostic summary
+      ansible.builtin.debug:
+        msg: |
+          📊 SPARK TELEMETRY DIAGNOSTIC SUMMARY
+          =====================================
+          
+          Directories:
+          - /mnt/spark/events: {{ '✅ EXISTS' if events_dir.stat.exists else '❌ MISSING' }}
+          - /mnt/spark/logs: {{ '✅ EXISTS' if logs_dir.stat.exists else '❌ MISSING' }}
+          
+          {% if events_dir.stat.exists %}
+          Event Files:
+          - Total count: {{ event_file_count.stdout | default('0') }}
+          {% if latest_event_file.stdout %}
+          - Latest file: {{ latest_event_file.stdout }}
+          {% endif %}
+          {% if event_files.stdout %}
+          Recent files:
+          {{ event_files.stdout }}
+          {% endif %}
+          {% else %}
+          Event Files: ❌ Directory does not exist
+          {% endif %}
+          
+          {% if logs_dir.stat.exists %}
+          Log Files:
+          - Total count: {{ log_file_count.stdout | default('0') }}
+          {% if log_files.stdout %}
+          Sample files:
+          {{ log_files.stdout }}
+          {% endif %}
+          {% else %}
+          Log Files: ❌ Directory does not exist
+          {% endif %}
+          
+          {% if env_vars.stdout %}
+          Environment Variables:
+          {{ env_vars.stdout }}
+          {% endif %}
+          
+          Logstash Connectivity:
+          {{ '✅ REACHABLE' if logstash_connectivity.stdout == 'REACHABLE' else '❌ NOT REACHABLE' }}
+          
+          {% if agent_status.stdout %}
+          Elastic Agent Status:
+          {{ agent_status.stdout_lines[0:5] | join('\n') }}
+          {% endif %}
+          
+          {% if agent_logs.stdout and agent_logs.stdout != 'No relevant logs found' %}
+          Recent Errors/Warnings:
+          {{ agent_logs.stdout }}
+          {% else %}
+          Recent Errors/Warnings: ✅ None found
+          {% endif %}
+          
+          Elastic Agent Configuration:
+          {% if spark_events_config.stdout %}
+          - spark-events input: ✅ CONFIGURED
+          {{ spark_events_config.stdout_lines[0:5] | join('\n') }}
+          {% else %}
+          - spark-events input: ❌ NOT FOUND
+          {% endif %}
+          
+          {% if spark_app_logs_config.stdout %}
+          - spark-app-logs input: ✅ CONFIGURED
+          {{ spark_app_logs_config.stdout_lines[0:5] | join('\n') }}
+          {% else %}
+          - spark-app-logs input: ❌ NOT FOUND
+          {% endif %}
+
+    - name: Display diagnostic completion
+      debug:
+        msg: |
+          ✅ SPARK DIAGNOSTIC COMPLETE!
+          ============================
+          Spark cluster and telemetry diagnostic completed for {{ inventory_hostname }}.
+          
+          Summary:
+          - Event directory: {{ '✅ EXISTS' if events_dir.stat.exists else '❌ MISSING' }}
+          - Log directory: {{ '✅ EXISTS' if logs_dir.stat.exists else '❌ MISSING' }}
+          - Event files: {{ event_file_count.stdout | default('0') }}
+          - Log files: {{ log_file_count.stdout | default('0') }}
+          - Logstash: {{ '✅ REACHABLE' if logstash_connectivity.stdout == 'REACHABLE' else '❌ NOT REACHABLE' }}
+          
+          Check the results above for any issues.
+

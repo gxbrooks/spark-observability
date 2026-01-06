@@ -1,25 +1,94 @@
 ---
-# Start Elastic Agent service
+# Start Elastic Agent service and GPU metrics timer
 # Usage: ansible-playbook -i inventory.yml playbooks/elastic-agent/start.yml
 
 - name: Start Elastic Agent
-  hosts: all:!wsl
+  hosts: linux
   become: true
-  gather_facts: false
+  gather_facts: true
+  
+  vars:
+    elastic_agent_envconf_dest: "/etc/elastic-agent/elastic_agent_env.conf"
+    elastic_agent_envconf_src: "{{ playbook_dir }}/../../../vars/contexts/elastic_agent_env.conf"
+    elastic_agent_config_template: "{{ playbook_dir }}/../../../elastic-agent/elastic-agent.linux.yml.j2"
+    elastic_agent_config_dest: "/opt/Elastic/Agent/elastic-agent.yml"
   
   tasks:
+    - name: Ensure Elastic Agent environment file is up to date
+      copy:
+        src: "{{ elastic_agent_envconf_src }}"
+        dest: "{{ elastic_agent_envconf_dest }}"
+        owner: root
+        group: root
+        mode: '0640'
+        backup: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Redeploy Elastic Agent configuration (ensure Spark inputs are current)
+      template:
+        src: "{{ elastic_agent_config_template }}"
+        dest: "{{ elastic_agent_config_dest }}"
+        owner: elastic-agent
+        group: elastic-agent
+        mode: '0640'
+        backup: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
+    - name: Stop Elastic Agent service (to reload environment)
+      systemd:
+        name: elastic-agent
+        state: stopped
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      ignore_errors: yes
+    
+    - name: Reload systemd daemon (to pick up environment file changes)
+      systemd:
+        daemon_reload: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    
     - name: Start Elastic Agent service
       systemd:
         name: elastic-agent
         state: started
         enabled: yes
     
+    - name: Wait for Elastic Agent to start
+      wait_for:
+        timeout: 10
+      changed_when: false
+    
+    - name: Start GPU metrics timer (Linux only)
+      systemd:
+        name: gpu-metrics.timer
+        state: started
+        enabled: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      ignore_errors: yes  # Timer may not exist on all hosts
+    
+    - name: Manually trigger GPU metrics collection (ensure it starts)
+      systemd:
+        name: gpu-metrics.service
+        state: started
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      ignore_errors: yes
+    
     - name: Verify Elastic Agent is running
       systemd:
         name: elastic-agent
       register: agent_status
     
+    - name: Verify GPU metrics timer is running (Linux only)
+      systemd:
+        name: gpu-metrics.timer
+      register: gpu_timer_status
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      ignore_errors: yes
+    
     - name: Display status
       debug:
-        msg: "Elastic Agent is {{ agent_status.status.ActiveState }} on {{ inventory_hostname }}"
+        msg: |
+          Elastic Agent is {{ agent_status.status.ActiveState }} on {{ inventory_hostname }}
+          {% if gpu_timer_status is defined and not gpu_timer_status.failed %}
+          GPU metrics timer is {{ gpu_timer_status.status.ActiveState }} on {{ inventory_hostname }}
+          {% endif %}
 
