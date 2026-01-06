@@ -1,0 +1,7 @@
+---
+# Observability Platform Installation
+# This playbook imports deploy.yml which handles the complete installation
+# Usage: ansible-playbook -i inventory.yml playbooks/observability/install.yml
+
+- import_playbook: deploy.yml
+

@@ -25,11 +25,13 @@ For Elasticsearch:
 - CA_CERT: Path to CA certificate file
 
 For Kibana:
-- KIBANA_HOST: Kibana hostname
-- KIBANA_PORT: Kibana port
-- ELASTIC_USER: Username for authentication (kibana uses elastic user)
-- KIBANA_PASSWORD: Password for authentication
+- KB_HOST: Kibana hostname (or KIBANA_HOST for legacy)
+- KB_PORT: Kibana port (or KIBANA_PORT for legacy)
+- ES_USER: Username for authentication (elastic user)
+- ES_PASSWORD: Password for authentication (elastic user's password)
 - CA_CERT: Path to CA certificate file
+
+Note: Kibana API calls (port 5601) require the elastic user's password (ES_PASSWORD), not the kibana_system password (KB_PASSWORD). The kibana_system user is only used by the Kibana service itself to connect to Elasticsearch.
 
 ## Command Usage
 

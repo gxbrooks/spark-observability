@@ -15,7 +15,7 @@ echo ""
 # Check if vars/contexts exists
 if [ ! -d "vars/contexts" ]; then
     echo "❌ Error: vars/contexts/ directory not found"
-    echo "   Run: python3 vars/generate_env.py -f"
+    echo "   Run: python3 vars/generate_contexts.py -f"
     exit 1
 fi
 
@@ -29,7 +29,7 @@ if [ -f "vars/contexts/observability_docker.env" ]; then
     fi
 else
     echo "⚠️  Warning: vars/contexts/observability_docker.env not found"
-    echo "   Run: bash vars/generate_env.sh -f observability"
+    echo "   Run: bash vars/generate_contexts.sh -f observability"
 fi
 
 echo ""

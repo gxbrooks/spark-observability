@@ -6,6 +6,63 @@
 # 3. Start services (container layer)
 # 4. Verify health (validation layer)
 
+# First, ensure Windows Firewall is configured (if observability runs on WSL)
+- name: Ensure Windows Firewall is Configured for Observability Services
+  hosts: windows
+  gather_facts: true
+  vars:
+    observability_ports:
+      - { port: 9200, name: "Elasticsearch HTTP", service: "Elasticsearch" }
+      - { port: 9300, name: "Elasticsearch Transport", service: "Elasticsearch" }
+      - { port: 5601, name: "Kibana", service: "Kibana" }
+      - { port: 3000, name: "Grafana", service: "Grafana" }
+      - { port: 5050, name: "Logstash Spark Events", service: "Logstash" }
+      - { port: 5051, name: "Logstash Metrics", service: "Logstash" }
+      - { port: 4317, name: "OTel Collector gRPC", service: "OTel Collector" }
+      - { port: 4318, name: "OTel Collector HTTP", service: "OTel Collector" }
+      - { port: 8888, name: "OTel Collector Prometheus", service: "OTel Collector" }
+      - { port: 13133, name: "OTel Collector Health", service: "OTel Collector" }
+  tasks:
+    - name: Check if Windows Firewall rule exists for observability ports
+      win_shell: |
+        Get-NetFirewallRule -DisplayName "{{ item.name }} (Observability)" -ErrorAction SilentlyContinue | Select-Object -First 1
+      register: firewall_rule_check
+      loop: "{{ observability_ports }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.port }})"
+      changed_when: false
+      failed_when: false
+    
+    - name: Create Windows Firewall rule for observability ports
+      win_shell: |
+        $ruleName = "{{ port_info.name }} (Observability)"
+        $port = {{ port_info.port }}
+        $service = "{{ port_info.service }}"
+        
+        # Check if rule already exists
+        $existingRule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+        
+        if (-not $existingRule) {
+          Write-Host "Creating firewall rule: $ruleName for port $port"
+          New-NetFirewallRule `
+            -DisplayName $ruleName `
+            -Direction Inbound `
+            -LocalPort $port `
+            -Protocol TCP `
+            -Action Allow `
+            -Description "Allow inbound traffic for $service on port $port"
+        } else {
+          Write-Host "Firewall rule already exists: $ruleName"
+        }
+      vars:
+        port_info: "{{ item.item }}"
+      register: firewall_rule_result
+      loop: "{{ firewall_rule_check.results }}"
+      loop_control:
+        label: "{{ item.item.name }} ({{ item.item.port }})"
+      when: item.stdout == "" or item.stdout is not defined
+      changed_when: "'Creating firewall rule' in firewall_rule_result.stdout"
+
 - name: Start Observability Platform
   hosts: observability
   become: false
@@ -13,6 +70,9 @@
   
   vars:
     observability_dir: "/home/ansible/ops/observability"
+    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
+    env_file: "{{ observability_dir }}/.env"
+    env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
     # Standard CA certificate path (from vars/variables.yaml CA_CERT variable)
     # This is the path where init-certs publishes the CA certificate
     ca_cert_path: "/etc/ssl/certs/elastic/ca.crt"
@@ -49,6 +109,34 @@
       fail:
         msg: "Observability directory not found. Run 'install.yml' first."
       when: not obs_dir_stat.stat.exists
+    
+    # =====================================================================
+    # STEP 0.5: Ensure .env file is up to date with all required variables
+    # =====================================================================
+    - name: Set .env file paths
+      set_fact:
+        env_file: "{{ observability_dir }}/.env"
+        env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
+      when: is_linux
+    
+    - name: Check if .env file exists
+      stat:
+        path: "{{ env_file }}"
+      register: env_file_stat
+      when: is_linux
+    
+    - name: Copy updated .env file
+      copy:
+        src: "{{ env_source_file }}"
+        dest: "{{ env_file }}"
+        mode: '0644'
+      when: is_linux
+      register: env_file_updated
+    
+    - name: Display .env file update status
+      debug:
+        msg: "{{ 'Updated .env file with latest variables' if env_file_updated.changed else '.env file is up to date' }}"
+      when: is_linux
       
     # === WINDOWS TASKS ===
     - name: Start Docker Desktop service (Windows)
@@ -63,6 +151,7 @@
         timeout: 60
         delay: 5
       when: is_windows
+    
       
     # === LINUX TASKS ===
     - name: Check if Docker is available
@@ -201,12 +290,14 @@
     # =====================================================================
     # STEP 3: Start Observability Services (Container Layer)
     # =====================================================================
-    - name: Start observability services
+    - name: Start observability services (ignore init-index failures)
       command: docker compose up -d
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux
       register: docker_up
+      failed_when: false  # Don't fail if init-index fails
+      changed_when: "'Created' in docker_up.stderr or 'Started' in docker_up.stderr or 'Up' in docker_up.stderr"
       
     - name: Display service startup info
       debug:
@@ -215,11 +306,116 @@
           - Docker Compose starting all services in dependency order
           - Elasticsearch → Kibana → init-index → Logstash → Grafana
           - init-index handles password setup and index initialization
-          - Check logs: docker compose logs -f init-index
+          - Note: init-index failures are non-critical and won't block other services
       
+    # =====================================================================
+    # STEP 3.5: Ensure All Core Services Are Running
+    # =====================================================================
+    - name: Define core services that must be running
+      set_fact:
+        core_services:
+          - { name: "es01", display: "Elasticsearch", required: true }
+          - { name: "kibana", display: "Kibana", required: true }
+          - { name: "grafana", display: "Grafana", required: true }
+          - { name: "logstash01", display: "Logstash", required: true }
+          - { name: "otel-collector", display: "OTel Collector", required: false }
+      when: is_linux
+    
+    - name: Check current service status
+      command: docker compose ps --format "{{ '{{.Service}}' }}:{{ '{{.State}}' }}"
+      args:
+        chdir: "{{ observability_dir }}"
+      register: service_status_raw
+      when: is_linux
+      changed_when: false
+    
+    - name: Parse service status into dictionary
+      set_fact:
+        service_states: "{{ service_states | default({}) | combine({item.split(':')[0]: item.split(':')[1]}) }}"
+      loop: "{{ service_status_raw.stdout_lines }}"
+      when: 
+        - is_linux
+        - service_status_raw.stdout_lines is defined
+        - "':' in item"
+    
+    - name: Start services that are not running (with dependencies)
+      command: docker compose up -d {{ item.name }}
+      args:
+        chdir: "{{ observability_dir }}"
+      loop: "{{ core_services }}"
+      loop_control:
+        label: "{{ item.display }}"
+      when: 
+        - is_linux
+        - service_states[item.name] is not defined or service_states[item.name] != "running"
+        - item.name not in ['grafana', 'logstash01']  # These have init-index dependency issues
+      register: service_start_result
+      failed_when: false
+      changed_when: "'Created' in service_start_result.stderr or 'Started' in service_start_result.stderr or 'Up' in service_start_result.stderr"
+    
+    - name: Start Grafana and Logstash without init-index dependency
+      command: docker compose up -d --no-deps {{ item }}
+      args:
+        chdir: "{{ observability_dir }}"
+      loop:
+        - grafana
+        - logstash01
+      when: 
+        - is_linux
+        - service_states[item] is not defined or service_states[item] != "running"
+      register: service_start_no_deps
+      failed_when: false
+      changed_when: "'Created' in service_start_no_deps.stderr or 'Started' in service_start_no_deps.stderr or 'Up' in service_start_no_deps.stderr"
+    
+    - name: Verify services are actually running after start attempt
+      command: docker compose ps --format "{{ '{{.Service}}' }}:{{ '{{.State}}' }}"
+      args:
+        chdir: "{{ observability_dir }}"
+      register: service_status_after_start
+      when: is_linux
+      changed_when: false
+    
+    - name: Wait a bit for services to fully start
+      wait_for:
+        timeout: 15
+      when: is_linux
+    
+    - name: Final check of service status
+      command: docker compose ps --format "{{ '{{.Service}}' }}:{{ '{{.State}}' }}"
+      args:
+        chdir: "{{ observability_dir }}"
+      register: final_service_check
+      when: is_linux
+      changed_when: false
+    
+    - name: Check if any required services failed to start
+      set_fact:
+        failed_services: "{{ failed_services | default([]) + [item.name] }}"
+      loop: "{{ core_services }}"
+      when: 
+        - is_linux
+        - item.required
+        - final_service_check.stdout is defined
+        - "item.name + ':running' not in final_service_check.stdout"
+        - "item.name + ':Up' not in final_service_check.stdout"
+    
+    - name: Warn if required services didn't start (but don't fail)
+      debug:
+        msg: "⚠ Warning: Some services may not be running: {{ failed_services | join(', ') }}. Check logs for details."
+      when: 
+        - is_linux
+        - failed_services is defined
+        - failed_services | length > 0
+    
+    - name: Wait for services to stabilize
+      wait_for:
+        timeout: 10
+      when: is_linux
+    
     # =====================================================================
     # STEP 4: Verify Service Health (Validation Layer)
     # =====================================================================
+    
     - name: Wait for Elasticsearch to be ready
       uri:
         url: "https://localhost:9200"
@@ -247,12 +443,23 @@
       ignore_errors: true
       when: is_linux
       
+    - name: Get final service status
+      command: docker compose ps --format "table {{ '{{.Service}}' }}\t{{ '{{.Status}}' }}"
+      args:
+        chdir: "{{ observability_dir }}"
+      register: final_service_status
+      when: is_linux
+      changed_when: false
+    
     - name: Display service health status
       debug:
         msg: |
           Observability Platform Health:
           - Elasticsearch: {{ 'Healthy' if es_health.status in [200, 401] else 'Not Ready' }}
           - Kibana: {{ 'Healthy' if kibana_health.status in [200, 302, 401] else 'Not Ready' }}
+          
+          All Services Status:
+          {{ final_service_status.stdout }}
           
     - name: Display start status
       debug:

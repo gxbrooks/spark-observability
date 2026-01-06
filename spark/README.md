@@ -23,10 +23,10 @@ This directory contains Apache Spark applications and client tools for running w
 3. **Configuration**: Environment variables generated from `vars/variables.yaml`
    ```bash
    # Regenerate if needed (use wrapper script - recommended)
-   bash vars/generate_env.sh devops spark-client ispark
+   bash vars/generate_contexts.sh devops spark-client ispark
    
    # Or directly (requires PyYAML installed)
-   python3 vars/generate_env.py devops spark-client ispark
+   python3 vars/generate_contexts.py devops spark-client ispark
    ```
 
 ## Running Spark Applications
@@ -230,7 +230,7 @@ Client-mode Spark configuration:
 - Network timeouts and settings
 
 ### Generated Environment Files
-Auto-generated from `vars/variables.yaml` via `vars/generate_env.py`:
+Auto-generated from `vars/variables.yaml` via `vars/generate_contexts.py`:
 - `vars/contexts/devops/devops_env.sh`: DevOps environment (Python version, OTel config)
 - `vars/contexts/spark-client/spark_env.sh`: Client mode environment variables
 - `vars/contexts/ispark/ispark_env.sh`: Interactive mode environment variables

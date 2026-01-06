@@ -48,9 +48,13 @@ Environment Variables Required:
     For Kibana (KB_* prefix, no ES_ prefix needed):
         - KB_HOST: Kibana hostname
         - KB_PORT: Kibana port
-        - ES_USER: Username for authentication
-        - KB_PASSWORD: Password for authentication
+        - ES_USER: Username for authentication (elastic user)
+        - ES_PASSWORD: Password for authentication (elastic user's password)
         - CA_CERT: Path to CA certificate file
+    
+    Note: Kibana API calls (port 5601) require the elastic user's password (ES_PASSWORD),
+    not the kibana_system password (KB_PASSWORD). The kibana_system user is only used
+    by the Kibana service itself to connect to Elasticsearch.
 
 Examples:
     # Basic usage with file
@@ -198,13 +202,16 @@ def get_config(target):
             config['user'] = os.environ.get('ES_USER')
             if not config['user']:
                 raise KeyError('ES_USER')
-            config['password'] = os.environ.get('KB_PASSWORD')
+            # For Kibana API calls, use ES_PASSWORD (elastic user's password)
+            # KB_PASSWORD is for kibana_system user (used by Kibana service to connect to ES)
+            # But Kibana API requires elastic user authentication
+            config['password'] = os.environ.get('ES_PASSWORD')
             if not config['password']:
-                raise KeyError('KB_PASSWORD')
+                raise KeyError('ES_PASSWORD')
             config['protocol'] = 'http'  # TODO: Enable TLS encryption on Kibana
         except KeyError as e:
             print(f"Error: Required environment variable not set for Kibana: {e}", file=sys.stderr)
-            print("Required: KB_HOST, KB_PORT, ES_USER, KB_PASSWORD", file=sys.stderr)
+            print("Required: KB_HOST, KB_PORT, ES_USER, ES_PASSWORD", file=sys.stderr)
             sys.exit(2)
     
     return config

@@ -214,6 +214,10 @@
         timeout: 60
         delay: 5
       when: is_windows
+    
+    # === WINDOWS FIREWALL: Open Observability Service Ports ===
+    # Note: Firewall rules must be created on the Windows host, not in WSL
+    # The observability services run in WSL, but Windows Firewall controls external access
       
     # === DOCKER SETUP TASKS ===
     - name: Check if Docker is available

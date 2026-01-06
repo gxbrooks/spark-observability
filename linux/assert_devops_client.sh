@@ -62,7 +62,7 @@ root_dir="$(cd "$dir/.." && pwd)"
 # Generate all client contexts (devops, spark-client, ispark) to keep them in sync
 if ! $CHECK; then
   echo "Info    : Generating client environment configurations..."
-  cd "$root_dir" && bash vars/generate_env.sh devops spark-client ispark -f
+  cd "$root_dir" && bash vars/generate_contexts.sh devops spark-client ispark -f
 fi
 
 # Extract PYTHON_VERSION from variables.yaml if not provided via command line

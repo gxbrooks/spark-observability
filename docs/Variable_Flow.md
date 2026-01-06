@@ -78,9 +78,9 @@ All clients and managed nodes MUST run the same versions. This prevents:
 
 ```mermaid
 flowchart LR
-    A[vars/variables.yaml] -->|defines values| B[generate_env.sh]
+    A[vars/variables.yaml] -->|defines values| B[generate_contexts.sh]
     C[vars/contexts.yaml] -->|defines outputs| B
-    B -->|uses system Python| D[generate_env.py]
+    B -->|uses system Python| D[generate_contexts.py]
     D --> E[Context Files]
     E --> F[Ansible/Docker]
     F --> G[Deployed]
@@ -90,14 +90,14 @@ flowchart LR
 ```
 
 **Circular Dependency Resolution**:
-- `generate_env.sh` wrapper uses system Python (not venv) to break dependency chain
+- `generate_contexts.sh` wrapper uses system Python (not venv) to break dependency chain
 - This allows environment files to be generated before Python version is determined
 - `.bashrc` automatically generates missing/stale environment files on login
 
 **Flow**: 
 1. `vars/variables.yaml` + `vars/contexts.yaml` define what and where
-2. `generate_env.sh` (wrapper) or `generate_env.py` generates context-specific files
-   - **Important**: Use `generate_env.sh` wrapper to avoid circular dependencies
+2. `generate_contexts.sh` (wrapper) or `generate_contexts.py` generates context-specific files
+   - **Important**: Use `generate_contexts.sh` wrapper to avoid circular dependencies
    - Wrapper uses system Python (not venv) to break dependency chain
 3. Deployment tools consume generated files
 4. Components run with consistent configuration
@@ -110,8 +110,8 @@ flowchart LR
 |------|---------|--------|
 | `vars/variables.yaml` | Variable values + contexts | YAML |
 | `vars/contexts.yaml` | Output specifications | YAML |
-| `vars/generate_env.py` | Code generator | Python |
-| `vars/generate_env.sh` | Bootstrap wrapper (uses system Python) | Bash |
+| `vars/generate_contexts.py` | Code generator | Python |
+| `vars/generate_contexts.sh` | Bootstrap wrapper (uses system Python) | Bash |
 
 **Generated Files** (examples):
 - `vars/contexts/spark-image/spark-image.toml` → Docker build args
@@ -143,10 +143,10 @@ Some files use Jinja2 templates for additional flexibility:
 vim vars/variables.yaml
 
 # 2. Regenerate all contexts (use wrapper script - recommended)
-bash vars/generate_env.sh -f
+bash vars/generate_contexts.sh -f
 
 # Or directly (requires PyYAML installed)
-python3 vars/generate_env.py -f
+python3 vars/generate_contexts.py -f
 
 # 3. Regenerate Spark client configuration (if Spark-related variables changed)
 linux/generate_spark_defaults.sh
@@ -163,23 +163,23 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 # 1. Edit vars/contexts.yaml - add new context spec
 # 2. Tag variables in vars/variables.yaml with new context name
 # 3. Run generator (use wrapper script - recommended)
-bash vars/generate_env.sh <context-name> -v
+bash vars/generate_contexts.sh <context-name> -v
 
 # Or directly
-python3 vars/generate_env.py <context-name> -v
+python3 vars/generate_contexts.py <context-name> -v
 ```
 
 ### **Check Status**
 
 ```bash
 # See what would be regenerated (use wrapper - recommended)
-bash vars/generate_env.sh
+bash vars/generate_contexts.sh
 
 # Force regenerate all with verbose output
-bash vars/generate_env.sh -f -v
+bash vars/generate_contexts.sh -f -v
 
 # Or directly (requires PyYAML installed)
-python3 vars/generate_env.py -f -v
+python3 vars/generate_contexts.py -f -v
 ```
 
 ---
@@ -230,14 +230,14 @@ python3 vars/generate_env.py -f -v
 
 ### **Stage 1: Core Environment Files**
 
-`bash vars/generate_env.sh` (or `python3 vars/generate_env.py`) generates environment files from `vars/variables.yaml`:
+`bash vars/generate_contexts.sh` (or `python3 vars/generate_env.py`) generates environment files from `vars/variables.yaml`:
 
 ```
 vars/variables.yaml + vars/contexts.yaml
         ↓
-vars/generate_env.sh (wrapper - uses system Python)
+vars/generate_contexts.sh (wrapper - uses system Python)
         ↓
-vars/generate_env.py (actual generator)
+vars/generate_contexts.py (actual generator)
         ↓
 Generated Files:
   - vars/contexts/devops/devops_env.sh
@@ -247,7 +247,7 @@ Generated Files:
   - etc.
 ```
 
-**Note**: The wrapper script (`generate_env.sh`) uses system Python to break circular dependencies. It can run before any virtual environment is set up, allowing environment files to be generated even when Python version is not yet determined.
+**Note**: The wrapper script (`generate_contexts.sh`) uses system Python to break circular dependencies. It can run before any virtual environment is set up, allowing environment files to be generated even when Python version is not yet determined.
 
 ### **Stage 2: User-Specific Configuration**
 
@@ -274,7 +274,7 @@ spark/conf/spark-defaults.conf
 
 For detailed code examples and technical implementation, see:
 - `vars/contexts.yaml` - Context specifications (stage 1)
-- `vars/generate_env.py` - Core generator (stage 1)
+- `vars/generate_contexts.py` - Core generator (stage 1)
 - `spark/conf/spark-defaults.conf.j2` - Jinja2 template (stage 2)
 - `linux/generate_spark_defaults.sh` - Template renderer (stage 2)
 - `linux/.bashrc` - Auto-regeneration on login

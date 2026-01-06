@@ -57,7 +57,7 @@ done
 # Use the wrapper script to ensure system Python is used (breaks circular dependency)
 if ! $CHECK; then
   echo "Info    : Generating managed-node environment configuration..."
-  cd "$root_dir" && bash vars/generate_env.sh managed-node -f
+  cd "$root_dir" && bash vars/generate_contexts.sh managed-node -f
 fi
 
 # Source the generated environment file (if it exists)

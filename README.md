@@ -102,13 +102,13 @@ After deployment, services are accessible at:
 ### Variable Management
 ```bash
 # Regenerate all environment files (recommended - uses wrapper)
-bash vars/generate_env.sh -f
+bash vars/generate_contexts.sh -f
 
 # Regenerate specific contexts
-bash vars/generate_env.sh spark-client elastic-agent
+bash vars/generate_contexts.sh spark-client elastic-agent
 
 # Or directly (requires PyYAML installed)
-python3 vars/generate_env.py -f
+python3 vars/generate_contexts.py -f
 ```
 
 ### Running Tests
@@ -133,9 +133,9 @@ Elastic Agent → Logstash → Elasticsearch → Kibana
 ```
 vars/variables.yaml + vars/contexts.yaml
         ↓
-vars/generate_env.sh (bootstrap wrapper - uses system Python)
+vars/generate_contexts.sh (bootstrap wrapper - uses system Python)
         ↓
-vars/generate_env.py (core generator)
+vars/generate_contexts.py (core generator)
         ↓
 Context-specific files (vars/contexts/*/)
         ↓

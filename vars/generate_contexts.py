@@ -29,6 +29,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 # Configuration files
 VARIABLES_FILE = SCRIPT_DIR / 'variables.yaml'
 CONTEXTS_FILE = SCRIPT_DIR / 'contexts.yaml'
+SECRETS_FILE = SCRIPT_DIR / 'secrets.yaml'
 
 # Type to writer function mapping
 WRITER_FUNCTIONS = {
@@ -61,6 +62,54 @@ def load_contexts():
     except (yaml.YAMLError, IOError) as e:
         print(f"Error loading contexts from {CONTEXTS_FILE}: {e}")
         sys.exit(1)
+
+
+def load_secrets():
+    """
+    Load secrets from vars/secrets.yaml (if it exists)
+    
+    Returns:
+        Dictionary of secrets, or empty dict if file doesn't exist
+    """
+    if not SECRETS_FILE.exists():
+        return {}
+    
+    try:
+        with SECRETS_FILE.open() as f:
+            secrets = yaml.safe_load(f)
+            return secrets if secrets else {}
+    except (yaml.YAMLError, IOError) as e:
+        print(f"Warning: Error loading secrets from {SECRETS_FILE}: {e}")
+        print("  Continuing without secrets file...")
+        return {}
+
+
+def get_secret_value(var_name, secrets_dict):
+    """
+    Get secret value with priority: environment variable > secrets.yaml > None
+    
+    Args:
+        var_name: Name of the variable to look up
+        secrets_dict: Dictionary from secrets.yaml
+    
+    Returns:
+        Secret value from environment variable, secrets.yaml, or None
+        Returns None if value is a placeholder (e.g., "CHANGE_ME")
+    """
+    # Priority 1: Environment variable (highest priority)
+    env_value = os.environ.get(var_name)
+    if env_value and env_value.strip() and env_value != "CHANGE_ME":
+        return env_value
+    
+    # Priority 2: secrets.yaml file (skip placeholder values)
+    if var_name in secrets_dict:
+        secret_value = secrets_dict[var_name]
+        # Skip placeholder values
+        if secret_value and secret_value.strip() and secret_value != "CHANGE_ME":
+            return secret_value
+    
+    # No valid secret found
+    return None
 
 
 def validate_contexts(variables, contexts):
@@ -121,8 +170,13 @@ def get_var_value(var_def, context_name):
         return var_def.get('value', '')
 
 
-def get_vars(variables, context_name):
+def get_vars(variables, context_name, secrets=None):
     """Extract variables applicable to a specific context
+    
+    Args:
+        variables: Dictionary of variable definitions from variables.yaml
+        context_name: Name of the context to extract variables for
+        secrets: Optional dictionary of secrets from secrets.yaml
     
     Supports two formats:
     1. Simple format: {'value': '...', 'contexts': [...]}
@@ -146,12 +200,19 @@ def get_vars(variables, context_name):
         value = get_var_value(v, context_name)
         ordered_vars.append((k, value))
     
+    # Load secrets if not provided
+    if secrets is None:
+        secrets = load_secrets()
+    
     # Linear expansion: process variables in order, expanding each using already-expanded variables
     # Pattern to match ${VAR_NAME} or ${context:VAR_NAME}
     # Group 1: context name (if present) or variable name
     # Group 2: variable name (if context prefix exists)
     pattern = r'\$\{([a-zA-Z_][a-zA-Z0-9_-]*)(?::([A-Z_][A-Z0-9_]*))?\}'
     expanded = {}
+    
+    # Derive list of secret variables from variables.yaml (variables with secret: true)
+    secret_vars = [k for k, v in variables.items() if isinstance(v, dict) and v.get('secret', False)]
     
     for var_name, var_value in ordered_vars:
         if not isinstance(var_value, str):
@@ -194,6 +255,29 @@ def get_vars(variables, context_name):
         if '${' in expanded_value:
             print(f"⚠ Warning: Variable '{var_name}' references undefined or later-defined variable in: {expanded_value}")
         
+        # For secret variables, check for secrets override (env var or secrets.yaml)
+        if var_name in secret_vars:
+            secret_value = get_secret_value(var_name, secrets)
+            if secret_value:
+                expanded_value = secret_value
+            else:
+                # Check if this is a required secret
+                var_def = variables.get(var_name, {})
+                if var_def.get('required', False):
+                    # Required secret is missing - fail with clear error
+                    print(f"\n✗ ERROR: Required secret '{var_name}' is not set!", file=sys.stderr)
+                    print(f"  Secret must be provided via one of:", file=sys.stderr)
+                    print(f"    1. Environment variable: export {var_name}=\"your-secret\"", file=sys.stderr)
+                    print(f"    2. vars/secrets.yaml file: {var_name}: \"your-secret\"", file=sys.stderr)
+                    # Check for special requirements (e.g., EB_ENCRYPTION_KEY length)
+                    var_def = variables.get(var_name, {})
+                    if 'EB_ENCRYPTION_KEY' in var_name or var_def.get('comment', '').find('32 characters') != -1:
+                        print(f"  Note: {var_name} must be at least 32 characters long", file=sys.stderr)
+                    print(f"  See vars/secrets.yaml.example for template", file=sys.stderr)
+                    sys.exit(1)
+                # Non-required secret - use default (empty string)
+                expanded_value = var_value if var_value else ""
+        
         expanded[var_name] = expanded_value
     
     return expanded
@@ -203,7 +287,7 @@ def write_env(vars_dict, filename):
     """Write environment variables to a file in KEY=VALUE format (no export)"""
     try:
         with open(filename, 'w') as f:
-            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_contexts.py\n')
             f.write('# Do not edit manually!\n\n')
             for k, v in vars_dict.items():
                 f.write(f'{k}={v}\n')
@@ -217,7 +301,7 @@ def write_shell_env(vars_dict, filename):
     """Write variables to shell environment file with export statements"""
     try:
         with open(filename, 'w') as f:
-            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_contexts.py\n')
             f.write('# Do not edit manually!\n\n')
             
             for k, v in vars_dict.items():
@@ -232,7 +316,7 @@ def write_systemd_env(vars_dict, filename):
     """Write variables to systemd EnvironmentFile format (KEY=VALUE, one per line)"""
     try:
         with open(filename, 'w') as f:
-            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_contexts.py\n')
             f.write('# Do not edit manually!\n\n')
             
             for k, v in vars_dict.items():
@@ -255,7 +339,7 @@ def write_toml(vars_dict, filename):
     """Write environment variables to a TOML file"""
     try:
         with open(filename, 'w') as f:
-            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_contexts.py\n')
             f.write('# Do not edit manually!\n\n')
             f.write('[env]\n')
             for k, v in vars_dict.items():
@@ -273,7 +357,7 @@ def write_configmap(vars_dict, filename):
     """Write environment variables to a Kubernetes ConfigMap YAML file"""
     try:
         with open(filename, 'w') as f:
-            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_contexts.py\n')
             f.write('# Do not edit manually!\n\n')
             f.write('apiVersion: v1\n')
             f.write('kind: ConfigMap\n')
@@ -294,7 +378,7 @@ def write_ansible_vars(vars_dict, filename):
     try:
         with open(filename, 'w') as f:
             f.write('# Centralized variables for Ansible playbooks and roles\n')
-            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_env.py\n')
+            f.write('# This file is automatically generated from vars/variables.yaml by vars/generate_contexts.py\n')
             f.write('# Do not edit manually!\n\n')
             
             # Write Spark version first if it exists
@@ -391,6 +475,43 @@ def main(requested_contexts=None, force=False, verbose=False):
     # Load configuration
     variables = load_variables()
     contexts = load_contexts()
+    secrets = load_secrets()
+    
+    # Check for required secrets BEFORE processing contexts
+    required_secrets = [k for k, v in variables.items() if isinstance(v, dict) and v.get('secret') and v.get('required', False)]
+    missing_secrets = []
+    
+    for secret_var in required_secrets:
+        secret_value = get_secret_value(secret_var, secrets)
+        if not secret_value:
+            missing_secrets.append(secret_var)
+    
+    if missing_secrets:
+        print("\n✗ ERROR: Required secrets are missing!", file=sys.stderr)
+        print(f"  Missing secrets: {', '.join(missing_secrets)}", file=sys.stderr)
+        print(f"\n  To fix:", file=sys.stderr)
+        if not SECRETS_FILE.exists():
+            print(f"    1. Copy template: cp vars/secrets.yaml.example vars/secrets.yaml", file=sys.stderr)
+            print(f"    2. Edit vars/secrets.yaml and set the required secrets", file=sys.stderr)
+            print(f"    3. Set file permissions: chmod 600 vars/secrets.yaml", file=sys.stderr)
+        else:
+            print(f"    1. Edit vars/secrets.yaml and set: {', '.join(missing_secrets)}", file=sys.stderr)
+        print(f"    2. Or set environment variables:", file=sys.stderr)
+        for secret in missing_secrets:
+            print(f"       export {secret}=\"your-secret\"", file=sys.stderr)
+        # Check for special requirements
+        for secret in missing_secrets:
+            var_def = variables.get(secret, {})
+            if 'EB_ENCRYPTION_KEY' in secret or var_def.get('comment', '').find('32 characters') != -1:
+                print(f"\n  Note: {secret} must be at least 32 characters long", file=sys.stderr)
+                break
+        print(f"\n  See vars/docs/SECRETS_MANAGEMENT.md for details\n", file=sys.stderr)
+        sys.exit(1)
+    
+    # Info message if secrets file doesn't exist but secrets are provided via env vars
+    if not SECRETS_FILE.exists():
+        print("ℹ Info: secrets.yaml not found, but all required secrets are provided via environment variables")
+        print(f"  To use secrets.yaml, copy vars/secrets.yaml.example to vars/secrets.yaml\n")
     
     if not contexts:
         print(f"No contexts defined in {CONTEXTS_FILE}")
@@ -469,8 +590,8 @@ def main(requested_contexts=None, force=False, verbose=False):
         output_dir = output_path.parent
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Extract variables for this context
-        vars_dict = get_vars(variables, context_name)
+        # Extract variables for this context (with secrets support)
+        vars_dict = get_vars(variables, context_name, secrets)
         
         if verbose:
             print(f"  Variables: {len(vars_dict)} extracted")

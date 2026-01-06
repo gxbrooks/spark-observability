@@ -31,6 +31,11 @@ STACK_VERSION:
   value: 8.15.0
   contexts: [observability]
 
+# Force certificate regeneration (set to non-empty to force)
+FORCE_REGEN:
+  value: ""
+  contexts: [observability]
+
 # Elasticsearch Data Retention Policies (for downsampling)
 # Base metric sampling frequency (Elastic Agent collection period)
 ES_METRIC_SAMPLING_INTERVAL:
@@ -91,8 +96,10 @@ ES_USER:
   value: elastic
   contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
 ES_PASSWORD:
-  value: myElastic2025
+  value: ""  # SECRET: REQUIRED - Must be set in vars/secrets.yaml or via ES_PASSWORD env var
   contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
+  secret: true
+  required: true
 # ES_URL: Consolidated Elasticsearch URL (replaces ELASTIC_URL)
 # Used by Docker Compose and Elastic Agent
 ES_URL:
@@ -139,12 +146,14 @@ LICENSE:
 
 # Kibana variables (KB_* prefix)
 EB_ENCRYPTION_KEY:
-  value: c34d38b3a14956121ff2170e5030b471551370178f43e5626eec58b04a30fae2
-  contexts: [observability] 
+  value: ""  # SECRET: REQUIRED - Must be set in vars/secrets.yaml or via EB_ENCRYPTION_KEY env var (minimum 32 characters)
+  contexts: [observability]
+  secret: true
+  required: true
 KB_HOST:
   contexts: [observability, devops]
   values:
-    observability: kibana
+    observability: GaryPC.lan  # External hostname for SERVER_PUBLICBASEURL
     devops: GaryPC.lan
 KB_PORT:
   value: 5601
@@ -153,8 +162,10 @@ KB_USER:
   value: kibana_system
   contexts: [observability]
 KB_PASSWORD:
-  value: myElastic2025
+  value: ""  # SECRET: REQUIRED - Must be set in vars/secrets.yaml or via KB_PASSWORD env var
   contexts: [observability, devops]
+  secret: true
+  required: true
 
 # Logstash variables
 LS_HOST:
@@ -186,15 +197,17 @@ GF_SECURITY_ADMIN_USER:
   value: admin
   contexts: [observability]
 GF_SECURITY_ADMIN_PASSWORD:
-  value: mysecretpassword
+  value: ""  # SECRET: REQUIRED - Must be set in vars/secrets.yaml or via GF_SECURITY_ADMIN_PASSWORD env var
   contexts: [observability]
+  secret: true
+  required: true
 
 # Elastic Agent variables
 # Currently we use systemd env.conf file format for Elastic Agent on Linux.
 # env.con is in elastic-agent/env.conf
 # there is a playbook to inject env.conf into the Elastic Agent service environment.
 # for Windows there is a task to populate environment variables from the Linux version
-# All this needs to be integrated with vars/generate_env.py
+# All this needs to be integrated with vars/generate_contexts.py
 ELASTIC_AGENT_VERSION:
   value: 8.15.0
   contexts: [elastic-agent-ansible]

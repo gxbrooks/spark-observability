@@ -10,10 +10,10 @@
 # - Python version is not yet determined
 #
 # Usage: Same as generate_contexts.py
-#   ./generate_env.sh                    # Generate all contexts
-#   ./generate_env.sh spark-client       # Generate specific context
-#   ./generate_env.sh -f                 # Force regeneration
-#   ./generate_env.sh -v spark-image     # Verbose output
+#   ./generate_contexts.sh                    # Generate all contexts
+#   ./generate_contexts.sh spark-client       # Generate specific context
+#   ./generate_contexts.sh -f                 # Force regeneration
+#   ./generate_contexts.sh -v spark-image     # Verbose output
 
 set -euo pipefail
 

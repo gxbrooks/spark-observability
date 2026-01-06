@@ -340,7 +340,7 @@ Kubernetes API server certificates are managed separately:
 ### For Development (DevOps User)
 
 1. **Edit files in source repository**: Always edit files in `~/repos/elastic-on-spark/`
-2. **Regenerate .env**: Run `bash vars/generate_env.sh -f observability` after changing `vars/variables.yaml`
+2. **Regenerate .env**: Run `bash vars/generate_contexts.sh -f observability` after changing `vars/variables.yaml`
 3. **Test locally**: Use Docker Compose from the source repository directory
 4. **Commit changes**: Commit all changes to Git before deploying
 
@@ -382,7 +382,7 @@ Kubernetes API server certificates are managed separately:
 
 1. **Use Jinja2 templates** (`.j2` files)
 2. **Store in Git** with full history
-3. **Generate from vars/variables.yaml** via `generate_env.sh` (wrapper) or `generate_env.py`
+3. **Generate from vars/variables.yaml** via `generate_contexts.sh` (wrapper) or `generate_contexts.py`
 4. **Deploy via Ansible** with validation
 5. **Restart services** after configuration changes
 6. **Test configuration syntax** before deployment
