@@ -73,7 +73,7 @@
             "thresholdsStyle": {
               "mode": "off"
             },
-            "axisWidth": 80
+            "axisWidth": 40
           },
           "mappings": [],
           "thresholds": {
@@ -194,7 +194,7 @@
             "thresholdsStyle": {
               "mode": "off"
             },
-            "axisWidth": 80
+            "axisWidth": 40
           },
           "mappings": [],
           "thresholds": {
@@ -291,7 +291,7 @@
             },
             "axisLabel": "Count",
             "axisPlacement": "left",
-            "axisWidth": 80,
+            "axisWidth": 40,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": false
@@ -397,11 +397,13 @@
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
-              "type": "linear"
+              "type": "linear",
+              "min": 0,
+              "max": 1.0
             },
             "showPoints": "never",
             "spanNulls": true,
-            "axisWidth": 80
+            "axisWidth": 40
           },
           "mappings": [],
           "thresholds": {
@@ -464,16 +466,16 @@
             {
               "field": "system.cpu.total.pct",
               "id": "1",
-              "type": "sum"
+              "type": "avg"
             }
           ],
           "query": "_index:metrics-system.cpu-default*",
           "refId": "A",
           "timeField": "@timestamp",
-          "alias": "Total CPU Usage"
+          "alias": "Average CPU Usage"
         }
       ],
-      "title": "Total System CPU Utilization %",
+      "title": "Average System CPU Utilization %",
       "type": "timeseries"
     },
     {
@@ -509,7 +511,7 @@
             },
             "showPoints": "never",
             "spanNulls": true,
-            "axisWidth": 80
+            "axisWidth": 40
           },
           "mappings": [],
           "thresholds": {
@@ -604,170 +606,7 @@
             },
             "axisLabel": "Bytes/sec",
             "axisPlacement": "left",
-            "axisWidth": 80,
-            "axisBorderShow": false,
-            "axisColorMode": "text",
-            "axisCenteredZero": false
-          },
-          "mappings": [],
-          "nullValueMode": "null",
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 4,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "maxDataPoints": 3000
-      },
-      "pluginVersion": "11.3.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "query": "_index:metrics-system.network-default* AND NOT system.network.name:lo",
-          "alias": "Total In",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "system.network.in.bytes",
-              "hide": true
-            },
-            {
-              "id": "2",
-              "type": "derivative",
-              "field": "1",
-              "pipelineAgg": "1",
-              "settings": {
-                "unit": "$__interval"
-              },
-              "hide": true
-            },
-            {
-              "id": "3",
-              "type": "bucket_script",
-              "pipelineAgg": "2",
-              "settings": {
-                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value * -1 : null"
-              },
-              "pipelineVariables": [
-                {
-                  "name": "_value",
-                  "pipelineAgg": "2"
-                }
-              ]
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "4",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval",
-                "min_doc_count": 0
-              }
-            }
-          ],
-          "refId": "A",
-          "timeField": "@timestamp"
-        },
-        {
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "query": "_index:metrics-system.network-default* AND NOT system.network.name:lo",
-          "alias": "Total Out",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "system.network.out.bytes",
-              "hide": true
-            },
-            {
-              "id": "2",
-              "type": "derivative",
-              "field": "1",
-              "pipelineAgg": "1",
-              "settings": {
-                "unit": "$__interval"
-              },
-              "hide": true
-            },
-            {
-              "id": "3",
-              "type": "bucket_script",
-              "pipelineAgg": "2",
-              "settings": {
-                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value : null"
-              },
-              "pipelineVariables": [
-                {
-                  "name": "_value",
-                  "pipelineAgg": "2"
-                }
-              ]
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "3",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval",
-                "min_doc_count": 0
-              }
-            }
-          ],
-          "refId": "B",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Total Network Byte Rate (In/Out)",
-      "type": "timeseries",
-      "description": "Aggregated network I/O rates across all hosts. Stacked view shows total cluster throughput."
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            },
-            "axisLabel": "Bytes/sec",
-            "axisPlacement": "left",
-            "axisWidth": 80,
+            "axisWidth": 40,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": false
@@ -886,7 +725,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Total Network Byte Rate (In/Out) - Logstash",
+      "title": "Total Network Byte Rate (In/Out)",
       "type": "timeseries",
       "description": "Aggregated network I/O rates using precomputed rates from Logstash aggregate filter"
     },
@@ -910,7 +749,7 @@
             },
             "axisLabel": "Bytes/sec",
             "axisPlacement": "left",
-            "axisWidth": 80,
+            "axisWidth": 40,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": false
@@ -926,169 +765,6 @@
         "w": 12,
         "x": 12,
         "y": 24
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "maxDataPoints": 3000
-      },
-      "pluginVersion": "11.3.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "query": "_index:metrics-system.diskio-default* AND system.diskio.name:(nvme* OR sd* OR vd*)",
-          "alias": "Total Read",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "system.diskio.read.bytes",
-              "hide": true
-            },
-            {
-              "id": "2",
-              "type": "derivative",
-              "field": "1",
-              "pipelineAgg": "1",
-              "settings": {
-                "unit": "$__interval"
-              },
-              "hide": true
-            },
-            {
-              "id": "3",
-              "type": "bucket_script",
-              "pipelineAgg": "2",
-              "settings": {
-                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value * -1 : null"
-              },
-              "pipelineVariables": [
-                {
-                  "name": "_value",
-                  "pipelineAgg": "2"
-                }
-              ]
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "4",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval",
-                "min_doc_count": 0
-              }
-            }
-          ],
-          "refId": "A",
-          "timeField": "@timestamp"
-        },
-        {
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "query": "_index:metrics-system.diskio-default* AND system.diskio.name:(nvme* OR sd* OR vd*)",
-          "alias": "Total Write",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "sum",
-              "field": "system.diskio.write.bytes",
-              "hide": true
-            },
-            {
-              "id": "2",
-              "type": "derivative",
-              "field": "1",
-              "pipelineAgg": "1",
-              "settings": {
-                "unit": "$__interval"
-              },
-              "hide": true
-            },
-            {
-              "id": "3",
-              "type": "bucket_script",
-              "pipelineAgg": "2",
-              "settings": {
-                "script": "params._value != null && Math.abs(params._value) < 1.0e9 ? params._value : null"
-              },
-              "pipelineVariables": [
-                {
-                  "name": "_value",
-                  "pipelineAgg": "2"
-                }
-              ]
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "3",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval",
-                "min_doc_count": 0
-              }
-            }
-          ],
-          "refId": "B",
-          "timeField": "@timestamp"
-        }
-      ],
-      "title": "Total Disk I/O Rate (Read/Write)",
-      "type": "timeseries",
-      "description": "Aggregated disk I/O rates across all hosts. Stacked view shows total cluster I/O."
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "spanNulls": false,
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            },
-            "axisLabel": "Bytes/sec",
-            "axisPlacement": "left",
-            "axisWidth": 80,
-            "axisBorderShow": false,
-            "axisColorMode": "text",
-            "axisCenteredZero": false
-          },
-          "mappings": [],
-          "nullValueMode": "null",
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 32
       },
       "id": 11,
       "options": {
@@ -1192,7 +868,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Total Disk I/O Rate (Read/Write) - Logstash",
+      "title": "Total Disk I/O Rate (Read/Write)",
       "type": "timeseries",
       "description": "Aggregated disk I/O rates using precomputed rates from Logstash aggregate filter"
     },
@@ -1226,7 +902,7 @@
             },
             "showPoints": "never",
             "spanNulls": false,
-            "axisWidth": 80,
+            "axisWidth": 40,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": false
@@ -1249,7 +925,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 32
       },
       "id": 7,
@@ -1328,7 +1004,7 @@
             },
             "showPoints": "never",
             "spanNulls": false,
-            "axisWidth": 80,
+            "axisWidth": 40,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": false
@@ -1351,8 +1027,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 40
+        "x": 12,
+        "y": 32
       },
       "id": 6,
       "options": {
@@ -1456,7 +1132,7 @@
             "thresholdsStyle": {
               "mode": "off"
             },
-            "axisWidth": 80
+            "axisWidth": 40
           },
           "links": [],
           "mappings": [],
@@ -1476,7 +1152,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 40
       },
       "id": 8,
@@ -1556,7 +1232,7 @@
             "thresholdsStyle": {
               "mode": "off"
             },
-            "axisWidth": 80
+            "axisWidth": 40
           },
           "mappings": [],
           "thresholds": {
@@ -1575,8 +1251,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 48
+        "x": 12,
+        "y": 40
       },
       "id": 9,
       "options": {
@@ -1636,11 +1312,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "Utilization (%)",
+            "axisLabel": "Utilization %",
             "axisPlacement": "left",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 20,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -1649,19 +1325,16 @@
             },
             "lineInterpolation": "linear",
             "lineWidth": 2,
-            "lineStyle": {
-              "dash": []
-            },
             "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
             "spanNulls": true,
-            "axisWidth": 80,
+            "axisWidth": 40,
             "axisBorderShow": false,
             "axisColorMode": "text",
-            "axisCenteredZero": false
+            "axisCenteredZero": true
           },
           "mappings": [],
           "thresholds": {
@@ -1679,76 +1352,15 @@
           },
           "unit": "percentunit"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*GPU.*|.*VRAM.*"
-            },
-            "properties": [
-              {
-                "id": "custom.axisPlacement",
-                "value": "left"
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "Utilization %"
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [],
-                  "fill": "solid"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*Temp.*"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "short"
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "Temperature (\u00b0C)"
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
-                  "fill": "dash"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#EAB839"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 48
       },
-      "id": 101,
+      "id": 103,
       "options": {
         "legend": {
           "calcs": [],
@@ -1758,11 +1370,6 @@
         },
         "tooltip": {
           "mode": "multi"
-        },
-        "graph": {
-          "showBars": false,
-          "showLines": true,
-          "showPoints": false
         }
       },
       "pluginVersion": "11.3.0",
@@ -1814,13 +1421,102 @@
             {
               "field": "gpu.utilization.memory_percent",
               "id": "1",
-              "type": "avg"
+              "type": "avg",
+              "hide": true
+            },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params._value != null ? params._value * -1 : null"
+              },
+              "pipelineVariables": [
+                {
+                  "name": "_value",
+                  "pipelineAgg": "1"
+                }
+              ]
             }
           ],
           "query": "_index:metrics-gpu-default*",
           "refId": "B",
           "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU Utilization (Envelope Plot)",
+      "description": "GPU utilization (positive) and VRAM utilization (negative) across Lab1/Lab2 nodes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "Temperature (\u00b0C)",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisWidth": 40,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 102,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
         {
           "alias": "Average Edge Temp (\u00b0C)",
           "bucketAggs": [
@@ -1849,8 +1545,8 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU Metrics (Utilization & Temperature)",
-      "description": "Tracks AMD GPU utilization, VRAM usage, and edge temperature across Lab1/Lab2 nodes",
+      "title": "GPU Temperature",
+      "description": "Average GPU edge temperature across Lab1/Lab2 nodes",
       "type": "timeseries"
     }
   ],
@@ -1874,5 +1570,5 @@
   "timezone": "browser",
   "title": "Spark System Metrics",
   "uid": "spark-system-metrics-aggregated",
-  "version": 3
+  "version": 5
 }
