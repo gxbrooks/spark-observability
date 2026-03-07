@@ -137,12 +137,12 @@ except:
     print('3.11')
 " 2>/dev/null || echo "3.11"
             )
-            # Note: Virtual environment setup is handled by assert_devops_client.sh
-            # This script just ensures it exists - call assert_devops_client.sh to create it
-            echo "Info    : Virtual environment creation is handled by assert_devops_client.sh"
-            echo "Info    : Run: $root_dir/linux/assert_devops_client.sh -N <passphrase> to create venv"
+            # Note: Virtual environment setup is handled by assert_client_node.sh
+            # This script just ensures it exists - call assert_client_node.sh to create it
+            echo "Info    : Virtual environment creation is handled by assert_client_node.sh"
+            echo "Info    : Run: $root_dir/linux/assert_client_node.sh -N <passphrase> to create venv"
         elif $CHECK; then
-            echo "Check   : Would create virtual environment using assert_devops_client.sh"
+            echo "Check   : Would create virtual environment using assert_client_node.sh"
         fi
         return 1
     fi

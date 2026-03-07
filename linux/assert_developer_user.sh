@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Assert Developer User Environment
+#
+# Context : Run on the developer's own workstation (client node), NOT on
+#           managed nodes. Called by assert_client_node.sh.
+#
+# Purpose : Configures the human developer account on the client node:
+#             - Docker group membership (for Docker daemon access)
+#             - Spark group membership (for Spark process access)
+#             - Elastic-Agent group membership
+#             - /mnt/c/Volumes shared directory (Windows/WSL cross-platform path)
+#
+# Note    : /mnt/c/Volumes is WSL-specific. This script should only be run
+#           in WSL or other environments where that path is meaningful.
+#
+# This script is idempotent and can be run multiple times safely.
+
 # Parse arguments
 DEBUG=false
 CHECK=false

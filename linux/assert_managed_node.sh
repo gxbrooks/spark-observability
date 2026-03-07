@@ -2,8 +2,22 @@
 
 # Assert Managed Node Environment
 #
-# Ensures a node has all components needed to be managed by Ansible.
-# This includes SSH server, service account, Python, and user configuration.
+# Context : Run on any Linux node (physical, VM, or WSL) that will be
+#           controlled by Ansible from a devops client. This script
+#           configures only what Ansible itself needs to operate.
+#
+# Purpose : Installs and configures:
+#             - Required packages (jq, ncat, keychain, etc.)
+#             - OpenSSH server
+#             - The Ansible service account (default: "ansible") with
+#               SSH access, sudo rights, and a known password
+#             - Python (for Ansible modules)
+#             - The "spark" system user / group
+#
+# Out of scope (handled by assert_client_node.sh):
+#             - Developer group memberships (docker, spark, elastic-agent)
+#             - Shared volumes or workstation-specific paths
+#             - SSH/Git client keys, Python venv, or Spark client apps
 #
 # This script is idempotent and can be run multiple times safely.
 
@@ -113,9 +127,3 @@ $root_dir/linux/assert_python_version.sh \
 $root_dir/linux/assert_spark_user.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
-
-# Configure developer user (current user)
-$root_dir/linux/assert_developer_user.sh \
-    $(append_flag "--Check" "$CHECK") \
-    $(append_flag "--Debug" "$DEBUG") \
-    --User "$USER"

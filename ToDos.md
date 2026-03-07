@@ -213,7 +213,7 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 
 ---
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2026-03-07
 
 ### Investigate Elasticsearch SSL Handshake Warnings
 **Priority**: Medium  
@@ -311,3 +311,55 @@ Should I update the other search objects (`batch-events`, `batch-traces`, `spark
 - what to do with events? It is a similar issue, but events are going on an NFS share? That may not be necessary
 ### Watcher credentials
 - Note: The watcher uses hardcoded credentials (elastic:changeme). For production, consider using Elasticsearch Watcher secrets for secure credential storage.
+
+---
+
+## Node Setup & Automation
+
+### Install pip for Python 3.11 on Managed Nodes
+**Priority**: Medium  
+**Status**: Not Started
+
+**Description**:  
+`assert_managed_node.sh` prints `Warning: pip for Python 3.11 not found` on every run. Ansible
+modules that install Python packages (e.g. `ansible.builtin.pip`) require pip to be present on
+the managed node. The managed node currently has Python 3.11 (`/usr/bin/python3.11`) but the
+corresponding `pip3.11` binary is missing.
+
+**Fix**:  
+Add a step in `assert_managed_node.sh` (or `assert_python_version.sh`) to install
+`python3.11-pip` (or bootstrap pip via `ensurepip`) when it is not found.
+
+```bash
+# Candidate fix in assert_python_version.sh or assert_managed_node.sh
+if ! command -v pip3.11 &>/dev/null; then
+    sudo apt-get install -y python3-pip
+    # or: python3.11 -m ensurepip --upgrade
+fi
+```
+
+**Success Criteria**:
+- `pip3.11 --version` exits 0 on a freshly provisioned managed node
+- No pip warning during `assert_managed_node.sh` runs
+
+---
+
+### Review generate_contexts.sh Secrets Warning on Managed Nodes
+**Priority**: Low  
+**Status**: Not Started
+
+**Description**:  
+When `assert_managed_node.sh` runs in apply mode it calls `vars/generate_contexts.sh managed-node`,
+which emits a noisy error block about missing Elasticsearch/Grafana secrets
+(`ES_PASSWORD`, `EB_ENCRYPTION_KEY`, `KB_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`).
+These secrets are irrelevant to a managed node (they are only needed on the devops client /
+observability stack). The warning is misleading and clutters the output.
+
+**Options**:  
+1. Suppress the error block in `generate_contexts.sh` for the `managed-node` context.  
+2. Skip `generate_contexts.sh` entirely in `assert_managed_node.sh` (it is already skipped in
+   check mode).  
+3. Document that secrets warnings during managed-node provisioning are expected and harmless.
+
+**Success Criteria**:
+- `assert_managed_node.sh` apply-mode output contains no secrets-related error blocks

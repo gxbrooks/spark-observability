@@ -1,10 +1,28 @@
 #!/bin/bash
 
-# Assert Devops Client Environment
-# 
-# Ensures all components needed for a Linux devops environment are properly configured.
-# This includes SSH, Git, Python, Java, and development tools.
-# 
+# Assert Client Node Environment
+#
+# Context : Run on the developer's own workstation (e.g. WSL on GaryPC, or Lab2).
+#           This is the Ansible control node — the machine that drives all
+#           automation against managed nodes.
+#
+# Purpose : Installs and configures the full devops client toolchain:
+#             - Required packages (ansible-core, jq, maven, etc.)
+#             - Java (OpenJDK)
+#             - Git global config
+#             - SSH client keys and Git client keys
+#             - Bash environment links
+#             - Python venv with PySpark pinned to cluster version
+#             - Spark client apps
+#             - Spark events mount
+#             - Grafana build utilities
+#             - Developer user group memberships (docker, spark, elastic-agent)
+#             - Shared cross-platform volume (/mnt/c/Volumes)
+#
+# Out of scope (handled by assert_managed_node.sh):
+#             - SSH server configuration
+#             - Ansible service account creation
+#
 # This script is idempotent and can be run multiple times safely.
 
 # Parse flags
@@ -257,9 +275,15 @@ $root_dir/linux/assert_spark_client_apps.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
+# Configure developer user group memberships and workstation-specific paths
+$root_dir/linux/assert_developer_user.sh \
+    --User "$USER" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
 echo ""
 echo "========================================"
-echo "Result  : Devops client initialized for user '$USER'"
+echo "Result  : Client node initialized for user '$USER'"
 echo "========================================"
 echo ""
 echo "Next steps:"

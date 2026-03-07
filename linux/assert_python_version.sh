@@ -219,7 +219,7 @@ install_python_version() {
 }
 
 # Note: Python 3.8-specific functions removed - Spark 4.0+ requires Python 3.11+
-# Virtual environment setup is now handled in assert_devops_client.sh
+# Virtual environment setup is now handled in assert_client_node.sh
 
 # Function to setup venv PATH in project .bashrc
 setup_venv_path() {
@@ -263,7 +263,7 @@ verify_python_installation() {
             return 1
         fi
         
-        # Note: PySpark installation and venv setup are handled in assert_devops_client.sh
+        # Note: PySpark installation and venv setup are handled in assert_client_node.sh
         # This script only ensures the Python version is installed
     else
         echo "Error   : Python ${version} not found"
@@ -288,10 +288,10 @@ else
     fi
 fi
 
-# Note: Virtual environment setup is now handled in assert_devops_client.sh
+# Note: Virtual environment setup is now handled in assert_client_node.sh
 # This script only ensures the Python version is installed and available
 if $SETUP_VENV || $SKIP_VENV; then
-    echo "Info    : Virtual environment setup is handled by assert_devops_client.sh"
+    echo "Info    : Virtual environment setup is handled by assert_client_node.sh"
 fi
 
 # Set up environment variables for the current session
