@@ -18,10 +18,16 @@
       - { port: 3000, name: "Grafana", service: "Grafana" }
       - { port: 5050, name: "Logstash Spark Events", service: "Logstash" }
       - { port: 5051, name: "Logstash Metrics", service: "Logstash" }
+      - { port: 9201, name: "Logstash Prometheus Remote Write", service: "Logstash" }
       - { port: 4317, name: "OTel Collector gRPC", service: "OTel Collector" }
       - { port: 4318, name: "OTel Collector HTTP", service: "OTel Collector" }
       - { port: 8888, name: "OTel Collector Prometheus", service: "OTel Collector" }
       - { port: 13133, name: "OTel Collector Health", service: "OTel Collector" }
+      - { port: 9090, name: "Prometheus", service: "Prometheus" }
+      - { port: 9202, name: "Prometheus ES Adapter write", service: "Prometheus ES Adapter" }
+      - { port: 9203, name: "Prometheus ES Adapter metrics", service: "Prometheus ES Adapter" }
+      - { port: 3200, name: "Tempo HTTP", service: "Tempo" }
+      - { port: 9095, name: "Tempo gRPC", service: "Tempo" }
   tasks:
     - name: Check if Windows Firewall rule exists for observability ports
       win_shell: |
@@ -62,6 +68,80 @@
         label: "{{ item.item.name }} ({{ item.item.port }})"
       when: item.stdout == "" or item.stdout is not defined
       changed_when: "'Creating firewall rule' in firewall_rule_result.stdout"
+
+# Ensure Linux Firewall is configured (if observability runs on Linux/WSL)
+- name: Ensure Linux Firewall is Configured for Observability Services
+  hosts: observability
+  gather_facts: true
+  ignore_unreachable: true
+  vars:
+    observability_ports:
+      - { port: 9200, name: "Elasticsearch HTTP", service: "Elasticsearch" }
+      - { port: 9300, name: "Elasticsearch Transport", service: "Elasticsearch" }
+      - { port: 5601, name: "Kibana", service: "Kibana" }
+      - { port: 3000, name: "Grafana", service: "Grafana" }
+      - { port: 5050, name: "Logstash Spark Events", service: "Logstash" }
+      - { port: 5051, name: "Logstash Metrics", service: "Logstash" }
+      - { port: 9201, name: "Logstash Prometheus Remote Write", service: "Logstash" }
+      - { port: 4317, name: "OTel Collector gRPC", service: "OTel Collector" }
+      - { port: 4318, name: "OTel Collector HTTP", service: "OTel Collector" }
+      - { port: 8888, name: "OTel Collector Prometheus", service: "OTel Collector" }
+      - { port: 13133, name: "OTel Collector Health", service: "OTel Collector" }
+      - { port: 9090, name: "Prometheus", service: "Prometheus" }
+      - { port: 9202, name: "Prometheus ES Adapter write", service: "Prometheus ES Adapter" }
+      - { port: 9203, name: "Prometheus ES Adapter metrics", service: "Prometheus ES Adapter" }
+      - { port: 3200, name: "Tempo HTTP", service: "Tempo" }
+      - { port: 9095, name: "Tempo gRPC", service: "Tempo" }
+  tasks:
+    - name: Check if UFW is installed
+      command: which ufw
+      register: ufw_check
+      changed_when: false
+      failed_when: false
+      ignore_errors: true
+      ignore_unreachable: true
+    
+    - name: Install UFW if not present
+      apt:
+        name: ufw
+        state: present
+        update_cache: yes
+      become: true
+      when: ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc != 0
+      ignore_unreachable: true
+    
+    - name: Enable UFW if not already enabled
+      ufw:
+        state: enabled
+      become: true
+      when: ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc == 0
+      ignore_unreachable: true
+    
+    - name: Check if UFW rule exists for observability port
+      command: ufw status numbered | grep -q "{{ item.port }}/tcp" || echo "not_found"
+      register: ufw_rule_check
+      loop: "{{ observability_ports }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.port }})"
+      changed_when: false
+      failed_when: false
+      when: ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc == 0
+      ignore_unreachable: true
+    
+    - name: Create UFW rule for observability ports
+      ufw:
+        rule: allow
+        port: "{{ item.item.port }}"
+        proto: tcp
+        comment: "{{ item.item.name }} (Observability)"
+      become: true
+      loop: "{{ ufw_rule_check.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name }} ({{ item.item.port }})"
+      when: 
+        - ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc == 0
+        - item.stdout is defined and "'not_found' in item.stdout"
+      ignore_unreachable: true
 
 - name: Start Observability Platform
   hosts: observability
@@ -205,63 +285,39 @@
     # STEP 2: Validate CA Certificate
     # =====================================================================
     # Check certificate in Docker volume (source of truth)
-    - name: Get Docker volume mount point for certs
+    # For WSL/Docker Desktop, volume mount point may not be directly accessible from host
+    # So we check inside a container instead
+    - name: Check if CA certificate exists in Docker volume (via container)
       shell: |
-        docker volume inspect observability_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
-        docker volume inspect {{ observability_dir | basename }}_certs --format '{{ "{{" }} .Mountpoint {{ "}}" }}' 2>/dev/null || \
-        echo ""
-      register: cert_volume_path
+        docker run --rm -v observability_certs:/certs:ro alpine test -f /certs/ca/ca.crt && echo "EXISTS" || echo "NOT_FOUND"
+      register: ca_cert_check
       changed_when: false
       failed_when: false
-      when: is_linux
-      
-    - name: Check if CA certificate was generated in Docker volume
-      stat:
-        path: "{{ cert_volume_path.stdout }}/ca/ca.crt"
-      register: ca_cert_stat
-      when: is_linux and cert_volume_path.stdout != ""
-      
-    - name: Check if CA certificate exists at published path (fallback - Windows/WSL mount)
-      stat:
-        path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
-      register: ca_cert_published_stat
       when: is_linux
       
     - name: Fail if CA certificate not found
       fail:
         msg: |
-          CA certificate not found. Certificate generation may have failed.
-          Checked locations:
-          - Docker volume: {{ cert_volume_path.stdout }}/ca/ca.crt
-          - Published path (WSL): /mnt/c/Volumes/certs/Elastic/ca.crt
+          CA certificate not found in Docker volume. Certificate generation may have failed.
           Check init-certs logs: cd {{ observability_dir }} && docker compose logs init-certs
       when: 
         - is_linux
-        - (cert_volume_path.stdout == "" or not ca_cert_stat.stat.exists)
-        - not ca_cert_published_stat.stat.exists
+        - ca_cert_check.stdout != "EXISTS"
       
-    - name: Set certificate path for validation
-      set_fact:
-        cert_path_to_validate: "{{ cert_volume_path.stdout }}/ca/ca.crt"
-      when: is_linux and cert_volume_path.stdout != "" and ca_cert_stat.stat.exists
-      
-    - name: Set certificate path for validation (fallback to WSL mount)
-      set_fact:
-        cert_path_to_validate: "/mnt/c/Volumes/certs/Elastic/ca.crt"
-      when: is_linux and (cert_volume_path.stdout == "" or not ca_cert_stat.stat.exists) and ca_cert_published_stat.stat.exists
-      
-    - name: Validate CA certificate integrity
+    - name: Validate CA certificate integrity (from container)
       shell: |
-        if ! openssl x509 -in "{{ cert_path_to_validate }}" -noout -text > /dev/null 2>&1; then
-          echo "INVALID"
-          exit 1
-        fi
-        echo "Issuer: $(openssl x509 -in "{{ cert_path_to_validate }}" -noout -issuer)"
-        echo "Validity: $(openssl x509 -in "{{ cert_path_to_validate }}" -noout -dates)"
-        echo "Fingerprint: $(openssl x509 -in "{{ cert_path_to_validate }}" -noout -fingerprint -sha256)"
+        docker run --rm -v observability_certs:/certs:ro alpine sh -c "
+          if ! openssl x509 -in /certs/ca/ca.crt -noout -text > /dev/null 2>&1; then
+            echo 'INVALID'
+            exit 1
+          fi
+          echo 'Issuer: '$(openssl x509 -in /certs/ca/ca.crt -noout -issuer)
+          echo 'Validity: '$(openssl x509 -in /certs/ca/ca.crt -noout -dates)
+          echo 'Fingerprint: '$(openssl x509 -in /certs/ca/ca.crt -noout -fingerprint -sha256)
+        "
       register: ca_cert_validation
       changed_when: false
-      when: is_linux and cert_path_to_validate is defined
+      when: is_linux and ca_cert_check.stdout == "EXISTS"
       
     - name: Display CA certificate details
       debug:
@@ -319,6 +375,9 @@
           - { name: "grafana", display: "Grafana", required: true }
           - { name: "logstash01", display: "Logstash", required: true }
           - { name: "otel-collector", display: "OTel Collector", required: false }
+          - { name: "prometheus-es-adapter", display: "Prometheus ES Adapter", required: false }
+          - { name: "prometheus", display: "Prometheus", required: false }
+          - { name: "tempo", display: "Grafana Tempo", required: false }
       when: is_linux
     
     - name: Check current service status
@@ -473,6 +532,8 @@
           - Kibana: http://{{ ansible_hostname }}:5601
           - Grafana: http://{{ ansible_hostname }}:3000
           - Logstash: {{ ansible_hostname }}:5050
+          - Prometheus: http://{{ ansible_hostname }}:9090
+          - Tempo: http://{{ ansible_hostname }}:3200
           
           Credentials:
           - Username: elastic

@@ -115,3 +115,5 @@
           - Kibana: http://{{ ansible_hostname }}:5601
           - Grafana: http://{{ ansible_hostname }}:3000
           - Logstash: {{ ansible_hostname }}:5050
+          - Prometheus: http://{{ ansible_hostname }}:9090
+          - Tempo: http://{{ ansible_hostname }}:3200

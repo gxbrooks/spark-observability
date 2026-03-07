@@ -1,0 +1,124 @@
+# Logstash pipeline to receive Prometheus remote write and forward to Elasticsearch
+# Prometheus remote write uses Protocol Buffers format, but we'll use HTTP JSON endpoint
+# Alternative: Use prometheus-remote-storage-adapter or configure Prometheus to write JSON
+
+input {
+  http {
+    port => 9201
+    codec => json
+    additional_codecs => {
+      "application/x-protobuf" => "json"
+    }
+    ssl_enabled => false
+  }
+}
+
+filter {
+  # Prometheus remote write format:
+  # {
+  #   "timeseries": [
+  #     {
+  #       "labels": [{"name": "__name__", "value": "metric_name"}, ...],
+  #       "samples": [{"timestamp": "1234567890", "value": 1.0}, ...]
+  #     }
+  #   ]
+  # }
+  
+  if [timeseries] {
+    # Extract timestamp from samples
+    ruby {
+      code => "
+        require 'time'
+        if event.get('timeseries')
+          event.get('timeseries').each_with_index do |series, idx|
+            metric_name = nil
+            labels = {}
+            
+            # Extract metric name and labels
+            if series['labels']
+              series['labels'].each do |label|
+                if label['name'] == '__name__'
+                  metric_name = label['value']
+                else
+                  labels[label['name']] = label['value']
+                end
+              end
+            end
+            
+            # Process each sample
+            if series['samples']
+              series['samples'].each do |sample|
+                doc = {
+                  '@timestamp' => Time.at(sample['timestamp'].to_f / 1000).iso8601,
+                  'prometheus' => {
+                    'metric' => {
+                      'name' => metric_name,
+                      'type' => 'gauge'
+                    }
+                  },
+                  'value' => sample['value'].to_f,
+                  'labels' => labels
+                }
+                
+                # Extract Kubernetes labels
+                if labels['namespace']
+                  doc['kubernetes'] ||= {}
+                  doc['kubernetes']['namespace'] = labels['namespace']
+                end
+                if labels['pod']
+                  doc['kubernetes'] ||= {}
+                  doc['kubernetes']['pod'] ||= {}
+                  doc['kubernetes']['pod']['name'] = labels['pod']
+                end
+                if labels['node']
+                  doc['kubernetes'] ||= {}
+                  doc['kubernetes']['node'] ||= {}
+                  doc['kubernetes']['node']['name'] = labels['node']
+                end
+                if labels['service']
+                  doc['kubernetes'] ||= {}
+                  doc['kubernetes']['service'] ||= {}
+                  doc['kubernetes']['service']['name'] = labels['service']
+                end
+                
+                # Clone event for each sample
+                new_event = LogStash::Event.new(doc)
+                new_event.set('[@metadata][index]', 'metrics-kubernetes-default')
+                new_event.set('[@metadata][document_id]', "#{metric_name}_#{labels.to_s}_#{sample['timestamp']}")
+                
+                # Emit event
+                new_event
+              end
+            end
+          end
+        end
+      "
+    }
+  }
+  
+  # Add index metadata
+  mutate {
+    add_field => {
+      "[@metadata][index]" => "metrics-kubernetes-default"
+      "[@metadata][document_type]" => "_doc"
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["${ES_HOST}:${ES_PORT}"]
+    user => "${ES_USER}"
+    password => "${ES_PASSWORD}"
+    index => "%{[@metadata][index]}"
+    document_type => "%{[@metadata][document_type]}"
+    ssl => true
+    ssl_certificate_verification => true
+    cacert => "${CA_CERT}"
+    ilm_enabled => true
+    ilm_rollover_alias => "metrics-kubernetes-default"
+    ilm_pattern => "metrics-kubernetes-default"
+  }
+}
+
+

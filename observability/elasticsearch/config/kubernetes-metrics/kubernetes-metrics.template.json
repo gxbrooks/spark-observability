@@ -1,0 +1,83 @@
+{
+  "index_patterns": [
+    "metrics-kubernetes-*"
+  ],
+  "data_stream": {},
+  "priority": 210,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "kubernetes-metrics-downsampled"
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "prometheus": {
+          "properties": {
+            "metric": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "kubernetes": {
+          "properties": {
+            "namespace": {
+              "type": "keyword"
+            },
+            "pod": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "uid": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "service": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "deployment": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "value": {
+          "type": "float"
+        },
+        "labels": {
+          "type": "object",
+          "enabled": true
+        }
+      }
+    }
+  }
+}
+
+

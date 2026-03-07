@@ -355,6 +355,27 @@ done
 echo "✅ Elastic Agent logs ILM policy initialized"
 
 # ============================================================================
+# STEP 7.10: Initialize Kubernetes Metrics (ILM with Downsampling)
+# ============================================================================
+echo ""
+echo "=== STEP 7.10: INITIALIZING KUBERNETES METRICS ==="
+
+echo "Creating kubernetes-metrics-downsampled ILM policy..."
+esapi PUT /_ilm/policy/kubernetes-metrics-downsampled ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.ilm.json \
+  > ${ES_OUTPUTS_DIR}/kubernetes-metrics-downsampled.ilm.out.json
+
+echo "Creating kubernetes-metrics index template..."
+esapi PUT /_index_template/kubernetes-metrics ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.template.json \
+  > ${ES_OUTPUTS_DIR}/kubernetes-metrics.template.out.json 2>&1
+
+echo "Creating kubernetes-metrics data view..."
+kapi POST /api/data_views/data_view \
+  ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.dataview.json \
+  > ${ES_OUTPUTS_DIR}/kubernetes-metrics.dataview.out.json 2>&1 || true
+
+echo "✅ Kubernetes metrics initialized"
+
+# ============================================================================
 # STEP 8: Initialize Docker Metrics (ILM with Downsampling)
 # ============================================================================
 echo ""

@@ -68,6 +68,14 @@ fi
 # Create the published certificate directory
 mkdir -p $(dirname "$CA_CERT")
 
+# Certificate store policy:
+# Only the Elastic CA certificate and Grafana SSL certificate (and the Elasticsearch/Kibana
+# identity certs required for the stack) are created and stored in the Elasticsearch
+# filesystem (certs volume). Any other agent or service that communicates with
+# Elasticsearch must obtain the CA certificate from the published path (CA_CERT) during
+# install/start—e.g. by copying from the certs volume or from a host path populated
+# by Ansible. A more holistic certificate strategy for other services may be adopted later.
+#
 # Elasticsearch X-Pack Requirement (hardcoded - cannot be parameterized):
 # X-Pack requires all certificates to be in /usr/share/elasticsearch/config/certs
 # This is a mandatory requirement and cannot be changed.
@@ -105,6 +113,8 @@ else
     echo "[init-certs] CA certificate hash does not match version marker, regenerating certificates."
   else 
     echo "[init-certs] CA certificate hash matches version marker, no regeneration needed."
+    # Ensure CA at volume root for containers that mount certs at /etc/ssl/certs/elastic and expect ca.crt there
+    cp "$CA_CERT_PATH" "$CERTS_DIR/ca.crt" 2>/dev/null && chmod 644 "$CERTS_DIR/ca.crt" && echo "[init-certs] CA cert at volume root: $CERTS_DIR/ca.crt"
     exit 0
   fi
 fi
@@ -134,10 +144,12 @@ chmod 644 "$CA_CERT_PATH"
 # Save CA cert hash as version marker
 get_ca_hash > "$CA_VERSION_FILE"
 chmod 644 "$CA_VERSION_FILE"
-# Copy CA cert for distribution
+# Copy CA cert for distribution (published path used by Ansible/hosts)
 cp "$CA_CERT_PATH" "$CA_CERT"
-chmod 644 "$CA_CERT_PATH"
-echo "[init-certs] CA cert distributed to $CA_CERT"
+# Also copy to volume root so containers mounting certs at /etc/ssl/certs/elastic get ca.crt there
+cp "$CA_CERT_PATH" "$CERTS_DIR/ca.crt"
+chmod 644 "$CA_CERT_PATH" "$CERTS_DIR/ca.crt"
+echo "[init-certs] CA cert distributed to $CA_CERT and $CERTS_DIR/ca.crt"
 # Verify CA certificate was created correctly
 if openssl x509 -in "$CA_CERT_PATH" -noout -text > /dev/null 2>&1; then
   echo "[init-certs] ✅ CA certificate verified successfully"

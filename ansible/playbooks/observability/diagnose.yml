@@ -74,6 +74,34 @@
       ignore_errors: yes
       changed_when: false
 
+    - name: Check if Prometheus container is running
+      shell: "cd /home/ansible/ops/observability && docker compose ps prometheus --format json | python3 -c \"import sys, json; d=json.load(sys.stdin); print('running' if d.get('State') == 'running' else 'stopped')\" 2>/dev/null || echo 'unknown'"
+      register: prometheus_container_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Check if Tempo container is running
+      shell: "cd /home/ansible/ops/observability && docker compose ps tempo --format json | python3 -c \"import sys, json; d=json.load(sys.stdin); print('running' if d.get('State') == 'running' else 'stopped')\" 2>/dev/null || echo 'unknown'"
+      register: tempo_container_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Test Prometheus connectivity
+      uri:
+        url: "http://GaryPC:9090/-/healthy"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: prometheus_test
+      ignore_errors: yes
+
+    - name: Test Tempo connectivity
+      uri:
+        url: "http://GaryPC:3200/ready"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: tempo_test
+      ignore_errors: yes
+
     - name: Get Grafana dashboards
       uri:
         url: "http://GaryPC:3000/api/search"
@@ -97,6 +125,8 @@
           Grafana         {{ '✅ AVAILABLE' if grafana_test.status == 200 else '❌ UNAVAILABLE' }}     {{ grafana_test.status | default('ERROR') }}       {{ '%.2f' | format(grafana_test.elapsed | default(0)) }}     N/A       Metrics and monitoring dashboards
           Logstash        {{ '✅ AVAILABLE' if logstash_test.stdout == '200' else '❌ UNAVAILABLE' }}     {{ logstash_test.stdout | default('ERROR') }}       N/A       {{ logstash_container_status.stdout | default('unknown') }}     Data processing pipeline
           Otel Collector  N/A            N/A         N/A       {{ otel_container_status.stdout | default('unknown') }}     OpenTelemetry trace collection
+          Prometheus      {{ '✅ AVAILABLE' if prometheus_test.status == 200 else '❌ UNAVAILABLE' }}     {{ prometheus_test.status | default('ERROR') }}       {{ '%.2f' | format(prometheus_test.elapsed | default(0)) }}     {{ prometheus_container_status.stdout | default('unknown') }}     Kubernetes metrics collection
+          Tempo           {{ '✅ AVAILABLE' if tempo_test.status == 200 else '❌ UNAVAILABLE' }}     {{ tempo_test.status | default('ERROR') }}       {{ '%.2f' | format(tempo_test.elapsed | default(0)) }}     {{ tempo_container_status.stdout | default('unknown') }}     Distributed tracing backend
 
     - name: Display Grafana dashboards
       debug:
@@ -123,6 +153,8 @@
           Kibana          {{ inventory_hostname }}               5601     HTTP
           Grafana         {{ inventory_hostname }}               3000     HTTP
           Logstash        {{ inventory_hostname }}               9600     HTTP
+          Prometheus      {{ inventory_hostname }}               9090     HTTP
+          Tempo           {{ inventory_hostname }}               3200     HTTP
 
     - name: Check Docker containers
       shell: "cd /home/ansible/ops/observability && docker-compose ps --format table"

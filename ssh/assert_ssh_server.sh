@@ -10,7 +10,7 @@
 #       - Verifies the script is run as root or with sudo.
 #       - Installs the OpenSSH server if not already installed.
 #       - Configures the SSH service to start at boot.
-#       - Creates a group called "sshuser" for SSH access.
+#       - Creates a group called "sshusers" for SSH access.
 #       - Configures firewall rules for SSH access.
 #       - Optionally reinstalls the OpenSSH server under --Reinstall flag control.
 #       - Provides debug output under --Debug flag control.
@@ -90,7 +90,7 @@ else
     fi
 fi
 
-# assert that the sshuser group exists
+# assert that the sshusers group exists
 $script_dir/assert_group.sh \
     --Group "sshusers" \
     $(append_flag "--Check" "$CHECK") \

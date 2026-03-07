@@ -4,6 +4,10 @@ volumes:
     driver: local
   kibanadata:
     driver: local
+  prometheus-data:
+    driver: local
+  tempo-data:
+    driver: local
   # where private keys and associated certs are stored
   certs:
     driver: local
@@ -27,8 +31,8 @@ services:
       - certs:/usr/share/elasticsearch/config/certs
       # scripts and Elasticsearch cert config file
       - ./certs:/usr/share/elasticsearch/certs
-      # provides host-level access to the elastic CA cert
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      # CA_CERT path where certificate is published (inside container)
+      # Certificate is also available in certs volume at /usr/share/elasticsearch/config/certs/ca/ca.crt
     environment:
       CA_CERT: "${CA_CERT}"
       FORCE_REGEN: "${FORCE_REGEN}"
@@ -55,7 +59,6 @@ services:
     volumes:
       - esdata:/usr/share/elasticsearch/data
       - certs:/usr/share/elasticsearch/config/certs:ro
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
     environment:
       # Map ES_* variables to ELASTIC_* for Elasticsearch service expectations
@@ -125,7 +128,7 @@ services:
       role: "Set Kibana Password"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      - certs:/usr/share/elasticsearch/config/certs:ro
     command:
       - bash
       - -c
@@ -139,13 +142,12 @@ services:
         rm -f /tmp/kibana-password.json
     environment:
       TZ: ${TZ}
-      # ES_* variables for esapi/kapi commands (ES already stands for Elasticsearch)
+      # ES_* variables for esapi/kapi commands (CA path must match volume mount)
       ES_DIR: /usr/share/elasticsearch/elasticsearch
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      # CA_CERT for esapi/kapi commands
-      CA_CERT: ${CA_CERT}
+      CA_CERT: /usr/share/elasticsearch/config/certs/ca.crt
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
@@ -165,9 +167,8 @@ services:
     container_name: kibana
     volumes:
       - kibanadata:/usr/share/kibana/data
-      - certs:/etc/ssl/private/elastic/certs
-      # for CA_CERT
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      - certs:/etc/ssl/private/elastic/certs:ro
+      - certs:/etc/ssl/certs/elastic:ro
     labels:
       co.elastic.logs/module: kibana
       role: "Kibana"
@@ -179,8 +180,8 @@ services:
       # FIXME: ELASTICSEARCH_USERNAME and ELASTICSEARCH_PASSWORD should be ${ES_USER} and ${ES_PASSWORD}
       ELASTICSEARCH_USERNAME: ${KB_USER}
       ELASTICSEARCH_PASSWORD: ${KB_PASSWORD}
-      # Kibana needs to know where the CA certificate is located
-      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "${CA_CERT}"
+      # Kibana: CA at standard path (certs volume mounted at /etc/ssl/certs/elastic)
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: "/etc/ssl/certs/elastic/ca.crt"
       XPACK_SECURITY_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       XPACK_REPORTING_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
@@ -219,7 +220,7 @@ services:
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "./grafana/plugins:/var/lib/grafana/plugins"
       - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      - certs:/etc/ssl/certs/elastic:ro
     environment:
       GF_SECURITY_ADMIN_USER: "admin"
       GF_SECURITY_ADMIN_PASSWORD: "mysecretpassword"
@@ -240,6 +241,9 @@ services:
         condition: service_healthy 
       init-index:
         condition: service_completed_successfully
+      prometheus:
+        condition: service_healthy
+      # tempo optional: Grafana can run without Tempo (trace features disabled)
 
   init-index:
     image: elasticsearch-python
@@ -250,21 +254,21 @@ services:
       description: "Unified initialization for Elasticsearch and Kibana"
     volumes:
       - ./elasticsearch:/usr/share/elasticsearch/elasticsearch
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      - certs:/usr/share/elasticsearch/config/certs:ro
     environment:
       TZ: ${TZ}
-      # variables for esapi and kapi commands 
+      # variables for esapi and kapi commands (CA path must match volume mount)
       ES_DIR: /usr/share/elasticsearch/elasticsearch
       ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
-      # for use by esapi & kapi commands
-      CA_CERT: ${CA_CERT}
+      CA_CERT: /usr/share/elasticsearch/config/certs/ca.crt
       ES_HOST: ${ES_HOST}
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
       ES_PASSWORD: ${ES_PASSWORD}
-      KB_HOST: ${KB_HOST}
+      # Use Docker service name so init-index can reach Kibana on the same network
+      KB_HOST: kibana
       KB_PORT: ${KB_PORT}
       KB_PASSWORD: ${KB_PASSWORD}
       # Required by elasticsearch
@@ -293,7 +297,7 @@ services:
       - "13133:13133" # Health check
     volumes:
       - "./otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro"
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic:ro
+      - certs:/etc/ssl/certs/elastic:ro
     environment:
       ES_URL: "${ES_URL}"
       ES_USER: "elastic"
@@ -314,18 +318,142 @@ services:
       timeout: 5s
       retries: 10
 
+  # Prometheus remote write adapter: receives Prometheus remote write and indexes to Elasticsearch
+  prometheus-es-adapter:
+    image: pwillie/prometheus-es-adapter:latest
+    container_name: prometheus-es-adapter
+    labels:
+      role: "Prometheus ES Adapter"
+    ports:
+      - "9202:8000"   # /write and /read
+      - "9203:9000"   # /metrics, /live, /ready
+    environment:
+      ES_URL: "${ES_URL}"
+      ES_USER: "${ES_USER}"
+      ES_PASSWORD: "${ES_PASSWORD}"
+      ES_ALIAS: "metrics-kubernetes-default"
+      ES_INDEX_DAILY: "false"
+      ES_INDEX_SHARDS: "1"
+      ES_INDEX_REPLICAS: "1"
+      ES_INDEX_MAX_AGE: "1d"
+      ES_BATCH_MAX_DOCS: "1000"
+      ES_BATCH_MAX_AGE: "10"
+      ES_WORKERS: "2"
+      STATS: "true"
+      # Go HTTP client: use Elastic CA for HTTPS connection to Elasticsearch
+      SSL_CERT_FILE: "/etc/ssl/certs/elastic/ca.crt"
+      TZ: ${TZ}
+    volumes:
+      - certs:/etc/ssl/certs/elastic:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.25'
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9000/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    labels:
+      role: "Prometheus"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "./prometheus/rules:/etc/prometheus/rules:ro"
+      - prometheus-data:/prometheus
+      - certs:/etc/ssl/certs/elastic:ro
+      # Kubernetes certificates will be mounted from host if needed
+    environment:
+      ES_URL: "${ES_URL}"
+      ES_USER: "${ES_USER}"
+      ES_PASSWORD: "${ES_PASSWORD}"
+      KUBERNETES_API_SERVER: "${KUBERNETES_API_SERVER:-Lab2.lan}"
+      CA_CERT: ${CA_CERT}
+      TZ: ${TZ}
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+          cpus: '0.5'
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    labels:
+      role: "Grafana Tempo"
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    ports:
+      - "3200:3200"   # HTTP server (Grafana queries)
+      - "9095:9095"   # gRPC server (Grafana trace queries)
+      # 4317/4318 not exposed on host; OTel Collector receives OTLP and forwards to tempo:4317
+    volumes:
+      - "./tempo/tempo.yml:/etc/tempo/tempo.yml:ro"
+      - tempo-data:/var/lib/tempo
+      - certs:/etc/ssl/certs/elastic:ro
+    environment:
+      ES_URL: "${ES_URL}"
+      ES_USER: "${ES_USER}"
+      ES_PASSWORD: "${ES_PASSWORD}"
+      CA_CERT: ${CA_CERT}
+      TZ: ${TZ}
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '0.4'
+    depends_on:
+      es01:
+        condition: service_healthy
+      init-index:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   logstash01:
     image: docker.elastic.co/logstash/logstash:${LOGSTASH_VERSION} 
     container_name: logstash01
     labels:
       co.elastic.logs/module: logstash
       role: "Logstash"
-    # TODO: Logstash should not run a root, but it needs to be able to write to the
-    # /mnt/c/Volumes/logs/spark/events directory, which is owned by root.
+    # TODO: Logstash should not run as root, but it may need elevated permissions
+    # for certain operations (depends on log directory permissions)
     user: root
     ports: 
         - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
         - "5051:5051"  # System metrics rate computation
+        - "9201:9201"  # Prometheus remote write receiver
         # TODO: Evantually metrics should be sent to reginal Logstash servers
         # and then fed up into Elasticsearch
         # - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"
@@ -334,7 +462,7 @@ services:
       - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
       - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
-      - /mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic
+      - certs:/etc/ssl/certs/elastic:ro
     environment:
       CA_CERT: "${CA_CERT}"
       xpack.monitoring.enabled: "false"

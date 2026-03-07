@@ -49,6 +49,12 @@ exporters:
       ca_file: /etc/ssl/certs/elastic/ca.crt
       insecure_skip_verify: false
 
+  # Grafana Tempo exporter for distributed tracing
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
   # Debug exporter for troubleshooting
   debug:
     verbosity: normal
@@ -66,7 +72,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, transform, batch]
-      exporters: [elasticsearch, debug]
+      exporters: [elasticsearch, otlp/tempo, debug]
       
     metrics:
       receivers: [otlp]

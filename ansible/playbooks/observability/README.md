@@ -1,6 +1,6 @@
 # Observability Platform Playbooks
 
-This directory contains the consolidated playbooks for managing the observability platform (Elasticsearch, Kibana, Grafana, Logstash).
+This directory contains the consolidated playbooks for managing the observability platform (Elasticsearch, Kibana, Grafana, Logstash, Prometheus, Tempo).
 
 ## Playbook Structure
 
@@ -71,6 +71,8 @@ After installation, services are accessible at:
 - **Kibana**: http://GaryPC.lan:5601
 - **Grafana**: http://GaryPC.lan:3000
 - **Logstash**: GaryPC.lan:5050
+- **Prometheus**: http://GaryPC.lan:9090
+- **Tempo**: http://GaryPC.lan:3200
 
 ## Credentials
 

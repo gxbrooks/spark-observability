@@ -128,6 +128,22 @@
         delete: false
         recursive: true
       when: is_linux
+
+    - name: Synchronize prometheus directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/prometheus/"
+        dest: "{{ observability_dir }}/prometheus/"
+        delete: false
+        recursive: true
+      when: is_linux
+
+    - name: Synchronize tempo directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../observability/tempo/"
+        dest: "{{ observability_dir }}/tempo/"
+        delete: false
+        recursive: true
+      when: is_linux
       
     - name: Create elasticsearch outputs directory with proper ownership (Linux)
       file:
@@ -262,6 +278,8 @@
           - Kibana: http://{{ ansible_hostname }}:5601
           - Grafana: http://{{ ansible_hostname }}:3000
           - Logstash: {{ ansible_hostname }}:5050
+          - Prometheus: http://{{ ansible_hostname }}:9090
+          - Tempo: http://{{ ansible_hostname }}:3200
           
           Credentials:
           - Elasticsearch/Kibana: elastic / myElastic2025

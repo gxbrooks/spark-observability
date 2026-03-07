@@ -1,0 +1,29 @@
+# Grafana Tempo single-node configuration (minimal for compatibility)
+# Receives OTel spans and stores in local filesystem
+
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9095
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  max_block_duration: 1h
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/lib/tempo/traces
+
+memberlist:
+  bind_port: 7946
+  join_members:
+    - localhost

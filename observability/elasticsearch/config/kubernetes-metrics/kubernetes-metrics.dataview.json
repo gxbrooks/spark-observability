@@ -1,0 +1,33 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "metrics-kubernetes-*",
+    "id": "kubernetes-metrics",
+    "name": "Kubernetes Metrics",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fieldAttrs": {
+      "@timestamp": {"customLabel": "Timestamp"},
+      "prometheus.metric.name": {"customLabel": "Metric Name"},
+      "prometheus.metric.type": {"customLabel": "Metric Type"},
+      "kubernetes.namespace": {"customLabel": "Namespace"},
+      "kubernetes.pod.name": {"customLabel": "Pod Name"},
+      "kubernetes.node.name": {"customLabel": "Node Name"},
+      "kubernetes.service.name": {"customLabel": "Service Name"},
+      "value": {"customLabel": "Value"}
+    },
+    "fieldFormats": {
+      "@timestamp": {
+        "id": "date",
+        "params": {"pattern": "MM/DD/YYYY HH:mm:ss.SSS"}
+      },
+      "value": {
+        "id": "number",
+        "params": {"pattern": "0,0.[00]"}
+      }
+    }
+  }
+}
+
+
