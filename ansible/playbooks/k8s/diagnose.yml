@@ -301,3 +301,176 @@
     - name: Display disk sync performance
       debug:
         msg: "Disk sync performance: {{ disk_perf.stdout }} (etcd requires fast sync writes)"
+
+    # === NFS Data Mount Health ===
+    # Detects the failure mode where /mnt/spark mounts are in fstab but have dropped
+    # (e.g. after reboot) and Spark pods started before remounting see an empty directory.
+    - name: Count active /mnt/spark NFS mounts
+      shell: mount | grep -cE '/mnt/spark/(data|events)' || true
+      register: nfs_mount_count
+      failed_when: false
+      changed_when: false
+
+    - name: List active /mnt/spark mounts
+      shell: mount | grep '/mnt/spark' || echo "NONE"
+      register: nfs_mounts_detail
+      failed_when: false
+      changed_when: false
+
+    - name: Check /etc/fstab for NFS spark entries
+      shell: grep '/mnt/spark' /etc/fstab 2>/dev/null | grep -v '^#' || echo "NONE"
+      register: nfs_fstab_entries
+      failed_when: false
+      changed_when: false
+
+    - name: Count items in /mnt/spark/data
+      shell: ls /mnt/spark/data/ 2>/dev/null | wc -l
+      register: data_dir_count
+      failed_when: false
+      changed_when: false
+
+    - name: Count files in /mnt/spark/data/gutenberg_books
+      shell: ls /mnt/spark/data/gutenberg_books/ 2>/dev/null | wc -l
+      register: gutenberg_count
+      failed_when: false
+      changed_when: false
+
+    - name: Report NFS data mount health
+      debug:
+        msg: |
+          NFS Data Mount Health — {{ ansible_hostname }}
+          ─────────────────────────────────────────────
+          Active /mnt/spark mounts (expect 2): {{ nfs_mount_count.stdout | int }}
+          {{ nfs_mounts_detail.stdout }}
+
+          fstab entries:
+          {{ nfs_fstab_entries.stdout }}
+
+          Data accessibility:
+          - /mnt/spark/data:                 {{ '✓  ' + data_dir_count.stdout + ' items' if data_dir_count.stdout | int > 0 else '✗  EMPTY or MISSING' }}
+          - /mnt/spark/data/gutenberg_books: {{ '✓  ' + gutenberg_count.stdout + ' files' if gutenberg_count.stdout | int > 0 else '✗  EMPTY or MISSING' }}
+
+    - name: WARN - fstab NFS mounts are configured but not active
+      debug:
+        msg: |
+          ⚠️  WARNING: /mnt/spark NFS mounts are in fstab but NOT mounted on {{ ansible_hostname }}!
+
+          fstab entries present:
+          {{ nfs_fstab_entries.stdout }}
+
+          Pods with hostPath volumes that started while the mount was inactive
+          will NOT see NFS data — they bind the empty directory at start time and
+          host mounts created later do not propagate in (mountPropagation: None default).
+
+          Fix 1 — remount on all K8s nodes:
+            ansible kubernetes_workers:kubernetes_master -i ansible/inventory.yml -b -m shell -a "mount -a"
+
+          Fix 2 — restart Spark pods born before the remount so they see the live mount:
+            kubectl delete pods -n spark -l app=spark-worker
+      when:
+        - nfs_fstab_entries.stdout != "NONE"
+        - nfs_mount_count.stdout | int == 0
+
+    - name: WARN - data directory inaccessible despite active mount
+      debug:
+        msg: |
+          ⚠️  WARNING: /mnt/spark is mounted but /mnt/spark/data appears empty on {{ ansible_hostname }}!
+          NFS export may have an issue or the NFS server may be unreachable.
+
+          Check NFS server exports:
+            ansible nfs_servers -i ansible/inventory.yml -b -m shell -a "exportfs -v"
+      when:
+        - nfs_mount_count.stdout | int > 0
+        - data_dir_count.stdout | int == 0
+
+    # === Spark Workload Health (master only) ===
+    # Checks for stale pods and image pull policy issues that block pod restarts.
+    - name: List all Spark worker/master pods with node and age
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n spark \
+          get pods -l 'app in (spark-worker,spark-master)' \
+          -o wide --no-headers 2>/dev/null || echo "No pods found"
+      register: spark_pods_list
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Find Spark pods older than 30 days (risk of stale hostPath mounts)
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n spark \
+          get pods -l 'app in (spark-worker,spark-master)' \
+          -o jsonpath='{range .items[*]}{.metadata.creationTimestamp}{" "}{.metadata.name}{" ("}{.spec.nodeName}{")"}{"\n"}{end}' \
+          2>/dev/null | \
+        awk -v cutoff="$(date -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)" \
+          '$1 < cutoff {$1=""; print}' | sed 's/^ //' || true
+      register: stale_spark_pods
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check imagePullPolicy on all Spark deployments
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n spark get deployments \
+          -o jsonpath='{range .items[*]}{.metadata.name}{"\n  initContainers: "}{.spec.template.spec.initContainers[0].imagePullPolicy}{"\n  containers:      "}{.spec.template.spec.containers[0].imagePullPolicy}{"\n"}{end}' \
+          2>/dev/null || echo "No deployments found"
+      register: spark_pull_policies
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check local container registry reachability
+      shell: curl -s --max-time 5 http://lab2.lan:5000/v2/ && echo "REACHABLE" || echo "UNREACHABLE"
+      register: registry_status
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Report Spark workload health
+      debug:
+        msg: |
+          Spark Workload Health
+          ─────────────────────
+          Pods:
+          {{ spark_pods_list.stdout | default('N/A') }}
+
+          imagePullPolicy per deployment (should be IfNotPresent for local registry):
+          {{ spark_pull_policies.stdout | default('N/A') }}
+
+          Local registry lab2.lan:5000: {{ registry_status.stdout | default('N/A') }}
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: WARN - Spark pods older than 30 days with hostPath volumes
+      debug:
+        msg: |
+          ⚠️  WARNING: {{ stale_spark_pods.stdout_lines | default([]) | length }} Spark pod(s) older than 30 days.
+          hostPath volumes bind their directory at container start time. If an NFS mount was
+          (re)activated after a pod started, the pod continues to see the pre-mount state.
+
+          Stale pods:
+          {% for pod in stale_spark_pods.stdout_lines | default([]) %}
+          - {{ pod }}
+          {% endfor %}
+
+          Fix — delete stale pods so the ReplicaSet respawns them against the live mounts:
+            kubectl delete pods -n spark -l app=spark-worker
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - stale_spark_pods.stdout_lines | default([]) | length > 0
+
+    - name: WARN - imagePullPolicy Always with unreachable local registry
+      debug:
+        msg: |
+          ⚠️  WARNING: imagePullPolicy: Always is set on Spark deployments but the local
+          registry lab2.lan:5000 is UNREACHABLE. Any new or restarted pod will fail
+          with ErrImagePull even though the image is already present on the node.
+
+          Fix — patch all Spark deployments to IfNotPresent:
+            kubectl -n spark get deployments -o name | xargs -I{} kubectl -n spark patch {} \
+              --type=json -p='[
+                {"op":"replace","path":"/spec/template/spec/initContainers/0/imagePullPolicy","value":"IfNotPresent"},
+                {"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}
+              ]'
+      when:
+        - inventory_hostname == groups['kubernetes_master'][0]
+        - "'Always' in (spark_pull_policies.stdout | default(''))"
+        - "'UNREACHABLE' in (registry_status.stdout | default(''))"

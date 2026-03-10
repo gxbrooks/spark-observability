@@ -58,7 +58,7 @@ spec:
       containers:
         - name: spark-worker
           image: "{{ spark_image }}:{{ spark_tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args: 
             - |
@@ -188,7 +188,7 @@ spec:
       containers:
         - name: spark-worker
           image: "{{ spark_image }}:{{ spark_tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args: 
             - |
