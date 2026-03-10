@@ -33,6 +33,8 @@ observability/.env
 *.jar
 ### Exception: BigQuery jar is not built from source, keep it in repo
 !shared/spark/jars/spark-bigquery-with-dependencies_2.12-0.32.0.jar
+### Exception: OTel listener distribution JAR (built from spark/otel-listener/src, deployed to workers)
+!spark/otel-listener/spark-otel-listener-1.0.0.jar
 
 ## Spark files
 spark/.last_build_timestamp # build artifact
