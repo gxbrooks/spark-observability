@@ -7,13 +7,12 @@ alias drmi='docker rmi $(docker images -q)'
 
 
 #Docker Compose aliases
-# Docker Compose with project-specific .env
-alias dc='docker compose --env-file ../vars/contexts/observability/.env'
+# Docker Compose with project-specific env file (run from repo root or observability/)
+alias dc='docker compose --env-file ./vars/contexts/observability_docker.env'
 # Docker container stats table
 alias dcpsstats='dc ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" | sed 1d | while read id name status; do stats=$(docker stats --no-stream --format "{{.CPUPerc}}\t{{.MemPerc}}\t{{.BlockIO}}\t{{.NetIO}}" $id); printf "%-12s %-25s %-20s %s\n" "$id" "$name" "$status" "$stats"; done | sed "1i CONTAINER ID   NAME                      STATUS               CPU%   MEM%   BLOCK I/O     NET I/O"'
 
 # removal of containers
-alias dc='docker compose --env-file ./vars/contexts/observability/.env'
 
 alias dcrm='docker rm $(docker ps -aq)'
 alias dcrmid='docker rmi $(docker images -q --filter "dangling=true")'

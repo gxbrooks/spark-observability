@@ -12,34 +12,34 @@ The framework generates 11 context-specific files from `vars/variables.yaml`. Ea
 
 ### 1. Observability Context
 
-**Generated File**: `vars/contexts/observability/.env`  
+**Generated File**: `vars/contexts/observability_docker.env`  
 **Format**: Environment file (`KEY=VALUE`, no export)  
 **Purpose**: Docker Compose environment variables for observability stack
 
 **Consumers**:
-- **Docker Compose**: Automatically reads `.env` from same directory as `docker-compose.yml`
-- **Ansible**: Copies file to `{{ observability_dir }}/.env` during deployment
+- **Docker Compose**: Referenced directly via `--env-file` flag for local development
+- **Ansible**: Copies file to `{{ observability_dir }}/.env` on the managed observability host during deployment
 
 **Deployment**:
 ```yaml
 # ansible/playbooks/observability/deploy.yml
 - name: Copy .env file (Linux)
   copy:
-    src: "{{ playbook_dir }}/../../../vars/contexts/observability/.env"
+    src: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
     dest: "{{ observability_dir }}/.env"
     mode: '0644'
 ```
 
 **Local Development**:
 ```bash
-# Option 1: Use convenience script
+# Option 1: Use --env-file flag directly (preferred)
+docker compose --env-file vars/contexts/observability_docker.env -f observability/docker-compose.yml up -d
+
+# Option 2: Use the dc alias (defined in .bash_aliases)
+dc -f observability/docker-compose.yml up -d
+
+# Option 3: Verify context files are present
 ./scripts/setup-local-env.sh
-
-# Option 2: Manual copy
-cp vars/contexts/observability/.env observability/.env
-
-# Option 3: Use --env-file flag
-docker compose --env-file vars/contexts/observability/.env up -d
 ```
 
 **Variables Included**: `ELASTIC_URL`, `ELASTIC_PASSWORD`, `STACK_VERSION`, `CA_CERT`, etc.
@@ -284,8 +284,8 @@ source vars/contexts/managed-node/managed_node_env.sh
 
 | File | Target | Method | Location |
 |------|--------|--------|----------|
-| `observability/.env` | Observability node | Ansible `copy` | `{{ observability_dir }}/.env` |
-| `spark-runtime/spark-configmap.yaml` | Kubernetes cluster | `kubectl apply` | `spark` namespace |
+| `observability_docker.env` | Observability node | Ansible `copy` | `{{ observability_dir }}/.env` |
+| `spark-configmap.yaml` | Kubernetes cluster | `kubectl apply` | `spark` namespace |
 
 ### Files NOT Deployed (Control Node Only)
 

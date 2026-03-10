@@ -1,6 +1,6 @@
 #!/bin/bash
-# Convenience script to set up local development environment
-# Copies generated files from vars/contexts/ to their required locations
+# Convenience script to verify the local development environment is ready
+# Context files are used directly from vars/contexts/ -- no copying required
 
 set -e
 
@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${REPO_ROOT}"
 
-echo "🔧 Setting up local development environment..."
+echo "🔧 Checking local development environment..."
 echo ""
 
 # Check if vars/contexts exists
@@ -19,24 +19,32 @@ if [ ! -d "vars/contexts" ]; then
     exit 1
 fi
 
-# Copy observability .env file
-if [ -f "vars/contexts/observability_docker.env" ]; then
-    if [ ! -f "observability/.env" ] || [ "vars/contexts/observability_docker.env" -nt "observability/.env" ]; then
-        cp "vars/contexts/observability_docker.env" "observability/.env"
-        echo "✅ Copied observability/.env"
+# Verify key context files exist
+MISSING=0
+for ctx_file in \
+    "vars/contexts/observability_docker.env" \
+    "vars/contexts/devops_env.sh" \
+    "vars/contexts/spark_client_env.sh"; do
+    if [ -f "${ctx_file}" ]; then
+        echo "✅ ${ctx_file}"
     else
-        echo "ℹ️  observability/.env already up to date"
+        echo "❌ Missing: ${ctx_file}"
+        MISSING=1
     fi
-else
-    echo "⚠️  Warning: vars/contexts/observability_docker.env not found"
-    echo "   Run: bash vars/generate_contexts.sh -f observability"
+done
+
+if [ "${MISSING}" -eq 1 ]; then
+    echo ""
+    echo "⚠️  Some context files are missing. Regenerate with:"
+    echo "   bash vars/generate_contexts.sh -f"
+    exit 1
 fi
 
 echo ""
 echo "✅ Local development environment ready!"
 echo ""
 echo "Next steps:"
-echo "  - Start observability: cd observability && docker compose up -d"
-echo "  - Source env files: source vars/contexts/devops/devops_env.sh"
-echo "  - Run Spark apps: source vars/contexts/spark_client_env.sh"
+echo "  - Start observability: docker compose --env-file vars/contexts/observability_docker.env -f observability/docker-compose.yml up -d"
+echo "  - Source env files:    source vars/contexts/devops_env.sh"
+echo "  - Run Spark apps:      source vars/contexts/spark_client_env.sh"
 

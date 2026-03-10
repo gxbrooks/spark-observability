@@ -159,7 +159,7 @@ After startup, services are accessible at:
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | **Kibana** | http://GaryPC.lan:5601 | elastic / myElastic2025 |
-| **Grafana** | http://GaryPC.lan:3000 | admin / (see `vars/contexts/observability/.env`) |
+| **Grafana** | http://GaryPC.lan:3000 | admin / (see `vars/contexts/observability_docker.env`) |
 | **Elasticsearch** | https://GaryPC.lan:9200 | elastic / myElastic2025 |
 | **Spark History Server** | http://Lab2.lan:31534 | (no auth) |
 | **Spark Master UI** | http://Lab2.lan:32290 | (no auth) |

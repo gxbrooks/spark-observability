@@ -114,9 +114,9 @@ ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml -e "spark_comp
 The system automatically generates configuration files from `vars/variables.yaml` as needed. The modification time-based generation mechanism compares the modification time of the source `vars/variables.yaml` file with that of the generated files to determine if regeneration is necessary.
 
 Generated configuration files live under `vars/contexts/` and include:
-- `vars/contexts/observability/.env` - Environment variables for Docker Compose
-- `vars/contexts/spark-image/spark-image.toml` - Configuration for Spark image builds
-- `vars/contexts/spark-runtime/spark-configmap.yaml` - Kubernetes ConfigMap for Spark runtime (auto-generated)
+- `vars/contexts/observability_docker.env` - Environment variables for Docker Compose
+- `vars/contexts/spark-image.toml` - Configuration for Spark image builds
+- `vars/contexts/spark-configmap.yaml` - Kubernetes ConfigMap for Spark runtime (auto-generated)
 
 These files are only regenerated when:
 1. The source `vars/variables.yaml` file has been modified more recently than the generated files

@@ -194,7 +194,7 @@ export KIBANA_USER="elastic"
 export KIBANA_PASSWORD="your-password"
 ```
 
-These are typically sourced from `vars/contexts/observability/.env` in initialization scripts.
+These are typically sourced from `vars/contexts/observability_docker.env` in initialization scripts.
 
 ## Error Handling Best Practices
 

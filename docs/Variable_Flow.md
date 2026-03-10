@@ -115,10 +115,10 @@ flowchart LR
 
 **Generated Files** (examples):
 - `vars/contexts/spark-image/spark-image.toml` → Docker build args
-- `vars/contexts/ansible/spark_vars.yml` → Ansible variables
-- `vars/contexts/spark-runtime/spark-configmap.yaml` → K8s environment
-- `vars/contexts/observability/.env` → Docker Compose
-- `vars/contexts/devops/devops_env.sh` → DevOps client environment
+- `vars/contexts/spark_ansible_vars.yml` → Ansible variables
+- `vars/contexts/spark-configmap.yaml` → K8s environment
+- `vars/contexts/observability_docker.env` → Docker Compose
+- `vars/contexts/devops_env.sh` → DevOps client environment
 - `spark/conf/spark-defaults.conf` → Spark client configuration (from .j2 template)
 
 See `vars/contexts.yaml` for complete list of outputs.
@@ -240,10 +240,10 @@ vars/generate_contexts.sh (wrapper - uses system Python)
 vars/generate_contexts.py (actual generator)
         ↓
 Generated Files:
-  - vars/contexts/devops/devops_env.sh
-  - vars/contexts/spark-client/spark_env.sh
-  - vars/contexts/observability/.env
-  - vars/contexts/ansible/*.yml
+  - vars/contexts/devops_env.sh
+  - vars/contexts/spark_client_env.sh
+  - vars/contexts/observability_docker.env
+  - vars/contexts/spark_ansible_vars.yml
   - etc.
 ```
 

@@ -51,14 +51,10 @@ The variable context framework operates on a **two-stage generation process**:
 │ Generated Files (Gitignored)                                │
 │                                                             │
 │  vars/contexts/                                             │
-│  ├── observability/                                         │
-│  │   └── .env                                               │
-│  ├── spark-runtime/                                         │
-│  │   └── spark-configmap.yaml                               │
-│  ├── spark-client/                                          │
-│  │   └── spark_env.sh                                       │
-│  ├── devops/                                                │
-│  │   └── devops_env.sh                                      │
+│  ├── observability_docker.env                               │
+│  ├── spark-configmap.yaml                                   │
+│  ├── spark_client_env.sh                                    │
+│  ├── devops_env.sh                                          │
 │  └── ... (other contexts)                                   │
 └─────────────────────────────────────────────────────────────┘
                           │
@@ -107,8 +103,8 @@ Example:
 ```yaml
 contexts:
   - name: observability
-    type: env
-    output: vars/contexts/observability/.env
+    type: docker-env
+    output: observability_docker.env
     description: "Docker Compose environment variables"
 ```
 
@@ -160,31 +156,31 @@ vars/
 ### Environment Files (`.env`)
 - **Format**: `KEY=VALUE` (no export)
 - **Use Case**: Docker Compose environment variables
-- **Example**: `vars/contexts/observability/.env`
+- **Example**: `vars/contexts/observability_docker.env`
 
 ### Shell Environment (`.sh`)
 - **Format**: `export KEY="VALUE"`
 - **Use Case**: Shell scripts, `.bashrc`, local development
-- **Example**: `vars/contexts/devops/devops_env.sh`
+- **Example**: `vars/contexts/devops_env.sh`
 
 ### YAML Files (`.yml`)
 - **Format**: YAML structure (Ansible vars, Kubernetes ConfigMaps)
 - **Use Case**: Ansible playbooks, Kubernetes resources
-- **Example**: `vars/contexts/ansible/spark_vars.yml`
+- **Example**: `vars/contexts/spark_ansible_vars.yml`
 
 ### TOML Files (`.toml`)
 - **Format**: TOML key-value pairs
 - **Use Case**: Docker build arguments
-- **Example**: `vars/contexts/spark-image/spark-image.toml`
+- **Example**: `vars/contexts/spark-image.toml`
 
 ## Deployment Architecture
 
 ### Source Environment (DevOps)
 
 ```
-vars/contexts/                  # Generated files
-├── observability/.env
-├── spark-runtime/spark-configmap.yaml
+vars/contexts/                  # Generated files (flat structure)
+├── observability_docker.env
+├── spark-configmap.yaml
 └── ...
 ```
 
