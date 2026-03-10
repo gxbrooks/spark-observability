@@ -1,0 +1,30 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"kubernetes-metrics\"}"
+    },
+    "title": "Kubernetes Metrics",
+    "sort": [
+      [
+        "@timestamp",
+        "desc"
+      ]
+    ],
+    "columns": [
+      "@timestamp",
+      "service.name",
+      "service.node.name",
+      "cluster",
+      "kubernetes_namespace",
+      "kubernetes_node",
+      "container"
+    ],
+    "description": "Prometheus K8s metrics via OTel Collector. Filter by service.name for job type (kubernetes-apiservers, kubernetes-nodes, kubernetes-cadvisor, etc.). Each document contains one metric as a top-level field.",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "rowHeight": 3,
+    "rowsPerPage": 50
+  }
+}

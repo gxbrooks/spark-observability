@@ -33,13 +33,12 @@
 # Certificate Paths:
 # - Internal (Elasticsearch): /usr/share/elasticsearch/config/certs/ca/ca.crt
 #   (Hardcoded X-Pack requirement - see CA_BASE_DIR below)
-# - Published (CA_CERT): /etc/ssl/certs/elastic/ca.crt
-#   (Standard path for all services - defined in vars/variables.yaml)
+# - Volume root: certs/ca.crt (for containers that mount certs at /etc/ssl/certs/elastic)
 #
-# The CA certificate is published to CA_CERT for distribution to:
-# - Docker containers (via mount in docker-compose.yml)
-# - Linux hosts (via Ansible fetch from Docker volume)
-# - Windows hosts (if needed, via WSL mount)
+# Pull-based distribution: The Docker volume (certs) is the single source of truth.
+# No separate "publish" step to a host path. Each app that needs the CA fetches it
+# from the observability host's Docker volume in its own install/start playbook;
+# start playbooks test currency (CA hash) and re-fetch from the volume if stale.
 
 # Environment Variable:
 # CA_CERT: Path where the public CA certificate should be published
@@ -69,12 +68,10 @@ fi
 mkdir -p $(dirname "$CA_CERT")
 
 # Certificate store policy:
-# Only the Elastic CA certificate and Grafana SSL certificate (and the Elasticsearch/Kibana
-# identity certs required for the stack) are created and stored in the Elasticsearch
-# filesystem (certs volume). Any other agent or service that communicates with
-# Elasticsearch must obtain the CA certificate from the published path (CA_CERT) during
-# install/start—e.g. by copying from the certs volume or from a host path populated
-# by Ansible. A more holistic certificate strategy for other services may be adopted later.
+# The Elastic CA and stack identity certs are stored only in the certs volume.
+# Any other agent or service that talks to Elasticsearch must obtain the CA from the
+# observability host's Docker volume during its install/start (pull-based model).
+# See docs/CA_CERTIFICATE_ARCHITECTURE.md.
 #
 # Elasticsearch X-Pack Requirement (hardcoded - cannot be parameterized):
 # X-Pack requires all certificates to be in /usr/share/elasticsearch/config/certs

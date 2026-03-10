@@ -1,0 +1,179 @@
+---
+# Prometheus Sub-Playbook: Deploy
+#
+# Deploys all Prometheus-related components to the cluster:
+#   - Syncs prometheus/ config directory to the observability host
+#   - Copies K8s monitoring manifests to the K8s master
+#   - Applies node-exporter DaemonSet (monitoring namespace)
+#   - Applies kube-state-metrics Deployment + RBAC (kube-system namespace)
+#
+# Can be run standalone or is imported by the top-level deploy.yml:
+#   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/prometheus/deploy.yml
+#
+# Dependencies:
+#   - K8s certs already fetched by the parent deploy.yml to ops/observability/k8s-certs/
+#   - kubectl available on the kubernetes_master host
+
+# =========================================================================
+# PLAY 1: Sync Prometheus config to observability host
+# =========================================================================
+- name: Prometheus - Sync config to observability host
+  hosts: observability
+  become: false
+  gather_facts: true
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+
+    - name: Synchronize prometheus config directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/prometheus/"
+        dest: "{{ observability_dir }}/prometheus/"
+        delete: false
+        recursive: true
+      when: is_linux
+
+    - name: Synchronize otel-collector config directory (Linux)
+      synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/otel-collector/"
+        dest: "{{ observability_dir }}/otel-collector/"
+        delete: false
+        recursive: true
+      when: is_linux
+
+    - name: Display Prometheus config sync status
+      debug:
+        msg: "Prometheus and OTel Collector configs synced to {{ observability_dir }}"
+      when: is_linux
+
+# =========================================================================
+# PLAY 2: Deploy K8s monitoring exporters (node-exporter, kube-state-metrics)
+# =========================================================================
+- name: Prometheus - Deploy K8s monitoring exporters
+  hosts: kubernetes_master
+  become: false
+  gather_facts: true
+  vars:
+    k8s_monitoring_dir: "/tmp/spark-observability-k8s-monitoring"
+    manifests_src: "{{ playbook_dir }}/../../../../k8s/monitoring"
+
+  tasks:
+    - name: Check kubectl is available
+      command: kubectl version --client --output=yaml
+      register: kubectl_check
+      changed_when: false
+      failed_when: kubectl_check.rc != 0
+
+    - name: Create staging directory for K8s manifests
+      file:
+        path: "{{ k8s_monitoring_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy node-exporter manifest
+      copy:
+        src: "{{ manifests_src }}/node-exporter.yaml"
+        dest: "{{ k8s_monitoring_dir }}/node-exporter.yaml"
+        mode: '0644'
+
+    - name: Copy kube-state-metrics manifest
+      copy:
+        src: "{{ manifests_src }}/kube-state-metrics.yaml"
+        dest: "{{ k8s_monitoring_dir }}/kube-state-metrics.yaml"
+        mode: '0644'
+
+    # --- Ensure monitoring namespace exists ---
+    - name: Create monitoring namespace (idempotent)
+      shell: kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+
+    # --- Apply kube-state-metrics (RBAC + Deployment + Service in kube-system) ---
+    - name: Apply kube-state-metrics manifest
+      command: kubectl apply -f {{ k8s_monitoring_dir }}/kube-state-metrics.yaml
+      register: ksm_apply
+      changed_when: "'configured' in ksm_apply.stdout or 'created' in ksm_apply.stdout"
+
+    - name: Display kube-state-metrics apply result
+      debug:
+        msg: "{{ ksm_apply.stdout_lines }}"
+
+    # --- Apply node-exporter DaemonSet ---
+    - name: Apply node-exporter manifest
+      command: kubectl apply -f {{ k8s_monitoring_dir }}/node-exporter.yaml
+      register: ne_apply
+      changed_when: "'configured' in ne_apply.stdout or 'created' in ne_apply.stdout"
+
+    - name: Display node-exporter apply result
+      debug:
+        msg: "{{ ne_apply.stdout_lines }}"
+
+# =========================================================================
+# PLAY 3: Verify K8s exporter deployments reach Ready state
+# =========================================================================
+- name: Prometheus - Verify K8s exporter readiness
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Wait for kube-state-metrics Deployment to be available (up to 3 min)
+      command: >
+        kubectl rollout status deployment/kube-state-metrics
+        -n kube-system --timeout=180s
+      register: ksm_rollout
+      changed_when: false
+      failed_when: false
+
+    - name: Wait for node-exporter DaemonSet to be ready (up to 3 min)
+      shell: |
+        DESIRED=$(kubectl get daemonset node-exporter -n monitoring -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
+        READY=$(kubectl get daemonset node-exporter -n monitoring -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+        echo "desired=${DESIRED} ready=${READY}"
+        [ "$DESIRED" -gt 0 ] && [ "$DESIRED" = "$READY" ] && exit 0 || exit 1
+      register: ne_ready
+      retries: 12
+      delay: 15
+      until: ne_ready.rc == 0
+      changed_when: false
+      failed_when: false
+
+    - name: Display final exporter status
+      shell: |
+        echo "=== kube-state-metrics (kube-system) ==="
+        kubectl get deployment kube-state-metrics -n kube-system -o wide 2>/dev/null || echo "  not found"
+        echo ""
+        echo "=== node-exporter (monitoring) ==="
+        kubectl get daemonset node-exporter -n monitoring -o wide 2>/dev/null || echo "  not found"
+        echo ""
+        echo "=== All monitoring pods ==="
+        kubectl get pods -n monitoring 2>/dev/null || echo "  no monitoring namespace"
+        kubectl get pods -n kube-system -l app=kube-state-metrics 2>/dev/null || true
+      register: exporter_status
+      changed_when: false
+
+    - name: Show exporter status
+      debug:
+        msg: "{{ exporter_status.stdout_lines }}"
+
+    - name: Summary
+      debug:
+        msg: |
+          Prometheus K8s Exporter Deployment Complete
+          ============================================
+          kube-state-metrics rollout: {{ ksm_rollout.stdout | default('check manually') | trim }}
+          node-exporter status:       {{ ne_ready.stdout | default('check manually') | trim }}
+
+          Prometheus will auto-discover both exporters within ~30s.
+          Metrics will flow to Elasticsearch via OTel Collector remote write.
+
+          Key metrics now available:
+            node_cpu_seconds_total          (node-exporter)
+            node_memory_MemAvailable_bytes  (node-exporter)
+            kube_pod_status_phase           (kube-state-metrics)
+            kube_pod_container_resource_requests (kube-state-metrics)
+            kube_deployment_spec_replicas   (kube-state-metrics)
+            kube_pod_container_status_waiting_reason (kube-state-metrics)

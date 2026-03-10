@@ -1,0 +1,95 @@
+# node-exporter DaemonSet
+# Provides per-node OS-level metrics: CPU, memory, disk, network, filesystem
+# Metrics: node_cpu_seconds_total, node_memory_MemTotal_bytes, node_disk_*, node_network_*, etc.
+#
+# Prometheus job: node-exporter (prometheus.yml)
+#   - Discovers pods with label app=node-exporter
+#   - Relabels kubernetes_node from pod node name
+#
+# After deploying, Prometheus will auto-discover and scrape within ~30s.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+      annotations:
+        # Needed by the kubernetes-pods scrape job (annotation-based scraping)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      hostPID: true
+      hostNetwork: true
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+      containers:
+        - name: node-exporter
+          image: quay.io/prometheus/node-exporter:v1.8.2
+          args:
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - --no-collector.wifi
+            - --no-collector.hwmon
+            - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($$|/)
+          ports:
+            - containerPort: 9100
+              name: metrics
+              hostPort: 9100
+          resources:
+            requests:
+              cpu: 50m
+              memory: 50Mi
+            limits:
+              cpu: 200m
+              memory: 100Mi
+          volumeMounts:
+            - name: sys
+              mountPath: /host/sys
+              mountPropagation: HostToContainer
+              readOnly: true
+            - name: root
+              mountPath: /host/root
+              mountPropagation: HostToContainer
+              readOnly: true
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app: node-exporter
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: node-exporter
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100

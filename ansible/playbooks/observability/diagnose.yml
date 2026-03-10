@@ -317,3 +317,9 @@
           All observability services have been tested.
           Recent data availability checked for last {{ recent_timeframe_minutes }} minutes.
           Check the results above for any issues.
+          Prometheus pipeline detailed diagnostics follow below.
+
+# =========================================================================
+# Prometheus sub-playbook: diagnose Prometheus pipeline and K8s exporters
+# =========================================================================
+- import_playbook: prometheus/diagnose.yml

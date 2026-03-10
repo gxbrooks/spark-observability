@@ -194,10 +194,12 @@ if esapi GET /_license > "$LICENSE_STATUS" 2>&1; then
     if [ "$LICENSE_STATUS_VALUE" = "expired" ]; then
       echo "❌ License type: $LICENSE_TYPE (EXPIRED on $LICENSE_EXPIRY)"
       echo "   Watcher requires an active Gold license or higher"
-      echo "   Trial licenses cannot be restarted once expired"
-      echo "   You need to either:"
-      echo "   1. Purchase and install a Gold/Platinum/Enterprise license via PUT /_license API"
-      echo "   2. Reset the cluster (delete data volumes) to start fresh with a new trial"
+      echo "   Trial licenses cannot be restarted once expired on the same cluster."
+      echo "   Options:"
+      echo "   1. Reset cluster for a new trial (lab use; all ES/Kibana data is lost):"
+      echo "      ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/stop.yml -e delete_volumes=true"
+      echo "      ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml"
+      echo "   2. Purchase and install a Gold/Platinum/Enterprise license via PUT /_license API"
       echo "   Continuing with initialization, but Watcher features will not be available"
     else
       echo "✅ License type: $LICENSE_TYPE (Status: $LICENSE_STATUS_VALUE, supports Watcher)"
@@ -211,9 +213,11 @@ if esapi GET /_license > "$LICENSE_STATUS" 2>&1; then
       echo "✅ Trial license enabled successfully (30 days, includes Watcher)"
     elif echo "$TRIAL_RESULT" | grep -q '"trial_was_started".*false' 2>/dev/null; then
       echo "⚠️  Trial license could not be enabled"
-      echo "    This may mean the trial has already been used (can only be used once per cluster)"
-      echo "    To use Watcher, you need a Gold, Platinum, or Enterprise license"
-      echo "    Gold licenses must be purchased and installed via PUT /_license API"
+      echo "    This may mean the trial has already been used (can only be used once per cluster)."
+      echo "    To get a new 30-day trial (e.g. for Watcher): create a new cluster by stopping with"
+      echo "    delete_volumes=true, then start again. This deletes all Elasticsearch and Kibana data."
+      echo "    Example: observability/stop.yml -e delete_volumes=true, then observability/start.yml"
+      echo "    To use Watcher without reset: install a Gold, Platinum, or Enterprise license via PUT /_license API"
     else
       echo "⚠️  Trial license start attempt failed or already activated"
       echo "$TRIAL_RESULT" | head -5
@@ -368,10 +372,31 @@ echo "Creating kubernetes-metrics index template..."
 esapi PUT /_index_template/kubernetes-metrics ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.template.json \
   > ${ES_OUTPUTS_DIR}/kubernetes-metrics.template.out.json 2>&1
 
-echo "Creating kubernetes-metrics data view..."
-kapi POST /api/data_views/data_view \
+echo "Creating kubernetes-metrics data view (delete first to ensure clean fieldAttrs)..."
+kapi DELETE /api/data_views/data_view/kubernetes-metrics > /dev/null 2>&1 || true
+if ! kapi POST /api/data_views/data_view \
   ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.dataview.json \
-  > ${ES_OUTPUTS_DIR}/kubernetes-metrics.dataview.out.json 2>&1 || true
+  > ${ES_OUTPUTS_DIR}/kubernetes-metrics.dataview.out.json 2>&1; then
+  echo "  ⚠️  Data view create failed; see ${ES_OUTPUTS_DIR}/kubernetes-metrics.dataview.out.json"
+  cat "${ES_OUTPUTS_DIR}/kubernetes-metrics.dataview.out.json" 2>/dev/null | head -20
+fi
+
+echo "Creating kubernetes-metrics saved search (title: Kubernetes Metrics, id: kubernetes-metrics-default)..."
+if ! kapi POST /api/saved_objects/search/kubernetes-metrics-default?overwrite=true \
+  ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.search.json \
+  > ${ES_OUTPUTS_DIR}/kubernetes-metrics.search.out.json 2>&1; then
+  echo "  ⚠️  Saved search create failed; see ${ES_OUTPUTS_DIR}/kubernetes-metrics.search.out.json"
+  cat "${ES_OUTPUTS_DIR}/kubernetes-metrics.search.out.json" 2>/dev/null | head -30
+else
+  echo "  Saved search 'Kubernetes Metrics' created. In Discover use Open → look for 'Kubernetes Metrics'."
+fi
+
+echo "Applying settings to existing kubernetes metrics data stream backing indices (when present)..."
+if esapi --allow-errors GET "/_data_stream/metrics-kubernetes-default" > /dev/null 2>&1; then
+  esapi PUT "metrics-kubernetes-default/_settings" \
+    -d '{"index.lifecycle.name":"kubernetes-metrics-downsampled","index.mapping.total_fields.limit":10000}' \
+    > /dev/null 2>&1 || true
+fi
 
 echo "✅ Kubernetes metrics initialized"
 

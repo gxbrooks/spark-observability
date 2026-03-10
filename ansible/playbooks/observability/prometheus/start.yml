@@ -1,0 +1,123 @@
+---
+# Prometheus Sub-Playbook: Start
+#
+# Starts Prometheus and OTel Collector containers and verifies the K8s
+# exporter pods (node-exporter, kube-state-metrics) are running in the cluster.
+#
+# Can be run standalone or is imported by the top-level start.yml:
+#   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/prometheus/start.yml
+#
+# Note: The parent start.yml runs `docker compose up -d` which starts all containers
+# including Prometheus and OTel Collector. This sub-playbook handles targeted
+# start (if needed) and K8s-side verification.
+
+# =========================================================================
+# PLAY 1: Ensure Prometheus and OTel Collector containers are running
+# =========================================================================
+- name: Prometheus - Ensure containers are running
+  hosts: observability
+  become: false
+  gather_facts: true
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+
+    - name: Check Prometheus container status
+      shell: "cd {{ observability_dir }} && docker compose ps prometheus --format '{{ '{{.State}}' }}' 2>/dev/null || echo 'unknown'"
+      register: prometheus_state
+      changed_when: false
+      when: is_linux
+
+    - name: Check OTel Collector container status
+      shell: "cd {{ observability_dir }} && docker compose ps otel-collector --format '{{ '{{.State}}' }}' 2>/dev/null || echo 'unknown'"
+      register: otel_state
+      changed_when: false
+      when: is_linux
+
+    - name: Start Prometheus container if not running
+      command: docker compose up -d prometheus
+      args:
+        chdir: "{{ observability_dir }}"
+      when:
+        - is_linux
+        - prometheus_state.stdout is defined
+        - "'running' not in prometheus_state.stdout"
+      register: prometheus_start
+      failed_when: false
+
+    - name: Start OTel Collector container if not running
+      command: docker compose up -d otel-collector
+      args:
+        chdir: "{{ observability_dir }}"
+      when:
+        - is_linux
+        - otel_state.stdout is defined
+        - "'running' not in otel_state.stdout"
+      register: otel_start
+      failed_when: false
+
+    - name: Wait for Prometheus to respond
+      uri:
+        url: "http://localhost:9090/-/healthy"
+        method: GET
+        timeout: 5
+        status_code: [200]
+      register: prometheus_health
+      until: prometheus_health.status == 200
+      retries: 12
+      delay: 5
+      ignore_errors: true
+      when: is_linux
+
+    - name: Display Prometheus container status
+      debug:
+        msg: |
+          Prometheus: {{ 'healthy' if (prometheus_health.status | default(0)) == 200 else 'not responding yet' }}
+          OTel Collector: started/running
+      when: is_linux
+
+# =========================================================================
+# PLAY 2: Verify K8s exporter pods are running
+# =========================================================================
+- name: Prometheus - Verify K8s exporter pods
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Check kube-state-metrics pod status
+      shell: |
+        kubectl get pods -n kube-system -l app=kube-state-metrics \
+          --no-headers -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[0].ready' \
+          2>/dev/null || echo "kube-state-metrics not found - run prometheus/deploy.yml first"
+      register: ksm_status
+      changed_when: false
+      failed_when: false
+
+    - name: Check node-exporter pod status
+      shell: |
+        kubectl get pods -n monitoring -l app=node-exporter \
+          --no-headers -o custom-columns='NAME:.metadata.name,NODE:.spec.nodeName,STATUS:.status.phase,READY:.status.containerStatuses[0].ready' \
+          2>/dev/null || echo "node-exporter not found - run prometheus/deploy.yml first"
+      register: ne_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display K8s exporter pod status
+      debug:
+        msg: |
+          K8s Exporter Pod Status
+          =======================
+          kube-state-metrics (kube-system):
+          {{ ksm_status.stdout | default('not found') }}
+
+          node-exporter (monitoring):
+          {{ ne_status.stdout | default('not found') }}
+
+          If exporters are not running, deploy them:
+            ansible-playbook -i ansible/inventory.yml \
+              ansible/playbooks/observability/prometheus/deploy.yml

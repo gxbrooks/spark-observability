@@ -1,0 +1,66 @@
+---
+# Prometheus Sub-Playbook: Stop
+#
+# Stops Prometheus and OTel Collector containers without affecting the rest
+# of the observability stack (Elasticsearch, Kibana, Grafana, Logstash, Tempo).
+#
+# Use this for targeted restarts of just the metrics pipeline:
+#   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/prometheus/stop.yml
+#
+# Note: The K8s exporters (node-exporter, kube-state-metrics) are NOT touched
+# here - they run in the cluster independently of this stack. Use uninstall.yml
+# to remove them from the cluster.
+#
+# Note: The top-level stop.yml runs `docker compose down` which stops everything
+# including Prometheus and OTel Collector. This sub-playbook is for targeted
+# Prometheus-only stop (e.g., to reload config).
+
+- name: Prometheus - Stop Prometheus and OTel Collector containers
+  hosts: observability
+  become: false
+  gather_facts: true
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+
+    - name: Stop OTel Collector container
+      command: docker compose stop otel-collector
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      register: otel_stop
+      failed_when: false
+      changed_when: otel_stop.rc == 0
+
+    - name: Stop Prometheus container
+      command: docker compose stop prometheus
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      register: prometheus_stop
+      failed_when: false
+      changed_when: prometheus_stop.rc == 0
+
+    - name: Confirm stopped state
+      shell: |
+        cd {{ observability_dir }}
+        echo "prometheus: $(docker compose ps prometheus --format '{{ '{{.State}}' }}' 2>/dev/null || echo 'stopped')"
+        echo "otel-collector: $(docker compose ps otel-collector --format '{{ '{{.State}}' }}' 2>/dev/null || echo 'stopped')"
+      register: stop_confirm
+      changed_when: false
+      when: is_linux
+
+    - name: Display stop status
+      debug:
+        msg: |
+          Prometheus pipeline stopped:
+          {{ stop_confirm.stdout | default('') }}
+
+          To restart:
+            ansible-playbook -i ansible/inventory.yml \
+              ansible/playbooks/observability/prometheus/start.yml
+      when: is_linux

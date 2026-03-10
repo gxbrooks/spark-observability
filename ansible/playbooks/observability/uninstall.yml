@@ -86,5 +86,13 @@
           ==================================
           
           All observability services and data have been removed from {{ inventory_hostname }}.
+          K8s exporters (node-exporter, kube-state-metrics) will be removed next.
           
           To reinstall, run: ansible-playbook -i inventory.yml playbooks/observability/install.yml
+
+# =========================================================================
+# Prometheus sub-playbook: remove K8s exporters from cluster
+# =========================================================================
+- import_playbook: prometheus/uninstall.yml
+  vars:
+    skip_confirmation: true

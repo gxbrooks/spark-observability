@@ -91,10 +91,11 @@ inputs:
   #         - /var/log/messages
   #       processors:
   #         - add_host_metadata: ~
-  # Kubernetes metrics integration
+  # Kubernetes metrics: disabled for host-based agents (no in-cluster service account token).
+  # K8s metrics are collected by Prometheus on the observability host and written to ES via the adapter.
   - type: kubernetes/metrics
     use_output: default
-    enabled: true
+    enabled: {{ elastic_agent_kubernetes_metrics_enabled | default('false') }}
     hosts: ["https://${KUBERNETES_API_SERVER}:10250"]
     bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
     ssl:

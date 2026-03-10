@@ -8,7 +8,8 @@
     "settings": {
       "index.number_of_shards": 1,
       "number_of_replicas": 1,
-      "index.lifecycle.name": "kubernetes-metrics-downsampled"
+      "index.lifecycle.name": "kubernetes-metrics-downsampled",
+      "index.mapping.total_fields.limit": 10000
     },
     "mappings": {
       "dynamic": true,
