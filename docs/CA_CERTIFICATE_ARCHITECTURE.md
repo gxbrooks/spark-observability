@@ -24,36 +24,33 @@ This document defines the architecture for managing the Elastic Stack CA certifi
 **Pull-Based (Implemented)**:
 ```
 ┌──────────────┐
-│  init-certs  │  Generates & publishes CA cert to standard location
-└──────┬───────┘  CA_CERT=/etc/ssl/certs/elastic/ca.crt
+│  init-certs  │  Generates CA and stores in Docker volume (certs:)
+└──────┬───────┘  Volume paths: .../ca/ca.crt and .../ca.crt
        │
        ▼
 ┌──────────────────────────────────────────────────────┐
-│  Standard Published Location (CA_CERT variable)     │
-│  /etc/ssl/certs/elastic/ca.crt                       │
-│  (Docker volume: certs:/usr/share/elasticsearch/    │
-│   config/certs/ca/ca.crt)                           │
+│  Docker volume (certs) on observability host          │
+│  Single source of truth; no separate "publish" copy   │
 └───────┬──────────────────┬───────────────────────────┘
         │                  │
         ▼                  ▼
 ┌───────────────┐  ┌──────────────┐
-│ Elastic Agent │  │ Spark Client │  Each service fetches when needed
-│  (via Ansible │  │  (on start)  │  from Docker volume or CA_CERT path
-│   from volume)│  │              │
+│ Elastic Agent │  │ Other apps   │  Each app's install/start fetches
+│  install.yml  │  │ (same model) │  from volume; start tests currency
+│  start.yml    │  │              │  and re-fetches if stale (hash)
 └───────────────┘  └──────────────┘
 ```
 
 **Advantages**:
-- ✅ **Scalable**: New services automatically fetch without central coordination
-- ✅ **Decoupled**: Services independent of distribution mechanism
-- ✅ **Self-Healing**: Services can re-fetch if certificate becomes invalid
-- ✅ **Simple**: No complex distribution playbooks needed
-- ✅ **Atomic**: Each service validates certificate after fetching
+- ✅ **Single source of truth**: Docker volume only; no intermediate publish path
+- ✅ **Consistent**: Every app uses the same pattern (fetch from volume)
+- ✅ **Self-Healing**: Start playbooks test currency (CA hash) and re-fetch if stale
+- ✅ **Simple**: One fetch path; no Windows vs volume fallback order
+- ✅ **Decoupled**: Each app play is responsible for its own CA
 
 **Disadvantages**:
-- ⚠️ Services must implement fetch logic
-- ⚠️ Requires shared/accessible storage location
-- ⚠️ Services may have stale certs until next restart
+- ⚠️ Observability stack must be running (volume exists) before agent install/start
+- ⚠️ Each app playbook implements fetch-from-volume and (for start) currency check
 
 **Push-Based (Not Implemented)**:
 ```
@@ -85,8 +82,7 @@ Ansible orchestrates distribution to all known hosts
 4. Publishes to `CA_CERT` path (standard location for all services)
 
 **Volumes**:
-- Named volume `certs:` for internal Elasticsearch use (Docker volume)
-- Bind mount `/mnt/c/Volumes/certs/Elastic:/etc/ssl/certs/elastic` (for Windows/WSL access, optional)
+- Named volume `certs:` is the single source of truth; all apps that need the CA fetch from this volume on the observability host (pull-based).
 
 **Security**:
 - Private keys: 640 permissions (owner:rw group:r)
@@ -95,23 +91,15 @@ Ansible orchestrates distribution to all known hosts
 
 **Script Reference**: See `observability/certs/init-certs.sh` for implementation details.
 
-### 2. Standard Published Location
+### 2. Single Source of Truth: Docker Volume
 
-**Path**: `/etc/ssl/certs/elastic/ca.crt` (defined by `CA_CERT` variable in `vars/variables.yaml`)
+**Location**: Named Docker volume `certs` on the observability host (e.g. `observability_certs`).
 
-This is the **Single Source of Truth** path where all services expect to find the CA certificate.
+**Paths inside volume**: `ca/ca.crt` (X-Pack layout) and `ca.crt` (volume root for containers that mount at `/etc/ssl/certs/elastic`).
 
-**Distribution Methods**:
-1. **Docker Containers**: Mounted from host path (via docker-compose.yml)
-2. **Linux Hosts**: Fetched via Ansible from Docker volume on observability host
-3. **Windows/WSL**: Optional mount from `/mnt/c/Volumes/certs/Elastic` (if needed)
+**No separate "published" path**: Apps that need the CA fetch it directly from the observability host's Docker volume in their own install/start playbooks. There is no intermediate copy to `/tmp` or Windows path; the volume is the only source.
 
-**Characteristics**:
-- Single variable (`CA_CERT`) for all contexts
-- Standard Linux certificate location (`/etc/ssl/certs/`)
-- Readable by all users (644 permissions)
-- Version-controlled via hash in `.certs_version` file
-- Validated by `init-certs` during publishing
+**Per-service local path**: Each service stores its copy at a standard path (e.g. Linux agents: `CA_CERT=/etc/ssl/certs/elastic/ca.crt`). Start playbooks compare the local file hash to the volume CA hash and re-fetch from the volume when stale.
 
 ### 3. Service-Level Certificate Fetching
 
@@ -119,38 +107,19 @@ Each service is responsible for fetching and validating certificates from the st
 
 #### Elastic Agent (Linux Hosts)
 
-**Fetch Location**: `/etc/ssl/certs/elastic/ca.crt`
+**Local path**: `/etc/ssl/certs/elastic/ca.crt` (`CA_CERT`)
 
-**Fetch Mechanism**: During `elastic-agent/install.yml` playbook (pull-based model)
-```yaml
-- name: Get Docker volume mount point for certs
-  delegate_to: "{{ groups['observability'][0] }}"
-  shell: docker volume inspect observability_certs --format '{{ .Mountpoint }}'
-  register: cert_volume_path
-  
-- name: Fetch Elasticsearch CA certificate from Docker volume
-  delegate_to: "{{ groups['observability'][0] }}"
-  fetch:
-    src: "{{ cert_volume_path.stdout }}/ca/ca.crt"
-    dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
-    flat: yes
-    
-- name: Copy CA certificate to host
-  copy:
-    src: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
-    dest: "/etc/ssl/certs/elastic/ca.crt"
-    owner: root
-    group: root
-    mode: '0644'
-```
+**Install** (`elastic-agent/install.yml`): Fetches CA only from the observability host's Docker volume (no Windows or other paths). Gets volume mount point, then fetches `ca/ca.crt` or `ca.crt` from that path to the controller and copies to each agent host.
+
+**Start** (`elastic-agent/start.yml`): Tests currency before other steps:
+1. Get CA hash from Docker volume (one task, delegate to observability host).
+2. Get local CA hash on each agent host (`sha256sum` of `CA_CERT`).
+3. If hashes differ or local CA is missing, fetch from volume (same as install) and copy to host; agent is restarted later in the same play.
 
 **Advantages**:
-- No WSL mount dependency
-- Direct access to Docker volume (source of truth)
-- Works on any Linux host
-- Simple and reliable
-
-**Validation**: After copy, verify with `openssl x509`
+- Single fetch path (Docker volume only)
+- Start ensures agents pick up a new CA after observability volume reset without re-running install
+- No dependency on Windows or WSL publish paths
 
 #### Spark Client (Java/Scala Applications)
 
@@ -282,43 +251,31 @@ All playbooks follow this pattern:
 
 **observability/start.yml**:
 ```
-1. Validate Docker available
-2. Create required directories
-3. Initialize certificates (docker compose up init-certs)
-4. Validate CA certificate from published location
-5. Start services (docker compose up -d)
-6. Verify service health
+1. Validate Docker available; create network/directories
+2. Initialize certificates (docker compose up init-certs) — CA lives in Docker volume only
+3. Optionally validate CA in volume (container check)
+4. Start services (docker compose up -d)
+5. Verify service health
 ```
 
-**Key Feature**: Validates certificate from standard location rather than distributing it.
-
-```yaml
-- name: Validate CA certificate from published location
-  stat:
-    path: "/mnt/c/Volumes/certs/Elastic/ca.crt"
-  register: ca_cert_stat
-  
-- name: Verify certificate is valid X.509
-  shell: openssl x509 -in {{ ca_cert_path }} -noout -text
-  register: ca_cert_validation
-```
+**Key**: Observability does not publish the CA to a host path. The certs volume is the source of truth; each app fetches from that volume in its own install/start.
 
 ### Elastic Agent Playbooks
 
 **elastic-agent/install.yml**:
 ```
 1. Install Elastic Agent binary
-2. Fetch CA certificate from standard location
-3. Configure agent (elastic-agent.yml)
-4. Create systemd service
-5. Start service
+2. Fetch CA from observability Docker volume only (ca/ca.crt or ca.crt)
+3. Configure agent (elastic-agent.yml); create systemd service
+4. Start service
 ```
 
 **elastic-agent/start.yml**:
 ```
-1. Start elastic-agent service
-2. Verify service running
-3. Display status
+1. Test CA currency (hash from volume vs local); if stale, fetch from volume and copy to host
+2. Ensure env and config up to date
+3. Stop then start elastic-agent service
+4. Start GPU metrics timer; verify and display status
 ```
 
 **elastic-agent/stop.yml**:
@@ -429,23 +386,10 @@ Start all services (including init-certs) → validate → restart if needed
 
 To add a new service that needs the CA certificate:
 
-1. **In install/start playbook**: Fetch certificate from standard location
-   ```yaml
-   - name: Fetch CA certificate
-     fetch:
-       src: "/mnt/c/Volumes/certs/Elastic/ca.crt"
-       dest: "/path/to/service/ca.crt"
-   ```
-
-2. **Validate after fetch**:
-   ```yaml
-   - name: Validate certificate
-     shell: openssl x509 -in /path/to/service/ca.crt -noout -text
-   ```
-
-3. **Configure service**: Point service to local copy of certificate
-
-4. **No changes to init-certs or distribution logic required**
+1. **In install playbook**: Fetch CA from the observability host's Docker volume only (get volume mount point, then fetch `.../ca/ca.crt` or `.../ca.crt`).
+2. **In start playbook**: Test currency (get CA hash from volume, compare to local hash); if different or missing, fetch from volume and copy to host, then restart the service.
+3. **Configure service**: Point service to the local copy (e.g. `CA_CERT` or equivalent).
+4. **No changes to init-certs or observability start required**; the volume is the single source of truth.
 
 ## Troubleshooting
 
@@ -453,23 +397,19 @@ To add a new service that needs the CA certificate:
 
 **Diagnosis**:
 ```bash
-# Check if cert exists
+# Check if local cert exists and is valid
 ls -la /etc/ssl/certs/elastic/ca.crt
-
-# Check if cert is valid
 openssl x509 -in /etc/ssl/certs/elastic/ca.crt -noout -text
 
-# Compare with published cert
-md5sum /etc/ssl/certs/elastic/ca.crt
-ansible -i ansible/inventory.yml GaryPC-WSL -m shell \
-  -a "md5sum /mnt/c/Volumes/certs/Elastic/ca.crt"
+# Compare with volume CA (on observability host)
+ansible -i ansible/inventory.yml GaryPC-WSL -m shell -a "docker run --rm -v observability_certs:/certs:ro alpine sha256sum /certs/ca.crt /certs/ca/ca.crt 2>/dev/null"
+sha256sum /etc/ssl/certs/elastic/ca.crt
 ```
 
 **Resolution**:
 ```bash
-# Re-run install to fetch latest cert
-ansible-playbook -i ansible/inventory.yml \
-  ansible/playbooks/elastic-agent/install.yml
+# Re-run start (currency check will re-fetch from volume) or re-run install
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml --limit native
 ```
 
 ### Issue: Elasticsearch can't read private key
@@ -537,3 +477,4 @@ Certificate management depends on stable DNS resolution. See `docs/DNS_and_IP_Ma
 | 1.0 | 2025-09-30 | System | Initial architecture document |
 | 1.1 | 2025-09-30 | System | Added implementation notes, verified deployment |
 | 2.0 | 2025-10-22 | System | Refactored to pull-based model, removed push distribution, aligned with playbook patterns |
+| 2.1 | 2026-03-08 | System | CA from Docker volume only; each app fetch in install + currency check in start; removed published-path and Windows fallback |

@@ -1,6 +1,6 @@
 # Prometheus configuration for Kubernetes metrics collection
 # Scrapes K8s API, kube-state-metrics, and node-exporter
-# Exports metrics to Elasticsearch via remote write for long-term storage
+# Exports metrics to Elasticsearch via remote write (prometheus-es-adapter) for long-term storage
 
 global:
   scrape_interval: 30s      # Scrape interval for targets
@@ -9,6 +9,23 @@ global:
   external_labels:
     cluster: 'spark-cluster'
     environment: 'production'
+
+# Remote write to Elasticsearch via OTel Collector (prometheusremotewrite receiver -> ES)
+# Adapter (prometheus-es-adapter) is ES 5-style and fails on ES 8; OTel path is used instead.
+# OTel receiver only supports remote write v2; use v2 proto to avoid 415 Unsupported Media Type.
+remote_write:
+  - url: http://otel-collector:9201/api/v1/write
+    send_native_histograms: true
+    # Prefer v2 proto for OTel prometheusremotewrite receiver (avoids 415)
+    protobuf_message: io.prometheus.write.v2.Request
+    queue_config:
+      capacity: 10000
+      max_shards: 50
+      min_shards: 1
+      max_samples_per_send: 2000
+      batch_send_deadline: 5s
+      min_backoff: 30ms
+      max_backoff: 100ms
 
 # Alertmanager configuration (disabled for now)
 # alerting:
@@ -49,7 +66,8 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_endpoint_address_target_name]
         target_label: kubernetes_pod_name
 
-  # Kubernetes nodes (kubelet metrics)
+  # Kubernetes nodes (kubelet metrics via API server proxy)
+  # Scrape goes to API server; it proxies to each node's kubelet. Uses same TLS as API server.
   - job_name: 'kubernetes-nodes'
     kubernetes_sd_configs:
       - role: node
@@ -68,12 +86,42 @@ scrape_configs:
     relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
+      # Target API server so it can proxy to each node's kubelet (not kubelet port 10250)
       - target_label: __address__
-        replacement: 'lab2.lan:10250'
+        replacement: 'lab2.lan:6443'
       - source_labels: [__meta_kubernetes_node_name]
         regex: (.+)
         target_label: __metrics_path__
         replacement: /api/v1/nodes/${1}/proxy/metrics
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: kubernetes_node
+
+  # Kubernetes node cAdvisor (container metrics: CPU, memory, fs, network per container)
+  - job_name: 'kubernetes-cadvisor'
+    kubernetes_sd_configs:
+      - role: node
+        api_server: 'https://lab2.lan:6443'
+        tls_config:
+          ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
+          cert_file: '/etc/ssl/certs/kubernetes/client.crt'
+          key_file: '/etc/ssl/certs/kubernetes/client.key'
+          insecure_skip_verify: false
+    scheme: https
+    metrics_path: /metrics/cadvisor
+    tls_config:
+      ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
+      cert_file: '/etc/ssl/certs/kubernetes/client.crt'
+      key_file: '/etc/ssl/certs/kubernetes/client.key'
+      insecure_skip_verify: false
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: 'lab2.lan:6443'
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
       - source_labels: [__meta_kubernetes_node_name]
         target_label: kubernetes_node
 
@@ -107,24 +155,31 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_name]
         target_label: kubernetes_pod_name
 
-  # Kube-state-metrics (if deployed as service)
+  # Kube-state-metrics (Deployment in kube-system; managed by prometheus/deploy.yml)
+  # Provides: kube_pod_status_phase, kube_pod_container_resource_requests,
+  #           kube_deployment_spec_replicas, kube_pod_container_status_waiting_reason,
+  #           kube_node_status_condition, kube_namespace_status_phase, and ~200 more.
+  #
+  # Uses K8s API server proxy path (same pattern as kubernetes-nodes/cadvisor) because
+  # Prometheus runs outside the cluster on GaryPC and cannot reach pod overlay IPs (10.244.x.x).
+  # The API server proxies HTTP to kube-state-metrics:8080 after TLS termination.
   - job_name: 'kube-state-metrics'
-    kubernetes_sd_configs:
-      - role: endpoints
-        api_server: 'https://lab2.lan:6443'
-        tls_config:
-          ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
-          cert_file: '/etc/ssl/certs/kubernetes/client.crt'
-          key_file: '/etc/ssl/certs/kubernetes/client.key'
-          insecure_skip_verify: false
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
-        action: keep
-        regex: kube-system;kube-state-metrics
-      - source_labels: [__meta_kubernetes_endpoint_address_target_name]
-        target_label: kubernetes_pod_name
+    scheme: https
+    tls_config:
+      ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
+      cert_file: '/etc/ssl/certs/kubernetes/client.crt'
+      key_file: '/etc/ssl/certs/kubernetes/client.key'
+      insecure_skip_verify: false
+    metrics_path: /api/v1/namespaces/kube-system/services/kube-state-metrics:http-metrics/proxy/metrics
+    static_configs:
+      - targets: ['lab2.lan:6443']
+        labels:
+          kubernetes_namespace: kube-system
+          kubernetes_service: kube-state-metrics
 
-  # Node exporter (per-node metrics via DaemonSet)
+  # Node exporter (DaemonSet in monitoring ns; managed by prometheus/deploy.yml)
+  # Provides: node_cpu_seconds_total, node_memory_MemAvailable_bytes,
+  #           node_disk_*, node_network_*, node_filesystem_*, and ~500 more.
   - job_name: 'node-exporter'
     kubernetes_sd_configs:
       - role: pod
@@ -135,15 +190,23 @@ scrape_configs:
           key_file: '/etc/ssl/certs/kubernetes/client.key'
           insecure_skip_verify: false
     relabel_configs:
+      # Only scrape pods with label app=node-exporter
       - source_labels: [__meta_kubernetes_pod_label_app]
         action: keep
         regex: node-exporter
+      # Only scrape the named port 'metrics' (9100); skip other ports
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: metrics
       - source_labels: [__meta_kubernetes_pod_node_name]
         target_label: kubernetes_node
       - source_labels: [__meta_kubernetes_namespace]
         target_label: kubernetes_namespace
       - source_labels: [__meta_kubernetes_pod_name]
         target_label: kubernetes_pod_name
+      # node label for convenience (same as kubernetes_node)
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
 
   # Prometheus self-monitoring
   - job_name: 'prometheus'

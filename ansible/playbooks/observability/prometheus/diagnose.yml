@@ -1,0 +1,296 @@
+---
+# Prometheus Sub-Playbook: Diagnose
+#
+# Comprehensive health check for the entire Prometheus metrics pipeline:
+#   - Prometheus container health and target status
+#   - OTel Collector container status
+#   - K8s exporter pod status (node-exporter, kube-state-metrics)
+#   - Prometheus scrape target discovery status for each job
+#   - Verification that K8s metrics are flowing into Elasticsearch
+#   - Spot-check for key metric groups (node, kube-state, cadvisor, apiserver)
+#
+# Can be run standalone or is imported by the top-level diagnose.yml:
+#   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/prometheus/diagnose.yml
+#
+# Variables:
+#   timeout_seconds: API timeout (default 15)
+#   recent_timeframe_minutes: ES lookback window (default 60)
+
+# =========================================================================
+# PLAY 1: Check Prometheus and OTel containers on observability host
+# =========================================================================
+- name: Prometheus - Diagnose containers and targets
+  hosts: observability
+  gather_facts: true
+  vars:
+    timeout_seconds: 15
+    recent_timeframe_minutes: 60
+    observability_dir: "/home/ansible/ops/observability"
+
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+
+    # --- Container status ---
+    - name: Check Prometheus container status
+      shell: "cd {{ observability_dir }} && docker compose ps prometheus --format '{{ '{{.Service}}' }}:{{ '{{.State}}' }}' 2>/dev/null || echo 'prometheus:unknown'"
+      register: prometheus_container
+      changed_when: false
+      failed_when: false
+      when: is_linux
+
+    - name: Check OTel Collector container status
+      shell: "cd {{ observability_dir }} && docker compose ps otel-collector --format '{{ '{{.Service}}' }}:{{ '{{.State}}' }}' 2>/dev/null || echo 'otel-collector:unknown'"
+      register: otel_container
+      changed_when: false
+      failed_when: false
+      when: is_linux
+
+    # --- Prometheus API health ---
+    - name: Check Prometheus health endpoint
+      uri:
+        url: "http://GaryPC:9090/-/healthy"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: prometheus_health
+      ignore_errors: yes
+
+    - name: Check Prometheus readiness endpoint
+      uri:
+        url: "http://GaryPC:9090/-/ready"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: prometheus_ready
+      ignore_errors: yes
+
+    # --- Prometheus targets ---
+    - name: Get all Prometheus scrape targets
+      uri:
+        url: "http://GaryPC:9090/api/v1/targets"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: prometheus_targets
+      ignore_errors: yes
+
+    - name: Parse target health per job
+      set_fact:
+        target_summary: >-
+          {%- set jobs = {} -%}
+          {%- if prometheus_targets.json is defined -%}
+            {%- for t in (prometheus_targets.json.data.activeTargets | default([])) -%}
+              {%- set job = t.labels.job | default('unknown') -%}
+              {%- if job not in jobs -%}
+                {%- set _ = jobs.update({job: {'up': 0, 'down': 0}}) -%}
+              {%- endif -%}
+              {%- if t.health == 'up' -%}
+                {%- set _ = jobs[job].update({'up': jobs[job].up + 1}) -%}
+              {%- else -%}
+                {%- set _ = jobs[job].update({'down': jobs[job].down + 1}) -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+          {{ jobs }}
+      when: prometheus_targets.json is defined
+      ignore_errors: yes
+
+    - name: Display Prometheus container and target summary
+      debug:
+        msg: |
+          PROMETHEUS PIPELINE STATUS
+          ==========================
+          Container Status:
+            {{ prometheus_container.stdout | default('prometheus: unknown') }}
+            {{ otel_container.stdout | default('otel-collector: unknown') }}
+
+          Prometheus API:
+            Health: {{ 'OK' if prometheus_health.status == 200 else 'FAIL (' ~ prometheus_health.status | default('no response') ~ ')' }}
+            Ready:  {{ 'OK' if prometheus_ready.status == 200 else 'FAIL' }}
+
+          Scrape Job Summary (active targets):
+          {% if prometheus_targets.json is defined %}
+          {% for t in prometheus_targets.json.data.activeTargets | default([]) | groupby('labels.job') | unique('grouper') %}
+          {% endfor %}
+          {% for job, group in prometheus_targets.json.data.activeTargets | default([]) | groupby('labels.job') %}
+            {{ '%-35s' | format(job) }}  up={{ group | selectattr('health', 'eq', 'up') | list | length }}  down={{ group | selectattr('health', 'ne', 'up') | list | length }}
+          {% endfor %}
+          {% else %}
+            (Prometheus API unavailable - check container)
+          {% endif %}
+
+    # --- Check down targets detail ---
+    - name: Show details for any DOWN targets
+      debug:
+        msg: |
+          DOWN TARGET: {{ item.labels.job }}/{{ item.labels.instance }}
+          Last error: {{ item.lastError | default('none') }}
+          Last scrape: {{ item.lastScrape | default('unknown') }}
+      loop: "{{ prometheus_targets.json.data.activeTargets | default([]) | selectattr('health', 'ne', 'up') | list }}"
+      when: prometheus_targets.json is defined
+      loop_control:
+        label: "{{ item.labels.job }}/{{ item.labels.instance | default('?') }}"
+
+    # --- Check Elasticsearch for K8s metrics ---
+    - name: Check for recent Kubernetes metrics in Elasticsearch
+      uri:
+        url: "https://GaryPC.lan:9200/metrics-kubernetes-*/_count"
+        method: POST
+        body_format: json
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "now-{{ recent_timeframe_minutes }}m"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: k8s_metrics_count
+      ignore_errors: yes
+
+    - name: Check for recent node metrics (node-exporter) in Elasticsearch
+      uri:
+        url: "https://GaryPC.lan:9200/metrics-kubernetes-*/_count"
+        method: POST
+        body_format: json
+        body:
+          query:
+            bool:
+              must:
+                - range:
+                    "@timestamp":
+                      gte: "now-{{ recent_timeframe_minutes }}m"
+                - term:
+                    "service.name": "node-exporter"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: node_metrics_count
+      ignore_errors: yes
+
+    - name: Check for recent kube-state-metrics in Elasticsearch
+      uri:
+        url: "https://GaryPC.lan:9200/metrics-kubernetes-*/_count"
+        method: POST
+        body_format: json
+        body:
+          query:
+            bool:
+              must:
+                - range:
+                    "@timestamp":
+                      gte: "now-{{ recent_timeframe_minutes }}m"
+                - term:
+                    "service.name": "kube-state-metrics"
+        user: "elastic"
+        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: ksm_metrics_count
+      ignore_errors: yes
+
+    - name: Check for key priority metrics via Prometheus instant query
+      uri:
+        url: "http://GaryPC:9090/api/v1/query"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      args:
+        url: "http://GaryPC:9090/api/v1/query?query={{ item.query | urlencode }}"
+      register: prom_metric_check
+      loop:
+        - { name: "node_cpu_seconds_total",                  query: "count(node_cpu_seconds_total)" }
+        - { name: "node_memory_MemAvailable_bytes",          query: "count(node_memory_MemAvailable_bytes)" }
+        - { name: "kube_pod_status_phase",                   query: "count(kube_pod_status_phase)" }
+        - { name: "kube_pod_container_resource_requests",    query: "count(kube_pod_container_resource_requests)" }
+        - { name: "container_memory_working_set_bytes",      query: "count(container_memory_working_set_bytes)" }
+        - { name: "kube_deployment_spec_replicas",           query: "count(kube_deployment_spec_replicas)" }
+        - { name: "kube_pod_container_status_waiting_reason",query: "count(kube_pod_container_status_waiting_reason)" }
+        - { name: "apiserver_request_duration_seconds",      query: "count(apiserver_request_duration_seconds_bucket)" }
+        - { name: "kubelet_volume_stats_used_bytes",         query: "count(kubelet_volume_stats_used_bytes)" }
+      ignore_errors: yes
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Display key metric availability
+      debug:
+        msg: |
+          KEY METRIC AVAILABILITY (Prometheus)
+          =====================================
+          Metric                                          Status   Series
+          ----------------------------------------------------------------
+          {% for result in prom_metric_check.results %}
+          {% set metric = result.item.name %}
+          {% set count = result.json.data.result[0].value[1] | default('0') if (result.json is defined and result.json.data.result | default([]) | length > 0) else '0' %}
+          {% set ok = count | int > 0 %}
+          {{ '%-48s' | format(metric) }}  {{ 'OK  ' if ok else 'MISS' }}   {{ count }}
+          {% endfor %}
+
+    - name: Display Elasticsearch K8s metrics summary
+      debug:
+        msg: |
+          K8S METRICS IN ELASTICSEARCH (last {{ recent_timeframe_minutes }}m)
+          ===================================================================
+          All K8s metrics (metrics-kubernetes-*): {{ k8s_metrics_count.json.count | default('N/A') }} docs
+          node-exporter metrics:                  {{ node_metrics_count.json.count | default('N/A') }} docs
+          kube-state-metrics:                     {{ ksm_metrics_count.json.count | default('N/A') }} docs
+
+          If node-exporter or kube-state-metrics show 0 docs:
+            1. Verify pods are running (Play 2 below)
+            2. Check Prometheus targets are UP (above)
+            3. Wait 30-60s after deploying exporters
+
+# =========================================================================
+# PLAY 2: Check K8s exporter pods on the cluster
+# =========================================================================
+- name: Prometheus - Diagnose K8s exporter pods
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Get kube-state-metrics pod status
+      shell: |
+        echo "--- kube-state-metrics (kube-system) ---"
+        kubectl get pods -n kube-system -l app=kube-state-metrics -o wide 2>/dev/null \
+          || echo "  NOT DEPLOYED - run: ansible-playbook prometheus/deploy.yml"
+        echo ""
+        echo "--- node-exporter (monitoring) ---"
+        kubectl get pods -n monitoring -l app=node-exporter -o wide 2>/dev/null \
+          || echo "  NOT DEPLOYED - run: ansible-playbook prometheus/deploy.yml"
+        echo ""
+        echo "--- kube-state-metrics service endpoint ---"
+        kubectl get endpoints kube-state-metrics -n kube-system 2>/dev/null || echo "  no endpoint"
+        echo ""
+        echo "--- node-exporter service endpoint ---"
+        kubectl get endpoints node-exporter -n monitoring 2>/dev/null || echo "  no endpoint"
+      register: k8s_exporter_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display K8s exporter status
+      debug:
+        msg: "{{ k8s_exporter_status.stdout_lines }}"
+
+    - name: Check for any CrashLoopBackOff or ImagePullBackOff exporters
+      shell: |
+        kubectl get pods -n monitoring -o wide 2>/dev/null | grep -E 'CrashLoopBackOff|ImagePullBackOff|Error|Pending' || true
+        kubectl get pods -n kube-system -l app=kube-state-metrics -o wide 2>/dev/null | grep -E 'CrashLoopBackOff|ImagePullBackOff|Error|Pending' || true
+      register: problem_pods
+      changed_when: false
+      failed_when: false
+
+    - name: Warn about problem pods
+      debug:
+        msg: |
+          PROBLEM PODS DETECTED:
+          {{ problem_pods.stdout }}
+      when: problem_pods.stdout | trim | length > 0
+
+    - name: No problems found
+      debug:
+        msg: "All K8s exporter pods appear healthy (no CrashLoopBackOff / ImagePullBackOff detected)"
+      when: problem_pods.stdout | trim | length == 0

@@ -293,6 +293,7 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC receiver
       - "4318:4318"   # OTLP HTTP receiver
+      - "9201:9201"   # Prometheus remote write receiver (K8s metrics -> ES)
       - "8888:8888"   # Prometheus metrics
       - "13133:13133" # Health check
     volumes:
@@ -362,7 +363,8 @@ services:
       retries: 10
 
   prometheus:
-    image: prom/prometheus:latest
+    # Pin to 3.8+ for Remote Write v2 (OTel prometheusremotewrite receiver)
+    image: prom/prometheus:v3.8.0
     container_name: prometheus
     labels:
       role: "Prometheus"
@@ -380,8 +382,10 @@ services:
       - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
       - "./prometheus/rules:/etc/prometheus/rules:ro"
       - prometheus-data:/prometheus
+      # Elastic CA (for ES TLS if needed)
       - certs:/etc/ssl/certs/elastic:ro
-      # Kubernetes certificates will be mounted from host if needed
+      # Kubernetes API client certs for scraping K8s (populated by observability deploy from K8s master)
+      - "./k8s-certs:/etc/ssl/certs/kubernetes:ro"
     environment:
       ES_URL: "${ES_URL}"
       ES_USER: "${ES_USER}"
@@ -453,7 +457,7 @@ services:
     ports: 
         - "${LS_SPARK_EVENTS_PORT}:${LS_SPARK_EVENTS_PORT}"
         - "5051:5051"  # System metrics rate computation
-        - "9201:9201"  # Prometheus remote write receiver
+        # Port 9201 removed: Prometheus remote write now handled by otel-collector
         # TODO: Evantually metrics should be sent to reginal Logstash servers
         # and then fed up into Elasticsearch
         # - "${LS_DOCKER_METRICS_PORT}:${LS_DOCKER_METRICS_PORT}"

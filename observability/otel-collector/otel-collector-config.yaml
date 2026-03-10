@@ -8,6 +8,9 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+  # Prometheus remote write: receives K8s metrics from Prometheus and forwards to Elasticsearch
+  prometheusremotewrite:
+    endpoint: 0.0.0.0:9201
 
 processors:
   batch:
@@ -43,6 +46,7 @@ exporters:
     user: elastic
     password: ${ES_PASSWORD}
     traces_index: traces-otel-default
+    metrics_index: metrics-kubernetes-default
     mapping:
       mode: ecs
     tls:
@@ -75,9 +79,9 @@ service:
       exporters: [elasticsearch, otlp/tempo, debug]
       
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, prometheusremotewrite]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [elasticsearch, debug]
   
   telemetry:
     logs:

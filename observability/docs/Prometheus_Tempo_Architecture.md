@@ -52,60 +52,61 @@ This document outlines the architecture for integrating **Prometheus** (Kubernet
 
 ## Architecture Overview
 
+Containers and processes use **single-line** boxes; **double-line** boxes (`=` top/bottom, `||` sides) denote different nodes (hosts).
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                        │
-│  Lab1 (16 cores)          Lab2 (16 cores)                   │
-│  ┌─────────────┐         ┌─────────────┐                   │
-│  │ kube-state- │         │ kube-state- │                   │
-│  │   metrics   │         │   metrics   │                   │
-│  └──────┬──────┘         └──────┬──────┘                   │
-│         │                       │                           │
-│  ┌──────▼───────────────────────▼──────┐                   │
-│  │  Prometheus Node Exporter (per node) │                   │
-│  └──────┬───────────────────────────────┘                   │
-└─────────┼───────────────────────────────────────────────────┘
-          │
-          │ Scrape (15-30s interval)
-          ▼
-┌─────────────────────────────────────────────────────────────┐
-│              GaryPC (Docker Node)                            │
-│                                                              │
-│  ┌──────────────────────────────────────────────────┐      │
-│  │           Prometheus                             │      │
-│  │  - Scrapes K8s API and node exporters           │      │
-│  │  - Local TSDB (15 day retention)                │      │
-│  │  - Remote write → Elasticsearch                 │      │
-│  └──────┬───────────────────────┬──────────────────┘      │
-│         │                       │                          │
-│         │ Remote Write          │                          │
-│         ▼                       │                          │
-│  ┌──────────────┐               │                          │
-│  │ Elasticsearch│               │                          │
-│  │ (ILM Downsamp)│               │                          │
-│  └──────────────┘               │                          │
-│                                 │                          │
-│  ┌──────────────────────────────▼──┐                      │
-│  │      Grafana Tempo              │                      │
-│  │  - Receives OTel spans          │                      │
-│  │  - Object storage backend       │                      │
-│  └──────┬───────────────────────┘                        │
-│         │                                                 │
-│         ▼                                                 │
-│  ┌─────────────────────────────────┐                    │
-│  │      Grafana                    │                    │
-│  │  - Prometheus datasource        │                    │
-│  │  - Tempo datasource             │                    │
-│  │  - Elasticsearch datasource     │                    │
-│  └─────────────────────────────────┘                    │
-│                                                          │
-│  ┌─────────────────────────────────┐                    │
-│  │   OTel Collector                │                    │
-│  │  - OTLP receiver (spans)        │                    │
-│  │  → Tempo exporter               │                    │
-│  └─────────────────────────────────┘                    │
-└──────────────────────────────────────────────────────────┘
+=================================================================
+||  Kubernetes Cluster (nodes)                                  ||
+||  ========================  ========================           ||
+||  || Lab1 (worker)       ||  || Lab2 (master)            ||   ||
+||  ||  +----------------+ ||  ||  +------------------------+||   ||
+||  ||  | kubelet        | ||  ||  | API Server (apiserver) |||   ||
+||  ||  | (metrics:10250)| ||  ||  | :6443                  |||   ||
+||  ||  +----------------+ ||  ||  | - discovery, proxy     |||   ||
+||  ||  +----------------+ ||  ||  |   to node metrics      |||   ||
+||  ||  | node-exporter  | ||  ||  +-----------+------------+||   ||
+||  ||  | (if deployed)  | ||  ||  | kubelet   | kube-state |||   ||
+||  ||  +----------------+ ||  ||  | :10250    | (if deploy)|||   ||
+||  ||                     ||  ||  +-----------+------------+||   ||
+||  ========================  ========================           ||
+||           ^                          ^                         ||
+||           | scrape (HTTPS, client cert)                        ||
+||           | discovery + node proxy via API Server              ||
+=================================================================
+             |
+             | Scrape (30s) + Remote Write
+             v
+=================================================================
+||  GaryPC (Docker host / observability node)                    ||
+||                                                               ||
+||  +------------------+     Remote Write (v2)                   ||
+||  | Prometheus       |     http://otel-collector:9201          ||
+||  | :9090            |----------------------+                  ||
+||  | - scrapes API     |                      v                  ||
+||  |   Server :6443   |     +--------------------------------+  ||
+||  | - node proxy via |     | OTel Collector                  |  ||
+||  |   API Server     |     | Inputs:  OTLP :4317/:4318       |  ||
+||  +------------------+     |          prometheusremotewrite  |  ||
+||                            |                 :9201           |  ||
+||  OTLP (traces)             | Outputs: Elasticsearch (traces,|  ||
+||  :4317 / :4318  ---------->|          metrics)              |  ||
+||  (Spark, etc.)             |          Tempo :4317 (traces)  |  ||
+||                            +-----------+--------+------------+  ||
+||                                       |        |                ||
+||  +------------------+                 v        v               ||
+||  | Tempo            |<-------- traces  |        | metrics      ||
+||  | :3200/:4317      |                  |        v               ||
+||  | (trace store)    |           +------+------+                 ||
+||  +------------------+           | Elasticsearch |               ||
+||                                 | (ILM, datastreams)            ||
+||  +------------------+           +---------------+              ||
+||  | Grafana          |----------- Prometheus, Tempo, ES         ||
+||  | :3000            |           datasources                     ||
+||  +------------------+                                           ||
+=================================================================
 ```
+
+**API Server**: The **Kubernetes API Server** (container/process on Lab2, port 6443) is the control-plane endpoint. Prometheus does **not** scrape it as “metrics from a box named API Server”; it uses the API Server for (1) **service discovery** (nodes, pods, endpoints) and (2) **proxy** to each node’s kubelet (`/api/v1/nodes/<name>/proxy/metrics`). So all scrape traffic from Prometheus to the cluster goes to **lab2.lan:6443** (API Server); the API Server then proxies to kubelets or to the API server’s own metrics endpoint (`default/kubernetes:https`).
 
 ## Component Details
 
@@ -158,12 +159,12 @@ This document outlines the architecture for integrating **Prometheus** (Kubernet
 
 **Data Flow**:
 ```
-Prometheus → Remote Write → Elasticsearch
-                                      ↓
-                              ILM Downsampling
-                                      ↓
-                              Hot → Warm → Cold → Delete
-                             (5m → 15m → 60m → 730d)
+Prometheus → Remote Write (v2) → OTel Collector (prometheusremotewrite) → Elasticsearch (metrics-kubernetes-default)
+                                                                                    ↓
+                                                                            ILM Downsampling
+                                                                                    ↓
+                                                                            Hot → Warm → Cold → Delete
+                                                                           (5m → 15m → 60m → 730d)
 ```
 
 ### 4. Downsampling Strategy
@@ -375,6 +376,81 @@ observability/elasticsearch/config/kubernetes-metrics/
 7. ⬜ Deploy and test integration
 8. ⬜ Import K8s dashboards into Grafana
 9. ⬜ Document operational procedures
+
+## Kubernetes metrics – what we collect and what’s needed for full telemetry
+
+Prometheus is configured with six scrape jobs for Kubernetes. Together they form the intended “full suite” of K8s telemetry; several jobs only yield targets if the cluster has the right components deployed.
+
+| Job | Purpose | Status / requirement |
+|-----|---------|----------------------|
+| **kubernetes-apiservers** | API server metrics (request rates, latency, etc.) | ✅ Working. Scrapes `default/kubernetes:https` via API server. |
+| **kubernetes-nodes** | Kubelet /metrics per node (node health, volume, runtime) | Fixed: now uses **API server proxy** (`lab2.lan:6443` → `/api/v1/nodes/<name>/proxy/metrics`). Was down when we targeted kubelet port 10250 directly (wrong host/path). Needs API server RBAC: `nodes`, `nodes/proxy` with `get`. |
+| **kubernetes-cadvisor** | Container metrics (CPU, memory, fs, network per container) | Same proxy as nodes; path `/metrics/cadvisor`. Requires same RBAC as nodes. |
+| **kubernetes-pods** | App metrics from pods that opt in | Only pods with `prometheus.io/scrape: "true"` (and optional port/path) become targets. No targets until you add the annotation. |
+| **kube-state-metrics** | Cluster object state (deployments, pods, nodes, etc.) | Requires **kube-state-metrics** deployed in the cluster (e.g. in `kube-system` with service `kube-state-metrics`). Job keeps only that endpoint. |
+| **node-exporter** | Host-level metrics (CPU, memory, disk, network) | Requires **node-exporter** DaemonSet with pods labeled `app=node-exporter`. Job discovers those pods. |
+| **prometheus** | Prometheus self-metrics | ✅ Working. |
+
+**Are all metrics currently being collected?** No. Only jobs that have at least one **target** produce samples. Jobs with **“No Targets”** do not produce any metrics until you add targets:
+
+- **kubernetes-pods**: No targets until some pod has `prometheus.io/scrape: "true"`. No metrics from this job until then.
+- **kube-state-metrics**: No targets until the service `kube-state-metrics` (e.g. in `kube-system`) is deployed. No metrics from this job until then.
+- **node-exporter**: No targets until a DaemonSet (or similar) runs pods with label `app=node-exporter`. No metrics from this job until then.
+
+So the jobs that **are** currently collecting are: **kubernetes-apiservers**, **kubernetes-nodes**, **kubernetes-cadvisor**, and **prometheus**. The other three jobs are configured but have zero targets until you deploy the components or add the annotations above.
+
+So we are **not** missing jobs in the config; we’re missing **cluster-side components and/or RBAC** for some of them. Summary:
+
+- **kubernetes-nodes (and cadvisor) down:** Caused by scraping the kubelet port (10250) with the API server proxy path. Fixed by sending scrapes to the **API server** (`lab2.lan:6443`) with path `/api/v1/nodes/<name>/proxy/metrics` (and `/metrics/cadvisor`). After fix, the API server proxies to the kubelet; same client cert works. Ensure the Prometheus service account (or the cert user) has RBAC for `nodes` and `nodes/proxy` (e.g. `get`).
+- **Full K8s telemetry** needs:
+  1. **API server proxy for nodes/cadvisor** – config change above.
+  2. **RBAC** – cluster role with `get` on `nodes` and `nodes/proxy` for the principal used by Prometheus (when using in-cluster SA) or equivalent for the client cert.
+  3. **kube-state-metrics** – deploy in the cluster so the `kube-state-metrics` job has a target.
+  4. **node-exporter** – deploy as a DaemonSet (and optional Service) so the `node-exporter` job has targets.
+  5. **kubernetes-pods** – add `prometheus.io/scrape: "true"` (and optionally port/path) to any pod that should expose app metrics.
+
+## Single datastream for all K8s metrics: is it correct? Best practice?
+
+**Yes.** Having a single Elasticsearch datastream, **`metrics-kubernetes-default`**, for all Prometheus Kubernetes metrics is correct and is the intended design. Prometheus remote write sends all scrape results (all jobs) to one endpoint; the OTel Collector’s `prometheusremotewrite` receiver receives them and the Elasticsearch exporter writes to a single `metrics_index` (metrics-kubernetes-default). Splitting by job would require either multiple remote-write endpoints or post-processing (e.g. Logstash/ingest) to route by `job`; a single datastream with a **job** dimension (as a label/field) is the usual and recommended approach. You filter by `labels.job` (or the ECS equivalent) in Kibana or Grafana. Benefits: one index template, one ILM policy, simpler operations, and all K8s metrics in one place for cross-job dashboards.
+
+## Elasticsearch field names for K8s metrics (by Prometheus job)
+
+All jobs write into the same datastream **metrics-kubernetes-default**. Each document is a metric sample. The **job** is stored as the Prometheus label `job`, which in Elastic appears under the **labels** object (or as a top-level attribute depending on OTel→ECS mapping). Below are the Elastic JSON field names that appear for Kubernetes metrics (from the index template and ECS/OTel mapping). Grouped by the Prometheus **job** that produces them:
+
+| Prometheus job | Elastic field names (common) | Notes |
+|----------------|------------------------------|--------|
+| **kubernetes-apiservers** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels` | `labels.job` = `kubernetes-apiservers`; often `kubernetes.namespace` = default, `kubernetes.service.name` = kubernetes. |
+| **kubernetes-nodes** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels`, `kubernetes.node.name` | `labels.job` = kubernetes-nodes; node in `labels.kubernetes_node` or `kubernetes.node.name`. |
+| **kubernetes-cadvisor** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels`, `kubernetes.node.name`, `kubernetes.pod.name`, `kubernetes.namespace` | `labels.job` = kubernetes-cadvisor; container/pod dimensions when present. |
+| **kubernetes-pods** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels`, `kubernetes.namespace`, `kubernetes.pod.name` | `labels.job` = kubernetes-pods; from pods with prometheus.io/scrape. |
+| **kube-state-metrics** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels`, `kubernetes.*` | `labels.job` = kube-state-metrics; deployment/service/node in labels or kubernetes.*. |
+| **node-exporter** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels`, `kubernetes.node.name`, `kubernetes.pod.name` | `labels.job` = node-exporter; host metrics per node. |
+| **prometheus** | `@timestamp`, `prometheus.metric.name`, `prometheus.metric.type`, `value`, `labels` | `labels.job` = prometheus, `labels.instance`. |
+
+**Common fields in every document** (from template and ECS mapping):
+
+- **`@timestamp`** (date): sample time
+- **`prometheus.metric.name`** (keyword): Prometheus metric name (e.g. `http_requests_total`, `container_cpu_usage_seconds_total`)
+- **`prometheus.metric.type`** (keyword): counter, gauge, etc.
+- **`value`** (float): numeric value
+- **`labels`** (object): all Prometheus labels, including **`labels.job`** (job name), **`labels.instance`**, **`labels.kubernetes_node`**, **`labels.kubernetes_namespace`**, **`labels.kubernetes_pod_name`**, and any other labels from the scrape
+
+**Kubernetes-specific ECS fields** (when present): **`kubernetes.namespace`**, **`kubernetes.pod.name`**, **`kubernetes.pod.uid`**, **`kubernetes.node.name`**, **`kubernetes.service.name`**, **`kubernetes.deployment.name`**. These are populated when the OTel exporter maps resource attributes from the Prometheus labels into ECS Kubernetes fields.
+
+To see only one job in Kibana: filter on **`labels.job`** (or **`prometheus.labels.job`** if nested) equals e.g. `kubernetes-apiservers` or `kubernetes-nodes`.
+
+## Kubernetes metrics – validation and troubleshooting
+
+- **Remote write path:** Prometheus is configured to send metrics to the OTel Collector (`prometheusremotewrite` receiver on port 9201), which exports to Elasticsearch index `metrics-kubernetes-default`. The legacy `prometheus-es-adapter` is not used because it creates an ES 5–style index template and fails on Elasticsearch 8.
+- **415 Unsupported Media Type:** The OTel `prometheusremotewrite` receiver only supports Remote Write **v2**. If Prometheus sends v1 (default), the receiver returns 415. In `prometheus.yml`, `send_native_histograms: true` and `protobuf_message: io.prometheus.write.v2.Request` are set to request v2; if the running Prometheus still sends v1, no samples will reach Elasticsearch until Prometheus supports and uses v2 for this endpoint.
+- **K8s scrape failures:** All Kubernetes scrape jobs (apiservers, nodes, pods, kube-state-metrics, node-exporter) require client TLS under `/etc/ssl/certs/kubernetes/` (`ca.crt`, `client.crt`, `client.key`). This is **not** the same as the Elastic CA: Prometheus has two cert mounts—`certs:/etc/ssl/certs/elastic` (Elastic CA) and `./k8s-certs:/etc/ssl/certs/kubernetes` (K8s API client certs). The observability deploy playbook populates `k8s-certs` from the Kubernetes master (e.g. Lab2) when `kubernetes_master` is in inventory; the path is relative to the compose project directory on the observability host.
+
+**To validate K8s metrics in Elastic:** (1) Mount K8s client certs into the Prometheus container and confirm K8s targets are up in the Prometheus UI. (2) Ensure remote write uses v2 (check Prometheus logs for 415; if present, fix Prometheus config or receiver compatibility). (3) In Kibana, open the `metrics-kubernetes-default` data view (or index) and confirm recent `@timestamp` and metric names.
+
+## Version recommendations
+
+- **Prometheus:** Use **Prometheus 3.8.0 or later** when sending metrics to Elastic via the OpenTelemetry Collector’s Prometheus remote write receiver. OTel contrib v0.142.0+ expects **Remote Write 2.0**; Prometheus 3.8+ supports the v2 protocol. Pin the image in `docker-compose.yml` (e.g. `prom/prometheus:v3.8.0`) to avoid regressions.
+- **Elasticsearch / Elastic Stack:** Use **Elasticsearch 8.x** (e.g. 8.15+ or 8.16+) for production. For Prometheus remote write via OTel, **Elasticsearch 9.x** (and Kibana 9.0+) offers the best integration (Prometheus integration GA), but 8.x works with the OTel Collector path. Stay on a supported 8.x release that matches your Elastic Agent and Beats versions.
 
 ## References
 

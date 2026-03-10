@@ -1,0 +1,126 @@
+---
+# Prometheus Sub-Playbook: Uninstall
+#
+# Removes Prometheus-related components:
+#   - Stops Prometheus and OTel Collector containers
+#   - Removes node-exporter DaemonSet from monitoring namespace
+#   - Removes kube-state-metrics Deployment + RBAC from kube-system
+#   - Optionally removes the monitoring namespace entirely
+#
+# Can be run standalone or is imported by the top-level uninstall.yml:
+#   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/prometheus/uninstall.yml
+#
+# Variables:
+#   remove_monitoring_namespace: true/false (default false - preserves namespace)
+#   skip_confirmation: true/false (default false)
+
+# =========================================================================
+# PLAY 1: Stop Prometheus and OTel Collector containers
+# =========================================================================
+- name: Prometheus - Stop containers
+  hosts: observability
+  become: false
+  gather_facts: true
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+    skip_confirmation: false
+
+  tasks:
+    - name: Detect host OS
+      set_fact:
+        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+
+    - name: Confirm Prometheus uninstall
+      pause:
+        prompt: |
+          This will stop Prometheus and OTel Collector containers AND remove
+          node-exporter and kube-state-metrics from the Kubernetes cluster.
+          All K8s metrics will stop flowing to Elasticsearch.
+
+          Press ENTER to continue, Ctrl+C to cancel
+      when: not (skip_confirmation | bool)
+
+    - name: Stop Prometheus container
+      command: docker compose stop prometheus
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      failed_when: false
+
+    - name: Stop OTel Collector container
+      command: docker compose stop otel-collector
+      args:
+        chdir: "{{ observability_dir }}"
+      when: is_linux
+      failed_when: false
+
+# =========================================================================
+# PLAY 2: Remove K8s exporter deployments from cluster
+# =========================================================================
+- name: Prometheus - Remove K8s exporters
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+  vars:
+    remove_monitoring_namespace: false
+    k8s_monitoring_dir: "/tmp/spark-observability-k8s-monitoring"
+    manifests_src: "{{ playbook_dir }}/../../../../k8s/monitoring"
+
+  tasks:
+    - name: Check kubectl is available
+      command: kubectl version --client --output=yaml
+      register: kubectl_check
+      changed_when: false
+      failed_when: kubectl_check.rc != 0
+
+    - name: Remove node-exporter DaemonSet and Service
+      shell: |
+        kubectl delete daemonset node-exporter -n monitoring --ignore-not-found=true
+        kubectl delete service node-exporter -n monitoring --ignore-not-found=true
+      register: ne_delete
+      changed_when: "'deleted' in ne_delete.stdout"
+      failed_when: false
+
+    - name: Remove kube-state-metrics Deployment and Service
+      shell: |
+        kubectl delete deployment kube-state-metrics -n kube-system --ignore-not-found=true
+        kubectl delete service kube-state-metrics -n kube-system --ignore-not-found=true
+      register: ksm_delete
+      changed_when: "'deleted' in ksm_delete.stdout"
+      failed_when: false
+
+    - name: Remove kube-state-metrics RBAC
+      shell: |
+        kubectl delete clusterrolebinding kube-state-metrics --ignore-not-found=true
+        kubectl delete clusterrole kube-state-metrics --ignore-not-found=true
+        kubectl delete serviceaccount kube-state-metrics -n kube-system --ignore-not-found=true
+      register: ksm_rbac_delete
+      changed_when: "'deleted' in ksm_rbac_delete.stdout"
+      failed_when: false
+
+    - name: Remove monitoring namespace (optional)
+      command: kubectl delete namespace monitoring --ignore-not-found=true
+      when: remove_monitoring_namespace | bool
+      register: ns_delete
+      changed_when: "'deleted' in ns_delete.stdout"
+      failed_when: false
+
+    - name: Display uninstall summary
+      debug:
+        msg: |
+          Prometheus K8s Exporters Removed
+          =================================
+          node-exporter:      {{ ne_delete.stdout | default('removed') | trim }}
+          kube-state-metrics: {{ ksm_delete.stdout | default('removed') | trim }}
+          RBAC:               {{ ksm_rbac_delete.stdout | default('removed') | trim }}
+          monitoring ns:      {{ 'removed' if (remove_monitoring_namespace | bool) else 'preserved (pass -e remove_monitoring_namespace=true to remove)' }}
+
+          To redeploy:
+            ansible-playbook -i ansible/inventory.yml \
+              ansible/playbooks/observability/prometheus/deploy.yml
+
+    - name: Clean up staging directory
+      file:
+        path: "/tmp/spark-observability-k8s-monitoring"
+        state: absent
+      failed_when: false

@@ -265,22 +265,20 @@ Certificates follow a dual-path architecture to support both Elasticsearch's nat
 | **Elastic Agent (Linux)** | `/etc/ssl/certs/elastic/ca.crt` | N/A (host process) | Access |
 | **Elastic Agent (Windows)** | `C:\Program Files\Elastic\Agent\ca.crt` | N/A (host process) | Access |
 
-#### Certificate Flow
+#### Certificate Flow (pull-based)
 
 1. **Generation** (init-certs service):
-   - Certificates generated into Docker volume `certs:` at `/usr/share/elasticsearch/config/certs/`
-   - CA certificate copied to `/etc/ssl/certs/elastic/ca.crt` for distribution
+   - Certificates generated into Docker volume `certs:` at `/usr/share/elasticsearch/config/certs/` (CA at `ca/ca.crt` and `ca.crt` at volume root).
 
 2. **Distribution**:
-   - **To Native Linux hosts**: Copied via Ansible to `/etc/ssl/certs/elastic/ca.crt`
-   - **To WSL/Windows**: Available at `/mnt/c/Volumes/certs/Elastic/ca.crt` (Windows path)
-   - **To Containers**: Mounted from Docker volume or Windows path
+   - **Single source of truth**: Docker volume on observability host. No separate publish to a host path.
+   - **To Native Linux hosts**: Each app's install/start playbook fetches CA from the observability host's Docker volume; start playbooks test currency (hash) and re-fetch if stale. Local path: `/etc/ssl/certs/elastic/ca.crt`.
+   - **To Containers**: Mounted from Docker volume `certs:` (e.g. at `/etc/ssl/certs/elastic`).
 
 3. **Usage**:
-   - **Elasticsearch**: Reads from Docker volume at `/usr/share/elasticsearch/config/certs/`
-   - **Other container services**: Read CA certificate from `/etc/ssl/certs/elastic/ca.crt`
-   - **Elastic Agent (Linux)**: Reads CA certificate from `/etc/ssl/certs/elastic/ca.crt` (copied via Ansible)
-   - **Elastic Agent (Windows)**: Reads CA certificate from `C:\Program Files\Elastic\Agent\ca.crt` (copied via Ansible)
+   - **Elasticsearch**: Reads from Docker volume at `/usr/share/elasticsearch/config/certs/`.
+   - **Other container services**: Mount certs volume; read CA from `/etc/ssl/certs/elastic/ca.crt`.
+   - **Elastic Agent (Linux)**: Reads from `/etc/ssl/certs/elastic/ca.crt` (fetched from volume by install.yml; start.yml refreshes when stale). See `docs/CA_CERTIFICATE_ARCHITECTURE.md`.
 
 #### Kubernetes Certificates
 

@@ -83,4 +83,10 @@
           To delete volumes: ansible-playbook playbooks/observability/stop.yml -e delete_volumes=true
           {% endif %}
           
+          Note: K8s exporters (node-exporter, kube-state-metrics) continue running in
+          the cluster. They will resume sending metrics when Prometheus restarts.
+          To remove them from the cluster:
+            ansible-playbook -i ansible/inventory.yml \
+              ansible/playbooks/observability/prometheus/uninstall.yml
+          
           To restart, run: ansible-playbook playbooks/observability/start.yml

@@ -597,9 +597,9 @@ curl -k -u elastic:pass https://GaryPC.local:9200/batch-events-*/_search \
      ansible/playbooks/nfs/install.yml
    ```
 
-2. **Elasticsearch CA Certificate:**
-   - Distributed from: `/mnt/c/Volumes/certs/Elastic/ca.crt` (GaryPC)
-   - Deployed to: `/etc/ssl/certs/elastic/ca.crt` (Lab1, Lab2)
+2. **Elasticsearch CA Certificate (pull-based):**
+   - Source: Docker volume (certs) on observability host; fetch in install.yml and in start.yml when stale (currency test by hash)
+   - Deployed to: `/etc/ssl/certs/elastic/ca.crt` (Lab1, Lab2). See `docs/CA_CERTIFICATE_ARCHITECTURE.md`.
 
 3. **Environment Variables:**
    - Defined in: `vars/contexts/ansible/spark_vars.yml`
@@ -690,15 +690,8 @@ x509: certificate signed by unknown authority
 
 **Solution:**
 ```bash
-# Update certificate on managed nodes
-ansible Lab1,Lab2 -m copy \
-  -a "src=/mnt/c/Volumes/certs/Elastic/ca.crt dest=/etc/ssl/certs/elastic/ca.crt" \
-  --become
-
-# Restart agents
-ansible Lab1,Lab2 -m systemd \
-  -a "name=elastic-agent state=restarted" \
-  --become
+# Re-run start (currency check will re-fetch CA from observability volume and restart agent)
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml --limit native
 ```
 
 #### 2. YAML Indentation Errors

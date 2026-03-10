@@ -216,9 +216,8 @@ ansible Lab2 -m shell -a "sudo tail -200 /var/log/elastic-agent/elastic-agent-*.
 # Validate YAML
 yamllint elastic-agent/elastic-agent.linux.yml.j2
 
-# Update certificate
-ansible Lab1,Lab2 -m copy -a "src=/mnt/c/Volumes/certs/Elastic/ca.crt dest=/etc/ssl/certs/elastic/ca.crt" --become
-ansible Lab1,Lab2 -m systemd -a "name=elastic-agent state=restarted" --become
+# Update certificate (pull-based: re-run start to test currency and re-fetch from observability volume)
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml --limit native
 ```
 
 ### Duplicate Event Collection
