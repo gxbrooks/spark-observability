@@ -760,6 +760,7 @@ actual in-use memory/CPU comes from cAdvisor.
 | `apiserver_request_duration_seconds` not found | Histogram family — search for the suffix variants: `apiserver_request_duration_seconds_count : *` | See histogram naming convention section above |
 | `kube_pod_container_resource_limits` absent even after KSM deployed | KSM only emits this when pods have explicit `resources.limits` in their spec; Spark pods without limits produce no documents | Set limits via Spark config: `spark.kubernetes.executor.limit.cores`, `spark.executor.memoryOverheadFactor` |
 | Any metric from `kubernetes-nodes` or `kubernetes-cadvisor` missing | K8s API server TLS certs not copied to observability host, or Prometheus cannot reach `lab2.lan:6443` | Rerun `observability/deploy.yml`; verify `ops/observability/k8s-certs/` has `ca.crt`, `client.crt`, `client.key` |
+| `kube_pod_status_phase` missing in recent data (last N hours) while other kube-state-metrics (e.g. `kube_pod_status_reason`, `kube_pod_container_resource_*`) are present | OTel Collector Elasticsearch exporter or Prometheus remote write may not be persisting this metric to the current backing index. Prometheus has the series (check `count(kube_pod_status_phase)`). | Restart Prometheus and OTel Collector; ensure `kubernetes-metrics.template.json` includes explicit `kube_pod_status_phase` (float) and `phase` (keyword) mappings; run diagnose playbook with `service.name.keyword` for ES counts. |
 
 ---
 

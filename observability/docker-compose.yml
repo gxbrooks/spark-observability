@@ -321,6 +321,10 @@ services:
 
   # Prometheus remote write adapter: receives Prometheus remote write and indexes to Elasticsearch
   prometheus-es-adapter:
+    # DISABLED: incompatible with ES 8.x mapping API (mapper_parsing_exception on root-level 'sample' mapping).
+    # Prometheus metrics are now forwarded via OTel Collector prometheusremotewrite receiver (port 9201).
+    # Preserved here for reference. To start manually: docker compose --profile legacy up prometheus-es-adapter
+    profiles: ["legacy"]
     image: pwillie/prometheus-es-adapter:latest
     container_name: prometheus-es-adapter
     labels:

@@ -162,7 +162,7 @@
                     "@timestamp":
                       gte: "now-{{ recent_timeframe_minutes }}m"
                 - term:
-                    "service.name": "node-exporter"
+                    "service.name.keyword": "node-exporter"
         user: "elastic"
         password: "{{ ES_PASSWORD | default('myElastic2025') }}"
         timeout: "{{ timeout_seconds }}"
@@ -184,7 +184,7 @@
                     "@timestamp":
                       gte: "now-{{ recent_timeframe_minutes }}m"
                 - term:
-                    "service.name": "kube-state-metrics"
+                    "service.name.keyword": "kube-state-metrics"
         user: "elastic"
         password: "{{ ES_PASSWORD | default('myElastic2025') }}"
         timeout: "{{ timeout_seconds }}"
@@ -195,11 +195,9 @@
 
     - name: Check for key priority metrics via Prometheus instant query
       uri:
-        url: "http://GaryPC:9090/api/v1/query"
+        url: "http://GaryPC:9090/api/v1/query?query={{ item.query | urlencode }}"
         method: GET
         timeout: "{{ timeout_seconds }}"
-      args:
-        url: "http://GaryPC:9090/api/v1/query?query={{ item.query | urlencode }}"
       register: prom_metric_check
       loop:
         - { name: "node_cpu_seconds_total",                  query: "count(node_cpu_seconds_total)" }

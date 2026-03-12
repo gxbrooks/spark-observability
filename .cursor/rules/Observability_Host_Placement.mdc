@@ -1,0 +1,19 @@
+---
+Description: Deployment targets and playbooks; where stacks run. Architecture is defined in inventory.
+alwaysApply: true
+---
+
+**Read `ansible/inventory.yml` for host groups and where each stack runs.** Use playbooks under `ansible/playbooks/` and target hosts according to the inventory. As inventory changes, follow it for deployment and run locations.
+
+**Stacks and run locations (from inventory):**
+
+- **Observability stack** (Elasticsearch, Kibana, Grafana, Prometheus, OTel Collector, Logstash, Tempo, etc.)
+  - **Runs only on:** the **observability** host group. In inventory this is **GaryPC-WSL** (ansible_host: GaryPC.lan, port 2222).
+  - **Playbooks:** `ansible/playbooks/observability/*.yml` and `ansible/playbooks/observability/prometheus/*.yml` (e.g. deploy.yml, start.yml, stop.yml, diagnose.yml).
+  - **Do NOT** run observability Docker Compose or observability playbooks on Lab2, Lab1, or any host outside the **observability** group. When running observability commands or playbooks, use `--limit observability` or target the observability host.
+
+- **Spark / Kubernetes stack** (K8s cluster, Spark workloads, node-exporter, kube-state-metrics, Jupyter, NFS, Hadoop where applicable)
+  - **Runs on:** **spark_kubernetes** (kubernetes_master: Lab2; kubernetes_workers: Lab2, Lab1) and related groups (nfs_servers, hadoop, jupyter_servers, docker_build_hosts on Lab2/Lab1).
+  - **Playbooks:** `ansible/playbooks/k8s/*.yml`, `ansible/playbooks/spark/*.yml`, `ansible/playbooks/jupyter/*.yml`, `ansible/playbooks/nfs/*.yml`, etc.
+
+**When deploying or starting/stopping stacks:** re-read `ansible/inventory.yml` and use the appropriate playbook and host limit so each stack runs only where the inventory specifies.

@@ -1,0 +1,406 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Kubernetes resource usage and health by namespace. Follows SRE Four Golden Signals: Traffic (network bytes), Errors (restarts, packet drops), Saturation (CPU, memory, disk, pod count).",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 50,
+      "title": "── Saturation ──────────────────────────────────────────────────────────────────",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "CPU utilization per namespace (0–100%). Derivative of container_cpu_usage_seconds_total (cores in use) is filtered to non-negative only and capped at 100 (1 core = 1% on a 100-core baseline). SRE signal: Saturation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "CPU Utilization %",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND cpu.keyword:total",
+          "alias": "{{term namespace.keyword}}",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "container_cpu_usage_seconds_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? (params._value > 100 ? 100 : params._value) : null" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" } ] }
+          ],
+          "bucketAggs": [
+            { "id": "4", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "CPU Utilization by Namespace (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Total memory working set (active RSS + anonymous pages) across all containers per namespace. Unlike memory limit, working set cannot be reclaimed without pressure. Source: cAdvisor `container_memory_working_set_bytes`. SRE signal: Saturation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Memory",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND container_memory_working_set_bytes:*",
+          "alias": "{{term namespace.keyword}}",
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "container_memory_working_set_bytes" }
+          ],
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Memory Working Set by Namespace",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Count of pods in Running phase per namespace. Normalized by number of scrapes per bucket (sum / cardinality of @timestamp) so double scrapes in one interval no longer show as spikes. Source: kube-state-metrics kube_pod_status_phase (phase=Running). SRE signal: Availability / Saturation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Pods",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "spanNulls": true,
+            "showPoints": "never",
+            "lineInterpolation": "smooth"
+          },
+          "unit": "short",
+          "min": 0,
+          "nullValueMode": "null"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kube-state-metrics AND kube_pod_status_phase:* AND phase:Running",
+          "alias": "{{term namespace.keyword}}",
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "kube_pod_status_phase", "hide": true },
+            { "id": "2", "type": "cardinality", "field": "@timestamp", "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "1", "settings": { "script": "params._sum != null && params._card != null && params._card > 0 ? params._sum / params._card : params._sum" }, "pipelineVariables": [ { "name": "_sum", "pipelineAgg": "1" }, { "name": "_card", "pipelineAgg": "2" } ] }
+          ],
+          "bucketAggs": [
+            { "id": "4", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": "1" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Running Pod Count by Namespace",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Rate of container restarts per namespace. Each restart indicates a crash, OOM kill, or liveness probe failure. A non-zero rate is the strongest error signal in Kubernetes. Source: kube-state-metrics `kube_pod_container_status_restarts_total`. SRE signal: Errors.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Restarts/interval",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "spanNulls": true
+          },
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kube-state-metrics AND kube_pod_container_status_restarts_total:*",
+          "alias": "{{term namespace.keyword}}",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "kube_pod_container_status_restarts_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" } }
+          ],
+          "bucketAggs": [
+            { "id": "3", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "4", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Container Restart Rate by Namespace",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 51,
+      "title": "── Traffic (Network) ──────────────────────────────────────────────────────────",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Envelope: receives (Rx) negative, transmits (Tx) positive. Bytes/sec by namespace (eth0, loopback excluded). Source: cAdvisor container_network_*_bytes_total. SRE signal: Traffic.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Bytes/sec",
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "lineWidth": 1,
+            "spanNulls": true,
+            "showPoints": "never",
+            "axisCenteredZero": true
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND container_network_receive_bytes_total:* AND interface.keyword:eth0",
+          "alias": "{{term namespace.keyword}} In",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "container_network_receive_bytes_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+          ],
+          "bucketAggs": [
+            { "id": "4", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND container_network_transmit_bytes_total:* AND interface.keyword:eth0",
+          "alias": "{{term namespace.keyword}} Out",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "container_network_transmit_bytes_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+          ],
+          "bucketAggs": [
+            { "id": "4", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Network Byte Rate by Namespace (In/Out)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Rate of network packets dropped on receive per namespace. SRE signal: Errors.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "Packets/interval", "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "spanNulls": true },
+          "unit": "pps",
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 100 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND container_network_receive_packets_dropped_total:* AND interface.keyword:eth0",
+          "alias": "{{term namespace.keyword}} drops",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "container_network_receive_packets_dropped_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" } }
+          ],
+          "bucketAggs": [
+            { "id": "3", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "4", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Network Packet Drop Rate by Namespace",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "id": 52,
+      "title": "── Errors & Disk ───────────────────────────────────────────────────────────────",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Envelope: read rate negative, write rate positive. Per-namespace filesystem byte rate. Source: cAdvisor container_fs_*_bytes_total. SRE signal: Saturation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Bytes/sec",
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "lineWidth": 1,
+            "spanNulls": true,
+            "showPoints": "never",
+            "axisCenteredZero": true
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND container_fs_reads_bytes_total:*",
+          "alias": "{{term namespace.keyword}} Read",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "container_fs_reads_bytes_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+          ],
+          "bucketAggs": [
+            { "id": "4", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "query": "service.name.keyword:kubernetes-cadvisor AND container_fs_writes_bytes_total:*",
+          "alias": "{{term namespace.keyword}} Write",
+          "metrics": [
+            { "id": "1", "type": "max", "field": "container_fs_writes_bytes_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+          ],
+          "bucketAggs": [
+            { "id": "4", "type": "terms", "field": "namespace.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Disk I/O Rate by Namespace (Read/Write)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["kubernetes", "namespace", "k8s", "sre"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "K8s by Namespace",
+  "uid": "k8s-namespace",
+  "version": 1
+}
