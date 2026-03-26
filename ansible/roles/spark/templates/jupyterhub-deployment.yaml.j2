@@ -56,6 +56,13 @@ spec:
             - |
               # Install additional packages
               pip install --quiet ipywidgets jupyter-spark
+              # Optional: bootstrap CS224N environment and kernel if artifacts exist
+              if [ -x /home/jovyan/work/CS224N/bootstrap_cs224n.sh ]; then
+                echo "Detected CS224N bootstrap script, configuring environment..."
+                /home/jovyan/work/CS224N/bootstrap_cs224n.sh || echo "WARNING: CS224N bootstrap failed; continuing startup"
+              else
+                echo "No CS224N bootstrap script found; starting base Jupyter environment"
+              fi
               
               # Configure PySpark for Jupyter
               export PYSPARK_DRIVER_PYTHON=jupyter

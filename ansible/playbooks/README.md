@@ -134,6 +134,10 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 - `stop.yml` - Stop Spark components
 - `status.yml` - Check Spark cluster status
 
+### CS224N (`CS224N/`)
+- `deploy.yml` - Stage CS224N artifacts and redeploy Jupyter with cs224n bootstrap
+- `undeploy.yml` - Remove cs224n kernel/env and staged artifacts
+
 ### Elastic Agent (`elastic-agent/`)
 - `install.yml` - Install Elastic Agent on hosts (includes cert distribution and setup)
 - `uninstall.yml` - Remove Elastic Agent

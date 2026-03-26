@@ -1,0 +1,43 @@
+---
+- name: Stage CS224N artifacts for Jupyter
+  hosts: jupyter_servers
+  become: true
+  vars:
+    cs224n_src_dir: "{{ playbook_dir | dirname | dirname | dirname }}/spark/apps/CS224N"
+    cs224n_dest_dir: "/mnt/spark/jupyter/notebooks/CS224N"
+  tasks:
+    - name: Ensure CS224N destination directory exists
+      file:
+        path: "{{ cs224n_dest_dir }}"
+        state: directory
+        owner: "1000"
+        group: "100"
+        mode: "0755"
+
+    - name: Copy CS224N artifacts to Jupyter workspace
+      copy:
+        src: "{{ cs224n_src_dir }}/"
+        dest: "{{ cs224n_dest_dir }}/"
+        owner: "1000"
+        group: "100"
+        mode: "0644"
+
+    - name: Ensure CS224N bootstrap script is executable
+      file:
+        path: "{{ cs224n_dest_dir }}/bootstrap_cs224n.sh"
+        mode: "0755"
+        owner: "1000"
+        group: "100"
+
+- import_playbook: ../jupyter/deploy_jupyter.yml
+
+- name: Restart JupyterHub so bootstrap runs
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  tasks:
+    - name: Rollout restart JupyterHub deployment
+      command: kubectl rollout restart deployment/jupyterhub -n spark
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"

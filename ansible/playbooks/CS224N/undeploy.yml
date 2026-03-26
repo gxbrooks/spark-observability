@@ -1,0 +1,47 @@
+---
+- name: Deactivate CS224N in running Jupyter pod
+  hosts: kubernetes_master
+  become: false
+  vars:
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  tasks:
+    - name: Check if JupyterHub pod exists
+      command: kubectl get pods -n spark -l app=jupyterhub --no-headers
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: jupyter_pods
+      changed_when: false
+      failed_when: false
+
+    - name: Get current JupyterHub pod name
+      command: kubectl get pods -n spark -l app=jupyterhub -o jsonpath='{.items[0].metadata.name}'
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: jupyter_pod_name
+      changed_when: false
+
+    - name: Remove CS224N env and kernel from running Jupyter pod
+      command: >
+        kubectl exec -n spark {{ jupyter_pod_name.stdout | trim }} -- /bin/bash -lc
+        "rm -rf /home/jovyan/.cs224n/venv || true;
+         jupyter kernelspec uninstall -f cs224n || true;
+         rm -f /home/jovyan/.cs224n_env_hash || true"
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      when: jupyter_pods.stdout | length > 0
+      register: deactivate_runtime
+      changed_when: true
+
+    - name: Display runtime deactivation result
+      debug:
+        msg: "{{ deactivate_runtime.stdout | default('No running Jupyter pod found; skipped runtime cleanup.') }}"
+- name: Remove staged CS224N artifacts
+  hosts: jupyter_servers
+  become: true
+  tasks:
+    - name: Remove CS224N artifacts directory from shared Jupyter workspace
+      file:
+        path: /mnt/spark/jupyter/notebooks/CS224N
+        state: absent
+
+- import_playbook: ../jupyter/deploy_jupyter.yml
