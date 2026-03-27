@@ -60,7 +60,7 @@ if ! dpkg -l | grep -q openssh-client; then
     else
         $DEBUG && echo "Installing: OpenSSH client..."
         sudo apt update
-        sudo apt install -y openssh-clientecho "Installing: OpenSSH client..."
+        sudo apt install -y openssh-client
         echo "Result    : OpenSSH client installed."
     fi
 else

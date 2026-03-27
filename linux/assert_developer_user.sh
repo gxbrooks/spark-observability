@@ -9,10 +9,6 @@
 #             - Docker group membership (for Docker daemon access)
 #             - Spark group membership (for Spark process access)
 #             - Elastic-Agent group membership
-#             - /mnt/c/Volumes shared directory (Windows/WSL cross-platform path)
-#
-# Note    : /mnt/c/Volumes is WSL-specific. This script should only be run
-#           in WSL or other environments where that path is meaningful.
 #
 # This script is idempotent and can be run multiple times safely.
 
@@ -108,20 +104,3 @@ else
     fi
 fi
 
-# Setup a Volumes partition that can be used across Windows and Linux
-# This is needed for Docker container paths with Elastic Agent that
-# can use the same pathnames (/mnt/c/Volumes) across Windows or Linux
-# in one docker-compose.yml file.
-$DEBUG && echo "Setting up cross-platform volumes directory"
-if $CHECK; then
-    if [ -d "/mnt/c/Volumes" ] && [ -w "/mnt/c/Volumes" ]; then
-        echo "Check    : /mnt/c/Volumes exists and is writable by $USERNAME"
-    else
-        echo "Check    : /mnt/c/Volumes needs to be created or permissions fixed"
-    fi
-else
-    sudo mkdir -p /mnt/c/Volumes
-    sudo chown "${USERNAME}:${USERNAME}" /mnt/c/Volumes
-    sudo chmod 775 /mnt/c/Volumes   # rwxrwxr-x
-    echo "Info    : /mnt/c/Volumes is ready with user-write permissions for $USERNAME"
-fi

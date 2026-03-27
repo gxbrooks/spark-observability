@@ -9,15 +9,13 @@
 # Purpose : Installs and configures the full devops client toolchain:
 #             - Required packages (ansible-core, jq, maven, etc.)
 #             - Java (OpenJDK)
-#             - Git global config
-#             - SSH client keys and Git client keys
+#             - SSH client prerequisites for Ansible workflows
 #             - Bash environment links
 #             - Python venv with PySpark pinned to cluster version
 #             - Spark client apps
 #             - Spark events mount
 #             - Grafana build utilities
 #             - Developer user group memberships (docker, spark, elastic-agent)
-#             - Shared cross-platform volume (/mnt/c/Volumes)
 #
 # Out of scope (handled by assert_managed_node.sh):
 #             - SSH server configuration
@@ -64,12 +62,6 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-
-if [[ -z "$PASSPHRASE" ]]; then
-  echo "Error: Passphrase is mandatory passphrase to access securing keys. Use the -N (-p) option to specify it." >&2
-  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]"  >&2
-  exit 1
-fi
 
 # Set the 'dir' variable to the directory of this script
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -121,7 +113,7 @@ fi
 
 if $DEBUG; then
   echo "Debug   : root_dir = $root_dir"
-  echo "Debug   : PASSPHRASE = [REDACTED]"
+  [[ -n "$PASSPHRASE" ]] && echo "Debug   : PASSPHRASE = [DEPRECATED ARG PROVIDED]"
   echo "Debug   : CHECK = $CHECK"
   echo "Debug   : PYTHON_VERSION = $PYTHON_VERSION"
   echo "Debug   : JAVA_VERSION = $JAVA_VERSION"
@@ -154,32 +146,20 @@ if ! $CHECK && [[ -n "$JAVA_VERSION" ]]; then
   fi
 fi
 
-# Configure Git if not already configured
-if ! $CHECK; then
-  current_email=$(git config --global user.email 2>/dev/null || echo "")
-  if [[ -z "$current_email" ]]; then
-    echo "Info    : Configuring Git user..."
-    git config --global user.email "gxbrooks@gmail.com"
-    git config --global user.name "Gary Brooks"
-  else
-    echo "Info    : Git already configured (user: $current_email)"
-  fi
+if [[ -z "$PASSPHRASE" ]] && ! $CHECK; then
+  echo "Error: Passphrase is mandatory to generate/access SSH keys. Use the -N (-p) option to specify it." >&2
+  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]"  >&2
+  exit 1
 fi
 
 $root_dir/ssh/install_ssh_client.sh \
   $(append_flag "--Check" "$CHECK") \
   $(append_flag "--Debug" "$DEBUG")
 
-$root_dir/ssh/enable_user_for_git_client.sh \
-    --User "$USER" \
-    --Passphrase "$PASSPHRASE" \
-    $(append_flag "--Check" "$CHECK") \
-    $(append_flag "--Debug" "$DEBUG")
-
 $root_dir/ssh/enable_user_for_ssh_client.sh \
     --User "$USER" \
     --Passphrase "$PASSPHRASE" \
-    $(append_flag "--Check" "$CHECK")\
+    $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
 # link into the users bash environment

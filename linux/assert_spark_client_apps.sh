@@ -318,7 +318,7 @@ check_spark_connectivity() {
 check_batch_apps() {
     $DEBUG && echo "Debug   : Checking batch application capability..."
     
-    local apps_dir="${root_dir}/spark/apps"
+    local apps_dir="${root_dir}/spark/apps/data-analysis-book/"
     
     if [ -d "$apps_dir" ]; then
         local app_count=$(find "$apps_dir" -maxdepth 1 -name "Chapter_*.py" 2>/dev/null | wc -l)
