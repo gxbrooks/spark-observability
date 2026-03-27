@@ -9,7 +9,7 @@
 #
 # This script is the client-side equivalent of the venv setup steps in
 # assert_devops_client.sh. Use it when:
-#   - The venv was created under a different project path (elastic-on-spark → spark-observability)
+#   - The venv was created under a different project path (spark-observability → spark-observability)
 #   - The Python version has changed
 #   - The venv is corrupt or packages are missing/mismatched
 #
@@ -82,8 +82,8 @@ if ${CHECK}; then
     echo "Venv exists:   ${VENV_DIR}"
     echo "Python ver:    ${CURRENT_VER} (required: ${PYTHON_VERSION})"
     echo "VIRTUAL_ENV:   ${CURRENT_VENV}"
-    if grep -q "elastic-on-spark" "${VENV_DIR}/bin/activate" 2>/dev/null; then
-      echo "WARNING: activate script still references elastic-on-spark path → run without --check to fix"
+    if grep -q "spark-observability" "${VENV_DIR}/bin/activate" 2>/dev/null; then
+      echo "WARNING: activate script still references spark-observability path → run without --check to fix"
     fi
     PY_INSTALLED=$("${VENV_DIR}/bin/python" -c "import pyspark; print(pyspark.__version__)" 2>/dev/null || echo "not installed")
     echo "PySpark:       ${PY_INSTALLED} (required: ${SPARK_VERSION})"
@@ -165,11 +165,11 @@ echo "PySpark:       ${INSTALLED_SP}"
 echo "NumPy:         ${INSTALLED_NP}"
 echo "VIRTUAL_ENV:   ${VIRTUAL_ENV_VAL}"
 
-OLD_REFS=$(grep -rl "elastic-on-spark" "${VENV_DIR}/bin/" 2>/dev/null | wc -l)
+OLD_REFS=$(grep -rl "spark-observability" "${VENV_DIR}/bin/" 2>/dev/null | wc -l)
 if [[ "${OLD_REFS}" -gt 0 ]]; then
-  echo "WARNING: ${OLD_REFS} file(s) still reference elastic-on-spark — unexpected"
+  echo "WARNING: ${OLD_REFS} file(s) still reference spark-observability — unexpected"
 else
-  echo "Path check:    OK (no elastic-on-spark references)"
+  echo "Path check:    OK (no spark-observability references)"
 fi
 
 echo ""
