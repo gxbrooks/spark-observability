@@ -27,6 +27,7 @@
 CHECK=false
 DEBUG=false
 PASSPHRASE=""
+SSH_KEY_NAME="id_ed25519_ansible"
 PYTHON_VERSION=""  # Will be loaded from devops_env.sh if not specified
 JAVA_VERSION=""    # Will be loaded from devops_env.sh if not specified
 SPARK_VERSION=""   # Will be loaded from devops_env.sh if not specified
@@ -43,6 +44,10 @@ while [[ $# -gt 0 ]]; do
           PASSPHRASE=$2
           shift
           ;;
+        --ssh-key-name|-k)
+          SSH_KEY_NAME=$2
+          shift
+          ;;
         -pyv)
           PYTHON_VERSION=$2
           shift
@@ -56,7 +61,7 @@ while [[ $# -gt 0 ]]; do
           shift
           ;;
         *) echo "Unknown parameter passed: $1"  >&2
-          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]" >&2
+          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [--ssh-key-name|-k <key_name>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]" >&2
           exit 1
           ;;
     esac
@@ -115,6 +120,7 @@ if $DEBUG; then
   echo "Debug   : root_dir = $root_dir"
   [[ -n "$PASSPHRASE" ]] && echo "Debug   : PASSPHRASE = [DEPRECATED ARG PROVIDED]"
   echo "Debug   : CHECK = $CHECK"
+  echo "Debug   : SSH_KEY_NAME = $SSH_KEY_NAME"
   echo "Debug   : PYTHON_VERSION = $PYTHON_VERSION"
   echo "Debug   : JAVA_VERSION = $JAVA_VERSION"
   echo "Debug   : SPARK_VERSION = $SPARK_VERSION"
@@ -148,7 +154,7 @@ fi
 
 if [[ -z "$PASSPHRASE" ]] && ! $CHECK; then
   echo "Error: Passphrase is mandatory to generate/access SSH keys. Use the -N (-p) option to specify it." >&2
-  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]"  >&2
+  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [--ssh-key-name|-k <key_name>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]"  >&2
   exit 1
 fi
 
@@ -159,6 +165,7 @@ $root_dir/ssh/install_ssh_client.sh \
 $root_dir/ssh/enable_user_for_ssh_client.sh \
     --User "$USER" \
     --Passphrase "$PASSPHRASE" \
+    --KeyName "$SSH_KEY_NAME" \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 

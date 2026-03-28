@@ -46,11 +46,16 @@ fi
 NFS_SERVER="${NFS_SERVER:-Lab2.local}"
 NFS_EXPORT_EVENTS="/srv/nfs/spark/events"
 MOUNT_POINT="/mnt/spark/events"
+# Use NFSv4 explicitly. Legacy "showmount -e" talks to rpc.mountd; if mountd is not
+# registered (RPC: Program not registered), v3-style mounts can hang or fail. NFSv4
+# does not require mountd for discovery.
+NFS_MOUNT_OPTS="nfsvers=4,defaults,_netdev"
 
 if $DEBUG; then
   echo "Debug   : NFS_SERVER = $NFS_SERVER"
   echo "Debug   : NFS_EXPORT_EVENTS = $NFS_EXPORT_EVENTS"
   echo "Debug   : MOUNT_POINT = $MOUNT_POINT"
+  echo "Debug   : NFS_MOUNT_OPTS = $NFS_MOUNT_OPTS"
   echo "Debug   : CHECK = $CHECK"
 fi
 
@@ -148,12 +153,12 @@ if ! $CHECK; then
       echo "Warning : $MOUNT_POINT mounted from wrong source ($current_mount)"
       echo "Info    : Remounting from correct source..."
       sudo umount "$MOUNT_POINT"
-      sudo mount -t nfs "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+      sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
     fi
   else
     # Not mounted, mount it now
-    echo "Info    : Mounting ${NFS_SERVER}:${NFS_EXPORT_EVENTS} at $MOUNT_POINT"
-    sudo mount -t nfs "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+    echo "Info    : Mounting ${NFS_SERVER}:${NFS_EXPORT_EVENTS} at $MOUNT_POINT (NFSv4)"
+    sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
     
     if [[ $? -eq 0 ]]; then
       echo "Info    : Successfully mounted NFS share"
@@ -163,8 +168,8 @@ if ! $CHECK; then
     fi
   fi
   
-  # Add to /etc/fstab if not already present
-  FSTAB_ENTRY="${NFS_SERVER}:${NFS_EXPORT_EVENTS} ${MOUNT_POINT} nfs defaults,_netdev 0 0"
+  # Add to /etc/fstab if not already present (nfs4 matches mount -t nfs4)
+  FSTAB_ENTRY="${NFS_SERVER}:${NFS_EXPORT_EVENTS} ${MOUNT_POINT} nfs4 ${NFS_MOUNT_OPTS} 0 0"
   
   if ! grep -q "$MOUNT_POINT" /etc/fstab; then
     echo "Info    : Adding mount to /etc/fstab for persistence..."

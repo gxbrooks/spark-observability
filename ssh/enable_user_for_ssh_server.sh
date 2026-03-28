@@ -46,9 +46,9 @@ else
     if $CHECK; then
         echo "Result  : .ssh directory does not exist for user $USERNAME."
     else
-        mkdir -p "$SSH_DIR"
-        chmod 700 "$SSH_DIR"
-        chown "$USERNAME:$USERNAME" "$SSH_DIR"
+        sudo mkdir -p "$SSH_DIR" || { echo "Error   : Failed to create $SSH_DIR"; exit 1; }
+        sudo chmod 700 "$SSH_DIR" || { echo "Error   : Failed to set permissions on $SSH_DIR"; exit 1; }
+        sudo chown "$USERNAME:$USERNAME" "$SSH_DIR" || { echo "Error   : Failed to set ownership on $SSH_DIR"; exit 1; }
         echo "Result  : .ssh directory created for user $USERNAME."
     fi
 fi
@@ -61,9 +61,9 @@ else
     if $CHECK; then
         echo "Result  : authorized_keys file does not exist for user $USERNAME."
     else
-        touch "$AUTHORIZED_KEYS"
-        chmod 600 "$AUTHORIZED_KEYS"
-        chown "$USERNAME:$USERNAME" "$AUTHORIZED_KEYS"
+        sudo touch "$AUTHORIZED_KEYS" || { echo "Error   : Failed to create $AUTHORIZED_KEYS"; exit 1; }
+        sudo chmod 600 "$AUTHORIZED_KEYS" || { echo "Error   : Failed to set permissions on $AUTHORIZED_KEYS"; exit 1; }
+        sudo chown "$USERNAME:$USERNAME" "$AUTHORIZED_KEYS" || { echo "Error   : Failed to set ownership on $AUTHORIZED_KEYS"; exit 1; }
         echo "Result  : authorized_keys file created for user $USERNAME."
     fi
 fi

@@ -7,6 +7,7 @@ DEBUG=false
 CHECK=false
 USERNAME="$(whoami)"
 PASSPHRASE=""
+KEY_NAME="id_ed25519_ansible"
 
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
@@ -35,9 +36,17 @@ while [[ $# -gt 0 ]]; do
             fi
             PASSPHRASE="$1"
             ;;
+        --KeyName|-k)
+            shift
+            if [[ -z "${1:-}" ]]; then
+                echo "Error   : Missing value for --KeyName|-k in $script_name."
+                exit 1
+            fi
+            KEY_NAME="$1"
+            ;;
         *)
             echo "Error   : Unrecognized argument $1 in $script_name."
-            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Passphrase|-p|-N <passphrase>]"
+            echo "Usage   : $script_name [--Debug|-d] [--Check|-c] [--User|-u <username>] [--Passphrase|-p|-N <passphrase>] [--KeyName|-k <key_name>]"
             exit 1
             ;;
     esac
@@ -46,8 +55,8 @@ done
 
 HOME_DIR="$(eval echo "~$USERNAME")"
 SSH_DIR="$HOME_DIR/.ssh"
-PRIVATE_KEY="$SSH_DIR/id_ed25519"
-PUBLIC_KEY="$SSH_DIR/id_ed25519.pub"
+PRIVATE_KEY="$SSH_DIR/$KEY_NAME"
+PUBLIC_KEY="${PRIVATE_KEY}.pub"
 
 if [[ -d "$SSH_DIR" ]]; then
     $DEBUG && echo "Debug   : .ssh directory exists for user '$USERNAME'."
