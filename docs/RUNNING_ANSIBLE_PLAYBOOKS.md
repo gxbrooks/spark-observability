@@ -25,7 +25,7 @@ All roles are referenced by their simple name (e.g., `name: spark`) as the `role
 Before running any playbooks, ensure your environment configuration files are up-to-date:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark
+cd /home/gxbrooks/repos/spark-observability
 # Recommended - uses wrapper script
 bash vars/generate_env.sh
 
@@ -36,14 +36,14 @@ python3 vars/generate_env.py
 Then run your playbooks from the ansible directory:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/deploy_spark.yml
 ```
 
 If needed, you can specify the inventory file explicitly:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
 ```
 
@@ -56,7 +56,7 @@ Running from any other directory will cause errors with finding roles.
 Deploys Spark on Kubernetes:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/deploy_spark.yml
 ```
 
@@ -65,7 +65,7 @@ ansible-playbook playbooks/spark/deploy_spark.yml
 Starts Spark services:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/start_spark.yml
 ```
 
@@ -74,7 +74,7 @@ ansible-playbook playbooks/spark/start_spark.yml
 Stops Spark services:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/stop_spark.yml
 ```
 
@@ -83,7 +83,7 @@ ansible-playbook playbooks/spark/stop_spark.yml
 Launches an interactive IPython environment with PySpark:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/launch_ipython.yml
 ```
 
@@ -123,20 +123,20 @@ If you see an error like this when starting Spark:
 
 ```
 TASK [Apply env ConfigMap for pods] *******************************************************************************************************************
-An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ansible_collections.kubernetes.core.plugins.module_utils.k8s.exceptions.CoreException: Failed to load resource definition: [Errno 13] Permission denied: '/home/gxbrooks/repos/elastic-on-spark/vars/contexts/spark-runtime/spark-configmap.yaml'
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ansible_collections.kubernetes.core.plugins.module_utils.k8s.exceptions.CoreException: Failed to load resource definition: [Errno 13] Permission denied: '/home/gxbrooks/repos/spark-observability/vars/contexts/spark-runtime/spark-configmap.yaml'
 ```
 
 This is caused by Ansible's k8s module having issues accessing the generated file directly from the repository. To fix this:
 
 1. Regenerate the environment variables:
    ```bash
-   cd /home/gxbrooks/repos/elastic-on-spark
+   cd /home/gxbrooks/repos/spark-observability
    bash vars/generate_env.sh -f
    ```
 
 2. Run the Ansible playbook from the ansible directory:
    ```bash
-   cd /home/gxbrooks/repos/elastic-on-spark/ansible
+   cd /home/gxbrooks/repos/spark-observability/ansible
    ansible-playbook playbooks/spark/start_spark.yml
    ```
 
@@ -162,7 +162,7 @@ If you see an error about a missing inventory file:
 To stop all Spark components, including services, run:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/stop_spark.yml
 ```
 
@@ -177,7 +177,7 @@ This will remove:
 For interactive development with PySpark, use the IPython integration playbook:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/spark/launch_ipython.yml
 ```
 
@@ -234,7 +234,7 @@ If the Spark History UI (http://localhost:31534) is not responding:
 
 2. If no pods are running, there might be an issue with the Spark start playbook. Run with verbose output:
    ```bash
-   cd /home/gxbrooks/repos/elastic-on-spark/ansible
+   cd /home/gxbrooks/repos/spark-observability/ansible
    ansible-playbook -vvv playbooks/spark/start_spark.yml
    ```
 
@@ -258,7 +258,7 @@ If the Spark History UI (http://localhost:31534) is not responding:
 If you encounter issues with Docker or Kubernetes, you can use the included diagnostic script:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ./scripts/diagnostics_docker_k8s.sh
 ```
 

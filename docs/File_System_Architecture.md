@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. The architecture supports three host types: Native Linux, WSL (Windows Subsystem for Linux), and Windows 11.
+This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. **Primary targets are native Linux lab hosts (Lab1–Lab3).** The observability Docker stack runs on **Lab3** under `/home/ansible/ops/observability`. WSL/Windows paths below are **legacy** references only.
 
 ## Summary
 
@@ -44,7 +44,7 @@ The file system architecture uses a layered approach:
 
 ### 2. Ops Environment
 
-**Location**: `~/ansible/ops/` on managed hosts (Native Linux and WSL)
+**Location**: `~/ansible/ops/` on managed hosts (native Linux; e.g. Lab3 for observability)
 
 **Purpose**: Deployment target for files pushed from DevOps environment
 
@@ -167,7 +167,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 
 ### WSL (Windows Subsystem for Linux)
 
-**Example**: GaryPC WSL
+**Example (legacy)**: GaryPC WSL — not used for current lab topology; observability runs on Lab3.
 
 **File System Layout**:
 - **Ops Environment**: `/home/ansible/ops/` (WSL filesystem)
@@ -189,7 +189,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 
 ### Windows 11 Hosts
 
-**Example**: GaryPC (Windows host)
+**Example (legacy)**: Windows host with Docker Desktop — not current primary architecture.
 
 **File System Layout**:
 - **Certificate Storage**: `C:\Volumes\certs\Elastic\` (Windows path)

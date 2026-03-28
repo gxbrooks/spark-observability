@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document defines the standard users, groups, and their roles across all hosts in the elastic-on-spark environment. Following Linux best practices for UID/GID allocation ensures consistency and avoids conflicts.
+This document defines the standard users, groups, and their roles across all hosts in the spark-observability / lab environment. Following Linux best practices for UID/GID allocation ensures consistency and avoids conflicts.
 
 ## Linux UID/GID Ranges
 
@@ -467,8 +467,8 @@ sudo usermod -a -G spark gxbrooks
 
 ```bash
 # 1. On Lab3, clone repository
-git clone https://github.com/gxbrooks/elastic-on-spark.git
-cd elastic-on-spark
+git clone https://github.com/gxbrooks/spark-observability.git
+cd spark-observability
 
 # 2. Run managed node setup
 ./linux/assert_managed_node.sh --User ansible --Password <secure-pwd> -pyv 3.11 -jv 17
@@ -497,7 +497,7 @@ ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/deploy.yml --l
 # Output: ✗ spark GID: 1004 (expected 185)
 
 # 2. Fix by running assert script on Lab1
-ansible Lab1 -i ansible/inventory.yml -m shell -a "cd /home/gxbrooks/repos/elastic-on-spark && ./linux/assert_spark_user.sh"
+ansible Lab1 -i ansible/inventory.yml -m shell -a "cd /home/gxbrooks/repos/spark-observability && ./linux/assert_spark_user.sh"
 
 # The script will:
 # - Detect GID mismatch (1004 vs 185)

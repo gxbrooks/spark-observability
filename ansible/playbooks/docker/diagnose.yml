@@ -15,7 +15,7 @@
 # This playbook is for diagnosis only and will NOT automatically fix issues
 
 - name: Diagnose Docker issues
-  hosts: native:!wsl
+  hosts: observability
   become: true
   vars:
     registry_port: 5000

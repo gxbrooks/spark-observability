@@ -16,23 +16,23 @@
           ================================================
           
           This playbook will install/configure:
-          1. Docker (Lab2 only - for building Spark images)
+          1. Docker Engine (Lab3 observability stack only; see spark/deploy for Lab2 image builds)
           2. NFS Server and Clients
           3. Kubernetes Cluster (uses containerd runtime)
-          4. Observability Platform (GaryPC-WSL with Docker Desktop)
+          4. Observability Platform (Lab3 with Docker Engine)
           5. Spark on Kubernetes
           6. JupyterHub for Spark Development
-          7. Elastic Agent (host-level on Lab1, Lab2, GaryPC)
+          7. Elastic Agent (host-level on Lab1, Lab2, Lab3)
           
           All operations are idempotent and safe to re-run.
           
           Prerequisites:
           - Ansible control machine has SSH access to all hosts
-          - Docker Desktop manually started on GaryPC (for WSL)
+          - Docker Engine installed and enabled on Lab3 (observability)
           
           ================================================
 
-# Step 1: Install Docker (Lab2 only for image builds)
+# Step 1: Install Docker Engine on observability host (Lab3)
 - import_playbook: docker/install.yml
 
 # Step 2: Install NFS Server and Clients
@@ -67,13 +67,13 @@
           ================================================
           
           All components have been installed and configured:
-          ✓ Docker (Lab2 for image builds; K8s uses containerd)
+          ✓ Docker Engine (Lab3 observability; K8s uses containerd on cluster nodes)
           ✓ NFS Server (Lab2) and Clients (Lab1, Lab2)
           ✓ Kubernetes Cluster (Master: Lab2, Workers: Lab1+Lab2)
-          ✓ Observability Platform (GaryPC-WSL)
+          ✓ Observability Platform (Lab3)
           ✓ Spark on Kubernetes
           ✓ JupyterHub for Spark Development
-          ✓ Elastic Agent (host-level: Lab1, Lab2, GaryPC)
+          ✓ Elastic Agent (host-level: Lab1, Lab2, Lab3)
           
           Next Steps:
           ================================================
@@ -85,9 +85,9 @@
             cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
           
           To access services:
-          - Elasticsearch: https://GaryPC.lan:9200 (elastic / myElastic2025)
-          - Kibana: http://GaryPC.lan:5601 (elastic / myElastic2025)
-          - Grafana: http://GaryPC.lan:3000
+          - Elasticsearch: https://Lab3.lan:9200 (elastic / myElastic2025)
+          - Kibana: http://Lab3.lan:5601 (elastic / myElastic2025)
+          - Grafana: http://Lab3.lan:3000
           - Spark History: http://Lab2.lan:31534
           - JupyterHub: https://Lab2.lan:32443 (signup + approval)
           

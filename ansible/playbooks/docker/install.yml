@@ -1,17 +1,18 @@
 ---
-# This playbook installs Docker on Lab2 for building Spark images
-# Usage: ansible-playbook -i inventory.yml playbooks/docker/install_docker.yml
+# This playbook installs Docker Engine on the observability host (Lab3)
+# Usage: ansible-playbook -i inventory.yml playbooks/docker/install.yml
 # 
 # Architecture Notes:
 # - Lab1: Uses containerd only (K8s worker, no Docker needed)
-# - Lab2: Docker for building Spark images + containerd for K8s
-# - GaryPC-WSL: Docker Desktop for observability stack
-# 
-# Docker is ONLY needed on Lab2 for building custom Spark images.
-# Kubernetes uses containerd as the container runtime.
+# - Lab2: containerd for Kubernetes (no Docker via this playbook)
+# - Lab3: Docker Engine for observability stack (Docker Compose)
+#
+# Spark image build (playbooks/spark/deploy.yml) still runs `docker build` on
+# kubernetes_master (Lab2) today; that host needs Docker installed separately
+# unless you move builds to another registry/host.
 
-- name: Install Docker on image build hosts only
-  hosts: docker_build_hosts
+- name: Install Docker on observability host
+  hosts: observability
   become: true
   gather_facts: true
   tasks:
@@ -111,7 +112,8 @@
           apt:
             name:
               - docker.io
-              - docker-compose
+              # v2 plugin provides `docker compose` (used by observability start/deploy playbooks)
+              - docker-compose-v2
             state: present
       when: 
         - (docker_version_check.rc != 0 or need_docker_reinstall | bool)
@@ -188,3 +190,9 @@
           Docker {{ 'was already installed' if docker_version_check.rc == 0 else 'has been installed' }}.
           Version: {{ docker_version.stdout }}
           Registry status: {{ "OK" if registry_check.status == 200 else "Not responding" }}
+
+    # Play runs mostly as root (become); adding ansible to group does not refresh the muxed SSH
+    # session's supplementary groups. Drop the connection so a later playbook (e.g. observability
+    # deploy with become: false) reconnects and picks up docker membership.
+    - name: Reset SSH connection to pick up new docker group for ansible user
+      meta: reset_connection

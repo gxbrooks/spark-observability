@@ -2,13 +2,13 @@
 
 ⚠️ **DEPRECATED**: Use of Docker is currently deprecated in favor of containerd for Kubernetes deployments.
 
-This directory contains playbooks to manage Docker on native Linux hosts only. These playbooks explicitly exclude WSL instances, as WSL should use Docker from Windows Docker Desktop.
+These playbooks manage **Docker Engine only on the observability host** (inventory group `observability`, e.g. Lab3), for the Docker Compose stack.
 
-**Note**: For Kubernetes deployments, containerd is now the preferred container runtime. Docker playbooks are maintained for legacy compatibility only.
+**Note**: For Kubernetes deployments, containerd is the container runtime. Spark deployment (`playbooks/spark/deploy.yml`) still runs `docker build`, a local registry on port 5000, and `docker push` on **kubernetes_master** (Lab2) unless you change that workflow—those steps are not covered by the playbooks in this directory.
 
 ## Available Playbooks
 
-- `install_docker.yml` - Installs Docker on native Linux machines
+- `install_docker.yml` - Installs Docker on the observability host
 - `start_docker.yml` - Starts the Docker service and registry
 - `stop_docker.yml` - Stops the Docker service
 - `restart_docker.yml` - Restarts the Docker service
@@ -55,7 +55,5 @@ ansible-playbook -i inventory.yml playbooks/docker/diagnose_docker.yml
 
 ## Notes
 
-- These playbooks only target native Linux hosts (defined in the inventory as part of the `native` group)
-- Windows hosts should use Docker Desktop
-- WSL instances should use Docker from Windows Docker Desktop
-- The playbooks include comprehensive error checking and diagnostic information
+- Install/start/stop/diagnose/uninstall target **`observability`** only (not Lab1/Lab2).
+- The playbooks include error checking and diagnostic information.

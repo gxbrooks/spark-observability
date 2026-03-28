@@ -115,4 +115,8 @@ if [[ -f "$PUBLIC_KEY" && "$(stat -c "%a" "$PUBLIC_KEY")" -ne 644 ]]; then
     fi
 fi
 
-$DEBUG && echo "Next    : Use ssh-copy-id or ansible to distribute $PUBLIC_KEY where needed."
+if ! $CHECK; then
+  echo "Info    : After a new login shell (or: source ~/.bashrc), keychain loads ~/.ssh/$KEY_NAME when present — see spark-observability/.bashrc."
+  echo "Info    : Distribute the public key, e.g.: ssh-copy-id -i $PUBLIC_KEY user@host"
+fi
+$DEBUG && echo "Debug   : Public key path: $PUBLIC_KEY"

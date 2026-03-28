@@ -11,7 +11,3 @@ ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o ServerAliveInterval=60
 
 [persistent_connection]
 debug = True
-winrm_ssl_cert = /home/gxbrooks/winrm/ansible_client_cert.pem
-winrm_ssl_key = /home/gxbrooks/winrm/ansible_client_private_key.pem
-winrm_transport = cert
-

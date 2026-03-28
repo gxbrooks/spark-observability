@@ -6,11 +6,7 @@
 # 3. Start services (container layer)
 # 4. Verify health (validation layer)
 #
-# Note: Windows firewall for observability ports (when stack runs in WSL on GaryPC)
-# is not managed here; WinRM is not used. Configure Windows firewall manually if
-# needed (e.g. allow inbound TCP for 9200, 5601, 3000, etc. to the host).
-
-# Ensure Linux Firewall is configured (if observability runs on Linux/WSL)
+# Ensure Linux firewall (UFW) allows observability service ports on the observability host.
 - name: Ensure Linux Firewall is Configured for Observability Services
   hosts: observability
   gather_facts: true
@@ -33,42 +29,46 @@
       - { port: 9203, name: "Prometheus ES Adapter metrics", service: "Prometheus ES Adapter" }
       - { port: 3200, name: "Tempo HTTP", service: "Tempo" }
       - { port: 9095, name: "Tempo gRPC", service: "Tempo" }
+      - { port: 5000, name: "Spark local Docker registry", service: "registry" }
   tasks:
-    - name: Check if UFW is installed
-      command: which ufw
-      register: ufw_check
-      changed_when: false
-      failed_when: false
-      ignore_errors: true
-      ignore_unreachable: true
-    
-    - name: Install UFW if not present
+    # Idempotent: ensure package exists, then enable and add rules. A prior bug used only the
+    # first `which ufw` result — after apt installed ufw, rc was still != 0 so enable/rules skipped.
+    - name: Ensure UFW package is installed (Debian/Ubuntu)
       apt:
         name: ufw
         state: present
-        update_cache: yes
+        update_cache: true
       become: true
-      when: ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc != 0
+      when: ansible_os_family == 'Debian'
       ignore_unreachable: true
-    
-    - name: Enable UFW if not already enabled
+
+    - name: Check UFW CLI is available
+      command: command -v ufw
+      register: ufw_avail
+      changed_when: false
+      failed_when: false
+      ignore_unreachable: true
+
+    - name: Enable UFW if CLI is available
       ufw:
         state: enabled
       become: true
-      when: ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc == 0
+      when: ufw_avail is succeeded
       ignore_unreachable: true
-    
+
     - name: Check if UFW rule exists for observability port
-      command: ufw status numbered | grep -q "{{ item.port }}/tcp" || echo "not_found"
+      shell: set -o pipefail; ufw status numbered | grep -q "{{ item.port }}/tcp" || echo "not_found"
+      args:
+        executable: /bin/bash
       register: ufw_rule_check
       loop: "{{ observability_ports }}"
       loop_control:
         label: "{{ item.name }} ({{ item.port }})"
       changed_when: false
       failed_when: false
-      when: ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc == 0
+      when: ufw_avail is succeeded
       ignore_unreachable: true
-    
+
     - name: Create UFW rule for observability ports
       ufw:
         rule: allow
@@ -79,9 +79,11 @@
       loop: "{{ ufw_rule_check.results | default([]) }}"
       loop_control:
         label: "{{ item.item.name }} ({{ item.item.port }})"
-      when: 
-        - ufw_check is not failed and ufw_check is not unreachable and ufw_check.rc is defined and ufw_check.rc == 0
-        - item.stdout is defined and "'not_found' in item.stdout"
+      when:
+        - ufw_avail is succeeded
+        - not (ufw_rule_check.skipped | default(false))
+        - item.stdout is defined
+        - "'not_found' in item.stdout"
       ignore_unreachable: true
 
 - name: Start Observability Platform
@@ -108,17 +110,16 @@
           Current host: {{ inventory_hostname }}
           Expected host: {{ observability_host }}
           
-          This playbook MUST run on {{ observability_host }} (Docker Desktop on Windows/WSL).
+          This playbook MUST run on {{ observability_host }} (Docker Engine on native Ubuntu).
           
           Did you mean to run:
-            ssh ansible@GaryPC.lan -p 2222
+            ssh ansible@{{ hostvars[observability_host]['ansible_host'] | default(observability_host) }}
             cd ~/repos/spark-observability
             ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml
       when: inventory_hostname != observability_host
     
     - name: Detect host OS
       set_fact:
-        is_windows: "{{ ansible_os_family == 'Windows' }}"
         is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
         
     - name: Check if observability directory exists
@@ -159,22 +160,6 @@
         msg: "{{ 'Updated .env file with latest variables' if env_file_updated.changed else '.env file is up to date' }}"
       when: is_linux
       
-    # === WINDOWS TASKS ===
-    - name: Start Docker Desktop service (Windows)
-      win_service:
-        name: "Docker Desktop Service"
-        state: started
-      when: is_windows
-      ignore_errors: true
-      
-    - name: Wait for Docker Desktop to be ready (Windows)
-      wait_for:
-        timeout: 60
-        delay: 5
-      when: is_windows
-    
-      
-    # === LINUX TASKS ===
     - name: Check if Docker is available
       command: docker --version
       register: docker_check
@@ -183,7 +168,7 @@
       
     - name: Fail if Docker is not available
       fail:
-        msg: "Docker is not available. Please install Docker Desktop."
+        msg: "Docker is not available. Install Docker Engine (e.g. ansible/playbooks/docker/install.yml) and ensure the docker service is running."
       when: is_linux and docker_check.rc != 0
       
     - name: Check if Docker network 'elastic' exists
@@ -233,8 +218,7 @@
     # STEP 2: Validate CA Certificate
     # =====================================================================
     # Check certificate in Docker volume (source of truth)
-    # For WSL/Docker Desktop, volume mount point may not be directly accessible from host
-    # So we check inside a container instead
+    # Check inside a container (reliable regardless of host volume mount layout)
     # CA is at volume root (init-certs copies to certs/ca.crt) and also at certs/ca/ca.crt
     - name: Check if CA certificate exists in Docker volume (via container)
       shell: |

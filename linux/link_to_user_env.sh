@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# this script augments the current user's environment for Spark Observability
+# One-time linker: append sourcing of this repo's .bash_aliases and .bashrc to the user's
+# ~/.bash_aliases and ~/.bashrc. Per-login SSH keys (including id_ed25519_ansible for Ansible)
+# are loaded by keychain from the repo .bashrc — not from this script (which runs once).
 
 # Parse flags
 CHECK=false

@@ -1,7 +1,7 @@
 # DNS and IP Address Management Architecture
 
-**Version**: 1.0  
-**Date**: October 22, 2025  
+**Version**: 1.1  
+**Date**: March 28, 2026  
 **Status**: Active
 
 ## Problem Statement
@@ -43,7 +43,7 @@ Dynamic IP addresses from DHCP cause cascading failures when hosts change IPs:
 Router DHCP Settings:
   MAC: C8:FF:BF:01:1A:A4 → IP: 192.168.1.76  (Lab1)
   MAC: <Lab2-MAC>       → IP: 192.168.1.48  (Lab2)
-  MAC: <GaryPC-MAC>     → IP: 192.168.1.115 (GaryPC)
+  MAC: <Lab3-MAC>       → IP: 192.168.1.49  (Lab3, observability / Docker)
 ```
 
 **How to Find MAC Addresses**:
@@ -151,7 +151,7 @@ Since Ansible depends on a functional network, network management cannot be auto
    hostname -I
    
    # Check DNS resolution
-   getent hosts GaryPC.lan
+   getent hosts Lab3.lan
    getent hosts Lab1.lan
    getent hosts Lab2.lan
    ```
@@ -162,14 +162,14 @@ Since Ansible depends on a functional network, network management cannot be auto
    sudo nano /etc/hosts
    
    # Add/update entries:
-   192.168.1.115  GaryPC.lan GaryPC  # Observability (Docker Desktop)
+   192.168.1.49   Lab3.lan Lab3      # Observability stack (Docker Engine)
    192.168.1.76   Lab1.lan Lab1      # Kubernetes worker
-   192.168.1.48   Lab2.lan Lab2      # Kubernetes master
+   192.168.1.48   Lab2.lan Lab2      # Kubernetes master, NFS, Hadoop (see inventory)
    ```
 
 3. **Test connectivity**:
    ```bash
-   ping -c 3 GaryPC.lan
+   ping -c 3 Lab3.lan
    ping -c 3 Lab1.lan
    ping -c 3 Lab2.lan
    ```
@@ -180,11 +180,9 @@ Since Ansible depends on a functional network, network management cannot be auto
    sudo systemctl restart elastic-agent
    
    # If observability services affected, restart from correct host
-   cd ~/repos/elastic-on-spark
-   ansible-playbook -i ansible/inventory.yml \
-     ansible/playbooks/observability/stop.yml
-   ansible-playbook -i ansible/inventory.yml \
-     ansible/playbooks/observability/start.yml
+   cd ~/repos/spark-observability/ansible
+   ansible-playbook -i inventory.yml playbooks/observability/stop.yml --limit observability
+   ansible-playbook -i inventory.yml playbooks/observability/start.yml --limit observability
    ```
 
 ### Documentation Reference
@@ -204,11 +202,11 @@ instances:
     dns:
       - "es01"
       - "localhost"
-      - "GaryPC.lan"
-      - "GaryPC"
+      - "Lab3.lan"
+      - "Lab3"
     ip:
       - "127.0.0.1"
-      - "192.168.1.115"  # Include for reference, but DNS names are primary
+      - "192.168.1.49"  # Lab3 reservation; DNS names are primary in configs
 ```
 
 **Principle**: Include DNS names AND current IP for maximum compatibility, but always reference by DNS name in configs.
@@ -220,12 +218,13 @@ instances:
 All playbooks should validate DNS before proceeding:
 
 ```yaml
-- name: Validate GaryPC.lan resolves correctly
+- name: Validate Lab3.lan resolves correctly (observability host)
   shell: |
-    RESOLVED_IP=$(getent hosts GaryPC.lan | awk '{print $1}')
-    EXPECTED_IP="{{ hostvars['GaryPC-WSL']['ansible_host_ip'] | default('192.168.1.115') }}"
-    if [ "$RESOLVED_IP" != "$EXPECTED_IP" ]; then
-      echo "ERROR: GaryPC.lan resolves to $RESOLVED_IP, expected $EXPECTED_IP"
+    RESOLVED_IP=$(getent hosts Lab3.lan | awk '{print $1}')
+    EXPECTED_IP="{{ hostvars['Lab3']['ansible_host'] | default('Lab3.lan') }}"
+    # Compare to expected_ips in inventory when using fixed reservations
+    if [ -z "$RESOLVED_IP" ]; then
+      echo "ERROR: Lab3.lan did not resolve"
       exit 1
     fi
   changed_when: false
@@ -293,8 +292,8 @@ ansible-playbook -i ansible/inventory.yml \
 ```bash
 # Update observability/certs/instances.yml
 # Then force regenerate
-FORCE_REGEN=1 ansible-playbook -i ansible/inventory.yml \
-  ansible/playbooks/observability/start.yml
+FORCE_REGEN=1 ansible-playbook -i inventory.yml \
+  playbooks/observability/start.yml --limit observability
 ```
 
 ## Monitoring and Detection
@@ -317,7 +316,7 @@ Since network issues prevent Ansible from running, monitoring must be done manua
 
 3. **Quick Network Test**:
    ```bash
-   ping -c 1 GaryPC.lan && echo "✅ GaryPC reachable" || echo "❌ GaryPC UNREACHABLE"
+   ping -c 1 Lab3.lan && echo "✅ Lab3 reachable" || echo "❌ Lab3 UNREACHABLE"
    ```
 
 ## References
@@ -332,4 +331,5 @@ Since network issues prevent Ansible from running, monitoring must be done manua
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2025-10-22 | Initial architecture document |
+| 1.1 | 2026-03-28 | Observability on Lab3.lan; paths and examples for spark-observability/ansible |
 

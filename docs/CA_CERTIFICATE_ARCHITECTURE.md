@@ -402,7 +402,7 @@ ls -la /etc/ssl/certs/elastic/ca.crt
 openssl x509 -in /etc/ssl/certs/elastic/ca.crt -noout -text
 
 # Compare with volume CA (on observability host)
-ansible -i ansible/inventory.yml GaryPC-WSL -m shell -a "docker run --rm -v observability_certs:/certs:ro alpine sha256sum /certs/ca.crt /certs/ca/ca.crt 2>/dev/null"
+ansible -i ansible/inventory.yml Lab3 -m shell -a "docker run --rm -v observability_certs:/certs:ro alpine sha256sum /certs/ca.crt /certs/ca/ca.crt 2>/dev/null"
 sha256sum /etc/ssl/certs/elastic/ca.crt
 ```
 
@@ -453,7 +453,7 @@ Certificate management depends on stable DNS resolution. See `docs/DNS_and_IP_Ma
 - Network diagnostics playbooks
 - IP change detection and remediation
 
-**Critical**: Always use DNS names (e.g., `GaryPC.lan`) in configurations, never IP addresses.
+**Critical**: Always use DNS names (e.g., `Lab3.lan`, `Lab2.lan`) in configurations, never IP addresses.
 
 ## Future Enhancements
 

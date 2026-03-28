@@ -72,7 +72,7 @@ For quick tests and command-line development on Lab2:
 ssh ansible@Lab2.lan
 
 # Navigate to project
-cd /home/gxbrooks/repos/elastic-on-spark
+cd /home/gxbrooks/repos/spark-observability
 
 # Activate venv and launch iPython
 source venv/bin/activate
@@ -198,7 +198,7 @@ Then access: http://localhost:18080
    - If there's a "permission denied" error on ConfigMap files:
      ```bash
      # Regenerate environment files
-     cd /home/gxbrooks/repos/elastic-on-spark
+     cd /home/gxbrooks/repos/spark-observability
      bash vars/generate_env.sh -f
      
      # Then run the playbook from ansible directory

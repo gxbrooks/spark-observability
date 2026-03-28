@@ -2,12 +2,12 @@
 
 # Assert Managed Node Environment
 #
-# Context : Run on any Linux node (physical, VM, or WSL) that will be
+# Context : Run on any Linux node (physical or VM) that will be
 #           controlled by Ansible from a devops client. This script
 #           configures only what Ansible itself needs to operate.
 #
 # Purpose : Installs and configures:
-#             - Required packages (jq, ncat, keychain, etc.)
+#             - Required packages (jq, ncat, keychain, rsync for Ansible synchronize, etc.)
 #             - OpenSSH server
 #             - The Ansible service account (default: "ansible") with
 #               SSH access, sudo rights, and a known password
@@ -97,7 +97,7 @@ append_flag() {
 $DEBUG && echo "Starting: $script_name: root_dir = $root_dir"
 
 # Define packages required for managed nodes
-MANAGED_PACKAGES=(jq ncat keychain bind9-dnsutils traceroute)
+MANAGED_PACKAGES=(jq ncat keychain bind9-dnsutils traceroute rsync)
 
 # Install required packages
 $root_dir/linux/assert_packages.sh \

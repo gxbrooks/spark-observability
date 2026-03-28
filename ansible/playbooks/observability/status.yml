@@ -13,7 +13,6 @@
   tasks:
     - name: Detect host OS
       set_fact:
-        is_windows: "{{ ansible_os_family == 'Windows' }}"
         is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
         
     - name: Check if observability directory exists
@@ -29,7 +28,7 @@
       ignore_errors: true
       
     - name: Get Docker compose status (Linux)
-      command: docker-compose ps
+      command: docker compose ps
       args:
         chdir: "{{ observability_dir }}"
       register: compose_status
@@ -62,14 +61,6 @@
         kibana_status_level: "{{ kibana_status_raw.stdout | default('unknown') | trim }}"
         kibana_status_available: "{{ (kibana_status_raw.stdout | default('') | trim) == 'available' }}"
       when: is_linux and kibana_status_raw.stdout is defined
-      
-    # === WINDOWS TASKS ===
-    - name: Check Docker Desktop service status (Windows)
-      win_service:
-        name: "Docker Desktop Service"
-      register: docker_service_status
-      when: is_windows
-      ignore_errors: true
       
     # === DISPLAY RESULTS ===
     - name: Display observability status
@@ -105,9 +96,6 @@
           Status: Not accessible
           {% endif %}
           
-          {% elif is_windows %}
-          Docker Desktop Service:
-          Status: {{ docker_service_status.state | default('unknown') }}
           {% endif %}
           
           Access URLs:

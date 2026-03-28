@@ -88,11 +88,11 @@ ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/start_spark.ym
 
 ## What Each Script Does
 
-### `ssh/install_ssh_service.sh`
+### `ssh/install_ssh_service.sh` / `ssh/assert_ssh_server.sh`
 - Installs OpenSSH server
 - Creates `sshusers` group
-- Configures firewall rules (UFW)
-- Sets up SSH configuration from `sshd_config.linux.cfg`
+- Configures firewall rules (UFW) on native Linux only
+- Deploys `sshd_config.linux.cfg` (port 22) to `/etc/ssh/sshd_config` (override with `--Config` on `assert_ssh_server.sh` if needed)
 - Enables and starts SSH service
 
 ### `linux/assert_managed_node.sh`

@@ -50,18 +50,29 @@
 CHECK=false
 DEBUG=false
 REINSTALL=false
+SSHD_CONFIG_SRC=""
 script_path="${BASH_SOURCE[0]}"
 script_name="$(basename "$script_path")"
 script_dir="$(cd "$(dirname "$script_path")" && pwd)"
 root_dir="$(cd "$script_dir/.." && pwd)"
 
-for arg in "$@"; do
-    case $arg in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --Check|-c) CHECK=true ;;
         --Debug|-d) DEBUG=true ;;
-        --Config|-cf) SSHD_CONFIG_SRC=$2; shift ;;
         --Reinstall|-r) REINSTALL=true ;;
+        --Config|-cf)
+            SSHD_CONFIG_SRC=$2
+            shift 2
+            continue
+            ;;
+        *)
+            echo "Error   : Unrecognized argument $1 in $script_name."
+            echo "Usage   : $script_name [--Check|-c] [--Debug|-d] [--Reinstall|-r] [--Config|-cf <path>]"
+            exit 1
+            ;;
     esac
+    shift
 done
 
 append_flag() {
@@ -96,27 +107,12 @@ $script_dir/assert_group.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG") 
 
-# Check if SSH service is enabled
-
-
-# Configure firewall rules
-is_wsl() {
-  # return success (0) if running on WSL
-  # return failure (1) if running on native Linux
-  if [[ -f /proc/version ]]; then
-    if grep -q Microsoft /proc/version; then
-      return 1 # Running on WSL
-    else
-      return 0 # Not running on WSL
-    fi
-  else
-    return 0 # /proc/version not found (highly unlikely on a standard Linux system)
-  fi
-}
-
 # Backup and replace sshd_config
 echo "Checking: Preparing to configure sshd_config."
-SSHD_CONFIG_SRC="$script_dir/sshd_config.linux.cfg"
+if [[ -z "$SSHD_CONFIG_SRC" ]]; then
+    SSHD_CONFIG_SRC="$script_dir/sshd_config.linux.cfg"
+    $DEBUG && echo "Debug   : Using sshd template: $SSHD_CONFIG_SRC"
+fi
 SSHD_CONFIG_DEST="/etc/ssh/sshd_config"
 SSHD_CONFIG_BACKUP="/etc/ssh/sshd_config.original"
 
@@ -139,14 +135,13 @@ fi
 if [ -f "$SSHD_CONFIG_SRC" ]; then
     echo "Checking: Processing $SSHD_CONFIG_SRC."
 
-    cmp -s "$SSHD_CONFIG_SRC" "$SSHD_CONFIG_DEST"
-    # cmp returns 0 if files are the same, 1 if different, and 2 if an error occurred
-    if [ $? ]; then
-        echo "Result  : '$SSHD_CONFIG_DEST' and '$SSHD_CONFIG_SRC' are different."
-        IS_CONFIG_SAME=false
-    else
+    # cmp returns 0 if identical, 1 if different, 2 on error (e.g. missing dest).
+    if cmp -s "$SSHD_CONFIG_SRC" "$SSHD_CONFIG_DEST" 2>/dev/null; then
         IS_CONFIG_SAME=true
         echo "Result  : '$SSHD_CONFIG_DEST' and '$SSHD_CONFIG_SRC' are the same."
+    else
+        IS_CONFIG_SAME=false
+        echo "Result  : '$SSHD_CONFIG_DEST' and '$SSHD_CONFIG_SRC' are different."
     fi
 
     if [ "$IS_CONFIG_SAME" = false ]; then
@@ -158,7 +153,7 @@ if [ -f "$SSHD_CONFIG_SRC" ]; then
             echo "Result  : '$SSHD_CONFIG_DEST' updated."
         fi
     else
-        echo "Result  : '$SSHD_CONFIG_DEST'' is already up to date."
+        echo "Result  : '$SSHD_CONFIG_DEST' is already up to date."
     fi
     # TODO: enable rm, but for now, keep it for debugging
     # rm "$SSHD_CONFIG_SRC"
@@ -167,104 +162,73 @@ else
     exit 1
 fi
 
-# Enable and start SSH service
+# Enable and start SSH service (systemd)
 echo "Checking: Is the SSH service is running?"
-if [ -n "$WSL_DISTRO_NAME" ]; then
-    # Running on WSL: Use service commands
-    if ! service ssh status > /dev/null 2>&1; then
-        # enable won't really do anything on WSL, but it's here for clarity
-        # An administrative user must manually start the service after a reboot of WSL
-        if [ "$CHECK" = true ]; then 
-            echo "Result  : SSH service is not running (WSL)."
-        else
-            $DEBUG && echo "Starting: SSH service on WSL Linux using service command."
-            # sudo service ssh enable
-            sudo service ssh start
-            echo "Result  : SSH service is enabled and running (WSL)."
-        fi
-    elif [ "$IS_CONFIG_SAME" = false ]; then
-        if [ "$CHECK" = true ]; then 
-            echo "Result  : SSH service needs to be restarted (WSL)."
-        else
-            echo "Result  : '$SSHD_CONFIG_DEST' changed, restarting SSH service..."
-            sudo service ssh restart
-            echo "Result  : SSH service restarted (WSL)."
-        fi
-    else  
-        echo "Result  : SSH service is already running (WSL)."
+if ! systemctl is-active --quiet ssh; then
+    if [ "$CHECK" = true ]; then
+        echo "Result  : SSH service is not running."
+    else
+        $DEBUG && echo "Starting: SSH service with systemctl."
+        sudo systemctl enable ssh
+        sudo systemctl start ssh
+        echo "Result  : SSH service was enabled and started."
+    fi
+elif [ "$IS_CONFIG_SAME" = false ]; then
+    if [ "$CHECK" = true ]; then
+        echo "Result  : SSH service needs to be restarted."
+    else
+        $DEBUG && echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service."
+        sudo systemctl restart ssh
+        echo "Result  : SSH service restarted."
     fi
 else
-    # Native Linux environment: Use systemctl commands
-    if ! systemctl is-active --quiet ssh; then
-        if [ "$CHECK" = true ]; then 
-            echo "Result  : SSH service is not running (WSL)."
-        else
-            $DEBUG && echo "Starting: SSH service on native Linux with 'systemctl' commands."
-            sudo systemctl enable ssh
-            sudo systemctl start ssh
-            echo "Result  : SSH service was enabled and started (native Linux)."
-        fi
-    elif [ "$IS_CONFIG_SAME" = false ]; then
-        if [ "$CHECK" = true ]; then 
-            echo "Result  : SSH service needs to be restarted (WSL)."
-        else
-            $DEBUG && echo "Starting: '$SSHD_CONFIG_DEST' changed, restarting SSH service on native Linux."
-            sudo systemctl restart ssh 
-            echo "Result  : SSH service restarted (native Linux)."
-        fi
-    else  
-        echo "Result  : SSH service is already running (native Linux)."
-    fi
+    echo "Result  : SSH service is already running."
 fi
 
 # Configure firewall rules
-if ! is_wsl; then
-    echo "Checking: Configuring firewall rules for non-WSL environment."
-    if ! command -v ufw > /dev/null; then
-        if [ "$CHECK" != true ]; then
-            echo "Starting: Installing ufw..."
-            sudo apt install -y ufw
-            echo "Result  : ufw installed."
-        else
-            echo "Result  : ufw is not installed."
-        fi
+echo "Checking: Configuring firewall rules."
+if ! command -v ufw > /dev/null; then
+    if [ "$CHECK" != true ]; then
+        echo "Starting: Installing ufw..."
+        sudo apt install -y ufw
+        echo "Result  : ufw installed."
     else
-        echo "Result  : ufw is already installed."
-        if [ "$REINSTALL" = true ] && [ "$CHECK" != true ]; then
-            $DEBUG && echo "Starting: Reinstalling ufw..."
-            sudo apt install --reinstall -y ufw
-            echo "Result  : ufw reinstalled."
-        fi
-    fi
-    
-    if ! sudo ufw status | grep -q "Status: active"; then
-        if [ "$CHECK" != true ]; then
-            $DEBUG && echo "Starting: Enabling ufw..."
-            sudo ufw enable
-            echo "Result  : ufw enabled."
-        else
-            echo "Result  : ufw is not enabled."
-        fi
-    else
-        echo "Result  : ufw is already enabled."
-    fi
-    # Check again in case ufw was just enabled
-    echo "Checking: ssh rule"
-    if sudo ufw status | grep -q "Status: active"; then
-        if ! sudo ufw status | grep -q "22/tcp"; then
-            if [ "$CHECK" != true ]; then
-                $DEBUG && echo "Starting: Allowing SSH through ufw..."
-                sudo ufw allow ssh
-                echo "Result  : SSH rule added to ufw."
-            else
-                echo "Result  : SSH rule is not configured in ufw."
-            fi
-        else
-            echo "Result  : SSH rule is already configured in ufw."
-        fi
-    else
-        echo "Result  : ufw is not active and cannot check ssh rule."
+        echo "Result  : ufw is not installed."
     fi
 else
-    echo "Result  : Running on WSL: Use Windows Defender for firewall configuration."
+    echo "Result  : ufw is already installed."
+    if [ "$REINSTALL" = true ] && [ "$CHECK" != true ]; then
+        $DEBUG && echo "Starting: Reinstalling ufw..."
+        sudo apt install --reinstall -y ufw
+        echo "Result  : ufw reinstalled."
+    fi
+fi
+
+if ! sudo ufw status | grep -q "Status: active"; then
+    if [ "$CHECK" != true ]; then
+        $DEBUG && echo "Starting: Enabling ufw..."
+        sudo ufw enable
+        echo "Result  : ufw enabled."
+    else
+        echo "Result  : ufw is not enabled."
+    fi
+else
+    echo "Result  : ufw is already enabled."
+fi
+# Check again in case ufw was just enabled
+echo "Checking: ssh rule"
+if sudo ufw status | grep -q "Status: active"; then
+    if ! sudo ufw status | grep -q "22/tcp"; then
+        if [ "$CHECK" != true ]; then
+            $DEBUG && echo "Starting: Allowing SSH through ufw..."
+            sudo ufw allow ssh
+            echo "Result  : SSH rule added to ufw."
+        else
+            echo "Result  : SSH rule is not configured in ufw."
+        fi
+    else
+        echo "Result  : SSH rule is already configured in ufw."
+    fi
+else
+    echo "Result  : ufw is not active and cannot check ssh rule."
 fi

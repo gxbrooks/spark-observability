@@ -58,7 +58,7 @@ Spark Client (Lab2)                    Kubernetes Cluster
 │       Lab2.lan:31317                │   ├── NodePort 31318 (HTTP)
 │                                     │   └── Exports to Elasticsearch
 │                                     │
-│                                     └── Elasticsearch (GaryPC.lan:9200)
+│                                     └── Elasticsearch (Lab3.lan:9200)
 │                                         └── Index: traces-generic-default
 │                                             └── 57 spans (and growing!)
 ```
@@ -70,7 +70,7 @@ Spark Client (Lab2)                    Kubernetes Cluster
 ### Run Spark Job with OTel Tracing
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark
+cd /home/gxbrooks/repos/spark-observability
 source venv/bin/activate
 source vars/contexts/spark-client/spark_env.sh
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.lan:31317"
@@ -81,7 +81,7 @@ from pyspark.sql import SparkSession
 spark = SparkSession.builder \\
     .appName('Your App Name') \\
     .config('spark.extraListeners', 'com.elastic.spark.otel.OTelSparkListener') \\
-    .config('spark.jars', '/home/gxbrooks/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar') \\
+    .config('spark.jars', '/home/gxbrooks/repos/spark-observability/spark/otel-listener/target/spark-otel-listener-1.0.0.jar') \\
     .getOrCreate()
 
 # Your Spark code here
@@ -96,18 +96,18 @@ spark.stop()
 
 ```bash
 # Count all traces
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_count"
+curl -k -u elastic:myElastic2025 "https://Lab3.lan:9200/traces-generic-default/_count"
 
 # Get recent traces
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_search?size=10&sort=@timestamp:desc"
+curl -k -u elastic:myElastic2025 "https://Lab3.lan:9200/traces-generic-default/_search?size=10&sort=@timestamp:desc"
 
 # Find specific application
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_search?q=spark.application.YOUR_APP_NAME"
+curl -k -u elastic:myElastic2025 "https://Lab3.lan:9200/traces-generic-default/_search?q=spark.application.YOUR_APP_NAME"
 ```
 
 ### View in Kibana
 
-1. Open Kibana: http://GaryPC.lan:5601
+1. Open Kibana: http://Lab3.lan:5601
 2. Go to **Discover**
 3. Select data view: **OpenTelemetry Traces**
 4. Query examples:
@@ -186,12 +186,12 @@ kubectl logs -n observability <pod-name> --tail=50 | grep "TracesExporter"
 
 ### Check Trace Count
 ```bash
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_count"
+curl -k -u elastic:myElastic2025 "https://Lab3.lan:9200/traces-generic-default/_count"
 ```
 
 ### Recent Trace Activity
 ```bash
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_search?size=5&sort=@timestamp:desc"
+curl -k -u elastic:myElastic2025 "https://Lab3.lan:9200/traces-generic-default/_search?size=5&sort=@timestamp:desc"
 ```
 
 ---
@@ -246,7 +246,7 @@ curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default
 ### Authentication Errors
 1. Verify elastic-credentials secret exists: `kubectl get secret -n observability elastic-credentials`
 2. Check password matches: `kubectl get secret -n observability elastic-credentials -o jsonpath='{.data.password}' | base64 -d`
-3. Test Elasticsearch access: `curl -k -u elastic:PASSWORD https://GaryPC.lan:9200/_cluster/health`
+3. Test Elasticsearch access: `curl -k -u elastic:PASSWORD https://Lab3.lan:9200/_cluster/health`
 
 ---
 

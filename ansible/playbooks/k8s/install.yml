@@ -346,7 +346,7 @@
 
     - name: Build certificate SAN list for all nodes
       set_fact:
-        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.lan,Lab1,lab1,Lab2.lan,Lab2,lab2,GaryPC.lan,GaryPC,garypc,localhost"
+        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.lan,Lab1,lab1,Lab2.lan,Lab2,lab2,Lab3.lan,Lab3,lab3,localhost"
       when: inventory_hostname == groups['kubernetes_master'][0]
 
     - name: Initialize Kubernetes cluster

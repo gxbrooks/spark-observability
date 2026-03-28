@@ -1,9 +1,9 @@
 ---
-# Uninstall Docker from image build hosts
+# Uninstall Docker from observability host (Lab3)
 # Usage: ansible-playbook -i inventory.yml playbooks/docker/uninstall.yml
 
 - name: Uninstall Docker
-  hosts: docker_build_hosts
+  hosts: observability
   become: true
   gather_facts: true
   
@@ -23,6 +23,9 @@
     - name: Remove Docker packages (Debian/Ubuntu)
       apt:
         name:
+          - docker-compose-v2
+          - docker-compose
+          - docker.io
           - docker-ce
           - docker-ce-cli
           - containerd.io

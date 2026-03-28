@@ -8,7 +8,6 @@ This directory contains configuration files for Elastic Agent deployments across
 |------|---------|--------|
 | **elastic-agent.linux.yml.j2** | Jinja2 template for Linux hosts | ✅ Active (deployed via Ansible) |
 | **elastic-agent.linux.yml** | Static Linux configuration | 📋 Reference only |
-| **elastic-agent.windows.yml** | Windows configuration | 🔮 Future use |
 | **elastic-agent.local.yml** | Local client testing | 🧪 Development only |
 | **elastic_agent_env_systemd.conf** | Environment variables for systemd | ✅ Active |
 

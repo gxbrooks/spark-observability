@@ -42,8 +42,16 @@ fi
 
 # ~/.bashrc
 
-# Use keychain to manage SSH keys
-eval $(keychain --quiet --eval id_ed25519 id_rsa)
+# Load SSH keys into ssh-agent (keychain is installed by linux/assert_client_node.sh).
+# Prefer keys that exist: personal Git (id_ed25519), Ansible control (id_ed25519_ansible), legacy RSA.
+_keychain_keys=()
+for _k in id_ed25519 id_ed25519_ansible id_rsa; do
+  [[ -f "$HOME/.ssh/$_k" ]] && _keychain_keys+=("$_k")
+done
+if ((${#_keychain_keys[@]})); then
+  eval "$(keychain --quiet --eval "${_keychain_keys[@]}")"
+fi
+unset _k _keychain_keys
 
 
 # Activate project virtual environment (only if not already activated)

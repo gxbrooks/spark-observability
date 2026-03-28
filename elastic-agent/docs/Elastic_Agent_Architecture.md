@@ -374,7 +374,6 @@ Different data types have different processing needs:
 ```
 elastic-agent/
 ├── elastic-agent.linux.yml.j2        # Jinja2 template for Linux hosts
-├── elastic-agent.windows.yml         # Windows configuration (future)
 ├── elastic-agent.local.yml           # Local client testing
 ├── elastic_agent_env_systemd.conf    # Environment variables
 └── docs/

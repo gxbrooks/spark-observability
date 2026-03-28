@@ -4,38 +4,27 @@ instances:
       # Service names
       - "es01"
       - "kibana"
-      # Short hostnames
-      - "GaryPC"
-      - "garypc"
+      # Short hostnames (observability host)
+      - "Lab3"
+      - "lab3"
       # .lan FQDNs (DNS for home network)
-      - "GaryPC.lan"
+      - "Lab3.lan"
       # Standard names
       - "localhost"
-      # Docker/WSL hostnames
-      - "host.docker.internal"
-      - "docker-desktop"
     ip:
       # Loopback
       - "127.0.0.1"
-      # Primary network IP
-      - "192.168.1.115"
+      # Primary network IP (update to Lab3 DHCP reservation if using IP SANs)
+      - "192.168.1.49"
   - name: "kibana"
     dns:
       # Service names
       - "kibana"
       - "es01"
-      # Short hostnames
-      - "GaryPC"
-      - "garypc"
-      # .lan FQDNs (DNS for home network)
-      - "GaryPC.lan"
-      # Standard names
+      - "Lab3"
+      - "lab3"
+      - "Lab3.lan"
       - "localhost"
-      # Docker/WSL hostnames
-      - "host.docker.internal"
-      - "docker-desktop"
     ip:
-      # Loopback
       - "127.0.0.1"
-      # Primary network IP
-      - "192.168.1.115"
+      - "192.168.1.49"

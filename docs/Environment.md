@@ -1,6 +1,6 @@
 # Spark on Kubernetes Environment Best Practices
 
-This document outlines the best practices for environment variables and directory structures used in the elastic-on-spark project.
+This document outlines the best practices for environment variables and directory structures used in the spark-observability project.
 
 ## Directory Structure Overview
 
@@ -160,7 +160,7 @@ When using variables in templates:
 
 ## Implementation in Elastic-on-Spark
 
-The elastic-on-spark project implements these best practices through:
+The spark-observability project implements these best practices through:
 
 1. **Centralized Variable Definition**: All variables in `vars/variables.yaml`
 2. **Variable Processing**: Using `vars/generate_env.sh` (wrapper) or `vars/generate_env.py` to generate context-specific files

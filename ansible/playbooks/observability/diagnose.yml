@@ -5,7 +5,7 @@
   vars:
     timeout_seconds: 15
     recent_timeframe_minutes: 60
-  
+
   tasks:
     - name: Display diagnostic header
       debug:
@@ -13,12 +13,12 @@
           🔍 OBSERVABILITY DIAGNOSTIC
           ===========================
           Timestamp: {{ ansible_date_time.iso8601 }}
-          Target Host: {{ inventory_hostname }}
+          Target Host: {{ inventory_hostname }} ({{ hostvars[observability_host]['ansible_host'] }})
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
     - name: Test Elasticsearch connectivity
       uri:
-        url: "https://GaryPC:9200/_cluster/health"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/_cluster/health"
         method: GET
         user: "elastic"
         password: "myElastic2025"
@@ -30,7 +30,7 @@
 
     - name: Test Kibana connectivity
       uri:
-        url: "http://GaryPC:5601"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:5601"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: kibana_test
@@ -38,7 +38,7 @@
 
     - name: Test Grafana connectivity
       uri:
-        url: "http://GaryPC:3000"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:3000"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: grafana_test
@@ -88,7 +88,7 @@
 
     - name: Test Prometheus connectivity
       uri:
-        url: "http://GaryPC:9090/-/healthy"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:9090/-/healthy"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: prometheus_test
@@ -96,7 +96,7 @@
 
     - name: Test Tempo connectivity
       uri:
-        url: "http://GaryPC:3200/ready"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:3200/ready"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: tempo_test
@@ -104,7 +104,7 @@
 
     - name: Get Grafana dashboards
       uri:
-        url: "http://GaryPC:3000/api/search"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:3000/api/search"
         method: GET
         user: "admin"
         password: "mysecretpassword"
@@ -157,7 +157,7 @@
           Tempo           {{ inventory_hostname }}               3200     HTTP
 
     - name: Check Docker containers
-      shell: "cd /home/ansible/ops/observability && docker-compose ps --format table"
+      shell: "cd /home/ansible/ops/observability && docker compose ps --format table"
       register: docker_containers
       ignore_errors: yes
 
@@ -170,7 +170,7 @@
 
     - name: Check for recent Otel traces
       uri:
-        url: "https://GaryPC.lan:9200/traces-otel-default/_search"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/traces-otel-default/_search"
         method: POST
         body_format: json
         body:
@@ -191,7 +191,7 @@
 
     - name: Check for recent Spark app logs
       uri:
-        url: "https://GaryPC.lan:9200/logs-spark-default/_search"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/logs-spark-default/_search"
         method: POST
         body_format: json
         body:
@@ -212,7 +212,7 @@
 
     - name: Check for recent system metrics
       uri:
-        url: "https://GaryPC.lan:9200/metrics-system.cpu-default/_search"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/metrics-system.cpu-default/_search"
         method: POST
         body_format: json
         body:
@@ -233,7 +233,7 @@
 
     - name: Check for recent GPU metrics
       uri:
-        url: "https://GaryPC.lan:9200/metrics-gpu-default/_search"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/metrics-gpu-default/_search"
         method: POST
         body_format: json
         body:
@@ -254,7 +254,7 @@
 
     - name: Check for recent GC logs
       uri:
-        url: "https://GaryPC.lan:9200/logs-spark_gc-default/_search"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/logs-spark_gc-default/_search"
         method: POST
         body_format: json
         body:
@@ -275,7 +275,7 @@
 
     - name: Get latest timestamps for each index
       uri:
-        url: "https://GaryPC.lan:9200/{{ item.index }}/_search"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/{{ item.index }}/_search"
         method: POST
         body_format: json
         body:

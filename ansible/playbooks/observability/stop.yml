@@ -24,7 +24,6 @@
       when: inventory_hostname != observability_host
     - name: Detect host OS
       set_fact:
-        is_windows: "{{ ansible_os_family == 'Windows' }}"
         is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
         
     - name: Check if observability directory exists
@@ -38,14 +37,14 @@
         
     # === LINUX TASKS ===
     - name: Stop observability services without volumes (Linux)
-      command: docker-compose down
+      command: docker compose down
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux and obs_dir_stat.stat.exists and not delete_volumes
       ignore_errors: true
       
     - name: Stop observability services and delete volumes (Linux)
-      command: docker-compose down -v
+      command: docker compose down -v
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux and obs_dir_stat.stat.exists and delete_volumes
@@ -61,14 +60,6 @@
       when: is_linux
       ignore_errors: true
       
-    # === WINDOWS TASKS ===
-    - name: Stop Docker Desktop service (Windows)
-      win_service:
-        name: "Docker Desktop Service"
-        state: stopped
-      when: is_windows
-      ignore_errors: true
-        
     - name: Display stop status
       debug:
         msg: |

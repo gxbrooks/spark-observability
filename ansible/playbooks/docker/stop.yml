@@ -7,7 +7,7 @@
 # 2. Stop Docker service if running
 
 - name: Stop Docker Service
-  hosts: native:!wsl
+  hosts: observability
   become: true
   gather_facts: true
   pre_tasks:

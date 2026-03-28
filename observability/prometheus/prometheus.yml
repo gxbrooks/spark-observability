@@ -161,7 +161,7 @@ scrape_configs:
   #           kube_node_status_condition, kube_namespace_status_phase, and ~200 more.
   #
   # Uses K8s API server proxy path (same pattern as kubernetes-nodes/cadvisor) because
-  # Prometheus runs outside the cluster on GaryPC and cannot reach pod overlay IPs (10.244.x.x).
+  # Prometheus runs outside the cluster on Lab3 and cannot reach pod overlay IPs (10.244.x.x).
   # The API server proxies HTTP to kube-state-metrics:8080 after TLS termination.
   - job_name: 'kube-state-metrics'
     scheme: https

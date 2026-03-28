@@ -1,6 +1,6 @@
 # Ansible Playbooks for Spark Observability Platform
 
-This directory contains Ansible playbooks for managing the complete Spark Observability infrastructure across Lab1, Lab2, and GaryPC WSL.
+This directory contains Ansible playbooks for managing the Spark Observability infrastructure across **Lab1**, **Lab2**, and **Lab3** (native Linux). Observability (Docker Compose) runs on **Lab3** per `inventory.yml` (`observability_host`).
 
 ## Global Playbooks
 
@@ -15,12 +15,12 @@ ansible-playbook -i inventory.yml playbooks/install.yml
 ```
 
 **Installation Order:**
-1. Docker (Lab2 only - for building Spark images)
+1. Docker on Lab3 (observability host); Docker on Lab2 optional (Spark image builds / registry workflows)
 2. NFS Server and Clients
 3. Kubernetes Cluster (uses containerd runtime)
-4. Observability Platform (GaryPC-WSL with Docker Desktop)
+4. Observability Platform (Lab3, Docker Engine + Compose)
 5. Spark on Kubernetes
-6. Elastic Agent (host-level on Lab1, Lab2, GaryPC)
+6. Elastic Agent (host-level on Linux managed nodes per inventory)
 
 **Use Cases:**
 - First-time setup on new hosts
@@ -38,17 +38,17 @@ ansible-playbook -i inventory.yml playbooks/start.yml
 **Startup Order:**
 1. NFS Server (Lab2)
 2. Kubernetes Cluster (Lab2 master + Lab1/Lab2 workers)
-3. Observability Platform (GaryPC-WSL)
+3. Observability Platform (Lab3)
 4. Spark on Kubernetes (master, workers, history server)
 
 **Prerequisites:**
-- Docker on GaryPC must be manually started via Docker Desktop UI
+- Docker on Lab3 running (`playbooks/docker/start.yml` or systemd)
 - All components should be installed (run `install.yml` if needed)
 
 **Use Cases:**
 - Daily startup of the development environment
 - Restart after system maintenance
-- First-time startup on GaryPC WSL
+- First-time startup on a new lab host
 
 ### `status.yml` - Check All Services
 Checks the status of all components.
@@ -96,13 +96,12 @@ ansible-playbook -i inventory.yml playbooks/stop.yml
 For fine-grained control, use component-specific playbooks in subdirectories:
 
 ### Docker (`docker/`)
-- `install.yml` - Install Docker on Lab2 (for image building only)
-- `uninstall.yml` - Remove Docker
-- `start.yml` - Start Docker service
-- `stop.yml` - Stop Docker service
-- `diagnose.yml` - Check Docker status and troubleshoot issues
+- `install.yml` - Install Docker on **observability** hosts (Lab3; `docker.io` + `docker-compose-v2`)
+- `uninstall.yml` - Remove Docker packages
+- `start.yml` / `stop.yml` - Docker systemd service
+- `diagnose.yml` - Check Docker status
 
-> **Note:** Docker is only used on Lab2 for building custom Spark images. Kubernetes uses containerd as its container runtime.
+> **Note:** Kubernetes uses **containerd**. Docker Engine on Lab3 runs the observability stack; Lab2 may still use Docker for image build/registry steps depending on playbooks in use.
 
 ### NFS (`nfs/`)
 - `install.yml` - Install NFS server and configure clients (includes all exports and data setup)
@@ -151,10 +150,9 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 
 | Host | Role | Components |
 |------|------|------------|
-| **Lab1** | Kubernetes Worker, Monitoring | Kubernetes Worker (containerd), Elastic Agent (systemd) |
-| **Lab2** | Kubernetes Master+Worker, NFS, Image Builds | Kubernetes Master+Worker (containerd), NFS Server, Elastic Agent (systemd), Docker (image builds only), JupyterHub |
-| **GaryPC** | Windows Host | Elastic Agent (Windows service) |
-| **GaryPC-WSL** | Observability Platform | Elasticsearch, Kibana, Grafana, Logstash (Docker Compose) |
+| **Lab1** | Kubernetes worker | Kubernetes worker (containerd), Elastic Agent (typical) |
+| **Lab2** | Kubernetes master+worker, data plane | K8s control plane + worker (containerd), NFS server, Hadoop (per inventory), JupyterHub (per inventory), Elastic Agent |
+| **Lab3** | Observability + dev / control | Docker Compose stack (Elasticsearch, Kibana, Grafana, Logstash, Prometheus, Tempo, OTel collector, etc.), optional Ansible control node |
 
 ### Service URLs
 
@@ -162,9 +160,9 @@ After startup, services are accessible at:
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **Kibana** | http://GaryPC.lan:5601 | elastic / myElastic2025 |
-| **Grafana** | http://GaryPC.lan:3000 | admin / (see `vars/contexts/observability_docker.env`) |
-| **Elasticsearch** | https://GaryPC.lan:9200 | elastic / myElastic2025 |
+| **Kibana** | http://Lab3.lan:5601 | See `vars/secrets.yaml` → generated `observability_docker.env` |
+| **Grafana** | http://Lab3.lan:3000 | `GF_SECURITY_ADMIN_*` from same env / secrets |
+| **Elasticsearch** | https://Lab3.lan:9200 | `ES_USER` / `ES_PASSWORD` from same |
 | **Spark History Server** | http://Lab2.lan:31534 | (no auth) |
 | **Spark Master UI** | http://Lab2.lan:32290 | (no auth) |
 

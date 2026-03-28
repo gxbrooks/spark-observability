@@ -15,6 +15,7 @@
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
   vars:
     k8s_namespace: "spark"
+    logstash_obs_host: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
   
   tasks:
     - name: Display diagnostic header
@@ -229,7 +230,7 @@
     
     - name: Test Logstash connectivity
       ansible.builtin.shell: |
-        timeout 5 bash -c "echo > /dev/tcp/GaryPC.lan/5050" 2>&1 && echo "REACHABLE" || echo "NOT_REACHABLE"
+        timeout 5 bash -c "echo > /dev/tcp/{{ logstash_obs_host }}/5050" 2>&1 && echo "REACHABLE" || echo "NOT_REACHABLE"
       register: logstash_connectivity
       changed_when: false
       ignore_errors: true

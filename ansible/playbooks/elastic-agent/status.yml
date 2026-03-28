@@ -3,7 +3,7 @@
 # Usage: ansible-playbook -i inventory.yml playbooks/elastic-agent/status.yml
 
 - name: Check Elastic Agent Status
-  hosts: all:!wsl
+  hosts: linux
   become: true
   gather_facts: true
   

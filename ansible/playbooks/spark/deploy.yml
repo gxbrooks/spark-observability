@@ -46,142 +46,57 @@
         msg: "Spark events directory /mnt/spark/events is not available or not writable on {{ inventory_hostname }}. Please set up the directory first."
       when: spark_events_check.rc != 0
 
-- name: Deploy Spark on Kubernetes
-  hosts: kubernetes_master
+- name: Ensure Spark Ansible vars are generated
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+  tasks:
+    - name: Run generate_contexts.sh
+      shell: "bash vars/generate_contexts.sh {{ '-f' if force_env_generation | default(false) else '' }}"
+      args:
+        chdir: "{{ project_root }}"
+      register: generate_ctx
+      changed_when: "'Generating' in generate_ctx.stdout | default('')"
+
+- name: Build Spark Docker image on observability host
+  hosts: observability
   become: false
   # Parameters:
   #  - force_rebuild: (bool) Force rebuild of Spark image even if sources haven't changed
   #  - force_download: (bool) Force redownload of Spark archive even if it exists locally
   vars:
-    force_download: false  # Default value, can be overridden from command line
-    force_rebuild: false   # Default value, can be overridden from command line
-    # Use user's home directory for k8s configs, not /opt/spark
-    user_spark_home: "/home/{{ ansible_user }}/spark" 
-    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    force_download: false
+    force_rebuild: false
+    user_spark_home: "/home/{{ ansible_user }}/spark"
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
-    k8s_config_dir: "{{ user_spark_home }}/k8s"
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
-  pre_tasks:
-    - name: Ensure environment variables are generated and up-to-date
-      delegate_to: localhost
-      become: false
-      shell: "bash vars/generate_contexts.sh {{ '-f' if force_env_generation | default(false) else '' }}"
-      args:
-        chdir: "{{ project_root }}"
-      register: generate_result
-      changed_when: "'Generating' in generate_result.stdout"
-
-    - name: Run generate_env.py in development environment first 
-      delegate_to: localhost
-      become: false
-      shell: "bash vars/generate_contexts.sh {{ '-f' if force_env_generation | default(false) else '' }}"
-      args:
-        chdir: "{{ project_root }}"
-      register: generate_result
-      changed_when: "'Generating' in generate_result.stdout"
-      
-    # Kubernetes certificates are now handled by the spark role dependency
-        
-    # No need to read Spark version from TOML directly as it's now loaded from spark_vars.yml
-    
-    - name: Display Spark version being used
-      debug:
-        msg: "Using Spark version: {{ spark_version }} with image {{ spark_image }}:{{ spark_tag }}"
-
-    - name: Clean up existing Docker repository files
-      become: true
-      file:
-        path: "{{ item }}"
-        state: absent
-      loop:
-        - /etc/apt/keyrings/docker.gpg
-        - /etc/apt/sources.list.d/docker.list
-        - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
-
-    - name: Install Docker dependencies
-      become: true
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - software-properties-common
-        state: present
-        update_cache: yes
-
-    - name: Create Docker keyring directory
-      become: true
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-
-    - name: Add Docker GPG key
-      become: true
-      shell: |
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor | sudo tee /etc/apt/keyrings/docker.gpg > /dev/null
-        sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-    - name: Add Docker repository
-      become: true
-      shell: |
-        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable" | sudo tee /etc/apt/sources.list.d/docker.list
-        apt-get update
-
-    - name: Install Docker packages
-      become: true
-      apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-        state: present
-        update_cache: yes
-
-    - name: Ensure Docker service is running
-      become: true
-      systemd:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Add user to docker group
-      become: true
-      user:
-        name: "{{ ansible_user }}"
-        groups: docker
-        append: yes
-
-    - name: Reset connection to allow Docker group changes to take effect
-      meta: reset_connection
-
   tasks:
-    - name: Ensure Kubernetes certificates are properly configured
-      include_tasks: "{{ playbook_dir | dirname | dirname }}/roles/k8s_certs/tasks/main.yml"
-      vars:
-        k8s_cert_check_only: true
-    - name: Ensure spark directory exists
+    - name: Display Spark version and image for build
+      debug:
+        msg: "Building on {{ inventory_hostname }} — Spark {{ spark_version }}, image {{ spark_image }}:{{ spark_tag }} (registry {{ registry_host }})"
+
+    - name: Ensure spark directory exists on observability host
       file:
-        path: "/home/{{ ansible_user }}/spark"
+        path: "{{ user_spark_home }}"
         state: directory
         mode: '0755'
 
-    - name: Ensure spark images directory exists
+    - name: Ensure spark images directory exists on controller
       delegate_to: localhost
       file:
         path: "{{ project_root }}/spark/images"
         state: directory
         mode: '0755'
-  
+
     - name: Check if Spark archive exists locally in images directory
       delegate_to: localhost
       stat:
         path: "{{ project_root }}/spark/images/spark-{{ spark_version }}-bin-hadoop3.tgz"
       register: spark_archive
 
-    # No need to set download flag as it's already defined in vars
-    
     - name: Download Spark archive if not present or force_download is true
       delegate_to: localhost
       get_url:
@@ -191,13 +106,138 @@
         timeout: 600
       register: download_result
       when: force_download | bool or not spark_archive.stat.exists
-      
+
     - name: Display download result
       debug:
         msg: "Spark archive {{ 'downloaded' if (download_result.changed | default(false)) else 'already present' }} in images directory"
       when: not (force_download | bool or not spark_archive.stat.exists) or download_result is defined
 
-    - name: Copy spark files to remote
+    - name: Copy spark tree to observability host for docker build
+      become: true
+      copy:
+        src: "{{ project_root }}/spark/"
+        dest: "{{ user_spark_home }}/"
+        mode: preserve
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Check if Spark image exists locally
+      shell: docker images -q {{ spark_image }}:{{ spark_tag }}
+      register: image_exists
+      ignore_errors: true
+
+    - name: Check if source files have changed (controller checkout)
+      delegate_to: localhost
+      find:
+        paths: "{{ project_root }}/spark"
+        recurse: yes
+        file_type: file
+      register: spark_sources
+
+    - name: Set file modification check timestamp on observability host
+      stat:
+        path: "{{ user_spark_home }}/.last_build_timestamp"
+      register: last_build
+      ignore_errors: true
+
+    - name: Get latest source modification time
+      set_fact:
+        latest_mtime: "{{ spark_sources.files | map(attribute='mtime') | sort | last }}"
+        last_build_time: "{{ last_build.stat.mtime | default(0) }}"
+
+    - name: Determine if sources changed
+      set_fact:
+        sources_changed: "{{ latest_mtime > last_build_time }}"
+
+    - name: Set build flag
+      set_fact:
+        force_build: "{{ force_rebuild or (sources_changed | default(true)) }}"
+
+    - name: Display build decision
+      debug:
+        msg: "Will {{ (image_exists.stdout == '' or force_build | bool) | ternary('BUILD', 'SKIP building') }} Spark image (image_exists={{ image_exists.stdout != '' }}, force_build={{ force_build | bool }}, sources_changed={{ sources_changed | default('unknown') }}, force_download={{ force_download | bool }})"
+      when: image_exists is defined and image_exists.stdout is defined
+
+    - name: Check if Spark archive exists on observability host
+      stat:
+        path: "{{ user_spark_home }}/images/spark-{{ spark_version }}-bin-hadoop3.tgz"
+      register: remote_spark_archive
+
+    - name: Fail if Spark archive not found on observability host
+      fail:
+        msg: "Spark archive not found under {{ user_spark_home }}/images. Re-run with force_download=true or copy the tarball."
+      when: image_exists is defined and image_exists.stdout is defined and ((image_exists.stdout == "" or force_build | bool) and not remote_spark_archive.stat.exists)
+
+    - name: Build Spark Docker image
+      shell: |
+        cd {{ user_spark_home }} && \
+        echo "Building with args:" && \
+        BUILD_ARGS=$(sed 's/^[[:space:]]*//; s/[[:space:]]*=[[:space:]]*/=/' spark-image.toml | awk -F'=' '/^[A-Z]/{gsub(/"/, "", $2); printf "--build-arg %s=%s ", $1, $2}') && \
+        echo "$BUILD_ARGS" && \
+        docker build . -t {{ spark_image }}:{{ spark_tag }} \
+          $BUILD_ARGS --progress=plain {{ (force_build | bool) | ternary('--no-cache', '') }}
+      register: docker_build
+      when: image_exists is defined and image_exists.stdout is defined and (image_exists.stdout == "" or force_build | bool)
+      async: 900
+      poll: 15
+
+    - name: Show Docker build output when built
+      debug:
+        var: docker_build.stdout_lines
+      when: docker_build is changed
+
+    - name: Update build timestamp file
+      shell: touch {{ user_spark_home }}/.last_build_timestamp
+      when: docker_build is changed
+
+    - name: Ensure local registry container is running on observability host
+      command: docker inspect -f {% raw %}'{{.State.Running}}'{% endraw %} registry
+      register: registry_status
+      ignore_errors: true
+
+    - name: Start local registry if not running
+      command: docker start registry
+      when: registry_status.rc == 0 and registry_status.stdout != "true"
+
+    - name: Create local registry if it does not exist
+      command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
+      when: registry_status.rc != 0
+
+    - name: Push Spark image to local registry
+      shell: docker push {{ spark_image }}:{{ spark_tag }}
+      when: docker_build is changed or force_build | bool
+
+- name: Deploy Spark on Kubernetes
+  hosts: kubernetes_master
+  become: false
+  # Parameters:
+  #  - force_rebuild / force_download: only affect the observability build play above
+  vars:
+    force_download: false
+    force_rebuild: false
+    user_spark_home: "/home/{{ ansible_user }}/spark"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    k8s_config_dir: "{{ user_spark_home }}/k8s"
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+  pre_tasks:
+    - name: Display Spark version being used
+      debug:
+        msg: "Deploying Spark {{ spark_version }} with image {{ spark_image }}:{{ spark_tag }} (built on observability host; registry {{ registry_host }})"
+
+  tasks:
+    - name: Ensure Kubernetes certificates are properly configured
+      include_tasks: "{{ playbook_dir | dirname | dirname }}/roles/k8s_certs/tasks/main.yml"
+      vars:
+        k8s_cert_check_only: true
+    - name: Ensure spark directory exists on Kubernetes master
+      file:
+        path: "/home/{{ ansible_user }}/spark"
+        state: directory
+        mode: '0755'
+
+    - name: Copy spark tree to Kubernetes master (configs, not image build)
       become: true
       copy:
         src: "{{ project_root }}/spark/"
@@ -211,93 +251,6 @@
       slurp:
         src: "{{ project_root }}/vars/contexts/spark-configmap.yaml"
       register: spark_configmap
-
-    - name: Check if Spark image exists
-      shell: docker images -q {{ spark_image }}:{{ spark_tag }}
-      register: image_exists
-      ignore_errors: true
-      
-    - name: Check if source files have changed
-      delegate_to: localhost
-      find:
-        paths: "{{ project_root }}/spark"
-        recurse: yes
-        file_type: file
-      register: spark_sources
-      
-    - name: Set file modification check timestamp
-      stat:
-        path: "/home/{{ ansible_user }}/spark/.last_build_timestamp"
-      register: last_build
-      ignore_errors: true
-      
-    - name: Get latest source modification time
-      set_fact:
-        latest_mtime: "{{ spark_sources.files | map(attribute='mtime') | sort | last }}"
-        last_build_time: "{{ last_build.stat.mtime | default(0) }}"
-      
-    - name: Determine if sources changed
-      set_fact:
-        sources_changed: "{{ latest_mtime > last_build_time }}"
-        
-    - name: Set build flag
-      set_fact:
-        force_build: "{{ force_rebuild or (sources_changed | default(true)) }}"
-        
-    - name: Display build decision
-      debug:
-        msg: "Will {{ (image_exists.stdout == '' or force_build | bool) | ternary('BUILD', 'SKIP building') }} Spark image (image_exists={{ image_exists.stdout != '' }}, force_build={{ force_build | bool }}, sources_changed={{ sources_changed | default('unknown') }}, force_download={{ force_download | bool }})"
-      when: image_exists is defined and image_exists.stdout is defined
-      
-    - name: Check if Spark archive exists on remote host in images directory
-      stat:
-        path: "/home/{{ ansible_user }}/spark/images/spark-{{ spark_version }}-bin-hadoop3.tgz"
-      register: remote_spark_archive
-      
-    - name: Fail if Spark archive not found
-      fail:
-        msg: "Spark archive not found on remote host in images directory. Please check if the file was copied correctly."
-      when: image_exists is defined and image_exists.stdout is defined and ((image_exists.stdout == "" or force_build | bool) and not remote_spark_archive.stat.exists)
-      
-    - name: Build Spark Docker image
-      shell: |
-        cd /home/{{ ansible_user }}/spark && \
-        echo "Building with args:" && \
-        BUILD_ARGS=$(sed 's/^[[:space:]]*//; s/[[:space:]]*=[[:space:]]*/=/' spark-image.toml | awk -F'=' '/^[A-Z]/{gsub(/"/, "", $2); printf "--build-arg %s=%s ", $1, $2}') && \
-        echo "$BUILD_ARGS" && \
-        docker build . -t {{ spark_image }}:{{ spark_tag }} \
-          $BUILD_ARGS --progress=plain {{ (force_build | bool) | ternary('--no-cache', '') }}
-      register: docker_build
-      when: image_exists is defined and image_exists.stdout is defined and (image_exists.stdout == "" or force_build | bool)
-      async: 900
-      poll: 15
-      
-    - name: Show Docker build output when built
-      debug:
-        var: docker_build.stdout_lines
-      when: docker_build is changed
-        
-    - name: Update build timestamp file
-      shell: touch /home/{{ ansible_user }}/spark/.last_build_timestamp
-      when: docker_build is changed
-      
-    - name: Ensure local registry is running
-      command: docker inspect -f {% raw %}'{{.State.Running}}'{% endraw %} registry
-      register: registry_status
-      ignore_errors: true
-      
-    - name: Start local registry if not running
-      command: docker start registry
-      when: registry_status.rc == 0 and registry_status.stdout != "true"
-      
-    - name: Create local registry if it doesn't exist
-      command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
-      when: registry_status.rc != 0
-      
-    - name: Push Spark image to local registry
-      shell: |
-        docker push {{ spark_image }}:{{ spark_tag }}
-      when: docker_build is changed or force_build | bool
 
     - name: Create Spark Kubernetes directory
       become: true

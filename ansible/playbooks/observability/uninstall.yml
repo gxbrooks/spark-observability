@@ -13,7 +13,6 @@
   tasks:
     - name: Detect host OS
       set_fact:
-        is_windows: "{{ ansible_os_family == 'Windows' }}"
         is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
         
     - name: Display uninstall warning
@@ -36,7 +35,7 @@
         
     # === LINUX TASKS ===
     - name: Stop observability services (Linux)
-      command: docker-compose down
+      command: docker compose down
       args:
         chdir: "{{ observability_dir }}"
       when: is_linux
@@ -64,21 +63,6 @@
       when: is_linux
       ignore_errors: true
       
-    # === WINDOWS TASKS ===
-    - name: Stop Docker Desktop service (Windows)
-      win_service:
-        name: "Docker Desktop Service"
-        state: stopped
-      when: is_windows
-      ignore_errors: true
-      
-    - name: Remove observability directory (Windows)
-      win_file:
-        path: "{{ observability_dir }}"
-        state: absent
-      when: is_windows
-      ignore_errors: true
-        
     - name: Display uninstall status
       debug:
         msg: |

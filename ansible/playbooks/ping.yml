@@ -5,16 +5,3 @@
   tasks:
     - name: Ping the remote host (Linux)
       ansible.builtin.ping:
-
-- name: Ping Windows hosts via SSH+Python
-  hosts: windows
-  gather_facts: false
-  tasks:
-    - name: Ping the remote host (Windows via SSH+Python)
-      ansible.builtin.raw: python --version
-      register: win_ping_result
-      changed_when: false
-
-    - name: Show Windows Python version
-      debug:
-        var: win_ping_result.stdout

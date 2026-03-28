@@ -46,13 +46,13 @@
     - name: Build certificate SAN list for all nodes
       set_fact:
         # Comprehensive SANs following best practices:
-        # - Short hostnames (Lab2, Lab1, GaryPC)
+        # - Short hostnames (Lab2, Lab1, Lab3)
         # - .lan FQDNs (for DNS on home network)
         # - IP addresses (primary network IPs)
         # - localhost and 127.0.0.1
         # - Kubernetes service names
         # - Cluster IP for API server
-        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.lan,Lab1,lab1,Lab2.lan,Lab2,lab2,GaryPC.lan,GaryPC,garypc,localhost,127.0.0.1,192.168.1.48,192.168.1.76,192.168.1.115,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,10.96.0.1"
+        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.lan,Lab1,lab1,Lab2.lan,Lab2,lab2,Lab3.lan,Lab3,lab3,localhost,127.0.0.1,192.168.1.48,192.168.1.76,192.168.1.49,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,10.96.0.1"
 
     - name: Display new certificate SAN list
       debug:

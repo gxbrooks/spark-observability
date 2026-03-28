@@ -222,8 +222,9 @@ services:
       - "./grafana/grafana.ini:/etc/grafana/grafana.ini"
       - certs:/etc/ssl/certs/elastic:ro
     environment:
-      GF_SECURITY_ADMIN_USER: "admin"
-      GF_SECURITY_ADMIN_PASSWORD: "mysecretpassword"
+      # Must match vars/contexts/observability_docker.env (from secrets.yaml / generate_contexts)
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-mysecretpassword}
       # GF_SERVER_HOST: localhost
       GF_SERVER_HTTP_PORT: ${GF_SERVER_HTTP_PORT}
       # GF_INSTALL_PLUGINS: "marcusolsson-dynamictext-panel"  # Disabled due to permission issues

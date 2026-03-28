@@ -36,7 +36,7 @@ Run the secure deployment wrapper script:
 Alternatively, you can run the Ansible playbook directly:
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark
+cd /home/gxbrooks/repos/spark-observability
 ansible-playbook ansible/playbooks/spark/deploy_spark.yml
 ```
 
@@ -83,7 +83,7 @@ The certificate regeneration process:
 
 The following manual scripts have been deprecated in favor of the Ansible-based approach:
    ```bash
-   /home/gxbrooks/repos/elastic-on-spark/spark/deploy_spark_secure.sh
+   /home/gxbrooks/repos/spark-observability/spark/deploy_spark_secure.sh
    ```
 
 ## Certificate Management Details

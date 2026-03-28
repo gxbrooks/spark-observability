@@ -5,13 +5,13 @@
 - Spark 4.0.1 deployed in Kubernetes ✅
 - PySpark 4.0.1 in project venv ✅
 - OTel Collector running in observability namespace ✅
-- Elasticsearch accessible at GaryPC.lan:9200 ✅
+- Elasticsearch accessible at Lab3.lan:9200 (or `https://Lab3.lan:9200`) ✅
 
 ## Run Spark with Traces (3 Steps)
 
 ### Step 1: Set Environment
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark
+cd /home/gxbrooks/repos/spark-observability
 source venv/bin/activate
 source vars/contexts/spark-client/spark_env.sh
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://Lab2.lan:31317"
@@ -24,7 +24,7 @@ from pyspark.sql import SparkSession
 spark = SparkSession.builder \
     .appName('Your Application Name') \
     .config('spark.extraListeners', 'com.elastic.spark.otel.OTelSparkListener') \
-    .config('spark.jars', '/home/gxbrooks/repos/elastic-on-spark/spark/otel-listener/target/spark-otel-listener-1.0.0.jar') \
+    .config('spark.jars', '/home/gxbrooks/repos/spark-observability/spark/otel-listener/spark-otel-listener-1.0.0.jar') \
     .getOrCreate()
 
 # Your Spark code here
@@ -35,7 +35,7 @@ spark.stop()
 ```
 
 ### Step 3: View Traces in Kibana
-1. Open: http://GaryPC.lan:5601
+1. Open: http://Lab3.lan:5601
 2. Go to: **Discover**
 3. Select: **OpenTelemetry Traces** data view
 4. Filter: `Name: "spark.application*"` to see your apps
@@ -44,11 +44,12 @@ spark.stop()
 
 ```bash
 # Check trace count
-curl -k -u elastic:myElastic2025 "https://GaryPC.lan:9200/traces-generic-default/_count"
+# Use credentials from vars/secrets.yaml (generated into observability .env)
+curl -k -u elastic:YOUR_ES_PASSWORD "https://Lab3.lan:9200/traces-generic-default/_count"
 
 # See recent applications
-curl -k -u elastic:myElastic2025 -s \
-  "https://GaryPC.lan:9200/traces-generic-default/_search?q=spark.application*&size=5" \
+curl -k -u elastic:YOUR_ES_PASSWORD -s \
+  "https://Lab3.lan:9200/traces-generic-default/_search?q=spark.application*&size=5" \
   | python3 -m json.tool | grep "spark.app.name"
 ```
 

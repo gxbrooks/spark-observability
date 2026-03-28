@@ -50,7 +50,7 @@
     # --- Prometheus API health ---
     - name: Check Prometheus health endpoint
       uri:
-        url: "http://GaryPC:9090/-/healthy"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:9090/-/healthy"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: prometheus_health
@@ -58,7 +58,7 @@
 
     - name: Check Prometheus readiness endpoint
       uri:
-        url: "http://GaryPC:9090/-/ready"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:9090/-/ready"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: prometheus_ready
@@ -67,7 +67,7 @@
     # --- Prometheus targets ---
     - name: Get all Prometheus scrape targets
       uri:
-        url: "http://GaryPC:9090/api/v1/targets"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:9090/api/v1/targets"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: prometheus_targets
@@ -133,7 +133,7 @@
     # --- Check Elasticsearch for K8s metrics ---
     - name: Check for recent Kubernetes metrics in Elasticsearch
       uri:
-        url: "https://GaryPC.lan:9200/metrics-kubernetes-*/_count"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/metrics-kubernetes-*/_count"
         method: POST
         body_format: json
         body:
@@ -151,7 +151,7 @@
 
     - name: Check for recent node metrics (node-exporter) in Elasticsearch
       uri:
-        url: "https://GaryPC.lan:9200/metrics-kubernetes-*/_count"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/metrics-kubernetes-*/_count"
         method: POST
         body_format: json
         body:
@@ -173,7 +173,7 @@
 
     - name: Check for recent kube-state-metrics in Elasticsearch
       uri:
-        url: "https://GaryPC.lan:9200/metrics-kubernetes-*/_count"
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/metrics-kubernetes-*/_count"
         method: POST
         body_format: json
         body:
@@ -195,7 +195,7 @@
 
     - name: Check for key priority metrics via Prometheus instant query
       uri:
-        url: "http://GaryPC:9090/api/v1/query?query={{ item.query | urlencode }}"
+        url: "http://{{ hostvars[observability_host]['ansible_host'] }}:9090/api/v1/query?query={{ item.query | urlencode }}"
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: prom_metric_check

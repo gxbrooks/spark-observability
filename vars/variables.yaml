@@ -85,10 +85,10 @@ ES_HOST:
   contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
   values:
     observability: es01
-    spark-runtime: GaryPC.lan
-    devops: GaryPC.lan
-    elastic-agent: GaryPC.lan
-    spark-client: GaryPC.lan
+    spark-runtime: Lab3.lan
+    devops: Lab3.lan
+    elastic-agent: Lab3.lan
+    spark-client: Lab3.lan
 ES_PORT:
   value: 9200
   contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
@@ -106,8 +106,8 @@ ES_URL:
   contexts: [observability, elastic-agent, spark-client]
   values:
     observability: https://es01:9200
-    elastic-agent: https://GaryPC.lan:9200
-    spark-client: https://GaryPC.lan:9200
+    elastic-agent: https://Lab3.lan:9200
+    spark-client: https://Lab3.lan:9200
 
 KUBERNETES_API_SERVER:
   value: Lab2.lan
@@ -153,8 +153,8 @@ EB_ENCRYPTION_KEY:
 KB_HOST:
   contexts: [observability, devops]
   values:
-    observability: GaryPC.lan  # External hostname for SERVER_PUBLICBASEURL
-    devops: GaryPC.lan
+    observability: Lab3.lan  # External hostname for SERVER_PUBLICBASEURL
+    devops: Lab3.lan
 KB_PORT:
   value: 5601
   contexts: [observability, devops]
@@ -172,7 +172,7 @@ LS_HOST:
   contexts: [observability, elastic-agent]
   values:
     observability: logstash01
-    elastic-agent: GaryPC.lan
+    elastic-agent: Lab3.lan
 LS_PORT:
   value: 5044
   contexts: [observability]
@@ -187,7 +187,7 @@ LS_SPARK_EVENTS_PORT:
 
 # Grafana variables
 GRAFANA_HOST:
-  value: GaryPC.lan
+  value: Lab3.lan
   contexts: [observability]
 GF_SERVER_HTTP_PORT:
   value: 3000
@@ -206,7 +206,7 @@ GF_SECURITY_ADMIN_PASSWORD:
 # Currently we use systemd env.conf file format for Elastic Agent on Linux.
 # env.con is in elastic-agent/env.conf
 # there is a playbook to inject env.conf into the Elastic Agent service environment.
-# for Windows there is a task to populate environment variables from the Linux version
+# Linux hosts use env.conf via systemd EnvironmentFile
 # All this needs to be integrated with vars/generate_contexts.py
 ELASTIC_AGENT_VERSION:
   value: 8.15.0
@@ -310,8 +310,8 @@ USER_SPARK_HOME:
 OTEL_EXPORTER_OTLP_ENDPOINT:
   contexts: [spark-client, devops, spark-runtime]
   values:
-    spark-client: http://GaryPC.lan:4317
-    devops: http://GaryPC.lan:4317
+    spark-client: http://Lab3.lan:4317
+    devops: http://Lab3.lan:4317
     spark-runtime: http://otel-collector.observability.svc.cluster.local:4317
 
 OTEL_SERVICE_NAME:

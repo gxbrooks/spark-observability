@@ -4,7 +4,7 @@ This document describes the consolidation of multiple Spark deployment approache
 
 ## Overview
 
-The elastic-on-spark project previously contained multiple approaches for deploying Spark on Kubernetes. This has been consolidated into a single, secure deployment method using Ansible roles and playbooks.
+The spark-observability project previously contained multiple approaches for deploying Spark on Kubernetes. This has been consolidated into a single, secure deployment method using Ansible roles and playbooks.
 
 ## Deployment Structure
 

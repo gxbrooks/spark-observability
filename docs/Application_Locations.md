@@ -1,11 +1,11 @@
 # Application Locations and Installation Guide
 
-This document provides a comprehensive overview of where applications are installed and how to access them in the elastic-on-spark project.
+This document provides a comprehensive overview of where applications are installed and how to access them in the **spark-observability** project.
 
 ## **Development Environment Setup**
 
 ### **Python Environment**
-- **Location**: `/home/gxbrooks/repos/elastic-on-spark/venv/`
+- **Location**: `/home/gxbrooks/repos/spark-observability/venv/`
 - **Python Version**: 3.11 (required for Apache Spark 4.0+)
 - **Activation**: `source venv/bin/activate`
 - **Deactivation**: `deactivate`
@@ -26,6 +26,9 @@ This document provides a comprehensive overview of where applications are instal
 | **IPython** | `venv/bin/ipython` | Interactive Spark (client-mode) | `source venv/bin/activate` then `ipython` |
 | **Spark Master UI** | `http://Lab2.lan:32290` | Spark cluster monitoring | Web browser |
 | **Spark History Server** | `http://Lab2.lan:31534` | Historical job analysis | Web browser |
+| **Elasticsearch** | `https://Lab3.lan:9200` | Observability / search | Browser or API (`vars/secrets.yaml`) |
+| **Kibana** | `http://Lab3.lan:5601` | Logs & traces UI | Browser |
+| **Grafana** | `http://Lab3.lan:3000` | Metrics & dashboards | Browser (`GF_SECURITY_ADMIN_*` in secrets / `.env`) |
 | **HDFS Client** | `/usr/bin/hdfs` | Hadoop HDFS CLI | `hdfs` (via wrapper) |
 | **Spark Submit** | `venv/bin/spark-submit` | Spark job submission | `source venv/bin/activate` then `spark-submit` |
 | **Git** | `/usr/bin/git` | Version control | `git` |
@@ -126,7 +129,7 @@ hdfs dfs -ls /
 
 ## **File Structure**
 ```
-elastic-on-spark/
+spark-observability/
 ├── venv/                          # Virtual environment (Python 3.11)
 │   ├── bin/                      # Executables (python, pip, etc.)
 │   ├── lib/python3.11/site-packages/  # Python packages

@@ -56,6 +56,18 @@ ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/promet
 ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/prometheus/diagnose.yml
 ```
 
+### Lab3 (native host, inventory group `observability`)
+
+Run from `spark-observability/ansible` with a control node that can SSH as `ansible_user` (see `inventory.yml`). Managed nodes should already have `linux/assert_managed_node.sh` applied (includes `rsync` for Ansible `synchronize`).
+
+```bash
+ansible-playbook -i inventory.yml playbooks/docker/install.yml --limit observability
+ansible-playbook -i inventory.yml playbooks/observability/install.yml --limit observability
+ansible-playbook -i inventory.yml playbooks/observability/start.yml --limit observability
+```
+
+`install.yml` imports `deploy.yml` (file sync and `docker compose build`). To run Prometheus sub-playbook steps on `kubernetes_master` as well (K8s exporters), use `--limit 'observability:kubernetes_master'`.
+
 ## Host Support
 
 ### Linux/WSL Hosts

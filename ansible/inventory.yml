@@ -1,35 +1,24 @@
 all:
   vars:
-    # elastic_agent_version: "8.11.1" 
+    # elastic_agent_version: "8.11.1"
     # elastic_agent_download_url: "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-{{ elastic_agent_version }}-{{ elastic_agent_os }}-{{ elastic_agent_arch }}.{{ elastic_agent_extension }}"
-    # elastic_agent_enrollment_url: "http://your-enrollment-url" 
-    # elastic_agent_enrollment_token: "your-enrollment-token" 
+    # elastic_agent_enrollment_url: "http://your-enrollment-url"
+    # elastic_agent_enrollment_token: "your-enrollment-token"
     ansible_user: ansible
     ansible_connection: ssh
     ansible_ssh_private_key_file: /home/gxbrooks/.ssh/id_ed25519_ansible  # Control-node key for Ansible SSH
-    
+
     # Expected IP addresses (for documentation/reference only - DO NOT USE IN CONFIGS)
     # Always use DNS names (*.lan) instead of IPs
     # These should match DHCP reservations if possible
     expected_ips:
-      GaryPC.lan: 192.168.1.115  # Observability (Docker Desktop on Windows 11)
       Lab1.lan: 192.168.1.76     # Kubernetes worker
       Lab2.lan: 192.168.1.48     # Kubernetes master, NFS server
-    
-    # Critical: Define which host runs observability stack
-    observability_host: GaryPC-WSL
+      Lab3.lan: 192.168.1.49     # Observability (native Ubuntu); update to match Lab3 DHCP reservation
+
+    # Critical: Define which host runs observability stack (Docker Compose + ELK, etc.)
+    observability_host: Lab3
   children:
-    windows:
-      vars:
-        elastic_agent_os: "windows"
-        elastic_agent_arch: "x86_64"
-        elastic_agent_extension: "zip"
-        ansible_shell_type: cmd
-        ansible_shell_executable: cmd
-        ansible_python_interpreter: "C:\\Program Files\\Python312\\python.exe"
-      hosts:
-        GaryPC:
-          ansible_host: GaryPC.lan
     linux:
       vars:
         elastic_agent_os: "linux"
@@ -55,10 +44,10 @@ all:
               hosts:
                 Lab2:
                   ansible_host: Lab2.lan
-            docker_build_hosts:  # Docker for building images (Lab2 only)
+            observability:  # Observability stack (Docker Engine on native Ubuntu)
               hosts:
-                Lab2:
-                  ansible_host: Lab2.lan
+                Lab3:
+                  ansible_host: Lab3.lan
             spark_kubernetes:
               children:
                 kubernetes_master:
@@ -71,11 +60,3 @@ all:
                       ansible_host: Lab2.lan
                     Lab1:  # New worker node
                       ansible_host: Lab1.lan
-        wsl:
-          vars:
-            ansible_port: 2222
-          children:
-            observability:
-              hosts:
-                GaryPC-WSL:
-                  ansible_host: GaryPC.lan

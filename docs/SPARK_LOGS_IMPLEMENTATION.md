@@ -189,7 +189,7 @@ If using Ansible to deploy Spark, update the playbooks to:
 #    - Restart Spark master, worker, history server pods
 
 # 2. Redeploy Elastic Agent with new configuration
-cd /home/gxbrooks/repos/elastic-on-spark/ansible
+cd /home/gxbrooks/repos/spark-observability/ansible
 ansible-playbook playbooks/elastic-agent/install.yml --limit Lab2
 
 # 3. Restart observability stack to initialize new configs
