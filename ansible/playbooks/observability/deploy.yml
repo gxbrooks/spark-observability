@@ -3,6 +3,17 @@
 # Complete installation including file deployment and service startup
 # Native Linux observability host (Docker Engine)
 
+- name: Regenerate observability Docker env on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run generate_contexts for observability context
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+        regenerate_context_names: ['observability']
+
 - name: Install Observability Platform
   hosts: observability
   become: false

@@ -29,9 +29,8 @@ fi
 # Source Spark client environment for variable values (if not already sourced)
 SPARK_CLIENT_ENV="${ROOT_DIR}/vars/contexts/spark_client_env.sh"
 if [ ! -f "${SPARK_CLIENT_ENV}" ]; then
-    echo "Error: spark_client_env.sh not found at ${SPARK_CLIENT_ENV}" >&2
-    echo "Run: bash vars/generate_contexts.sh spark-client" >&2
-    exit 1
+    echo "Info: Generating spark_client_env.sh from variables..." >&2
+    (cd "${ROOT_DIR}" && bash vars/generate_contexts.sh spark-client -f) || exit 1
 fi
 
 # Only source if required variables aren't already set (avoids redundant sourcing)

@@ -7,6 +7,17 @@
 # 4. Verify health (validation layer)
 #
 # Ensure Linux firewall (UFW) allows observability service ports on the observability host.
+- name: Regenerate observability Docker env on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run generate_contexts for observability context
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+        regenerate_context_names: ['observability']
+
 - name: Ensure Linux Firewall is Configured for Observability Services
   hosts: observability
   gather_facts: true

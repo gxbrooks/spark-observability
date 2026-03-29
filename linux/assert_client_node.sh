@@ -103,7 +103,7 @@ except Exception as e:
 fi
 
 # Source the generated environment file (if it exists)
-DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops/devops_env.sh"
+DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops_env.sh"
 if [[ -f "$DEVOPS_ENV_FILE" ]]; then
   source "$DEVOPS_ENV_FILE"
   $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"

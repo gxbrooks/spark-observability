@@ -1,6 +1,17 @@
 ---
 # Playbook to deploy JupyterHub on Kubernetes
 
+- name: Regenerate Spark Ansible vars on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run generate_contexts for ansible (spark_ansible_vars.yml)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+        regenerate_context_names: ['ansible']
+
 - name: Deploy JupyterHub on Kubernetes
   hosts: kubernetes_master
   become: false

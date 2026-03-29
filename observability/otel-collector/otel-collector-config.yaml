@@ -18,6 +18,16 @@ processors:
     send_batch_size: 1024
     send_batch_max_size: 2048
 
+  # Map Prometheus label names to ECS-style kubernetes.namespace for Elasticsearch / Grafana
+  attributes/k8s_prom_ns:
+    actions:
+      - key: kubernetes.namespace
+        from_attribute: kubernetes_namespace
+        action: insert
+      - key: kubernetes.namespace
+        from_attribute: namespace
+        action: insert
+
   memory_limiter:
     check_interval: 1s
     limit_mib: 512
@@ -80,7 +90,7 @@ service:
       
     metrics:
       receivers: [otlp, prometheusremotewrite]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, attributes/k8s_prom_ns, batch]
       exporters: [elasticsearch, debug]
   
   telemetry:

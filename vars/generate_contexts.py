@@ -557,8 +557,10 @@ def main(requested_contexts=None, force=False, verbose=False):
         # Generate all contexts
         contexts_to_generate = contexts
     
-    # Source files for timestamp checking
+    # Source files for timestamp checking (regenerate when any is newer than output)
     source_files = [VARIABLES_FILE, CONTEXTS_FILE]
+    if SECRETS_FILE.exists():
+        source_files.append(SECRETS_FILE)
     
     # Track results
     changes_made = False

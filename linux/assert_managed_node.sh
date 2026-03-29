@@ -75,7 +75,7 @@ if ! $CHECK; then
 fi
 
 # Source the generated environment file (if it exists)
-MANAGED_ENV_FILE="$root_dir/vars/contexts/managed-node/managed_node_env.sh"
+MANAGED_ENV_FILE="$root_dir/vars/contexts/managed_node_env.sh"
 if [[ -f "$MANAGED_ENV_FILE" ]]; then
   source "$MANAGED_ENV_FILE"
   $DEBUG && echo "Debug   : Loaded managed-node environment from $MANAGED_ENV_FILE"

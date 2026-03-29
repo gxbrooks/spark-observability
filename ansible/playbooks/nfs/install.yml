@@ -1,9 +1,20 @@
 ---
+- name: Regenerate NFS Ansible vars on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run generate_contexts for nfs context
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+        regenerate_context_names: ['nfs']
+
 - name: Install and Configure NFS Server
   hosts: nfs_servers
   become: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs/nfs_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
   vars:
     nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check,insecure)"
     nfs_export_dirs:

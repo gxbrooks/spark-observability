@@ -1,4 +1,16 @@
 # Linux (native) — Elastic Agent for host metrics and log shipping
+
+- name: Regenerate elastic-agent contexts on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run generate_contexts for elastic-agent outputs
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+        regenerate_context_names: ['elastic-agent', 'elastic-agent-ansible']
+
 - name: Install Elastic Agent on Native Linux hosts following best practices
   hosts: native
   vars_files:
@@ -244,6 +256,15 @@
         elastic_agent_binary_dir: "{{ (agent_dirs.files | sort(attribute='mtime', reverse=True) | first).path }}"
       when: agent_dirs.matched > 0
 
+    - name: Symlink elastic-agent binary to install root (systemd ExecStart expects {{ elastic_agent_install_dir }}/elastic-agent)
+      ansible.builtin.file:
+        src: "{{ elastic_agent_binary_dir }}/elastic-agent"
+        dest: "{{ elastic_agent_install_dir }}/elastic-agent"
+        state: link
+        force: true
+      become: true
+      when: agent_dirs.matched > 0
+
     - name: Create systemd service for elastic-agent (Linux)
       ansible.builtin.copy:
         content: |
@@ -270,19 +291,6 @@
         mode: '0644'
       become: true
 
-    - name: Check if configuration file already exists and get checksum (Linux)
-      ansible.builtin.stat:
-        path: "{{ elastic_agent_install_dir }}/elastic-agent.yml"
-        get_checksum: yes
-      register: existing_config_linux
-      become: true
-
-    - name: Check if configuration template exists (Linux)
-      ansible.builtin.stat:
-        path: "{{ elastic_agent_config_template }}"
-      register: config_template_check
-      delegate_to: localhost
-
     - name: Stop Elastic Agent service (for configuration) (Linux)
       ansible.builtin.systemd:
         name: "{{ elastic_agent_service_name }}"
@@ -290,7 +298,30 @@
       become: true
       ignore_errors: true
 
-    - name: Deploy Elastic Agent configuration from template (Linux)
+    - name: Render expected elastic-agent.yml on controller (SHA256 comparison)
+      ansible.builtin.copy:
+        dest: "/tmp/elastic-agent-expected-{{ inventory_hostname }}.yml"
+        content: "{{ lookup('template', elastic_agent_config_template) }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+
+    - name: SHA256 of rendered template (controller)
+      ansible.builtin.stat:
+        path: "/tmp/elastic-agent-expected-{{ inventory_hostname }}.yml"
+        checksum_algorithm: sha256
+      delegate_to: localhost
+      become: false
+      register: expected_agent_yml_checksum
+
+    - name: SHA256 of deployed elastic-agent.yml (agent host)
+      ansible.builtin.stat:
+        path: "{{ elastic_agent_config_dest }}"
+        checksum_algorithm: sha256
+      register: deployed_agent_yml_checksum
+      become: true
+
+    - name: Deploy Elastic Agent configuration when missing or checksum differs from template
       ansible.builtin.template:
         src: "{{ elastic_agent_config_template }}"
         dest: "{{ elastic_agent_config_dest }}"
@@ -299,6 +330,27 @@
         mode: '0640'
         backup: yes
       become: true
+      when: (not deployed_agent_yml_checksum.stat.exists) or ((deployed_agent_yml_checksum.stat.checksum | default('')) != (expected_agent_yml_checksum.stat.checksum | default('')))
+
+    - name: Remove rendered template from controller
+      ansible.builtin.file:
+        path: "/tmp/elastic-agent-expected-{{ inventory_hostname }}.yml"
+        state: absent
+      delegate_to: localhost
+      become: false
+
+    - name: Verify deployed elastic-agent.yml matches template (SHA256)
+      ansible.builtin.slurp:
+        src: "{{ elastic_agent_config_dest }}"
+      register: slurped_agent_yml
+      become: true
+
+    - name: Assert elastic-agent.yml content hash matches template
+      ansible.builtin.assert:
+        that:
+          - (slurped_agent_yml.content | b64decode | hash('sha256')) == (lookup('template', elastic_agent_config_template) | hash('sha256'))
+        fail_msg: "elastic-agent.yml on host does not match rendered template; redeploy configuration."
+      become: false
 
     - name: Copy Elastic Agent environment file (Linux)
       ansible.builtin.copy:
@@ -313,6 +365,7 @@
     # See docs/CA_CERTIFICATE_ARCHITECTURE.md
     - name: Get Docker volume mount point for certs (observability host)
       delegate_to: "{{ groups['observability'][0] }}"
+      become: true
       shell: |
         for vol in $(docker volume ls -q); do
           if echo "$vol" | grep -q certs; then
@@ -327,6 +380,7 @@
 
     - name: Fetch CA from Docker volume (ca/ca.crt)
       delegate_to: "{{ groups['observability'][0] }}"
+      become: true
       fetch:
         src: "{{ (cert_volume_path.stdout | trim) }}/ca/ca.crt"
         dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
@@ -337,6 +391,7 @@
 
     - name: Fetch CA from Docker volume root (ca.crt)
       delegate_to: "{{ groups['observability'][0] }}"
+      become: true
       fetch:
         src: "{{ (cert_volume_path.stdout | trim) }}/ca.crt"
         dest: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
@@ -369,6 +424,23 @@
         mode: '0644'
         backup: yes
       become: true
+
+    - name: Compute SHA256 of deployed CA on agent host
+      ansible.builtin.stat:
+        path: "/etc/ssl/certs/elastic/ca.crt"
+        checksum_algorithm: sha256
+      register: deployed_ca_stat
+      become: true
+
+    - name: Persist CA checksum marker for drift checks (install / diagnostics)
+      ansible.builtin.copy:
+        dest: /etc/elastic-agent/.elastic-ca.sha256
+        content: "{{ deployed_ca_stat.stat.checksum }}\n"
+        owner: root
+        group: "{{ elastic_agent_group }}"
+        mode: '0644'
+      become: true
+      when: deployed_ca_stat.stat.exists and deployed_ca_stat.stat.checksum is defined
 
     - name: Clean up temporary CA cert
       file:

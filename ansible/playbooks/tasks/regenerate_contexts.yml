@@ -1,0 +1,24 @@
+---
+# Regenerate vars/contexts/* from variables.yaml, contexts.yaml, and secrets.yaml (if present).
+# Invoke before copy/template tasks that read generated files.
+#
+# Required variable: regenerate_contexts_root — absolute path to spark-observability repo root on the controller.
+# Optional: regenerate_context_names — list of context names (see vars/contexts.yaml); empty = all contexts.
+# Optional: regenerate_context_force — pass -f to force regeneration (default false; mtime + secrets drive updates).
+
+- name: Build generate_contexts argument list
+  ansible.builtin.set_fact:
+    _regenerate_context_argv: "{{ (regenerate_context_names | default([])) + (['-f'] if (regenerate_context_force | default(false)) else []) }}"
+
+- name: Regenerate context files from repo variables (controller checkout)
+  ansible.builtin.command:
+    argv: "{{ ['bash', 'vars/generate_contexts.sh'] + _regenerate_context_argv }}"
+  args:
+    chdir: "{{ regenerate_contexts_root }}"
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: regenerate_contexts_result
+  changed_when: >
+    'Generating' in (regenerate_contexts_result.stdout | default(''))
+    or 'Successfully generated' in (regenerate_contexts_result.stdout | default(''))

@@ -21,14 +21,12 @@
     # Use spark_component_var to avoid circular reference
     spark_component_var: "{{ spark_component | default('all') }}"
   pre_tasks:
-    - name: Run generate_contexts.py to ensure configuration files are up-to-date
-      delegate_to: localhost
-      become: false
-      shell: "bash vars/generate_contexts.sh {{ '-f' if force_env_generation | default(false) else '' }}"
-      args:
-        chdir: "{{ project_root }}"
-      register: generate_result
-      changed_when: "'Generating' in generate_result.stdout"
+    - name: Run generate_contexts for Spark start (ansible, spark-runtime, spark-image)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ project_root }}"
+        regenerate_context_names: ['ansible', 'spark-runtime', 'spark-image']
+        regenerate_context_force: "{{ force_env_generation | default(false) }}"
     
     # Check if Docker is running (optional - only needed for building custom images)
     # Spark runs on Kubernetes with containerd, so Docker is not required for runtime

@@ -47,19 +47,19 @@
         msg: "Spark events directory /mnt/spark/events is not available or not writable on {{ inventory_hostname }}. Please set up the directory first."
       when: spark_events_check.rc != 0
 
-- name: Ensure Spark Ansible vars are generated
+- name: Ensure Spark and image contexts are generated
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
     project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
   tasks:
-    - name: Run generate_contexts.sh
-      shell: "bash vars/generate_contexts.sh {{ '-f' if force_env_generation | default(false) else '' }}"
-      args:
-        chdir: "{{ project_root }}"
-      register: generate_ctx
-      changed_when: "'Generating' in generate_ctx.stdout | default('')"
+    - name: Run generate_contexts for Spark deploy (ansible, spark-runtime, spark-image)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
+      vars:
+        regenerate_contexts_root: "{{ project_root }}"
+        regenerate_context_names: ['ansible', 'spark-runtime', 'spark-image']
+        regenerate_context_force: "{{ force_env_generation | default(false) }}"
 
 - name: Build Spark Docker image on observability host
   hosts: observability

@@ -35,8 +35,14 @@ done
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root_dir="$(cd "$dir/.." && pwd)"
 
+# Ensure devops env (NFS hints) matches variables.yaml / secrets before sourcing
+if ! $CHECK; then
+  echo "Info    : Regenerating devops context for NFS/server variables..."
+  (cd "$root_dir" && bash vars/generate_contexts.sh devops -f) || true
+fi
+
 # Load NFS server information from environment
-DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops/devops_env.sh"
+DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops_env.sh"
 if [[ -f "$DEVOPS_ENV_FILE" ]]; then
   source "$DEVOPS_ENV_FILE"
   $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"
