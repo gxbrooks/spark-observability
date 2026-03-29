@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # One-time linker: append sourcing of this repo's .bash_aliases and .bashrc to the user's
-# ~/.bash_aliases and ~/.bashrc. Per-login SSH keys (including id_ed25519_ansible for Ansible)
-# are loaded by keychain from the repo .bashrc — not from this script (which runs once).
+# ~/.bash_aliases and ~/.bashrc. SSH keys for Ansible/Git are loaded by keychain from myenv's
+# ~/.bashrc (sourced via ~/repos/myenv/assert_bashrc.sh) — not from this script (which runs once).
 
 # Parse flags
 CHECK=false

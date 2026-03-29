@@ -2,6 +2,8 @@
 
 # Enable SSH client access for a user by configuring their .ssh directory and SSH keys.
 # This is for control-node SSH usage (Ansible, remote administration), not git globals.
+# Appends a marked Host * IdentityFile block to ~/.ssh/config; myenv assert_git.sh prepends
+# the github.com block — run assert_git before or after; both blocks are idempotent.
 
 DEBUG=false
 CHECK=false
@@ -57,6 +59,47 @@ HOME_DIR="$(eval echo "~$USERNAME")"
 SSH_DIR="$HOME_DIR/.ssh"
 PRIVATE_KEY="$SSH_DIR/$KEY_NAME"
 PUBLIC_KEY="${PRIVATE_KEY}.pub"
+SSH_CONFIG="$SSH_DIR/config"
+ANSIBLE_CFG_BEGIN="# BEGIN spark-observability ssh_client ansible"
+ANSIBLE_CFG_END="# END spark-observability ssh_client ansible"
+
+_ssh_config_strip_marked_block() {
+    local file="$1" begin="$2" end="$3" out="$4"
+    : >"$out"
+    local skip=0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" == "$begin" ]]; then skip=1; continue; fi
+        if [[ "$line" == "$end" ]]; then skip=0; continue; fi
+        [[ $skip -eq 0 ]] && printf '%s\n' "$line" >>"$out"
+    done <"$file"
+}
+
+ensure_ssh_config_ansible_identity() {
+    # Host * + IdentityFile so non-interactive ssh/ansible uses id_ed25519_* without -i.
+    # Kept after myenv's github.com block when both scripts have run (order: assert_git, then this).
+    if $CHECK; then
+        echo "Check   : Would append Host * IdentityFile ~/.ssh/$KEY_NAME to $SSH_CONFIG"
+        return 0
+    fi
+    mkdir -p "$SSH_DIR"
+    touch "$SSH_CONFIG"
+    local rest
+    rest="$(mktemp)"
+    if grep -qF "$ANSIBLE_CFG_BEGIN" "$SSH_CONFIG" 2>/dev/null; then
+        _ssh_config_strip_marked_block "$SSH_CONFIG" "$ANSIBLE_CFG_BEGIN" "$ANSIBLE_CFG_END" "$rest"
+        mv "$rest" "$SSH_CONFIG"
+    fi
+    {
+        [[ -s "$SSH_CONFIG" && "$(tail -c1 "$SSH_CONFIG" 2>/dev/null)" != $'\n' ]] && echo ""
+        echo "$ANSIBLE_CFG_BEGIN"
+        echo "Host *"
+        echo "  IdentityFile ~/.ssh/$KEY_NAME"
+        echo "$ANSIBLE_CFG_END"
+    } >>"$SSH_CONFIG"
+    chmod 600 "$SSH_CONFIG"
+    chown "$USERNAME:$USERNAME" "$SSH_CONFIG"
+    $DEBUG && echo "Debug   : Appended Ansible IdentityFile block to $SSH_CONFIG"
+}
 
 if [[ -d "$SSH_DIR" ]]; then
     $DEBUG && echo "Debug   : .ssh directory exists for user '$USERNAME'."
@@ -115,8 +158,12 @@ if [[ -f "$PUBLIC_KEY" && "$(stat -c "%a" "$PUBLIC_KEY")" -ne 644 ]]; then
     fi
 fi
 
+ensure_ssh_config_ansible_identity
+
 if ! $CHECK; then
-  echo "Info    : After a new login shell (or: source ~/.bashrc), keychain loads ~/.ssh/$KEY_NAME when present — see spark-observability/.bashrc."
+  echo "Info    : After a new login shell (or: source ~/.bashrc), keychain loads ~/.ssh/$KEY_NAME when present — see myenv/.bashrc (sourced via assert_bashrc.sh)."
   echo "Info    : Distribute the public key, e.g.: ssh-copy-id -i $PUBLIC_KEY user@host"
 fi
-$DEBUG && echo "Debug   : Public key path: $PUBLIC_KEY"
+if $DEBUG; then
+    echo "Debug   : Public key path: $PUBLIC_KEY"
+fi

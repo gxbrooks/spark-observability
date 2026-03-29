@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# DEPRECATED: Git/GitHub identity and ~/.ssh/id_ed25519_github are handled by myenv assert_git.sh.
+# This script generated id_ed25519 (default name) and hard-coded spark-observability remotes — use
+#   ~/repos/myenv/assert_git.sh
+# instead. Retained only for reference or one-off recovery on legacy setups.
+
 # Enable SSH client access for a user by configuring their .ssh directory and SSH keys.
 
 # Define colors for the future
