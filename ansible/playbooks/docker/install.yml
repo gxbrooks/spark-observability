@@ -1,198 +1,214 @@
 ---
-# This playbook installs Docker Engine on the observability host (Lab3)
+# Install Docker Engine (Docker CE) on the observability host (Lab3) from Docker Inc.
 # Usage: ansible-playbook -i inventory.yml playbooks/docker/install.yml
-# 
-# Architecture Notes:
-# - Lab1: Uses containerd only (K8s worker, no Docker needed)
-# - Lab2: containerd for Kubernetes (no Docker via this playbook)
-# - Lab3: Docker Engine for observability stack (Docker Compose)
 #
-# Spark image build (playbooks/spark/deploy.yml) still runs `docker build` on
-# kubernetes_master (Lab2) today; that host needs Docker installed separately
-# unless you move builds to another registry/host.
+# Ubuntu/Debian: installs docker-ce + buildx + compose plugin from download.docker.com
+# (not the distro docker.io package), so you get a current engine and BuildKit-capable CLI.
+#
+# Architecture Notes:
+# - Lab1/Lab2: containerd for Kubernetes (no Docker via this playbook)
+# - Lab3: Docker Engine for observability (Compose) and local registry
 
-- name: Install Docker on observability host
+- name: Install Docker Engine on observability host
   hosts: observability
   become: true
   gather_facts: true
+  vars:
+    docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'armv7l': 'armhf'}.get(ansible_architecture, ansible_architecture) }}"
   tasks:
-    - name: Check if Docker is already installed
-      command: docker --version
+    - name: Check if Docker CLI responds
+      ansible.builtin.command: docker --version
       register: docker_version_check
       failed_when: false
       changed_when: false
-      
+
     - name: Display Docker status if already installed
-      debug:
-        msg: "Docker is already installed: {{ docker_version_check.stdout }}"
+      ansible.builtin.debug:
+        msg: "Docker CLI present: {{ docker_version_check.stdout }}"
       when: docker_version_check.rc == 0
-      
-    # Check if Docker service file exists
-    - name: Check if Docker service file exists
-      stat:
+
+    - name: Check if Docker service unit exists
+      ansible.builtin.stat:
         path: /lib/systemd/system/docker.service
       register: docker_service_file
-      
-    - name: Debug Docker service file status
-      debug:
-        msg: "Docker service file {{ 'exists' if docker_service_file.stat.exists else 'does not exist' }}"
-      
-    # Set a fact to determine if we need to reinstall Docker
-    - name: Set fact for Docker reinstall
-      set_fact:
+
+    - name: Set fact for broken install (binary without systemd unit)
+      ansible.builtin.set_fact:
         need_docker_reinstall: "{{ docker_version_check.rc == 0 and not docker_service_file.stat.exists }}"
-        
-    - name: Display reinstall notice
-      debug:
-        msg: "Docker binary exists but service file is missing. Will reinstall Docker service."
-      when: need_docker_reinstall
-      
-    # Install Docker when it's not installed or needs reinstallation
-    - name: Handle Docker installation on Debian/Ubuntu
-      block:
-        # First check and clean up any conflicting Docker repository configurations
-        - name: Check for conflicting Docker repository files
-          find:
-            paths: /etc/apt/sources.list.d/
-            patterns: "*docker*.list"
-          register: docker_repo_files
-          
-        - name: Display found Docker repository files
-          debug:
-            var: docker_repo_files.files
-            
-        - name: Backup and remove conflicting Docker repository files
-          block:
-            - name: Create backup directory
-              file:
-                path: "/root/docker_repo_backup"
-                state: directory
-                mode: '0755'
-              
-            - name: Backup Docker repository files
-              copy:
-                src: "{{ item.path }}"
-                dest: "/root/docker_repo_backup/{{ item.path | basename }}.bak"
-                remote_src: yes
-              with_items: "{{ docker_repo_files.files }}"
-              when: docker_repo_files.files | length > 0
-              
-            - name: Remove Docker repository files
-              file:
-                path: "{{ item.path }}"
-                state: absent
-              with_items: "{{ docker_repo_files.files }}"
-              when: docker_repo_files.files | length > 0
-          when: docker_repo_files.files | length > 0
-              
-        - name: Check for Docker apt keyrings
-          stat: 
-            path: /etc/apt/keyrings/docker.gpg
-          register: docker_keyring
-          
-        - name: Backup and remove Docker keyring if it exists
-          block:
-            - name: Backup Docker keyring
-              copy:
-                src: /etc/apt/keyrings/docker.gpg
-                dest: /root/docker_repo_backup/docker.gpg.bak
-                remote_src: yes
-                
-            - name: Remove Docker keyring
-              file:
-                path: /etc/apt/keyrings/docker.gpg
-                state: absent
-          when: docker_keyring.stat.exists
-        
-        - name: Update apt cache after cleanup
-          apt:
-            update_cache: yes
-            
-        - name: Install Docker using apt
-          apt:
-            name:
-              - docker.io
-              # v2 plugin provides `docker compose` (used by observability start/deploy playbooks)
-              - docker-compose-v2
-            state: present
-      when: 
-        - (docker_version_check.rc != 0 or need_docker_reinstall | bool)
-        - ansible_os_family == "Debian"
-        
-    - name: Install Docker packages on RHEL/CentOS
-      yum:
+
+    - name: Query docker-ce package (Debian family)
+      ansible.builtin.command: dpkg-query -W -f='${Status}' docker-ce
+      register: dq_docker_ce
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: Query docker.io package (Debian family)
+      ansible.builtin.command: dpkg-query -W -f='${Status}' docker.io
+      register: dq_docker_io
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: Set package presence facts (Debian family)
+      ansible.builtin.set_fact:
+        docker_ce_installed: "{{ 'install ok installed' in (dq_docker_ce.stdout | default('')) }}"
+        docker_io_installed: "{{ 'install ok installed' in (dq_docker_io.stdout | default('')) }}"
+      when: ansible_os_family == "Debian"
+
+    - name: Default package facts when not Debian
+      ansible.builtin.set_fact:
+        docker_ce_installed: false
+        docker_io_installed: false
+      when: ansible_os_family != "Debian"
+
+    - name: Decide whether to apply Docker CE apt packages (Debian)
+      ansible.builtin.set_fact:
+        debian_apply_docker_ce: "{{ ansible_os_family == 'Debian' and (
+          (docker_version_check.rc != 0) or (need_docker_reinstall | bool)
+          or (docker_io_installed | bool and not (docker_ce_installed | bool))
+          ) }}"
+
+    - name: Assert Ubuntu for Docker CE apt repository (this playbook targets Lab3 Ubuntu)
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+        fail_msg: >
+          Docker CE install tasks use download.docker.com/linux/ubuntu. For Debian or other
+          distros, extend this playbook or install Docker manually.
+      when: debian_apply_docker_ce | bool
+
+    - name: Remove Ubuntu docker.io / compose-v2 before Docker CE (Debian)
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: absent
+        purge: true
+      when:
+        - debian_apply_docker_ce | bool
+        - docker_io_installed | bool
+
+    - name: Ensure Docker CE prerequisites (Debian)
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+        update_cache: true
+      when: debian_apply_docker_ce | bool
+
+    - name: Ensure apt keyrings directory exists (Debian)
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+      when: debian_apply_docker_ce | bool
+
+    - name: Install Docker CE archive key (Debian)
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+      when: debian_apply_docker_ce | bool
+
+    - name: Add Docker CE apt repository (Debian)
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+        update_cache: true
+      when: debian_apply_docker_ce | bool
+
+    - name: Install Docker Engine CE and plugins (Debian)
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+      when: debian_apply_docker_ce | bool
+
+    - name: Install Docker packages on RHEL family (unchanged baseline)
+      ansible.builtin.yum:
         name:
           - docker
           - docker-compose
         state: present
       when:
-        - (docker_version_check.rc != 0 or need_docker_reinstall | bool)
         - ansible_os_family == "RedHat"
-        
-    # Force daemon reload when reinstalling Docker
-    - name: Force systemd daemon reload on reinstall
-      systemd:
-        daemon_reload: yes
-      when: need_docker_reinstall | bool
-      
+        - (docker_version_check.rc != 0) or (need_docker_reinstall | bool)
+
+    - name: Reload systemd after package changes
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: debian_apply_docker_ce | bool or need_docker_reinstall | bool
+
+    # Docker CE on Ubuntu expects socket activation; starting only docker.service fails with
+    # "no sockets found via socket activation" unless docker.socket is active.
+    - name: Enable and start docker.socket
+      ansible.builtin.systemd:
+        name: docker.socket
+        state: started
+        enabled: true
+        daemon_reload: true
+
     - name: Start and enable Docker service
-      systemd:
+      ansible.builtin.systemd:
         name: docker
         state: started
-        enabled: yes
-        daemon_reload: yes
-        
-    - name: Add current user to docker group
-      user:
+        enabled: true
+        daemon_reload: true
+
+    - name: Add ansible user to docker group
+      ansible.builtin.user:
         name: "{{ ansible_user }}"
         groups: docker
-        append: yes
-        
+        append: true
+
     - name: Check Docker version
-      command: docker --version
+      ansible.builtin.command: docker --version
       register: docker_version
       changed_when: false
-      
+
     - name: Display Docker version
-      debug:
+      ansible.builtin.debug:
         var: docker_version.stdout
-        
-    # Configure Docker Registry
-    - name: Check if Docker registry is running
-      command: docker ps -a --filter "name=registry" --format "{{ '{{' }}.State{{ '}}' }}"
+
+    - name: Check if Docker registry container exists
+      ansible.builtin.command: docker ps -a --filter "name=registry" --format "{{ '{{' }}.State{{ '}}' }}"
       register: registry_status
       failed_when: false
       changed_when: false
-      
+
     - name: Start Docker registry if not running
-      command: docker start registry
+      ansible.builtin.command: docker start registry
       when: registry_status.stdout != "running" and registry_status.stdout != ""
       register: registry_start
       failed_when: false
-      
-    - name: Create Docker registry if doesn't exist
-      command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
+    - name: Create Docker registry if it does not exist
+      ansible.builtin.command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
       when: registry_status.stdout == ""
       register: registry_create
       failed_when: false
-      
-    - name: Verify Docker registry is accessible
-      uri:
+
+    - name: Verify Docker registry is reachable locally
+      ansible.builtin.uri:
         url: http://localhost:5000/v2/_catalog
         status_code: 200
       register: registry_check
       failed_when: false
       changed_when: false
-      
-    - name: Display installation summary
-      debug:
-        msg: >
-          Docker {{ 'was already installed' if docker_version_check.rc == 0 else 'has been installed' }}.
-          Version: {{ docker_version.stdout }}
-          Registry status: {{ "OK" if registry_check.status == 200 else "Not responding" }}
 
-    # Play runs mostly as root (become); adding ansible to group does not refresh the muxed SSH
-    # session's supplementary groups. Drop the connection so a later playbook (e.g. observability
-    # deploy with become: false) reconnects and picks up docker membership.
-    - name: Reset SSH connection to pick up new docker group for ansible user
-      meta: reset_connection
+    - name: Display installation summary
+      ansible.builtin.debug:
+        msg: >
+          Docker {{ 'was already present' if docker_version_check.rc == 0 and not (debian_apply_docker_ce | default(false)) else 'has been configured' }}.
+          Version: {{ docker_version.stdout }}.
+          Local registry: {{ 'OK' if registry_check.status | default(0) == 200 else 'Not responding' }}.
+
+    - name: Reset SSH connection so ansible user picks up docker group
+      ansible.builtin.meta: reset_connection

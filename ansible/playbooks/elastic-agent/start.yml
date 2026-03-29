@@ -3,6 +3,23 @@
 # Usage: ansible-playbook -i inventory.yml playbooks/elastic-agent/start.yml
 # CA: Pull-based model - tests currency of local CA vs Docker volume and re-fetches if stale (see docs/CA_CERTIFICATE_ARCHITECTURE.md)
 
+- name: Regenerate elastic-agent env on controller from variables
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vars_repo_dir: "{{ playbook_dir }}/../../../vars"
+  tasks:
+    - name: Check for vars/generate_contexts.py (repo checkout on controller)
+      stat:
+        path: "{{ vars_repo_dir }}/generate_contexts.py"
+      register: gen_ctx_script
+    - name: Regenerate elastic_agent_env.conf (ES_URL, LS_HOST, secrets)
+      command: python3 generate_contexts.py elastic-agent -f
+      args:
+        chdir: "{{ vars_repo_dir }}"
+      when: gen_ctx_script.stat.exists | default(false)
+
 - name: Start Elastic Agent
   hosts: linux
   become: true
@@ -16,6 +33,11 @@
     elastic_agent_ca_path: "/etc/ssl/certs/elastic/ca.crt"
   
   tasks:
+    - name: Detect Elastic Agent installation (skip CA/env/systemd when not installed)
+      stat:
+        path: /opt/Elastic/Agent/elastic-agent
+      register: elastic_agent_binary
+
     # --- CA currency check (pull-based): re-fetch from observability Docker volume if stale ---
     - name: Get CA hash from Docker volume (observability host)
       delegate_to: "{{ groups['observability'][0] }}"
@@ -37,7 +59,9 @@
       register: local_ca_hash
       changed_when: false
       failed_when: false
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
 
     - name: Fetch and deploy CA from volume when stale
       block:
@@ -72,6 +96,14 @@
           when: fetch_ca is defined and fetch_ca.failed
           ignore_errors: true
 
+        - name: Ensure Elastic CA directory exists on agent host
+          file:
+            path: "{{ elastic_agent_ca_path | dirname }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0755'
+
         - name: Copy CA to agent host (currency update)
           copy:
             src: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
@@ -86,8 +118,10 @@
             path: "/tmp/elastic-ca-{{ inventory_hostname }}.crt"
             state: absent
           delegate_to: localhost
+          become: false
       when: >
         (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists and
         (volume_ca_hash.stdout | default('') | trim) != "" and
         ((local_ca_hash.stdout | default('MISSING')) == "MISSING" or (volume_ca_hash.stdout | trim) != (local_ca_hash.stdout | trim))
 
@@ -99,7 +133,9 @@
         group: root
         mode: '0640'
         backup: yes
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
     
     - name: Redeploy Elastic Agent configuration (ensure Spark inputs are current)
       template:
@@ -109,63 +145,84 @@
         group: elastic-agent
         mode: '0640'
         backup: yes
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
     
     - name: Stop Elastic Agent service (to reload environment)
       systemd:
         name: elastic-agent
         state: stopped
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
       ignore_errors: yes
     
     - name: Reload systemd daemon (to pick up environment file changes)
       systemd:
         daemon_reload: yes
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
     
     - name: Start Elastic Agent service
       systemd:
         name: elastic-agent
         state: started
         enabled: yes
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
     
     - name: Wait for Elastic Agent to start
       wait_for:
         timeout: 10
       changed_when: false
+      when: elastic_agent_binary.stat.exists
     
     - name: Start GPU metrics timer (Linux only)
       systemd:
         name: gpu-metrics.timer
         state: started
         enabled: yes
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
       ignore_errors: yes  # Timer may not exist on all hosts
     
     - name: Manually trigger GPU metrics collection (ensure it starts)
       systemd:
         name: gpu-metrics.service
         state: started
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
       ignore_errors: yes
     
     - name: Verify Elastic Agent is running
       systemd:
         name: elastic-agent
       register: agent_status
+      when: elastic_agent_binary.stat.exists
     
     - name: Verify GPU metrics timer is running (Linux only)
       systemd:
         name: gpu-metrics.timer
       register: gpu_timer_status
-      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+      when: >
+        (ansible_os_family == "Debian" or ansible_os_family == "RedHat") and
+        elastic_agent_binary.stat.exists
       ignore_errors: yes
     
     - name: Display status
       debug:
         msg: |
+          {% if not elastic_agent_binary.stat.exists %}
+          No Elastic Agent on {{ inventory_hostname }} (skipped — expected on observability-only hosts).
+          {% else %}
           Elastic Agent is {{ agent_status.status.ActiveState }} on {{ inventory_hostname }}
           {% if gpu_timer_status is defined and not gpu_timer_status.failed %}
           GPU metrics timer is {{ gpu_timer_status.status.ActiveState }} on {{ inventory_hostname }}
+          {% endif %}
           {% endif %}
 

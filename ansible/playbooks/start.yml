@@ -18,14 +18,16 @@
           This playbook will start components in order:
           1. NFS Server (Lab2)
           2. Kubernetes Cluster (Lab2 master, Lab1+Lab2 workers)
-          3. Observability Platform (Lab3)
+          2b. Spark image registry client on nodes (containerd) — spark/registry/deploy.yml
+          2c. Docker daemon on Lab3 — docker/start.yml
+          3. Observability Platform (Lab3 Docker Compose)
+          3b. Elastic Agent (Linux hosts: env + CA + ship to ES/Logstash)
           4. Spark on Kubernetes (master, workers, history)
           5. JupyterHub for Spark Development
-          6. Elastic Agent verification (all hosts)
           
           Prerequisites:
-          - Docker Engine on Lab3 must be running (see docker/start.yml if needed)
-          - All components should be installed (run install.yml if needed)
+          - First-time Lab3: ansible-playbook playbooks/docker/install.yml (Docker CE)
+          - Docker must be running before observability (step 2c)
           
           ================================================
 
@@ -35,14 +37,22 @@
 # Step 2: Start Kubernetes Cluster  
 - import_playbook: k8s/start.yml
 
+# Step 2b: Deploy containerd client config for Spark image registry (plain HTTP until TLS)
+- import_playbook: spark/registry/deploy.yml
+  vars:
+    spark_registry_connection: unsecure
+
+# Step 2c: Ensure Docker Engine is running on Lab3 (required for Compose / Kibana)
+- import_playbook: docker/start.yml
+
 # Step 3: Start Observability Platform
 - import_playbook: observability/start.yml
 
+# Step 3b: Elastic Agent (after ES/Logstash are up; regenerates env from vars on controller)
+- import_playbook: elastic-agent/start.yml
+
 # Step 4: Start Spark on Kubernetes
 - import_playbook: spark/start.yml
-
-# Step 5: Start Elastic Agent (host-level metrics collection)
-- import_playbook: elastic-agent/start.yml
 
 # Step 6: Start JupyterHub (deferred to Spark 4.0)
 # - import_playbook: jupyter/start_jupyter.yml
@@ -67,6 +77,7 @@
             - Elasticsearch: https://Lab3.lan:9200
             - Kibana: http://Lab3.lan:5601
             - Grafana: http://Lab3.lan:3000
+          ✓ Elastic Agent: Refreshed on Linux hosts after observability
           ✓ Spark: Master, Workers, History Server on Kubernetes
             - Spark History: http://Lab2.lan:31534
           ✓ JupyterHub: Running on Kubernetes (Lab2)

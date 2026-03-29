@@ -60,3 +60,8 @@ all:
                       ansible_host: Lab2.lan
                     Lab1:  # New worker node
                       ansible_host: Lab1.lan
+                # All nodes that run Kubernetes workloads (OTel JAR copy, etc.)
+                k8s_nodes:
+                  children:
+                    kubernetes_master:
+                    kubernetes_workers:

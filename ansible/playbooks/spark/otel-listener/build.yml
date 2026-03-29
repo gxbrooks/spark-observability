@@ -1,0 +1,27 @@
+---
+# Build Spark OpenTelemetry listener JAR (allowed verb: build per standards/automation.md).
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/spark/otel-listener/build.yml
+
+- name: Build Spark OpenTelemetry Listener JAR
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+    otel_listener_dir: "{{ project_root }}/spark/otel-listener"
+    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
+    otel_mvn_clean: true
+  tasks:
+    - name: Include Maven build tasks
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/build_jar.yml"
+
+    - name: Display JAR size
+      ansible.builtin.debug:
+        msg: "Built {{ otel_listener_jar }} ({{ (jar_stat.stat.size / 1024 / 1024) | round(2) }} MB)"
+
+    - name: Build summary
+      ansible.builtin.debug:
+        msg:
+          - "OpenTelemetry listener build complete."
+          - "JAR: {{ otel_listener_dir }}/{{ otel_listener_jar }}"
+          - "Deploy to cluster nodes: ansible-playbook -i inventory.yml playbooks/spark/otel-listener/deploy.yml"

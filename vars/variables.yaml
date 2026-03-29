@@ -230,10 +230,6 @@ GOOGLE_APPLICATION_CREDENTIALS:
   value: /opt/spark/apps/bq-api-key.json
   contexts: [spark-runtime]
 
-# Spark runtime variables (for K8s ConfigMap)
-SPARK_MASTER:
-  value: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
-  contexts: [spark-runtime]
 # SPARK_MASTER_HOST: The hostname the Spark master binds to and advertises
 # - For K8s pods (spark-runtime): NOT included - workers use SPARK_MASTER connection string
 # - For external clients: Lab2.lan (NodePort access)
@@ -253,7 +249,14 @@ SPARK_MASTER_PORT:
     ispark: 31686
     spark-client: 31686
     ansible: 31686
-  
+
+# Spark master URL: in-cluster for ConfigMap; NodePort URL for external clients (PySpark on LAN)
+SPARK_MASTER:
+  contexts: [spark-runtime, spark-client]
+  values:
+    spark-runtime: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
+    spark-client: spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}
+
 # Spark network and timeout settings
 # Increased timeouts to handle connection resets and network instability
 SPARK_NETWORK_TIMEOUT:

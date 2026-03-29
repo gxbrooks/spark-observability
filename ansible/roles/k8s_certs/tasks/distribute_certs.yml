@@ -57,6 +57,11 @@
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
 
+- name: Check for cluster admin kubeconfig (control plane only)
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: admin_kubeconfig
+
 - name: Copy kubectl config to ansible user
   become: true
   copy:
@@ -66,6 +71,7 @@
     mode: '0600'
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
+  when: admin_kubeconfig.stat.exists
 
 - name: Update kubeconfig to use local CA certificate path
   shell: |
@@ -74,18 +80,26 @@
       --embed-certs=true
   args:
     executable: /bin/bash
+  when: admin_kubeconfig.stat.exists
 
 - name: Test kubectl with the new configuration
   shell: |
     kubectl get nodes
   register: kubectl_result
   failed_when: false
+  when: admin_kubeconfig.stat.exists
 
 - name: Show kubectl test result
   debug:
     msg: "kubectl test result: {{ 'Success' if kubectl_result.rc == 0 else 'Failed - ' + kubectl_result.stderr }}"
+  when: admin_kubeconfig.stat.exists
 
 - name: Warn if kubectl test fails but continue anyway
   debug:
     msg: "Warning: kubectl is not properly configured but continuing anyway. This might be expected if service account auth is required."
-  when: kubectl_result.rc != 0
+  when: admin_kubeconfig.stat.exists and kubectl_result.rc != 0
+
+- name: Note skipping kubectl config on workers without admin.conf
+  debug:
+    msg: "No /etc/kubernetes/admin.conf on this node (typical for workers); kubectl user config not installed here."
+  when: not admin_kubeconfig.stat.exists

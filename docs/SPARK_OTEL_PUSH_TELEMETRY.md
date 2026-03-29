@@ -48,7 +48,7 @@ The OpenTelemetry listener is fully automated via Ansible playbooks, following t
 ### Build
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/spark/build-otel-listener.yml
+ansible-playbook -i inventory.yml playbooks/spark/otel-listener/build.yml
 ```
 
 - Builds `spark-otel-listener-1.0.0.jar` using Maven
@@ -58,11 +58,11 @@ ansible-playbook -i inventory.yml playbooks/spark/build-otel-listener.yml
 ### Deploy
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/spark/deploy-otel-listener.yml
+ansible-playbook -i inventory.yml playbooks/spark/otel-listener/deploy.yml
 ```
 
 - Distributes JAR to all managed nodes via Ansible (not NFS)
-- Copies to `/home/ansible/spark/otel/spark-otel-listener-1.0.0.jar`
+- Copies to `/mnt/spark/data/spark-otel-listener-1.0.0.jar` (host path mounted into pods; matches `spark.jars` in cluster `spark-defaults`)
 - See [FILE_DISTRIBUTION_STRATEGY.md](FILE_DISTRIBUTION_STRATEGY.md) for rationale
 
 ### Configure
@@ -80,7 +80,7 @@ OTEL_DEPLOYMENT_ENVIRONMENT: "production"
 ```properties
 # spark-defaults.conf.j2
 spark.extraListeners com.elastic.spark.otel.OTelSparkListener
-spark.jars /home/ansible/spark/otel/spark-otel-listener-1.0.0.jar
+spark.jars /mnt/spark/data/spark-otel-listener-1.0.0.jar
 ```
 
 ### Start/Stop

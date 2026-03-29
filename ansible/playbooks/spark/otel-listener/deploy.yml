@@ -1,0 +1,101 @@
+---
+# Deploy Spark OTel listener JAR to Kubernetes nodes at host path used by Spark pods (allowed verb: deploy).
+# Resolves JAR from target/ or repo-level artifact; runs Maven build on the controller if neither exists.
+# Copies to /mnt/spark/data/ to match spark.jars in spark-defaults.conf.j2 (hostPath mount).
+#
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/spark/otel-listener/deploy.yml
+
+- name: Resolve or build OTel listener JAR on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+    otel_listener_dir: "{{ project_root }}/spark/otel-listener"
+    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
+  tasks:
+    - name: Stat JAR in Maven target directory
+      ansible.builtin.stat:
+        path: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+      register: st_target
+
+    - name: Stat JAR at distribution path (artifact next to pom)
+      ansible.builtin.stat:
+        path: "{{ otel_listener_dir }}/{{ otel_listener_jar }}"
+      register: st_dist
+
+    - name: Choose existing JAR path
+      ansible.builtin.set_fact:
+        otel_jar_path: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+      when: st_target.stat.exists
+
+    - name: Choose distribution JAR path
+      ansible.builtin.set_fact:
+        otel_jar_path: "{{ otel_listener_dir }}/{{ otel_listener_jar }}"
+      when: not st_target.stat.exists and st_dist.stat.exists
+
+    - name: Build JAR on controller when missing
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/build_jar.yml"
+      vars:
+        otel_mvn_clean: false
+      when: not st_target.stat.exists and not st_dist.stat.exists
+
+    - name: Set JAR path after build
+      ansible.builtin.set_fact:
+        otel_jar_path: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+      when: not st_target.stat.exists and not st_dist.stat.exists
+
+    - name: Verify resolved JAR exists
+      ansible.builtin.stat:
+        path: "{{ otel_jar_path }}"
+      register: st_final
+
+    - name: Fail if OTel JAR is still missing
+      ansible.builtin.fail:
+        msg: "OTel listener JAR missing after build resolution: {{ otel_jar_path }}"
+      when: not st_final.stat.exists
+
+- name: Copy OTel listener JAR to node paths visible inside Spark pods
+  hosts: k8s_nodes
+  become: true
+  gather_facts: false
+  vars:
+    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
+    dest_jar: "/mnt/spark/data/{{ otel_listener_jar }}"
+  tasks:
+    - name: Ensure Spark data mount directory exists
+      ansible.builtin.file:
+        path: /mnt/spark/data
+        state: directory
+        mode: "0755"
+
+    - name: Copy OpenTelemetry Listener JAR to Spark data mount
+      ansible.builtin.copy:
+        src: "{{ hostvars['localhost']['otel_jar_path'] }}"
+        dest: "{{ dest_jar }}"
+        mode: "0644"
+      register: jar_copy
+
+    - name: Verify JAR on node
+      ansible.builtin.stat:
+        path: "{{ dest_jar }}"
+      register: dest_jar_stat
+
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "JAR: {{ dest_jar }}"
+          - "Size: {{ (dest_jar_stat.stat.size / 1024 / 1024) | round(2) }} MB"
+          - "Status: {{ 'Updated' if jar_copy.changed else 'Already up-to-date' }}"
+      when: dest_jar_stat.stat.exists
+
+    - name: Deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "OpenTelemetry listener JAR deployed to k8s_nodes"
+          - "Path: {{ dest_jar }} (must match spark.jars in spark-defaults)"
+          - "Restart Spark workloads if you need them to reload the JAR."
+          - "============================================"
+      run_once: true

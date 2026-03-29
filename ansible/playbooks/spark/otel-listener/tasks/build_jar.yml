@@ -1,0 +1,57 @@
+---
+# Shared Maven build for spark-otel-listener (included from build.yml and deploy.yml).
+# Required variables: otel_listener_dir, otel_listener_jar
+# Optional: otel_mvn_clean (default true) — set false when building only because JAR was missing.
+
+- name: Check if Maven is installed
+  ansible.builtin.command: mvn --version
+  register: maven_check
+  changed_when: false
+  failed_when: false
+
+- name: Fail if Maven is not installed
+  ansible.builtin.fail:
+    msg: "Maven is not installed. Install Maven 3.6+ on the controller to build the OTel listener."
+  when: maven_check.rc != 0
+
+- name: Check Java major version
+  ansible.builtin.shell: set -o pipefail && java -version 2>&1 | head -1
+  args:
+    executable: /bin/bash
+  register: java_ver_line
+  changed_when: false
+
+- name: Fail if Java is not available
+  ansible.builtin.fail:
+    msg: "Java 17+ is required to build the OTel listener. java -version failed or is too old."
+  when: java_ver_line.rc != 0
+
+- name: Clean previous build artifacts (optional)
+  ansible.builtin.command: mvn clean
+  args:
+    chdir: "{{ otel_listener_dir }}"
+  when: otel_mvn_clean | default(true) | bool
+
+- name: Build OpenTelemetry Listener JAR
+  ansible.builtin.command: mvn package -DskipTests
+  args:
+    chdir: "{{ otel_listener_dir }}"
+  register: mvn_build
+  changed_when: true
+
+- name: Verify JAR was created under target/
+  ansible.builtin.stat:
+    path: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+  register: jar_stat
+
+- name: Fail if JAR was not created
+  ansible.builtin.fail:
+    msg: "Build failed: JAR not found at {{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+  when: not jar_stat.stat.exists
+
+- name: Copy JAR to distribution path (spark/otel-listener/)
+  ansible.builtin.copy:
+    src: "{{ otel_listener_dir }}/target/{{ otel_listener_jar }}"
+    dest: "{{ otel_listener_dir }}/{{ otel_listener_jar }}"
+    mode: "0644"
+  when: jar_stat.stat.exists

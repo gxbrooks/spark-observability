@@ -1,0 +1,71 @@
+---
+# Deploy containerd registry client configuration on Kubernetes nodes so kubelet can
+# pull from a plain-HTTP image registry (e.g. lab3.lan:5000 for Spark images).
+#
+# Verb: deploy (per standards/automation.md).
+#
+# Usage (from ansible/):
+#   ansible-playbook -i inventory.yml playbooks/spark/registry/deploy.yml
+#   ansible-playbook ... -e spark_registry_connection=secure   # reserved; fails until implemented
+#
+# Extra vars:
+#   spark_registry_connection — unsecure (default) | secure
+#   spark_registry_host — host:port (default lab3.lan:5000)
+
+- name: Deploy Spark image registry client config on Kubernetes nodes
+  hosts: "kubernetes_master:kubernetes_workers"
+  become: true
+  gather_facts: false
+  vars:
+    _registry_connection: "{{ spark_registry_connection | default('unsecure') }}"
+    registry_host: "{{ spark_registry_host | default('lab3.lan:5000') }}"
+  tasks:
+    - name: Fail when secure registry deploy is requested (not implemented yet)
+      ansible.builtin.fail:
+        msg: >
+          spark_registry_connection=secure is not implemented.
+          Use spark_registry_connection=unsecure for plain HTTP with hosts.toml + skip_verify,
+          or add TLS trust material and extend this playbook.
+      when: _registry_connection | lower == 'secure'
+
+    - name: Derive registry directory name for certs.d
+      ansible.builtin.set_fact:
+        registry_certs_dir: "/etc/containerd/certs.d/{{ registry_host }}"
+
+    - name: Ensure containerd certs.d directory exists
+      ansible.builtin.file:
+        path: "{{ registry_certs_dir }}"
+        state: directory
+        mode: "0755"
+      when: _registry_connection | lower == 'unsecure'
+
+    - name: Deploy hosts.toml for HTTP registry endpoint (unsecure)
+      ansible.builtin.copy:
+        dest: "{{ registry_certs_dir }}/hosts.toml"
+        mode: "0644"
+        content: |
+          server = "http://{{ registry_host }}"
+
+          [host."http://{{ registry_host }}"]
+            capabilities = ["pull", "resolve", "push"]
+            skip_verify = true
+      when: _registry_connection | lower == 'unsecure'
+
+    - name: Restart containerd to load registry config
+      ansible.builtin.systemd:
+        name: containerd
+        state: restarted
+      when: _registry_connection | lower == 'unsecure'
+
+    - name: Wait for containerd socket
+      ansible.builtin.wait_for:
+        path: /run/containerd/containerd.sock
+        state: present
+        timeout: 60
+      when: _registry_connection | lower == 'unsecure'
+
+    - name: Restart kubelet after containerd restart
+      ansible.builtin.systemd:
+        name: kubelet
+        state: restarted
+      when: _registry_connection | lower == 'unsecure'

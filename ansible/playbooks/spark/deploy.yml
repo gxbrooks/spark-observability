@@ -11,16 +11,17 @@
       debug:
         msg: "Starting secure Spark deployment on Kubernetes"
         
-    - name: Check if running on control node
-      command: "kubectl version --client"
+    - name: Check kubectl on Kubernetes master (control node may not have kubectl)
+      command: kubectl version --client
+      delegate_to: "{{ groups['kubernetes_master'][0] }}"
       register: kubectl_result
       ignore_errors: true
-      
-    - name: Fail if kubectl not available
+
+    - name: Fail if kubectl not available on master
       fail:
         msg: >
-          This playbook requires kubectl to be installed and in the PATH.
-          Please install kubectl before running this playbook.
+          kubectl must be installed on {{ groups['kubernetes_master'][0] }}
+          (kubernetes_master). Install it there or fix PATH before deploying.
       when: kubectl_result.rc != 0
 
 # Replace missing distribute_k8s_certs.yml with an inline play
@@ -175,7 +176,7 @@
         BUILD_ARGS=$(sed 's/^[[:space:]]*//; s/[[:space:]]*=[[:space:]]*/=/' spark-image.toml | awk -F'=' '/^[A-Z]/{gsub(/"/, "", $2); printf "--build-arg %s=%s ", $1, $2}') && \
         echo "$BUILD_ARGS" && \
         docker build . -t {{ spark_image }}:{{ spark_tag }} \
-          $BUILD_ARGS --progress=plain {{ (force_build | bool) | ternary('--no-cache', '') }}
+          $BUILD_ARGS {{ (force_build | bool) | ternary('--no-cache', '') }}
       register: docker_build
       when: image_exists is defined and image_exists.stdout is defined and (image_exists.stdout == "" or force_build | bool)
       async: 900
@@ -203,9 +204,52 @@
       command: docker run -d -p 5000:5000 --restart=always --name registry registry:2
       when: registry_status.rc != 0
 
+    - name: Check for existing Docker daemon.json
+      become: true
+      stat:
+        path: /etc/docker/daemon.json
+      register: docker_daemon_stat
+
+    - name: Read Docker daemon.json for insecure registry merge
+      become: true
+      slurp:
+        path: /etc/docker/daemon.json
+      register: docker_daemon_slurp
+      when: docker_daemon_stat.stat.exists
+
+    - name: Parse existing Docker daemon settings
+      set_fact:
+        docker_daemon_existing: "{{ (docker_daemon_slurp.content | b64decode | from_json) if docker_daemon_stat.stat.exists else {} }}"
+
+    - name: Ensure Docker allows insecure HTTP for local registry (docker push)
+      become: true
+      copy:
+        dest: /etc/docker/daemon.json
+        content: "{{ docker_daemon_merged | to_nice_json }}\n"
+        mode: '0644'
+      vars:
+        _prev_regs: "{{ docker_daemon_existing['insecure-registries'] | default([]) }}"
+        _merged_regs: "{{ (_prev_regs + [registry_host]) | unique }}"
+        docker_daemon_merged: "{{ docker_daemon_existing | combine({'insecure-registries': _merged_regs}) }}"
+      register: docker_daemon_insecure
+
+    - name: Restart Docker after daemon.json change
+      become: true
+      service:
+        name: docker
+        state: restarted
+      when: docker_daemon_insecure.changed
+
+    - name: Ensure local registry container is running after Docker restart
+      command: docker start registry
+      when: docker_daemon_insecure.changed
+      ignore_errors: true
+
     - name: Push Spark image to local registry
       shell: docker push {{ spark_image }}:{{ spark_tag }}
-      when: docker_build is changed or force_build | bool
+      when: >
+        (docker_build is defined and docker_build is changed) or (force_build | bool)
+        or ((image_exists.stdout | default('')) | length > 0)
 
 - name: Deploy Spark on Kubernetes
   hosts: kubernetes_master
@@ -338,72 +382,5 @@
 
     # Deployments and services are now handled by the spark role
 
-- name: Deploy Spark OpenTelemetry Listener to Managed Nodes
-  hosts: k8s_nodes
-  become: yes
-  become_user: ansible
-  gather_facts: false
-  vars:
-    project_root: "{{ playbook_dir }}/../../.."
-    otel_listener_jar: "spark-otel-listener-1.0.0.jar"
-    source_jar: "{{ project_root }}/spark/otel-listener/target/{{ otel_listener_jar }}"
-    dest_dir: "/home/ansible/spark/otel"
-    dest_jar: "{{ dest_dir }}/{{ otel_listener_jar }}"
-  
-  tasks:
-    - name: Check if source JAR exists
-      local_action:
-        module: stat
-        path: "{{ source_jar }}"
-      register: source_jar_stat
-      run_once: true
-
-    - name: Skip OTel deployment if JAR does not exist
-      debug:
-        msg: "Skipping OTel listener deployment - JAR not found: {{ source_jar }}. Run build.yml first if needed."
-      when: not source_jar_stat.stat.exists
-      run_once: true
-
-    - name: Create OpenTelemetry directory on managed nodes
-      file:
-        path: "{{ dest_dir }}"
-        state: directory
-        mode: '0755'
-        owner: ansible
-        group: ansible
-      when: source_jar_stat.stat.exists
-
-    - name: Copy OpenTelemetry Listener JAR to managed nodes
-      copy:
-        src: "{{ source_jar }}"
-        dest: "{{ dest_jar }}"
-        mode: '0644'
-        owner: ansible
-        group: ansible
-      register: jar_copy
-      when: source_jar_stat.stat.exists
-
-    - name: Verify JAR was copied
-      stat:
-        path: "{{ dest_jar }}"
-      register: dest_jar_stat
-      when: source_jar_stat.stat.exists
-
-    - name: Display deployment status
-      debug:
-        msg:
-          - "Host: {{ inventory_hostname }}"
-          - "JAR: {{ dest_jar }}"
-          - "Size: {{ (dest_jar_stat.stat.size / 1024 / 1024) | round(2) }} MB"
-          - "Status: {{ 'Updated' if jar_copy.changed else 'Already up-to-date' }}"
-      when: source_jar_stat.stat.exists and dest_jar_stat.stat.exists
-
-    - name: OTel deployment summary
-      debug:
-        msg:
-          - "============================================"
-          - "OpenTelemetry Listener Deployment {{ 'Complete' if source_jar_stat.stat.exists else 'Skipped' }}"
-          - "============================================"
-          - "{{ 'Deployed to: ' + (groups['k8s_nodes'] | join(', ')) if source_jar_stat.stat.exists else 'JAR not built yet - run playbooks/spark/build.yml first' }}"
-          - "{{ 'Location: ' + dest_jar if source_jar_stat.stat.exists else '' }}"
-      run_once: true
+# OTel listener JAR: resolve/build on controller, copy to /mnt/spark/data on k8s nodes (see otel-listener/deploy.yml)
+- import_playbook: otel-listener/deploy.yml

@@ -1,17 +1,23 @@
+# OpenSSH client config for interactive logins as gxbrooks (developer workstation → lab hosts).
+# Ansible uses ansible/inventory.yml (e.g. ansible_ssh_private_key_file, ansible_user: ansible);
+# it does not read this file unless you set ANSIBLE_SSH_ARGS or use ProxyJump from here manually.
+#
+# Host names use DNS (*.lan) only — no literal IP addresses (see inventory expected_ips for hints).
 
-Host Lab1
-    HostName 192.168.1.76  # IP of Lab1's WINDOWS host
-    Port 2222  # Port forwarded on Lab1's Windows
-    User gxbrooks  # User in Lab1's WSL2
-    IdentityFile C:\Users\gxbro\.ssh\id_rsa  # Path to your Windows private key
-
-Host Lab2
-    HostName Lab2 # IP or hostname of your native Ubuntu machine
+Host Lab1 Lab1.lan
+    HostName Lab1.lan
+    Port 22
     User gxbrooks
-    IdentityFile ~/.ssh/id_rsa
+    IdentityFile ~/.ssh/id_ed25519
 
-Host GaryPC_wsl  # For managing GaryPC's WSL2 instance (if needed)
-    HostName localhost # Or 127.0.0.1
+Host Lab2 Lab2.lan
+    HostName Lab2.lan
+    Port 22
     User gxbrooks
-    IdentityFile ~/.ssh/id_rsa
+    IdentityFile ~/.ssh/id_ed25519
 
+Host Lab3 Lab3.lan
+    HostName Lab3.lan
+    Port 22
+    User gxbrooks
+    IdentityFile ~/.ssh/id_ed25519
