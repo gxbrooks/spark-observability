@@ -30,29 +30,16 @@ if [[ ":$PATH:" != *":${dir}/ops/observability/elasticsearch/bin:"* ]]; then
     export PATH="${dir}/ops/observability/elasticsearch/bin:$PATH"
 fi
 
-if ! grep -qi "microsoft\|wsl" /proc/version; then
-    echo "Running on native Linux"
-    # moved to wake on USB approach. See wake_on_usb.sh.
-    # $dir/keep_awake.sh
-else
-    echo "Running on WSL"
-    # start ssh-agent to manage SSH keys
-    systemctl --user start ssh-agent
-fi
-
-# ~/.bashrc
-
-# Load SSH keys into ssh-agent (keychain is installed by linux/assert_client_node.sh).
-# Prefer keys that exist: personal Git (id_ed25519), Ansible control (id_ed25519_ansible), legacy RSA.
+# Load SSH keys into ssh-agent (keychain: linux/assert_client_node.sh / myenv assert_packages).
+# Only id_ed25519_<purpose> keys. id_ed25519_github → GitHub; id_ed25519_ansible → Ansible, Lab, GaryPC, etc.
 _keychain_keys=()
-for _k in id_ed25519 id_ed25519_ansible id_rsa; do
+for _k in id_ed25519_github id_ed25519_ansible; do
   [[ -f "$HOME/.ssh/$_k" ]] && _keychain_keys+=("$_k")
 done
 if ((${#_keychain_keys[@]})); then
-  eval "$(keychain --quiet --eval "${_keychain_keys[@]}")"
+  command -v keychain >/dev/null 2>&1 && eval "$(keychain --quiet --eval "${_keychain_keys[@]}")"
 fi
 unset _k _keychain_keys
-
 
 # Activate project virtual environment (only if not already activated)
 if [ -z "$VIRTUAL_ENV" ]; then

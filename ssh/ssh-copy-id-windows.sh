@@ -4,7 +4,8 @@
 sshPort=22
 DebugLocal=false
 DebugRemote=false
-identity_file="$HOME/.ssh/id_rsa.pub"
+# Default: Ansible / Lab control key (see enable_user_for_ssh_client.sh). Override with -i.
+identity_file="${HOME}/.ssh/id_ed25519_ansible.pub"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do

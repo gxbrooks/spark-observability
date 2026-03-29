@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # DEPRECATED: Git/GitHub identity and ~/.ssh/id_ed25519_github are handled by myenv assert_git.sh.
+# Legacy default id_ed25519 / id_rsa keys are deprecated; use only id_ed25519_<purpose> keys.
 # This script generated id_ed25519 (default name) and hard-coded spark-observability remotes — use
 #   ~/repos/myenv/assert_git.sh
 # instead. Retained only for reference or one-off recovery on legacy setups.
