@@ -1,0 +1,26 @@
+---
+# Global behavior tests for Spark Observability stack.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/test.yml
+
+- name: Display test banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Show test scope
+      ansible.builtin.debug:
+        msg: |
+          ================================================
+          Spark Observability Platform — Test
+          ================================================
+          Running behavior tests:
+            - Kubernetes scheduling
+            - Spark runtime + HDFS IO
+            - Observability index freshness
+          ================================================
+
+- import_playbook: k8s/test.yml
+- import_playbook: spark/test.yml
+- import_playbook: observability/test.yml
