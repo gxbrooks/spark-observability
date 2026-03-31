@@ -1,57 +1,56 @@
 ---
-# Check NFS status
-# Usage: ansible-playbook -i inventory.yml playbooks/nfs/status.yml
+# NFS server and client diagnostics
+# Usage: ansible-playbook -i inventory.yml playbooks/nfs/diagnose.yml
 
 - name: Check NFS Server Status
   hosts: nfs_servers
   become: true
   gather_facts: true
-  
+
   tasks:
     - name: Check NFS server service status
-      systemd:
+      ansible.builtin.systemd:
         name: nfs-server
         state: started
-      check_mode: yes
+      check_mode: true
       register: nfs_status
       failed_when: false
-    
+
     - name: Display NFS service status
-      debug:
+      ansible.builtin.debug:
         msg: "NFS server is {{ 'running' if nfs_status.status.ActiveState == 'active' else 'not running' }}"
-    
+
     - name: Check NFS exports
-      command: exportfs -v
+      ansible.builtin.command: exportfs -v
       register: nfs_exports
       changed_when: false
-    
+
     - name: Display NFS exports
-      debug:
+      ansible.builtin.debug:
         var: nfs_exports.stdout_lines
-    
+
     - name: Check mounted filesystems
-      command: df -h | grep nfs
+      ansible.builtin.command: df -h | grep nfs
       register: nfs_mounts
       changed_when: false
       failed_when: false
-    
+
     - name: Display NFS mounts
-      debug:
+      ansible.builtin.debug:
         msg: "{{ nfs_mounts.stdout_lines | default(['No NFS mounts found']) }}"
 
 - name: Check NFS Client Mounts
-  hosts: nfs_clients
+  hosts: kubernetes_master:kubernetes_workers:!nfs_servers
   become: true
   gather_facts: true
-  
+
   tasks:
     - name: Check NFS mounts on clients
-      command: mount | grep nfs
+      ansible.builtin.command: mount | grep nfs
       register: client_mounts
       changed_when: false
       failed_when: false
-    
-    - name: Display client NFS mounts
-      debug:
-        msg: "{{ client_mounts.stdout_lines | default(['No NFS mounts on this client']) }}"
 
+    - name: Display client NFS mounts
+      ansible.builtin.debug:
+        msg: "{{ client_mounts.stdout_lines | default(['No NFS mounts on this client']) }}"

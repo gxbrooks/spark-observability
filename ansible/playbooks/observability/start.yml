@@ -6,7 +6,9 @@
 # 3. Start services (container layer)
 # 4. Verify health (validation layer)
 #
-# Ensure Linux firewall (UFW) allows observability service ports on the observability host.
+# Optional Linux firewall (UFW): `observability_manage_ufw` (default false). When false, this play
+# is skipped so lab hosts without a working ip6tables/nft stack do not block `observability/start.yml`.
+# Set `observability_manage_ufw: true` in inventory for production or when UFW is intentionally used.
 - name: Regenerate observability Docker env on controller
   hosts: localhost
   connection: local
@@ -23,6 +25,8 @@
   gather_facts: true
   ignore_unreachable: true
   vars:
+    # Inventory may set `observability_manage_ufw: true`; avoid self-referential var (recursion).
+    _observability_manage_ufw: "{{ observability_manage_ufw | default(false) }}"
     observability_ports:
       - { port: 9200, name: "Elasticsearch HTTP", service: "Elasticsearch" }
       - { port: 9300, name: "Elasticsearch Transport", service: "Elasticsearch" }
@@ -42,6 +46,11 @@
       - { port: 9095, name: "Tempo gRPC", service: "Tempo" }
       - { port: 5000, name: "Spark local Docker registry", service: "registry" }
   tasks:
+    - name: Skip UFW when observability_manage_ufw is false (lab default)
+      ansible.builtin.debug:
+        msg: "Skipping UFW — set observability_manage_ufw: true in inventory to install rules and enable UFW."
+      when: not (_observability_manage_ufw | bool)
+
     # Idempotent: ensure package exists, then enable and add rules. A prior bug used only the
     # first `which ufw` result — after apt installed ufw, rc was still != 0 so enable/rules skipped.
     - name: Ensure UFW package is installed (Debian/Ubuntu)
@@ -50,7 +59,9 @@
         state: present
         update_cache: true
       become: true
-      when: ansible_os_family == 'Debian'
+      when:
+        - _observability_manage_ufw | bool
+        - ansible_os_family == 'Debian'
       ignore_unreachable: true
 
     - name: Check UFW CLI is available
@@ -59,13 +70,26 @@
       changed_when: false
       failed_when: false
       ignore_unreachable: true
+      when: _observability_manage_ufw | bool
 
     - name: Enable UFW if CLI is available
       ufw:
         state: enabled
       become: true
-      when: ufw_avail is succeeded
+      when:
+        - _observability_manage_ufw | bool
+        - ufw_avail is succeeded
+      ignore_errors: true
+      register: ufw_enable
       ignore_unreachable: true
+
+    - name: Warn if UFW enable failed (non-fatal; observability play continues)
+      ansible.builtin.debug:
+        msg: "UFW enable failed (often ip6tables/nft). Observability stack will still start. Fix host firewall or keep observability_manage_ufw false in inventory. Detail: {{ ufw_enable.msg | default(ufw_enable) }}"
+      when:
+        - _observability_manage_ufw | bool
+        - ufw_enable is defined
+        - ufw_enable is failed
 
     - name: Check if UFW rule exists for observability port
       shell: set -o pipefail; ufw status numbered | grep -q "{{ item.port }}/tcp" || echo "not_found"
@@ -77,7 +101,9 @@
         label: "{{ item.name }} ({{ item.port }})"
       changed_when: false
       failed_when: false
-      when: ufw_avail is succeeded
+      when:
+        - _observability_manage_ufw | bool
+        - ufw_avail is succeeded
       ignore_unreachable: true
 
     - name: Create UFW rule for observability ports
@@ -91,6 +117,7 @@
       loop_control:
         label: "{{ item.item.name }} ({{ item.item.port }})"
       when:
+        - _observability_manage_ufw | bool
         - ufw_avail is succeeded
         - not (ufw_rule_check.skipped | default(false))
         - item.stdout is defined

@@ -10,6 +10,8 @@
   vars:
     k8s_config_dir: "/home/{{ ansible_user }}/k8s/hadoop"
     project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+    # Align with vars/variables.yaml (spark-runtime / ansible); template requires this name
+    HDFS_DEFAULT_FS: "hdfs://hdfs-namenode:9000"
     
   tasks:
     - name: Check if kubectl is available
@@ -68,13 +70,48 @@
       delay: 2
       register: namespace_result
       until: namespace_result.rc == 0
-      
-    - name: Deploy Hadoop NameNode
-      command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-namenode.yaml"
+
+    - name: Check if HDFS NameNode StatefulSet already exists
+      ansible.builtin.command: kubectl get sts hdfs-namenode -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: hdfs_namenode_sts
+      failed_when: false
+      changed_when: false
+
+    - name: Deploy Hadoop NameNode (full manifest — first install only)
+      ansible.builtin.command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-namenode.yaml"
       environment:
         KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
       register: namenode_result
-      
+      when: hdfs_namenode_sts.rc != 0
+
+    - name: Note — skip NameNode StatefulSet re-apply when already present
+      ansible.builtin.debug:
+        msg: >
+          hdfs-namenode StatefulSet already exists; skipped applying hadoop-namenode.yaml
+          (Kubernetes forbids changing most StatefulSet spec fields). ConfigMap was refreshed above.
+          To change storage or image, delete the StatefulSet/PVC intentionally, then re-run this playbook.
+      when: hdfs_namenode_sts.rc == 0
+
+    - name: Expose NameNode RPC/UI via NodePort (reachable from hosts outside the cluster, e.g. Lab3)
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - patch
+          - svc
+          - hdfs-namenode
+          - -n
+          - hdfs
+          - --type=merge
+          - -p
+          - '{"spec":{"type":"NodePort","ports":[{"name":"rpc","port":9000,"targetPort":9000,"nodePort":30900,"protocol":"TCP"},{"name":"web","port":9870,"targetPort":9870,"nodePort":30970,"protocol":"TCP"}]}}'
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: hdfs_nodeport_patch
+      failed_when: hdfs_nodeport_patch.rc != 0
+      changed_when: "'patched' in hdfs_nodeport_patch.stdout"
+
     - name: Wait for NameNode to be ready
       command: kubectl wait --for=condition=ready pod -l app=hdfs-namenode -n hdfs --timeout=300s
       environment:
@@ -82,12 +119,28 @@
       register: namenode_ready
       ignore_errors: true
       
-    - name: Deploy Hadoop DataNode
-      command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-datanode.yaml"
+    - name: Check if HDFS DataNode Deployment already exists
+      ansible.builtin.command: kubectl get deploy hdfs-datanode -n hdfs
+      environment:
+        KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+      register: hdfs_dn_deploy
+      failed_when: false
+      changed_when: false
+
+    - name: Deploy Hadoop DataNode (first install only)
+      ansible.builtin.command: kubectl apply -f "{{ k8s_config_dir }}/hadoop-datanode.yaml"
       environment:
         KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
       register: datanode_result
-      
+      when: hdfs_dn_deploy.rc != 0
+
+    - name: Note — skip DataNode manifest re-apply when Deployment already present
+      ansible.builtin.debug:
+        msg: >
+          hdfs-datanode Deployment already exists; skipped apply to avoid ReplicaSet churn
+          (new spec may not match running image user/root expectations). ConfigMap was refreshed above.
+      when: hdfs_dn_deploy.rc == 0
+
     - name: Wait for DataNode to be ready
       command: kubectl wait --for=condition=ready pod -l app=hdfs-datanode -n hdfs --timeout=300s
       environment:
@@ -103,9 +156,8 @@
           - DataNode: {{ 'Ready' if datanode_ready.rc == 0 else 'Not ready' }}
           
     - name: Show Hadoop service URLs
-      debug:
+      ansible.builtin.debug:
         msg: |
-          Hadoop Service URLs:
-          - NameNode Web UI: http://{{ inventory_hostname }}:9870
-          - NameNode RPC: {{ inventory_hostname }}:9000
-          - DataNode: {{ inventory_hostname }}:9864
+          Hadoop (in-cluster): hdfs://hdfs-namenode.hdfs.svc.cluster.local:9000
+          NameNode NodePort (Kubernetes node DNS): hdfs://{{ ansible_host | default(inventory_hostname) }}:30900
+          NameNode Web UI NodePort: http://{{ ansible_host | default(inventory_hostname) }}:30970

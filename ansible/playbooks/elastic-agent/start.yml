@@ -27,10 +27,36 @@
     elastic_agent_ca_path: "/etc/ssl/certs/elastic/ca.crt"
   
   tasks:
-    - name: Detect Elastic Agent installation (skip CA/env/systemd when not installed)
+    - name: Detect Elastic Agent installation root (works even with broken symlink)
       stat:
-        path: /opt/Elastic/Agent/elastic-agent
+        path: /opt/Elastic/Agent/data
       register: elastic_agent_binary
+
+    - name: Discover Elastic Agent executable candidates
+      find:
+        paths: /opt/Elastic/Agent/data
+        patterns: elastic-agent
+        file_type: file
+        recurse: true
+      when: elastic_agent_binary.stat.exists
+      register: elastic_agent_exec_candidates
+
+    - name: Select newest Elastic Agent executable
+      set_fact:
+        elastic_agent_exec_path: "{{ (elastic_agent_exec_candidates.files | sort(attribute='mtime', reverse=true) | first).path }}"
+      when:
+        - elastic_agent_binary.stat.exists
+        - elastic_agent_exec_candidates.matched | int > 0
+
+    - name: Repair Elastic Agent binary symlink if stale
+      file:
+        src: "{{ elastic_agent_exec_path }}"
+        dest: /opt/Elastic/Agent/elastic-agent
+        state: link
+        force: true
+      when:
+        - elastic_agent_binary.stat.exists
+        - elastic_agent_exec_path is defined
 
     # --- CA currency check (pull-based): re-fetch from observability Docker volume if stale ---
     - name: Get CA hash from Docker volume (observability host)

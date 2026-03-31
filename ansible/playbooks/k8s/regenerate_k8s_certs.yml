@@ -224,8 +224,8 @@
              ansible-playbook -i inventory.yml playbooks/k8s/start.yml
           
           3. Verify cluster is working:
-             ansible-playbook -i inventory.yml playbooks/k8s/status.yml
+             ansible-playbook -i inventory.yml playbooks/k8s/diagnose.yml
           
           4. Deploy Spark with updated certificates:
-             ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
+             ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 

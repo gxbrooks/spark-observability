@@ -33,10 +33,9 @@ if [ ! -f "${SPARK_CLIENT_ENV}" ]; then
     (cd "${ROOT_DIR}" && bash vars/generate_contexts.sh spark-client -f) || exit 1
 fi
 
-# Only source if required variables aren't already set (avoids redundant sourcing)
-if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" || -z "$ES_HOST" ]]; then
-    source "${SPARK_CLIENT_ENV}"
-fi
+# Always source Spark client env: devops_env may already set PYSPARK/ES and skip sourcing,
+# which left SPARK_MASTER_* / SPARK_DRIVER_HOST stale (wrong spark.master in generated file).
+source "${SPARK_CLIENT_ENV}"
 
 # Validate required variables
 if [[ -z "$PYSPARK_PYTHON" || -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ]]; then
@@ -73,6 +72,16 @@ if [[ -z "$SPARK_OTEL_LISTENER_JAR" ]]; then
 fi
 SPARK_OTEL_LISTENER_JAR="${SPARK_OTEL_LISTENER_JAR/#\~/${HOME}}"
 
+if [[ -z "${SPARK_MASTER_HOST:-}" || -z "${SPARK_MASTER_PORT:-}" ]]; then
+    echo "Error: SPARK_MASTER_HOST / SPARK_MASTER_PORT not set in spark_client_env.sh" >&2
+    exit 1
+fi
+
+: "${SPARK_DATA_MOUNT:=/mnt/spark/data}"
+
+# Executors connect back to this host; must match the machine running the PySpark driver (override if not Lab2).
+: "${SPARK_DRIVER_HOST:=Lab2.lan}"
+
 if [ ! -f "$SPARK_OTEL_LISTENER_JAR" ]; then
     echo "Warning: OTel listener JAR not found at: $SPARK_OTEL_LISTENER_JAR" >&2
     echo "  Run: ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/otel-listener/build.yml" >&2
@@ -99,6 +108,10 @@ if [ "$USE_SED" = "1" ]; then
     ES_USER_ESC=$(echo "$ES_USER" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_PASSWORD_ESC=$(echo "$ES_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
     SPARK_EVENT_CSV_ESC=$(echo "${SPARK_EVENT_CSV:-true}" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    SPARK_DRIVER_HOST_ESC=$(echo "$SPARK_DRIVER_HOST" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    SPARK_MASTER_HOST_ESC=$(echo "$SPARK_MASTER_HOST" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    SPARK_MASTER_PORT_ESC=$(echo "$SPARK_MASTER_PORT" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    SPARK_DATA_MOUNT_ESC=$(echo "$SPARK_DATA_MOUNT" | sed 's/[[\.*^$()+?{|]/\\&/g')
     sed -e "s|{{ PYSPARK_PYTHON }}|${PYSPARK_PYTHON_ESC}|g" \
         -e "s|{{ OTEL_EXPORTER_OTLP_ENDPOINT }}|${OTEL_ENDPOINT_ESC}|g" \
         -e "s|{{ SPARK_OTEL_LISTENER_JAR }}|${JAR_PATH_ESC}|g" \
@@ -106,6 +119,10 @@ if [ "$USE_SED" = "1" ]; then
         -e "s|{{ ES_USER }}|${ES_USER_ESC}|g" \
         -e "s|{{ ES_PASSWORD }}|${ES_PASSWORD_ESC}|g" \
         -e "s|{{ SPARK_EVENT_CSV }}|${SPARK_EVENT_CSV_ESC}|g" \
+        -e "s|{{ SPARK_DRIVER_HOST }}|${SPARK_DRIVER_HOST_ESC}|g" \
+        -e "s|{{ SPARK_MASTER_HOST }}|${SPARK_MASTER_HOST_ESC}|g" \
+        -e "s|{{ SPARK_MASTER_PORT }}|${SPARK_MASTER_PORT_ESC}|g" \
+        -e "s|{{ SPARK_DATA_MOUNT }}|${SPARK_DATA_MOUNT_ESC}|g" \
         "$TEMPLATE" > "$OUTPUT"
 else
     # Preferred: Jinja2 rendering via Python
@@ -127,7 +144,11 @@ rendered = template.render(
     ES_URL='$ES_URL',
     ES_USER='$ES_USER',
     ES_PASSWORD='$ES_PASSWORD',
-    SPARK_EVENT_CSV='${SPARK_EVENT_CSV:-true}'
+    SPARK_EVENT_CSV='${SPARK_EVENT_CSV:-true}',
+    SPARK_DRIVER_HOST='$SPARK_DRIVER_HOST',
+    SPARK_MASTER_HOST='$SPARK_MASTER_HOST',
+    SPARK_MASTER_PORT='$SPARK_MASTER_PORT',
+    SPARK_DATA_MOUNT='$SPARK_DATA_MOUNT',
 )
 
 with open(output_file, 'w') as f:
@@ -141,4 +162,5 @@ echo "  Output: $OUTPUT"
 echo "  PYSPARK_PYTHON: $PYSPARK_PYTHON"
 echo "  OTEL_EXPORTER_OTLP_ENDPOINT: $OTEL_EXPORTER_OTLP_ENDPOINT"
 echo "  SPARK_OTEL_LISTENER_JAR: $SPARK_OTEL_LISTENER_JAR"
+echo "  SPARK_DRIVER_HOST: $SPARK_DRIVER_HOST"
 

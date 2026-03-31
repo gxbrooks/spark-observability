@@ -60,20 +60,48 @@ alias gcsummary='git log --decorate --date=short --pretty=format:"%C(auto,yellow
 alias pscursor="ps -eo pid,ppid,user,%cpu,rss,vsz,comm | awk 'NR==1 {printf \"%-7s %-7s %-10s %4s %7s %10s %s\n\",\$1,\$2,\$3,\$4,\$5,\$6,\$7; next} {printf \"%-7s %-7s %-10s %4.1f %7s %10s %s\n\",\$1,\$2,\$3,\$4,\$5,\$6,\$7}'"
 
 
-# Kubernetes aliases
-alias kwexec="kubectl exec -it -n spark -c spark-worker "
-alias kmexec="kubectl exec -it -n spark -c spark-master "
-alias kpods="kubectl get pods -n spark"
-alias ksvc="kubectl get svc -n spark"
-alias klogs="kubectl logs -n spark"
+# Kubernetes helpers (functions — reliable kubeconfig + clear errors if kubectl/kubeconfig missing)
+function _kubeconfig_default {
+  if [[ -n "${KUBECONFIG:-}" ]]; then
+    echo "$KUBECONFIG"
+  elif [[ -f "$HOME/.kube/config" ]]; then
+    echo "$HOME/.kube/config"
+  elif [[ -f "/home/ansible/.kube/config" ]]; then
+    echo "/home/ansible/.kube/config"
+  fi
+}
 
-alias klogsall="kubectl logs -n spark --all-containers"
-alias ktop="kubectl top pods -n spark"
-alias ktopall="kubectl top pods -n spark --all-containers"
-alias kdescribe="kubectl describe pod -n spark"
-alias kdescribeall="kubectl describe pod -n spark --all-containers"
-alias kdelete="kubectl delete pod -n spark"
-alias kdeleteall="kubectl delete pod -n spark --all-containers"
+function k_kubectl {
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl: not installed (e.g. sudo apt install -y kubectl)" >&2
+    return 127
+  fi
+  local kc
+  kc="$(_kubeconfig_default)"
+  if [[ -n "$kc" ]] && [[ ! -r "$kc" ]]; then
+    echo "kubectl: kubeconfig not readable: $kc" >&2
+    return 1
+  fi
+  if [[ -n "$kc" ]]; then
+    kubectl --kubeconfig "$kc" "$@"
+  else
+    kubectl "$@"
+  fi
+}
+
+function kwexec  { k_kubectl exec -it -n spark -c spark-worker "$@"; }
+function kmexec  { k_kubectl exec -it -n spark -c spark-master "$@"; }
+function kpods   { k_kubectl get pods -n spark "$@"; }
+function ksvc    { k_kubectl get svc -n spark "$@"; }
+function klogs   { k_kubectl logs -n spark "$@"; }
+
+function klogsall    { k_kubectl logs -n spark --all-containers "$@"; }
+function ktop        { k_kubectl top pods -n spark "$@"; }
+function ktopall     { k_kubectl top pods -n spark --all-containers "$@"; }
+function kdescribe   { k_kubectl describe pod -n spark "$@"; }
+function kdescribeall { k_kubectl describe pod -n spark --all-containers "$@"; }
+function kdelete     { k_kubectl delete pod -n spark "$@"; }
+function kdeleteall  { k_kubectl delete pod -n spark --all-containers "$@"; }
 
 # Ansible — observability host (Lab3): Docker Engine + stack deploy + start.
 # Run from your control machine where `ssh ansible@lab3.lan` works (inventory: ansible_ssh_private_key_file).

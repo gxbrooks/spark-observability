@@ -1,6 +1,6 @@
 ---
-# Global installation playbook for Spark Observability Platform
-# Idempotent - installs and configures all components
+# Global installation playbook — host packages, NFS, Kubernetes, Elastic Agent
+# Does not deploy K8s workloads or observability Docker stack; run deploy.yml after this
 # Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/install.yml
 
 - name: Display installation banner
@@ -9,87 +9,42 @@
   gather_facts: false
   tasks:
     - name: Display installation information
-      debug:
+      ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform - Installation
+          Spark Observability Platform — Install
           ================================================
-          
-          This playbook will install/configure:
-          1. Docker Engine (Lab3 observability stack only; see spark/deploy for Lab2 image builds)
-          2. NFS Server and Clients
-          3. Kubernetes Cluster (uses containerd runtime)
-          4. Observability Platform (Lab3 with Docker Engine)
-          5. Spark on Kubernetes
-          6. JupyterHub for Spark Development
-          7. Elastic Agent (host-level on Lab1, Lab2, Lab3)
-          
-          All operations are idempotent and safe to re-run.
-          
-          Prerequisites:
-          - Ansible control machine has SSH access to all hosts
-          - Docker Engine installed and enabled on Lab3 (observability)
-          
+          This playbook installs/configures:
+            1. Docker Engine (Lab3 observability host)
+            2. NFS server (inventory nfs_servers) and clients on K8s nodes
+            3. Kubernetes cluster (containerd)
+            4. Elastic Agent on native Linux hosts (Lab1–Lab3)
+          Next: deploy workloads with playbooks/deploy.yml, then start with playbooks/start.yml
           ================================================
 
-# Step 1: Install Docker Engine on observability host (Lab3)
 - import_playbook: docker/install.yml
 
-# Step 2: Install NFS Server and Clients
 - import_playbook: nfs/install.yml
 
-# Step 3: Install Kubernetes Cluster
 - import_playbook: k8s/install.yml
 
-# Step 4: Install Observability Platform
-- import_playbook: observability/install.yml
-
-# Step 5: Deploy Spark to Kubernetes
-- import_playbook: spark/deploy.yml
-
-# Step 6: Deploy JupyterHub for Spark Development (deferred to Spark 4.0)
-# - import_playbook: jupyter/deploy_jupyterhub_helm.yml
-
-# Step 7: Install Elastic Agent
 - import_playbook: elastic-agent/install.yml
 
-# Step 7: Display completion status
 - name: Display installation completion
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
     - name: Display completion message
-      debug:
+      ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform - Installation Complete!
+          Install playbook complete
           ================================================
-          
-          All components have been installed and configured:
-          ✓ Docker Engine (Lab3 observability; K8s uses containerd on cluster nodes)
-          ✓ NFS Server (Lab2) and Clients (Lab1, Lab2)
-          ✓ Kubernetes Cluster (Master: Lab2, Workers: Lab1+Lab2)
-          ✓ Observability Platform (Lab3)
-          ✓ Spark on Kubernetes
-          ✓ JupyterHub for Spark Development
-          ✓ Elastic Agent (host-level: Lab1, Lab2, Lab3)
-          
-          Next Steps:
-          ================================================
-          
-          To start all services, run:
+          Deploy manifests, Compose stack, Spark, JupyterHub:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/deploy.yml
+          Then start services:
             cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
-          
-          To check status of all components, run:
-            cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
-          
-          To access services:
-          - Elasticsearch: https://Lab3.lan:9200 (elastic / myElastic2025)
-          - Kibana: http://Lab3.lan:5601 (elastic / myElastic2025)
-          - Grafana: http://Lab3.lan:3000
-          - Spark History: http://Lab2.lan:31534
-          - JupyterHub: https://Lab2.lan:32443 (signup + approval)
-          
+          Diagnose:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/diagnose.yml
           ================================================
-

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. **Primary targets are native Linux lab hosts (Lab1–Lab3).** The observability Docker stack runs on **Lab3** under `/home/ansible/ops/observability`. WSL/Windows paths below are **legacy** references only.
+This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. **Primary targets are native Linux lab hosts (Lab1–Lab3).** The observability Docker stack runs on **Lab3** under `/home/ansible/ops/observability`. **Target topology** (which host runs Kubernetes control plane, NFS, HDFS, Jupyter) is summarized in **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)**. WSL/Windows paths below are **legacy** references only.
 
 ## Summary
 
@@ -144,7 +144,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 
 #### NFS Mounts in Kubernetes
 
-**Shared Storage**: NFS server at `/srv/nfs/spark` mounted at `/mnt/spark` on all Kubernetes nodes. Subdirectories: `/mnt/spark/events` (Spark event logs, shared read/write), `/mnt/spark/data` (shared datasets, shared read), `/mnt/spark/checkpoints` (streaming checkpoints, shared read/write), `/mnt/spark/logs` (application and GC logs, per-host, symlinked to kubelet logs).
+**Shared Storage**: NFS server at `/srv/nfs/spark` on the **NFS server host (target: Lab3)** mounted at `/mnt/spark` on all Kubernetes nodes (Lab1–Lab3). Subdirectories: `/mnt/spark/events` (Spark event logs, shared read/write), `/mnt/spark/data` (shared datasets, shared read), `/mnt/spark/checkpoints` (streaming checkpoints, shared read/write), `/mnt/spark/logs` (application and GC logs, per-host, symlinked to kubelet logs).
 
 ---
 
@@ -152,7 +152,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 
 ### Native Linux Hosts
 
-**Examples**: Lab1, Lab2 (Ubuntu/Linux)
+**Examples**: Lab1, Lab2, Lab3 (Ubuntu/Linux). **Lab1 and Lab2** are symmetric Spark/Kubernetes **workers**. **Lab3** runs the observability stack, **Kubernetes control plane**, **NFS server**, **HDFS** (on-cluster), and **JupyterHub** in the target layout (see [Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)).
 
 **File System Layout**:
 - **Ops Environment**: `/home/ansible/ops/`
@@ -313,7 +313,7 @@ Kubernetes API server certificates are managed separately:
 
 ### NFS Mapping
 
-**Source**: NFS server (`/srv/nfs/spark/` on server)  
+**Source**: NFS server (`/srv/nfs/spark/` on the designated host; **target: Lab3**)  
 **Target**: `/mnt/spark/` on all Kubernetes nodes  
 **Method**: NFS mount (configured via Ansible)
 
@@ -473,10 +473,12 @@ Kubernetes API server certificates are managed separately:
 
 ## Related Documentation
 
+- **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)**: Lab roles, service placement, resource caps
 - **[Variable_Flow.md](Variable_Flow.md)**: Variable definition and flow
 - **[Log_Architecture.md](Log_Architecture.md)**: Log file system organization
 - **[Application_Locations.md](Application_Locations.md)**: Application installation locations
 - **[Environment.md](Environment.md)**: Environment variable best practices
 - **[Elastic_API_Client.md](../observability/elasticsearch/docs/Elastic_API_Client.md)**: API client usage
+- **[Elasticsearch_indices.md](../observability/elasticsearch/docs/Elasticsearch_indices.md)**: Elasticsearch index catalog
 - **[Elastic_Agent_Architecture.md](../elastic-agent/docs/Elastic_Agent_Architecture.md)**: Elastic Agent file system details
 

@@ -43,7 +43,7 @@ Dynamic IP addresses from DHCP cause cascading failures when hosts change IPs:
 Router DHCP Settings:
   MAC: C8:FF:BF:01:1A:A4 → IP: 192.168.1.76  (Lab1)
   MAC: <Lab2-MAC>       → IP: 192.168.1.48  (Lab2)
-  MAC: <Lab3-MAC>       → IP: 192.168.1.49  (Lab3, observability / Docker)
+  MAC: <Lab3-MAC>       → IP: 192.168.1.49  (Lab3 — observability Docker, K8s control plane, NFS, HDFS, Jupyter; see Lab_Topology_and_Resources.md)
 ```
 
 **How to Find MAC Addresses**:
@@ -162,9 +162,9 @@ Since Ansible depends on a functional network, network management cannot be auto
    sudo nano /etc/hosts
    
    # Add/update entries:
-   192.168.1.49   Lab3.lan Lab3      # Observability stack (Docker Engine)
-   192.168.1.76   Lab1.lan Lab1      # Kubernetes worker
-   192.168.1.48   Lab2.lan Lab2      # Kubernetes master, NFS, Hadoop (see inventory)
+   192.168.1.49   Lab3.lan Lab3      # Observability, K8s control plane, NFS, HDFS, Jupyter (target)
+   192.168.1.76   Lab1.lan Lab1      # Kubernetes worker / Spark worker
+   192.168.1.48   Lab2.lan Lab2      # Kubernetes worker / Spark worker (target; inventory may lag migration)
    ```
 
 3. **Test connectivity**:
@@ -332,4 +332,5 @@ Since network issues prevent Ansible from running, monitoring must be done manua
 |---------|------|---------|
 | 1.0 | 2025-10-22 | Initial architecture document |
 | 1.1 | 2026-03-28 | Observability on Lab3.lan; paths and examples for spark-observability/ansible |
+| 1.2 | 2026-03-27 | Host role comments aligned with target topology (Lab3 control+NFS+HDFS; Lab1/Lab2 workers); see Lab_Topology_and_Resources.md |
 

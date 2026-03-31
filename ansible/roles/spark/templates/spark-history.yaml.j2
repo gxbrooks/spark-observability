@@ -14,7 +14,7 @@ spec:
         app: spark-history
     spec:
       serviceAccountName: spark
-      # Pin history server to Lab2 node
+      # Pin history server to the configured Kubernetes control-plane node.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -23,7 +23,7 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                - lab2
+                - {{ (hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0])).split('.')[0] | lower }}
       # No init container needed - subPathExpr handles directory creation
       # Add DNS policy for consistency with other components
       dnsPolicy: ClusterFirst

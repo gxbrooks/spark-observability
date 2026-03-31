@@ -68,15 +68,39 @@ else
     echo "Warning: devops_env.sh not found. Run: bash vars/generate_env.sh devops"
 fi
 
-# Set SPARK_LOCAL_IP to suppress hostname resolution warnings
-# This prevents "Your hostname, Lab2, resolves to a loopback address" warning
-export SPARK_LOCAL_IP="${SPARK_LOCAL_IP:-192.168.1.48}"
+# Bind address for Spark client mode.
+# If SPARK_LOCAL_IP is unset OR points to an IP not on this host, reset it to this host's primary IPv4.
+_spark_lip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')"
+if [[ -n "${_spark_lip:-}" ]]; then
+    _host_ips=" $(hostname -I 2>/dev/null) "
+    if [[ -z "${SPARK_LOCAL_IP:-}" ]] || [[ "$_host_ips" != *" ${SPARK_LOCAL_IP} "* ]]; then
+        export SPARK_LOCAL_IP="$_spark_lip"
+    fi
+    unset _host_ips
+fi
+unset _spark_lip
 
 # Source Spark client environment variables (before generating spark-defaults.conf)
 if [ -f "$project_root/vars/contexts/spark_client_env.sh" ]; then
+    # shellcheck disable=SC1091
     source "$project_root/vars/contexts/spark_client_env.sh"
+    # Point Spark client-mode driver to the current machine with a routable DNS name.
+    # If hostname is short (e.g. "Lab3"), append ".lan" so cluster workers can resolve it.
+    _spark_host="$(hostname -f 2>/dev/null || hostname)"
+    if [[ "$_spark_host" != *.* ]]; then
+        _spark_host="${_spark_host}.lan"
+    fi
+    export SPARK_DRIVER_HOST="$_spark_host"
+    unset _spark_host
     # Set SPARK_MASTER_URL from host/port
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
+fi
+
+# Sync ~/.kube/config from control plane when admin.conf changes (KUBERNETES_API_SERVER / _URL from env above).
+if [ -f "$project_root/linux/sync_devops_kubeconfig.sh" ]; then
+    # shellcheck source=linux/sync_devops_kubeconfig.sh
+    source "$project_root/linux/sync_devops_kubeconfig.sh"
+    sync_devops_kubeconfig 2>/dev/null || true
 fi
 
 # Generate spark-defaults.conf from template on each login
@@ -90,6 +114,9 @@ if [ -f "$spark_defaults_generator" ]; then
     fi
 fi
 
-# Configure PySpark to use IPython for interactive sessions
-export PYSPARK_DRIVER_PYTHON=ipython
-export PYSPARK_DRIVER_PYTHON_OPTS=""
+# Do not set PYSPARK_DRIVER_PYTHON=ipython globally — it breaks batch chapter scripts run as `python ...`.
+# IPython is set in spark/ispark/launch_ipython.sh only.
+if [[ "${PYSPARK_DRIVER_PYTHON:-}" == "ipython" ]]; then
+    export PYSPARK_DRIVER_PYTHON="${PYSPARK_PYTHON:-python3}"
+    unset PYSPARK_DRIVER_PYTHON_OPTS
+fi

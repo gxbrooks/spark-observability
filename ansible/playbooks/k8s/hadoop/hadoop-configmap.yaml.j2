@@ -33,11 +33,24 @@ data:
         <value>1</value>
       </property>
       <property>
-        <name>dfs.namenode.http-address</name>
-        <value>hdfs-namenode:9870</value>
+        <name>dfs.permissions.enabled</name>
+        <value>false</value>
       </property>
+      <!-- Advertise the Service DNS; bind all interfaces (0.0.0.0 as rpc-address makes DataNodes try 0.0.0.0:9000). -->
       <property>
         <name>dfs.namenode.rpc-address</name>
-        <value>hdfs-namenode:9000</value>
+        <value>hdfs-namenode.hdfs.svc.cluster.local:9000</value>
+      </property>
+      <property>
+        <name>dfs.namenode.rpc-bind-host</name>
+        <value>0.0.0.0</value>
+      </property>
+      <property>
+        <name>dfs.namenode.http-address</name>
+        <value>hdfs-namenode.hdfs.svc.cluster.local:9870</value>
+      </property>
+      <property>
+        <name>dfs.namenode.http-bind-host</name>
+        <value>0.0.0.0</value>
       </property>
     </configuration>

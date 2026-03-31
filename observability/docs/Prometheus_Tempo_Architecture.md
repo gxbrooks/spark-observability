@@ -9,46 +9,28 @@ This document outlines the architecture for integrating **Prometheus** (Kubernet
 ## Goals
 
 1. **Grafana Tempo**: Visualize Spark spans collected by the OpenTelemetry collector
-2. **Prometheus**: Collect and visualize Kubernetes metrics from Lab1 and Lab2 (2 x 16-core hosts)
+2. **Prometheus**: Scrape Kubernetes metrics from cluster nodes (workers **Lab1/Lab2**, control plane on **Lab3**) and forward metrics toward Elasticsearch for primary dashboards/retention
 3. **Downsampling**: Apply consistent downsampling strategy to Prometheus metrics (similar to Elasticsearch ILM)
 4. **Golden Signals**: Monitor K8s golden signals (latency, traffic, errors, saturation)
 
-## Resource Constraints
+## Resource constraints (Lab3 observability host)
 
-### Current Observability Stack
+The observability stack runs on **Lab3** alongside other services (Kubernetes control plane, HDFS, NFS, JupyterHub). **Project-wide** RAM/CPU/disk budgeting and host roles are in **[../../docs/Lab_Topology_and_Resources.md](../../docs/Lab_Topology_and_Resources.md)**.
 
-| Service | Memory Limit | CPU |
-|---------|-------------|-----|
-| Elasticsearch | 4GB | ~1 core |
-| Kibana | 2GB | ~0.5 core |
-| Grafana | 2GB | ~0.25 core |
-| Logstash | 2GB | ~0.25 core |
-| OTel Collector | 256MB | ~0.1 core |
-| **Total** | **~10.5GB** | **~2.1 cores** |
+### Docker Compose limits (reference)
 
-### Available for New Services
+`docker-compose.yml` sets per-container limits. Long-running services include Elasticsearch (4 GiB), Kibana (2 GiB), Grafana (2 GiB), Prometheus (3 GiB, 0.5 CPU), Tempo (2 GiB, 0.4 CPU), Logstash (2 GiB), OTel Collector (256 MiB), etc. Aggregate container limits are on the order of **~15–18 GiB** for the full stack; the **host** has **64 GiB RAM / 16 vCPU / 1 TB disk** in the current lab plan, shared with non-Docker workloads.
 
-- **Memory**: ~5.5GB remaining (out of 16GB total)
-- **CPU**: ~0.9 cores remaining (out of 3 cores / 6 logical threads)
+### Prometheus and Tempo in this plan
 
-### Resource Allocation Plan
+| Service | Memory limit (compose) | CPU limit (compose) | Role |
+|---------|------------------------|---------------------|------|
+| **Prometheus** | 3 GiB | 0.5 | Scrape Kubernetes + **remote write** toward Elasticsearch (via OTel); local TSDB is a **short buffer**, not the primary long-term store |
+| **Grafana Tempo** | 2 GiB | 0.4 | Trace backend for Grafana; complements ES-backed traces where configured |
 
-| Service | Memory Limit | CPU Limit | Rationale |
-|---------|-------------|-----------|-----------|
-| **Prometheus** | 3GB | 0.5 cores | Medium K8s cluster (2 x 16-core hosts), ~15s scrape interval |
-| **Grafana Tempo** | 2GB | 0.4 cores | Single-node deployment, OTel span storage |
+**Prometheus TSDB**: Retention and disk settings exist for local querying and debugging; **primary** Kubernetes metrics consumption for dashboards and retention is **Elasticsearch** (remote write path). Treat local TSDB usage as **secondary** to ES in operations.
 
-**Total New**: 5GB / 0.9 cores (fits within constraints)
-
-**⚠️ Resource Assessment**: The allocation is **tight but feasible** for:
-- 2 x 16-core Kubernetes hosts (32 cores total)
-- Moderate scrape frequency (15-30s)
-- Limited retention (15 days raw, 1 year downsampled)
-
-**If insufficient**:
-- Reduce Prometheus retention period
-- Increase scrape interval to 30s
-- Consider external long-term storage (e.g., Thanos Compact)
+If scrape load or disk pressure increases: raise scrape interval, reduce Prometheus TSDB retention/size caps, or tune Elasticsearch ILM — see project topology doc.
 
 ## Architecture Overview
 
@@ -58,7 +40,7 @@ Containers and processes use **single-line** boxes; **double-line** boxes (`=` t
 =================================================================
 ||  Kubernetes Cluster (nodes)                                  ||
 ||  ========================  ========================           ||
-||  || Lab1 (worker)       ||  || Lab2 (master)            ||   ||
+||  || Lab1 (worker)       ||  || Lab2 (worker)            ||   ||
 ||  ||  +----------------+ ||  ||  +------------------------+||   ||
 ||  ||  | kubelet        | ||  ||  | API Server (apiserver) |||   ||
 ||  ||  | (metrics:10250)| ||  ||  | :6443                  |||   ||
@@ -77,7 +59,7 @@ Containers and processes use **single-line** boxes; **double-line** boxes (`=` t
              | Scrape (30s) + Remote Write
              v
 =================================================================
-||  GaryPC (Docker host / observability node)                    ||
+||  Lab3 (Docker / observability + Kubernetes control plane)       ||
 ||                                                               ||
 ||  +------------------+     Remote Write (v2)                   ||
 ||  | Prometheus       |     http://otel-collector:9201          ||
@@ -106,7 +88,9 @@ Containers and processes use **single-line** boxes; **double-line** boxes (`=` t
 =================================================================
 ```
 
-**API Server**: The **Kubernetes API Server** (container/process on Lab2, port 6443) is the control-plane endpoint. Prometheus does **not** scrape it as “metrics from a box named API Server”; it uses the API Server for (1) **service discovery** (nodes, pods, endpoints) and (2) **proxy** to each node’s kubelet (`/api/v1/nodes/<name>/proxy/metrics`). So all scrape traffic from Prometheus to the cluster goes to **lab2.lan:6443** (API Server); the API Server then proxies to kubelets or to the API server’s own metrics endpoint (`default/kubernetes:https`).
+**Topology note:** In the **target** layout, the API server runs on **Lab3** alongside the observability stack; **Lab1** and **Lab2** are workers only. The ASCII diagram above still shows the API server beside Lab2 for space; mentally map the control plane to **Lab3**.
+
+**API Server**: The **Kubernetes API Server** (control plane on **Lab3**, port 6443 in the target layout) is the endpoint Prometheus uses for **service discovery** and **kubelet proxy** (`/api/v1/nodes/<name>/proxy/metrics`). Prometheus does not treat the API Server as “just another node metrics target”; it uses **Lab3.lan:6443** (or the configured `KUBERNETES_API_SERVER`) for discovery and proxy. Long-term metrics storage and dashboards are **Elasticsearch** via remote write, not the Prometheus TSDB alone (see **Storage Strategy** below).
 
 ## Component Details
 
@@ -125,8 +109,8 @@ Containers and processes use **single-line** boxes; **double-line** boxes (`=` t
 - **Remote Write**: Continuous export to Elasticsearch for long-term storage
 
 **Storage Strategy**:
-- **Short-term (0-15 days)**: Local Prometheus TSDB for fast queries
-- **Long-term (15+ days)**: Elasticsearch via remote write + ILM downsampling
+- **Primary for dashboards / retention**: **Elasticsearch** via remote write (OTel path) + ILM — this is the operational source of truth for Kubernetes metrics in Grafana.
+- **Local Prometheus TSDB**: Short retention / buffer for debugging and compatibility; **not** sized as the main historical analytics tier (see [Lab_Topology_and_Resources.md](../../docs/Lab_Topology_and_Resources.md)).
 
 ### 2. Grafana Tempo
 

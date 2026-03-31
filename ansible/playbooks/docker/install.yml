@@ -168,6 +168,14 @@
         groups: docker
         append: true
 
+    - name: Add extra users to docker group (interactive devs on observability host)
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: docker
+        append: true
+      loop: "{{ docker_group_extra_users | default([]) }}"
+      when: (docker_group_extra_users | default([])) | length > 0
+
     - name: Check Docker version
       ansible.builtin.command: docker --version
       register: docker_version

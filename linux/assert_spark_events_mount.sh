@@ -48,8 +48,8 @@ if [[ -f "$DEVOPS_ENV_FILE" ]]; then
   $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"
 fi
 
-# Default NFS server (Lab2) - override from environment if available
-NFS_SERVER="${NFS_SERVER:-Lab2.local}"
+# Default NFS server — must match vars/variables.yaml (devops_env.sh exports NFS_SERVER when regenerated)
+NFS_SERVER="${NFS_SERVER:-Lab3.lan}"
 NFS_EXPORT_EVENTS="/srv/nfs/spark/events"
 MOUNT_POINT="/mnt/spark/events"
 # Use NFSv4 explicitly. Legacy "showmount -e" talks to rpc.mountd; if mountd is not
@@ -65,14 +65,23 @@ if $DEBUG; then
   echo "Debug   : CHECK = $CHECK"
 fi
 
-# Check if we're running on the NFS server itself
-HOSTNAME=$(hostname)
-if [[ "$HOSTNAME" == "Lab2" ]] || [[ "$HOSTNAME" == "lab2" ]]; then
+# True if this host is the NFS server (short name match, case-insensitive)
+_host_short="$(hostname -s 2>/dev/null || hostname)"
+_host_short="${_host_short,,}"
+_nfs_short="${NFS_SERVER%%.*}"
+_nfs_short="${_nfs_short,,}"
+_is_nfs_server=false
+if [[ "$_host_short" == "$_nfs_short" ]]; then
+  _is_nfs_server=true
+fi
+unset _nfs_short _host_short
+
+if $_is_nfs_server; then
   if $DEBUG; then
-    echo "Debug   : Running on NFS server (Lab2), creating symlink and fixing permissions"
+    echo "Debug   : Running on NFS server ($NFS_SERVER), using local export (symlink), not NFS loopback mount"
   fi
   
-  # On Lab2 (NFS server), create symlink from /mnt/spark/events to /srv/nfs/spark/events
+  # On the NFS server, avoid mounting NFS from itself (can hang); symlink mount point to export
   if ! $CHECK; then
     # Ensure NFS export directory exists with correct permissions
     if [[ ! -d "$NFS_EXPORT_EVENTS" ]]; then
@@ -120,8 +129,16 @@ if [[ "$HOSTNAME" == "Lab2" ]] || [[ "$HOSTNAME" == "lab2" ]]; then
         sudo ln -s "$NFS_EXPORT_EVENTS" "$MOUNT_POINT"
       fi
     elif [[ -d "$MOUNT_POINT" ]] && ! mountpoint -q "$MOUNT_POINT"; then
-      echo "Error   : $MOUNT_POINT exists as directory but is not a mount or symlink" >&2
-      exit 1
+      # Legacy: mount point was created as a real directory; replace with symlink to export
+      echo "Info    : $MOUNT_POINT exists as a plain directory; replacing with symlink -> $NFS_EXPORT_EVENTS"
+      sudo mkdir -p "$NFS_EXPORT_EVENTS"
+      if [[ -n "$(ls -A "$MOUNT_POINT" 2>/dev/null)" ]]; then
+        echo "Info    : Merging any existing files into $NFS_EXPORT_EVENTS ..."
+        sudo cp -a "$MOUNT_POINT"/. "$NFS_EXPORT_EVENTS"/
+      fi
+      sudo rm -rf "$MOUNT_POINT"
+      sudo ln -s "$NFS_EXPORT_EVENTS" "$MOUNT_POINT"
+      echo "Info    : Symlink created: $MOUNT_POINT -> $NFS_EXPORT_EVENTS"
     fi
   else
     echo "Info    : Check mode - would verify symlink and permissions on NFS server"
@@ -129,6 +146,19 @@ if [[ "$HOSTNAME" == "Lab2" ]] || [[ "$HOSTNAME" == "lab2" ]]; then
   
   exit 0
 fi
+
+# Bounded unmount to avoid indefinite hang when the server is wrong or unreachable
+_nfs_umount() {
+  local mp="$1"
+  if mountpoint -q "$mp" 2>/dev/null; then
+    echo "Info    : Unmounting $mp (lazy, with timeout)..."
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 120 sudo umount -l "$mp" 2>/dev/null || timeout 120 sudo umount -f "$mp" 2>/dev/null || true
+    else
+      sudo umount -l "$mp" 2>/dev/null || sudo umount -f "$mp" 2>/dev/null || true
+    fi
+  fi
+}
 
 # For non-NFS-server machines, set up NFS mount
 if ! $CHECK; then
@@ -158,13 +188,22 @@ if ! $CHECK; then
     else
       echo "Warning : $MOUNT_POINT mounted from wrong source ($current_mount)"
       echo "Info    : Remounting from correct source..."
-      sudo umount "$MOUNT_POINT"
-      sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+      _nfs_umount "$MOUNT_POINT"
+      echo "Info    : Mounting ${NFS_SERVER}:${NFS_EXPORT_EVENTS} at $MOUNT_POINT (NFSv4)"
+      if command -v timeout >/dev/null 2>&1; then
+        timeout 180 sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+      else
+        sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+      fi
     fi
   else
     # Not mounted, mount it now
     echo "Info    : Mounting ${NFS_SERVER}:${NFS_EXPORT_EVENTS} at $MOUNT_POINT (NFSv4)"
-    sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 180 sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+    else
+      sudo mount -t nfs4 -o "$NFS_MOUNT_OPTS" "${NFS_SERVER}:${NFS_EXPORT_EVENTS}" "$MOUNT_POINT"
+    fi
     
     if [[ $? -eq 0 ]]; then
       echo "Info    : Successfully mounted NFS share"

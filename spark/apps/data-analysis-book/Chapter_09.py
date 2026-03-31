@@ -14,10 +14,19 @@ import pandas as pd
 
 # Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
-# Create Spark session - configuration comes from spark-defaults.conf
-spark = SparkSession.builder \
-    .appName("Chapter 09: Advanced Analytics") \
-    .getOrCreate()
+# Create Spark session.
+# Prefer explicit env-driven client-mode settings so this script does not silently fall back
+# to local[*] when spark-defaults.conf is missing on the launch host.
+_builder = SparkSession.builder.appName("Chapter 09: Advanced Analytics")
+_master = os.environ.get("SPARK_MASTER_URL") or os.environ.get("SPARK_MASTER")
+if _master:
+    _builder = _builder.master(_master)
+_driver_host = os.environ.get("SPARK_DRIVER_HOST")
+if _driver_host:
+    _builder = _builder.config("spark.driver.host", _driver_host).config("spark.driver.bindAddress", "0.0.0.0")
+_builder = _builder.config("spark.sql.shuffle.partitions", os.environ.get("SPARK_SQL_SHUFFLE_PARTITIONS", "96"))
+_builder = _builder.config("spark.default.parallelism", os.environ.get("SPARK_DEFAULT_PARALLELISM", "96"))
+spark = _builder.getOrCreate()
 
 print("=== Chapter 09: Advanced Analytics ===")
 print(f"Spark version: {spark.version}")

@@ -14,6 +14,9 @@
     k8s_master_name: "{{ groups['kubernetes_master'][0] }}"
     # Dynamically derive short hostname from FQDN if present
     k8s_short_hostname: "{{ k8s_master_host.split('.')[0] }}"
+    # kubeadm requires an IP for advertise-address.
+    # Use the control-plane host's primary interface address.
+    k8s_master_advertise_ip: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_default_ipv4']['address'] }}"
     # Configurable network settings
     k8s_pod_network_cidr: "10.244.0.0/16"
     k8s_service_cidr: "10.96.0.0/12"
@@ -350,7 +353,7 @@
       when: inventory_hostname == groups['kubernetes_master'][0]
 
     - name: Initialize Kubernetes cluster
-      command: kubeadm init --pod-network-cidr={{ k8s_pod_network_cidr }} --apiserver-advertise-address={{ ansible_default_ipv4.address }} --apiserver-cert-extra-sans={{ cert_sans }} --ignore-preflight-errors=NumCPU,Port-10250
+      command: kubeadm init --pod-network-cidr={{ k8s_pod_network_cidr }} --apiserver-advertise-address={{ k8s_master_advertise_ip }} --apiserver-cert-extra-sans={{ cert_sans }} --ignore-preflight-errors=NumCPU,Port-10250
       register: kubeadm_init
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
@@ -416,18 +419,18 @@
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
       tags: [kubeconfig]
 
-    - name: Get client certificate data
+    - name: Get client certificate data (kubernetes-admin identity)
       slurp:
-        src: /etc/kubernetes/pki/apiserver-kubelet-client.crt
+        src: /etc/kubernetes/pki/admin.crt
       register: client_cert_data
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
       tags: [kubeconfig]
 
-    - name: Get client key data
+    - name: Get client key data (kubernetes-admin identity)
       slurp:
-        src: /etc/kubernetes/pki/apiserver-kubelet-client.key
+        src: /etc/kubernetes/pki/admin.key
       register: client_key_data
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
@@ -678,3 +681,6 @@
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - node_status is defined and node_status.stdout_lines is defined
+
+    # Copy admin.conf to all nodes: playbooks/deploy.yml imports provision_admin_kubeconfig.yml, or run:
+    #   ansible-playbook -i inventory.yml playbooks/k8s/provision_admin_kubeconfig.yml

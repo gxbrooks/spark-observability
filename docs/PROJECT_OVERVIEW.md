@@ -2,6 +2,12 @@
 
 This document provides a comprehensive overview of the Elastic-on-Spark project, including setup, usage, and architecture.
 
+## Lab topology and resources (target)
+
+Host roles, colocation of observability/Kubernetes/HDFS/NFS/Jupyter on **Lab3**, and symmetric Spark workers on **Lab1/Lab2**, with **resource planning caps**, are documented in **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)**. Start there before reading service-specific docs.
+
+**Documentation layout**: global topics stay in this `docs/` directory; observability-only topics live under `observability/docs/` and `observability/*/docs/` — see **[README.md](README.md)**.
+
 ## Project Description
 
 Use Elasticsearch to monitor and observe Spark applications running on Kubernetes with comprehensive observability stack integration.
@@ -15,32 +21,28 @@ Use Elasticsearch to monitor and observe Spark applications running on Kubernete
 
 ### Spark Environment Setup
 
-1. Set up NFS for Spark event logs:
-```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/nfs/install_nfs.yml
-```
+From the `ansible` directory (see [playbooks/README.md](../ansible/playbooks/README.md)):
 
-2. Set up Kubernetes:
+1. **Install** — Docker, NFS, Kubernetes, Elastic Agent:
 ```bash
-# Use the simplified k8s playbooks for installation and management
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/install_k8s.yml
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start_k8s.yml
-```
-
-3. Certificate Management (after hostname/network changes):
-```bash
-# Navigate to ansible directory first
 cd ansible
-# Regenerate certificates with the new hostnames
+ansible-playbook -i inventory.yml playbooks/install.yml
+```
+
+2. **Deploy** — Hadoop (if used), observability stack, Spark registry client, Spark, JupyterHub:
+```bash
+ansible-playbook -i inventory.yml playbooks/deploy.yml
+```
+
+3. **Start** runtime services:
+```bash
+ansible-playbook -i inventory.yml playbooks/start.yml
+```
+
+4. Certificate management (after hostname/network changes):
+```bash
 ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
-# Update kubeconfig files with the new certificates
-ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml --tags=kubeconfig
-```
-
-4. Deploy Spark on Kubernetes securely:
-```bash
-cd ansible
-ansible-playbook -i inventory.yml playbooks/spark/deploy_spark.yml
+ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
 ```
 
 > **Important:** Always run Ansible playbooks from within the `ansible` directory to ensure that `ansible.cfg` is properly loaded. See [Running Ansible Playbooks](RUNNING_ANSIBLE_PLAYBOOKS.md) for details.
@@ -65,11 +67,11 @@ ansible-playbook -i inventory.yml playbooks/spark/start_spark.yml
 
 ##### Client-Mode iPython (Terminal-Based)
 
-For quick tests and command-line development on Lab2:
+For quick tests and command-line development on a lab host with the repo (often **Lab3** or a worker):
 
 ```bash
-# SSH to Lab2
-ssh ansible@Lab2.lan
+# SSH to host (example)
+ssh ansible@Lab3.lan
 
 # Navigate to project
 cd /home/gxbrooks/repos/spark-observability

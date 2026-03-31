@@ -23,6 +23,21 @@
 #
 # This script is idempotent and can be run multiple times safely.
 
+# Parameters:
+#   --Check | -c               Dry-run mode (no system modifications)
+#   --Debug | -d               Verbose debug logging
+#   -N | -p <passphrase>       SSH key passphrase (prompted interactively if omitted)
+#   --ssh-key-name | -k <name> SSH key filename (default: id_ed25519_ansible)
+#   -pyv <version>             Override Python version
+#   -jv <version>              Override Java version
+#   -sv <version>              Override Spark version
+#   --upgrade-packages         Run apt upgrade for upgradable packages
+#   --autoremove               Run apt autoremove for no-longer-needed packages
+#   --yes                      Non-interactive mode (auto-approve package prompts)
+#   --no-upgrade               Non-interactive mode: skip apt upgrade prompt/action
+#   --no-autoremove            Non-interactive mode: skip apt autoremove prompt/action
+#   --help | -h                Show usage
+
 # Parse flags
 CHECK=false
 DEBUG=false
@@ -31,6 +46,58 @@ SSH_KEY_NAME="id_ed25519_ansible"
 PYTHON_VERSION=""  # Will be loaded from devops_env.sh if not specified
 JAVA_VERSION=""    # Will be loaded from devops_env.sh if not specified
 SPARK_VERSION=""   # Will be loaded from devops_env.sh if not specified
+UPGRADE_PACKAGES=false
+AUTOREMOVE_PACKAGES=false
+ASSUME_YES=false
+SKIP_UPGRADE_PROMPT=false
+SKIP_AUTOREMOVE_PROMPT=false
+
+usage() {
+  cat <<'EOF'
+Usage: ./linux/assert_client_node.sh [options]
+
+Options:
+  --Check, -c
+      Dry-run mode (no system modifications).
+  --Debug, -d
+      Enable verbose debug logging.
+  -N, -p <passphrase>
+      SSH key passphrase. If omitted (and not in --Check), prompt securely.
+  --ssh-key-name, -k <name>
+      SSH key filename to use/create (default: id_ed25519_ansible).
+  -pyv <version>
+      Override Python version.
+  -jv <version>
+      Override Java version.
+  -sv <version>
+      Override Spark version.
+  --upgrade-packages
+      Run apt upgrade for currently upgradable packages.
+  --autoremove
+      Run apt autoremove for currently unneeded auto-installed packages.
+  --yes
+      Non-interactive mode: auto-approve prompts.
+  --no-upgrade
+      Non-interactive mode: skip upgrade prompt/action.
+  --no-autoremove
+      Non-interactive mode: skip autoremove prompt/action.
+  --help, -h
+      Show this help message.
+EOF
+}
+
+confirm_or_default_no() {
+  local prompt="$1"
+  if $ASSUME_YES; then
+    return 0
+  fi
+  if [[ -t 0 ]]; then
+    read -r -p "$prompt [y/N]: " _ans
+    [[ "$_ans" =~ ^[Yy]([Ee][Ss])?$ ]]
+    return $?
+  fi
+  return 1
+}
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -60,8 +127,27 @@ while [[ $# -gt 0 ]]; do
           SPARK_VERSION=$2
           shift
           ;;
+        --upgrade-packages)
+          UPGRADE_PACKAGES=true
+          ;;
+        --autoremove)
+          AUTOREMOVE_PACKAGES=true
+          ;;
+        --yes)
+          ASSUME_YES=true
+          ;;
+        --no-upgrade)
+          SKIP_UPGRADE_PROMPT=true
+          ;;
+        --no-autoremove)
+          SKIP_AUTOREMOVE_PROMPT=true
+          ;;
+        --help|-h)
+          usage
+          exit 0
+          ;;
         *) echo "Unknown parameter passed: $1"  >&2
-          echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [--ssh-key-name|-k <key_name>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]" >&2
+          usage >&2
           exit 1
           ;;
     esac
@@ -134,13 +220,44 @@ append_flag() {
 }
 
 # Define packages required for devops client
-PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml make tree tmux yamllint hdfs-cli)
+PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml make tree tmux yamllint hdfs-cli kubectl)
 
 # Install packages using common package assertion script
 $root_dir/linux/assert_packages.sh \
   --Packages "${PACKAGES[*]}" \
   $(append_flag "--Check" "$CHECK") \
   $(append_flag "--Debug" "$DEBUG")
+
+# Optional apt hygiene actions (upgrade/autoremove) under explicit flags or prompt control.
+if ! $CHECK; then
+  if command -v apt >/dev/null 2>&1; then
+    if ! $UPGRADE_PACKAGES && ! $SKIP_UPGRADE_PROMPT; then
+      if apt list --upgradable 2>/dev/null | awk 'NR>1 {exit 0} END {exit 1}'; then
+        echo "Info    : Upgradable packages were detected."
+        if confirm_or_default_no "Run apt upgrade now?"; then
+          UPGRADE_PACKAGES=true
+        fi
+      fi
+    fi
+    if $UPGRADE_PACKAGES; then
+      echo "Info    : Running apt upgrade..."
+      sudo apt update && sudo apt upgrade -y
+    fi
+
+    if ! $AUTOREMOVE_PACKAGES && ! $SKIP_AUTOREMOVE_PROMPT; then
+      if apt -s autoremove 2>/dev/null | awk '/^Remv / {found=1} END {exit(found?0:1)}'; then
+        echo "Info    : Auto-removable packages were detected."
+        if confirm_or_default_no "Run apt autoremove now?"; then
+          AUTOREMOVE_PACKAGES=true
+        fi
+      fi
+    fi
+    if $AUTOREMOVE_PACKAGES; then
+      echo "Info    : Running apt autoremove..."
+      sudo apt autoremove -y
+    fi
+  fi
+fi
 
 # Install Java if specified version is not available
 if ! $CHECK && [[ -n "$JAVA_VERSION" ]]; then
@@ -153,9 +270,22 @@ if ! $CHECK && [[ -n "$JAVA_VERSION" ]]; then
 fi
 
 if [[ -z "$PASSPHRASE" ]] && ! $CHECK; then
-  echo "Error: Passphrase is mandatory to generate/access SSH keys. Use the -N (-p) option to specify it." >&2
-  echo "Usage: $0 [--Check|-c] [--Debug|-d] [-N <passphrase>] [--ssh-key-name|-k <key_name>] [-pyv <python_version>] [-jv <java_version>] [-sv <spark_version>]"  >&2
-  exit 1
+  if [[ -t 0 ]]; then
+    read -r -s -p "Enter SSH key passphrase for ${SSH_KEY_NAME}: " PASSPHRASE
+    echo ""
+    if [[ -z "$PASSPHRASE" ]]; then
+      echo "Error   : Passphrase cannot be empty." >&2
+      exit 1
+    fi
+  else
+    echo "Error   : Passphrase is required in non-interactive mode. Use -N <passphrase>." >&2
+    exit 1
+  fi
+fi
+
+if $CHECK && [[ -z "$PASSPHRASE" ]]; then
+  # Downstream SSH checks require a non-empty passphrase argument.
+  PASSPHRASE="__CHECK_MODE__"
 fi
 
 $root_dir/ssh/install_ssh_client.sh \
@@ -204,7 +334,14 @@ if ! $CHECK; then
   if [[ -f "$root_dir/spark/requirements/requirements.txt" ]]; then
     echo "Info    : Installing Python requirements in venv..."
     "$VENV_PATH/bin/pip" install --quiet --upgrade pip
-    "$VENV_PATH/bin/pip" install --quiet -r "$root_dir/spark/requirements/requirements.txt"
+    # Install core requirements and chapter-critical scientific stack in one solve pass
+    # to avoid transient resolver conflicts (e.g., scipy/sklearn vs old numpy).
+    "$VENV_PATH/bin/pip" install --quiet --upgrade \
+      -r "$root_dir/spark/requirements/requirements.txt" \
+      "numpy>=1.26.4,<2" \
+      "pyarrow>=15.0.0,<18" \
+      "pandas>=2.0.0,<3" \
+      "scikit-learn>=1.4,<2"
     # Install dependencies for generate_env.py and API scripts (esapi/kapi)
     "$VENV_PATH/bin/pip" install --quiet pyyaml toml requests
     # Install Flask and Kubernetes Python clients (moved from system packages)
@@ -228,8 +365,8 @@ if ! $CHECK; then
     echo "Info    : PySpark $PYSPARK_INSTALLED already matches cluster version"
   fi
   
-  # Verify spark-submit version
-  SPARK_SUBMIT_VERSION=$("$VENV_PATH/bin/spark-submit" --version 2>&1 | grep "version" | awk '{print $5}')
+  # Verify spark-submit version (ASCII banner line contains "version 4.0.1")
+  SPARK_SUBMIT_VERSION=$("$VENV_PATH/bin/spark-submit" --version 2>&1 | sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p' | head -1)
   if [[ "$SPARK_SUBMIT_VERSION" == "$SPARK_VERSION" ]]; then
     echo "Info    : spark-submit version verified: $SPARK_SUBMIT_VERSION"
   else
@@ -240,6 +377,14 @@ if ! $CHECK; then
   echo "Info    : Activate with: source venv/bin/activate"
 else
   echo "Info    : Check mode - would verify/create venv and PySpark version"
+fi
+
+# Align spark-defaults.conf with generated spark_client_env (fixes stale spark.master e.g. Lab2 vs Lab3).
+if ! $CHECK; then
+  if [[ -f "$root_dir/linux/generate_spark_defaults.sh" ]]; then
+    echo "Info    : Regenerating spark/conf/spark-defaults.conf from spark_client_env..."
+    (cd "$root_dir" && bash linux/generate_spark_defaults.sh) >/dev/null 2>&1 || echo "Warning : generate_spark_defaults.sh failed (run manually if needed)" >&2
+  fi
 fi
 
 # Ensure spark user and group exist
@@ -268,14 +413,24 @@ $root_dir/linux/assert_developer_user.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
+# Kubectl kubeconfig for devops users: see linux/sync_devops_kubeconfig.sh (sourced from project .bashrc),
+# driven by KUBERNETES_API_SERVER / KUBERNETES_API_SERVER_URL from vars/contexts/*.sh.
+
+if command -v ansible >/dev/null 2>&1; then
+  echo "Info    : ansible path: $(command -v ansible)"
+fi
+if command -v java >/dev/null 2>&1; then
+  echo "Info    : java path: $(command -v java)"
+fi
+
 echo ""
 echo "========================================"
 echo "Result  : Client node initialized for user '$USER'"
 echo "========================================"
 echo ""
 echo "Next steps:"
-echo "  1. Open a new shell (or: source ~/.bashrc) so keychain loads SSH keys including id_ed25519_ansible"
-echo "  2. Activate Python venv:  source venv/bin/activate"
-echo "  3. Source Spark env:      source vars/contexts/spark_client_env.sh"
-echo "  4. Test Spark:            python spark/apps/Chapter_03.py"
+echo "  1. You do not need to source .bashrc again in the same shell unless you want a full refresh (venv + env + keychain). New login shells load it from ~/.bashrc."
+echo "  2. Ensure the Spark cluster master is running (see SPARK_MASTER in vars/contexts/spark_client_env.sh; connection refused means start the stack): cd $root_dir/ansible && ansible-playbook -i inventory.yml playbooks/start.yml --limit spark_kubernetes"
+echo "  3. Run a chapter (example): python spark/apps/data-analysis-book/Chapter_03.py"
+echo "  4. Interactive PySpark:   ./spark/ispark/launch_ipython.sh"
 echo ""

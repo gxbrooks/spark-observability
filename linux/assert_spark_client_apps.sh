@@ -308,8 +308,8 @@ check_spark_connectivity() {
         report_check "pass" "Spark master reachable at $spark_master_host:$spark_master_port"
         return 0
     else
-        report_check "warn" "Spark master not reachable at $spark_master_host:$spark_master_port"
-        report_check "info" "Cluster may be stopped. Start with: cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml"
+        report_check "fail" "Spark master not reachable at $spark_master_host:$spark_master_port"
+        report_check "info" "Cluster is down or unreachable from this host. Start/fix Kubernetes+Spark control-plane first."
         return 1
     fi
 }
@@ -602,11 +602,6 @@ echo -e "${RED}Checks Failed: $CHECKS_FAILED${NC}"
 if [ $ISSUES_FOUND -eq 0 ]; then
     echo ""
     echo -e "${GREEN}✓ All checks passed! Spark client applications are ready.${NC}"
-    echo ""
-    echo "Next Steps:"
-    echo "  1. Activate virtual environment: source venv/bin/activate"
-    echo "  2. Run batch apps: python spark/apps/Chapter_03.py"
-    echo "  3. Launch iPython: ./spark/ispark/launch_ipython.sh"
     echo ""
     exit 0
 else

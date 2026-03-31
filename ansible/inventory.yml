@@ -12,9 +12,9 @@ all:
     # Always use DNS names (*.lan) instead of IPs
     # These should match DHCP reservations if possible
     expected_ips:
-      Lab1.lan: 192.168.1.76     # Kubernetes worker
-      Lab2.lan: 192.168.1.48     # Kubernetes master, NFS server
-      Lab3.lan: 192.168.1.49     # Observability (native Ubuntu); update to match Lab3 DHCP reservation
+      Lab1.lan: 192.168.1.76     # Kubernetes worker / Spark worker
+      Lab2.lan: 192.168.1.48     # Kubernetes worker
+      Lab3.lan: 192.168.1.49     # Observability, NFS server, Kubernetes control-plane
 
     # Critical: Define which host runs observability stack (Docker Compose + ELK, etc.)
     observability_host: Lab3
@@ -32,10 +32,10 @@ all:
           vars:
             ansible_port: 22
           children:
-            nfs_servers:  # NFS is independent of Kubernetes
+            nfs_servers:  # NFS server host (exports /srv/nfs/*); uses bind mounts to /mnt/spark/*
               hosts:
-                Lab2:  # Using Lab2 as NFS server for now
-                  ansible_host: Lab2.lan
+                Lab3:
+                  ansible_host: Lab3.lan
             hadoop:  # Hadoop cluster for Spark data storage
               hosts:
                 Lab2:
@@ -48,17 +48,20 @@ all:
               hosts:
                 Lab3:
                   ansible_host: Lab3.lan
+                  # docker install playbook adds these users to group `docker` for /var/run/docker.sock
+                  docker_group_extra_users:
+                    - gxbrooks
             spark_kubernetes:
               children:
                 kubernetes_master:
                   hosts:
-                    Lab2:
-                      ansible_host: Lab2.lan
+                    Lab3:
+                      ansible_host: Lab3.lan
                 kubernetes_workers:
                   hosts:
-                    Lab2:  # Same host is both master and worker for now
+                    Lab2:  # Dedicated worker
                       ansible_host: Lab2.lan
-                    Lab1:  # New worker node
+                    Lab1:  # Dedicated worker
                       ansible_host: Lab1.lan
                 # All nodes that run Kubernetes workloads (OTel JAR copy, etc.)
                 k8s_nodes:

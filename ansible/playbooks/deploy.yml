@@ -1,0 +1,62 @@
+---
+# Deploy workloads and Kubernetes/Docker artifacts for Spark Observability Platform
+# Run after install.yml (hosts + cluster + agents); before or with start.yml as needed
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/deploy.yml
+#
+# Order: HDFS (if used) → observability stack → Spark registry client → Spark → JupyterHub
+
+- name: Display deploy banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display deploy information
+      ansible.builtin.debug:
+        msg: |
+          ================================================
+          Spark Observability Platform — Deploy
+          ================================================
+          This playbook applies:
+            1. Hadoop HDFS on Kubernetes (hadoop group)
+            2. Observability stack (Lab3 Docker / manifests via observability/deploy)
+            3. Containerd registry client config on K8s nodes (Spark images)
+            4. Spark on Kubernetes (includes OTel listener deploy)
+            5. JupyterHub on Kubernetes
+          Prerequisites: playbooks/install.yml (or equivalent) completed.
+          Hadoop is tagged `hadoop`; use --skip-tags hadoop if kubectl apply fails on
+          existing HDFS StatefulSets (delete/recreate the STS or reconcile manually).
+          ================================================
+
+# Ensure workers have /etc/kubernetes/admin.conf for kubectl debugging (idempotent).
+- import_playbook: k8s/provision_admin_kubeconfig.yml
+
+# Tag `hadoop`: skip with --skip-tags hadoop if HDFS StatefulSets already exist and kubectl apply conflicts
+- import_playbook: k8s/hadoop/deploy_hadoop.yml
+  tags: [hadoop]
+
+- import_playbook: observability/deploy.yml
+
+- import_playbook: spark/registry/deploy.yml
+  vars:
+    spark_registry_connection: unsecure
+
+- import_playbook: spark/deploy.yml
+
+- import_playbook: jupyter/deploy_jupyter.yml
+
+- name: Display deploy completion
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          ================================================
+          Deploy playbook finished
+          ================================================
+          Start runtime services:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
+          Diagnose:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/diagnose.yml
+          ================================================

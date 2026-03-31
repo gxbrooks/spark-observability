@@ -63,7 +63,7 @@ spec:
           args: 
             - |
               export SPARK_WORKER_OPTS="-XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-worker.log:time,uptime,level,tags:filecount=10,filesize=10M"
-              exec /opt/spark/sbin/start-worker.sh spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
+              exec /opt/spark/sbin/start-worker.sh spark://spark-master.spark.svc.cluster.local:7077
           envFrom:
             - configMapRef:
                 name: spark-configmap
@@ -193,7 +193,7 @@ spec:
           args: 
             - |
               export SPARK_WORKER_OPTS="-XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-worker.log:time,uptime,level,tags:filecount=10,filesize=10M"
-              exec /opt/spark/sbin/start-worker.sh spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
+              exec /opt/spark/sbin/start-worker.sh spark://spark-master.spark.svc.cluster.local:7077
           envFrom:
             - configMapRef:
                 name: spark-configmap

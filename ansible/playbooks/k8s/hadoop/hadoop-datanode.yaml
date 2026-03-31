@@ -13,6 +13,10 @@ spec:
       labels:
         app: hdfs-datanode
     spec:
+      # apache/hadoop:3.3.6 entrypoints expect root for datanode (see image docs)
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
       containers:
       - name: datanode
         image: apache/hadoop:3.3.6

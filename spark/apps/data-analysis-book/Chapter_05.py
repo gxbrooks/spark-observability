@@ -7,14 +7,21 @@ from pyspark.sql.utils import AnalysisException
 
 # Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
-# Set Spark local IP to avoid hostname resolution warning
-os.environ['SPARK_LOCAL_IP'] = '192.168.1.48'
+# Set Spark local IP to avoid hostname resolution warnings on multi-node labs.
+_spark_local_ip = os.environ.get("SPARK_LOCAL_IP") or os.environ.get("SPARK_DRIVER_HOST")
+if _spark_local_ip:
+    os.environ["SPARK_LOCAL_IP"] = _spark_local_ip
 
 # Setup
 DIRECTORY = "/mnt/spark/data/broadcast_logs"
-spark = SparkSession.builder \
-    .appName("Chapter 05: Data Processing") \
-    .getOrCreate()
+_builder = SparkSession.builder.appName("Chapter 05: Data Processing")
+_master = os.environ.get("SPARK_MASTER_URL") or os.environ.get("SPARK_MASTER")
+if _master:
+    _builder = _builder.master(_master)
+_driver_host = os.environ.get("SPARK_DRIVER_HOST")
+if _driver_host:
+    _builder = _builder.config("spark.driver.host", _driver_host).config("spark.driver.bindAddress", "0.0.0.0")
+spark = _builder.getOrCreate()
 
 print("=== Chapter 05: Data Processing ===")
 print(f"Spark version: {spark.version}")
@@ -29,14 +36,15 @@ logs = spark.read.csv(
     timestampFormat="yyyy-MM-dd",                             
 ) 
 
+_dur = F.col("Duration").cast("string")
+_dur_h = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 1).cast("int")
+_dur_m = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 2).cast("int")
+_dur_s = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 3).cast("int")
 logs = logs.withColumn(
-        "duration_seconds",
-        (
-            F.col("Duration").substr(1, 2).cast("int") * 60 * 60
-            + F.col("Duration").substr(4, 2).cast("int") * 60
-            + F.col("Duration").substr(7, 2).cast("int")
-        ),
-    )
+    "duration_seconds",
+    F.when(_dur_h.isNotNull() & _dur_m.isNotNull() & _dur_s.isNotNull(),
+           _dur_h * 3600 + _dur_m * 60 + _dur_s).otherwise(F.lit(0)),
+)
     
 #########################################################################################
 #
@@ -521,15 +529,16 @@ logs = logs.drop("BroadcastLogID", "SequenceNO")
         # ),
     # )
     
-# We work around the issue by ignoring and skipping over the date.
+# Robust duration parsing from trailing HH:MM:SS avoids Spark timestamp coercion issues.
+_dur = F.col("Duration").cast("string")
+_dur_h = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 1).cast("int")
+_dur_m = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 2).cast("int")
+_dur_s = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 3).cast("int")
 logs = logs.withColumn(
-        "duration_seconds",
-        (
-            F.col("Duration").cast("string").substr(12, 2).cast("int") * 60 * 60
-            + F.col("Duration").cast("string").substr(15, 2).cast("int") * 60
-            + F.col("Duration").cast("string").substr(18, 2).cast("int")
-        ),
-    )
+    "duration_seconds",
+    F.when(_dur_h.isNotNull() & _dur_m.isNotNull() & _dur_s.isNotNull(),
+           _dur_h * 3600 + _dur_m * 60 + _dur_s).otherwise(F.lit(0)),
+)
 
 # logs.select(
     # F.col("Duration"),                                                #❶
@@ -539,46 +548,6 @@ logs = logs.withColumn(
 # ).distinct().show(5)
  
 
-logs.select(
-    F.col("Duration"),                                               
-    (F.col("Duration").cast("string").substr(12, 2).cast("int") * 60 * 60).alias("dur_hours"),  
-    (F.col("Duration").cast("string").substr(15, 2).cast("int") * 60).alias("dur_minutes"),
-    F.col("Duration").cast("string").substr(18, 2).cast("int").alias("dur_seconds"),
-    (
-        F.col("Duration").cast("string").substr(13, 2).cast("int") * 60 * 60
-        + F.col("Duration").cast("string").substr(16, 2).cast("int") * 60
-        + F.col("Duration").cast("string").substr(19, 2).cast("int")
-    ).alias("duration"),
-).show(5)
-
-logs.select(
-    F.col("Duration"),                                               
-    (F.col("Duration").cast("string").substr(12, 2).cast("int") * 60 * 60).alias("dur_hours"),  
-    (F.col("Duration").cast("string").substr(15, 2).cast("int") * 60).alias("dur_minutes"),
-    F.col("Duration").cast("string").substr(18, 2).cast("int").alias("dur_seconds")
-    ).withColumn(
-        "duration",
-        (
-            F.col("dur_hours") * 60 * 60
-            + F.col("dur_minutes") * 60
-            + F.col("dur_seconds")
-        )
-    ).show(5)
- 
-logs.select(
-    F.col("Duration"),                                               
-    (F.col("Duration").cast("string").substr(12, 2).cast("int") * 60 * 60).alias("dur_hours"),  
-    (F.col("Duration").cast("string").substr(15, 2).cast("int") * 60).alias("dur_minutes"),
-    F.col("Duration").cast("string").substr(18, 2).cast("int").alias("dur_seconds")
-    ).withColumn(
-        "duration",
-        (
-            F.col("Duration").cast("string").substr(12, 2).cast("int") * 60 * 60
-            + F.col("Duration").cast("string").substr(15, 2).cast("int") * 60
-            + F.col("Duration").cast("string").substr(18, 2).cast("int")
-        )
-    ).show(5) 
-    
 logs.select(
     F.col("LogServiceID"),
     F.col("CategoryID"),

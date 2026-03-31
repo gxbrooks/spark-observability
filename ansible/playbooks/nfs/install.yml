@@ -81,14 +81,17 @@
         state: mounted
       loop: "{{ bind_mounts }}"
 
+# Kubernetes nodes that mount NFS from nfs_servers (excludes the server host, which uses bind mounts above).
 - name: Configure NFS Clients
   hosts: kubernetes_master:kubernetes_workers:!nfs_servers
   become: true
   vars:
-    nfs_server: "{{ groups['nfs_servers'][0] }}"
+    # Use DNS name (ansible_host) so /etc/fstab and mount(8) resolve the server correctly.
+    nfs_server: "{{ hostvars[groups['nfs_servers'][0]]['ansible_host'] | default(groups['nfs_servers'][0], true) }}"
     nfs_mounts:
       - { src: '/srv/nfs/spark/events', dest: '/mnt/spark/events' }
       - { src: '/srv/nfs/spark/data', dest: '/mnt/spark/data' }
+      - { src: '/srv/nfs/jupyterhub', dest: '/mnt/spark/jupyter' }
   tasks:
     - name: Install NFS client packages
       apt:
@@ -108,6 +111,7 @@
         path: "{{ item.dest }}"
         src: "{{ nfs_server }}:{{ item.src }}"
         fstype: nfs
-        opts: rw,sync
+        # NFSv4 over TCP only (avoids legacy RPC/UDP issues; matches UFW allowing 2049/tcp on the server).
+        opts: rw,sync,nfsvers=4
         state: mounted
       loop: "{{ nfs_mounts }}"

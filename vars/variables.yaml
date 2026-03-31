@@ -20,6 +20,11 @@ PYSPARK_PYTHON:
   value: python3.11
   contexts: [spark-runtime, spark-client, devops]
 
+# Avoid Spark UI port exhaustion when many client-mode drivers run on one host (e.g. Lab2).
+PYSPARK_SUBMIT_ARGS:
+  value: --conf spark.ui.enabled=false pyspark-shell
+  contexts: [spark-client, ispark]
+
 # PYSPARK_DRIVER_PYTHON is redundant - use PYSPARK_PYTHON instead
 # PYSPARK_DRIVER_PYTHON:
 #   value: python3.8
@@ -109,9 +114,21 @@ ES_URL:
     elastic-agent: https://Lab3.lan:9200
     spark-client: https://Lab3.lan:9200
 
+# Kubernetes API hostname only (no https://). Used by elastic-agent (kubelet scrape URLs), etc.
+# Must match DNS/IP in the apiserver certificate SANs. Align with ansible group kubernetes_master.
 KUBERNETES_API_SERVER:
-  value: Lab2.lan
-  contexts: [elastic-agent, observability]
+  contexts: [devops, spark-client, elastic-agent, observability]
+  values:
+    devops: Lab3.lan
+    spark-client: Lab3.lan
+    elastic-agent: Lab3.lan
+    observability: Lab3.lan
+# Full URL for kubectl (cluster.server) and devops kubeconfig sync. Not used by elastic-agent templates.
+KUBERNETES_API_SERVER_URL:
+  contexts: [devops, spark-client]
+  values:
+    devops: https://Lab3.lan:6443
+    spark-client: https://Lab3.lan:6443
 # CA Certificate Path
 # CA_CERT: Standard path where services expect to find the CA certificate
 # This path works for both Docker containers (via mount) and Linux hosts
@@ -232,15 +249,15 @@ GOOGLE_APPLICATION_CREDENTIALS:
 
 # SPARK_MASTER_HOST: The hostname the Spark master binds to and advertises
 # - For K8s pods (spark-runtime): NOT included - workers use SPARK_MASTER connection string
-# - For external clients: Lab2.lan (NodePort access)
-# - For Ansible templates: Lab2.lan (used in spark-master.yaml.j2)
+# - For external clients: Lab3.lan (NodePort access)
+# - For Ansible templates: Lab3.lan (used in spark-master.yaml.j2)
 SPARK_MASTER_HOST:
   contexts: [observability, ispark, spark-client, ansible]
   values:
-    observability: Lab2.lan
-    ispark: Lab2.lan
-    spark-client: Lab2.lan
-    ansible: Lab2.lan
+    observability: Lab3.lan
+    ispark: Lab3.lan
+    spark-client: Lab3.lan
+    ansible: Lab3.lan
 SPARK_MASTER_PORT:
   contexts: [spark-runtime, observability, ispark, spark-client, ansible]
   values:
@@ -256,6 +273,12 @@ SPARK_MASTER:
   values:
     spark-runtime: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
     spark-client: spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}
+
+# Client-mode driver bind address advertised to executors (K8s pods must reach this host).
+# Use DNS (e.g. Lab2.lan) not a stale static IP. Override when submitting from another host (e.g. export SPARK_DRIVER_HOST=Lab3.lan).
+SPARK_DRIVER_HOST:
+  value: Lab3.lan
+  contexts: [spark-client, ispark, devops]
 
 # Spark network and timeout settings
 # Increased timeouts to handle connection resets and network instability
@@ -331,8 +354,8 @@ OTEL_DEPLOYMENT_ENVIRONMENT:
 
 # NFS Configuration
 NFS_SERVER:
-  value: Lab2.lan
-  contexts: [spark-runtime, nfs]
+  value: Lab3.lan
+  contexts: [spark-runtime, nfs, devops]
 
 # Spark Mount Points
 SPARK_MOUNT_BASE:
@@ -371,7 +394,12 @@ HADOOP_HOME:
   value: /opt/hadoop
   contexts: [spark-runtime, ansible]
 
+# In-cluster NameNode (Spark pods, HDFS namespace). Use FQDN from other namespaces (e.g. spark).
 HDFS_DEFAULT_FS:
-  value: hdfs://hdfs-namenode:9000
-  contexts: [spark-runtime, ansible, spark-client]
+  value: hdfs://hdfs-namenode.hdfs.svc.cluster.local:9000
+  contexts: [spark-runtime, ansible]
+# Host / dev machines outside the cluster reach HDFS via Kubernetes NodePort (see hadoop-namenode Service).
+HDFS_DEFAULT_FS_CLIENT:
+  value: hdfs://Lab2.lan:30900
+  contexts: [spark-client, ispark]
 

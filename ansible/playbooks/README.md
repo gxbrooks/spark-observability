@@ -6,69 +6,47 @@ This directory contains Ansible playbooks for managing the Spark Observability i
 
 These playbooks orchestrate multiple components in the correct dependency order:
 
-### `install.yml` - Complete Installation
-Installs and configures all components from scratch (idempotent).
+### `install.yml` — Host and cluster foundation
+Installs packages and configures Docker, NFS (server per `nfs_servers` + clients on K8s nodes), Kubernetes, and Elastic Agent. **Does not** deploy Spark/Jupyter/observability workloads; run `deploy.yml` next.
 
 ```bash
 cd ansible
 ansible-playbook -i inventory.yml playbooks/install.yml
 ```
 
-**Installation Order:**
-1. Docker on Lab3 (observability host); Docker on Lab2 optional (Spark image builds / registry workflows)
-2. NFS Server and Clients
-3. Kubernetes Cluster (uses containerd runtime)
-4. Observability Platform (Lab3, Docker Engine + Compose)
-5. Spark on Kubernetes
-6. Elastic Agent (host-level on Linux managed nodes per inventory)
+**Order:** Docker (Lab3) → NFS → Kubernetes → Elastic Agent.
 
-**Use Cases:**
-- First-time setup on new hosts
-- Re-installing components after system changes
-- Ensuring all components are properly configured
+### `deploy.yml` — Deploy workloads
+Applies Hadoop (if used), observability stack, Spark registry client on nodes, Spark on Kubernetes (including OTel listener), and JupyterHub.
 
-### `start.yml` - Start All Services
-Starts all services in the correct dependency order.
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/deploy.yml
+```
+
+**Prerequisites:** `install.yml` (or equivalent) completed.
+
+**Hadoop / HDFS:** The Hadoop import is tagged `hadoop`. If `kubectl apply` errors because existing StatefulSets cannot be updated in place, run `ansible-playbook ... playbooks/deploy.yml --skip-tags hadoop` after fixing or removing the old `hdfs-namenode` StatefulSet, or run `playbooks/k8s/hadoop/deploy_hadoop.yml` alone when the cluster is clean.
+
+### `start.yml` — Start runtime services
+Starts NFS, Kubernetes, Docker on Lab3, observability Compose stack, Elastic Agent refresh, and Spark pods.
 
 ```bash
 cd ansible
 ansible-playbook -i inventory.yml playbooks/start.yml
 ```
 
-**Startup Order:**
-1. NFS Server (Lab2)
-2. Kubernetes Cluster (Lab2 master + Lab1/Lab2 workers)
-3. Observability Platform (Lab3)
-4. Spark on Kubernetes (master, workers, history server)
+**Prerequisites:** `install.yml` and `deploy.yml` for first-time bring-up.
 
-**Prerequisites:**
-- Docker on Lab3 running (`playbooks/docker/start.yml` or systemd)
-- All components should be installed (run `install.yml` if needed)
-
-**Use Cases:**
-- Daily startup of the development environment
-- Restart after system maintenance
-- First-time startup on a new lab host
-
-### `status.yml` - Check All Services
-Checks the status of all components.
+### `diagnose.yml` — Full platform diagnostics
+Runs component `diagnose` playbooks (Docker, NFS, Kubernetes, observability, Spark, Elastic Agent). Replaces the former top-level `status.yml`.
 
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/status.yml
+ansible-playbook -i inventory.yml playbooks/diagnose.yml
 ```
 
-**Checks:**
-- Docker status (Lab2 only)
-- Kubernetes cluster health
-- Spark cluster status
-- Elastic Agent status (host-level)
-- Displays summary and next steps
-
-**Use Cases:**
-- Verify all services are running
-- Troubleshoot startup issues
-- Check system health
+Lightweight checks remain available under each component (e.g. `spark/status.yml`, `observability/status.yml`, `elastic-agent/status.yml`).
 
 ### `stop.yml` - Stop All Services
 Gracefully stops all services in reverse dependency order.
@@ -82,7 +60,7 @@ ansible-playbook -i inventory.yml playbooks/stop.yml
 1. Spark components
 2. Observability Platform
 3. Kubernetes Cluster
-4. NFS Server
+4. NFS server (on `nfs_servers` host)
 
 **Note:** Docker and Elastic Agent remain running. Use component-specific playbooks to stop them if needed.
 
@@ -108,15 +86,14 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 - `uninstall.yml` - Remove NFS server and clients
 - `start.yml` - Start NFS server
 - `stop.yml` - Stop NFS server
-- `status.yml` - Check NFS server and client status
+- `diagnose.yml` - NFS server and client mounts
 
 ### Kubernetes (`k8s/`)
 - `install.yml` - Install Kubernetes cluster
 - `uninstall.yml` - Remove Kubernetes cluster
 - `start.yml` - Start Kubernetes services
 - `stop.yml` - Stop Kubernetes services
-- `status.yml` - Check cluster status
-- `diagnose.yml` - Troubleshoot cluster issues
+- `diagnose.yml` - Cluster troubleshooting and health
 - `reset_k8s.yml` - Reset cluster (special utility - wipes all data)
 
 ### Observability (`observability/`)
@@ -151,8 +128,8 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 | Host | Role | Components |
 |------|------|------------|
 | **Lab1** | Kubernetes worker | Kubernetes worker (containerd), Elastic Agent (typical) |
-| **Lab2** | Kubernetes master+worker, data plane | K8s control plane + worker (containerd), NFS server, Hadoop (per inventory), JupyterHub (per inventory), Elastic Agent |
-| **Lab3** | Observability + dev / control | Docker Compose stack (Elasticsearch, Kibana, Grafana, Logstash, Prometheus, Tempo, OTel collector, etc.), optional Ansible control node |
+| **Lab2** | Kubernetes master+worker, data plane | K8s control plane + worker (containerd), Hadoop (per inventory), Jupyter scheduling target (per inventory), Elastic Agent |
+| **Lab3** | Observability + NFS + dev / control | NFS server (`nfs_servers`), Docker Compose stack (Elasticsearch, Kibana, Grafana, Logstash, Prometheus, Tempo, OTel collector, etc.), optional Ansible control node |
 
 ### Service URLs
 
@@ -174,14 +151,10 @@ After startup, services are accessible at:
 ```bash
 cd ansible
 
-# 1. Install all components
 ansible-playbook -i inventory.yml playbooks/install.yml
-
-# 2. Start all services
+ansible-playbook -i inventory.yml playbooks/deploy.yml
 ansible-playbook -i inventory.yml playbooks/start.yml
-
-# 3. Verify everything is running
-ansible-playbook -i inventory.yml playbooks/status.yml
+ansible-playbook -i inventory.yml playbooks/diagnose.yml
 ```
 
 ### Daily Development Startup
@@ -196,12 +169,10 @@ ansible-playbook -i inventory.yml playbooks/start.yml
 ```bash
 cd ansible
 
-# Check status of all components
-ansible-playbook -i inventory.yml playbooks/status.yml
+ansible-playbook -i inventory.yml playbooks/diagnose.yml
 
-# Check specific components
-ansible-playbook -i inventory.yml playbooks/docker/status_docker.yml
-ansible-playbook -i inventory.yml playbooks/k8s/diagnose_k8s.yml
+# Component-specific (examples)
+ansible-playbook -i inventory.yml playbooks/k8s/diagnose.yml
 
 # Check Kubernetes pods
 kubectl get pods -n spark
@@ -272,7 +243,7 @@ ansible-playbook -i inventory.yml playbooks/<playbook-name>.yml
 **Kubernetes pods not starting:**
 - Check Kubernetes status: `kubectl get nodes`
 - Check pod logs: `kubectl logs -n spark <pod-name>`
-- Run diagnostics: `ansible-playbook -i inventory.yml playbooks/k8s/diagnose_k8s.yml`
+- Run diagnostics: `ansible-playbook -i inventory.yml playbooks/k8s/diagnose.yml`
 
 **Observability services not accessible:**
 - Check Docker containers: `docker ps`

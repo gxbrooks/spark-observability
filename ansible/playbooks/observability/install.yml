@@ -1,7 +1,7 @@
 ---
-# Observability Platform Installation
-# This playbook imports deploy.yml which handles the complete installation
+# Observability stack deployment (Docker Compose + related artifacts on Lab3)
+# Equivalent to observability/deploy.yml — kept for backward-compatible paths.
+# Top-level orchestration: use playbooks/deploy.yml (includes this via deploy chain).
 # Usage: ansible-playbook -i inventory.yml playbooks/observability/install.yml
 
 - import_playbook: deploy.yml
-

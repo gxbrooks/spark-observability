@@ -191,7 +191,7 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 
 3. **Documentation**:
    - `docs/Batch_Event_Matching.md` - New architecture
-   - Update `docs/Elasticsearch_indices.md`
+   - Update `observability/elasticsearch/docs/Elasticsearch_indices.md` (moved from `docs/`)
    - Update `docs/Spark_Jobs_Pane.md`
 
 4. **Testing**:

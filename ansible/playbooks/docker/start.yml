@@ -7,6 +7,9 @@
 # 2. Start Docker service if not running
 # 3. Verify Docker is operational
 # 4. Start Docker registry if needed
+#
+# Socket permission: non-root users need group `docker`. The install playbook adds ansible_user and
+# optional `docker_group_extra_users` (see inventory). Re-run install after changing that list.
 
 - name: Start Docker Service
   hosts: observability

@@ -24,8 +24,8 @@ This document provides a comprehensive overview of where applications are instal
 | **Python 3.11** | `/usr/bin/python3.11` or `/usr/local/bin/python3.11` | System Python | `python3.11` or `python3` |
 | **PySpark** | `venv/lib/python3.11/site-packages/` | Spark Python API | `source venv/bin/activate` then `python` |
 | **IPython** | `venv/bin/ipython` | Interactive Spark (client-mode) | `source venv/bin/activate` then `ipython` |
-| **Spark Master UI** | `http://Lab2.lan:32290` | Spark cluster monitoring | Web browser |
-| **Spark History Server** | `http://Lab2.lan:31534` | Historical job analysis | Web browser |
+| **Spark Master UI** | `http://Lab3.lan:32290` (NodePort; use cluster NodePort if different) | Spark cluster monitoring | Web browser |
+| **Spark History Server** | `http://Lab3.lan:31534` (NodePort; use cluster NodePort if different) | Historical job analysis | Web browser |
 | **Elasticsearch** | `https://Lab3.lan:9200` | Observability / search | Browser or API (`vars/secrets.yaml`) |
 | **Kibana** | `http://Lab3.lan:5601` | Logs & traces UI | Browser |
 | **Grafana** | `http://Lab3.lan:3000` | Metrics & dashboards | Browser (`GF_SECURITY_ADMIN_*` in secrets / `.env`) |
@@ -35,12 +35,12 @@ This document provides a comprehensive overview of where applications are instal
 | **Ansible** | `/usr/bin/ansible` | Infrastructure automation | `ansible` |
 | **Kubectl** | `/usr/bin/kubectl` | Kubernetes CLI | `kubectl` |
 
-> **Note:** JupyterHub will be added during Spark 4.0 migration with Python 3.11 support.
+> **Note:** JupyterHub runs on the Kubernetes cluster (control plane on **Lab3**; workers **Lab1/Lab2**). See [Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md).
 
 ## **Environment Configuration**
 
 ### **Bash Environment**
-- **Configuration File**: `linux/.bashrc`
+- **Shell hooks**: Prefer sourcing **`myenv`** `.bashrc` via `~/repos/myenv/assert_bashrc.sh` (SSH keychain, shared hooks). The Spark repo `linux/.bashrc` adds project PATH/venv when linked via `linux/link_to_user_env.sh`.
 - **User Integration**: `linux/link_to_user_env.sh`
 - **Virtual Environment PATH**: Automatically added to PATH when sourced
 

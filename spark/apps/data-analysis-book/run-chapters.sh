@@ -13,10 +13,28 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SPARK_CLIENT_ENV_FILE="${ROOT_DIR}/vars/contexts/spark_client_env.sh"
 if [ -f "${SPARK_CLIENT_ENV_FILE}" ]; then
     source "${SPARK_CLIENT_ENV_FILE}"
+    # Align default FS with NodePort URL so PySpark/Hadoop on the host do not use in-cluster DNS (hdfs-namenode).
+    if [ -n "${HDFS_DEFAULT_FS_CLIENT:-}" ]; then
+        export HDFS_DEFAULT_FS="${HDFS_DEFAULT_FS_CLIENT}"
+    fi
 else
     echo "Error: spark_client_env.sh not found at ${SPARK_CLIENT_ENV_FILE}" >&2
     echo "Please run: python3 ${ROOT_DIR}/vars/generate_contexts.py -f" >&2
     exit 1
+fi
+
+# Ensure chapter scripts run against the Spark cluster in client mode.
+if [ -z "${SPARK_MASTER_URL:-}" ] && [ -n "${SPARK_MASTER_HOST:-}" ] && [ -n "${SPARK_MASTER_PORT:-}" ]; then
+    export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
+fi
+
+# Preserve existing submit args (e.g. spark.ui.enabled=false) and prepend cluster master.
+if [ -n "${SPARK_MASTER_URL:-}" ]; then
+    if [[ "${PYSPARK_SUBMIT_ARGS:-}" == *"--master"* ]]; then
+        export PYSPARK_SUBMIT_ARGS="${PYSPARK_SUBMIT_ARGS:-pyspark-shell}"
+    else
+        export PYSPARK_SUBMIT_ARGS="--master ${SPARK_MASTER_URL} ${PYSPARK_SUBMIT_ARGS:-pyspark-shell}"
+    fi
 fi
 
 # Determine which Python to use - prioritize venv Python from project root
@@ -30,6 +48,11 @@ elif [ -n "${PYSPARK_PYTHON:-}" ] && command -v "${PYSPARK_PYTHON}" >/dev/null 2
     PYTHON_CMD="${PYSPARK_PYTHON}"
 else
     PYTHON_CMD="python3"
+fi
+
+# Spark 4.x UI analytics (DiskLog) prefers /opt/spark/logs; create it when passwordless sudo allows (avoids one startup WARN).
+if [[ ! -d /opt/spark/logs ]] && command -v sudo >/dev/null 2>&1; then
+    sudo -n mkdir -p /opt/spark/logs 2>/dev/null && sudo -n chmod 1777 /opt/spark/logs 2>/dev/null || true
 fi
 
 # Check if chapter numbers were provided

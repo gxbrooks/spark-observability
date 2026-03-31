@@ -6,7 +6,7 @@ This document outlines the comprehensive logging architecture for Spark applicat
 
 ## Core Principles
 
-1. **NFS-Based Event Storage**: Spark event logs stored on NFS server (Lab2) for centralized access
+1. **NFS-Based Event Storage**: Spark event logs stored on NFS server (**Lab3** in the target layout) for centralized access
 2. **Proper User Management**: Elastic Agent runs as dedicated `elastic-agent` user with appropriate group memberships
 3. **Centralized Event Storage**: Spark event logs stored in `/mnt/spark/events` accessible by History Server and Elastic Agent
 4. **File-Based Collection**: Direct file access for better parsing and separation of log types
@@ -18,7 +18,7 @@ This document outlines the comprehensive logging architecture for Spark applicat
 
 ```
 ┌─────────────────────────┐    ┌─────────────────────────────────────────┐
-│ Local Development       │    │ Kubernetes Host Machines (Lab1, Lab2)   │
+│ Local Development       │    │ Kubernetes hosts (Lab1–Lab3; see topology) │
 │ Machine (gxbrooks)      │    │                                         │
 │                         │    │ ┌─────────────────────────────────────┐ │
 │ ├── Python Process      │    │ │ Host OS (Ubuntu/Linux)              │ │
@@ -48,7 +48,7 @@ This document outlines the comprehensive logging architecture for Spark applicat
 ### File System Layout
 
 ```
-NFS Server (Lab2)                Host Machine (Lab1, Lab2)
+NFS Server (Lab3)                Host Machines (Lab1, Lab2, Lab3)
 ├── /mnt/spark/events/           ├── /mnt/spark/logs/             # Application and GC logs
 │   ├── app-20251026122735-0063  │   ├── spark_spark-master-0_uid/
 │   ├── app-20251026122754-0064  │   │   ├── master-gc.log
@@ -68,13 +68,13 @@ NFS Server (Lab2)                Host Machine (Lab1, Lab2)
 When running Spark applications locally that connect to a remote Kubernetes cluster:
 
 ```
-Local Machine (Driver)                    Kubernetes Cluster (Executors)           NFS Server (Lab2)
+Local Machine (Driver)                    Kubernetes Cluster (Executors)           NFS Server (Lab3)
 ├── Driver JVM (PySpark 4.0.1)          ├── Executor JVMs (in pods)               ├── /mnt/spark/events/
 │   ├── GC logs → console               │   ├── GC logs → /mnt/spark/logs/        │   └── Event logs
 │   └── Event logs → /mnt/spark/events/ │   ├── App logs → /mnt/spark/logs/        │
 │        (via NFS mount)                │   └── Event logs → /mnt/spark/events/    │
 └── No Elastic Agent needed              │        (via NFS mount)                  │
-                                         └── Elastic Agent (Lab2 only) → Logstash → Elasticsearch
+                                         └── Elastic Agent (NFS server, Lab3) → Logstash → Elasticsearch
 ```
 
 **Data Flow**: Spark Driver → NFS → Elastic Agent → Logstash → Elasticsearch
@@ -86,11 +86,11 @@ Local Machine (Driver)                    Kubernetes Cluster (Executors)        
 When running Spark applications entirely within Kubernetes:
 
 ```
-Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab2)
+Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab3)
 ├── Driver JVM (in pod) → stdout → /var/log/pods/  ├── /mnt/spark/events/
 ├── Executor JVMs (in pods) → stdout → /var/log/pods/  └── Event logs
 ├── Event logs → /mnt/spark/events/ (via NFS mount)
-└── Elastic Agent (Lab2 only) → Logstash → Elasticsearch
+└── Elastic Agent (NFS server, Lab3) → Logstash → Elasticsearch
 ```
 
 **Data Flow**: Spark Applications → NFS → Elastic Agent → Logstash → Elasticsearch
@@ -105,7 +105,7 @@ Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab2)
 - **Additional Groups**: spark (185) - for reading Spark logs
 - **Home Directory**: `/opt/Elastic/Agent`
 - **Shell**: `/usr/sbin/nologin` (service account)
-- **Deployment**: Only on Lab2 (NFS server) for event log processing
+- **Deployment**: On the **NFS server host (Lab3)** for centralized event log processing
 
 **Spark User**:
 - **UID/GID**: 185 (matches Kubernetes pod security context)
@@ -126,14 +126,14 @@ Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab2)
 ### Elastic Agent Configuration
 
 **Host-Based Deployment**:
-- Runs as host process on Kubernetes nodes (Lab1, Lab2)
+- Runs as host process on Kubernetes nodes (Lab1, Lab2, Lab3 as deployed)
 - Direct filesystem access to mounted log directories
 - Collects from multiple sources:
   - System metrics (CPU, memory, network, disk)
   - System logs (auth.log, syslog)
   - Kubernetes metrics (container, pod, node)
   - Spark application logs (`/mnt/spark/logs/*/`)
-- **Event Log Processing**: Only on Lab2 (NFS server)
+- **Event Log Processing**: On the **NFS server host (Lab3)** (mounted `/mnt/spark/events`)
   - Spark event logs (`/mnt/spark/events/app-*`)
 
 **Log Processing**:
@@ -145,7 +145,7 @@ Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab2)
 ### Data Flow
 
 ```
-Spark Components                                    Host Machine (Lab1, Lab2)        NFS Server (Lab2)
+Spark Components                                    Host Machines (Lab1, Lab2, Lab3) NFS Server (Lab3)
 ├── Master/Worker Pods                             ├── /mnt/spark/logs/               ├── /mnt/spark/events/
 │   ├── GC logs → files                           │   ├── spark_spark-master-0_uid/   │   ├── app-20251026122735-0063
 │   └── App logs → files                          │   │   ├── master-gc.log           │   ├── app-20251026122754-0064
@@ -155,8 +155,8 @@ Spark Components                                    Host Machine (Lab1, Lab2)   
     └── Event logs → /mnt/spark/events            │   │   └── worker-app.log          │
                                                     │   └── executor-gc-*.log          │
 
-Host Machine (Lab1, Lab2)                          NFS Server (Lab2)                 Elasticsearch
-├── Elastic Agent (elastic-agent user)             ├── Elastic Agent (Lab2 only)      ├── Index: logs-spark_gc-default
+Host Machines (Lab1, Lab2, Lab3)                    NFS Server (Lab3)                 Elasticsearch
+├── Elastic Agent (elastic-agent user)             ├── Elastic Agent (event logs, Lab3) ├── Index: logs-spark_gc-default
 │   ├── Reads mounted files                       │   ├── Reads event logs            ├── Index: logs-spark-default
 │   ├── Processes with dissect                    │   ├── Processes JSON events       ├── Index: logs-spark-spark-default
 │   ├── Extracts metrics                          │   └── Ships to Elasticsearch      └── Rich metadata and timestamps
@@ -171,24 +171,24 @@ Host Machine (Lab1, Lab2)                          NFS Server (Lab2)            
 **Purpose**: Centralized NFS location for all Spark event logs accessible by History Server and Elastic Agent
 **Access**: 
 - History Server pod mounts this NFS directory
-- Elastic Agent on Lab2 monitors this directory
+- Elastic Agent on the NFS server host (Lab3) monitors this directory
 - All Spark applications write events here via NFS mount
 
 **Benefits**:
 - **History Server Access**: Can read all event logs regardless of which host they were created on
-- **Elastic Agent Monitoring**: Single location for event log collection (Lab2 only)
+- **Elastic Agent Monitoring**: Single location for event log collection on the **NFS server (Lab3)**
 - **NFS Centralization**: All event logs stored on NFS server for centralized access
 - **Consistent Paths**: All components use same event log directory
 
 ### Event Log Flow
 
 ```
-Spark Applications (Client Mode)                    NFS Server (Lab2)
+Spark Applications (Client Mode)                    NFS Server (Lab3)
 ├── Local Driver → submits to cluster              ├── /mnt/spark/events/
 ├── Remote Executors → write events to /mnt/spark/events/  └── Event logs
 └── History Server → reads from /mnt/spark/events/
 
-Elastic Agent (Lab2 only)                          Logstash
+Elastic Agent (NFS server, Lab3)                    Logstash
 ├── Monitors /mnt/spark/events/app-*               ├── Receives events from Elastic Agent
 ├── Processes JSON event logs                      ├── Creates batch events
 └── Forwards to Logstash                           └── Sends to Elasticsearch
@@ -268,6 +268,8 @@ The system is production-ready and provides the foundation for advanced observab
 ---
 
 ## Related Documentation
+
+- **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)** — Which lab runs NFS, Kubernetes, and observability.
 
 For comprehensive details on Elastic Agent configuration and telemetry collection:
 - **[Elastic Agent Architecture](../elastic-agent/docs/Elastic_Agent_Architecture.md)** - Complete telemetry collection architecture, including:

@@ -349,7 +349,7 @@ image: "jupyter/pyspark-notebook:python-3.8"
 JupyterHub is integrated into the global orchestration playbooks:
 - `playbooks/install.yml` - Deploys JupyterHub after Spark
 - `playbooks/start.yml` - Starts JupyterHub with other services
-- `playbooks/status.yml` - Includes JupyterHub status
+- `playbooks/diagnose.yml` - Full platform diagnostics (includes Spark/K8s paths used by Jupyter)
 - `playbooks/stop.yml` - Stops JupyterHub with other services
 
 ## Additional Resources

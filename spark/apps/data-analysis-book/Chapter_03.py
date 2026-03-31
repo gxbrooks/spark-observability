@@ -9,13 +9,28 @@ import glob
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 
-# Create Spark session with chapter-specific app name and event logging
-spark = SparkSession.builder \
-    .appName("Chapter 03") \
-    .getOrCreate()
+# Host / client-mode: prefer HDFS_DEFAULT_FS_CLIENT (NodePort, resolvable from dev machines).
+# HDFS_DEFAULT_FS is for in-cluster Spark (hdfs-namenode.*.svc); it is not resolvable on hosts.
+_HDFS_BASE = os.environ.get("HDFS_DEFAULT_FS_CLIENT") or os.environ.get(
+    "HDFS_DEFAULT_FS", "hdfs://Lab2.lan:30900"
+)
 
-# Set log level to reduce noise
-spark.sparkContext.setLogLevel("WARN")
+# Driver host must match this machine for client mode (executors in K8s connect back).
+# spark_client_env.sh sets SPARK_DRIVER_HOST; override if you submit from a host other than Lab2.
+_builder = (
+    SparkSession.builder.appName("Chapter 03")
+    .config("spark.ui.analytics.enabled", "false")
+)
+_sm = os.environ.get("SPARK_MASTER_URL") or os.environ.get("SPARK_MASTER")
+if _sm:
+    _builder = _builder.master(_sm)
+_dh = os.environ.get("SPARK_DRIVER_HOST")
+if _dh:
+    _builder = _builder.config("spark.driver.host", _dh)
+spark = _builder.getOrCreate()
+
+# Reduce driver noise (book examples use WARN; we use ERROR to avoid major log warnings)
+spark.sparkContext.setLogLevel("ERROR")
 
 print("=== Chapter 03: Word Count Analysis ===")
 print(f"Spark version: {spark.version}")
@@ -23,6 +38,11 @@ print(f"Spark master: {spark.sparkContext.master}")
 
 # Data paths - use glob to expand wildcards into file list (avoids Spark 4.0 metadata warnings)
 books = sorted(glob.glob("/mnt/spark/data/gutenberg_books/*.txt"))
+if not books:
+    raise SystemExit(
+        "No input files under /mnt/spark/data/gutenberg_books/*.txt — "
+        "mount NFS data share or copy Gutenberg .txt files before running Chapter 3."
+    )
 
 # From Chapter 2 Listing 2.20
 book = spark.read.text(books)
@@ -42,7 +62,7 @@ results = words_nonull.groupby(F.col("word")).count()
 print("Results schema:", results)
 results.show()
 
-# Exercise 3.1   dkdk 
+# Exercise 3.1
 print("\n=== Exercise 3.1: Word length analysis ===")
 count_by_size = words_nonull.select(F.length(F.col("word")).alias("length")).groupby("length").count()
 count_by_size.show()
@@ -69,8 +89,8 @@ print("\n=== Writing results to CSV ===")
 # Try Hadoop HDFS first, fallback to local filesystem
 try:
     # Write to Hadoop HDFS
-    results.write.csv("hdfs://10.101.125.84:9000/spark/simple_count.csv", mode="overwrite")
-    print("Successfully wrote to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count.csv")
+    results.write.csv(f"{_HDFS_BASE}/spark/simple_count.csv", mode="overwrite")
+    print(f"Successfully wrote to Hadoop HDFS: {_HDFS_BASE}/spark/simple_count.csv")
 except Exception as e:
     print(f"Hadoop write failed: {e}")
     print("Falling back to local filesystem...")
@@ -83,8 +103,13 @@ print(f"Number of partitions: {results.rdd.getNumPartitions()}")
 # Listing 3.4 Writing results under a single partition 
 try:
     # Write to Hadoop HDFS
-    results.coalesce(1).write.csv("hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv", mode="overwrite")
-    print("Successfully wrote single partition to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv")
+    results.coalesce(1).write.csv(
+        f"{_HDFS_BASE}/spark/simple_count_single_partition.csv", mode="overwrite"
+    )
+    print(
+        "Successfully wrote single partition to Hadoop HDFS: "
+        f"{_HDFS_BASE}/spark/simple_count_single_partition.csv"
+    )
 except Exception as e:
     print(f"Hadoop single partition write failed: {e}")
     print("Falling back to local filesystem...")
@@ -108,8 +133,10 @@ results = words_nonull.groupby(F.col("word")).count()
 results.orderBy("count", ascending=False).show(10)
 # Write to Hadoop HDFS
 try:
-    results.coalesce(1).write.csv("hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv", mode="overwrite")
-    print("Successfully wrote to Hadoop HDFS: hdfs://10.101.125.84:9000/spark/simple_count_single_partition.csv")
+    results.coalesce(1).write.csv(
+        f"{_HDFS_BASE}/spark/simple_count_single_partition.csv", mode="overwrite"
+    )
+    print(f"Successfully wrote to Hadoop HDFS: {_HDFS_BASE}/spark/simple_count_single_partition.csv")
 except Exception as e:
     print(f"Hadoop write failed: {e}")
     print("Falling back to local filesystem...")
@@ -233,11 +260,18 @@ by_word_base_df = (
     .agg(F.count("*").alias("word_count"))
 )
 
-# Step 3: create columns for each basename 
+# Step 3: pivot with explicit basename list (unbounded pivot forces extra passes and can look "hung")
+_basename_vals = [
+    r[0]
+    for r in by_word_base_df.select("basename").distinct().collect()
+    if r[0] is not None
+]
+if not _basename_vals:
+    raise SystemExit("Exercise pivot: no basenames found after preprocessing.")
 by_word_pivot_base_df = (
     by_word_base_df
     .groupBy(F.col("word"))
-    .pivot("basename")
+    .pivot("basename", _basename_vals)
     .agg(F.sum(F.col("word_count")))
     .fillna(0)
 )

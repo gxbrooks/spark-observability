@@ -1,7 +1,7 @@
 ---
 # Global startup playbook for Spark Observability Platform
-# Starts all components in dependency order
 # Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
+# Prerequisites: install.yml + deploy.yml (registry/Spark/Jupyter manifests already applied)
 
 - name: Display startup banner
   hosts: localhost
@@ -9,97 +9,46 @@
   gather_facts: false
   tasks:
     - name: Display startup information
-      debug:
+      ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform - Global Startup
+          Spark Observability Platform — Global Start
           ================================================
-          
-          This playbook will start components in order:
-          1. NFS Server (Lab2)
-          2. Kubernetes Cluster (Lab2 master, Lab1+Lab2 workers)
-          2b. Spark image registry client on nodes (containerd) — spark/registry/deploy.yml
-          2c. Docker daemon on Lab3 — docker/start.yml
-          3. Observability Platform (Lab3 Docker Compose)
-          3b. Elastic Agent (Linux hosts: env + CA + ship to ES/Logstash)
-          4. Spark on Kubernetes (master, workers, history)
-          5. JupyterHub for Spark Development
-          
-          Prerequisites:
-          - First-time Lab3: ansible-playbook playbooks/docker/install.yml (Docker CE)
-          - Docker must be running before observability (step 2c)
-          
+          Order:
+            1. NFS server (nfs_servers host, e.g. Lab3)
+            2. Kubernetes cluster
+            3. Docker on Lab3 (observability host)
+            4. Observability Docker Compose stack
+            5. Elastic Agent refresh on Linux hosts
+            6. Spark on Kubernetes
+          Note: Spark registry client + K8s deploys are in playbooks/deploy.yml
           ================================================
 
-# Step 1: Start NFS Server
 - import_playbook: nfs/start.yml
 
-# Step 2: Start Kubernetes Cluster  
 - import_playbook: k8s/start.yml
 
-# Step 2b: Deploy containerd client config for Spark image registry (plain HTTP until TLS)
-- import_playbook: spark/registry/deploy.yml
-  vars:
-    spark_registry_connection: unsecure
-
-# Step 2c: Ensure Docker Engine is running on Lab3 (required for Compose / Kibana)
 - import_playbook: docker/start.yml
 
-# Step 3: Start Observability Platform
 - import_playbook: observability/start.yml
 
-# Step 3b: Elastic Agent (after ES/Logstash are up; regenerates env from vars on controller)
 - import_playbook: elastic-agent/start.yml
 
-# Step 4: Start Spark on Kubernetes
 - import_playbook: spark/start.yml
 
-# Step 6: Start JupyterHub (deferred to Spark 4.0)
-# - import_playbook: jupyter/start_jupyter.yml
-
-# Step 7: Display final status
 - name: Display startup completion status
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
     - name: Display completion message
-      debug:
+      ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform - Startup Complete
+          Start playbook complete
           ================================================
-          
-          Services Status:
-          ✓ NFS Server: Running on Lab2
-          ✓ Kubernetes: Master on Lab2, Workers on Lab1+Lab2
-          ✓ Observability Platform: Running on Lab3
-            - Elasticsearch: https://Lab3.lan:9200
-            - Kibana: http://Lab3.lan:5601
-            - Grafana: http://Lab3.lan:3000
-          ✓ Elastic Agent: Refreshed on Linux hosts after observability
-          ✓ Spark: Master, Workers, History Server on Kubernetes
-            - Spark History: http://Lab2.lan:31534
-          ✓ JupyterHub: Running on Kubernetes (Lab2)
-            - JupyterHub: http://Lab2.lan:32080
-          
-          Next Steps:
+          Verify:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/diagnose.yml
+          Elastic Agent quick status:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/status.yml
           ================================================
-          
-          1. Verify all services:
-             cd ansible && ansible-playbook -i inventory.yml playbooks/status.yml
-          
-          2. Check Elastic Agent status:
-             cd ansible && ansible-playbook -i inventory.yml playbooks/elastic-agent/status.yml
-          
-          3. Run Spark application to test event flow:
-             python3 spark/apps/Chapter_03.py
-          
-          4. Access web interfaces:
-             - Kibana: http://Lab3.lan:5601 (elastic / myElastic2025)
-             - Grafana: http://Lab3.lan:3000
-             - Spark History: http://Lab2.lan:31534
-             - JupyterHub: https://Lab2.lan:32443
-          
-          ================================================
-

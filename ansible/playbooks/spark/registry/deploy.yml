@@ -51,6 +51,30 @@
             skip_verify = true
       when: _registry_connection | lower == 'unsecure'
 
+    # containerd ignores certs.d unless CRI registry.config_path is set (default is empty on kubeadm nodes).
+    - name: Detect CRI registry config_path line
+      ansible.builtin.shell: |
+        awk '
+          /\[plugins\."io\.containerd\.grpc\.v1\.cri"\.registry\]/ { inreg=1; next }
+          inreg && /config_path/ { print; exit }
+        ' /etc/containerd/config.toml
+      register: cri_registry_config_path
+      changed_when: false
+      when: _registry_connection | lower == 'unsecure'
+
+    - name: Point containerd CRI registry config_path at certs.d (only when still empty)
+      ansible.builtin.shell: |
+        set -eu
+        cp -a /etc/containerd/config.toml /etc/containerd/config.toml.bak.spark-registry
+        # First config_path = "" in file is the CRI registry entry (before transfer plugin).
+        sed -i '0,/^[[:space:]]*config_path = ""$/s/^[[:space:]]*config_path = ""$/      config_path = "\/etc\/containerd\/certs.d"/' /etc/containerd/config.toml
+      args:
+        executable: /bin/bash
+      when: >-
+        _registry_connection | lower == 'unsecure'
+        and 'config_path = ""' in (cri_registry_config_path.stdout | default(''))
+      changed_when: true
+
     - name: Restart containerd to load registry config
       ansible.builtin.systemd:
         name: containerd

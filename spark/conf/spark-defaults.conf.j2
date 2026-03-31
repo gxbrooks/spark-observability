@@ -5,8 +5,12 @@
 #
 # To regenerate: bash vars/generate_contexts.sh devops && linux/generate_spark_defaults.sh
 
-# Master configuration
-spark.master                           spark://Lab2.lan:31686
+# Master configuration (from vars/contexts/spark_client_env.sh)
+spark.master                           spark://{{ SPARK_MASTER_HOST }}:{{ SPARK_MASTER_PORT }}
+
+# Do not set spark.hadoop.fs.defaultFS to HDFS here — it forces every bare path (e.g. /mnt/spark/data/...) onto HDFS.
+# Use explicit hdfs://… URIs where needed. Keep the SQL warehouse on local/NFS-backed disk.
+spark.sql.warehouse.dir                file:{{ SPARK_DATA_MOUNT }}/spark-warehouse
 
 # Event logging
 # Event logs written by Driver to NFS-shared directory
@@ -38,6 +42,9 @@ spark.executorEnv.SPARK_EVENT_CSV               {{ SPARK_EVENT_CSV }}
 spark.sql.adaptive.enabled             true
 spark.sql.adaptive.coalescePartitions.enabled  true
 
+# Avoid DiskLog WARN when /opt/spark/logs is not writable on the driver host
+spark.ui.analytics.enabled             false
+
 # JVM options for GC logging and application logging
 # Driver runs locally - basic GC for local development only (not monitored)
 # Executors run in Kubernetes - configuration comes from spark-defaults.conf.j2 template
@@ -48,11 +55,9 @@ spark.executor.extraJavaOptions        -XX:+UseG1GC -Xlog:gc*:file=/opt/spark/lo
 
 
 # Driver configuration for client mode
-# Driver runs on Lab2 host - must be reachable by workers in K8s pods
-# Use DNS name Lab2.lan for external access
-# Note: Set SPARK_LOCAL_IP environment variable to suppress hostname resolution warnings
-#       (Set in vars/contexts/spark_client_env.sh or .bashrc)
-spark.driver.host                      192.168.1.48
+# Must match the host running the PySpark driver; executors (pods) connect back here.
+# Set via vars/contexts/spark_client_env.sh (SPARK_DRIVER_HOST) and generate_spark_defaults.sh
+spark.driver.host                      {{ SPARK_DRIVER_HOST }}
 spark.driver.bindAddress               0.0.0.0
 
 # Network timeouts

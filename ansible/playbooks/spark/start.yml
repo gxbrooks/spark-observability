@@ -128,6 +128,17 @@
         spark_rpc_lookup_timeout: "{{ SPARK_RPC_LOOKUP_TIMEOUT | default('60s') }}"
         spark_executor_heartbeat_interval: "{{ SPARK_EXECUTOR_HEARTBEAT_INTERVAL | default('120s') }}"
 
+    # spark-defaults.conf.j2 references log4j2-executor.properties; sync from repo checkout on controller.
+    - name: Copy Spark log4j2 config files from repository for ConfigMap
+      copy:
+        src: "{{ project_root }}/spark/conf/{{ item.src }}"
+        dest: "/home/{{ ansible_user }}/spark/conf/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - { src: "log4j2-cluster.properties", dest: "log4j2-cluster.properties" }
+        - { src: "log4j2.properties", dest: "log4j2.properties" }
+        - { src: "log4j2-cluster.properties", dest: "log4j2-executor.properties" }
+
     - name: Create/update spark-defaults-conf ConfigMap from files
       shell: |
         kubectl create configmap spark-defaults-conf \

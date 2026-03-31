@@ -18,7 +18,7 @@ spec:
       # Add pod hostname and subdomain for better DNS resolution
       hostname: spark-master
       subdomain: spark-master-headless
-      # Pin master to Lab2 node
+      # Pin master to the configured Kubernetes control-plane node.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -27,7 +27,7 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                - lab2
+                - {{ (hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0])).split('.')[0] | lower }}
       # No init container needed - subPathExpr handles directory creation
       # Add dnsPolicy and dnsConfig for more reliable DNS resolution
       dnsPolicy: ClusterFirst
@@ -64,7 +64,7 @@ spec:
               # SPARK_MASTER_HOST must be the BIND address (0.0.0.0 to listen on all interfaces)
               # SPARK_PUBLIC_DNS is the ADVERTISED address for clients/workers to connect
               # Workers inside K8s connect via service DNS; external clients via NodePort
-              export SPARK_MASTER_HOST="0.0.0.0"
+              export SPARK_MASTER_HOST="${SPARK_MASTER_HOST_IP}"
               export SPARK_PUBLIC_DNS="{{ SPARK_MASTER_HOST }}"
               unset SPARK_MASTER
               export SPARK_MASTER_OPTS="-XX:+UseG1GC -Xlog:gc*:file=/opt/spark/logs/gc-master.log:time,uptime,level,tags:filecount=10,filesize=10M"

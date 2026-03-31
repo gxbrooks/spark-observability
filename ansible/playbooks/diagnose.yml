@@ -1,0 +1,49 @@
+---
+# Global diagnostics for Spark Observability Platform (replaces status.yml)
+# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/diagnose.yml
+
+- name: Display diagnose banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display diagnostic information
+      ansible.builtin.debug:
+        msg: |
+          ================================================
+          Spark Observability Platform — Diagnose
+          ================================================
+          Running component diagnostics (Docker, NFS, K8s, observability, Spark, Elastic Agent).
+          ================================================
+
+- import_playbook: docker/diagnose.yml
+
+- import_playbook: nfs/diagnose.yml
+
+- import_playbook: k8s/diagnose.yml
+
+- import_playbook: observability/diagnose.yml
+
+- import_playbook: spark/diagnose.yml
+
+- import_playbook: elastic-agent/diagnose.yml
+
+- name: Display diagnose summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Display summary message
+      ansible.builtin.debug:
+        msg: |
+          ================================================
+          Diagnose playbook complete
+          ================================================
+          Review task output above. Quick K8s check:
+            kubectl get pods -n spark
+            kubectl get svc -n spark
+          Component quick checks still available, e.g.:
+            playbooks/spark/status.yml
+            playbooks/observability/status.yml
+            playbooks/elastic-agent/status.yml
+          ================================================

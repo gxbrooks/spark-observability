@@ -40,7 +40,7 @@
         msg: "NFS server uninstalled from {{ inventory_hostname }}"
 
 - name: Uninstall NFS Clients
-  hosts: nfs_clients
+  hosts: kubernetes_master:kubernetes_workers:!nfs_servers
   become: true
   gather_facts: true
   
