@@ -79,8 +79,15 @@ fi
 
 : "${SPARK_DATA_MOUNT:=/mnt/spark/data}"
 
-# Executors connect back to this host; must match the machine running the PySpark driver (override if not Lab2).
-: "${SPARK_DRIVER_HOST:=Lab2.lan}"
+# Executors connect back to this host; auto-detect when not explicitly exported.
+if [[ -z "${SPARK_DRIVER_HOST:-}" ]]; then
+    _driver_host="$(hostname -f 2>/dev/null || hostname)"
+    if [[ "$_driver_host" != *.* ]]; then
+        _driver_host="${_driver_host}.lan"
+    fi
+    SPARK_DRIVER_HOST="$_driver_host"
+    unset _driver_host
+fi
 
 if [ ! -f "$SPARK_OTEL_LISTENER_JAR" ]; then
     echo "Warning: OTel listener JAR not found at: $SPARK_OTEL_LISTENER_JAR" >&2

@@ -274,12 +274,6 @@ SPARK_MASTER:
     spark-runtime: spark://spark-master-0.spark-master-headless.spark.svc.cluster.local:7077
     spark-client: spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}
 
-# Client-mode driver bind address advertised to executors (K8s pods must reach this host).
-# Use DNS (e.g. Lab2.lan) not a stale static IP. Override when submitting from another host (e.g. export SPARK_DRIVER_HOST=Lab3.lan).
-SPARK_DRIVER_HOST:
-  value: Lab3.lan
-  contexts: [spark-client, ispark, devops]
-
 # Spark network and timeout settings
 # Increased timeouts to handle connection resets and network instability
 SPARK_NETWORK_TIMEOUT:
