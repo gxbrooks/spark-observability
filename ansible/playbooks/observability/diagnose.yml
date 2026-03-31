@@ -5,6 +5,22 @@
   vars:
     timeout_seconds: 15
     recent_timeframe_minutes: 60
+    observability_env_file: "/home/ansible/ops/observability/.env"
+    index_patterns_to_report:
+      - { pattern: "batch-events-*", name: "batch-events" }
+      - { pattern: "app-events-*", name: "application-events" }
+      - { pattern: "batch-metrics-ds*", name: "batch-metrics" }
+      - { pattern: "application-events-metrics-ds*", name: "application-events-metrics" }
+      - { pattern: "traces-otel-default*", name: "otel-traces" }
+      - { pattern: "logs-spark-default*", name: "spark-logs" }
+      - { pattern: "logs-spark_gc-default*", name: "spark-gc-logs" }
+      - { pattern: "metrics-system.cpu-default*", name: "system-metrics" }
+      - { pattern: "metrics-gpu-default*", name: "gpu-metrics" }
+      - { pattern: "metrics-kubernetes-default*", name: "kubernetes-metrics" }
+      - { pattern: "metrics-docker.cpu-default*", name: "docker-metrics" }
+      - { pattern: "metrics-spark-logs-default*", name: "spark-log-metrics" }
+      - { pattern: "logs-spark-otel-errors-default*", name: "spark-otel-errors" }
+      - { pattern: ".watcher-history-*", name: "watcher-history" }
 
   tasks:
     - name: Display diagnostic header
@@ -16,12 +32,35 @@
           Target Host: {{ inventory_hostname }} ({{ hostvars[observability_host]['ansible_host'] }})
           OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
+    - name: Read Elasticsearch and Grafana credentials from observability .env
+      ansible.builtin.shell: |
+        awk -F= '
+          /^ES_PASSWORD=/{es=substr($0, index($0,$2))}
+          /^GF_SECURITY_ADMIN_PASSWORD=/{gf=substr($0, index($0,$2))}
+          END{
+            if (es != "") print "ES_PASSWORD=" es
+            if (gf != "") print "GF_SECURITY_ADMIN_PASSWORD=" gf
+          }
+        ' "{{ observability_env_file }}"
+      register: obs_env_creds
+      changed_when: false
+      failed_when: false
+
+    - name: Resolve runtime credentials
+      ansible.builtin.set_fact:
+        es_password_resolved: >-
+          {{ ES_PASSWORD | default('') if (ES_PASSWORD | default('')) | length > 0
+             else ((obs_env_creds.stdout_lines | default([]) | select('match','^ES_PASSWORD=') | first | default('ES_PASSWORD=myElastic2025')).split('=',1)[1]) }}
+        grafana_password_resolved: >-
+          {{ GF_SECURITY_ADMIN_PASSWORD | default('') if (GF_SECURITY_ADMIN_PASSWORD | default('')) | length > 0
+             else ((obs_env_creds.stdout_lines | default([]) | select('match','^GF_SECURITY_ADMIN_PASSWORD=') | first | default('GF_SECURITY_ADMIN_PASSWORD=mysecretpassword')).split('=',1)[1]) }}
+
     - name: Test Elasticsearch connectivity
       uri:
         url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/_cluster/health"
         method: GET
         user: "elastic"
-        password: "myElastic2025"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -107,7 +146,7 @@
         url: "http://{{ hostvars[observability_host]['ansible_host'] }}:3000/api/search"
         method: GET
         user: "admin"
-        password: "mysecretpassword"
+        password: "{{ grafana_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         force_basic_auth: yes
       register: grafana_dashboards
@@ -182,7 +221,7 @@
               "@timestamp":
                 gte: "now-{{ recent_timeframe_minutes }}m"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -203,7 +242,7 @@
               "@timestamp":
                 gte: "now-{{ recent_timeframe_minutes }}m"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -224,7 +263,7 @@
               "@timestamp":
                 gte: "now-{{ recent_timeframe_minutes }}m"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -245,7 +284,7 @@
               "@timestamp":
                 gte: "now-{{ recent_timeframe_minutes }}m"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -266,7 +305,7 @@
               "@timestamp":
                 gte: "now-{{ recent_timeframe_minutes }}m"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -283,7 +322,7 @@
           sort:
             - "@timestamp": "desc"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ es_password_resolved }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -303,11 +342,42 @@
           ========================================================================
           Index Type          Recent Data?    Latest Timestamp
           ------------------------------------------------------------------------
-          Otel Traces         {{ '✅ YES' if (otel_traces_check.json is defined and otel_traces_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[0].json is defined and latest_timestamps.results[0].json.hits.total.value > 0 %}{{ latest_timestamps.results[0].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
-          Spark App Logs      {{ '✅ YES' if (spark_logs_check.json is defined and spark_logs_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[1].json is defined and latest_timestamps.results[1].json.hits.total.value > 0 %}{{ latest_timestamps.results[1].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
-          System Metrics      {{ '✅ YES' if (system_metrics_check.json is defined and system_metrics_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[2].json is defined and latest_timestamps.results[2].json.hits.total.value > 0 %}{{ latest_timestamps.results[2].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
-          GPU Metrics         {{ '✅ YES' if (gpu_metrics_check.json is defined and gpu_metrics_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[3].json is defined and latest_timestamps.results[3].json.hits.total.value > 0 %}{{ latest_timestamps.results[3].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
-          GC Logs             {{ '✅ YES' if (gc_logs_check.json is defined and gc_logs_check.json.hits.total.value > 0) else '❌ NO' }}     {% if latest_timestamps.results[4].json is defined and latest_timestamps.results[4].json.hits.total.value > 0 %}{{ latest_timestamps.results[4].json.hits.hits[0]._source['@timestamp'] }}{% else %}N/A{% endif %}
+          Otel Traces         {{ '✅ YES' if (otel_traces_check.json is defined and otel_traces_check.json.hits is defined and otel_traces_check.json.hits.total.value | int > 0) else '❌ NO' }}     {% if latest_timestamps.results[0].json is defined and latest_timestamps.results[0].json.hits is defined and latest_timestamps.results[0].json.hits.total.value | int > 0 %}{{ latest_timestamps.results[0].json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
+          Spark App Logs      {{ '✅ YES' if (spark_logs_check.json is defined and spark_logs_check.json.hits is defined and spark_logs_check.json.hits.total.value | int > 0) else '❌ NO' }}     {% if latest_timestamps.results[1].json is defined and latest_timestamps.results[1].json.hits is defined and latest_timestamps.results[1].json.hits.total.value | int > 0 %}{{ latest_timestamps.results[1].json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
+          System Metrics      {{ '✅ YES' if (system_metrics_check.json is defined and system_metrics_check.json.hits is defined and system_metrics_check.json.hits.total.value | int > 0) else '❌ NO' }}     {% if latest_timestamps.results[2].json is defined and latest_timestamps.results[2].json.hits is defined and latest_timestamps.results[2].json.hits.total.value | int > 0 %}{{ latest_timestamps.results[2].json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
+          GPU Metrics         {{ '✅ YES' if (gpu_metrics_check.json is defined and gpu_metrics_check.json.hits is defined and gpu_metrics_check.json.hits.total.value | int > 0) else '❌ NO' }}     {% if latest_timestamps.results[3].json is defined and latest_timestamps.results[3].json.hits is defined and latest_timestamps.results[3].json.hits.total.value | int > 0 %}{{ latest_timestamps.results[3].json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
+          GC Logs             {{ '✅ YES' if (gc_logs_check.json is defined and gc_logs_check.json.hits is defined and gc_logs_check.json.hits.total.value | int > 0) else '❌ NO' }}     {% if latest_timestamps.results[4].json is defined and latest_timestamps.results[4].json.hits is defined and latest_timestamps.results[4].json.hits.total.value | int > 0 %}{{ latest_timestamps.results[4].json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
+
+    - name: Query latest @timestamp for index patterns initialized by init-index
+      uri:
+        url: "https://{{ hostvars[observability_host]['ansible_host'] }}:9200/{{ item.pattern }}/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          sort:
+            - "@timestamp": "desc"
+          query:
+            match_all: {}
+        user: "elastic"
+        password: "{{ es_password_resolved }}"
+        timeout: "{{ timeout_seconds }}"
+        validate_certs: no
+        force_basic_auth: yes
+      register: init_index_timestamps
+      loop: "{{ index_patterns_to_report }}"
+      ignore_errors: yes
+
+    - name: Display index freshness report for init-index patterns
+      debug:
+        msg: |
+          🗂️ INIT-INDEX FRESHNESS REPORT
+          ==============================
+          Pattern                         Has Docs   Latest @timestamp
+          -----------------------------------------------------------
+          {% for r in init_index_timestamps.results | default([]) %}
+          {{ '%-30s' | format(r.item.pattern) }} {{ 'YES' if (r.json is defined and r.json.hits is defined and r.json.hits.total.value | int > 0) else 'NO ' }}      {% if r.json is defined and r.json.hits is defined and r.json.hits.total.value | int > 0 and r.json.hits.hits | length > 0 %}{{ r.json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
+          {% endfor %}
 
     - name: Display diagnostic summary
       debug:

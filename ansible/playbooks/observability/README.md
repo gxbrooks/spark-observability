@@ -15,6 +15,7 @@ at the end of its run via `import_playbook`.
 | `start.yml` | Start all observability containers; validate health | `prometheus/start.yml` |
 | `stop.yml` | Stop all observability containers | *(note only — K8s exporters keep running)* |
 | `diagnose.yml` | Full platform health check + recent data availability | `prometheus/diagnose.yml` |
+| `test.yml` | Behavior assertions (cluster health + required index freshness) | — |
 | `uninstall.yml` | Remove all containers, volumes, and files | `prometheus/uninstall.yml` |
 | `status.yml` | Quick service status overview | — |
 

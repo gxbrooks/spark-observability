@@ -1,0 +1,108 @@
+---
+# End-to-end observability behavior test.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/test.yml
+
+- name: Test observability platform behavior
+  hosts: observability
+  gather_facts: false
+  vars:
+    timeout_seconds: 20
+    recent_window: "now-30m"
+    observability_env_file: "/home/ansible/ops/observability/.env"
+    required_recent_indices:
+      - { name: "system-metrics", index: "metrics-system.cpu-default" }
+      - { name: "spark-logs", index: "logs-spark-default" }
+    optional_recent_indices:
+      - { name: "gpu-metrics", index: "metrics-gpu-default" }
+  tasks:
+    - name: Read Elasticsearch password from observability .env
+      ansible.builtin.shell: |
+        awk -F= '/^ES_PASSWORD=/{print substr($0, index($0,$2)); exit}' "{{ observability_env_file }}"
+      register: es_password_file
+      changed_when: false
+      failed_when: false
+
+    - name: Resolve Elasticsearch password
+      ansible.builtin.set_fact:
+        es_password_resolved: "{{ (ES_PASSWORD | default('')) if (ES_PASSWORD | default('')) | length > 0 else (es_password_file.stdout | default('myElastic2025')) }}"
+
+    - name: Check Elasticsearch cluster health
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}:9200/_cluster/health"
+        method: GET
+        user: elastic
+        password: "{{ es_password_resolved }}"
+        validate_certs: false
+        force_basic_auth: true
+        timeout: "{{ timeout_seconds }}"
+      register: es_health
+
+    - name: Assert Elasticsearch health is not red
+      ansible.builtin.assert:
+        that:
+          - es_health.status == 200
+          - es_health.json.status in ['green', 'yellow']
+        fail_msg: "Elasticsearch cluster health is red or unreachable"
+        success_msg: "Elasticsearch cluster health is acceptable"
+
+    - name: Check recent data for required indices
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}:9200/{{ item.index }}/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          query:
+            range:
+              "@timestamp":
+                gte: "{{ recent_window }}"
+          sort:
+            - "@timestamp": "desc"
+        user: elastic
+        password: "{{ es_password_resolved }}"
+        validate_certs: false
+        force_basic_auth: true
+        timeout: "{{ timeout_seconds }}"
+      loop: "{{ required_recent_indices }}"
+      register: required_recent_results
+
+    - name: Assert required indices have recent documents
+      ansible.builtin.assert:
+        that:
+          - item.json.hits.total.value | int > 0
+        fail_msg: "Required index {{ item.item.name }} ({{ item.item.index }}) has no docs in {{ recent_window }}"
+        success_msg: "Required index {{ item.item.name }} has recent docs"
+      loop: "{{ required_recent_results.results }}"
+
+    - name: Check recent data for optional indices
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}:9200/{{ item.index }}/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          query:
+            range:
+              "@timestamp":
+                gte: "{{ recent_window }}"
+          sort:
+            - "@timestamp": "desc"
+        user: elastic
+        password: "{{ es_password_resolved }}"
+        validate_certs: false
+        force_basic_auth: true
+        timeout: "{{ timeout_seconds }}"
+      loop: "{{ optional_recent_indices }}"
+      register: optional_recent_results
+      failed_when: false
+
+    - name: Print optional index freshness
+      ansible.builtin.debug:
+        msg: >-
+          Optional index {{ item.item.name }}: {{
+          'recent data found' if (item.json is defined and item.json.hits.total.value | int > 0)
+          else 'no recent data'
+          }}
+      loop: "{{ optional_recent_results.results | default([]) }}"
