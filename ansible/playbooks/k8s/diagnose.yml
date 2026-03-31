@@ -132,6 +132,69 @@
         msg: "Flannel pods status: {{ flannel_pods.stdout_lines if flannel_pods is defined else 'Not checked' }}"
       when: inventory_hostname == groups['kubernetes_master'][0]
 
+    - name: Check CoreDNS pod readiness
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system get pods -l k8s-app=kube-dns -o wide
+      register: coredns_pods
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display CoreDNS pod status
+      debug:
+        msg: "CoreDNS pods status: {{ coredns_pods.stdout_lines if coredns_pods is defined else 'Not checked' }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check pending pods across all namespaces
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -A --field-selector=status.phase=Pending -o wide
+      register: pending_pods
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display pending pods
+      debug:
+        msg: "{{ pending_pods.stdout_lines if pending_pods.stdout_lines | length > 1 else ['No pending pods detected'] }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check certificate expiration windows
+      shell: kubeadm certs check-expiration
+      register: cert_expiration
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display certificate expiration windows
+      debug:
+        msg: "Certificate expiration report: {{ cert_expiration.stdout_lines if cert_expiration is defined else 'Not checked' }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Check HDFS namespace health
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get ns hdfs >/dev/null 2>&1 || { echo "hdfs namespace missing"; exit 0; }
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods,svc -n hdfs -o wide
+      register: hdfs_health
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display HDFS namespace health
+      debug:
+        msg: "HDFS namespace health: {{ hdfs_health.stdout_lines if hdfs_health is defined else 'Not checked' }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Run DNS resolution probe from a temporary pod
+      shell: |
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system run dns-probe --image=busybox:1.36 --restart=Never --rm -i --quiet -- nslookup kubernetes.default.svc.cluster.local
+      register: dns_probe
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
+    - name: Display DNS resolution probe output
+      debug:
+        msg: "DNS resolution probe: {{ dns_probe.stdout_lines if dns_probe is defined else 'Not checked' }}"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
     - name: Check required kernel modules
       shell: lsmod | grep -E "(br_netfilter|overlay)"
       register: kernel_modules

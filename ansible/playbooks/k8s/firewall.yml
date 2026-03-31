@@ -1,0 +1,122 @@
+---
+# Kubernetes-aware host firewall configuration.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/k8s/firewall.yml -e "k8s_manage_ufw=true"
+#
+# Default behavior is no-op unless k8s_manage_ufw=true.
+
+- name: Configure host firewall for Kubernetes and platform services
+  hosts: linux
+  become: true
+  gather_facts: true
+  vars:
+    k8s_manage_ufw: "{{ k8s_manage_ufw | default(false) }}"
+    k8s_common_ports:
+      - { port: 22, proto: tcp, comment: "SSH" }
+      - { port: 8472, proto: udp, comment: "Flannel VXLAN" }
+      - { port: 6443, proto: tcp, comment: "Kubernetes API server" }
+      - { port: 10250, proto: tcp, comment: "Kubelet API" }
+      - { port: 30000:32767, proto: tcp, comment: "Kubernetes NodePort range (TCP)" }
+      - { port: 30000:32767, proto: udp, comment: "Kubernetes NodePort range (UDP)" }
+    k8s_master_ports:
+      - { port: 2379:2380, proto: tcp, comment: "etcd client/server" }
+      - { port: 10257, proto: tcp, comment: "kube-controller-manager" }
+      - { port: 10259, proto: tcp, comment: "kube-scheduler" }
+    observability_ports:
+      - { port: 9200, proto: tcp, comment: "Elasticsearch HTTP" }
+      - { port: 9300, proto: tcp, comment: "Elasticsearch transport" }
+      - { port: 5601, proto: tcp, comment: "Kibana" }
+      - { port: 3000, proto: tcp, comment: "Grafana" }
+      - { port: 5050, proto: tcp, comment: "Logstash Spark events" }
+      - { port: 5051, proto: tcp, comment: "Logstash metrics" }
+      - { port: 9090, proto: tcp, comment: "Prometheus" }
+      - { port: 4317, proto: tcp, comment: "OTel gRPC" }
+      - { port: 4318, proto: tcp, comment: "OTel HTTP" }
+      - { port: 3200, proto: tcp, comment: "Tempo HTTP" }
+      - { port: 9095, proto: tcp, comment: "Tempo gRPC" }
+      - { port: 5000, proto: tcp, comment: "Local registry" }
+    nfs_ports:
+      - { port: 111, proto: tcp, comment: "rpcbind TCP" }
+      - { port: 111, proto: udp, comment: "rpcbind UDP" }
+      - { port: 2049, proto: tcp, comment: "NFS TCP" }
+      - { port: 2049, proto: udp, comment: "NFS UDP" }
+  tasks:
+    - name: Skip firewall management unless explicitly enabled
+      ansible.builtin.debug:
+        msg: "Skipping UFW management. Set -e k8s_manage_ufw=true to enforce firewall rules."
+      when: not (k8s_manage_ufw | bool)
+
+    - name: Ensure UFW package is present
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+        update_cache: true
+      when:
+        - k8s_manage_ufw | bool
+        - ansible_os_family == "Debian"
+
+    - name: Enable forwarding policy for Kubernetes traffic
+      ansible.builtin.lineinfile:
+        path: /etc/default/ufw
+        regexp: '^DEFAULT_FORWARD_POLICY='
+        line: 'DEFAULT_FORWARD_POLICY="ACCEPT"'
+      when: k8s_manage_ufw | bool
+
+    - name: Allow Kubernetes common ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ k8s_common_ports }}"
+      when: k8s_manage_ufw | bool
+
+    - name: Allow Kubernetes control plane ports on master nodes
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ k8s_master_ports }}"
+      when:
+        - k8s_manage_ufw | bool
+        - inventory_hostname in groups['kubernetes_master']
+
+    - name: Allow observability stack ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ observability_ports }}"
+      when:
+        - k8s_manage_ufw | bool
+        - inventory_hostname in groups['observability']
+
+    - name: Allow NFS ports on NFS servers
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ nfs_ports }}"
+      when:
+        - k8s_manage_ufw | bool
+        - inventory_hostname in groups['nfs_servers']
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+      when: k8s_manage_ufw | bool
+
+    - name: Show resulting UFW status
+      ansible.builtin.command: ufw status verbose
+      register: ufw_status
+      changed_when: false
+      when: k8s_manage_ufw | bool
+
+    - name: Print UFW status
+      ansible.builtin.debug:
+        var: ufw_status.stdout_lines
+      when: k8s_manage_ufw | bool

@@ -6,9 +6,8 @@
 # 3. Start services (container layer)
 # 4. Verify health (validation layer)
 #
-# Optional Linux firewall (UFW): `observability_manage_ufw` (default false). When false, this play
-# is skipped so lab hosts without a working ip6tables/nft stack do not block `observability/start.yml`.
-# Set `observability_manage_ufw: true` in inventory for production or when UFW is intentionally used.
+# Firewall policy is managed by playbooks/k8s/firewall.yml (K8s-aware host firewall rules).
+# Do not manage UFW state here; observability startup should not change cluster networking policy.
 - name: Regenerate observability Docker env on controller
   hosts: localhost
   connection: local
@@ -19,110 +18,6 @@
       vars:
         regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
         regenerate_context_names: ['observability']
-
-- name: Ensure Linux Firewall is Configured for Observability Services
-  hosts: observability
-  gather_facts: true
-  ignore_unreachable: true
-  vars:
-    # Inventory may set `observability_manage_ufw: true`; avoid self-referential var (recursion).
-    _observability_manage_ufw: "{{ observability_manage_ufw | default(false) }}"
-    observability_ports:
-      - { port: 9200, name: "Elasticsearch HTTP", service: "Elasticsearch" }
-      - { port: 9300, name: "Elasticsearch Transport", service: "Elasticsearch" }
-      - { port: 5601, name: "Kibana", service: "Kibana" }
-      - { port: 3000, name: "Grafana", service: "Grafana" }
-      - { port: 5050, name: "Logstash Spark Events", service: "Logstash" }
-      - { port: 5051, name: "Logstash Metrics", service: "Logstash" }
-      - { port: 9201, name: "Logstash Prometheus Remote Write", service: "Logstash" }
-      - { port: 4317, name: "OTel Collector gRPC", service: "OTel Collector" }
-      - { port: 4318, name: "OTel Collector HTTP", service: "OTel Collector" }
-      - { port: 8888, name: "OTel Collector Prometheus", service: "OTel Collector" }
-      - { port: 13133, name: "OTel Collector Health", service: "OTel Collector" }
-      - { port: 9090, name: "Prometheus", service: "Prometheus" }
-      - { port: 9202, name: "Prometheus ES Adapter write", service: "Prometheus ES Adapter" }
-      - { port: 9203, name: "Prometheus ES Adapter metrics", service: "Prometheus ES Adapter" }
-      - { port: 3200, name: "Tempo HTTP", service: "Tempo" }
-      - { port: 9095, name: "Tempo gRPC", service: "Tempo" }
-      - { port: 5000, name: "Spark local Docker registry", service: "registry" }
-  tasks:
-    - name: Skip UFW when observability_manage_ufw is false (lab default)
-      ansible.builtin.debug:
-        msg: "Skipping UFW — set observability_manage_ufw: true in inventory to install rules and enable UFW."
-      when: not (_observability_manage_ufw | bool)
-
-    # Idempotent: ensure package exists, then enable and add rules. A prior bug used only the
-    # first `which ufw` result — after apt installed ufw, rc was still != 0 so enable/rules skipped.
-    - name: Ensure UFW package is installed (Debian/Ubuntu)
-      apt:
-        name: ufw
-        state: present
-        update_cache: true
-      become: true
-      when:
-        - _observability_manage_ufw | bool
-        - ansible_os_family == 'Debian'
-      ignore_unreachable: true
-
-    - name: Check UFW CLI is available
-      command: command -v ufw
-      register: ufw_avail
-      changed_when: false
-      failed_when: false
-      ignore_unreachable: true
-      when: _observability_manage_ufw | bool
-
-    - name: Enable UFW if CLI is available
-      ufw:
-        state: enabled
-      become: true
-      when:
-        - _observability_manage_ufw | bool
-        - ufw_avail is succeeded
-      ignore_errors: true
-      register: ufw_enable
-      ignore_unreachable: true
-
-    - name: Warn if UFW enable failed (non-fatal; observability play continues)
-      ansible.builtin.debug:
-        msg: "UFW enable failed (often ip6tables/nft). Observability stack will still start. Fix host firewall or keep observability_manage_ufw false in inventory. Detail: {{ ufw_enable.msg | default(ufw_enable) }}"
-      when:
-        - _observability_manage_ufw | bool
-        - ufw_enable is defined
-        - ufw_enable is failed
-
-    - name: Check if UFW rule exists for observability port
-      shell: set -o pipefail; ufw status numbered | grep -q "{{ item.port }}/tcp" || echo "not_found"
-      args:
-        executable: /bin/bash
-      register: ufw_rule_check
-      loop: "{{ observability_ports }}"
-      loop_control:
-        label: "{{ item.name }} ({{ item.port }})"
-      changed_when: false
-      failed_when: false
-      when:
-        - _observability_manage_ufw | bool
-        - ufw_avail is succeeded
-      ignore_unreachable: true
-
-    - name: Create UFW rule for observability ports
-      ufw:
-        rule: allow
-        port: "{{ item.item.port }}"
-        proto: tcp
-        comment: "{{ item.item.name }} (Observability)"
-      become: true
-      loop: "{{ ufw_rule_check.results | default([]) }}"
-      loop_control:
-        label: "{{ item.item.name }} ({{ item.item.port }})"
-      when:
-        - _observability_manage_ufw | bool
-        - ufw_avail is succeeded
-        - not (ufw_rule_check.skipped | default(false))
-        - item.stdout is defined
-        - "'not_found' in item.stdout"
-      ignore_unreachable: true
 
 - name: Start Observability Platform
   hosts: observability
