@@ -416,6 +416,11 @@ $root_dir/linux/assert_developer_user.sh \
 # Kubectl kubeconfig for devops users: see linux/sync_devops_kubeconfig.sh (sourced from project .bashrc),
 # driven by KUBERNETES_API_SERVER / KUBERNETES_API_SERVER_URL from vars/contexts/*.sh.
 
+# Validate runtime client access assumptions (network, kubeconfig, mounts, env).
+if ! $CHECK; then
+  "$root_dir/linux/assert_client_sanity.sh" || echo "Warning : Client sanity assertions reported failures. See output above." >&2
+fi
+
 if command -v ansible >/dev/null 2>&1; then
   echo "Info    : ansible path: $(command -v ansible)"
 fi
