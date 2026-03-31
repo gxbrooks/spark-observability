@@ -16,6 +16,7 @@
   vars:
     k8s_namespace: "spark"
     logstash_obs_host: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
+    spark_diagnose_run_smoke_test: "{{ spark_diagnose_run_smoke_test | default(true) }}"
   
   tasks:
     - name: Display diagnostic header
@@ -127,6 +128,63 @@
       when: all_pods is defined
       loop_control:
         label: "{{ item.metadata.name }}"
+
+    - name: Query Spark master JSON API
+      ansible.builtin.uri:
+        url: "http://{{ SPARK_MASTER_HOST }}:{{ SPARK_MASTER_UI_NODEPORT | default('32215') }}/json/"
+        method: GET
+        return_content: true
+      register: spark_master_json
+      failed_when: false
+      changed_when: false
+
+    - name: Parse Spark worker registration count
+      ansible.builtin.set_fact:
+        spark_registered_workers: "{{ (spark_master_json.json.workers | default([])) | length }}"
+      when:
+        - spark_master_json is defined
+        - spark_master_json.status | default(0) == 200
+
+    - name: Display Spark worker registration status
+      ansible.builtin.debug:
+        msg: |
+          Spark Master registration:
+          - API status: {{ spark_master_json.status | default('N/A') }}
+          - Registered workers: {{ spark_registered_workers | default(0) }}
+      when: spark_master_json is defined
+
+    - name: Run Spark smoke test (spark.range count)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "{{ playbook_dir | dirname | dirname | dirname }}"
+        source vars/contexts/spark_client_env.sh
+        ./venv/bin/python3 - <<'PY'
+from pyspark.sql import SparkSession
+import os
+builder = SparkSession.builder.appName("spark-diagnose-smoke")
+master = os.environ.get("SPARK_MASTER_URL") or os.environ.get("SPARK_MASTER")
+if master:
+    builder = builder.master(master)
+driver = os.environ.get("SPARK_DRIVER_HOST")
+if driver:
+    builder = builder.config("spark.driver.host", driver)
+spark = builder.getOrCreate()
+spark.sparkContext.setLogLevel("ERROR")
+count = spark.range(1000).count()
+print(f"SMOKE_COUNT={count}")
+spark.stop()
+PY
+      args:
+        executable: /bin/bash
+      register: spark_smoke
+      changed_when: false
+      failed_when: false
+      when: spark_diagnose_run_smoke_test | bool
+
+    - name: Display Spark smoke test result
+      ansible.builtin.debug:
+        msg: "{{ spark_smoke.stdout_lines | default(['spark smoke test skipped']) }}"
+      when: spark_diagnose_run_smoke_test | bool
 
 - name: Diagnose Spark Telemetry Flow
   hosts: linux

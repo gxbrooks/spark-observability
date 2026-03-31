@@ -1,0 +1,35 @@
+---
+# End-to-end Spark test playbook.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/spark/test.yml
+
+- name: Run Spark end-to-end assertions from control host
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+  tasks:
+    - name: Run Spark smoke assertion script
+      ansible.builtin.command:
+        argv:
+          - "{{ repo_root }}/linux/assert_spark_runtime_smoke.sh"
+      register: spark_runtime_assert
+      changed_when: false
+
+    - name: Show Spark smoke assertion output
+      ansible.builtin.debug:
+        var: spark_runtime_assert.stdout_lines
+
+    - name: Run HDFS write/read assertion script
+      ansible.builtin.command:
+        argv:
+          - "{{ repo_root }}/linux/assert_spark_hdfs_io.sh"
+      register: spark_hdfs_assert
+      changed_when: false
+
+    - name: Show HDFS assertion output
+      ansible.builtin.debug:
+        var: spark_hdfs_assert.stdout_lines
