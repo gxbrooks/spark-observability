@@ -1,0 +1,44 @@
+---
+# Kubernetes behavior tests (post-deploy smoke checks).
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/k8s/test.yml
+
+- name: Test Kubernetes scheduling and control plane behavior
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/home/ansible/.kube/config"
+  tasks:
+    - name: Count Ready nodes
+      ansible.builtin.shell: |
+        kubectl --kubeconfig="{{ kubeconfig_path }}" get nodes --no-headers | awk '$2 ~ /^Ready/{print $1}' | wc -l
+      register: ready_nodes
+      changed_when: false
+
+    - name: Assert cluster has at least one Ready node
+      ansible.builtin.assert:
+        that:
+          - ready_nodes.stdout | int >= 1
+        fail_msg: "No Ready nodes available for scheduling"
+        success_msg: "Ready nodes detected"
+
+    - name: Run one-shot scheduler smoke pod
+      ansible.builtin.shell: |
+        kubectl --kubeconfig="{{ kubeconfig_path }}" run scheduler-smoke --image=busybox:1.36 --restart=Never --command -- sh -c 'echo ok' >/dev/null
+        kubectl --kubeconfig="{{ kubeconfig_path }}" wait --for=condition=Ready pod/scheduler-smoke --timeout=60s
+        kubectl --kubeconfig="{{ kubeconfig_path }}" logs scheduler-smoke
+      register: scheduler_smoke
+      changed_when: false
+
+    - name: Assert scheduler smoke returned expected output
+      ansible.builtin.assert:
+        that:
+          - "'ok' in scheduler_smoke.stdout"
+        fail_msg: "Scheduler smoke pod did not complete successfully"
+        success_msg: "Scheduler smoke pod completed successfully"
+
+    - name: Cleanup scheduler smoke pod
+      ansible.builtin.shell: kubectl --kubeconfig="{{ kubeconfig_path }}" delete pod scheduler-smoke --ignore-not-found=true
+      changed_when: false
