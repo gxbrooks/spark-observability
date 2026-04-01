@@ -12,8 +12,12 @@ import pyspark.sql.functions as F
 # Host / client-mode: prefer HDFS_DEFAULT_FS_CLIENT (NodePort, resolvable from dev machines).
 # HDFS_DEFAULT_FS is for in-cluster Spark (hdfs-namenode.*.svc); it is not resolvable on hosts.
 _HDFS_BASE = os.environ.get("HDFS_DEFAULT_FS_CLIENT") or os.environ.get(
-    "HDFS_DEFAULT_FS", "hdfs://Lab2.lan:30900"
+    "HDFS_DEFAULT_FS"
 )
+if not _HDFS_BASE:
+    raise SystemExit(
+        "HDFS_DEFAULT_FS_CLIENT or HDFS_DEFAULT_FS must be set from vars/contexts environment."
+    )
 
 # Driver host must match this machine for client mode (executors in K8s connect back).
 # spark_client_env.sh sets SPARK_DRIVER_HOST; override if you submit from a host other than Lab2.

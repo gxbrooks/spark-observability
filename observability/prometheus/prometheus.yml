@@ -15,7 +15,8 @@ global:
 # OTel receiver only supports remote write v2; use v2 proto to avoid 415 Unsupported Media Type.
 remote_write:
   - url: http://otel-collector:9201/api/v1/write
-    send_native_histograms: true
+    # Native/exponential histograms often produce ES document_parsing_exception via OTel ES exporter.
+    send_native_histograms: false
     # Prefer v2 proto for OTel prometheusremotewrite receiver (avoids 415)
     protobuf_message: io.prometheus.write.v2.Request
     queue_config:
@@ -43,7 +44,7 @@ scrape_configs:
   - job_name: 'kubernetes-apiservers'
     kubernetes_sd_configs:
       - role: endpoints
-        api_server: 'https://lab2.lan:6443'
+        api_server: 'https://__KUBERNETES_API_SERVER__:6443'
         tls_config:
           ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
           cert_file: '/etc/ssl/certs/kubernetes/client.crt'
@@ -71,7 +72,7 @@ scrape_configs:
   - job_name: 'kubernetes-nodes'
     kubernetes_sd_configs:
       - role: node
-        api_server: 'https://lab2.lan:6443'
+        api_server: 'https://__KUBERNETES_API_SERVER__:6443'
         tls_config:
           ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
           cert_file: '/etc/ssl/certs/kubernetes/client.crt'
@@ -88,7 +89,7 @@ scrape_configs:
         regex: __meta_kubernetes_node_label_(.+)
       # Target API server so it can proxy to each node's kubelet (not kubelet port 10250)
       - target_label: __address__
-        replacement: 'lab2.lan:6443'
+        replacement: '__KUBERNETES_API_SERVER__:6443'
       - source_labels: [__meta_kubernetes_node_name]
         regex: (.+)
         target_label: __metrics_path__
@@ -100,7 +101,7 @@ scrape_configs:
   - job_name: 'kubernetes-cadvisor'
     kubernetes_sd_configs:
       - role: node
-        api_server: 'https://lab2.lan:6443'
+        api_server: 'https://__KUBERNETES_API_SERVER__:6443'
         tls_config:
           ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
           cert_file: '/etc/ssl/certs/kubernetes/client.crt'
@@ -117,7 +118,7 @@ scrape_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
       - target_label: __address__
-        replacement: 'lab2.lan:6443'
+        replacement: '__KUBERNETES_API_SERVER__:6443'
       - source_labels: [__meta_kubernetes_node_name]
         regex: (.+)
         target_label: __metrics_path__
@@ -129,7 +130,7 @@ scrape_configs:
   - job_name: 'kubernetes-pods'
     kubernetes_sd_configs:
       - role: pod
-        api_server: 'https://lab2.lan:6443'
+        api_server: 'https://__KUBERNETES_API_SERVER__:6443'
         tls_config:
           ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
           cert_file: '/etc/ssl/certs/kubernetes/client.crt'
@@ -172,7 +173,7 @@ scrape_configs:
       insecure_skip_verify: false
     metrics_path: /api/v1/namespaces/kube-system/services/kube-state-metrics:http-metrics/proxy/metrics
     static_configs:
-      - targets: ['lab2.lan:6443']
+      - targets: ['__KUBERNETES_API_SERVER__:6443']
         labels:
           kubernetes_namespace: kube-system
           kubernetes_service: kube-state-metrics
@@ -183,7 +184,7 @@ scrape_configs:
   - job_name: 'node-exporter'
     kubernetes_sd_configs:
       - role: pod
-        api_server: 'https://lab2.lan:6443'
+        api_server: 'https://__KUBERNETES_API_SERVER__:6443'
         tls_config:
           ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
           cert_file: '/etc/ssl/certs/kubernetes/client.crt'

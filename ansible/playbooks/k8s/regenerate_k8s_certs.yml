@@ -43,16 +43,39 @@
         msg: "Current certificate SANs: {{ current_cert_sans.stdout }}"
       when: current_cert_sans.rc == 0
 
-    - name: Build certificate SAN list for all nodes
+    - name: Build DNS SAN candidates from inventory hosts
       set_fact:
-        # Comprehensive SANs following best practices:
-        # - Short hostnames (Lab2, Lab1, Lab3)
-        # - .lan FQDNs (for DNS on home network)
-        # - IP addresses (primary network IPs)
-        # - localhost and 127.0.0.1
-        # - Kubernetes service names
-        # - Cluster IP for API server
-        cert_sans: "{{ k8s_master_host }},{{ k8s_master_name }},{{ k8s_short_hostname }},{{ k8s_master_name | lower }},{{ k8s_short_hostname | lower }},Lab1.lan,Lab1,lab1,Lab2.lan,Lab2,lab2,Lab3.lan,Lab3,lab3,localhost,127.0.0.1,192.168.1.48,192.168.1.76,192.168.1.49,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,10.96.0.1"
+        cert_dns_sans: >-
+          {{
+            (
+              [k8s_master_host, k8s_master_name, k8s_short_hostname, k8s_master_name | lower, k8s_short_hostname | lower, 'localhost', 'kubernetes', 'kubernetes.default', 'kubernetes.default.svc', 'kubernetes.default.svc.cluster.local']
+              + (groups['spark_kubernetes'] | default([]))
+              + ((groups['spark_kubernetes'] | default([])) | map('extract', hostvars, 'ansible_host') | list)
+              + ((groups['spark_kubernetes'] | default([])) | map('regex_replace', '\\..*$', '') | list)
+            ) | reject('equalto', None) | map('string') | unique | list
+          }}
+
+    - name: Build IP SAN candidates from inventory hosts
+      set_fact:
+        cert_ip_sans: >-
+          {{
+            (
+              [ansible_default_ipv4.address, '127.0.0.1', '10.96.0.1']
+              + (
+                  (groups['spark_kubernetes'] | default([]))
+                  | map('extract', hostvars)
+                  | map(attribute='ansible_default_ipv4')
+                  | select('defined')
+                  | map(attribute='address')
+                  | select('defined')
+                  | list
+                )
+            ) | reject('equalto', None) | map('string') | unique | list
+          }}
+
+    - name: Combine DNS and IP SANs for kubeadm
+      set_fact:
+        cert_sans: "{{ (cert_dns_sans + cert_ip_sans) | unique | join(',') }}"
 
     - name: Display new certificate SAN list
       debug:

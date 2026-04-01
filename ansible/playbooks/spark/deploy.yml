@@ -368,9 +368,9 @@
       when: spark_configmap is defined
 
     # Apply registry config first if using a local registry
-    - name: Copy registry config
-      copy:
-        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/files/k8s/spark-registry-config.yaml"
+    - name: Render registry config from template
+      template:
+        src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/spark-registry-config.yaml.j2"
         dest: "{{ k8s_config_dir }}/spark-registry-config.yaml"
         mode: '0644'
 

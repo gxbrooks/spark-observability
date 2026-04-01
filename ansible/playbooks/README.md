@@ -49,20 +49,25 @@ ansible-playbook -i inventory.yml playbooks/diagnose.yml
 Lightweight checks remain available under each component (e.g. `spark/status.yml`, `observability/status.yml`, `elastic-agent/status.yml`).
 
 ### `stop.yml` - Stop All Services
-Gracefully stops all services in reverse dependency order.
+Stops the full Spark Observability stack in a safe order: Jupyter and Spark workloads, HDFS (scale to zero), in-cluster Prometheus exporters, Elastic Agent, observability Docker Compose, Docker on the observability host, Kubernetes (kubelet + containerd on workers then master), and the NFS server.
 
 ```bash
 cd ansible
 ansible-playbook -i inventory.yml playbooks/stop.yml
 ```
 
-**Shutdown Order:**
-1. Spark components
-2. Observability Platform
-3. Kubernetes Cluster
-4. NFS server (on `nfs_servers` host)
+**Shutdown order (summary):**
+1. JupyterHub (spark namespace)
+2. Spark (spark namespace)
+3. HDFS (`hdfs` namespace)
+4. node-exporter + kube-state-metrics
+5. Elastic Agent (all `linux` hosts)
+6. Observability (`docker compose down` on `observability`)
+7. Docker service and `docker.socket` on observability host (socket stop prevents accidental restart via `docker` clients)
+8. Kubernetes (workers first, then control plane)
+9. NFS server (`nfs_servers`)
 
-**Note:** Docker and Elastic Agent remain running. Use component-specific playbooks to stop them if needed.
+**Note:** This does not remove Kubernetes packages or etcd data; it stops runtimes so pods (including `kube-system` / CNI) are no longer running on the nodes. Use `k8s/uninstall.yml` or reset playbooks only if you intend to remove the cluster.
 
 **Use Cases:**
 - System shutdown/maintenance

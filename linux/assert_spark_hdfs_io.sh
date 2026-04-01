@@ -17,7 +17,11 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   exit 1
 fi
 
-TARGET_HDFS="${HDFS_DEFAULT_FS_CLIENT:-${HDFS_DEFAULT_FS:-hdfs://Lab2.lan:30900}}"
+if [[ -z "${HDFS_DEFAULT_FS_CLIENT:-}" && -z "${HDFS_DEFAULT_FS:-}" ]]; then
+  echo "HDFS_DEFAULT_FS_CLIENT or HDFS_DEFAULT_FS must be set in spark_client_env.sh" >&2
+  exit 1
+fi
+TARGET_HDFS="${HDFS_DEFAULT_FS_CLIENT:-${HDFS_DEFAULT_FS}}"
 echo "[assert] HDFS IO test target: ${TARGET_HDFS}"
 
 "${PYTHON_BIN}" - <<'PY'
@@ -25,7 +29,9 @@ from pyspark.sql import SparkSession
 import os
 import time
 
-base = os.environ.get("HDFS_DEFAULT_FS_CLIENT") or os.environ.get("HDFS_DEFAULT_FS") or "hdfs://Lab2.lan:30900"
+base = os.environ.get("HDFS_DEFAULT_FS_CLIENT") or os.environ.get("HDFS_DEFAULT_FS")
+if not base:
+    raise SystemExit("HDFS_DEFAULT_FS_CLIENT or HDFS_DEFAULT_FS must be set")
 target = f"{base}/spark/assert_hdfs_io_{int(time.time())}"
 
 builder = SparkSession.builder.appName("assert-spark-hdfs-io")

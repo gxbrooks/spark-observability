@@ -372,6 +372,15 @@ echo "Creating kubernetes-metrics index template..."
 esapi PUT /_index_template/kubernetes-metrics ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.template.json \
   > ${ES_OUTPUTS_DIR}/kubernetes-metrics.template.out.json 2>&1
 
+# After OTel exporter mapping changes (e.g. ECS → OTel for metrics), old backing indices may
+# keep incompatible mappings. Set RECREATE_K8S_METRICS_STREAM=true to drop the stream; the
+# next Prometheus remote_write bulk will recreate it from the template above.
+if [[ "${RECREATE_K8S_METRICS_STREAM:-}" == "true" ]]; then
+  echo "RECREATE_K8S_METRICS_STREAM=true: deleting data stream metrics-kubernetes-default..."
+  esapi DELETE /_data_stream/metrics-kubernetes-default \
+    > ${ES_OUTPUTS_DIR}/kubernetes-metrics.datastream-delete.out.json 2>&1 || true
+fi
+
 echo "Creating kubernetes-metrics data view (delete first to ensure clean fieldAttrs)..."
 kapi DELETE /api/data_views/data_view/kubernetes-metrics > /dev/null 2>&1 || true
 if ! kapi POST /api/data_views/data_view \

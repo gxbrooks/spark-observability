@@ -26,19 +26,26 @@ check_tcp() {
   fi
 }
 
-api_host="${KUBERNETES_API_SERVER:-Lab3.lan}"
-spark_host="${SPARK_MASTER_HOST:-Lab3.lan}"
-hdfs_host="$(echo "${HDFS_DEFAULT_FS_CLIENT:-hdfs://Lab2.lan:30900}" | sed -E 's#hdfs://([^:/]+):?([0-9]+)?.*#\1#')"
-hdfs_port="$(echo "${HDFS_DEFAULT_FS_CLIENT:-hdfs://Lab2.lan:30900}" | sed -E 's#hdfs://[^:/]+:([0-9]+).*#\1#')"
+for required in KUBERNETES_API_SERVER SPARK_MASTER_HOST HDFS_DEFAULT_FS_CLIENT NFS_SERVER ES_HOST SPARK_MASTER_PORT ES_PORT; do
+  if [[ -z "${!required:-}" ]]; then
+    echo "FAIL reachability: required variable ${required} is not set in ${ENV_FILE}"
+    exit 1
+  fi
+done
+
+api_host="${KUBERNETES_API_SERVER}"
+spark_host="${SPARK_MASTER_HOST}"
+hdfs_host="$(echo "${HDFS_DEFAULT_FS_CLIENT}" | sed -E 's#hdfs://([^:/]+):?([0-9]+)?.*#\1#')"
+hdfs_port="$(echo "${HDFS_DEFAULT_FS_CLIENT}" | sed -E 's#hdfs://[^:/]+:([0-9]+).*#\1#')"
 [[ -n "${hdfs_port}" ]] || hdfs_port=30900
-nfs_host="${NFS_SERVER:-Lab3.lan}"
-es_host="${ES_HOST:-Lab3.lan}"
+nfs_host="${NFS_SERVER}"
+es_host="${ES_HOST}"
 
 check_tcp "${api_host}" 6443 "k8s-api"
-check_tcp "${spark_host}" "${SPARK_MASTER_PORT:-31686}" "spark-master"
+check_tcp "${spark_host}" "${SPARK_MASTER_PORT}" "spark-master"
 check_tcp "${hdfs_host}" "${hdfs_port}" "hdfs-namenode"
 check_tcp "${nfs_host}" 2049 "nfs"
-check_tcp "${es_host}" "${ES_PORT:-9200}" "elasticsearch"
+check_tcp "${es_host}" "${ES_PORT}" "elasticsearch"
 
 echo "SUMMARY reachability pass=${pass} fail=${fail}"
 [[ "${fail}" -eq 0 ]]

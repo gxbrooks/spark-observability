@@ -1,74 +1,108 @@
 ---
-- name: Stop Spark on Kubernetes
+# Stop Spark workloads in namespace spark (matches spark/start.yml).
+# Does not delete the spark namespace (preserves PVCs / RBAC). Run Jupyter stop before this.
+#
+# Usage:
+#   cd ansible && ansible-playbook -i inventory.yml playbooks/spark/stop.yml
+
+- name: Stop Spark workloads on Kubernetes
   hosts: kubernetes_master
   become: false
-  vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml"
+  gather_facts: false
   vars:
-    # Use user's home directory for k8s configs, not /opt/spark
-    user_spark_home: "/home/{{ ansible_user }}/spark"
-    k8s_config_dir: "{{ user_spark_home }}/k8s"
-    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    spark_ns: spark
+  environment:
+    KUBECONFIG: "{{ kubeconfig }}"
+
   tasks:
-    # Step 1: Stop workers first to ensure graceful disconnection from master
-    - name: Stop Spark Workers
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: Deployment
-        name: spark-worker
-        namespace: default
+    - name: Check Kubernetes API is reachable
+      ansible.builtin.command: kubectl cluster-info
+      register: k8s_info
+      changed_when: false
+      failed_when: k8s_info.rc != 0
 
-    # Step 2: Stop history server as it's independent of master/worker relationship
-    - name: Stop Spark History Server
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: Deployment
-        name: spark-history
-        namespace: default
-        
-    # Step 2.5: Remove the history service
-    - name: Remove Spark History Service
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: Service
-        name: spark-history
-        namespace: default
+    - name: Check if spark namespace exists
+      ansible.builtin.command: kubectl get namespace {{ spark_ns }}
+      register: spark_ns_check
+      changed_when: false
+      failed_when: false
 
-    # Step 3: Stop the master deployment after workers are gone
-    - name: Stop Spark Master
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: Deployment
-        name: spark-master
-        namespace: default
+    - name: Skip Spark stop if spark namespace is missing
+      ansible.builtin.debug:
+        msg: "Namespace {{ spark_ns }} does not exist; skipping Spark stop."
+      when: spark_ns_check.rc != 0
 
-    # Step 4: Remove the master service after the deployment is gone
-    - name: Remove Spark Master Service
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: Service
-        name: spark-master
-        namespace: default
-        
-    # Step 5: Remove the headless service
-    - name: Remove Spark Master Headless Service
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: Service
-        name: spark-master-headless
-        namespace: default
+    - name: Scale Spark worker and history deployments to zero
+      ansible.builtin.shell: |
+        kubectl scale deployment spark-worker --replicas=0 -n {{ spark_ns }} --ignore-not-found=true
+        kubectl scale deployment spark-history --replicas=0 -n {{ spark_ns }} --ignore-not-found=true
+      when: spark_ns_check.rc == 0
+      changed_when: true
+      failed_when: false
 
-    # Step 6: Finally remove the configmap after all pods are gone
-    - name: Remove Spark ConfigMap
-      k8s:
-        kubeconfig: /home/{{ ansible_user }}/.kube/config
-        state: absent
-        kind: ConfigMap
-        name: spark-config
-        namespace: default
+    - name: Wait for worker and history pods to terminate
+      ansible.builtin.shell: |
+        kubectl wait --for=delete pod -l app=spark-worker -n {{ spark_ns }} --timeout=180s || true
+        kubectl wait --for=delete pod -l app=spark-history -n {{ spark_ns }} --timeout=180s || true
+      when: spark_ns_check.rc == 0
+      changed_when: false
+
+    - name: Scale Spark master StatefulSet to zero
+      ansible.builtin.command: kubectl scale statefulset spark-master --replicas=0 -n {{ spark_ns }}
+      when: spark_ns_check.rc == 0
+      register: master_scale
+      changed_when: master_scale.rc == 0
+      failed_when: false
+
+    - name: Wait for Spark master pod to terminate
+      ansible.builtin.command: kubectl wait --for=delete pod -l app=spark-master -n {{ spark_ns }} --timeout=180s
+      when: spark_ns_check.rc == 0
+      failed_when: false
+      changed_when: false
+
+    - name: Delete Spark Deployments
+      ansible.builtin.shell: |
+        kubectl delete deployment spark-worker spark-history -n {{ spark_ns }} --ignore-not-found=true
+      when: spark_ns_check.rc == 0
+      register: del_deploy
+      changed_when: "'deleted' in del_deploy.stdout"
+      failed_when: false
+
+    - name: Delete Spark master StatefulSet
+      ansible.builtin.command: kubectl delete statefulset spark-master -n {{ spark_ns }} --ignore-not-found=true
+      when: spark_ns_check.rc == 0
+      register: del_sts
+      changed_when: "'deleted' in del_sts.stdout"
+      failed_when: false
+
+    - name: Delete Spark Services
+      ansible.builtin.shell: |
+        kubectl delete service spark-master spark-master-headless spark-history -n {{ spark_ns }} --ignore-not-found=true
+      when: spark_ns_check.rc == 0
+      register: del_svc
+      changed_when: "'deleted' in del_svc.stdout"
+      failed_when: false
+
+    - name: Delete Spark ConfigMaps (recreated by deploy/start)
+      ansible.builtin.shell: |
+        kubectl delete configmap spark-defaults-conf spark-configmap local-registry-config -n {{ spark_ns }} --ignore-not-found=true
+      when: spark_ns_check.rc == 0
+      register: del_cm
+      changed_when: "'deleted' in del_cm.stdout"
+      failed_when: false
+
+    - name: Show remaining pods in spark namespace
+      ansible.builtin.command: kubectl get pods -n {{ spark_ns }} -o wide
+      register: pods_left
+      changed_when: false
+      failed_when: false
+      when: spark_ns_check.rc == 0
+
+    - name: Display Spark stop result
+      ansible.builtin.debug:
+        msg: |
+          Spark namespace {{ spark_ns }} workloads stopped.
+          Remaining pods (if any):
+          {{ pods_left.stdout | default('namespace missing') }}
+      when: spark_ns_check.rc == 0

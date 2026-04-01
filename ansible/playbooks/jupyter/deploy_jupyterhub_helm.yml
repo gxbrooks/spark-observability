@@ -11,6 +11,9 @@
     jupyterhub_release: "jupyterhub"
     jupyterhub_chart_version: "3.0.0"
     values_file: "/tmp/jupyterhub-values.yaml"
+    jupyter_access_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
+    jupyter_access_ip: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_default_ipv4']['address'] | default('') }}"
+    jupyter_nfs_server: "{{ hostvars[groups['nfs_servers'][0]]['ansible_host'] | default(groups['nfs_servers'][0]) }}"
     # Admin user credentials
     jupyterhub_admin_user: "admin"
     jupyterhub_admin_email: "gxbrooks@gmail.com"
@@ -104,7 +107,7 @@
               - ReadWriteOnce
             persistentVolumeReclaimPolicy: Retain
             nfs:
-              server: Lab2.lan
+              server: "{{ jupyter_nfs_server }}"
               path: /srv/nfs/jupyterhub
             mountOptions:
               - nfsvers=4.1
@@ -134,8 +137,8 @@
         -key /tmp/jupyterhub-certs/tls.key
         -out /tmp/jupyterhub-certs/tls.crt
         -days 3650
-        -subj "/C=US/ST=State/L=City/O=Lab/CN=Lab2.lan"
-        -addext "subjectAltName=DNS:Lab2.lan,DNS:*.Lab2.lan,IP:192.168.1.48"
+        -subj "/C=US/ST=State/L=City/O=Lab/CN={{ jupyter_access_host }}"
+        -addext "subjectAltName=DNS:{{ jupyter_access_host }},DNS:*.{{ jupyter_access_host }},IP:{{ jupyter_access_ip }}"
       when: not cert_exists.stat.exists
     
     - name: Set certificate file permissions
@@ -259,7 +262,7 @@
           - "Services:"
           - "{{ svc_details.stdout }}"
           - ""
-          - "Access JupyterHub at: https://Lab2.lan:32443"
+          - "Access JupyterHub at: https://{{ jupyter_access_host }}:32443"
           - "(Self-signed certificate - accept browser warning)"
           - ""
           - "Default Admin User: admin"
@@ -274,7 +277,7 @@
           - "  - Resource limits: 1-2 CPU, 2-4G memory per user"
           - ""
           - "Next Steps:"
-          - "  1. Access https://Lab2.lan:32443"
+          - "  1. Access https://{{ jupyter_access_host }}:32443"
           - "  2. Accept self-signed certificate warning in browser"
           - "  3. Click 'Sign Up' to create admin account"
           - "  4. Login as admin"

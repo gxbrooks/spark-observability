@@ -25,6 +25,10 @@
     env_file: "{{ observability_dir }}/.env"
     env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
     ops_dir: "/home/ansible/ops"
+    kubernetes_api_server_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
+    observability_host_fqdn: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
+    observability_host_short: "{{ (hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0])) | regex_replace('\\..*$', '') }}"
+    observability_host_ip: "{{ hostvars[groups['observability'][0]]['ansible_default_ipv4']['address'] | default('') }}"
     
   tasks:
     - name: Detect host OS
@@ -81,6 +85,18 @@
         dest: "{{ observability_dir }}/certs/"
         delete: false
         recursive: true
+      when: is_linux
+
+    - name: Render observability host placeholders into cert instances config
+      ansible.builtin.replace:
+        path: "{{ observability_dir }}/certs/instances.yml"
+        regexp: "{{ item.pattern }}"
+        replace: "{{ item.value }}"
+      loop:
+        - { pattern: "__OBSERVABILITY_HOST_FQDN__", value: "{{ observability_host_fqdn }}" }
+        - { pattern: "__OBSERVABILITY_HOST_SHORT_UPPER__", value: "{{ observability_host_short }}" }
+        - { pattern: "__OBSERVABILITY_HOST_SHORT_LOWER__", value: "{{ observability_host_short | lower }}" }
+        - { pattern: "__OBSERVABILITY_HOST_IP__", value: "{{ observability_host_ip }}" }
       when: is_linux
       
     - name: Synchronize elasticsearch directory (Linux)
@@ -146,12 +162,20 @@
         recursive: true
       when: is_linux
 
+    - name: Render Kubernetes API server host into Prometheus config
+      ansible.builtin.replace:
+        path: "{{ observability_dir }}/prometheus/prometheus.yml"
+        regexp: "__KUBERNETES_API_SERVER__"
+        replace: "{{ kubernetes_api_server_host }}"
+      when: is_linux
+
     # Kubernetes certs for Prometheus: scrape K8s API/nodes (mount at /etc/ssl/certs/kubernetes in container)
+    # Prometheus container runs as non-root (nobody); 0750 ansible-owned dir is not traversable → TLS mount permission denied.
     - name: Create k8s-certs directory on observability host (Linux)
       file:
         path: "{{ observability_dir }}/k8s-certs"
         state: directory
-        mode: '0750'
+        mode: '0755'
       when: is_linux
 
     - name: Fetch Kubernetes CA from master

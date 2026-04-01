@@ -35,7 +35,7 @@ resolve_host() {
 resolve_host "${SPARK_MASTER_HOST:-}" "SPARK_MASTER_HOST"
 resolve_host "${SPARK_DRIVER_HOST:-}" "SPARK_DRIVER_HOST"
 
-hdfs_host="$(echo "${HDFS_DEFAULT_FS_CLIENT:-hdfs://Lab2.lan:30900}" | sed -E 's#hdfs://([^:/]+):?([0-9]+)?.*#\1#')"
+hdfs_host="$(echo "${HDFS_DEFAULT_FS_CLIENT}" | sed -E 's#hdfs://([^:/]+):?([0-9]+)?.*#\1#')"
 resolve_host "${hdfs_host}" "HDFS_DEFAULT_FS_CLIENT host"
 
 [[ "${fail}" -eq 0 ]]

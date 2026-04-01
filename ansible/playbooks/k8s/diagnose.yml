@@ -481,8 +481,13 @@
       changed_when: false
       when: inventory_hostname == groups['kubernetes_master'][0]
 
+    - name: Derive local registry endpoint from observability inventory host
+      set_fact:
+        spark_registry_endpoint: "{{ (hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0])) | lower }}:5000"
+      when: inventory_hostname == groups['kubernetes_master'][0]
+
     - name: Check local container registry reachability
-      shell: curl -s --max-time 5 http://lab2.lan:5000/v2/ && echo "REACHABLE" || echo "UNREACHABLE"
+      shell: curl -s --max-time 5 "http://{{ spark_registry_endpoint }}/v2/" && echo "REACHABLE" || echo "UNREACHABLE"
       register: registry_status
       failed_when: false
       changed_when: false
@@ -499,7 +504,7 @@
           imagePullPolicy per deployment (should be IfNotPresent for local registry):
           {{ spark_pull_policies.stdout | default('N/A') }}
 
-          Local registry lab2.lan:5000: {{ registry_status.stdout | default('N/A') }}
+          Local registry {{ spark_registry_endpoint | default('N/A') }}: {{ registry_status.stdout | default('N/A') }}
       when: inventory_hostname == groups['kubernetes_master'][0]
 
     - name: WARN - Spark pods older than 30 days with hostPath volumes
@@ -524,7 +529,7 @@
       debug:
         msg: |
           ⚠️  WARNING: imagePullPolicy: Always is set on Spark deployments but the local
-          registry lab2.lan:5000 is UNREACHABLE. Any new or restarted pod will fail
+          registry {{ spark_registry_endpoint }} is UNREACHABLE. Any new or restarted pod will fail
           with ErrImagePull even though the image is already present on the node.
 
           Fix — patch all Spark deployments to IfNotPresent:

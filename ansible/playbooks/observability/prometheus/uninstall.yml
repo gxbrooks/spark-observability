@@ -61,42 +61,16 @@
   hosts: kubernetes_master
   become: false
   gather_facts: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
   vars:
     remove_monitoring_namespace: false
     k8s_monitoring_dir: "/tmp/spark-observability-k8s-monitoring"
     manifests_src: "{{ playbook_dir }}/../../../../k8s/monitoring"
 
   tasks:
-    - name: Check kubectl is available
-      command: kubectl version --client --output=yaml
-      register: kubectl_check
-      changed_when: false
-      failed_when: kubectl_check.rc != 0
-
-    - name: Remove node-exporter DaemonSet and Service
-      shell: |
-        kubectl delete daemonset node-exporter -n monitoring --ignore-not-found=true
-        kubectl delete service node-exporter -n monitoring --ignore-not-found=true
-      register: ne_delete
-      changed_when: "'deleted' in ne_delete.stdout"
-      failed_when: false
-
-    - name: Remove kube-state-metrics Deployment and Service
-      shell: |
-        kubectl delete deployment kube-state-metrics -n kube-system --ignore-not-found=true
-        kubectl delete service kube-state-metrics -n kube-system --ignore-not-found=true
-      register: ksm_delete
-      changed_when: "'deleted' in ksm_delete.stdout"
-      failed_when: false
-
-    - name: Remove kube-state-metrics RBAC
-      shell: |
-        kubectl delete clusterrolebinding kube-state-metrics --ignore-not-found=true
-        kubectl delete clusterrole kube-state-metrics --ignore-not-found=true
-        kubectl delete serviceaccount kube-state-metrics -n kube-system --ignore-not-found=true
-      register: ksm_rbac_delete
-      changed_when: "'deleted' in ksm_rbac_delete.stdout"
-      failed_when: false
+    - name: Remove cluster-side Prometheus exporters
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/remove_cluster_exporters.yml"
 
     - name: Remove monitoring namespace (optional)
       command: kubectl delete namespace monitoring --ignore-not-found=true
@@ -106,14 +80,10 @@
       failed_when: false
 
     - name: Display uninstall summary
-      debug:
+      ansible.builtin.debug:
         msg: |
-          Prometheus K8s Exporters Removed
-          =================================
-          node-exporter:      {{ ne_delete.stdout | default('removed') | trim }}
-          kube-state-metrics: {{ ksm_delete.stdout | default('removed') | trim }}
-          RBAC:               {{ ksm_rbac_delete.stdout | default('removed') | trim }}
-          monitoring ns:      {{ 'removed' if (remove_monitoring_namespace | bool) else 'preserved (pass -e remove_monitoring_namespace=true to remove)' }}
+          Prometheus K8s exporters removal finished (see task output above).
+          monitoring ns: {{ 'removed' if (remove_monitoring_namespace | bool) else 'preserved (pass -e remove_monitoring_namespace=true to remove)' }}
 
           To redeploy:
             ansible-playbook -i ansible/inventory.yml \

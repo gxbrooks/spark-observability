@@ -16,7 +16,8 @@
   vars:
     k8s_namespace: "spark"
     logstash_obs_host: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
-    spark_diagnose_run_smoke_test: "{{ spark_diagnose_run_smoke_test | default(true) }}"
+    # Default true; override with -e spark_diagnose_run_smoke_test=false (do not self-reference in Jinja — recursion).
+    spark_diagnose_run_smoke_test: true
   
   tasks:
     - name: Display diagnostic header
@@ -158,22 +159,7 @@
         set -euo pipefail
         cd "{{ playbook_dir | dirname | dirname | dirname }}"
         source vars/contexts/spark_client_env.sh
-        ./venv/bin/python3 - <<'PY'
-from pyspark.sql import SparkSession
-import os
-builder = SparkSession.builder.appName("spark-diagnose-smoke")
-master = os.environ.get("SPARK_MASTER_URL") or os.environ.get("SPARK_MASTER")
-if master:
-    builder = builder.master(master)
-driver = os.environ.get("SPARK_DRIVER_HOST")
-if driver:
-    builder = builder.config("spark.driver.host", driver)
-spark = builder.getOrCreate()
-spark.sparkContext.setLogLevel("ERROR")
-count = spark.range(1000).count()
-print(f"SMOKE_COUNT={count}")
-spark.stop()
-PY
+        exec ./venv/bin/python3 "{{ playbook_dir }}/files/spark_diagnose_smoke.py"
       args:
         executable: /bin/bash
       register: spark_smoke
@@ -190,7 +176,9 @@ PY
   hosts: linux
   become: true
   gather_facts: true
-  
+  vars:
+    logstash_obs_host: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
+
   tasks:
     - name: Display telemetry diagnostic header
       debug:
@@ -350,14 +338,14 @@ PY
           {% endif %}
           
           Logstash Connectivity:
-          {{ '✅ REACHABLE' if logstash_connectivity.stdout == 'REACHABLE' else '❌ NOT REACHABLE' }}
+          {{ '✅ REACHABLE' if (logstash_connectivity.stdout | default('')) == 'REACHABLE' else '❌ NOT REACHABLE' }}
           
-          {% if agent_status.stdout %}
+          {% if agent_status.stdout is defined and agent_status.stdout %}
           Elastic Agent Status:
-          {{ agent_status.stdout_lines[0:5] | join('\n') }}
+          {{ (agent_status.stdout_lines | default([]))[0:5] | join('\n') }}
           {% endif %}
           
-          {% if agent_logs.stdout and agent_logs.stdout != 'No relevant logs found' %}
+          {% if agent_logs.stdout is defined and agent_logs.stdout and agent_logs.stdout != 'No relevant logs found' %}
           Recent Errors/Warnings:
           {{ agent_logs.stdout }}
           {% else %}
@@ -365,16 +353,16 @@ PY
           {% endif %}
           
           Elastic Agent Configuration:
-          {% if spark_events_config.stdout %}
+          {% if spark_events_config.stdout is defined and spark_events_config.stdout %}
           - spark-events input: ✅ CONFIGURED
-          {{ spark_events_config.stdout_lines[0:5] | join('\n') }}
+          {{ (spark_events_config.stdout_lines | default([]))[0:5] | join('\n') }}
           {% else %}
           - spark-events input: ❌ NOT FOUND
           {% endif %}
           
-          {% if spark_app_logs_config.stdout %}
+          {% if spark_app_logs_config.stdout is defined and spark_app_logs_config.stdout %}
           - spark-app-logs input: ✅ CONFIGURED
-          {{ spark_app_logs_config.stdout_lines[0:5] | join('\n') }}
+          {{ (spark_app_logs_config.stdout_lines | default([]))[0:5] | join('\n') }}
           {% else %}
           - spark-app-logs input: ❌ NOT FOUND
           {% endif %}
@@ -391,7 +379,7 @@ PY
           - Log directory: {{ '✅ EXISTS' if logs_dir.stat.exists else '❌ MISSING' }}
           - Event files: {{ event_file_count.stdout | default('0') }}
           - Log files: {{ log_file_count.stdout | default('0') }}
-          - Logstash: {{ '✅ REACHABLE' if logstash_connectivity.stdout == 'REACHABLE' else '❌ NOT REACHABLE' }}
+          - Logstash: {{ '✅ REACHABLE' if (logstash_connectivity.stdout | default('')) == 'REACHABLE' else '❌ NOT REACHABLE' }}
           
           Check the results above for any issues.
 

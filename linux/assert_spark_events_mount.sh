@@ -8,7 +8,7 @@
 #   - Spark History Server to read event logs
 #   - Elastic Agent to collect event logs
 #
-# The NFS share is hosted on Lab2 at /srv/nfs/spark/events
+# The NFS share host comes from vars/variables.yaml -> NFS_SERVER.
 # This script is idempotent and can be run multiple times safely.
 
 # Parse flags
@@ -48,8 +48,11 @@ if [[ -f "$DEVOPS_ENV_FILE" ]]; then
   $DEBUG && echo "Debug   : Loaded devops environment from $DEVOPS_ENV_FILE"
 fi
 
-# Default NFS server — must match vars/variables.yaml (devops_env.sh exports NFS_SERVER when regenerated)
-NFS_SERVER="${NFS_SERVER:-Lab3.lan}"
+# NFS server must come from vars/variables.yaml (devops_env.sh exports NFS_SERVER)
+if [[ -z "${NFS_SERVER:-}" ]]; then
+  echo "Error   : NFS_SERVER is not set. Regenerate and source vars/contexts/devops_env.sh" >&2
+  exit 1
+fi
 NFS_EXPORT_EVENTS="/srv/nfs/spark/events"
 MOUNT_POINT="/mnt/spark/events"
 # Use NFSv4 explicitly. Legacy "showmount -e" talks to rpc.mountd; if mountd is not

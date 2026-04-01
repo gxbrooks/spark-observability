@@ -1,18 +1,51 @@
 ---
-# stop_k8s.yml - Stops Kubernetes services
+# Stop Kubernetes node runtimes (kubelet + containerd) so all pods on the node stop.
+# Workers are stopped before the control-plane node so the API remains available for
+# graceful workload teardown playbooks that run earlier in playbooks/stop.yml.
+#
+# After this play, static pods (kube-apiserver, etcd, etc.) on the master also stop.
+# Expect kubectl from remote clients to fail until k8s/start.yml is run.
 
-- name: Stop Kubernetes services
-  hosts: spark_kubernetes:&linux
+- name: Stop Kubernetes workers (kubelet and containerd)
+  hosts: kubernetes_workers:&linux
   become: true
+  gather_facts: false
   tasks:
-    - name: Stop kubelet service
-      systemd:
+    - name: Stop kubelet
+      ansible.builtin.systemd:
         name: kubelet
         state: stopped
-      ignore_errors: yes
-      
-    - name: Stop containerd service
-      systemd:
+      failed_when: false
+
+    # Let pods and containerd-shims unwind before stopping the runtime; reduces
+    # "left-over containerd-shim in control group" on the next containerd start.
+    - name: Brief pause after kubelet stop before stopping containerd
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Stop containerd
+      ansible.builtin.systemd:
         name: containerd
         state: stopped
-      ignore_errors: yes
+      failed_when: false
+
+- name: Stop Kubernetes control plane node (kubelet and containerd)
+  hosts: kubernetes_master:&linux
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Stop kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: stopped
+      failed_when: false
+
+    - name: Brief pause after kubelet stop before stopping containerd
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Stop containerd
+      ansible.builtin.systemd:
+        name: containerd
+        state: stopped
+      failed_when: false

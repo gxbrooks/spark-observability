@@ -1,0 +1,43 @@
+---
+# Remove node-exporter and kube-state-metrics from the cluster (idempotent).
+# Included from prometheus/uninstall.yml and top-level playbooks/stop.yml.
+# Requires: kubectl on target host, valid kubeconfig, reachable API server.
+
+- name: Check kubectl is available
+  ansible.builtin.command: kubectl version --client --output=yaml
+  register: kubectl_check
+  changed_when: false
+  failed_when: kubectl_check.rc != 0
+
+- name: Remove node-exporter DaemonSet and Service
+  ansible.builtin.shell: |
+    kubectl delete daemonset node-exporter -n monitoring --ignore-not-found=true
+    kubectl delete service node-exporter -n monitoring --ignore-not-found=true
+  register: ne_delete
+  changed_when: "'deleted' in ne_delete.stdout"
+  failed_when: false
+
+- name: Remove kube-state-metrics Deployment and Service
+  ansible.builtin.shell: |
+    kubectl delete deployment kube-state-metrics -n kube-system --ignore-not-found=true
+    kubectl delete service kube-state-metrics -n kube-system --ignore-not-found=true
+  register: ksm_delete
+  changed_when: "'deleted' in ksm_delete.stdout"
+  failed_when: false
+
+- name: Remove kube-state-metrics RBAC
+  ansible.builtin.shell: |
+    kubectl delete clusterrolebinding kube-state-metrics --ignore-not-found=true
+    kubectl delete clusterrole kube-state-metrics --ignore-not-found=true
+    kubectl delete serviceaccount kube-state-metrics -n kube-system --ignore-not-found=true
+  register: ksm_rbac_delete
+  changed_when: "'deleted' in ksm_rbac_delete.stdout"
+  failed_when: false
+
+- name: Display cluster exporter removal summary
+  ansible.builtin.debug:
+    msg: |
+      K8s monitoring exporters (cluster-side):
+      - node-exporter: {{ ne_delete.stdout | default('') | trim }}
+      - kube-state-metrics: {{ ksm_delete.stdout | default('') | trim }}
+      - RBAC: {{ ksm_rbac_delete.stdout | default('') | trim }}

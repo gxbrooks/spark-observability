@@ -1,6 +1,19 @@
 ---
-# Global stop playbook - shuts down all components in reverse order
+# Global stop playbook — shuts down all Spark Observability stack layers in safe order.
 # Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/stop.yml
+#
+# Order (reverse of start.yml where applicable):
+#   1. JupyterHub (scale down in spark namespace)
+#   2. Spark workloads (spark namespace)
+#   3. HDFS (hdfs namespace — scale to zero)
+#   4. K8s monitoring exporters (node-exporter, kube-state-metrics)
+#   5. Elastic Agent (all linux hosts)
+#   6. Observability Docker Compose (Lab3)
+#   7. Docker engine on observability host
+#   8. Kubernetes (workers first, then master — kubelet + containerd)
+#   9. NFS server
+#
+# Prerequisite: kubectl on kubernetes_master must work until step 8.
 
 - name: Display shutdown banner
   hosts: localhost
@@ -8,63 +21,78 @@
   gather_facts: false
   tasks:
     - name: Display shutdown information
-      debug:
+      ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform - Shutdown
-          ================================================
-          
-          This playbook will stop components in reverse order:
-          1. Spark on Kubernetes (master, workers, history)
-          2. Observability Platform (Lab3)
-          3. Kubernetes Cluster
-          4. NFS server (nfs_servers host, e.g. Lab3)
-          
-          Note: Docker and Elastic Agent will remain running
-          
+          Spark Observability Platform — full stack shutdown
           ================================================
 
-# Step 1: Stop JupyterHub (deferred to Spark 4.0)
-# - import_playbook: jupyter/stop_jupyter.yml
+          This playbook stops all layers in order:
+            1. JupyterHub (spark namespace)
+            2. Spark (spark namespace)
+            3. HDFS / Hadoop (hdfs namespace)
+            4. Cluster monitoring exporters (monitoring + kube-state-metrics)
+            5. Elastic Agent (linux hosts)
+            6. Observability stack (docker compose down on observability host)
+            7. Docker service on observability host
+            8. Kubernetes (kubelet + containerd; workers then control plane)
+            9. NFS server
 
-# Step 2: Stop Spark
+          After completion, expect no user workloads on the cluster and no
+          observability containers until you run playbooks/start.yml.
+
+          ================================================
+
+- import_playbook: jupyter/stop_jupyter.yml
+
 - import_playbook: spark/stop.yml
 
-# Step 3: Stop Observability Platform
+- import_playbook: k8s/hadoop/stop_hadoop.yml
+
+- name: Remove K8s Prometheus exporters from cluster
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  tasks:
+    - name: Remove node-exporter and kube-state-metrics
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/observability/prometheus/tasks/remove_cluster_exporters.yml"
+
+- import_playbook: elastic-agent/stop.yml
+
 - import_playbook: observability/stop.yml
 
-# Step 4: Stop Kubernetes
+- import_playbook: docker/stop.yml
+
 - import_playbook: k8s/stop.yml
 
-# Step 5: Stop NFS
 - import_playbook: nfs/stop.yml
 
-# Step 6: Display completion status
 - name: Display shutdown completion status
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
     - name: Display completion message
-      debug:
+      ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform - Shutdown Complete
-          ================================================
-          
-          All services have been stopped:
-          ✓ JupyterHub stopped
-          ✓ Spark components stopped
-          ✓ Observability platform stopped
-          ✓ Kubernetes cluster stopped
-          ✓ NFS server stopped (on nfs_servers host)
-          
-          Services still running:
-          - Docker (use docker/stop.yml to stop if needed)
-          - Elastic Agent (use elastic-agent/stop.yml to manage)
-          
-          To restart all services:
-            cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
-          
+          Spark Observability Platform — shutdown complete
           ================================================
 
+          Stopped:
+            - JupyterHub (scaled down; deployment may still exist)
+            - Spark workloads in namespace spark
+            - HDFS (scaled to zero in namespace hdfs)
+            - Cluster monitoring exporters (node-exporter, kube-state-metrics)
+            - Elastic Agent
+            - Observability Docker Compose stack
+            - Docker on observability host
+            - Kubernetes kubelet and containerd (workers, then master)
+            - NFS server
+
+          To bring the stack back:
+            cd ansible && ansible-playbook -i inventory.yml playbooks/start.yml
+
+          ================================================

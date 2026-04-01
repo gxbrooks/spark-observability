@@ -267,6 +267,11 @@ SPARK_MASTER_PORT:
     spark-client: 31686
     ansible: 31686
 
+SPARK_REGISTRY_HOST:
+  value: Lab3.lan:5000
+  # elastic-agent-ansible uses write_ansible_vars (same as ansible); registry must be in merged context
+  contexts: [ansible, devops, elastic-agent-ansible]
+
 # Spark master URL: in-cluster for ConfigMap; NodePort URL for external clients (PySpark on LAN)
 SPARK_MASTER:
   contexts: [spark-runtime, spark-client]

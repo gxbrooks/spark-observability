@@ -3,8 +3,8 @@
 # All version-related variables should come from spark_vars.yml
 # These are only fallback definitions for variables not in spark_vars.yml
 
-# Note: registry_host, spark_image, and spark_tag are normally defined in spark_vars.yml
-# but we provide defaults here just in case
-registry_host: "lab3.lan:5000"
+# Note: registry_host, spark_image, and spark_tag are defined in generated spark_vars.yml.
+# Keep this role default empty so inventory/context variables remain the single source.
+registry_host: ""
 k8s_config_dir: "{{ ansible_env.HOME }}/spark/k8s"
 kubeconfig: "{{ ansible_env.HOME }}/.kube/config"

@@ -51,9 +51,16 @@
             ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml
       when: inventory_hostname != observability_host
     
+    # Native booleans — templated "True"/"False" strings break strict `when:` conditionals (Ansible 2.14+).
     - name: Detect host OS
-      set_fact:
-        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
+      ansible.builtin.set_fact:
+        is_linux: true
+      when: ansible_os_family in ['Debian', 'RedHat']
+
+    - name: Detect host OS (non-Debian/RedHat)
+      ansible.builtin.set_fact:
+        is_linux: false
+      when: ansible_os_family not in ['Debian', 'RedHat']
         
     - name: Check if observability directory exists
       stat:
@@ -160,13 +167,31 @@
       changed_when: false
       failed_when: false
       when: is_linux
-      
+
+    # Strict Ansible conditionals: avoid `when: ... and 'X' in string` (non-boolean in 2.14+).
+    - name: Record CA present in Docker volume
+      ansible.builtin.set_fact:
+        ca_present_in_volume: true
+      when:
+        - is_linux
+        - (ca_cert_check.stdout | default('')) is search("EXISTS")
+
+    - name: Record CA absent in Docker volume
+      ansible.builtin.set_fact:
+        ca_present_in_volume: false
+      when:
+        - is_linux
+        - (ca_cert_check.stdout | default('')) is not search("EXISTS")
+
     - name: List volume contents when CA not found (debug)
       shell: docker run --rm -v observability_certs:/certs:ro alpine ls -la /certs/ 2>/dev/null || true
       register: cert_volume_list
       changed_when: false
-      when: is_linux and "'EXISTS' not in (ca_cert_check.stdout | default(''))"
-      
+      when:
+        - is_linux
+        - ca_present_in_volume is defined
+        - not ca_present_in_volume
+
     - name: Warn if CA certificate not found (continue to start services)
       debug:
         msg: |
@@ -174,10 +199,11 @@
           Volume contents: {{ cert_volume_list.stdout_lines | default([]) }}
           Check init-certs logs: cd {{ observability_dir }} && docker compose logs init-certs
           Continuing to start services...
-      when: 
+      when:
         - is_linux
-        - "'EXISTS' not in (ca_cert_check.stdout | default(''))"
-      
+        - ca_present_in_volume is defined
+        - not ca_present_in_volume
+
     - name: Validate CA certificate integrity (from container)
       shell: |
         docker run --rm -v observability_certs:/certs:ro alpine sh -c '
@@ -194,18 +220,30 @@
       register: ca_cert_validation
       changed_when: false
       failed_when: false  # Do not block start if Alpine openssl disagrees with cert format
-      when: is_linux and "'EXISTS' in (ca_cert_check.stdout | default(''))"
-      
+      when:
+        - is_linux
+        - ca_present_in_volume | default(false)
+
     - name: Display CA certificate details
       debug:
         msg: "{{ ca_cert_validation.stdout_lines | default([]) }}"
-      when: is_linux and ca_cert_validation is defined and ca_cert_validation.stdout_lines is defined and (ca_cert_validation.stdout_lines | default([]) | join('') | length > 0) and 'INVALID' not in (ca_cert_validation.stdout | default(''))
-      
+      when:
+        - is_linux
+        - ca_present_in_volume | default(false)
+        - ca_cert_validation is defined
+        - ca_cert_validation.stdout_lines is defined
+        - (ca_cert_validation.stdout_lines | default([]) | join('') | length) > 0
+        - (ca_cert_validation.stdout | default('')) is not search("INVALID")
+
     - name: Warn if CA validation reported INVALID
       debug:
         msg: "CA cert file exists but openssl validation reported INVALID (non-fatal). Services will still start."
-      when: is_linux and ca_cert_validation is defined and 'INVALID' in (ca_cert_validation.stdout | default(''))
-      
+      when:
+        - is_linux
+        - ca_present_in_volume | default(false)
+        - ca_cert_validation is defined
+        - (ca_cert_validation.stdout | default('')) is search("INVALID")
+
     # =====================================================================
     # STEP 2.5: Reminder for Service Restarts (Pull-Based Model)
     # Services fetch certificates from standard location on install/start.

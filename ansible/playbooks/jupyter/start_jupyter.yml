@@ -6,6 +6,7 @@
   become: false
   vars:
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    jupyter_access_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
   
   tasks:
     - name: Check if JupyterHub deployment exists
@@ -51,6 +52,6 @@
           - "========================================"
           - "{{ pod_status.stdout }}"
           - ""
-          - "Access at: http://Lab2.lan:32080"
+          - "Access at: http://{{ jupyter_access_host }}:32080"
           - "========================================"
 

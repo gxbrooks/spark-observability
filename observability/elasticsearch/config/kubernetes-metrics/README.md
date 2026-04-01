@@ -31,7 +31,8 @@ Each document contains **one metric** — the field key is the Prometheus metric
 | Field | Label | Description |
 |-------|-------|-------------|
 | `@timestamp` | Timestamp | When the metric was scraped |
-| `service.name` | Job (Prometheus) | Prometheus scrape job (`kubernetes-apiservers`, `kubernetes-nodes`, `kubernetes-cadvisor`, `prometheus`, etc.) |
+| `service.name` | Job (Prometheus) | Prometheus scrape job (`kubernetes-apiservers`, `kubernetes-nodes`, `kubernetes-cadvisor`, `kube-state-metrics`, `prometheus`, etc.) |
+| `scrape_job` | Job (Prometheus) | Copy of `service.name` added by the OTel Collector for Grafana/Lucene parity; use for filters alongside dashboards |
 | `service.node.name` | Instance | Prometheus target endpoint |
 | `cluster` | Cluster | Cluster name (`spark-cluster`) |
 | `environment` | Environment | Environment label (`production`) |
@@ -58,16 +59,67 @@ Each document contains **one metric** — the field key is the Prometheus metric
 
 ## Querying in Discover
 
-To filter by job type, use KQL:
+Use the **Kubernetes Metrics** data view (index pattern `metrics-kubernetes-*`). Widen the time range if you see no documents.
+
+### KQL (default in Discover)
+
+**Always quote values that contain hyphens** (e.g. job names). Otherwise KQL can parse `-` as syntax, not as part of the string, and the query matches nothing.
+
+Filter by Prometheus job / kube-state-metrics (same meaning as Grafana’s `scrape_job`):
+
 ```
-service.name : "kubernetes-apiservers"
-service.name : "kubernetes-nodes"
-service.name : "kubernetes-cadvisor"
-service.name : "prometheus"
+scrape_job: "kube-state-metrics"
 ```
 
-To see a specific metric, add it as a column in Discover or filter by its field name:
+or (ECS `service` object — also use quotes):
+
+```
+service.name: "kube-state-metrics"
+```
+
+Other jobs:
+
+```
+service.name: "kubernetes-apiservers"
+service.name: "kubernetes-nodes"
+service.name: "kubernetes-cadvisor"
+service.name: "prometheus"
+```
+
+To narrow to **kube-state-metrics pod / phase** style metrics, filter on a **concrete metric field** (there is no `kube_pod_*` field-name wildcard in KQL/Lucene):
+
+```
+scrape_job: "kube-state-metrics" and kube_pod_status_phase: *
+```
+
+Restart counters:
+
+```
+scrape_job: "kube-state-metrics" and kube_pod_container_status_restarts_total: *
+```
+
+To see a specific metric, add it as a column or use a numeric filter:
+
 ```
 apiserver_request_total > 0
 container_cpu_usage_seconds_total > 0
 ```
+
+### Lucene (Discover: toggle language)
+
+Use Lucene when you need `_index`, `_exists_`, or other classic query-string features. Examples:
+
+```
+_index:.ds-metrics-kubernetes-default* AND scrape_job:"kube-state-metrics"
+```
+
+```
+scrape_job:"kube-state-metrics" AND _exists_:kube_pod_status_phase
+```
+
+### If you still see “no results”
+
+1. **Data view** — Confirm you are on `metrics-kubernetes-*`, not logs-only views.
+2. **Time range** — Metrics are continuous; a too-narrow window can look empty if ingestion paused.
+3. **KQL vs Lucene** — `_index` and `_exists_` are not KQL; switch to Lucene for those.
+4. **Hyphens** — In KQL, use `scrape_job: "kube-state-metrics"` (quoted), not `scrape_job:kube-state-metrics`.

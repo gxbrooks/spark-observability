@@ -28,6 +28,33 @@ processors:
         from_attribute: namespace
         action: insert
 
+  # cAdvisor uses label "id" (cgroup path). Top-level "id" in ECS docs can confuse ES/Grafana; use a dedicated field.
+  attributes/cadvisor_rename_id:
+    actions:
+      - key: container_cgroup_path
+        from_attribute: id
+        action: insert
+      - key: id
+        action: delete
+
+  # PRW maps Prometheus "job" to resource service.name; ECS metrics flatten datapoint attrs only.
+  # Copy to scrape_job so Grafana/Lucene can filter scrape_job.keyword:kubernetes-cadvisor (pre-Lab3 shape).
+  transform/k8s_prom_job:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["scrape_job"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+
+  # elasticsearchexporter v0.145+ ignores exporters.*.mapping.mode; default is OTel (nested metrics.* / bulk 400s).
+  # ECS mode = flat Prometheus metric names + numeric values (matches Grafana k8s-namespace dashboard).
+  transform/force_ecs_es_mapping:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(attributes["elastic.mapping.mode"], "ecs")
+
   memory_limiter:
     check_interval: 1s
     limit_mib: 512
@@ -45,20 +72,28 @@ processors:
           - set(resource.attributes["operation.type"], Split(attributes["span.kind"], ".")[1]) where attributes["span.kind"] != nil
 
 exporters:
-  # Elasticsearch exporter using data streams
-  # When using ECS mapping mode, the exporter automatically uses data streams
-  # Default data stream name: traces-apm-default
-  # Template pattern changed to "traces-apm-*" to match exporter default
-  # Do NOT use traces_index - it forces index API instead of data stream API
-  elasticsearch:
+  # Traces: ECS mapping matches APM-style traces and existing dashboards.
+  # PRW K8s metrics: force ECS via scope attribute elastic.mapping.mode (exporter ignores YAML mapping.mode ≥0.145).
+  elasticsearch/traces:
     endpoints:
       - https://es01:9200
     user: elastic
     password: ${ES_PASSWORD}
     traces_index: traces-otel-default
-    metrics_index: metrics-kubernetes-default
     mapping:
       mode: ecs
+    tls:
+      ca_file: /etc/ssl/certs/elastic/ca.crt
+      insecure_skip_verify: false
+
+  elasticsearch/metrics:
+    endpoints:
+      - https://es01:9200
+    user: elastic
+    password: ${ES_PASSWORD}
+    metrics_index: metrics-kubernetes-default
+    mapping:
+      mode: ecs # ignored by exporter ≥0.145; kept for documentation only
     tls:
       ca_file: /etc/ssl/certs/elastic/ca.crt
       insecure_skip_verify: false
@@ -86,12 +121,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, transform, batch]
-      exporters: [elasticsearch, otlp/tempo, debug]
+      exporters: [elasticsearch/traces, otlp/tempo, debug]
       
     metrics:
       receivers: [otlp, prometheusremotewrite]
-      processors: [memory_limiter, attributes/k8s_prom_ns, batch]
-      exporters: [elasticsearch, debug]
+      processors: [memory_limiter, attributes/k8s_prom_ns, attributes/cadvisor_rename_id, transform/k8s_prom_job, transform/force_ecs_es_mapping, batch]
+      exporters: [elasticsearch/metrics, debug]
   
   telemetry:
     logs:

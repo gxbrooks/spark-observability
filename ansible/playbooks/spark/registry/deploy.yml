@@ -1,6 +1,6 @@
 ---
 # Deploy containerd registry client configuration on Kubernetes nodes so kubelet can
-# pull from a plain-HTTP image registry (e.g. lab3.lan:5000 for Spark images).
+# pull from a plain-HTTP image registry (host:port from vars/inventory).
 #
 # Verb: deploy (per standards/automation.md).
 #
@@ -10,7 +10,7 @@
 #
 # Extra vars:
 #   spark_registry_connection — unsecure (default) | secure
-#   spark_registry_host — host:port (default lab3.lan:5000)
+#   spark_registry_host — host:port (defaults from generated spark_ansible_vars.yml)
 
 - name: Deploy Spark image registry client config on Kubernetes nodes
   hosts: "kubernetes_master:kubernetes_workers"
@@ -18,8 +18,14 @@
   gather_facts: false
   vars:
     _registry_connection: "{{ spark_registry_connection | default('unsecure') }}"
-    registry_host: "{{ spark_registry_host | default('lab3.lan:5000') }}"
+    _registry_host: "{{ spark_registry_host | default(registry_host | default('')) }}"
   tasks:
+    - name: Validate registry host is provided via variables or inventory
+      ansible.builtin.assert:
+        that:
+          - _registry_host | length > 0
+        fail_msg: "Registry host is not set. Define SPARK_REGISTRY_HOST in vars/variables.yaml and regenerate contexts."
+
     - name: Fail when secure registry deploy is requested (not implemented yet)
       ansible.builtin.fail:
         msg: >
@@ -30,7 +36,7 @@
 
     - name: Derive registry directory name for certs.d
       ansible.builtin.set_fact:
-        registry_certs_dir: "/etc/containerd/certs.d/{{ registry_host }}"
+        registry_certs_dir: "/etc/containerd/certs.d/{{ _registry_host }}"
 
     - name: Ensure containerd certs.d directory exists
       ansible.builtin.file:
@@ -44,9 +50,9 @@
         dest: "{{ registry_certs_dir }}/hosts.toml"
         mode: "0644"
         content: |
-          server = "http://{{ registry_host }}"
+          server = "http://{{ _registry_host }}"
 
-          [host."http://{{ registry_host }}"]
+          [host."http://{{ _registry_host }}"]
             capabilities = ["pull", "resolve", "push"]
             skip_verify = true
       when: _registry_connection | lower == 'unsecure'

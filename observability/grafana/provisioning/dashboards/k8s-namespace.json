@@ -55,10 +55,10 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_cpu_usage_seconds_total AND cpu.keyword:total",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_cpu_usage_seconds_total AND cpu.keyword:total",
           "alias": "{{term kubernetes.namespace}}",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
+            { "id": "1", "type": "max", "field": "container_cpu_usage_seconds_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
             { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? (params._value > 100 ? 100 : params._value) : null" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" } ] }
           ],
@@ -101,10 +101,10 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_memory_working_set_bytes",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_memory_working_set_bytes",
           "alias": "{{term kubernetes.namespace}}",
           "metrics": [
-            { "id": "1", "type": "sum", "field": "value" }
+            { "id": "1", "type": "sum", "field": "container_memory_working_set_bytes" }
           ],
           "bucketAggs": [
             { "id": "2", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
@@ -147,10 +147,10 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kube-state-metrics AND prometheus.metric.name:kube_pod_status_phase AND phase.keyword:Running",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kube-state-metrics AND _exists_:kube_pod_status_phase AND phase:Running",
           "alias": "{{term kubernetes.namespace}}",
           "metrics": [
-            { "id": "1", "type": "sum", "field": "value", "hide": true },
+            { "id": "1", "type": "sum", "field": "kube_pod_status_phase", "hide": true },
             { "id": "2", "type": "cardinality", "field": "@timestamp", "hide": true },
             { "id": "3", "type": "bucket_script", "pipelineAgg": "1", "settings": { "script": "params._sum != null && params._card != null && params._card > 0 ? params._sum / params._card : params._sum" }, "pipelineVariables": [ { "name": "_sum", "pipelineAgg": "1" }, { "name": "_card", "pipelineAgg": "2" } ] }
           ],
@@ -167,7 +167,7 @@
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-      "description": "Rate of container restarts per namespace. Each restart indicates a crash, OOM kill, or liveness probe failure. A non-zero rate is the strongest error signal in Kubernetes. Source: kube-state-metrics `kube_pod_container_status_restarts_total`. SRE signal: Errors.",
+      "description": "Rate of container restarts per namespace (derivative of the sum of per-container restart counters). Using sum avoids missing restarts on pods that are not the namespace max. Source: kube-state-metrics `kube_pod_container_status_restarts_total`. SRE signal: Errors.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -200,15 +200,16 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kube-state-metrics AND prometheus.metric.name:kube_pod_container_status_restarts_total",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kube-state-metrics AND _exists_:kube_pod_container_status_restarts_total",
           "alias": "{{term kubernetes.namespace}}",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
-            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" } }
+            { "id": "1", "type": "sum", "field": "kube_pod_container_status_restarts_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._d != null ? params._d : 0" }, "pipelineVariables": [ { "name": "_d", "pipelineAgg": "2" } ] }
           ],
           "bucketAggs": [
-            { "id": "3", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
-            { "id": "4", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+            { "id": "4", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
           ],
           "refId": "A",
           "timeField": "@timestamp"
@@ -252,10 +253,10 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_network_receive_bytes_total AND interface.keyword:eth0",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_network_receive_bytes_total AND interface.keyword:eth0",
           "alias": "{{term kubernetes.namespace}} In",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
+            { "id": "1", "type": "max", "field": "container_network_receive_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
             { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
@@ -268,10 +269,10 @@
         },
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_network_transmit_bytes_total AND interface.keyword:eth0",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_network_transmit_bytes_total AND interface.keyword:eth0",
           "alias": "{{term kubernetes.namespace}} Out",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
+            { "id": "1", "type": "max", "field": "container_network_transmit_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
             { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
@@ -288,7 +289,7 @@
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-      "description": "Rate of network packets dropped on receive per namespace. SRE signal: Errors.",
+      "description": "Rate of network packets dropped on receive per namespace (derivative of sum of per-series drop counters on eth0). Sum aggregates all pods; zeros are normal when healthy. SRE signal: Errors.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -305,15 +306,16 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_network_receive_packets_dropped_total AND interface.keyword:eth0",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_network_receive_packets_dropped_total AND interface.keyword:eth0",
           "alias": "{{term kubernetes.namespace}} drops",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
-            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" } }
+            { "id": "1", "type": "sum", "field": "container_network_receive_packets_dropped_total", "hide": true },
+            { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._d != null ? params._d : 0" }, "pipelineVariables": [ { "name": "_d", "pipelineAgg": "2" } ] }
           ],
           "bucketAggs": [
-            { "id": "3", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
-            { "id": "4", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+            { "id": "4", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
+            { "id": "5", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
           ],
           "refId": "A",
           "timeField": "@timestamp"
@@ -357,10 +359,10 @@
       "targets": [
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_fs_reads_bytes_total",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_fs_reads_bytes_total",
           "alias": "{{term kubernetes.namespace}} Read",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
+            { "id": "1", "type": "max", "field": "container_fs_reads_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
             { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
@@ -373,10 +375,10 @@
         },
         {
           "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-          "query": "attributes.scrape_job.keyword:kubernetes-cadvisor AND prometheus.metric.name:container_fs_writes_bytes_total",
+          "query": "_index:.ds-metrics-kubernetes-default* AND scrape_job:kubernetes-cadvisor AND _exists_:container_fs_writes_bytes_total",
           "alias": "{{term kubernetes.namespace}} Write",
           "metrics": [
-            { "id": "1", "type": "max", "field": "value", "hide": true },
+            { "id": "1", "type": "max", "field": "container_fs_writes_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
             { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],

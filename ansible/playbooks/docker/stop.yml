@@ -5,6 +5,8 @@
 # This playbook will:
 # 1. Check if Docker is installed
 # 2. Stop Docker service if running
+# 3. Stop docker.socket so nothing can socket-activate dockerd (and containerd)
+#    again until playbooks/docker/start.yml runs.
 
 - name: Stop Docker Service
   hosts: observability
@@ -42,8 +44,19 @@
         name: docker
         state: stopped
       when: docker_bin.stat.exists and docker_status.stdout == "active"
-      
+
+    # Docker CE on Ubuntu enables docker.socket; any client (docker ps, compose,
+    # IDE plugins) connecting to the API triggers systemd to start docker again,
+    # which restarts containerd. Stopping the socket after docker is required
+    # for a stable full-stack stop on hosts that share containerd with Kubernetes.
+    - name: Stop Docker socket (disable socket activation until next start.yml)
+      ansible.builtin.command: systemctl stop docker.socket
+      register: docker_socket_stop
+      changed_when: docker_socket_stop.rc == 0
+      failed_when: false
+      when: docker_bin.stat.exists
+
     - name: Display Docker status
       debug:
-        msg: "Docker service is now stopped."
+        msg: "Docker service and docker.socket are stopped (docker cannot auto-start until start.yml)."
       when: docker_bin.stat.exists

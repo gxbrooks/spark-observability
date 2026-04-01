@@ -6,6 +6,6 @@ metadata:
 data:
   registries.yaml: |
     mirrors:
-      "__REGISTRY_HOST__":
+      "{{ registry_host }}":
         endpoint:
-          - "http://__REGISTRY_HOST__"
+          - "http://{{ registry_host }}"

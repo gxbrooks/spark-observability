@@ -7,7 +7,7 @@
 #
 # Default Spark configurations
 # Workers inside cluster use: spark://spark-master:7077 (internal service)
-# Clients outside cluster use: spark://Lab2.lan:31686 (NodePort)
+# Clients outside cluster use SPARK_MASTER_HOST/SPARK_MASTER_PORT via generated variables.
 spark.master                           spark://spark-master:7077
 spark.eventLog.enabled                 true
 spark.eventLog.dir                     /mnt/spark/events

@@ -14,8 +14,7 @@ import pyspark.sql.types as T
 
 # Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
-# Set Spark local IP to avoid hostname resolution warning
-os.environ['SPARK_LOCAL_IP'] = '192.168.1.48'
+# Use derived SPARK_LOCAL_IP from shell environment; do not hardcode host IPs.
 
 # Create Spark session - configuration comes from spark-defaults.conf
 spark = SparkSession.builder \

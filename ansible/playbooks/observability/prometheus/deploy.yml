@@ -23,6 +23,7 @@
   gather_facts: true
   vars:
     observability_dir: "/home/ansible/ops/observability"
+    kubernetes_api_server_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
 
   tasks:
     - name: Detect host OS
@@ -43,6 +44,15 @@
         dest: "{{ observability_dir }}/otel-collector/"
         delete: false
         recursive: true
+      when: is_linux
+
+    # Must run after sync: parent observability deploy.yml replaces placeholders, then this
+    # playbook re-copies repo files and would leave __KUBERNETES_API_SERVER__ unreplaced otherwise.
+    - name: Render Kubernetes API server host into Prometheus config
+      ansible.builtin.replace:
+        path: "{{ observability_dir }}/prometheus/prometheus.yml"
+        regexp: "__KUBERNETES_API_SERVER__"
+        replace: "{{ kubernetes_api_server_host }}"
       when: is_linux
 
     - name: Display Prometheus config sync status

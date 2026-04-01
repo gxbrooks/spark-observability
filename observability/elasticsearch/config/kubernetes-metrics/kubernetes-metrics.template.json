@@ -13,6 +13,50 @@
     },
     "mappings": {
       "dynamic": true,
+      "dynamic_templates": [
+        {
+          "long_metrics": {
+            "match_mapping_type": "long",
+            "mapping": {
+              "type": "long",
+              "doc_values": true
+            }
+          }
+        },
+        {
+          "float_metrics": {
+            "match_mapping_type": "double",
+            "mapping": {
+              "type": "float",
+              "doc_values": true
+            }
+          }
+        },
+        {
+          "double_metrics": {
+            "mapping": {
+              "type": "double",
+              "doc_values": true
+            }
+          }
+        },
+        {
+          "histogram_metrics": {
+            "mapping": {
+              "type": "histogram"
+            }
+          }
+        },
+        {
+          "summary_metrics": {
+            "mapping": {
+              "type": "aggregate_metric_double",
+              "metrics": ["sum", "value_count"],
+              "default_metric": "value_count"
+            }
+          }
+        }
+      ],
       "properties": {
         "@timestamp": {
           "type": "date"
@@ -69,18 +113,19 @@
             }
           }
         },
-        "value": {
-          "type": "float"
-        },
-        "kube_pod_status_phase": {
-          "type": "float"
-        },
         "phase": {
           "type": "keyword"
         },
         "labels": {
           "type": "object",
           "enabled": true
+        },
+        "scrape_job": {
+          "type": "keyword"
+        },
+        "container_cgroup_path": {
+          "type": "keyword",
+          "ignore_above": 4096
         }
       }
     }
