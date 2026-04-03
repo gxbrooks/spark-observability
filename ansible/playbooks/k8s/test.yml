@@ -3,11 +3,13 @@
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/k8s/test.yml
+# Tags: test, k8s (scheduling play); test, k8s, workloads (namespace snapshot).
 
 - name: Test Kubernetes scheduling and control plane behavior
   hosts: kubernetes_master
   become: false
   gather_facts: false
+  tags: [test, k8s]
   vars:
     kubeconfig_path: "/home/ansible/.kube/config"
   tasks:
@@ -42,3 +44,31 @@
     - name: Cleanup scheduler smoke pod
       ansible.builtin.shell: kubectl --kubeconfig="{{ kubeconfig_path }}" delete pod scheduler-smoke --ignore-not-found=true
       changed_when: false
+
+- name: Report Spark and HDFS pod status (informational)
+  hosts: kubernetes_master
+  become: false
+  gather_facts: false
+  tags: [test, k8s, workloads]
+  vars:
+    kubeconfig_path: "/home/ansible/.kube/config"
+  tasks:
+    - name: List pods in spark namespace
+      ansible.builtin.shell: |
+        kubectl --kubeconfig="{{ kubeconfig_path }}" get pods -n spark -o wide 2>&1 || true
+      register: k8s_test_spark_pods
+      changed_when: false
+
+    - name: List pods in hdfs namespace
+      ansible.builtin.shell: |
+        kubectl --kubeconfig="{{ kubeconfig_path }}" get pods -n hdfs -o wide 2>&1 || true
+      register: k8s_test_hdfs_pods
+      changed_when: false
+
+    - name: Show Spark namespace snapshot
+      ansible.builtin.debug:
+        msg: "{{ k8s_test_spark_pods.stdout_lines | default(['(no output)']) }}"
+
+    - name: Show HDFS namespace snapshot
+      ansible.builtin.debug:
+        msg: "{{ k8s_test_hdfs_pods.stdout_lines | default(['(no output)']) }}"

@@ -32,6 +32,24 @@
       set_fact:
         is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
 
+    - name: Read Elasticsearch password from observability .env
+      ansible.builtin.shell: |
+        awk -F= '/^ES_PASSWORD=/{print substr($0, index($0,$2)); exit}' "{{ observability_dir }}/.env"
+      register: prom_es_password_file
+      changed_when: false
+      failed_when: false
+
+    - name: Resolve Elasticsearch password for Prometheus diagnose ES queries
+      ansible.builtin.set_fact:
+        prom_es_password: >-
+          {{ (ES_PASSWORD | default('') | length > 0) | ternary(
+               ES_PASSWORD,
+               ((prom_es_password_file.stdout | default('') | trim | length > 0) | ternary(
+                  prom_es_password_file.stdout | trim,
+                  'myElastic2025'
+               ))
+             ) }}
+
     # --- Container status ---
     - name: Check Prometheus container status
       shell: "cd {{ observability_dir }} && docker compose ps prometheus --format '{{ '{{.Service}}' }}:{{ '{{.State}}' }}' 2>/dev/null || echo 'prometheus:unknown'"
@@ -142,7 +160,7 @@
               "@timestamp":
                 gte: "now-{{ recent_timeframe_minutes }}m"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ prom_es_password }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -164,7 +182,7 @@
                 - term:
                     "service.name.keyword": "node-exporter"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ prom_es_password }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes
@@ -186,7 +204,7 @@
                 - term:
                     "service.name.keyword": "kube-state-metrics"
         user: "elastic"
-        password: "{{ ES_PASSWORD | default('myElastic2025') }}"
+        password: "{{ prom_es_password }}"
         timeout: "{{ timeout_seconds }}"
         validate_certs: no
         force_basic_auth: yes

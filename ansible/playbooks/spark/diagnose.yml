@@ -123,8 +123,10 @@
               (item.metadata.name | truncate(40, True, '')),
               (item.metadata.labels.app | default('unknown')),
               (item.status.phase | default('Unknown')),
-              ('✅' if (item.status.containerStatuses[0].ready | default(false) if item.status.containerStatuses else false) else '❌')
+              ('✅' if (pod_cs | length > 0 and pod_cs[0].ready | default(false)) else '❌')
             ) }}"
+      vars:
+        pod_cs: "{{ item.status['containerStatuses'] | default([]) }}"
       loop: "{{ all_pods | default([]) }}"
       when: all_pods is defined
       loop_control:

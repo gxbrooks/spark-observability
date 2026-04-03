@@ -213,7 +213,37 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 
 ---
 
-**Last Updated**: 2026-03-07
+## Kubernetes & HDFS
+
+### HDFS DataNode coverage and failed pods on Lab3
+
+**Priority**: Medium  
+**Status**: Not Started  
+
+**Description**:  
+After disk-pressure recovery on **lab3**, the `hdfs` namespace still showed only one **hdfs-datanode** pod (scheduled on **lab2**, alongside **hdfs-namenode-0**). A second datanode instance on **lab3** had been in **Error** and was deleted; the **DaemonSet** did not replace it on **lab3**, leaving unclear whether HDFS is intentionally single-datanode or whether **nodeSelector**, **tolerations**, **taints**, or **resource** constraints prevent scheduling on the control-plane/worker node.
+
+**Symptoms observed** (diagnostics / `kubectl`):
+- `kubectl get pods -n hdfs` → one `Running` datanode (`wj7c4` on lab2), namenode on lab2; no datanode on lab3.
+- Earlier: datanode pod on lab3 in **Error**; another datanode **Running** on lab2.
+
+**Investigation**:
+1. Inspect HDFS Helm/manifests or Ansible templates under `ansible/` (e.g. Hadoop/HDFS deploy playbooks) for **DaemonSet** vs **Deployment**, **replicas**, and **node affinity**.
+2. Confirm whether **lab3** is expected to run a datanode (hostPath/bind mounts for HDFS data on lab3).
+3. If a per-node datanode is required: fix scheduling (tolerations for control plane if needed, or dedicated worker-only pool).
+4. Review **namenode** placement vs **datanode** spread for fault tolerance.
+
+**Related**:
+- `ansible/playbooks/k8s/` Hadoop/HDFS deploy and `playbooks/deploy.yml` (`hadoop` tag).
+- Cluster diagnostics: `ansible-playbook playbooks/k8s/diagnose.yml`, `kubectl describe pod` / `kubectl get ds -n hdfs`.
+
+**Success Criteria**:
+- Documented intended topology (how many datanodes, which nodes).
+- All expected datanodes **Running**; no unexplained **Error** / missing DaemonSet pods on lab3 (or explicit exclusion documented).
+
+---
+
+**Last Updated**: 2026-04-03
 
 ### Investigate Elasticsearch SSL Handshake Warnings
 **Priority**: Medium  

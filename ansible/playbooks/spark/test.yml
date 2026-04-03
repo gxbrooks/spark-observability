@@ -1,18 +1,87 @@
 ---
-# End-to-end Spark test playbook.
+# Spark subsystem behavior tests (client host).
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/spark/test.yml
+#
+# Order: TCP checks (fail fast) → PySpark smoke → PySpark HDFS I/O.
+# When the Standalone master is down, PySpark can throw a misleading
+# "MetricsSystem.getServletHandlers" error; we probe the master port first.
 
-- name: Run Spark end-to-end assertions from control host
+- name: Spark subsystem — prerequisites and PySpark tests
   hosts: localhost
   connection: local
   become: false
   gather_facts: false
+  tags: [test, spark]
   vars:
     repo_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+    spark_client_env: "{{ repo_root }}/vars/contexts/spark_client_env.sh"
   tasks:
-    - name: Run Spark smoke assertion script
+    - name: Require generated Spark client env
+      ansible.builtin.stat:
+        path: "{{ spark_client_env }}"
+      register: spark_client_env_stat
+      failed_when: not spark_client_env_stat.stat.exists
+
+    - name: Read Spark master and HDFS endpoints from client env
+      ansible.builtin.shell: |
+        set -euo pipefail
+        source "{{ spark_client_env }}"
+        printf '%s\n' "${SPARK_MASTER_HOST:-}"
+        printf '%s\n' "${SPARK_MASTER_PORT:-}"
+        u="${HDFS_DEFAULT_FS_CLIENT:-${HDFS_DEFAULT_FS:-}}"
+        if [[ -z "${u}" ]]; then
+          printf '%s\n' ""
+          printf '%s\n' ""
+          exit 0
+        fi
+        rest="${u#hdfs://}"
+        host="${rest%%:*}"
+        port="${rest##*:}"
+        if [[ "${host}" == "${rest}" ]]; then
+          printf '%s\n' "${host}"
+          printf '%s\n' "8020"
+        else
+          printf '%s\n' "${host}"
+          printf '%s\n' "${port}"
+        fi
+      args:
+        executable: /bin/bash
+      register: spark_client_endpoints
+      changed_when: false
+      failed_when: >
+        spark_client_endpoints.stdout_lines | length < 4
+        or (spark_client_endpoints.stdout_lines[0] | length) == 0
+        or (spark_client_endpoints.stdout_lines[1] | length) == 0
+
+    - name: Set connection facts for probes
+      ansible.builtin.set_fact:
+        spark_master_host: "{{ spark_client_endpoints.stdout_lines[0] | trim }}"
+        spark_master_port: "{{ spark_client_endpoints.stdout_lines[1] | trim | int }}"
+        hdfs_nn_host: "{{ spark_client_endpoints.stdout_lines[2] | trim }}"
+        hdfs_nn_port: "{{ spark_client_endpoints.stdout_lines[3] | trim }}"
+
+    - name: Wait for Spark Standalone master RPC port
+      ansible.builtin.wait_for:
+        host: "{{ spark_master_host }}"
+        port: "{{ spark_master_port }}"
+        timeout: 45
+        connect_timeout: 10
+      register: spark_master_tcp
+      ignore_errors: true
+
+    - name: Assert Spark master is reachable before PySpark
+      ansible.builtin.assert:
+        that:
+          - spark_master_tcp is succeeded
+        fail_msg: >-
+          Spark master is not accepting TCP at {{ spark_master_host }}:{{ spark_master_port }}.
+          PySpark was not run (it would fail with an obscure MetricsSystem error).
+          Check: kubectl get pods -n spark; kubectl describe pod -n spark spark-master-0;
+          ansible-playbook -i inventory.yml playbooks/spark/diagnose.yml
+
+    - name: Run Spark runtime smoke assertion script
       ansible.builtin.command:
         argv:
           - "{{ repo_root }}/linux/assert_spark_runtime_smoke.sh"
@@ -23,13 +92,41 @@
       ansible.builtin.debug:
         var: spark_runtime_assert.stdout_lines
 
+    - name: Wait for HDFS namenode RPC port
+      ansible.builtin.wait_for:
+        host: "{{ hdfs_nn_host }}"
+        port: "{{ hdfs_nn_port | int }}"
+        timeout: 45
+        connect_timeout: 10
+      register: hdfs_nn_tcp
+      when: hdfs_nn_host | length > 0
+      ignore_errors: true
+
+    - name: Assert HDFS namenode is reachable before HDFS IO test
+      ansible.builtin.assert:
+        that:
+          - hdfs_nn_tcp is succeeded
+        fail_msg: >-
+          HDFS namenode is not accepting TCP at {{ hdfs_nn_host }}:{{ hdfs_nn_port }}.
+          PySpark smoke passed; HDFS IO test was not run.
+          Check hdfs namespace pods and
+          ansible-playbook -i inventory.yml playbooks/k8s/diagnose.yml
+      when: hdfs_nn_host | length > 0
+
     - name: Run HDFS write/read assertion script
       ansible.builtin.command:
         argv:
           - "{{ repo_root }}/linux/assert_spark_hdfs_io.sh"
       register: spark_hdfs_assert
       changed_when: false
+      when: hdfs_nn_host | length > 0
 
     - name: Show HDFS assertion output
       ansible.builtin.debug:
         var: spark_hdfs_assert.stdout_lines
+      when: hdfs_nn_host | length > 0
+
+    - name: Note skipped HDFS IO test
+      ansible.builtin.debug:
+        msg: "HDFS IO test skipped (no HDFS_DEFAULT_FS_CLIENT / HDFS_DEFAULT_FS in spark_client_env.sh)."
+      when: hdfs_nn_host | length == 0

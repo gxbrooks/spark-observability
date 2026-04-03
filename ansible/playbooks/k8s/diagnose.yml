@@ -107,8 +107,9 @@
       set_fact:
         is_worker_node: "{{ inventory_hostname in groups['kubernetes_workers'] and inventory_hostname not in groups['kubernetes_master'] }}"
 
+    # Node names in the API are typically lowercase short hostnames (e.g. lab1), not inventory_hostname (Lab1).
     - name: Check Pod CIDR assignment
-      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get node {{ inventory_hostname }} -o jsonpath='{.spec.podCIDR}'
+      shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf get node {{ inventory_hostname | lower }} -o jsonpath='{.spec.podCIDR}'
       register: pod_cidr_check
       delegate_to: "{{ groups['kubernetes_master'][0] }}"
       when: is_worker_node

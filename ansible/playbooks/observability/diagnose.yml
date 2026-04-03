@@ -139,7 +139,7 @@
         method: GET
         timeout: "{{ timeout_seconds }}"
       register: tempo_test
-      ignore_errors: yes
+      failed_when: false
 
     - name: Get Grafana dashboards
       uri:

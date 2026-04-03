@@ -39,7 +39,7 @@ ansible-playbook -i inventory.yml playbooks/start.yml
 **Prerequisites:** `install.yml` and `deploy.yml` for first-time bring-up.
 
 ### `diagnose.yml` — Full platform diagnostics
-Runs component `diagnose` playbooks (Docker, NFS, Kubernetes, observability, Spark, Elastic Agent). Replaces the former top-level `status.yml`.
+Runs component `diagnose` playbooks in order: Docker, NFS, Kubernetes, observability (which imports Prometheus diagnostics), Spark, Elastic Agent. Replaces the former top-level `status.yml`.
 
 ```bash
 cd ansible
@@ -47,6 +47,14 @@ ansible-playbook -i inventory.yml playbooks/diagnose.yml
 ```
 
 Lightweight checks remain available under each component (e.g. `spark/status.yml`, `observability/status.yml`, `elastic-agent/status.yml`).
+
+### `test.yml` — Subsystem behavior tests
+Runs `k8s/test.yml` (scheduler smoke + Spark/HDFS pod listing), `observability/test.yml` (Elasticsearch + index freshness), then `spark/test.yml` (TCP checks to master and HDFS, then PySpark smoke and HDFS I/O). Observability is placed before Spark so a down Spark master does not skip Elasticsearch checks. Use tags to run a subset, e.g. `--tags k8s`, `--tags spark`, `--tags observability`, or combine `--tags k8s,spark` if Elasticsearch is red but you still want cluster/Spark probes.
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/test.yml
+```
 
 ### `stop.yml` - Stop All Services
 Stops the full Spark Observability stack in a safe order: Jupyter and Spark workloads, HDFS (scale to zero), in-cluster Prometheus exporters, Elastic Agent, observability Docker Compose, Docker on the observability host, Kubernetes (kubelet + containerd on workers then master), and the NFS server.

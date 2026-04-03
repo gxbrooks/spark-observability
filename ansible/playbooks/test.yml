@@ -1,13 +1,24 @@
 ---
-# Global behavior tests for Spark Observability stack.
+# Global behavior tests for Spark Observability stack (one playbook per subsystem).
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/test.yml
+#
+# Subsystems (in order):
+#   1. Kubernetes — scheduler smoke + Spark/HDFS pod snapshot
+#   2. Spark — master/HDFS TCP probes, PySpark smoke, HDFS I/O
+#   3. Observability — Elasticsearch health + index freshness
+#
+# Run a subset:
+#   ansible-playbook ... playbooks/test.yml --tags k8s
+#   ansible-playbook ... playbooks/test.yml --tags spark
+#   ansible-playbook ... playbooks/test.yml --tags observability
 
 - name: Display test banner
   hosts: localhost
   connection: local
   gather_facts: false
+  tags: [always]
   tasks:
     - name: Show test scope
       ansible.builtin.debug:
@@ -15,12 +26,20 @@
           ================================================
           Spark Observability Platform — Test
           ================================================
-          Running behavior tests:
-            - Kubernetes scheduling
-            - Spark runtime + HDFS IO
-            - Observability index freshness
+          Subsystems (see playbooks/k8s|observability|spark/test.yml):
+            1. Kubernetes — control plane scheduling + spark/hdfs pod listing
+            2. Observability — Elasticsearch + required index freshness
+            3. Spark — TCP to master & HDFS NN, PySpark smoke, HDFS I/O
+          Observability runs before Spark so a down master does not skip ES checks.
+          ================================================
+          Full diagnostics: ansible-playbook -i inventory.yml playbooks/diagnose.yml
           ================================================
 
 - import_playbook: k8s/test.yml
-- import_playbook: spark/test.yml
+  tags: [k8s]
+
 - import_playbook: observability/test.yml
+  tags: [observability]
+
+- import_playbook: spark/test.yml
+  tags: [spark]

@@ -308,7 +308,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 1g
+        reservations:
+          memory: 384m
     depends_on:
       es01:
         condition: service_healthy
@@ -319,6 +321,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "4"
 
   # Prometheus remote write adapter: receives Prometheus remote write and indexes to Elasticsearch
   prometheus-es-adapter:

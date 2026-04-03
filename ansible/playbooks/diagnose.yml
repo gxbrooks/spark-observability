@@ -1,19 +1,42 @@
 ---
-# Global diagnostics for Spark Observability Platform (replaces status.yml)
-# Usage: cd ansible && ansible-playbook -i inventory.yml playbooks/diagnose.yml
+# Top-level diagnostics — runs each subsystem's diagnose playbook in order.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/diagnose.yml
+#
+# Subsystems (each has its own playbooks/<area>/diagnose.yml):
+#   1. Docker (observability host engine)
+#   2. NFS
+#   3. Kubernetes
+#   4. Observability (Docker Compose stack; includes Prometheus sub-diagnose)
+#   5. Spark (K8s workloads + telemetry)
+#   6. Elastic Agent
+#
+# For Prometheus-only metrics pipeline detail, you can also run:
+#   playbooks/observability/prometheus/diagnose.yml
+#
+# Replaces the former top-level status.yml.
 
 - name: Display diagnose banner
   hosts: localhost
   connection: local
   gather_facts: false
+  tags: [always]
   tasks:
     - name: Display diagnostic information
       ansible.builtin.debug:
         msg: |
           ================================================
-          Spark Observability Platform — Diagnose
+          Spark Observability Platform — Diagnose (top-level)
           ================================================
-          Running component diagnostics (Docker, NFS, K8s, observability, Spark, Elastic Agent).
+          Running, in order:
+            - docker/diagnose.yml
+            - nfs/diagnose.yml
+            - k8s/diagnose.yml
+            - observability/diagnose.yml (includes prometheus/diagnose.yml)
+            - spark/diagnose.yml
+            - elastic-agent/diagnose.yml
           ================================================
 
 - import_playbook: docker/diagnose.yml
@@ -32,6 +55,7 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  tags: [always]
   tasks:
     - name: Display summary message
       ansible.builtin.debug:
@@ -46,4 +70,6 @@
             playbooks/spark/status.yml
             playbooks/observability/status.yml
             playbooks/elastic-agent/status.yml
+          Behavior tests:
+            playbooks/test.yml
           ================================================
