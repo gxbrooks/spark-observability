@@ -1,1 +1,8 @@
 xpack.monitoring.enabled: ${xpack.monitoring.enabled}
+
+log.level: info
+path.logs: /usr/share/logstash/logs
+log.format: plain
+log.rotation.size: 100mb
+log.rotation.age: 7d
+log.rotation.keep: 10

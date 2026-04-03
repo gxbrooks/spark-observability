@@ -196,7 +196,64 @@ Config: `[ansible/playbooks/spark/launch_ipython.yml](../ansible/playbooks/spark
 
 ---
 
-## 7. Documentation map
+## 7. Log rotation and retention
+
+Every log-producing component is configured with bounded rotation to prevent disk exhaustion.
+
+### 7.1 Docker container logs (stdout/stderr)
+
+All long-running Docker Compose services use a shared `json-file` logging driver with rotation. Configured via the `x-logging` anchor in [`observability/docker-compose.yml`](../observability/docker-compose.yml).
+
+| Service            | Driver    | Max size | Max files | Cap   |
+| ------------------ | --------- | -------- | --------- | ----- |
+| Elasticsearch      | json-file | 50 MB    | 5         | 250 MB |
+| Kibana             | json-file | 50 MB    | 5         | 250 MB |
+| Grafana            | json-file | 50 MB    | 5         | 250 MB |
+| Prometheus         | json-file | 50 MB    | 5         | 250 MB |
+| Tempo              | json-file | 50 MB    | 5         | 250 MB |
+| Logstash           | json-file | 50 MB    | 5         | 250 MB |
+| OTel Collector     | json-file | 50 MB    | 5         | 250 MB |
+
+Init containers (`init-certs`, `set-kibana-password`, `init-index`) are short-lived and excluded.
+
+### 7.2 Application-level log rotation
+
+| Component | Rotation mechanism | Max size | Files/age | Config |
+| --------- | ------------------ | -------- | --------- | ------ |
+| Grafana file logs | Built-in `[log.file]` | 128 MB (`max_size_shift=27`) | Daily, 7-day max | [`observability/grafana/grafana.ini`](../observability/grafana/grafana.ini) `[log.file]` |
+| Logstash internal logs | Built-in rotation | 100 MB | 10 files, 7-day age | [`observability/logstash/config/logstash.yml`](../observability/logstash/config/logstash.yml) |
+| Filebeat | Built-in rotation | 10 MB | 10 files | [`observability/filebeat/filebeat.yml`](../observability/filebeat/filebeat.yml) |
+| Elastic Agent | Built-in rotation | 50 MB | 7 files | [`elastic-agent/elastic-agent.linux.yml.j2`](../elastic-agent/elastic-agent.linux.yml.j2) |
+
+### 7.3 Spark logs
+
+| Component | Rotation mechanism | Max size | Files/age | Config |
+| --------- | ------------------ | -------- | --------- | ------ |
+| GC logs (all: master, worker, history, driver, executor) | JVM `-Xlog:gc*` | 10 MB | 10 files | `spark-defaults.conf`, `spark-master.yaml.j2`, `spark-worker.yaml.j2`, `spark-history.yaml.j2` |
+| Application logs (log4j2-cluster) | Log4j2 RollingFile | 20 MB | 10 files, 30-day delete | [`spark/conf/log4j2-cluster.properties`](../spark/conf/log4j2-cluster.properties) |
+| Event logs (`/mnt/spark/events`) | History Server cleaner | — | 7-day max age, 100 file max | `spark.history.fs.cleaner.*` in [`spark/conf/spark-defaults.conf`](../spark/conf/spark-defaults.conf) and [`ansible/roles/spark/templates/spark-defaults.conf.j2`](../ansible/roles/spark/templates/spark-defaults.conf.j2) |
+
+### 7.4 Kubernetes container logs
+
+Kubelet container log rotation is configured in `/var/lib/kubelet/config.yaml` on each K8s node via [`ansible/playbooks/k8s/install.yml`](../ansible/playbooks/k8s/install.yml).
+
+| Setting               | Value | Effect                            |
+| --------------------- | ----- | --------------------------------- |
+| `containerLogMaxSize` | 50 Mi | Rotates when a container log hits 50 MB |
+| `containerLogMaxFiles` | 5    | Keeps at most 5 rotated files     |
+
+### 7.5 Prometheus TSDB retention
+
+Prometheus data retention is size- and time-bounded (not log rotation per se, but relevant to disk).
+
+| Setting | Value | Config |
+| ------- | ----- | ------ |
+| `--storage.tsdb.retention.time` | 15 d | [`observability/docker-compose.yml`](../observability/docker-compose.yml) |
+| `--storage.tsdb.retention.size` | 10 GB | Same |
+
+---
+
+## 8. Documentation map
 
 
 | Location                                                  | Purpose                                                                                    |
@@ -211,7 +268,7 @@ Config: `[ansible/playbooks/spark/launch_ipython.yml](../ansible/playbooks/spark
 
 ---
 
-## 8. Related documents
+## 9. Related documents
 
 - [File_System_Architecture.md](File_System_Architecture.md) — DevOps/Ops paths, NFS mounts, certificates.
 - [Application_Locations.md](Application_Locations.md) — URLs and client tools.

@@ -632,6 +632,17 @@
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
 
+    # === Kubelet container log rotation ===
+    - name: Set kubelet container log rotation limits
+      blockinfile:
+        path: /var/lib/kubelet/config.yaml
+        marker: "# {mark} ANSIBLE MANAGED - CONTAINER LOG ROTATION"
+        block: |
+          containerLogMaxSize: "50Mi"
+          containerLogMaxFiles: 5
+        insertafter: EOF
+      notify: Restart kubelet
+
     # === No need to update kubeconfig - we created them with hostnames directly ===
 
     # === Update /etc/hosts to ensure hostname resolution ===
@@ -716,3 +727,10 @@
 
     # Copy admin.conf to all nodes: playbooks/deploy.yml imports provision_admin_kubeconfig.yml, or run:
     #   ansible-playbook -i inventory.yml playbooks/k8s/provision_admin_kubeconfig.yml
+
+  handlers:
+    - name: Restart kubelet
+      systemd:
+        name: kubelet
+        state: restarted
+        daemon_reload: yes
