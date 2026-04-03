@@ -111,7 +111,7 @@
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_count",
-                "size": "0"
+                "size": "32"
               }
             },
             {
@@ -119,7 +119,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "auto",
+                "interval": "$__interval",
                 "min_doc_count": "0"
               }
             }
@@ -135,13 +135,14 @@
               "field": "count"
             }
           ],
-          "query": "_index:batch-metrics-ds AND NOT class:\"Task\"",
+          "query": "_index:.ds-batch-metrics-ds* AND NOT class:\"Task\"",
           "refId": "A",
           "timeField": "@timestamp",
           "alias": ""
         }
       ],
       "title": "Active Spark job count (average, excluding tasks)",
+      "description": "From batch-metrics-ds (Elasticsearch watcher on batch-events). If this stays flat, check batch-events ingestion and watcher; not every Spark run writes here.",
       "type": "timeseries"
     },
     {
@@ -149,6 +150,13 @@
         "type": "elasticsearch",
         "uid": "spark-elasticsearch"
       },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 100,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -161,16 +169,28 @@
             "axisLabel": "",
             "axisPlacement": "left",
             "axisWidth": 50,
-            "fillOpacity": 80,
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 1,
             "scaleDistribution": {
               "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -258,59 +278,31 @@
           }
         ]
       },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 100,
       "options": {
-        "barRadius": 0,
-        "barWidth": 0.97,
-        "colorByField": null,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
         "legend": {
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
-        "orientation": "auto",
-        "showValue": "auto",
-        "stacking": "normal",
         "tooltip": {
           "mode": "multi",
           "sort": "none"
-        },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        }
       },
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "alias": "{{log_level}} - {{hostname}}",
+          "alias": "{{term log.level}}",
           "bucketAggs": [
             {
-              "field": "log_level",
+              "field": "log.level",
               "id": "3",
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_term",
-                "size": "10"
-              },
-              "type": "terms"
-            },
-            {
-              "field": "hostname",
-              "id": "4",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_term",
-                "size": "10"
+                "size": "16"
               },
               "type": "terms"
             },
@@ -318,7 +310,7 @@
               "field": "@timestamp",
               "id": "2",
               "settings": {
-                "interval": "auto",
+                "interval": "$__interval",
                 "min_doc_count": "0",
                 "trimEdges": "0"
               },
@@ -332,18 +324,17 @@
           "metrics": [
             {
               "id": "1",
-              "type": "sum",
-              "field": "log_count"
+              "type": "count"
             }
           ],
-          "query": "_index:metrics-spark-logs-default",
+          "query": "_index:logs-spark-default*",
           "refId": "A",
           "timeField": "@timestamp"
         }
       ],
       "title": "Spark application log count (count)",
-      "type": "barchart",
-      "description": "Count of Spark application log entries by log level over time"
+      "type": "timeseries",
+      "description": "Document counts from logs-spark-default by log.level (live). The metrics-spark-logs-default transform may lag; this panel reads raw logs."
     },
     {
       "datasource": {
@@ -1460,68 +1451,15 @@
     "metrics"
   ],
   "templating": {
-    "list": [
-      {
-        "allValue": null,
-        "current": {
-          "selected": true,
-          "text": [
-            "ERROR",
-            "WARN",
-            "DEBUG"
-          ],
-          "value": [
-            "ERROR",
-            "WARN",
-            "DEBUG"
-          ]
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Log Levels",
-        "multi": true,
-        "name": "log_levels",
-        "options": [
-          {
-            "selected": true,
-            "text": "ERROR",
-            "value": "ERROR"
-          },
-          {
-            "selected": true,
-            "text": "WARN",
-            "value": "WARN"
-          },
-          {
-            "selected": false,
-            "text": "INFO",
-            "value": "INFO"
-          },
-          {
-            "selected": true,
-            "text": "DEBUG",
-            "value": "DEBUG"
-          },
-          {
-            "selected": false,
-            "text": "TRACE",
-            "value": "TRACE"
-          }
-        ],
-        "query": "ERROR,WARN,INFO,DEBUG,TRACE",
-        "queryValue": "",
-        "skipUrlSync": false,
-        "type": "custom"
-      }
-    ]
+    "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-7d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Spark Cluster Metrics",
   "uid": "spark-system-metrics",
-  "version": 4
+  "version": 7
 }

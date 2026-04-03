@@ -119,7 +119,7 @@
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_count",
-                "size": "0"
+                "size": "32"
               }
             },
             {
@@ -143,7 +143,7 @@
               "field": "count"
             }
           ],
-          "query": "_index:batch-metrics-ds",
+          "query": "_index:.ds-batch-metrics-ds*",
           "refId": "A",
           "timeField": "@timestamp",
           "alias": ""
@@ -240,7 +240,7 @@
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_count",
-                "size": "0"
+                "size": "32"
               }
             },
             {
@@ -264,7 +264,7 @@
               "field": "count"
             }
           ],
-          "query": "_index:application-events-metrics-ds AND _exists_:operation.type",
+          "query": "_index:.ds-application-events-metrics-ds* AND _exists_:operation.type",
           "refId": "A",
           "timeField": "@timestamp",
           "alias": ""
@@ -324,16 +324,16 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "alias": "{{log_level}}",
+          "alias": "{{term log.level}}",
           "bucketAggs": [
             {
-              "field": "log_level",
+              "field": "log.level",
               "id": "3",
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
                 "orderBy": "_term",
-                "size": "0"
+                "size": "16"
               },
               "type": "terms"
             },
@@ -355,11 +355,10 @@
           "metrics": [
             {
               "id": "1",
-              "type": "sum",
-              "field": "log_count"
+              "type": "count"
             }
           ],
-          "query": "_index:metrics-spark-logs-default*",
+          "query": "_index:logs-spark-default*",
           "refId": "A",
           "timeField": "@timestamp"
         }
