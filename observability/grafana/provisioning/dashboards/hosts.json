@@ -62,7 +62,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Host CPU utilization (% of capacity, per host)",
+      "title": "Host CPU utilization (%)",
       "type": "timeseries"
     },
     {
@@ -114,7 +114,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU die temperature (°C, edge or junction, per host)",
+      "title": "GPU die temperature (°C)",
       "type": "timeseries"
     },
     {
@@ -172,7 +172,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU compute utilization (% of GPU, per host)",
+      "title": "GPU compute utilization (%)",
       "type": "timeseries"
     },
     {
@@ -224,7 +224,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Page fault rate (faults/s, minor + major, per host)",
+      "title": "Page fault rate (faults/s)",
       "type": "timeseries"
     },
     {
@@ -264,7 +264,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "System load average (1 min, run-queue length, per host)",
+      "title": "System load average (dimensionless, 1 min)",
       "type": "timeseries"
     },
     {
@@ -283,7 +283,7 @@
             "axisWidth": 50,
             "axisBorderShow": false,
             "axisColorMode": "text",
-            "axisCenteredZero": false
+            "axisCenteredZero": true
           },
           "mappings": [],
           "nullValueMode": "null",
@@ -339,7 +339,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Network byte rate (bytes/s, ingress / egress, per host)",
+      "title": "Network byte rate (bytes/s)",
       "type": "timeseries"
     },
     {
@@ -358,7 +358,7 @@
             "axisWidth": 50,
             "axisBorderShow": false,
             "axisColorMode": "text",
-            "axisCenteredZero": false
+            "axisCenteredZero": true
           },
           "mappings": [],
           "nullValueMode": "null",
@@ -414,7 +414,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Disk I/O rate (bytes/s, read / write, per host)",
+      "title": "Disk I/O byte rate (bytes/s)",
       "type": "timeseries"
     }
   ],
@@ -427,6 +427,6 @@
   "timezone": "browser",
   "title": "Hosts",
   "uid": "lab-hosts-metrics",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }
