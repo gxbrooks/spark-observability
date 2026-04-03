@@ -4,7 +4,7 @@ metadata:
   name: spark-worker-lab2
   namespace: spark
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app: spark-worker
@@ -139,7 +139,7 @@ metadata:
   name: spark-worker-lab1
   namespace: spark
 spec:
-  replicas: 5
+  replicas: 4
   selector:
     matchLabels:
       app: spark-worker

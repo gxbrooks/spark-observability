@@ -62,12 +62,21 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
+TIMINGS_CSV="${SCRIPT_DIR}/chapter-timings.csv"
+COMMIT_ID="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+RUN_DATE="$(date -Iseconds)"
+
+if [ ! -f "${TIMINGS_CSV}" ]; then
+    echo "date,commit,chapter,status,elapsed_s" > "${TIMINGS_CSV}"
+fi
+
 # Run each chapter file
 for chapter_num in "$@"; do
     chapter_file="${SCRIPT_DIR}/Chapter_${chapter_num}.py"
     
     if [ ! -f "${chapter_file}" ]; then
         echo "Warning: Chapter file not found: ${chapter_file}" >&2
+        echo "${RUN_DATE},${COMMIT_ID},${chapter_num},NOT_FOUND,0" >> "${TIMINGS_CSV}"
         continue
     fi
     
@@ -77,15 +86,25 @@ for chapter_num in "$@"; do
     echo "Using Python: ${PYTHON_CMD}"
     echo "========================================"
     
+    start_epoch=$(date +%s)
     "${PYTHON_CMD}" "${chapter_file}"
-    
     exit_code=$?
+    end_epoch=$(date +%s)
+    elapsed=$(( end_epoch - start_epoch ))
+
     if [ $exit_code -eq 0 ]; then
-        echo "✅ Completed Chapter_${chapter_num}.py"
+        status="OK"
+        echo "✅ Completed Chapter_${chapter_num}.py  (${elapsed}s)"
     else
-        echo "❌ Chapter_${chapter_num}.py failed with exit code $exit_code" >&2
+        status="FAIL(${exit_code})"
+        echo "❌ Chapter_${chapter_num}.py failed with exit code $exit_code  (${elapsed}s)" >&2
     fi
-    
+
+    echo "${RUN_DATE},${COMMIT_ID},${chapter_num},${status},${elapsed}" >> "${TIMINGS_CSV}"
     echo ""
 done
+
+echo "========================================"
+echo "Timings written to ${TIMINGS_CSV}"
+echo "========================================"
 

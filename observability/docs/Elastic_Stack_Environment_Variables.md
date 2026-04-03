@@ -33,7 +33,6 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 
 | Variable | Description |
 |----------|------------|
-| LS_HEAP_SIZE | Java heap size (e.g., -Xmx4g -Xms4g) |
 | LS_OPTS | Additional command-line options |
 | LS_OPEN_FILES | Maximum number of open file descriptors |
 
@@ -147,7 +146,6 @@ Since Logstash runs on Java, it inherits all standard Java environment variables
 
 | Variable | Description |
 |----------|------------|
-| ES_HEAP_SIZE | Java heap size allocation |
 | ES_JAVA_OPTS | Additional JVM options |
 | MAX_LOCKED_MEMORY | Maximum locked memory limit |
 | MAX_MAP_COUNT | Maximum memory map count (Linux) |

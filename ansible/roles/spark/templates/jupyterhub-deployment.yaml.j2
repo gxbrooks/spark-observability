@@ -14,8 +14,7 @@ spec:
         app: jupyterhub
     spec:
       serviceAccountName: spark
-      # Pin JupyterHub to a node that mounts /mnt/spark/jupyter (NFS from Lab3 after migration).
-      # Use lab3 when Lab3 is joined to the cluster; until then lab2 has the NFS mount and control-plane kubectl.
+      # Pin JupyterHub to Lab3 (NFS server, control-plane node).
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -24,7 +23,7 @@ spec:
               - key: kubernetes.io/hostname
                 operator: In
                 values:
-                - lab2
+                - lab3
       dnsPolicy: ClusterFirst
       dnsConfig:
         options:

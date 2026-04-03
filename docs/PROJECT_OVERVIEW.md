@@ -4,7 +4,7 @@ This document provides a comprehensive overview of the Elastic-on-Spark project,
 
 ## Lab topology and resources (target)
 
-Host roles, colocation of observability/Kubernetes/HDFS/NFS/Jupyter on **Lab3**, and symmetric Spark workers on **Lab1/Lab2**, with **resource planning caps**, are documented in **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)**. Start there before reading service-specific docs.
+Host roles, colocation of observability/Kubernetes/HDFS/NFS/Jupyter on **Lab3**, and symmetric Spark workers on **Lab1/Lab2**, with **resource planning caps**, are documented in **[architecture-and-resources.md](architecture-and-resources.md)**. Start there before reading service-specific docs.
 
 **Documentation layout**: global topics stay in this `docs/` directory; observability-only topics live under `observability/docs/` and `observability/*/docs/` — see **[README.md](README.md)**.
 

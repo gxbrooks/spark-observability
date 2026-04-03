@@ -18,6 +18,15 @@ spec:
       securityContext:
         runAsUser: 0
         runAsGroup: 0
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - lab3
       containers:
       - name: namenode
         image: apache/hadoop:3.3.6
@@ -42,6 +51,13 @@ spec:
           value: root
         - name: HDFS_SECONDARYNAMENODE_USER
           value: root
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "1Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
         volumeMounts:
         - name: namenode-storage
           mountPath: /hadoop/dfs/name

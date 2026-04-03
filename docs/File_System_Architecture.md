@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. **Primary targets are native Linux lab hosts (Lab1–Lab3).** The observability Docker stack runs on **Lab3** under `/home/ansible/ops/observability`. **Target topology** (which host runs Kubernetes control plane, NFS, HDFS, Jupyter) is summarized in **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)**. WSL/Windows paths below are **legacy** references only.
+This document describes the file system architecture for the spark-observability project, covering all file system types, host environments, and the mappings between them. **Primary targets are native Linux lab hosts (Lab1–Lab3).** The observability Docker stack runs on **Lab3** under `/home/ansible/ops/observability`. **Target topology** (which host runs Kubernetes control plane, NFS, HDFS, Jupyter) is summarized in **[architecture-and-resources.md](architecture-and-resources.md)**. WSL/Windows paths below are **legacy** references only.
 
 ## Summary
 
@@ -152,7 +152,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 
 ### Native Linux Hosts
 
-**Examples**: Lab1, Lab2, Lab3 (Ubuntu/Linux). **Lab1 and Lab2** are symmetric Spark/Kubernetes **workers**. **Lab3** runs the observability stack, **Kubernetes control plane**, **NFS server**, **HDFS** (on-cluster), and **JupyterHub** in the target layout (see [Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)).
+**Examples**: Lab1, Lab2, Lab3 (Ubuntu/Linux). **Lab1 and Lab2** are symmetric Spark/Kubernetes **workers**. **Lab3** runs the observability stack, **Kubernetes control plane**, **NFS server**, **HDFS** (on-cluster), and **JupyterHub** in the target layout (see [architecture-and-resources.md](architecture-and-resources.md)).
 
 **File System Layout**:
 - **Ops Environment**: `/home/ansible/ops/`
@@ -473,7 +473,7 @@ Kubernetes API server certificates are managed separately:
 
 ## Related Documentation
 
-- **[Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md)**: Lab roles, service placement, resource caps
+- **[architecture-and-resources.md](architecture-and-resources.md)**: Lab roles, service placement, resource caps
 - **[Variable_Flow.md](Variable_Flow.md)**: Variable definition and flow
 - **[Log_Architecture.md](Log_Architecture.md)**: Log file system organization
 - **[Application_Locations.md](Application_Locations.md)**: Application installation locations

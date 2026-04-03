@@ -15,11 +15,11 @@ This document outlines the architecture for integrating **Prometheus** (Kubernet
 
 ## Resource constraints (Lab3 observability host)
 
-The observability stack runs on **Lab3** alongside other services (Kubernetes control plane, HDFS, NFS, JupyterHub). **Project-wide** RAM/CPU/disk budgeting and host roles are in **[../../docs/Lab_Topology_and_Resources.md](../../docs/Lab_Topology_and_Resources.md)**.
+The observability stack runs on **Lab3** alongside other services (Kubernetes control plane, HDFS, NFS, JupyterHub). **Project-wide** RAM/CPU/disk budgeting and host roles are in **[../../docs/architecture-and-resources.md](../../docs/architecture-and-resources.md)**.
 
 ### Docker Compose limits (reference)
 
-`docker-compose.yml` sets per-container limits. Long-running services include Elasticsearch (4 GiB), Kibana (2 GiB), Grafana (2 GiB), Prometheus (3 GiB, 0.5 CPU), Tempo (2 GiB, 0.4 CPU), Logstash (2 GiB), OTel Collector (256 MiB), etc. Aggregate container limits are on the order of **~15–18 GiB** for the full stack; the **host** has **64 GiB RAM / 16 vCPU / 1 TB disk** in the current lab plan, shared with non-Docker workloads.
+`docker-compose.yml` sets per-container limits. Long-running services include Elasticsearch (4 GiB), Kibana (2 GiB), Grafana (2 GiB), Prometheus (3 GiB, 0.5 CPU), Tempo (2 GiB, 0.4 CPU), Logstash (2 GiB), OTel Collector (256 MiB), etc. Aggregate container limits are on the order of **~15–18 GiB** for the full stack; the **host** has **64 GB RAM / 32 vCPU / 915 GB disk** in the current lab plan, shared with non-Docker workloads.
 
 ### Prometheus and Tempo in this plan
 
@@ -110,7 +110,7 @@ Containers and processes use **single-line** boxes; **double-line** boxes (`=` t
 
 **Storage Strategy**:
 - **Primary for dashboards / retention**: **Elasticsearch** via remote write (OTel path) + ILM — this is the operational source of truth for Kubernetes metrics in Grafana.
-- **Local Prometheus TSDB**: Short retention / buffer for debugging and compatibility; **not** sized as the main historical analytics tier (see [Lab_Topology_and_Resources.md](../../docs/Lab_Topology_and_Resources.md)).
+- **Local Prometheus TSDB**: Short retention / buffer for debugging and compatibility; **not** sized as the main historical analytics tier (see [architecture-and-resources.md](../../docs/architecture-and-resources.md)).
 
 ### 2. Grafana Tempo
 

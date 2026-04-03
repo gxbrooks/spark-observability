@@ -31,74 +31,46 @@ ansible-playbook -i ../../inventory.yml launch_ipython.yml
 
 ## Resource Allocation
 
-### Hardware Specifications
-- **Lab1 & Lab2**: 16 cores (32 threads), 96GB RAM each
-- **Total Cluster**: 32 cores (64 threads), 192GB RAM
-- **Swap**: Disabled (Kubernetes requirement)
+See [`docs/architecture-and-resources.md`](../../../docs/architecture-and-resources.md) for the full project-wide resource plan. Key points for Spark:
 
-### Lab1 Resource Allocation (Dedicated Worker Node)
+### Hardware
+- **Lab1 & Lab2**: 32 logical CPUs, 96 GB RAM each — **symmetric** worker nodes
+- **Lab3**: 32 logical CPUs, 64 GB RAM — control plane, Spark Master, History Server, HDFS, NFS, Observability
 
-| **Component** | **Replicas** | **CPU Request** | **CPU Limit** | **Memory Request** | **Memory Limit** |
-|------------|-----------------|-----------------|---------------|-------------------|------------------|
-| **Spark Workers** | 5 | 2 cores each | 4 cores each | 8Gi each | 14Gi each |
-| **Kubernetes System** | ~7 pods | ~1 core | ~2 cores | ~2Gi | ~4Gi |
-| **SUBTOTAL - Lab1** | **~7** | **11-22 cores** | **18-36 cores** | **42-84Gi** | **74Gi** |
+### Per-Host Worker Allocation (Lab1 and Lab2, identical)
 
-### Lab2 Resource Allocation (Control Plane + Workers)
+| Component | Replicas | CPU Request | CPU Limit | Memory Request | Memory Limit |
+|-----------|----------|-------------|-----------|----------------|--------------|
+| Spark Worker | 4 | 2 | 4 | 8 GiB | 14 GiB |
+| **Total** | **4** | **8** | **16** | **32 GiB** | **56 GiB** |
 
-| **Component** | **Replicas** | **CPU Request** | **CPU Limit** | **Memory Request** | **Memory Limit** |
-|------------|-----------------|-----------------|---------------|-------------------|------------------|
-| **Spark Master** | 1 | 1 core | 2 cores | 2Gi | 4Gi |
-| **Spark History** | 1 | 1 core | 2 cores | 2Gi | 4Gi |
-| **Spark Workers** | 2 | 2 cores each | 4 cores each | 8Gi each | 14Gi each |
-| **Kubernetes System** | ~8 pods | ~2 cores | ~4 cores | ~4Gi | ~8Gi |
-| **SUBTOTAL - Lab2** | **~12** | **8-16 cores** | **12-24 cores** | **16-32Gi** | **24-48Gi** |
+### Worker Sizing
 
-### Resource Allocation Rationale
-
-#### **Memory Allocation Strategy**
-- **Lab1**: 74Gi allocated (77% of 96Gi) with 22Gi system reserve
-- **Lab2**: 48Gi allocated (50% of 96Gi) with 48Gi system reserve
-- **System Reserve**: Includes OS kernel (~2-4Gi), file cache (~8-16Gi), system processes (~2-4Gi), and OOM buffer (~4-8Gi)
-
-#### **CPU Allocation Strategy**
-- **Lab1**: 18-36 cores (113-225% of 16 cores) - CPU overcommitment acceptable for worker node
-- **Lab2**: 12-24 cores (75-150% of 16 cores) - CPU overcommitment acceptable with control plane priority
-- **Kubernetes**: Can handle CPU overcommitment through proper scheduling and throttling
-
-#### **Worker Distribution**
-- **Lab1**: 5 workers (dedicated worker node for maximum parallelism)
-- **Lab2**: 2 workers (control plane priority with some worker capacity)
-- **Total**: 7 Spark workers for good task distribution
-
-#### **Spark Worker Core Configuration**
-Each worker is configured with `SPARK_WORKER_CORES=4` to match the Kubernetes CPU limit of 4 cores. This ensures Spark respects the K8s resource constraints and prevents workers from over-allocating cores based on host CPU count.
-
-#### **Safety Considerations**
-- **Memory Safety**: All allocations within available RAM limits
-- **OOM Prevention**: Adequate headroom prevents memory pressure
-- **I/O Performance**: Sufficient file cache memory for good I/O performance
-- **System Stability**: Reserved memory for OS and system processes
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| `SPARK_WORKER_CORES` | 4 | Matches K8s CPU limit; prevents over-allocation |
+| `SPARK_WORKER_MEMORY` | 12 g | Leaves ~2 GiB headroom within 14 GiB pod limit |
+| Replicas per host | 4 | Symmetric; 8 total workers, 32 cores, 96 GiB Spark heap cluster-wide |
 
 ## Spark Components
 
 ### Spark Master
-- **Type**: StatefulSet with headless service
-- **Resources**: 1-2 cores, 2-4Gi memory
+- **Type**: StatefulSet with headless service (pinned to Lab3)
+- **Resources**: 1 CPU request / 2 limit, 2 GiB request / 4 GiB limit
 - **Ports**: 7077 (Spark), 8080 (Web UI)
 - **DNS**: `spark-master-0.spark-master-headless.spark.svc.cluster.local`
 
 ### Spark Workers
 - **Type**: Deployment with node affinity
-- **Distribution**: 5 workers on Lab1, 2 workers on Lab2
-- **Resources**: 2-4 cores, 8-14Gi memory each
+- **Distribution**: 4 workers on Lab1, 4 workers on Lab2 (symmetric)
+- **Resources**: 2 CPU request / 4 limit, 8 GiB request / 14 GiB limit each
 - **Ports**: 8081 (Web UI)
 
 ### Spark History Server
-- **Type**: Deployment
-- **Resources**: 1-2 cores, 2-4Gi memory
+- **Type**: Deployment (pinned to Lab3)
+- **Resources**: 1 CPU request / 2 limit, 2 GiB request / 4 GiB limit
 - **Ports**: 18080 (Web UI)
-- **Storage**: NFS mount at `/mnt/spark/events`
+- **Storage**: hostPath mount at `/mnt/spark/events`
 
 ## Workflow Guide
 
@@ -133,8 +105,8 @@ This creates a PySpark-enabled pod with IPython shell access.
 ### Monitoring and Troubleshooting
 
 #### Check Spark Web UIs
-- **Spark Master**: http://Lab2.lan:31471 (NodePort)
-- **Spark History**: http://Lab2.lan:31534 (NodePort)
+- **Spark Master**: http://Lab3.lan:31471 (NodePort)
+- **Spark History**: http://Lab3.lan:31534 (NodePort)
 - **Worker UIs**: Access via `kubectl port-forward`
 
 #### Common Commands

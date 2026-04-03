@@ -16,7 +16,7 @@ This directory holds **repository-wide** documentation: concepts and runbooks th
 
 | Document | Description |
 |----------|-------------|
-| [Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md) | **Lab1 / Lab2 / Lab3 roles, service placement, resource caps (target).** |
+| [architecture-and-resources.md](architecture-and-resources.md) | **Lab1 / Lab2 / Lab3 roles, service placement, resource caps (target).** |
 | [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | Project summary, setup, Spark/Kubernetes playbooks. |
 | [File_System_Architecture.md](File_System_Architecture.md) | DevOps vs Ops paths, NFS, Docker/K8s mounts. |
 | [Application_Locations.md](Application_Locations.md) | Where tools and UIs live (URLs, venv, CLI). |

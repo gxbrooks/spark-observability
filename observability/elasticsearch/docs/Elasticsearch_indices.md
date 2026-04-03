@@ -1,6 +1,6 @@
 # Elasticsearch Spark-Related Indices and Data Streams
 
-**Scope:** Elasticsearch module (`observability/elasticsearch/`). Lab topology and resource planning: **[../../../docs/Lab_Topology_and_Resources.md](../../../docs/Lab_Topology_and_Resources.md)**.
+**Scope:** Elasticsearch module (`observability/elasticsearch/`). Lab topology and resource planning: **[../../../docs/architecture-and-resources.md](../../../docs/architecture-and-resources.md)**.
 
 **Generated**: October 20, 2025  
 **System**: Elastic-on-Spark Observability Platform

@@ -35,7 +35,7 @@ This document provides a comprehensive overview of where applications are instal
 | **Ansible** | `/usr/bin/ansible` | Infrastructure automation | `ansible` |
 | **Kubectl** | `/usr/bin/kubectl` | Kubernetes CLI | `kubectl` |
 
-> **Note:** JupyterHub runs on the Kubernetes cluster (control plane on **Lab3**; workers **Lab1/Lab2**). See [Lab_Topology_and_Resources.md](Lab_Topology_and_Resources.md).
+> **Note:** JupyterHub runs on the Kubernetes cluster (control plane on **Lab3**; workers **Lab1/Lab2**). See [architecture-and-resources.md](architecture-and-resources.md).
 
 ## **Environment Configuration**
 
