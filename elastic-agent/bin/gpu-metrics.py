@@ -76,9 +76,13 @@ def collect_card_metrics(card_device: pathlib.Path) -> Optional[Dict]:
 
     hwmon = read_hwmon_path(card_device)
 
-    # Utilization metrics
+    # Utilization metrics (sysfs is usually 0–100; clamp for stable dashboards)
     gpu_busy = read_float(card_device / "gpu_busy_percent")
     mem_busy = read_float(card_device / "mem_busy_percent")
+    if gpu_busy is not None:
+        gpu_busy = min(100.0, max(0.0, gpu_busy))
+    if mem_busy is not None:
+        mem_busy = min(100.0, max(0.0, mem_busy))
 
     # Temperature metrics
     temp_edge = read_float(hwmon / "temp1_input", 1000.0) if hwmon else None
