@@ -480,35 +480,19 @@ kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true \
 echo "✅ Batch traces initialized"
 
 # ============================================================================
-# STEP 11: Initialize Batch Metrics (Templates, Data Streams, Watchers, Data Views)
+# STEP 11: Batch Metrics — DEPRECATED (skipped)
+# The batch-metrics-ds watcher/data-stream approach is deprecated.
+# It was non-functional prior to deprecation (watcher never fired because
+# all Start events were already matched=true and no new batch-events were
+# being ingested).  "Active Application Jobs" (application-events-metrics-ds)
+# now provides equivalent tracking.
+#
+# To initialize manually, run:
+#   config/batch-metrics/init-index-batch-metrics.sh
 # ============================================================================
 echo ""
-echo "=== STEP 11: INITIALIZING BATCH METRICS ==="
-
-echo "Creating batch-metrics index template..."
-esapi PUT /_index_template/batch-metrics-ds ${ES_CONFIG_DIR}/batch-metrics/batch-metrics.template.json \
-  > /dev/null 2>&1
-
-echo "Creating batch-metrics data stream if it doesn't exist..."
-if ! esapi GET /_data_stream/batch-metrics-ds >& /dev/null; then
-  esapi PUT /_data_stream/batch-metrics-ds > /dev/null 2>&1
-else
-  echo "  (data stream already exists, skipping)"
-fi
-
-echo "Creating batch-metrics watcher..."
-esapi PUT /_watcher/watch/batch-metrics ${ES_CONFIG_DIR}/batch-metrics/batch-metrics.watcher.json \
-  > /dev/null 2>&1
-
-echo "Creating batch-metrics data view..."
-kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/batch-metrics/batch-metrics.dataview.json \
-  > ${ES_OUTPUTS_DIR}/batch-metrics.dataview.out.json
-
-echo "Creating batch-metrics searches..."
-kapi POST /api/saved_objects/search/batch-events-counts?overwrite=true \
-  ${ES_CONFIG_DIR}/batch-metrics/batch-counts.search.json > /dev/null 2>&1
-
-echo "✅ Batch metrics initialized"
+echo "=== STEP 11: BATCH METRICS — DEPRECATED (skipped) ==="
+echo "  See config/batch-metrics/init-index-batch-metrics.sh to initialize manually."
 
 # ============================================================================
 # STEP 12: Initialize Spark GC (ILM, Templates, Ingest Pipelines, Data Views, Downsampling)

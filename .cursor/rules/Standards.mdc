@@ -3,6 +3,14 @@ Description: Standards for Spark Observability Project
 alwaysApply: true
 ---
 
-Read the \*.md files in the prompts project (i.e. ../../../standards/\*.md) to understand the emerging coding standards. 
+## Canonical standards (project-independent)
 
-Once you have read the files, notify the user that "Standards have been read."
+Normative **statements** belong in the **`standards`** repo, not in this rule file. Read `../../../standards/*.md` for coding, documentation, Git, testing, and automation. For how those documents are structured and how requirement language works, read `../../../meta-standards/*.md` (TPG structure, keywords **must** / **should** / **may**, etc.).
+
+After reading the relevant standards in a session where they apply, tell the user **Standards have been read.**
+
+Follow the **Statements** sections in those documents as the source of truth—including Git, validation, and AI behavior in `development.md`.
+
+## This repository only
+
+Use the other `.cursor/rules/*.mdc` files here for **spark-observability–specific** binding (inventory, host groups, README/docs under touched directories). Do not copy long policy lists from `standards/` into this file; that duplicates maintenance and drifts from the TPG single-source-of-truth model described in `meta-standards/tpgs-for-tpgs.md`.

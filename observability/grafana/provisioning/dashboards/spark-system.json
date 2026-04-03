@@ -23,136 +23,10 @@
         "type": "elasticsearch",
         "uid": "spark-elasticsearch"
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "left",
-            "axisWidth": 50,
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": []
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "bucketAggs": [
-            {
-              "id": "3",
-              "type": "terms",
-              "field": "class",
-              "settings": {
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "_count",
-                "size": "32"
-              }
-            },
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "$__interval",
-                "min_doc_count": "0"
-              }
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "id": "1",
-              "type": "avg",
-              "field": "count"
-            }
-          ],
-          "query": "_index:.ds-batch-metrics-ds* AND NOT class:\"Task\"",
-          "refId": "A",
-          "timeField": "@timestamp",
-          "alias": ""
-        }
-      ],
-      "title": "Active Spark job count (average, excluding tasks)",
-      "description": "Elasticsearch: .ds-batch-metrics-ds* (watcher on batch-events-*). There are often no documents in Last 24 hours; use Last 7 days or wider. Spark chapter runs alone do not write here—batch-events pipeline must be active.",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
         "y": 0
       },
       "id": 100,
@@ -1460,5 +1334,5 @@
   "timezone": "browser",
   "title": "Spark Cluster Metrics",
   "uid": "spark-system-metrics",
-  "version": 8
+  "version": 9
 }
