@@ -20,6 +20,7 @@ Grafana provides visualization of metrics collected from:
 | Dashboard | UID | Description | Documentation |
 |-----------|-----|-------------|---------------|
 | Spark Cluster Metrics | `spark-system-metrics` | Host and Spark metrics | [spark-system-metrics.md](./dashboards/spark-system-metrics.md) |
+| Hosts | `lab-hosts-metrics` | Lab1–Lab3 system, network, disk, and GPU metrics (subset of Spark system panels) | — |
 | Batch Job Dashboard | `batch-job-dashboard` | Batch job processing metrics | [batch-job-dashboard.md](./dashboards/batch-job-dashboard.md) |
 
 ## Dashboard Organization
@@ -34,6 +35,7 @@ grafana/
 │   └── dashboards/
 │       ├── provisioning.yaml      # Dashboard provisioning config
 │       ├── spark-system.json      # Spark cluster metrics dashboard
+│       ├── hosts.json             # Lab1–Lab3 host metrics only
 │       └── batch-job-dashboard4.json  # Batch job dashboard
 └── dashboards/                    # Documentation for each dashboard
     ├── spark-system-metrics.md

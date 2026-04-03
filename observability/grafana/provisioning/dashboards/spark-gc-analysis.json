@@ -52,11 +52,13 @@
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 0.8
               }
             ]
           },
-          "unit": "percent"
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -108,7 +110,7 @@
           },
           "metrics": [
             {
-              "field": "system.cpu.total.pct",
+              "field": "system.cpu.total.norm.pct",
               "id": "1",
               "type": "avg"
             }

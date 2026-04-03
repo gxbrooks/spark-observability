@@ -1,0 +1,432 @@
+{
+  "annotations": { "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
+  "description": "Lab1, Lab2, and Lab3 host metrics only. System metrics match Spark Cluster Metrics; GPU panels use metrics-gpu-default (hosts with no GPU show no series).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Average CPU across cores (normalized 0–100%). Same axis and units as Spark System Metrics; legend differs. Filtered to Lab1–Lab3.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.8 }
+            ]
+          },
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "8.7.1",
+      "targets": [
+        {
+          "alias": "{{term host.name}} CPU",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "system.cpu.total.norm.pct", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-system.cpu-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Host CPU utilization (% of capacity, per host)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "GPU die temperature per host: edge (temp1_input) when present, else junction/hotspot for AMD. Averages multiple GPUs on the same host.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}} edge",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "gpu.temperature_c.edge", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-gpu-default* AND (host.name.keyword:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "alias": "{{term host.name.keyword}} junction",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "gpu.temperature_c.junction", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-gpu-default* AND (host.name.keyword:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU die temperature (°C, edge or junction, per host)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "GPU compute utilization (gpu.utilization.core_percent) from metrics-gpu-default, averaged per host. UOM in panel title; tick labels numeric 0–100 (see visualizations.md). Legend differs from Spark System Metrics.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}} GPU %",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "gpu.utilization.core_percent", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-gpu-default* AND (host.name.keyword:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU compute utilization (% of GPU, per host)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Minor (pgfault) and major (pgmajfault) page fault rates summed as total fault pressure per host.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "alias": "{{term host.name}} minor",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "system.memory.page_stats.pgfault.rate", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-system.memory-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "alias": "{{term host.name}} major",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "system.memory.page_stats.pgmajfault.rate", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-system.memory-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Page fault rate (faults/s, minor + major, per host)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "system.load.1 averaged per host.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "alias": "{{term host.name}} load 1m",
+          "bucketAggs": [
+            { "id": "1", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "field": "system.load.1", "id": "1", "type": "avg" }],
+          "query": "_index:metrics-system.load-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan))",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "System load average (1 min, run-queue length, per host)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Envelope chart (Spark System Metrics Aggregated style): ingress (In) summed per host and negated; egress (Out) positive. Stacked fill. Physical NICs only; Lab1–Lab3.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "stacking": { "mode": "normal", "group": "A" },
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
+          },
+          "mappings": [],
+          "nullValueMode": "null",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] }, "tooltip": { "mode": "multi" }, "maxDataPoints": 3000 },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name}} In",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "system.network.in.bytes_rate", "hide": true },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : null" },
+              "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
+            }
+          ],
+          "query": "_index:metrics-system.network-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan)) AND system.network.name:(enp* OR ens* OR eth0 OR eth1 OR wlp*) AND NOT system.network.name:lo AND _exists_:system.network.in.bytes_rate",
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "alias": "{{term host.name}} Out",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "system.network.out.bytes_rate", "hide": true },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value : null" },
+              "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
+            }
+          ],
+          "query": "_index:metrics-system.network-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan)) AND system.network.name:(enp* OR ens* OR eth0 OR eth1 OR wlp*) AND NOT system.network.name:lo AND _exists_:system.network.out.bytes_rate",
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Network byte rate (bytes/s, ingress / egress, per host)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Envelope chart: read rate per host summed over block devices (nvme/sd/vd), negated; write rate positive. Stacked fill. Lab1–Lab3.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "stacking": { "mode": "normal", "group": "A" },
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 50,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
+          },
+          "mappings": [],
+          "nullValueMode": "null",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] }, "tooltip": { "mode": "multi" }, "maxDataPoints": 3000 },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name}} Read",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "system.diskio.read.bytes_rate", "hide": true },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : null" },
+              "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
+            }
+          ],
+          "query": "_index:metrics-system.diskio-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan)) AND system.diskio.name:(nvme* OR sd* OR vd*) AND _exists_:system.diskio.read.bytes_rate",
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "alias": "{{term host.name}} Write",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "asc", "orderBy": "_key", "size": "10" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "system.diskio.write.bytes_rate", "hide": true },
+            {
+              "id": "2",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value : null" },
+              "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
+            }
+          ],
+          "query": "_index:metrics-system.diskio-default* AND (host.name:(Lab1 OR Lab2 OR Lab3 OR Lab1.lan OR Lab2.lan OR Lab3.lan OR lab1 OR lab2 OR lab3 OR lab1.lan OR lab2.lan OR lab3.lan)) AND system.diskio.name:(nvme* OR sd* OR vd*) AND _exists_:system.diskio.write.bytes_rate",
+          "refId": "B",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Disk I/O rate (bytes/s, read / write, per host)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["hosts", "lab", "system", "metrics"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Hosts",
+  "uid": "lab-hosts-metrics",
+  "version": 7,
+  "weekStart": ""
+}
