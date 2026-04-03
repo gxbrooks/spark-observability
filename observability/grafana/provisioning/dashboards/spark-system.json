@@ -50,8 +50,7 @@
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
-              "type": "log",
-              "log": 10
+              "type": "linear"
             },
             "showPoints": "auto",
             "spanNulls": false,
@@ -104,7 +103,7 @@
         {
           "bucketAggs": [
             {
-              "id": "1",
+              "id": "3",
               "type": "terms",
               "field": "class",
               "settings": {
@@ -142,7 +141,7 @@
         }
       ],
       "title": "Active Spark job count (average, excluding tasks)",
-      "description": "From batch-metrics-ds (Elasticsearch watcher on batch-events). If this stays flat, check batch-events ingestion and watcher; not every Spark run writes here.",
+      "description": "Elasticsearch: .ds-batch-metrics-ds* (watcher on batch-events-*). There are often no documents in Last 24 hours; use Last 7 days or wider. Spark chapter runs alone do not write here—batch-events pipeline must be active.",
       "type": "timeseries"
     },
     {
@@ -1454,12 +1453,12 @@
     "list": []
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-90d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Spark Cluster Metrics",
   "uid": "spark-system-metrics",
-  "version": 7
+  "version": 8
 }
