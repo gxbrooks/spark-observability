@@ -1,0 +1,30 @@
+---
+# Diagnose Elastic Agent status across all managed hosts.
+
+- name: Diagnose Elastic Agent
+  hosts: all
+  gather_facts: false
+  tags: [diagnose, elastic-agent]
+  tasks:
+    - name: Check Elastic Agent service status
+      ansible.builtin.shell: sudo systemctl status elastic-agent --no-pager 2>&1 | head -10
+      register: agent_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Check Elastic Agent version
+      ansible.builtin.shell: sudo elastic-agent version 2>/dev/null || echo "not installed"
+      register: agent_version
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Display Elastic Agent status
+      ansible.builtin.debug:
+        msg: |
+          Elastic Agent on {{ inventory_hostname }}
+          ==========================================
+          Version: {{ agent_version.stdout_lines | first | default('unknown') }}
+          Status:
+          {{ agent_status.stdout | default('unknown') | indent(2) }}

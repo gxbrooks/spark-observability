@@ -1,0 +1,32 @@
+---
+# Start Kibana and wait for healthy status.
+
+- name: Start Kibana
+  hosts: observability
+  gather_facts: false
+  tags: [start, kibana]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Start Kibana container
+      ansible.builtin.command: docker compose up -d kibana
+      args:
+        chdir: "{{ observability_dir }}"
+      register: kibana_start
+      changed_when: "'Started' in kibana_start.stderr or 'Created' in kibana_start.stderr"
+      failed_when: false
+
+    - name: Wait for Kibana to respond
+      ansible.builtin.uri:
+        url: "http://localhost:5601/api/status"
+        method: GET
+        status_code: [200, 302, 401]
+      register: kibana_health
+      until: kibana_health.status | default(0) | int in [200, 302, 401]
+      retries: 30
+      delay: 5
+      failed_when: false
+
+    - name: Report Kibana status
+      ansible.builtin.debug:
+        msg: "Kibana: {{ 'healthy' if kibana_health.status | default(0) | int in [200, 302, 401] else 'NOT READY after 150s' }}"

@@ -1,0 +1,19 @@
+---
+# Stop the Kibana container.
+
+- name: Stop Kibana
+  hosts: observability
+  gather_facts: false
+  tags: [stop, kibana]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop Kibana container
+      ansible.builtin.command: docker compose stop kibana
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Kibana container stopped."

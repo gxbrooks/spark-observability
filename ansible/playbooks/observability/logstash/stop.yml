@@ -1,0 +1,19 @@
+---
+# Stop the Logstash container.
+
+- name: Stop Logstash
+  hosts: observability
+  gather_facts: false
+  tags: [stop, logstash]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop Logstash container
+      ansible.builtin.command: docker compose stop logstash01
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Logstash container stopped."

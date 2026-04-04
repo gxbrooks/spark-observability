@@ -1,0 +1,19 @@
+---
+# Stop the Elasticsearch container.
+
+- name: Stop Elasticsearch
+  hosts: observability
+  gather_facts: false
+  tags: [stop, elasticsearch]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop Elasticsearch container
+      ansible.builtin.command: docker compose stop es01
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Elasticsearch container stopped."

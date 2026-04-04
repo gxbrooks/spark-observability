@@ -97,6 +97,33 @@ Develop and document a comprehensive certificate management strategy for the ent
 
 ---
 
+## Logstash
+
+### Upgrade Logstash to a Version Supporting Native Log Rotation Settings
+**Priority**: Medium  
+**Status**: Not Started  
+**Estimated Effort**: < 1 day
+
+**Description**:
+Logstash 8.15.0 does not support the `logstash.yml` settings `log.rotation.size`, `log.rotation.age`, and `log.rotation.keep`. Log rotation is currently handled via `log4j2.properties`. Newer Logstash versions (8.17+) may reintroduce native rotation settings in `logstash.yml`. Upgrading would simplify configuration and reduce the reliance on `log4j2.properties` overrides.
+
+**Current Workaround**: Log rotation is configured in `observability/logstash/config/log4j2.properties`.
+
+**Action**:
+1. Check Elastic release notes for Logstash versions that support `log.rotation.*` settings natively.
+2. Upgrade the `LOGSTASH_VERSION` variable in `vars/variables.yaml`.
+3. Test that `log.rotation.size`, `log.rotation.age`, and `log.rotation.keep` work in `logstash.yml`.
+4. Remove the `log4j2.properties` override once native settings are confirmed working.
+5. Update `docs/architecture-and-resources.md` log rotation section.
+
+**Related Files**:
+- `vars/variables.yaml` (`LOGSTASH_VERSION`)
+- `observability/logstash/config/logstash.yml`
+- `observability/logstash/config/log4j2.properties`
+- `docs/architecture-and-resources.md`
+
+---
+
 ## Future Enhancements
 
 ### Migrate to Spark 4.0 with Python 3.11

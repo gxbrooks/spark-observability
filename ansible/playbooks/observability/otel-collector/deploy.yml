@@ -1,0 +1,16 @@
+---
+# Deploy OTel Collector configuration files to the observability host.
+
+- name: Deploy OTel Collector
+  hosts: observability
+  gather_facts: false
+  tags: [deploy, otel-collector]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Synchronize OTel Collector directory
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/otel-collector/"
+        dest: "{{ observability_dir }}/otel-collector/"
+        delete: false
+        recursive: true

@@ -1,0 +1,35 @@
+---
+# Start Logstash and wait for healthy status.
+
+- name: Start Logstash
+  hosts: observability
+  gather_facts: false
+  tags: [start, logstash]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Remove obsolete pipeline config if present
+      ansible.builtin.file:
+        path: "{{ observability_dir }}/logstash/pipeline/prometheus-remote-write.conf"
+        state: absent
+
+    - name: Start Logstash container (no-deps to skip init-index wait)
+      ansible.builtin.command: docker compose up -d --no-deps logstash01
+      args:
+        chdir: "{{ observability_dir }}"
+      register: logstash_start
+      changed_when: "'Started' in logstash_start.stderr or 'Created' in logstash_start.stderr"
+      failed_when: false
+
+    - name: Wait for Logstash API to respond
+      ansible.builtin.shell: docker exec logstash01 curl -s -o /dev/null -w '%{http_code}' localhost:9600/
+      register: logstash_health
+      until: logstash_health.stdout | default('000') == '200'
+      retries: 30
+      delay: 5
+      failed_when: false
+      changed_when: false
+
+    - name: Report Logstash status
+      ansible.builtin.debug:
+        msg: "Logstash: {{ 'healthy' if logstash_health.stdout | default('000') == '200' else 'NOT READY' }}"

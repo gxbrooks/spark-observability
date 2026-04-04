@@ -1,0 +1,35 @@
+---
+# Start Elasticsearch and wait for healthy status.
+
+- name: Start Elasticsearch
+  hosts: observability
+  gather_facts: false
+  tags: [start, elasticsearch]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Start Elasticsearch container
+      ansible.builtin.command: docker compose up -d es01
+      args:
+        chdir: "{{ observability_dir }}"
+      register: es_start
+      changed_when: "'Started' in es_start.stderr or 'Created' in es_start.stderr"
+      failed_when: false
+
+    - name: Wait for Elasticsearch to be healthy
+      ansible.builtin.uri:
+        url: "https://localhost:9200"
+        method: GET
+        user: elastic
+        password: "{{ lookup('env', 'ELASTIC_PASSWORD') | default('myElastic2025', true) }}"
+        validate_certs: false
+        status_code: [200, 401]
+      register: es_health
+      until: es_health.status | default(0) | int in [200, 401]
+      retries: 30
+      delay: 5
+      failed_when: false
+
+    - name: Report Elasticsearch status
+      ansible.builtin.debug:
+        msg: "Elasticsearch: {{ 'healthy' if es_health.status | default(0) | int in [200, 401] else 'NOT READY after 150s' }}"

@@ -1,0 +1,24 @@
+---
+# Deploy Elasticsearch configuration files to the observability host.
+
+- name: Deploy Elasticsearch
+  hosts: observability
+  gather_facts: false
+  tags: [deploy, elasticsearch]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Synchronize Elasticsearch directory
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/elasticsearch/"
+        dest: "{{ observability_dir }}/elasticsearch/"
+        delete: false
+        recursive: true
+
+    - name: Create Elasticsearch outputs directory
+      ansible.builtin.file:
+        path: "{{ observability_dir }}/elasticsearch/outputs"
+        state: directory
+        mode: '0775'
+        owner: ansible
+        group: ansible

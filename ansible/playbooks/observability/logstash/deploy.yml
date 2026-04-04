@@ -1,0 +1,16 @@
+---
+# Deploy Logstash configuration files to the observability host.
+
+- name: Deploy Logstash
+  hosts: observability
+  gather_facts: false
+  tags: [deploy, logstash]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Synchronize Logstash directory
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/logstash/"
+        dest: "{{ observability_dir }}/logstash/"
+        delete: false
+        recursive: true

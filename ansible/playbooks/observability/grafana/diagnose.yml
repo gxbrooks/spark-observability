@@ -1,0 +1,45 @@
+---
+# Diagnose Grafana connectivity, container status, and dashboards.
+
+- name: Diagnose Grafana
+  hosts: observability
+  gather_facts: false
+  tags: [diagnose, grafana]
+  vars:
+    timeout_seconds: 15
+    observability_env_file: "/home/ansible/ops/observability/.env"
+  tasks:
+    - name: Resolve credentials
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/resolve_credentials.yml"
+
+    - name: Test Grafana connectivity
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:3000"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: grafana_test
+      failed_when: false
+
+    - name: Get Grafana dashboards
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:3000/api/search"
+        method: GET
+        user: admin
+        password: "{{ grafana_password_resolved }}"
+        timeout: "{{ timeout_seconds }}"
+        force_basic_auth: true
+      register: grafana_dashboards
+      failed_when: false
+
+    - name: Display Grafana status
+      ansible.builtin.debug:
+        msg: |
+          Grafana
+          =======
+          HTTP:       {{ 'UP (HTTP ' ~ grafana_test.status ~ ')' if grafana_test.status | default(0) | int == 200 else 'DOWN' }}
+          Dashboards: {{ grafana_dashboards.json | length if (grafana_dashboards.status | default(0) | int == 200 and grafana_dashboards.json is defined) else 'N/A' }}
+          {% if grafana_dashboards.status | default(0) | int == 200 and grafana_dashboards.json is defined %}
+          {% for d in grafana_dashboards.json %}
+            - {{ d.title | default('N/A') }} (UID: {{ d.uid | default('N/A') }})
+          {% endfor %}
+          {% endif %}

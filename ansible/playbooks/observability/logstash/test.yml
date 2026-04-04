@@ -1,0 +1,79 @@
+---
+# Test Logstash pipeline health: verify network IO and disk IO metrics are flowing
+# through the system-metrics-rates pipeline (port 5051).
+
+- name: Test Logstash
+  hosts: observability
+  gather_facts: false
+  tags: [test, logstash]
+  vars:
+    timeout_seconds: 20
+    recent_window: "now-30m"
+    observability_env_file: "/home/ansible/ops/observability/.env"
+  tasks:
+    - name: Resolve credentials
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/resolve_credentials.yml"
+
+    - name: Check recent network IO metrics (flows through Logstash port 5051)
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}:9200/metrics-system.network-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          query:
+            range:
+              "@timestamp":
+                gte: "{{ recent_window }}"
+          sort:
+            - "@timestamp": "desc"
+        user: elastic
+        password: "{{ es_password_resolved }}"
+        validate_certs: false
+        force_basic_auth: true
+        timeout: "{{ timeout_seconds }}"
+      register: network_check
+      failed_when: false
+
+    - name: Check recent disk IO metrics (flows through Logstash port 5051)
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}:9200/metrics-system.diskio-default/_search"
+        method: POST
+        body_format: json
+        body:
+          size: 1
+          query:
+            range:
+              "@timestamp":
+                gte: "{{ recent_window }}"
+          sort:
+            - "@timestamp": "desc"
+        user: elastic
+        password: "{{ es_password_resolved }}"
+        validate_certs: false
+        force_basic_auth: true
+        timeout: "{{ timeout_seconds }}"
+      register: diskio_check
+      failed_when: false
+
+    - name: Assert network IO metrics are recent
+      ansible.builtin.assert:
+        that:
+          - network_check.json is defined
+          - network_check.json.hits.total.value | int > 0
+        fail_msg: |
+          No recent network IO metrics in {{ recent_window }}.
+          Logstash system-metrics-rates pipeline (port 5051) may be down.
+          Check: docker logs logstash01 | tail -20
+        success_msg: "Network IO metrics are flowing through Logstash"
+
+    - name: Assert disk IO metrics are recent
+      ansible.builtin.assert:
+        that:
+          - diskio_check.json is defined
+          - diskio_check.json.hits.total.value | int > 0
+        fail_msg: |
+          No recent disk IO metrics in {{ recent_window }}.
+          Logstash system-metrics-rates pipeline (port 5051) may be down.
+          Check: docker logs logstash01 | tail -20
+        success_msg: "Disk IO metrics are flowing through Logstash"

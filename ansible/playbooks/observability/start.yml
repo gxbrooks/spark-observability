@@ -1,13 +1,16 @@
 ---
 # Start Observability Platform with Proper Certificate Management
-# This playbook follows a layered architecture approach:
-# 1. Generate/validate certificates (container layer)
-# 2. Distribute certificates (infrastructure layer)
-# 3. Start services (container layer)
-# 4. Verify health (validation layer)
 #
-# Firewall policy is managed by playbooks/k8s/firewall.yml (K8s-aware host firewall rules).
-# Do not manage UFW state here; observability startup should not change cluster networking policy.
+# Architecture:
+#   1. Generate .env (localhost)
+#   2. Infrastructure setup: .env, Docker, network, certificates (observability host)
+#   3. Per-subsystem start + health check (imported playbooks)
+#   4. Prometheus K8s exporters (imported playbook)
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/start.yml
+
 - name: Regenerate observability Docker env on controller
   hosts: localhost
   connection: local
@@ -19,385 +22,113 @@
         regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
         regenerate_context_names: ['observability']
 
-- name: Start Observability Platform
+- name: Observability infrastructure setup
   hosts: observability
   become: false
   gather_facts: true
-  
   vars:
     observability_dir: "/home/ansible/ops/observability"
-    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
-    env_file: "{{ observability_dir }}/.env"
     env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
-    # Standard CA certificate path (from vars/variables.yaml CA_CERT variable)
-    # This is the path where init-certs publishes the CA certificate
     ca_cert_path: "/etc/ssl/certs/elastic/ca.crt"
-    
   tasks:
-    # === CRITICAL: Validate running on correct host ===
     - name: Verify we are on the designated observability host
-      fail:
-        msg: |
-          ❌ FATAL: Wrong host! Observability stack must run on {{ observability_host }}.
-          
-          Current host: {{ inventory_hostname }}
-          Expected host: {{ observability_host }}
-          
-          This playbook MUST run on {{ observability_host }} (Docker Engine on native Ubuntu).
-          
-          Did you mean to run:
-            ssh ansible@{{ hostvars[observability_host]['ansible_host'] | default(observability_host) }}
-            cd ~/repos/spark-observability
-            ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml
+      ansible.builtin.fail:
+        msg: "FATAL: Observability stack must run on {{ observability_host }}, not {{ inventory_hostname }}."
       when: inventory_hostname != observability_host
-    
-    # Native booleans — templated "True"/"False" strings break strict `when:` conditionals (Ansible 2.14+).
+
     - name: Detect host OS
       ansible.builtin.set_fact:
-        is_linux: true
-      when: ansible_os_family in ['Debian', 'RedHat']
+        is_linux: "{{ ansible_os_family in ['Debian', 'RedHat'] }}"
 
-    - name: Detect host OS (non-Debian/RedHat)
-      ansible.builtin.set_fact:
-        is_linux: false
-      when: ansible_os_family not in ['Debian', 'RedHat']
-        
     - name: Check if observability directory exists
-      stat:
+      ansible.builtin.stat:
         path: "{{ observability_dir }}"
       register: obs_dir_stat
-      
+
     - name: Fail if observability directory doesn't exist
-      fail:
-        msg: "Observability directory not found. Run 'install.yml' first."
+      ansible.builtin.fail:
+        msg: "Observability directory not found. Run install.yml first."
       when: not obs_dir_stat.stat.exists
-    
-    # =====================================================================
-    # STEP 0.5: Ensure .env file is up to date with all required variables
-    # =====================================================================
-    - name: Set .env file paths
-      set_fact:
-        env_file: "{{ observability_dir }}/.env"
-        env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
-      when: is_linux
-    
-    - name: Check if .env file exists
-      stat:
-        path: "{{ env_file }}"
-      register: env_file_stat
-      when: is_linux
-    
+
     - name: Copy updated .env file
-      copy:
+      ansible.builtin.copy:
         src: "{{ env_source_file }}"
-        dest: "{{ env_file }}"
+        dest: "{{ observability_dir }}/.env"
         mode: '0644'
-      when: is_linux
       register: env_file_updated
-    
-    - name: Display .env file update status
-      debug:
-        msg: "{{ 'Updated .env file with latest variables' if env_file_updated.changed else '.env file is up to date' }}"
-      when: is_linux
-      
-    - name: Check if Docker is available
-      command: docker --version
+
+    - name: Check Docker availability
+      ansible.builtin.command: docker --version
       register: docker_check
-      ignore_errors: true
-      when: is_linux
-      
-    - name: Fail if Docker is not available
-      fail:
-        msg: "Docker is not available. Install Docker Engine (e.g. ansible/playbooks/docker/install.yml) and ensure the docker service is running."
-      when: is_linux and docker_check.rc != 0
-      
-    - name: Check if Docker network 'elastic' exists
-      command: docker network inspect elastic
-      register: network_check
-      ignore_errors: true
-      when: is_linux
+      failed_when: false
       changed_when: false
-      
-    - name: Create Docker network 'elastic' if it doesn't exist
-      command: docker network create elastic
-      when: is_linux and network_check.rc != 0
+
+    - name: Fail if Docker is not available
+      ansible.builtin.fail:
+        msg: "Docker is not available. Run ansible/playbooks/docker/install.yml first."
+      when: docker_check.rc != 0
+
+    - name: Ensure Docker network 'elastic' exists
+      ansible.builtin.command: docker network create elastic
       register: network_create
+      failed_when: false
       changed_when: network_create.rc == 0
-      
-    - name: Create elasticsearch outputs directory
-      file:
+
+    - name: Create Elasticsearch outputs directory
+      ansible.builtin.file:
         path: "{{ observability_dir }}/elasticsearch/outputs"
         state: directory
         mode: '0755'
-      when: is_linux
 
-    # Remove obsolete Logstash pipeline so Logstash can start (broken ruby block; only .disabled in repo)
-    - name: Remove obsolete prometheus-remote-write.conf from pipeline (if present)
-      file:
+    - name: Remove obsolete Logstash pipeline config
+      ansible.builtin.file:
         path: "{{ observability_dir }}/logstash/pipeline/prometheus-remote-write.conf"
         state: absent
-      when: is_linux
-      
-    # =====================================================================
-    # STEP 1: Initialize Certificates (Container Layer)
-    # =====================================================================
-    - name: Initialize certificates only
-      command: docker compose up init-certs
+
+    - name: Initialize certificates
+      ansible.builtin.command: docker compose up init-certs
       args:
         chdir: "{{ observability_dir }}"
       environment:
         FORCE_REGEN: "{{ force_cert_regen | default('') }}"
-      when: is_linux
       register: init_certs_result
-      
-    - name: Display certificate initialization result
-      debug:
-        msg: "Certificate initialization {{ 'completed' if init_certs_result.rc == 0 else 'failed' }}"
+      failed_when: false
 
-    # =====================================================================
-    # STEP 2: Validate CA Certificate
-    # =====================================================================
-    # Check certificate in Docker volume (source of truth)
-    # Check inside a container (reliable regardless of host volume mount layout)
-    # CA is at volume root (init-certs copies to certs/ca.crt) and also at certs/ca/ca.crt
-    - name: Check if CA certificate exists in Docker volume (via container)
-      shell: |
-        docker run --rm -v observability_certs:/certs:ro alpine sh -c "test -f /certs/ca.crt && echo EXISTS || test -f /certs/ca/ca.crt && echo EXISTS || echo NOT_FOUND"
+    - name: Validate CA certificate in Docker volume
+      ansible.builtin.shell: |
+        docker run --rm -v observability_certs:/certs:ro alpine sh -c \
+          "test -f /certs/ca.crt && echo EXISTS || test -f /certs/ca/ca.crt && echo EXISTS || echo NOT_FOUND"
       register: ca_cert_check
       changed_when: false
       failed_when: false
-      when: is_linux
 
-    # Strict Ansible conditionals: avoid `when: ... and 'X' in string` (non-boolean in 2.14+).
-    - name: Record CA present in Docker volume
-      ansible.builtin.set_fact:
-        ca_present_in_volume: true
-      when:
-        - is_linux
-        - (ca_cert_check.stdout | default('')) is search("EXISTS")
+    - name: Warn if CA certificate not found
+      ansible.builtin.debug:
+        msg: "CA certificate not found in Docker volume. Check init-certs logs."
+      when: "'EXISTS' not in (ca_cert_check.stdout | default(''))"
 
-    - name: Record CA absent in Docker volume
-      ansible.builtin.set_fact:
-        ca_present_in_volume: false
-      when:
-        - is_linux
-        - (ca_cert_check.stdout | default('')) is not search("EXISTS")
-
-    - name: List volume contents when CA not found (debug)
-      shell: docker run --rm -v observability_certs:/certs:ro alpine ls -la /certs/ 2>/dev/null || true
-      register: cert_volume_list
-      changed_when: false
-      when:
-        - is_linux
-        - ca_present_in_volume is defined
-        - not ca_present_in_volume
-
-    - name: Warn if CA certificate not found (continue to start services)
-      debug:
-        msg: |
-          CA certificate not found in Docker volume. Certificate generation may have failed.
-          Volume contents: {{ cert_volume_list.stdout_lines | default([]) }}
-          Check init-certs logs: cd {{ observability_dir }} && docker compose logs init-certs
-          Continuing to start services...
-      when:
-        - is_linux
-        - ca_present_in_volume is defined
-        - not ca_present_in_volume
-
-    - name: Validate CA certificate integrity (from container)
-      shell: |
-        docker run --rm -v observability_certs:/certs:ro alpine sh -c '
-          CA=/certs/ca.crt
-          [ -f "$CA" ] || CA=/certs/ca/ca.crt
-          if ! openssl x509 -in "$CA" -noout -text > /dev/null 2>&1; then
-            echo INVALID
-            exit 1
-          fi
-          echo "Issuer: $(openssl x509 -in "$CA" -noout -issuer)"
-          echo "Validity: $(openssl x509 -in "$CA" -noout -dates)"
-          echo "Fingerprint: $(openssl x509 -in "$CA" -noout -fingerprint -sha256)"
-        '
-      register: ca_cert_validation
-      changed_when: false
-      failed_when: false  # Do not block start if Alpine openssl disagrees with cert format
-      when:
-        - is_linux
-        - ca_present_in_volume | default(false)
-
-    - name: Display CA certificate details
-      debug:
-        msg: "{{ ca_cert_validation.stdout_lines | default([]) }}"
-      when:
-        - is_linux
-        - ca_present_in_volume | default(false)
-        - ca_cert_validation is defined
-        - ca_cert_validation.stdout_lines is defined
-        - (ca_cert_validation.stdout_lines | default([]) | join('') | length) > 0
-        - (ca_cert_validation.stdout | default('')) is not search("INVALID")
-
-    - name: Warn if CA validation reported INVALID
-      debug:
-        msg: "CA cert file exists but openssl validation reported INVALID (non-fatal). Services will still start."
-      when:
-        - is_linux
-        - ca_present_in_volume | default(false)
-        - ca_cert_validation is defined
-        - (ca_cert_validation.stdout | default('')) is search("INVALID")
-
-    # =====================================================================
-    # STEP 2.5: Reminder for Service Restarts (Pull-Based Model)
-    # Services fetch certificates from standard location on install/start.
-    # After cert regeneration, services must be restarted to pull new cert.
-    # =====================================================================
-    - name: Display certificate update instructions
-      debug:
-        msg: |
-          ✅ CA Certificate Published: {{ ca_cert_path }}
-          
-          If certificates were regenerated, restart services to pull new cert:
-          
-          # Elastic Agent (stop + start pattern)
-          ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/stop.yml
-          ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml
-          
-          # Spark or other services follow same pattern
-          
-          Services will automatically fetch the latest certificate from the published location.
-      
-    # =====================================================================
-    # STEP 3: Start Observability Services (Container Layer)
-    # =====================================================================
-    - name: Start observability services (ignore init-index failures)
-      command: docker compose up -d
+    - name: Start all services via Docker Compose
+      ansible.builtin.command: docker compose up -d
       args:
         chdir: "{{ observability_dir }}"
-      when: is_linux
       register: docker_up
-      failed_when: false  # Don't fail if init-index fails
-      changed_when: "'Created' in docker_up.stderr or 'Started' in docker_up.stderr or 'Up' in docker_up.stderr"
-      
-    - name: Display service startup info
-      debug:
-        msg: |
-          Services starting...
-          - Docker Compose starting all services in dependency order
-          - Elasticsearch → Kibana → init-index → Logstash → Grafana
-          - init-index handles password setup and index initialization
-          - Note: init-index failures are non-critical and won't block other services
-      
-    # =====================================================================
-    # STEP 3.5: Ensure All Core Services Are Running
-    # =====================================================================
-    - name: Define core services that must be running
-      set_fact:
-        core_services:
-          - { name: "es01", display: "Elasticsearch", required: true }
-          - { name: "kibana", display: "Kibana", required: true }
-          - { name: "grafana", display: "Grafana", required: true }
-          - { name: "logstash01", display: "Logstash", required: true }
-          - { name: "otel-collector", display: "OTel Collector", required: false }
-          - { name: "prometheus-es-adapter", display: "Prometheus ES Adapter", required: false }
-          - { name: "prometheus", display: "Prometheus", required: false }
-          - { name: "tempo", display: "Grafana Tempo", required: false }
-      when: is_linux
-    
-    - name: Check current service status
-      command: docker compose ps --format "{{ '{{.Service}}' }}:{{ '{{.State}}' }}"
-      args:
-        chdir: "{{ observability_dir }}"
-      register: service_status_raw
-      when: is_linux
-      changed_when: false
-    
-    - name: Parse service status into dictionary
-      set_fact:
-        service_states: "{{ service_states | default({}) | combine({item.split(':')[0]: item.split(':')[1]}) }}"
-      loop: "{{ service_status_raw.stdout_lines }}"
-      when: 
-        - is_linux
-        - service_status_raw.stdout_lines is defined
-        - "':' in item"
-    
-    - name: Start services that are not running (with dependencies)
-      command: docker compose up -d {{ item.name }}
-      args:
-        chdir: "{{ observability_dir }}"
-      loop: "{{ core_services }}"
-      loop_control:
-        label: "{{ item.display }}"
-      when: 
-        - is_linux
-        - service_states[item.name] is not defined or service_states[item.name] != "running"
-        - item.name not in ['grafana', 'logstash01']  # These have init-index dependency issues
-      register: service_start_result
       failed_when: false
-      changed_when: "'Created' in service_start_result.stderr or 'Started' in service_start_result.stderr or 'Up' in service_start_result.stderr"
-    
+      changed_when: "'Created' in docker_up.stderr or 'Started' in docker_up.stderr"
+
     - name: Start Grafana and Logstash without init-index dependency
-      command: docker compose up -d --no-deps {{ item }}
+      ansible.builtin.command: "docker compose up -d --no-deps {{ item }}"
       args:
         chdir: "{{ observability_dir }}"
-      loop:
-        - grafana
-        - logstash01
-      when: 
-        - is_linux
-        - service_states[item] is not defined or service_states[item] != "running"
-      register: service_start_no_deps
+      loop: [grafana, logstash01]
       failed_when: false
-      changed_when: "'Created' in service_start_no_deps.stderr or 'Started' in service_start_no_deps.stderr or 'Up' in service_start_no_deps.stderr"
-    
-    - name: Verify services are actually running after start attempt
-      command: docker compose ps --format "{{ '{{.Service}}' }}:{{ '{{.State}}' }}"
-      args:
-        chdir: "{{ observability_dir }}"
-      register: service_status_after_start
-      when: is_linux
       changed_when: false
-    
-    - name: Wait a bit for services to fully start
-      wait_for:
-        timeout: 15
-      when: is_linux
-    
-    - name: Final check of service status
-      command: docker compose ps --format "{{ '{{.Service}}' }}:{{ '{{.State}}' }}"
-      args:
-        chdir: "{{ observability_dir }}"
-      register: final_service_check
-      when: is_linux
-      changed_when: false
-    
-    - name: Check if any required services failed to start
-      set_fact:
-        failed_services: "{{ failed_services | default([]) + [item.name] }}"
-      loop: "{{ core_services }}"
-      when: 
-        - is_linux
-        - item.required
-        - final_service_check.stdout is defined
-        - "item.name + ':running' not in final_service_check.stdout"
-        - "item.name + ':Up' not in final_service_check.stdout"
-    
-    - name: Warn if required services didn't start (but don't fail)
-      debug:
-        msg: "⚠ Warning: Some services may not be running: {{ failed_services | join(', ') }}. Check logs for details."
-      when: 
-        - is_linux
-        - failed_services is defined
-        - failed_services | length > 0
-    
+
     - name: Wait for services to stabilize
-      wait_for:
-        timeout: 10
-      when: is_linux
-    
-    # =====================================================================
-    # STEP 4: Verify Service Health (Validation Layer)
-    # =====================================================================
-    
+      ansible.builtin.wait_for:
+        timeout: 15
+
     - name: Wait for Elasticsearch to be ready
-      uri:
+      ansible.builtin.uri:
         url: "https://localhost:9200"
         method: GET
         user: elastic
@@ -405,69 +136,45 @@
         validate_certs: false
         status_code: [200, 401]
       register: es_health
-      until: es_health.status in [200, 401]
+      until: es_health.status | default(0) | int in [200, 401]
       retries: 30
       delay: 5
-      ignore_errors: true
-      when: is_linux
-      
+      failed_when: false
+
     - name: Wait for Kibana to be ready
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:5601/api/status"
         method: GET
         status_code: [200, 302, 401]
       register: kibana_health
-      until: kibana_health.status in [200, 302, 401]
+      until: kibana_health.status | default(0) | int in [200, 302, 401]
       retries: 30
       delay: 5
-      ignore_errors: true
-      when: is_linux
-      
+      failed_when: false
+
     - name: Get final service status
-      command: docker compose ps --format "table {{ '{{.Service}}' }}\t{{ '{{.Status}}' }}"
+      ansible.builtin.command: "docker compose ps --format table"
       args:
         chdir: "{{ observability_dir }}"
-      register: final_service_status
-      when: is_linux
+      register: final_status
       changed_when: false
-    
-    - name: Display service health status
-      debug:
-        msg: |
-          Observability Platform Health:
-          - Elasticsearch: {{ 'Healthy' if es_health.status in [200, 401] else 'Not Ready' }}
-          - Kibana: {{ 'Healthy' if kibana_health.status in [200, 302, 401] else 'Not Ready' }}
-          
-          All Services Status:
-          {{ final_service_status.stdout }}
-          
-    - name: Display start status
-      debug:
-        msg: |
-          ========================================
-          Observability Platform Started!
-          ========================================
-          
-          Services:
-          - Elasticsearch: https://{{ ansible_hostname }}:9200
-          - Kibana: http://{{ ansible_hostname }}:5601
-          - Grafana: http://{{ ansible_hostname }}:3000
-          - Logstash: {{ ansible_hostname }}:5050
-          - Prometheus: http://{{ ansible_hostname }}:9090
-          - Tempo: http://{{ ansible_hostname }}:3200
-          
-          Credentials:
-          - Username: elastic
-          - Password: {{ lookup('env', 'ELASTIC_PASSWORD') | default('(set in .env)', true) }}
-          
-          Next Steps:
-          - If certs regenerated, restart Elastic Agent on managed hosts:
-            ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/stop.yml
-            ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml
-          - Verify metrics flowing:
-            curl -k -u elastic:password https://localhost:9200/_cat/indices/metrics-*
 
-# =========================================================================
-# Prometheus sub-playbook: verify Prometheus containers + K8s exporter pods
-# =========================================================================
+    - name: Display startup summary
+      ansible.builtin.debug:
+        msg: |
+          Observability Platform Started
+          ==============================
+          Elasticsearch: {{ 'Ready' if es_health.status | default(0) | int in [200, 401] else 'Not Ready' }}
+          Kibana:        {{ 'Ready' if kibana_health.status | default(0) | int in [200, 302, 401] else 'Not Ready' }}
+
+          {{ final_status.stdout }}
+
+          URLs:
+            Elasticsearch  https://{{ ansible_hostname }}:9200
+            Kibana         http://{{ ansible_hostname }}:5601
+            Grafana        http://{{ ansible_hostname }}:3000
+            Logstash       {{ ansible_hostname }}:5050
+            Prometheus     http://{{ ansible_hostname }}:9090
+            Tempo          http://{{ ansible_hostname }}:3200
+
 - import_playbook: prometheus/start.yml

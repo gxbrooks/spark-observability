@@ -1,82 +1,65 @@
 ---
 # Uninstall Observability Platform
-# Remove all observability files and services
+# Removes all Docker containers, volumes, and deployed files.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/uninstall.yml
 
 - name: Uninstall Observability Platform
   hosts: observability
   become: false
   gather_facts: true
-  
   vars:
     observability_dir: "/home/ansible/ops/observability"
-    
   tasks:
-    - name: Detect host OS
-      set_fact:
-        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
-        
     - name: Display uninstall warning
-      debug:
+      ansible.builtin.debug:
         msg: |
           WARNING: This will completely remove the observability platform!
-          =============================================================
-          
-          This will:
-          - Stop all observability services
+          - Stop all services
           - Remove all Docker containers and volumes
-          - Delete all observability files
-          - Remove all data (Elasticsearch, Kibana, Grafana)
-          
-          Are you sure you want to continue?
-          
+          - Delete all observability files and data
+
     - name: Pause for confirmation
-      pause:
+      ansible.builtin.pause:
         prompt: "Press ENTER to continue with uninstall, or Ctrl+C to cancel"
-        
-    # === LINUX TASKS ===
-    - name: Stop observability services (Linux)
-      command: docker compose down
+
+    - name: Stop all services and remove volumes
+      ansible.builtin.command: docker compose down -v
       args:
         chdir: "{{ observability_dir }}"
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Remove all Docker containers (Linux)
-      command: docker container prune -f
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Remove all Docker volumes (Linux)
-      command: docker volume prune -f
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Remove all Docker networks (Linux)
-      command: docker network prune -f
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Remove observability directory (Linux)
-      file:
+      failed_when: false
+
+    - name: Remove orphaned containers
+      ansible.builtin.command: docker container prune -f
+      failed_when: false
+
+    - name: Remove orphaned volumes
+      ansible.builtin.command: docker volume prune -f
+      failed_when: false
+
+    - name: Remove orphaned networks
+      ansible.builtin.command: docker network prune -f
+      failed_when: false
+
+    - name: Remove observability directory
+      ansible.builtin.file:
         path: "{{ observability_dir }}"
         state: absent
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Display uninstall status
-      debug:
-        msg: |
-          Observability Platform Uninstalled!
-          ==================================
-          
-          All observability services and data have been removed from {{ inventory_hostname }}.
-          K8s exporters (node-exporter, kube-state-metrics) will be removed next.
-          
-          To reinstall, run: ansible-playbook -i inventory.yml playbooks/observability/install.yml
+      failed_when: false
 
-# =========================================================================
-# Prometheus sub-playbook: remove K8s exporters from cluster
-# =========================================================================
+    - name: Display uninstall summary
+      ansible.builtin.debug:
+        msg: |
+          Observability Platform Uninstalled
+          ==================================
+          All services and data removed from {{ inventory_hostname }}.
+          K8s exporters will be removed next.
+
+          To reinstall:
+            ansible-playbook -i inventory.yml playbooks/observability/install.yml
+
 - import_playbook: prometheus/uninstall.yml
   vars:
     skip_confirmation: true

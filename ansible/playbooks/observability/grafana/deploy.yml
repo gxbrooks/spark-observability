@@ -1,0 +1,27 @@
+---
+# Deploy Grafana configuration files to the observability host.
+
+- name: Deploy Grafana
+  hosts: observability
+  gather_facts: false
+  tags: [deploy, grafana]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Synchronize Grafana directory
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/grafana/"
+        dest: "{{ observability_dir }}/grafana/"
+        delete: false
+        recursive: true
+        rsync_opts:
+          - "--exclude=plugins/"
+
+    - name: Create Grafana plugins directory
+      ansible.builtin.file:
+        path: "{{ observability_dir }}/grafana/plugins"
+        state: directory
+        mode: '0755'
+        owner: '472'
+        group: '472'
+      become: true

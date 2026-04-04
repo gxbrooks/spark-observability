@@ -1,0 +1,32 @@
+---
+# Start Tempo container.
+
+- name: Start Tempo
+  hosts: observability
+  gather_facts: false
+  tags: [start, tempo]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Start Tempo container
+      ansible.builtin.command: docker compose up -d tempo
+      args:
+        chdir: "{{ observability_dir }}"
+      register: tempo_start
+      changed_when: "'Started' in tempo_start.stderr or 'Created' in tempo_start.stderr"
+      failed_when: false
+
+    - name: Wait for Tempo to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:3200/ready"
+        method: GET
+        status_code: [200]
+      register: tempo_health
+      until: tempo_health.status | default(0) | int == 200
+      retries: 15
+      delay: 5
+      failed_when: false
+
+    - name: Report Tempo status
+      ansible.builtin.debug:
+        msg: "Tempo: {{ 'healthy' if tempo_health.status | default(0) | int == 200 else 'NOT READY' }}"

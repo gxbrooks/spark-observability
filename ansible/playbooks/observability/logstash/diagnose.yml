@@ -1,0 +1,68 @@
+---
+# Diagnose Logstash container status, API health, and pipeline stats.
+
+- name: Diagnose Logstash
+  hosts: observability
+  gather_facts: false
+  tags: [diagnose, logstash]
+  vars:
+    timeout_seconds: 15
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Check Logstash container status
+      ansible.builtin.shell: >
+        cd {{ observability_dir }} &&
+        docker compose ps logstash01 --format json |
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('State','unknown'))"
+      register: logstash_container
+      changed_when: false
+      failed_when: false
+
+    - name: Check Logstash API health
+      ansible.builtin.shell: >
+        docker exec logstash01 curl -s localhost:9600/ 2>/dev/null | python3 -c
+        "import json,sys; d=json.load(sys.stdin); print(d.get('status','unknown'))"
+      register: logstash_api
+      changed_when: false
+      failed_when: false
+
+    - name: Check Logstash pipeline stats
+      ansible.builtin.shell: >
+        docker exec logstash01 curl -s localhost:9600/_node/stats/pipelines 2>/dev/null |
+        python3 -c "
+        import json,sys
+        d = json.load(sys.stdin)
+        for name, pipe in d.get('pipelines',{}).items():
+            ev = pipe.get('events',{})
+            print(name + ': in=' + str(ev.get('in',0)) + ' out=' + str(ev.get('out',0)) + ' filtered=' + str(ev.get('filtered',0)))
+        "
+      register: logstash_pipelines
+      changed_when: false
+      failed_when: false
+
+    - name: Check Logstash recent logs for errors
+      ansible.builtin.shell: >
+        docker logs --since 1h logstash01 2>&1 | grep -ciE '(error|exception|fatal)' || true
+      register: logstash_error_count
+      changed_when: false
+      failed_when: false
+
+    - name: Check if Logstash was OOM-killed
+      ansible.builtin.shell: >
+        docker inspect logstash01 2>/dev/null |
+        python3 -c "import json,sys;d=json.load(sys.stdin)[0]['State'];print('OOMKilled=' + str(d.get('OOMKilled',False)) + ' Status=' + d.get('Status','unknown') + ' ExitCode=' + str(d.get('ExitCode','?')))"
+      register: logstash_oom_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display Logstash status
+      ansible.builtin.debug:
+        msg: |
+          Logstash
+          ========
+          Container:  {{ logstash_container.stdout | default('unknown') }}
+          API status: {{ logstash_api.stdout | default('unknown') }}
+          Errors (1h): {{ logstash_error_count.stdout | default('N/A') }}
+          OOM/State:  {{ logstash_oom_check.stdout | default('N/A') }}
+          Pipelines:
+          {{ logstash_pipelines.stdout | default('N/A') | indent(2) }}

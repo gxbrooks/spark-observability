@@ -1,0 +1,19 @@
+---
+# Stop the Grafana container.
+
+- name: Stop Grafana
+  hosts: observability
+  gather_facts: false
+  tags: [stop, grafana]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop Grafana container
+      ansible.builtin.command: docker compose stop grafana
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Grafana container stopped."

@@ -1,107 +1,21 @@
 ---
-# Check Observability Platform Status
-# Display status of all observability services
+# DEPRECATED: Use diagnose.yml instead.
+# This playbook is retained for backward compatibility but simply delegates
+# to the diagnose playbook. All unique status checks have been migrated.
+#
+# Usage (preferred):
+#   ansible-playbook -i inventory.yml playbooks/observability/diagnose.yml
 
-- name: Check Observability Platform Status
+- name: "DEPRECATED: status.yml -- use diagnose.yml"
   hosts: observability
-  become: false
-  gather_facts: true
-  
-  vars:
-    observability_dir: "/home/ansible/ops/observability"
-    
+  gather_facts: false
   tasks:
-    - name: Detect host OS
-      set_fact:
-        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
-        
-    - name: Check if observability directory exists
-      stat:
-        path: "{{ observability_dir }}"
-      register: obs_dir_stat
-      
-    # === LINUX TASKS ===
-    - name: Get Docker container status (Linux)
-      command: docker ps -a --format "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Ports{{ '}}' }}"
-      register: docker_status
-      when: is_linux and obs_dir_stat.stat.exists
-      ignore_errors: true
-      
-    - name: Get Docker compose status (Linux)
-      command: docker compose ps
-      args:
-        chdir: "{{ observability_dir }}"
-      register: compose_status
-      when: is_linux and obs_dir_stat.stat.exists
-      ignore_errors: true
-      
-    - name: Check Elasticsearch health (Linux)
-      uri:
-        url: "https://{{ ansible_hostname }}:9200/_cluster/health"
-        method: GET
-        user: "elastic"
-        password: "myElastic2025"
-        validate_certs: false
-        timeout: 10
-      register: es_health
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Check Kibana status (Linux)
-      shell: |
-        curl -s -m 10 "http://{{ ansible_hostname }}:5601/api/status" | \
-        python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('status', {}).get('overall', {}).get('level', 'unavailable'))"
-      register: kibana_status_raw
-      when: is_linux
-      ignore_errors: true
-      changed_when: false
-      
-    - name: Set Kibana status fact
-      set_fact:
-        kibana_status_level: "{{ kibana_status_raw.stdout | default('unknown') | trim }}"
-        kibana_status_available: "{{ (kibana_status_raw.stdout | default('') | trim) == 'available' }}"
-      when: is_linux and kibana_status_raw.stdout is defined
-      
-    # === DISPLAY RESULTS ===
-    - name: Display observability status
-      debug:
+    - name: Deprecation notice
+      ansible.builtin.debug:
         msg: |
-          Observability Platform Status
-          =============================
+          WARNING: status.yml is deprecated. Use diagnose.yml instead:
+            ansible-playbook -i inventory.yml playbooks/observability/diagnose.yml
           
-          Host: {{ inventory_hostname }}
-          OS: {{ ansible_os_family }}
-          Directory Exists: {{ obs_dir_stat.stat.exists }}
-          
-          {% if is_linux %}
-          Docker Containers:
-          {{ docker_status.stdout | default('Docker not accessible') }}
-          
-          Docker Compose Status:
-          {{ compose_status.stdout | default('Docker Compose not accessible') }}
-          
-          Elasticsearch Health:
-          {% if es_health.status == 200 %}
-          Status: {{ es_health.json.status | default('unknown') }}
-          Cluster: {{ es_health.json.cluster_name | default('unknown') }}
-          Nodes: {{ es_health.json.number_of_nodes | default('unknown') }}
-          {% else %}
-          Status: Not accessible ({{ es_health.status | default('timeout') }})
-          {% endif %}
-          
-          Kibana Status:
-          {% if kibana_status_level is defined %}
-          Status: {{ kibana_status_level }}{% if kibana_status_available %} ✅{% endif %}
-          {% else %}
-          Status: Not accessible
-          {% endif %}
-          
-          {% endif %}
-          
-          Access URLs:
-          - Elasticsearch: https://{{ ansible_hostname }}:9200
-          - Kibana: http://{{ ansible_hostname }}:5601
-          - Grafana: http://{{ ansible_hostname }}:3000
-          - Logstash: {{ ansible_hostname }}:5050
-          - Prometheus: http://{{ ansible_hostname }}:9090
-          - Tempo: http://{{ ansible_hostname }}:3200
+          All status checks have been migrated to per-subsystem diagnose playbooks.
+
+- import_playbook: diagnose.yml

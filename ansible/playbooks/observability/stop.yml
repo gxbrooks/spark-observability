@@ -1,83 +1,59 @@
 ---
 # Stop Observability Platform
-# Stop observability services
-# Use -e delete_volumes=true to also delete Docker volumes
+# Stops all Docker Compose services. Use -e delete_volumes=true to also remove volumes.
+#
+# To stop a single subsystem, use the per-subsystem stop playbook:
+#   ansible-playbook -i inventory.yml playbooks/observability/elasticsearch/stop.yml
 
 - name: Stop Observability Platform
   hosts: observability
   become: false
   gather_facts: true
-  
   vars:
     observability_dir: "/home/ansible/ops/observability"
     delete_volumes: false
-    
   tasks:
-    # === CRITICAL: Validate running on correct host ===
     - name: Verify we are on the designated observability host
-      fail:
-        msg: |
-          ❌ FATAL: Wrong host! Observability stack must run on {{ observability_host }}.
-          
-          Current host: {{ inventory_hostname }}
-          Expected host: {{ observability_host }}
+      ansible.builtin.fail:
+        msg: "FATAL: Observability stack must run on {{ observability_host }}, not {{ inventory_hostname }}."
       when: inventory_hostname != observability_host
-    - name: Detect host OS
-      set_fact:
-        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
-        
+
     - name: Check if observability directory exists
-      stat:
+      ansible.builtin.stat:
         path: "{{ observability_dir }}"
       register: obs_dir_stat
-      
-    - name: Display stop message
-      debug:
-        msg: "Stopping observability services on {{ inventory_hostname }}..."
-        
-    # === LINUX TASKS ===
-    - name: Stop observability services without volumes (Linux)
-      command: docker compose down
-      args:
-        chdir: "{{ observability_dir }}"
-      when: is_linux and obs_dir_stat.stat.exists and not delete_volumes
-      ignore_errors: true
-      
-    - name: Stop observability services and delete volumes (Linux)
-      command: docker compose down -v
-      args:
-        chdir: "{{ observability_dir }}"
-      when: is_linux and obs_dir_stat.stat.exists and delete_volumes
-      ignore_errors: true
-      
-    - name: Clean up orphaned containers (Linux)
-      command: docker container prune -f
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Clean up orphaned networks (Linux)
-      command: docker network prune -f
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Display stop status
-      debug:
-        msg: |
-          Observability Platform Stopped!
-          ==============================
-          
-          All services have been stopped on {{ inventory_hostname }}.
-          {% if delete_volumes %}
-          Docker volumes have been deleted (fresh start next time).
-          {% else %}
-          Docker volumes preserved (data retained).
-          To delete volumes: ansible-playbook playbooks/observability/stop.yml -e delete_volumes=true
-          {% endif %}
-          
-          Note: The global playbooks/stop.yml removes node-exporter and
-          kube-state-metrics from the cluster before stopping Kubernetes.
-          To remove them without a full stack stop:
-            ansible-playbook -i ansible/inventory.yml \
-              ansible/playbooks/observability/prometheus/uninstall.yml
 
-          To restart, run: ansible-playbook playbooks/observability/start.yml
+    - name: Stop services (preserve volumes)
+      ansible.builtin.command: docker compose down
+      args:
+        chdir: "{{ observability_dir }}"
+      when: obs_dir_stat.stat.exists and not (delete_volumes | bool)
+      failed_when: false
+
+    - name: Stop services and delete volumes
+      ansible.builtin.command: docker compose down -v
+      args:
+        chdir: "{{ observability_dir }}"
+      when: obs_dir_stat.stat.exists and (delete_volumes | bool)
+      failed_when: false
+
+    - name: Clean up orphaned containers
+      ansible.builtin.command: docker container prune -f
+      failed_when: false
+
+    - name: Clean up orphaned networks
+      ansible.builtin.command: docker network prune -f
+      failed_when: false
+
+    - name: Display stop summary
+      ansible.builtin.debug:
+        msg: |
+          Observability Platform Stopped
+          ==============================
+          Volumes: {{ 'DELETED' if (delete_volumes | bool) else 'preserved' }}
+
+          To stop a single subsystem:
+            ansible-playbook -i inventory.yml playbooks/observability/<subsystem>/stop.yml
+
+          To restart:
+            ansible-playbook -i inventory.yml playbooks/observability/start.yml

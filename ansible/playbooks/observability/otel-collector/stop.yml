@@ -1,0 +1,19 @@
+---
+# Stop the OTel Collector container.
+
+- name: Stop OTel Collector
+  hosts: observability
+  gather_facts: false
+  tags: [stop, otel-collector]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop OTel Collector container
+      ansible.builtin.command: docker compose stop otel-collector
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "OTel Collector container stopped."

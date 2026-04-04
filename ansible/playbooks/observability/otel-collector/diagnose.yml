@@ -1,0 +1,35 @@
+---
+# Diagnose OTel Collector container status and health.
+
+- name: Diagnose OTel Collector
+  hosts: observability
+  gather_facts: false
+  tags: [diagnose, otel-collector]
+  vars:
+    timeout_seconds: 15
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Check OTel Collector container status
+      ansible.builtin.shell: >
+        cd {{ observability_dir }} &&
+        docker compose ps otel-collector --format json |
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('State','unknown'))"
+      register: otel_container
+      changed_when: false
+      failed_when: false
+
+    - name: Check OTel Collector health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:13133"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: otel_health
+      failed_when: false
+
+    - name: Display OTel Collector status
+      ansible.builtin.debug:
+        msg: |
+          OTel Collector
+          ==============
+          Container: {{ otel_container.stdout | default('unknown') }}
+          Health:    {{ 'UP (HTTP ' ~ otel_health.status ~ ')' if otel_health.status | default(0) | int == 200 else 'DOWN or unhealthy' }}

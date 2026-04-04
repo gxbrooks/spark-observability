@@ -1,0 +1,35 @@
+---
+# Diagnose Tempo container status and readiness.
+
+- name: Diagnose Tempo
+  hosts: observability
+  gather_facts: false
+  tags: [diagnose, tempo]
+  vars:
+    timeout_seconds: 15
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Check Tempo container status
+      ansible.builtin.shell: >
+        cd {{ observability_dir }} &&
+        docker compose ps tempo --format json |
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('State','unknown'))"
+      register: tempo_container
+      changed_when: false
+      failed_when: false
+
+    - name: Test Tempo readiness
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:3200/ready"
+        method: GET
+        timeout: "{{ timeout_seconds }}"
+      register: tempo_test
+      failed_when: false
+
+    - name: Display Tempo status
+      ansible.builtin.debug:
+        msg: |
+          Tempo
+          =====
+          Container: {{ tempo_container.stdout | default('unknown') }}
+          Ready:     {{ 'YES (HTTP ' ~ tempo_test.status ~ ')' if tempo_test.status | default(0) | int == 200 else 'NO' }}

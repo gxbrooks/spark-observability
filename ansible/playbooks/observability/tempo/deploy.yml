@@ -1,0 +1,16 @@
+---
+# Deploy Tempo configuration files to the observability host.
+
+- name: Deploy Tempo
+  hosts: observability
+  gather_facts: false
+  tags: [deploy, tempo]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Synchronize Tempo directory
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../../../observability/tempo/"
+        dest: "{{ observability_dir }}/tempo/"
+        delete: false
+        recursive: true

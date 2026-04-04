@@ -1,0 +1,21 @@
+---
+# Start OTel Collector container.
+
+- name: Start OTel Collector
+  hosts: observability
+  gather_facts: false
+  tags: [start, otel-collector]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Start OTel Collector container
+      ansible.builtin.command: docker compose up -d otel-collector
+      args:
+        chdir: "{{ observability_dir }}"
+      register: otel_start
+      changed_when: "'Started' in otel_start.stderr or 'Created' in otel_start.stderr"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "OTel Collector started."

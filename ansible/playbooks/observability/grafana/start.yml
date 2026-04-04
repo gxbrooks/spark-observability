@@ -1,0 +1,32 @@
+---
+# Start Grafana container.
+
+- name: Start Grafana
+  hosts: observability
+  gather_facts: false
+  tags: [start, grafana]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Start Grafana container (no-deps to skip init-index wait)
+      ansible.builtin.command: docker compose up -d --no-deps grafana
+      args:
+        chdir: "{{ observability_dir }}"
+      register: grafana_start
+      changed_when: "'Started' in grafana_start.stderr or 'Created' in grafana_start.stderr"
+      failed_when: false
+
+    - name: Wait for Grafana to respond
+      ansible.builtin.uri:
+        url: "http://localhost:3000"
+        method: GET
+        status_code: [200, 302]
+      register: grafana_health
+      until: grafana_health.status | default(0) | int in [200, 302]
+      retries: 15
+      delay: 5
+      failed_when: false
+
+    - name: Report Grafana status
+      ansible.builtin.debug:
+        msg: "Grafana: {{ 'healthy' if grafana_health.status | default(0) | int in [200, 302] else 'NOT READY' }}"

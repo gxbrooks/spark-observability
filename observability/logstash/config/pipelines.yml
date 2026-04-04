@@ -1,0 +1,18 @@
+# Logstash multi-pipeline configuration.
+#
+# Two isolated pipelines prevent cross-contamination:
+#   - spark:          processes Spark History Server event logs (port 5050)
+#   - system-metrics: computes rates for cumulative network/diskio counters (port 5051)
+#
+# Each pipeline has its own worker pool, queue, and filter chain.
+# This avoids the merged-pipeline problem where every event traverses
+# every filter/output section, wasting CPU and creating String garbage
+# (e.g. puts serializing metric events through the Spark Ruby filter).
+
+- pipeline.id: spark
+  path.config: "/usr/share/logstash/pipeline/logstash.conf"
+  pipeline.workers: 2
+
+- pipeline.id: system-metrics
+  path.config: "/usr/share/logstash/pipeline/system-metrics-rates.conf"
+  pipeline.workers: 1

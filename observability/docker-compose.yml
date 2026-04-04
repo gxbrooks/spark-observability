@@ -55,6 +55,7 @@ services:
       args:
         STACK_VERSION: ${STACK_VERSION}
     image: elasticsearch-python
+    restart: unless-stopped
     labels:
       co.elastic.logs/module: elasticsearch
       role: Elasticsearch
@@ -171,6 +172,7 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION} 
     container_name: kibana
+    restart: unless-stopped
     volumes:
       - kibanadata:/usr/share/kibana/data
       - certs:/etc/ssl/private/elastic/certs:ro
@@ -295,6 +297,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
+    restart: unless-stopped
     labels:
       co.elastic.logs/module: otel-collector
       role: "OpenTelemetry Collector"
@@ -382,6 +385,7 @@ services:
     # Pin to 3.8+ for Remote Write v2 (OTel prometheusremotewrite receiver)
     image: prom/prometheus:v3.8.0
     container_name: prometheus
+    restart: unless-stopped
     labels:
       role: "Prometheus"
     command:
@@ -427,8 +431,9 @@ services:
       retries: 10
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.7.0
     container_name: tempo
+    restart: unless-stopped
     labels:
       role: "Grafana Tempo"
     command: ["-config.file=/etc/tempo/tempo.yml"]
@@ -482,8 +487,8 @@ services:
         - "9600:9600"
     volumes:
       - "./logstash/pipeline:/usr/share/logstash/pipeline:ro"
+      - "./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro"
       - "./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
-      - "./logstash/config/debug-logstash.yml:/usr/share/logstash/config/debug-logstash.yml"
       - certs:/etc/ssl/certs/elastic:ro
     environment:
       CA_CERT: "${CA_CERT}"
@@ -498,10 +503,12 @@ services:
       LS_DOCKER_METRICS_PORT: ${LS_DOCKER_METRICS_PORT}
       # TODO: environment variables to include time zone. 
       TZ: ${TZ}
+      LS_JAVA_OPTS: "-Xms1g -Xmx1500m"
+    restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 2g
+          memory: 3g
     logging: *default-logging
     depends_on:
       es01:

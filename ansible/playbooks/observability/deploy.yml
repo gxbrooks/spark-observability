@@ -1,7 +1,10 @@
 ---
-# Install Observability Platform
-# Complete installation including file deployment and service startup
-# Native Linux observability host (Docker Engine)
+# Deploy Observability Platform
+# Orchestrates per-subsystem file deployment, then builds Docker images.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
 
 - name: Regenerate observability Docker env on controller
   hosts: localhost
@@ -14,78 +17,51 @@
         regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
         regenerate_context_names: ['observability']
 
-- name: Install Observability Platform
+- name: Deploy common observability infrastructure
   hosts: observability
   become: false
   gather_facts: true
-  
   vars:
     observability_dir: "/home/ansible/ops/observability"
-    docker_compose_file: "{{ observability_dir }}/docker-compose.yml"
-    env_file: "{{ observability_dir }}/.env"
-    env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
     ops_dir: "/home/ansible/ops"
-    kubernetes_api_server_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
+    env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
     observability_host_fqdn: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
     observability_host_short: "{{ (hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0])) | regex_replace('\\..*$', '') }}"
     observability_host_ip: "{{ hostvars[groups['observability'][0]]['ansible_default_ipv4']['address'] | default('') }}"
-    
+    kubernetes_api_server_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
   tasks:
     - name: Detect host OS
-      set_fact:
-        is_linux: "{{ ansible_os_family == 'Debian' or ansible_os_family == 'RedHat' }}"
-        
-    - name: Display installation target
-      debug:
-        msg: |
-          Installing Observability Platform on:
-          - Host: {{ inventory_hostname }}
-          - OS Family: {{ ansible_os_family }}
-          - Is Linux: {{ is_linux }}
-          
-    # === LINUX TASKS ===
-    - name: Create ops directory (Linux)
-      file:
-        path: "{{ ops_dir }}"
+      ansible.builtin.set_fact:
+        is_linux: "{{ ansible_os_family in ['Debian', 'RedHat'] }}"
+
+    - name: Create directory structure
+      ansible.builtin.file:
+        path: "{{ item }}"
         state: directory
         mode: '0755'
-      when: is_linux
-      
-    - name: Create observability directory (Linux)
-      file:
-        path: "{{ observability_dir }}"
-        state: directory
-        mode: '0755'
-      when: is_linux
-      
-    - name: Create logs directory (Linux)
-      file:
-        path: "{{ observability_dir }}/logs"
-        state: directory
-        mode: '0755'
-      when: is_linux
-      
-    - name: Copy docker-compose.yml (Linux)
-      copy:
+      loop:
+        - "{{ ops_dir }}"
+        - "{{ observability_dir }}"
+        - "{{ observability_dir }}/logs"
+
+    - name: Copy docker-compose.yml
+      ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../../observability/docker-compose.yml"
-        dest: "{{ docker_compose_file }}"
+        dest: "{{ observability_dir }}/docker-compose.yml"
         mode: '0644'
-      when: is_linux
-      
-    - name: Copy .env file (Linux)
-      copy:
+
+    - name: Copy .env file
+      ansible.builtin.copy:
         src: "{{ env_source_file }}"
-        dest: "{{ env_file }}"
+        dest: "{{ observability_dir }}/.env"
         mode: '0644'
-      when: is_linux
-      
-    - name: Synchronize certificates directory (Linux)
-      synchronize:
+
+    - name: Synchronize certificates directory
+      ansible.posix.synchronize:
         src: "{{ playbook_dir }}/../../../observability/certs/"
         dest: "{{ observability_dir }}/certs/"
         delete: false
         recursive: true
-      when: is_linux
 
     - name: Render observability host placeholders into cert instances config
       ansible.builtin.replace:
@@ -97,269 +73,159 @@
         - { pattern: "__OBSERVABILITY_HOST_SHORT_UPPER__", value: "{{ observability_host_short }}" }
         - { pattern: "__OBSERVABILITY_HOST_SHORT_LOWER__", value: "{{ observability_host_short | lower }}" }
         - { pattern: "__OBSERVABILITY_HOST_IP__", value: "{{ observability_host_ip }}" }
-      when: is_linux
-      
-    - name: Synchronize elasticsearch directory (Linux)
-      synchronize:
-        src: "{{ playbook_dir }}/../../../observability/elasticsearch/"
-        dest: "{{ observability_dir }}/elasticsearch/"
-        delete: false
-        recursive: true
-      when: is_linux
-      
-    - name: Synchronize grafana directory (Linux)
-      synchronize:
-        src: "{{ playbook_dir }}/../../../observability/grafana/"
-        dest: "{{ observability_dir }}/grafana/"
-        delete: false
-        recursive: true
-        rsync_opts:
-          - "--exclude=plugins/"
-      when: is_linux
-      
-    - name: Create Grafana plugins directory (Linux)
-      file:
-        path: "{{ observability_dir }}/grafana/plugins"
-        state: directory
-        mode: '0755'
-        owner: '472'  # Grafana user UID
-        group: '472'  # Grafana group GID
-      when: is_linux
-      become: true
-    
-    # === GRAFANA PLUGIN DEPLOYMENT ===
-      # Plugin will be installed via GF_INSTALL_PLUGINS environment variable
-      
-    - name: Synchronize logstash directory (Linux)
-      synchronize:
-        src: "{{ playbook_dir }}/../../../observability/logstash/"
-        dest: "{{ observability_dir }}/logstash/"
-        delete: false
-        recursive: true
-      when: is_linux
-      
-    - name: Synchronize shared directory (Linux)
-      synchronize:
+
+    - name: Synchronize shared directory
+      ansible.posix.synchronize:
         src: "{{ playbook_dir }}/../../../observability/shared/"
         dest: "{{ observability_dir }}/shared/"
         delete: false
         recursive: true
-      when: is_linux
 
-    - name: Synchronize otel-collector directory (Linux)
-      synchronize:
-        src: "{{ playbook_dir }}/../../../observability/otel-collector/"
-        dest: "{{ observability_dir }}/otel-collector/"
-        delete: false
-        recursive: true
-      when: is_linux
-
-    - name: Synchronize prometheus directory (Linux)
-      synchronize:
+    - name: Synchronize Prometheus directory
+      ansible.posix.synchronize:
         src: "{{ playbook_dir }}/../../../observability/prometheus/"
         dest: "{{ observability_dir }}/prometheus/"
         delete: false
         recursive: true
-      when: is_linux
 
     - name: Render Kubernetes API server host into Prometheus config
       ansible.builtin.replace:
         path: "{{ observability_dir }}/prometheus/prometheus.yml"
         regexp: "__KUBERNETES_API_SERVER__"
         replace: "{{ kubernetes_api_server_host }}"
-      when: is_linux
 
-    # Kubernetes certs for Prometheus: scrape K8s API/nodes (mount at /etc/ssl/certs/kubernetes in container)
-    # Prometheus container runs as non-root (nobody); 0750 ansible-owned dir is not traversable → TLS mount permission denied.
-    - name: Create k8s-certs directory on observability host (Linux)
-      file:
+    - name: Create k8s-certs directory
+      ansible.builtin.file:
         path: "{{ observability_dir }}/k8s-certs"
         state: directory
         mode: '0755'
-      when: is_linux
 
     - name: Fetch Kubernetes CA from master
-      fetch:
+      ansible.builtin.fetch:
         src: "/etc/kubernetes/pki/ca.crt"
         dest: "/tmp/observability-k8s-certs/"
         flat: true
       delegate_to: "{{ groups['kubernetes_master'][0] }}"
       run_once: true
       become: true
-      when: is_linux and (groups['kubernetes_master'] | default([]) | length > 0)
+      when: (groups['kubernetes_master'] | default([]) | length) > 0
 
     - name: Fetch Kubernetes client cert from master
-      fetch:
+      ansible.builtin.fetch:
         src: "/etc/kubernetes/pki/apiserver-kubelet-client.crt"
         dest: "/tmp/observability-k8s-certs/"
         flat: true
       delegate_to: "{{ groups['kubernetes_master'][0] }}"
       run_once: true
       become: true
-      when: is_linux and (groups['kubernetes_master'] | default([]) | length > 0)
+      when: (groups['kubernetes_master'] | default([]) | length) > 0
 
     - name: Fetch Kubernetes client key from master
-      fetch:
+      ansible.builtin.fetch:
         src: "/etc/kubernetes/pki/apiserver-kubelet-client.key"
         dest: "/tmp/observability-k8s-certs/"
         flat: true
       delegate_to: "{{ groups['kubernetes_master'][0] }}"
       run_once: true
       become: true
-      when: is_linux and (groups['kubernetes_master'] | default([]) | length > 0)
+      when: (groups['kubernetes_master'] | default([]) | length) > 0
 
-    - name: Copy K8s CA to observability host as ca.crt
-      copy:
-        src: "/tmp/observability-k8s-certs/ca.crt"
-        dest: "{{ observability_dir }}/k8s-certs/ca.crt"
+    - name: Copy K8s certs to observability host
+      ansible.builtin.copy:
+        src: "/tmp/observability-k8s-certs/{{ item.src }}"
+        dest: "{{ observability_dir }}/k8s-certs/{{ item.dest }}"
         mode: '0644'
-      when: is_linux and (groups['kubernetes_master'] | default([]) | length > 0)
+      loop:
+        - { src: "ca.crt", dest: "ca.crt" }
+        - { src: "apiserver-kubelet-client.crt", dest: "client.crt" }
+        - { src: "apiserver-kubelet-client.key", dest: "client.key" }
+      when: (groups['kubernetes_master'] | default([]) | length) > 0
 
-    - name: Copy K8s client cert to observability host as client.crt
-      copy:
-        src: "/tmp/observability-k8s-certs/apiserver-kubelet-client.crt"
-        dest: "{{ observability_dir }}/k8s-certs/client.crt"
-        mode: '0644'
-      when: is_linux and (groups['kubernetes_master'] | default([]) | length > 0)
-
-    - name: Copy K8s client key to observability host as client.key
-      copy:
-        src: "/tmp/observability-k8s-certs/apiserver-kubelet-client.key"
-        dest: "{{ observability_dir }}/k8s-certs/client.key"
-        mode: '0644'
-      when: is_linux and (groups['kubernetes_master'] | default([]) | length > 0)
-
-    - name: Synchronize tempo directory (Linux)
-      synchronize:
-        src: "{{ playbook_dir }}/../../../observability/tempo/"
-        dest: "{{ observability_dir }}/tempo/"
-        delete: false
-        recursive: true
-      when: is_linux
-      
-    - name: Create elasticsearch outputs directory with proper ownership (Linux)
-      file:
-        path: "{{ observability_dir }}/elasticsearch/outputs"
-        state: directory
-        mode: '0775'
-        owner: ansible
-        group: ansible
-      when: is_linux
-      tags: [always]
-      
-    # === BASH CONFIGURATION FILES ===
-    - name: Copy .bashrc to ops directory (Linux)
-      copy:
+    - name: Copy .bashrc to ops directory
+      ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../../.bashrc"
         dest: "{{ ops_dir }}/.bashrc"
         mode: '0644'
-      when: is_linux
-      ignore_errors: true
-      
-    - name: Copy .bash_aliases to ops directory (Linux)
-      copy:
+      failed_when: false
+
+    - name: Copy .bash_aliases to ops directory
+      ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../../.bash_aliases"
         dest: "{{ ops_dir }}/.bash_aliases"
         mode: '0644'
-      when: is_linux
-      ignore_errors: true
-      
+      failed_when: false
+
     - name: Check if ansible user .bashrc exists
-      stat:
+      ansible.builtin.stat:
         path: "/home/ansible/.bashrc"
       register: ansible_bashrc_stat
-      when: is_linux
       become: true
-      
-    - name: Create ansible user .bashrc if it doesn't exist (Linux)
-      copy:
+
+    - name: Create ansible user .bashrc if needed
+      ansible.builtin.copy:
         content: |
-          # ~/.bashrc: executed by bash(1) for non-login shells.
-          # Source ops configuration files
-          if [ -f {{ ops_dir }}/.bashrc ]; then
-            source {{ ops_dir }}/.bashrc
-          fi
-          if [ -f {{ ops_dir }}/.bash_aliases ]; then
-            source {{ ops_dir }}/.bash_aliases
-          fi
+          if [ -f {{ ops_dir }}/.bashrc ]; then source {{ ops_dir }}/.bashrc; fi
+          if [ -f {{ ops_dir }}/.bash_aliases ]; then source {{ ops_dir }}/.bash_aliases; fi
         dest: "/home/ansible/.bashrc"
         mode: '0644'
         owner: ansible
         group: ansible
-      when: is_linux and not ansible_bashrc_stat.stat.exists
+      when: not ansible_bashrc_stat.stat.exists
       become: true
-      
-    - name: Ensure ansible user .bashrc sources ops/.bashrc (Linux)
-      lineinfile:
+
+    - name: Ensure .bashrc sources ops files
+      ansible.builtin.lineinfile:
         path: "/home/ansible/.bashrc"
-        line: "source {{ ops_dir }}/.bashrc"
+        line: "{{ item }}"
         state: present
-        regexp: "^source {{ ops_dir }}/.bashrc"
         insertafter: EOF
-      when: is_linux and ansible_bashrc_stat.stat.exists
+      loop:
+        - "source {{ ops_dir }}/.bashrc"
+        - "source {{ ops_dir }}/.bash_aliases"
+      when: ansible_bashrc_stat.stat.exists
       become: true
-      
-    - name: Ensure ansible user .bashrc sources ops/.bash_aliases (Linux)
-      lineinfile:
-        path: "/home/ansible/.bashrc"
-        line: "source {{ ops_dir }}/.bash_aliases"
-        state: present
-        regexp: "^source {{ ops_dir }}/.bash_aliases"
-        insertafter: EOF
-      when: is_linux and ansible_bashrc_stat.stat.exists
-      become: true
-        
-    # === DOCKER SETUP TASKS ===
-    - name: Check if Docker is available
-      command: docker --version
+
+    - name: Check Docker availability
+      ansible.builtin.command: docker --version
       register: docker_check
-      ignore_errors: true
-      when: is_linux
-      
+      failed_when: false
+      changed_when: false
+
     - name: Fail if Docker is not available
-      fail:
-        msg: "Docker is not available. Install Docker Engine (e.g. ansible/playbooks/docker/install.yml) and ensure the docker service is running."
-      when: is_linux and docker_check.rc != 0
-      
-    - name: Create Docker network if it doesn't exist
-      command: docker network create elastic
-      ignore_errors: true
-      when: is_linux
-      
+      ansible.builtin.fail:
+        msg: "Docker is not available."
+      when: docker_check.rc != 0
+
+    - name: Create Docker network
+      ansible.builtin.command: docker network create elastic
+      failed_when: false
+
+- import_playbook: elasticsearch/deploy.yml
+- import_playbook: grafana/deploy.yml
+- import_playbook: logstash/deploy.yml
+- import_playbook: otel-collector/deploy.yml
+- import_playbook: tempo/deploy.yml
+
+- name: Build Docker images and finalize
+  hosts: observability
+  become: false
+  gather_facts: false
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
     - name: Build custom Docker images
-      command: docker compose build
+      ansible.builtin.command: docker compose build
       args:
         chdir: "{{ observability_dir }}"
-      when: is_linux
-        
-    - name: Display installation status
-      debug:
-        msg: |
-          Observability Platform Installation Complete!
-          ===========================================
-          
-          Files deployed to: {{ observability_dir }}
-          Docker images built successfully
-          
-          Next Steps:
-          1. Start services: ansible-playbook playbooks/observability/start.yml
-          2. Verify services are accessible via browser
-          3. Check Kibana data views are present
-          4. Test Spark event flow from Lab2
-          
-          Service URLs (after starting):
-          - Elasticsearch: https://{{ ansible_hostname }}:9200
-          - Kibana: http://{{ ansible_hostname }}:5601
-          - Grafana: http://{{ ansible_hostname }}:3000
-          - Logstash: {{ ansible_hostname }}:5050
-          - Prometheus: http://{{ ansible_hostname }}:9090
-          - Tempo: http://{{ ansible_hostname }}:3200
-          
-          Credentials:
-          - Elasticsearch/Kibana: elastic / myElastic2025
-          - Grafana: admin / mysecretpassword
 
-# =========================================================================
-# Prometheus sub-playbook: deploy K8s exporters (node-exporter, kube-state-metrics)
-# =========================================================================
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg: |
+          Observability Platform Deployed
+          ===============================
+          Files deployed to {{ observability_dir }}.
+          Docker images built.
+
+          Next: ansible-playbook -i inventory.yml playbooks/observability/start.yml
+
 - import_playbook: prometheus/deploy.yml

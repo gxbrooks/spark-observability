@@ -1,0 +1,19 @@
+---
+# Stop the Tempo container.
+
+- name: Stop Tempo
+  hosts: observability
+  gather_facts: false
+  tags: [stop, tempo]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop Tempo container
+      ansible.builtin.command: docker compose stop tempo
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Tempo container stopped."
