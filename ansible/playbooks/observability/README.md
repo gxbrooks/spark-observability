@@ -14,8 +14,6 @@ observability/
 ├── uninstall.yml           # Orchestrator: remove everything
 ├── install.yml             # Alias for deploy.yml
 ├── status.yml              # DEPRECATED → diagnose.yml
-├── tasks/
-│   └── resolve_credentials.yml   # Shared credential resolution
 ├── elasticsearch/
 │   ├── deploy.yml          # Sync ES config files
 │   ├── start.yml           # Start ES + wait healthy

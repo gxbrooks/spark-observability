@@ -7,25 +7,23 @@
   hosts: observability
   gather_facts: false
   tags: [test, elasticsearch]
+  vars_files:
+    - ../../../../vars/contexts/spark_ansible_vars.yml
   vars:
     timeout_seconds: 20
     recent_window: "now-30m"
-    observability_env_file: "/home/ansible/ops/observability/.env"
     required_recent_indices:
       - { name: "system-metrics", index: "metrics-system.cpu-default" }
       - { name: "spark-logs", index: "logs-spark-default" }
     optional_recent_indices:
       - { name: "gpu-metrics", index: "metrics-gpu-default" }
   tasks:
-    - name: Resolve credentials
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/resolve_credentials.yml"
-
     - name: Check Elasticsearch cluster health
       ansible.builtin.uri:
         url: "https://{{ ansible_host }}:9200/_cluster/health"
         method: GET
         user: elastic
-        password: "{{ es_password_resolved }}"
+        password: "{{ ES_PASSWORD }}"
         validate_certs: false
         force_basic_auth: true
         timeout: "{{ timeout_seconds }}"
@@ -70,7 +68,7 @@
           sort:
             - "@timestamp": "desc"
         user: elastic
-        password: "{{ es_password_resolved }}"
+        password: "{{ ES_PASSWORD }}"
         validate_certs: false
         force_basic_auth: true
         timeout: "{{ timeout_seconds }}"
@@ -99,7 +97,7 @@
           sort:
             - "@timestamp": "desc"
         user: elastic
-        password: "{{ es_password_resolved }}"
+        password: "{{ ES_PASSWORD }}"
         validate_certs: false
         force_basic_auth: true
         timeout: "{{ timeout_seconds }}"

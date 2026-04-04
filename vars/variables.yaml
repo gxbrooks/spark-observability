@@ -99,10 +99,10 @@ ES_PORT:
   contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
 ES_USER:
   value: elastic
-  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client, ansible]
 ES_PASSWORD:
   value: ""  # SECRET: REQUIRED - Must be set in vars/secrets.yaml or via ES_PASSWORD env var
-  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client, ansible]
   secret: true
   required: true
 # ES_URL: Consolidated Elasticsearch URL (replaces ELASTIC_URL)
@@ -212,10 +212,10 @@ GF_SERVER_HTTP_PORT:
 # See docker-compose.yml for admin user/password setup
 GF_SECURITY_ADMIN_USER:
   value: admin
-  contexts: [observability]
+  contexts: [observability, ansible]
 GF_SECURITY_ADMIN_PASSWORD:
   value: ""  # SECRET: REQUIRED - Must be set in vars/secrets.yaml or via GF_SECURITY_ADMIN_PASSWORD env var
-  contexts: [observability]
+  contexts: [observability, ansible]
   secret: true
   required: true
 

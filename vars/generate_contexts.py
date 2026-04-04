@@ -437,7 +437,17 @@ def write_ansible_vars(vars_dict, filename):
             
             # Write Kubernetes settings
             f.write('# Kubernetes-specific settings\n')
-            f.write('k8s_namespace: "spark"\n')
+            f.write('k8s_namespace: "spark"\n\n')
+
+            # Write observability credentials (ES, Grafana) when present
+            obs_cred_keys = ['ES_USER', 'ES_PASSWORD', 'ES_PORT',
+                             'GF_SECURITY_ADMIN_USER', 'GF_SECURITY_ADMIN_PASSWORD']
+            obs_creds = {k: v for k, v in vars_dict.items() if k in obs_cred_keys and v}
+            if obs_creds:
+                f.write('# Observability credentials\n')
+                for key, value in obs_creds.items():
+                    f.write(f'{key}: "{value}"\n')
+                f.write('\n')
         return True
     except IOError as e:
         print(f"Error writing to {filename}: {e}")

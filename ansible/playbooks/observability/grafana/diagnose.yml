@@ -5,13 +5,11 @@
   hosts: observability
   gather_facts: false
   tags: [diagnose, grafana]
+  vars_files:
+    - ../../../../vars/contexts/spark_ansible_vars.yml
   vars:
     timeout_seconds: 15
-    observability_env_file: "/home/ansible/ops/observability/.env"
   tasks:
-    - name: Resolve credentials
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/resolve_credentials.yml"
-
     - name: Test Grafana connectivity
       ansible.builtin.uri:
         url: "http://{{ ansible_host }}:3000"
@@ -25,7 +23,7 @@
         url: "http://{{ ansible_host }}:3000/api/search"
         method: GET
         user: admin
-        password: "{{ grafana_password_resolved }}"
+        password: "{{ GF_SECURITY_ADMIN_PASSWORD }}"
         timeout: "{{ timeout_seconds }}"
         force_basic_auth: true
       register: grafana_dashboards
