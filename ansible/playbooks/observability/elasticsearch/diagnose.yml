@@ -8,38 +8,15 @@
   vars_files:
     - ../../../../vars/contexts/spark_ansible_vars.yml
   vars:
-    timeout_seconds: 15
-    recent_timeframe_minutes: 60
+    timeout_seconds: 20
+    es_probe_host: "localhost"
     observability_dir: "/home/ansible/ops/observability"
-    index_patterns_to_report:
-      - { pattern: "batch-events-*", name: "batch-events" }
-      - { pattern: "app-events-*", name: "application-events" }
-      - { pattern: "batch-metrics-ds*", name: "batch-metrics" }
-      - { pattern: "application-events-metrics-ds*", name: "application-events-metrics" }
-      - { pattern: "traces-otel-default*", name: "otel-traces" }
-      - { pattern: "logs-spark-default*", name: "spark-logs" }
-      - { pattern: "logs-spark_gc-default*", name: "spark-gc-logs" }
-      - { pattern: "metrics-system.cpu-default*", name: "system-cpu-metrics" }
-      - { pattern: "metrics-system.network-default*", name: "system-network-metrics" }
-      - { pattern: "metrics-system.diskio-default*", name: "system-diskio-metrics" }
-      - { pattern: "metrics-gpu-default*", name: "gpu-metrics" }
-      - { pattern: "metrics-kubernetes-default*", name: "kubernetes-metrics" }
-      - { pattern: "metrics-docker.cpu-default*", name: "docker-metrics" }
-      - { pattern: "metrics-spark-logs-default*", name: "spark-log-metrics" }
-      - { pattern: "logs-spark-otel-errors-default*", name: "spark-otel-errors" }
-      - { pattern: ".watcher-history-*", name: "watcher-history" }
   tasks:
-    - name: Test Elasticsearch connectivity
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/_cluster/health"
-        method: GET
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: es_health
-      failed_when: false
+    - name: Run shared health checks
+      ansible.builtin.include_tasks: common/health_check_tasks.yml
+
+    - name: Run shared index checks
+      ansible.builtin.include_tasks: common/index_checks_tasks.yml
 
     - name: Check Elasticsearch container status
       ansible.builtin.shell: >
@@ -58,108 +35,3 @@
           API:       {{ 'UP (HTTP ' ~ es_health.status ~ ')' if es_health.status | default(0) | int == 200 else 'DOWN (' ~ (es_health.msg | default('unreachable')) ~ ')' }}
           Cluster:   {{ es_health.json.status | default('unknown') if es_health.status | default(0) | int == 200 else 'N/A' }}
           Container: {{ es_container.stdout | default('unknown') }}
-
-    - name: Check recent data for Otel traces
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/traces-otel-default/_search"
-        method: POST
-        body_format: json
-        body: { size: 1, sort: [{"@timestamp": "desc"}], query: { range: {"@timestamp": {gte: "now-{{ recent_timeframe_minutes }}m"}}}}
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: otel_traces_check
-      failed_when: false
-
-    - name: Check recent data for Spark logs
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/logs-spark-default/_search"
-        method: POST
-        body_format: json
-        body: { size: 1, sort: [{"@timestamp": "desc"}], query: { range: {"@timestamp": {gte: "now-{{ recent_timeframe_minutes }}m"}}}}
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: spark_logs_check
-      failed_when: false
-
-    - name: Check recent data for system CPU metrics
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/metrics-system.cpu-default/_search"
-        method: POST
-        body_format: json
-        body: { size: 1, sort: [{"@timestamp": "desc"}], query: { range: {"@timestamp": {gte: "now-{{ recent_timeframe_minutes }}m"}}}}
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: system_metrics_check
-      failed_when: false
-
-    - name: Check recent data for GPU metrics
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/metrics-gpu-default/_search"
-        method: POST
-        body_format: json
-        body: { size: 1, sort: [{"@timestamp": "desc"}], query: { range: {"@timestamp": {gte: "now-{{ recent_timeframe_minutes }}m"}}}}
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: gpu_metrics_check
-      failed_when: false
-
-    - name: Check recent data for GC logs
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/logs-spark_gc-default/_search"
-        method: POST
-        body_format: json
-        body: { size: 1, sort: [{"@timestamp": "desc"}], query: { range: {"@timestamp": {gte: "now-{{ recent_timeframe_minutes }}m"}}}}
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: gc_logs_check
-      failed_when: false
-
-    - name: Display recent data availability
-      ansible.builtin.debug:
-        msg: |
-          Recent data (last {{ recent_timeframe_minutes }} min)
-          =============================================
-          Otel Traces:     {{ 'YES' if (otel_traces_check.json is defined and otel_traces_check.json.hits.total.value | int > 0) else 'NO' }}
-          Spark App Logs:  {{ 'YES' if (spark_logs_check.json is defined and spark_logs_check.json.hits.total.value | int > 0) else 'NO' }}
-          System Metrics:  {{ 'YES' if (system_metrics_check.json is defined and system_metrics_check.json.hits.total.value | int > 0) else 'NO' }}
-          GPU Metrics:     {{ 'YES' if (gpu_metrics_check.json is defined and gpu_metrics_check.json.hits.total.value | int > 0) else 'NO' }}
-          GC Logs:         {{ 'YES' if (gc_logs_check.json is defined and gc_logs_check.json.hits.total.value | int > 0) else 'NO' }}
-
-    - name: Query latest timestamp for init-index patterns
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:9200/{{ item.pattern }}/_search"
-        method: POST
-        body_format: json
-        body: { size: 1, sort: [{"@timestamp": "desc"}], query: { match_all: {}}}
-        user: elastic
-        password: "{{ ES_PASSWORD }}"
-        timeout: "{{ timeout_seconds }}"
-        validate_certs: false
-        force_basic_auth: true
-      register: init_index_timestamps
-      loop: "{{ index_patterns_to_report }}"
-      failed_when: false
-
-    - name: Display index freshness report
-      ansible.builtin.debug:
-        msg: |
-          Index Freshness Report
-          ======================
-          {% for r in init_index_timestamps.results | default([]) %}
-          {{ '%-35s' | format(r.item.pattern) }} {{ 'YES' if (r.json is defined and r.json.hits.total.value | int > 0) else 'NO ' }}  {% if r.json is defined and r.json.hits.total.value | int > 0 and r.json.hits.hits | length > 0 %}{{ r.json.hits.hits[0]._source['@timestamp'] | default('N/A') }}{% else %}N/A{% endif %}
-          {% endfor %}

@@ -1,0 +1,127 @@
+# Shared Elasticsearch index checks.
+# Single objective: validate required index families and their freshness semantics.
+
+- name: Define Elasticsearch index classes for validation
+  ansible.builtin.set_fact:
+    # Continuous indices represent pull-style metrics/log streams that should keep growing.
+    continuous_indices:
+      - { name: "system-cpu-metrics", index: "metrics-system.cpu-default", recent_window: "now-30m" }
+      - { name: "system-network-metrics", index: "metrics-system.network-default", recent_window: "now-30m" }
+      - { name: "system-diskio-metrics", index: "metrics-system.diskio-default", recent_window: "now-30m" }
+      - { name: "gpu-metrics", index: "metrics-gpu-default", recent_window: "now-30m" }
+      - { name: "kubernetes-metrics", index: "metrics-kubernetes-default", recent_window: "now-30m" }
+      - { name: "spark-gc-logs", index: "logs-spark_gc-default", recent_window: "now-30m" }
+      - { name: "watcher-history", index: ".watcher-history-*", recent_window: "now-30m" }
+    # Intermittent indices represent push/event streams. They must exist but may not be recent.
+    intermittent_indices:
+      - { name: "otel-traces", index: "traces-otel-default*" }
+      - { name: "spark-logs", index: "logs-spark-default*" }
+      - { name: "batch-events", index: "batch-events-*" }
+      - { name: "application-events", index: "app-events-*" }
+      - { name: "application-events-metrics", index: "application-events-metrics-ds*" }
+      - { name: "spark-otel-errors", index: "logs-spark-otel-errors-default*" }
+      - { name: "spark-log-metrics", index: "metrics-spark-logs-default*" }
+
+- name: Resolve continuous index families
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/_resolve/index/{{ item.index }}"
+    method: GET
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    timeout: "{{ timeout_seconds }}"
+  loop: "{{ continuous_indices }}"
+  register: continuous_resolve_results
+  failed_when: false
+
+- name: Assert continuous index families exist
+  ansible.builtin.assert:
+    that:
+      - item.status | default(0) | int == 200
+      - ((item.json.indices | default([]) | length) + (item.json.aliases | default([]) | length) + (item.json.data_streams | default([]) | length)) | int > 0
+    fail_msg: "Continuous index family {{ item.item.name }} ({{ item.item.index }}) does not exist."
+    success_msg: "Continuous index family {{ item.item.name }} exists."
+  loop: "{{ continuous_resolve_results.results | default([]) }}"
+
+- name: Check recent data for continuous index families
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/{{ item.index }}/_search"
+    method: POST
+    body_format: json
+    body:
+      size: 1
+      query:
+        range:
+          "@timestamp":
+            gte: "{{ item.recent_window | default('now-30m') }}"
+      sort:
+        - "@timestamp": "desc"
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    timeout: "{{ timeout_seconds }}"
+  loop: "{{ continuous_indices }}"
+  register: continuous_recent_results
+
+- name: Assert continuous index families have recent data
+  ansible.builtin.assert:
+    that:
+      - item.json.hits.total.value | int > 0
+    fail_msg: "Continuous index family {{ item.item.name }} has no docs in {{ item.item.recent_window | default('now-30m') }}."
+    success_msg: "Continuous index family {{ item.item.name }} has recent docs."
+  loop: "{{ continuous_recent_results.results | default([]) }}"
+
+- name: Resolve intermittent index families
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/_resolve/index/{{ item.index }}"
+    method: GET
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    timeout: "{{ timeout_seconds }}"
+  loop: "{{ intermittent_indices }}"
+  register: intermittent_resolve_results
+  failed_when: false
+
+- name: Assert intermittent index families exist
+  ansible.builtin.assert:
+    that:
+      - item.status | default(0) | int == 200
+      - ((item.json.indices | default([]) | length) + (item.json.aliases | default([]) | length) + (item.json.data_streams | default([]) | length)) | int > 0
+    fail_msg: "Intermittent index family {{ item.item.name }} ({{ item.item.index }}) does not exist."
+    success_msg: "Intermittent index family {{ item.item.name }} exists."
+  loop: "{{ intermittent_resolve_results.results | default([]) }}"
+
+- name: Check recency for intermittent index families
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/{{ item.index }}/_search"
+    method: POST
+    body_format: json
+    body:
+      size: 1
+      query:
+        range:
+          "@timestamp":
+            gte: "now-30m"
+      sort:
+        - "@timestamp": "desc"
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    timeout: "{{ timeout_seconds }}"
+  loop: "{{ intermittent_indices }}"
+  register: intermittent_recent_results
+  failed_when: false
+
+- name: Print intermittent index recency (informational only)
+  ansible.builtin.debug:
+    msg: >-
+      Intermittent index {{ item.item.name }}: {{
+      'recent data found' if (item.json is defined and item.json.hits.total.value | int > 0)
+      else 'no recent data in now-30m (allowed)'
+      }}
+  loop: "{{ intermittent_recent_results.results | default([]) }}"

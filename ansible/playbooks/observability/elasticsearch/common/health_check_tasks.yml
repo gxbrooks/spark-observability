@@ -1,0 +1,38 @@
+# Shared Elasticsearch health checks.
+# Single objective: verify API and cluster health.
+
+- name: Check Elasticsearch cluster health
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/_cluster/health"
+    method: GET
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    timeout: "{{ timeout_seconds }}"
+  register: es_health
+  failed_when: false
+
+- name: Assert Elasticsearch HTTP API is reachable
+  ansible.builtin.assert:
+    that:
+      - es_health.status is defined
+      - es_health.status | int == 200
+    fail_msg: |
+      Elasticsearch HTTP API did not return HTTP 200 for _cluster/health.
+      HTTP status={{ es_health.status | default('n/a') }}; message={{ es_health.msg | default('n/a') }}.
+      {% if es_health.status | default(0) | int in [401, 403] %}Check ES_PASSWORD in {{ observability_env_file }}.
+      {% elif es_health.status | default(0) | int <= 0 %}No response: check es01 container, port 9200, TLS, DNS.
+      {% endif %}
+    success_msg: "Elasticsearch _cluster/health returned HTTP 200"
+
+- name: Assert cluster status is green or yellow
+  ansible.builtin.assert:
+    that:
+      - es_health.json is defined
+      - es_health.json.status in ['green', 'yellow']
+    fail_msg: |
+      Elasticsearch cluster health is {{ es_health.json.status | default('unknown') }}.
+      Summary={{ es_health.json | to_json }}.
+      If unassigned_shards > 0 check disk watermarks and node count.
+    success_msg: "Elasticsearch cluster status is {{ es_health.json.status }}"

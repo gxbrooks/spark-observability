@@ -1,0 +1,17 @@
+---
+# Standalone common health check playbook.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/elasticsearch/common/health_check.yml --limit observability
+
+- name: Elasticsearch common health check
+  hosts: observability
+  gather_facts: false
+  vars_files:
+    - ../../../../../vars/contexts/spark_ansible_vars.yml
+  vars:
+    timeout_seconds: 20
+    es_probe_host: "localhost"
+  tasks:
+    - name: Run shared health checks
+      ansible.builtin.include_tasks: health_check_tasks.yml

@@ -1,0 +1,17 @@
+---
+# Standalone common index checks playbook.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/elasticsearch/common/index_checks.yml --limit observability
+
+- name: Elasticsearch common index checks
+  hosts: observability
+  gather_facts: false
+  vars_files:
+    - ../../../../../vars/contexts/spark_ansible_vars.yml
+  vars:
+    timeout_seconds: 20
+    es_probe_host: "localhost"
+  tasks:
+    - name: Run shared index checks
+      ansible.builtin.include_tasks: index_checks_tasks.yml
