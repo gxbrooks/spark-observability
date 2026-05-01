@@ -280,6 +280,8 @@ services:
       ES_PORT: ${ES_PORT}
       ES_USER: ${ES_USER}
       ES_PASSWORD: ${ES_PASSWORD}
+      # Echoed in init-index.sh Step 4 (must match es01 xpack.license.self_generated.type intent)
+      LICENSE: ${LICENSE}
       # Use Docker service name so init-index can reach Kibana on the same network
       KB_HOST: kibana
       KB_PORT: ${KB_PORT}

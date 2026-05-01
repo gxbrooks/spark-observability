@@ -173,58 +173,61 @@ mkdir -p "${ES_OUTPUTS_DIR}" 2>/dev/null || true
 echo "✅ Output directories ready"
 
 # ============================================================================
-# STEP 4: Start Elasticsearch License (Trial for Watcher Support)
+# STEP 4: Elasticsearch license (lab: Trial for Watcher)
 # ============================================================================
 echo ""
-echo "=== STEP 4: ENABLING ELASTICSEARCH LICENSE (FOR WATCHER SUPPORT) ==="
-# Watcher requires Gold license or higher (Trial, Gold, Platinum, Enterprise)
-# The docker-compose.yml sets xpack.license.self_generated.type from LICENSE variable
-# Valid values: basic, trial, platinum, enterprise (Gold cannot be self-generated)
-# If LICENSE=trial, we attempt to start a trial license if not already active
+echo "=== STEP 4: ELASTICSEARCH LICENSE (WATCHER / LAB) ==="
+# Policy (self-managed): https://www.elastic.co/docs/deploy-manage/license
+# - Basic: free; security works; Watcher *actions* do not execute on Basic.
+# - Trial: ~30 days, stack features including Watcher (one start_trial per cluster UUID).
+# - Paid: Platinum / Enterprise (Gold tier was retired for new sales; use current docs).
+#
+# compose sets xpack.license.self_generated.type from LICENSE (see vars/variables.yaml).
+# LICENSE env below is passed into this container so we can compare intent vs reality.
+echo "Compose LICENSE (intent): ${LICENSE:-not set}"
+echo "Lab: Do NOT call POST /_license/start_basic if you need Watcher/Grafana watcher-fed panels."
+echo "     Basic cannot run Watcher actions; restoring Trial requires start_trial (if eligible) or new cluster data."
 
 LICENSE_STATUS=$(mktemp)
 if esapi GET /_license > "$LICENSE_STATUS" 2>&1; then
-  # Check license type and status
   LICENSE_TYPE=$(python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('license', {}).get('type', 'unknown'))" < "$LICENSE_STATUS" 2>/dev/null || echo "unknown")
   LICENSE_STATUS_VALUE=$(python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('license', {}).get('status', 'unknown'))" < "$LICENSE_STATUS" 2>/dev/null || echo "unknown")
   LICENSE_EXPIRY=$(python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('license', {}).get('expiry_date', 'N/A'))" < "$LICENSE_STATUS" 2>/dev/null || echo "N/A")
-  
-  # Check if trial or higher license is already active
+  echo "Cluster license type: $LICENSE_TYPE (status: $LICENSE_STATUS_VALUE, expiry: $LICENSE_EXPIRY)"
+
+  TRIAL_STATUS_FILE=$(mktemp)
+  if esapi GET /_license/trial_status > "$TRIAL_STATUS_FILE" 2>&1; then
+    echo "Trial API status (/_license/trial_status):"
+    head -c 800 "$TRIAL_STATUS_FILE" || true
+    echo ""
+  fi
+  rm -f "$TRIAL_STATUS_FILE"
+
   if echo "$LICENSE_TYPE" | grep -qiE "(trial|platinum|enterprise|gold)"; then
     if [ "$LICENSE_STATUS_VALUE" = "expired" ]; then
-      echo "❌ License type: $LICENSE_TYPE (EXPIRED on $LICENSE_EXPIRY)"
-      echo "   Watcher requires an active Gold license or higher"
-      echo "   Trial licenses cannot be restarted once expired on the same cluster."
-      echo "   Options:"
-      echo "   1. Reset cluster for a new trial (lab use; all ES/Kibana data is lost):"
-      echo "      ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/stop.yml -e delete_volumes=true"
-      echo "      ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml"
-      echo "   2. Purchase and install a Gold/Platinum/Enterprise license via PUT /_license API"
-      echo "   Continuing with initialization, but Watcher features will not be available"
+      echo "❌ License EXPIRED ($LICENSE_TYPE on $LICENSE_EXPIRY). Watcher actions will not run."
+      echo "   Lab reset (destroys ES/Kibana data, new cluster id → new trial eligibility):"
+      echo "   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/stop.yml -e delete_volumes=true"
+      echo "   ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/start.yml"
+      echo "   Or install a current paid license JSON via PUT /_license."
     else
-      echo "✅ License type: $LICENSE_TYPE (Status: $LICENSE_STATUS_VALUE, supports Watcher)"
+      echo "✅ License supports Watcher: $LICENSE_TYPE ($LICENSE_STATUS_VALUE)"
     fi
   else
-    # Basic license detected - try to start trial if LICENSE variable is set to trial
-    echo "Current license is basic (does not support Watcher)"
-    echo "Attempting to start trial license (if available)..."
+    echo "Current license is Basic — Watcher watches may be stored but actions (e.g. index to application-events-metrics-ds) will not execute."
+    echo "Attempting POST /_license/start_trial?acknowledge=true ..."
     TRIAL_RESULT=$(esapi POST /_license/start_trial?acknowledge=true 2>&1) || true
-    if echo "$TRIAL_RESULT" | grep -q '"acknowledged".*true' && echo "$TRIAL_RESULT" | grep -q '"trial_was_started".*true'; then
-      echo "✅ Trial license enabled successfully (30 days, includes Watcher)"
-    elif echo "$TRIAL_RESULT" | grep -q '"trial_was_started".*false' 2>/dev/null; then
-      echo "⚠️  Trial license could not be enabled"
-      echo "    This may mean the trial has already been used (can only be used once per cluster)."
-      echo "    To get a new 30-day trial (e.g. for Watcher): create a new cluster by stopping with"
-      echo "    delete_volumes=true, then start again. This deletes all Elasticsearch and Kibana data."
-      echo "    Example: observability/stop.yml -e delete_volumes=true, then observability/start.yml"
-      echo "    To use Watcher without reset: install a Gold, Platinum, or Enterprise license via PUT /_license API"
+    if echo "$TRIAL_RESULT" | grep -q '"trial_was_started".*true'; then
+      echo "✅ Trial started — Watcher enabled for this trial period."
     else
-      echo "⚠️  Trial license start attempt failed or already activated"
-      echo "$TRIAL_RESULT" | head -5
+      echo "⚠️  Could not start trial (often: trial already used on this cluster persistence)."
+      echo "    Response snippet:"
+      echo "$TRIAL_RESULT" | head -8
+      echo "    Lab: wipe Elasticsearch data volume(s) and redeploy, or apply a paid license."
     fi
   fi
 else
-  echo "⚠️  Could not check license status"
+  echo "⚠️  Could not GET /_license"
 fi
 rm -f "$LICENSE_STATUS"
 
@@ -758,7 +761,7 @@ else
 fi
 
 echo "Creating application-events-metrics watcher..."
-echo "  NOTE: Watcher actions require a license above Basic; Spark System Metrics dashboard uses app-events-* directly."
+echo "  (Requires Trial or paid license — Basic does not execute Watcher actions.)"
 esapi PUT /_watcher/watch/application-events-metrics ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.watcher.json \
   > /dev/null 2>&1
 
@@ -852,14 +855,13 @@ except:
     print('unknown')
 " 2>/dev/null || echo "unknown")
   
-  # Watcher requires Gold license or higher (Trial, Gold, Platinum, Enterprise)
+  # Watcher actions require Trial or a paid tier — not Basic (see elastic.co/subscriptions).
   WATCHER_LICENSES="trial gold platinum enterprise"
   if echo "$WATCHER_LICENSES" | grep -qi "$LICENSE_TYPE"; then
-    echo "  ✅ License type: $LICENSE_TYPE (supports Watcher)"
+    echo "  ✅ License type: $LICENSE_TYPE (Watcher actions allowed if not expired)"
   else
-    echo "  ❌ License type: $LICENSE_TYPE (does NOT support Watcher)"
-    echo "     Watcher requires Gold license or higher (Trial, Gold, Platinum, Enterprise)"
-    echo "     Current license does not include Watcher functionality"
+    echo "  ❌ License type: $LICENSE_TYPE — Watcher actions are not available on Basic."
+    echo "     Start Trial (init Step 4), apply a paid license, or reset cluster data for a new trial."
   fi
 else
   echo "  ⚠️  Could not retrieve license information"
@@ -903,10 +905,10 @@ if echo "$LICENSE_TYPE" | grep -qiE "(trial|gold|platinum|enterprise)"; then
   echo "  2. Navigate to: Stack Management > Alerts and Insights > Watcher"
   echo "  3. The elastic user should have full Watcher access via superuser role"
 else
-  echo "⚠️  Watcher is NOT available with the current license ($LICENSE_TYPE)"
-  echo "   To enable Watcher, you need a Gold license or higher."
-  echo "   If you previously used the trial license, it may have expired."
-  echo "   Contact your Elasticsearch administrator to upgrade the license."
+  echo "⚠️  Watcher actions are NOT available with license type: $LICENSE_TYPE (Basic)."
+  echo "   Fix: POST /_license/start_trial?acknowledge=true (if eligible), or paid license, or"
+  echo "   observability stop with delete_volumes + start (lab reset — new trial)."
+  echo "   Avoid POST /_license/start_basic on clusters that need Watcher."
 fi
 echo ""
 

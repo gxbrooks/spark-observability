@@ -159,7 +159,7 @@ ES_BIN_DIR:
 LICENSE:
   value: trial
   contexts: [observability]
-  comment: "License type: 'basic' (free, no Watcher), 'trial' (30 days, includes Watcher), 'platinum' or 'enterprise' (paid, includes Watcher). Note: Gold licenses cannot be self-generated and must be installed via license API."
+  comment: "Docker xpack.license.self_generated.type. Basic = free forever but Watcher/alerts actions do not run. Trial = full features ~30 days (includes Watcher). Do not call POST /_license/start_basic on a lab cluster that needs Watcher—it cannot be reverted to trial without start_trial (once per cluster) or wiping ES data. See elastic.co/subscriptions and init-index.sh Step 4."
 
 # Kibana variables (KB_* prefix)
 EB_ENCRYPTION_KEY:

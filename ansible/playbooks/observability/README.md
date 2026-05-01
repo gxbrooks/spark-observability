@@ -122,9 +122,16 @@ All observability services run on the **observability** host group (Lab3). Run f
 
 ## License and trial reset (Watcher)
 
-Watcher requires a **trial** or paid license. For lab use, run the trial license (30 days). When expired, reset the cluster for a new trial:
+**Watcher** (including `application-events-metrics` and batch match watches) **does not execute actions on Elasticsearch Basic**. Basic is appropriate for many stacks; this lab defaults to **`LICENSE=trial`** in `vars/variables.yaml` so Grafana watcher-fed panels work for the trial period.
+
+- Do **not** call `POST /_license/start_basic` on this cluster if you rely on Watcher — use **Trial** or a **paid** license JSON (`PUT /_license`), or reset data (below).
+- `init-index.sh` Step 4 attempts `POST /_license/start_trial` when the cluster is on Basic. Trial is **once per cluster** (same persisted node data); if it was already consumed, wipe volumes and redeploy.
+
+When the trial expires, reset for a new trial (destroys Elasticsearch/Kibana Docker volumes):
 
 ```bash
 ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
 ansible-playbook -i inventory.yml playbooks/observability/start.yml
 ```
+
+See also: [Elastic: licenses and subscriptions](https://www.elastic.co/docs/deploy-manage/license).
