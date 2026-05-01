@@ -12,6 +12,8 @@
   vars:
     timeout_seconds: 20
     es_probe_host: "localhost"
+    observability_dir: "/home/ansible/ops/observability"
+    observability_env_file: "{{ observability_dir }}/.env"
   tasks:
     - name: Run shared health checks
       ansible.builtin.include_tasks: health_check_tasks.yml

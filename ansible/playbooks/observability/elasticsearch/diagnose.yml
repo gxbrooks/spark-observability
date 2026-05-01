@@ -11,7 +11,24 @@
     timeout_seconds: 20
     es_probe_host: "localhost"
     observability_dir: "/home/ansible/ops/observability"
+    # Used in shared health_check_tasks fail_msg (401/403 hint)
+    observability_env_file: "{{ observability_dir }}/.env"
   tasks:
+    # Prefer password from the host's Docker Compose .env so probes match the running cluster
+    # (controller spark_ansible_vars.yml may be empty or stale after secrets/context drift).
+    - name: Read Elasticsearch password from observability .env
+      ansible.builtin.shell: |
+        awk -F= '/^ES_PASSWORD=/{print substr($0, index($0,$2)); exit}' "{{ observability_env_file }}"
+      register: es_password_from_env
+      changed_when: false
+      failed_when: false
+
+    - name: Resolve ES password for API probes
+      ansible.builtin.set_fact:
+        ES_PASSWORD: >-
+          {{ (es_password_from_env.stdout | default('') | trim | length > 0)
+             | ternary(es_password_from_env.stdout | trim, ES_PASSWORD | default('') | trim) }}
+
     - name: Run shared health checks
       ansible.builtin.include_tasks: common/health_check_tasks.yml
 
