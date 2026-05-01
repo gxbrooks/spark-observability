@@ -8,6 +8,11 @@
   vars:
     observability_dir: "/home/ansible/ops/observability"
   tasks:
+    - name: Fail if ES_PASSWORD environment variable is missing on controller
+      ansible.builtin.fail:
+        msg: "ES_PASSWORD environment variable is required for Elasticsearch health checks."
+      when: (lookup('env', 'ES_PASSWORD') | string | trim) == ''
+
     - name: Start Elasticsearch container
       ansible.builtin.command: docker compose up -d es01
       args:
@@ -21,7 +26,7 @@
         url: "https://localhost:9200"
         method: GET
         user: elastic
-        password: "{{ lookup('env', 'ELASTIC_PASSWORD') | default('myElastic2025', true) }}"
+        password: "{{ lookup('env', 'ES_PASSWORD') }}"
         validate_certs: false
         status_code: [200, 401]
       register: es_health

@@ -65,6 +65,11 @@ if [[ -z "$ES_PASSWORD" ]]; then
     exit 1
 fi
 
+if [[ -z "${SPARK_EVENT_CSV:-}" ]]; then
+    echo "Error: SPARK_EVENT_CSV not set in spark_client_env.sh" >&2
+    exit 1
+fi
+
 # Validate JAR path is set, then expand ~
 if [[ -z "$SPARK_OTEL_LISTENER_JAR" ]]; then
     echo "Error: SPARK_OTEL_LISTENER_JAR not set in spark_client_env.sh" >&2
@@ -77,7 +82,10 @@ if [[ -z "${SPARK_MASTER_HOST:-}" || -z "${SPARK_MASTER_PORT:-}" ]]; then
     exit 1
 fi
 
-: "${SPARK_DATA_MOUNT:=/mnt/spark/data}"
+if [[ -z "${SPARK_DATA_MOUNT:-}" ]]; then
+    echo "Error: SPARK_DATA_MOUNT not set in spark_client_env.sh" >&2
+    exit 1
+fi
 
 # Executors connect back to this host; auto-detect when not explicitly exported.
 if [[ -z "${SPARK_DRIVER_HOST:-}" ]]; then
@@ -114,7 +122,7 @@ if [ "$USE_SED" = "1" ]; then
     ES_URL_ESC=$(echo "$ES_URL" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_USER_ESC=$(echo "$ES_USER" | sed 's/[[\.*^$()+?{|]/\\&/g')
     ES_PASSWORD_ESC=$(echo "$ES_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
-    SPARK_EVENT_CSV_ESC=$(echo "${SPARK_EVENT_CSV:-true}" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    SPARK_EVENT_CSV_ESC=$(echo "${SPARK_EVENT_CSV}" | sed 's/[[\.*^$()+?{|]/\\&/g')
     SPARK_DRIVER_HOST_ESC=$(echo "$SPARK_DRIVER_HOST" | sed 's/[[\.*^$()+?{|]/\\&/g')
     SPARK_MASTER_HOST_ESC=$(echo "$SPARK_MASTER_HOST" | sed 's/[[\.*^$()+?{|]/\\&/g')
     SPARK_MASTER_PORT_ESC=$(echo "$SPARK_MASTER_PORT" | sed 's/[[\.*^$()+?{|]/\\&/g')
@@ -151,7 +159,7 @@ rendered = template.render(
     ES_URL='$ES_URL',
     ES_USER='$ES_USER',
     ES_PASSWORD='$ES_PASSWORD',
-    SPARK_EVENT_CSV='${SPARK_EVENT_CSV:-true}',
+    SPARK_EVENT_CSV='${SPARK_EVENT_CSV}',
     SPARK_DRIVER_HOST='$SPARK_DRIVER_HOST',
     SPARK_MASTER_HOST='$SPARK_MASTER_HOST',
     SPARK_MASTER_PORT='$SPARK_MASTER_PORT',

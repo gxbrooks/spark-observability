@@ -154,31 +154,57 @@ The `ELASTICSEARCH_*` variables in `elastic-agent-systemd` context reference `ES
 
 ### ✅ DO
 
-1. **Use common directory for multi-application projects**
+1. **Treat `vars/variables.yaml` as the variable SSOT**
+   - Any value consumed across playbooks, scripts, templates, or apps should originate in `vars/variables.yaml`.
+   - Implementation files (for example `ansible/playbooks/nfs/install.yml`) are the SSOT for orchestration flow and task wiring, not for canonical variable values.
+
+2. **Fail fast when required variables are missing**
+   - Scripts and playbooks must error when a required variable from `vars/variables.yaml` is undefined or empty.
+   - Do not add fallback defaults in consumers (e.g. `VAR="${VAR:-/some/default}"`) for variables that are expected from generated contexts.
+   - Missing-variable failures should be explicit and actionable.
+
+3. **Use generated contexts as the only input to consumers**
+   - Consumers should load variables from generated context files (`vars/contexts/*`) and fail if required values are absent.
+   - Avoid duplicating constant values in script or playbook logic.
+
+4. **Keep implementation and specification separate**
+   - `vars/variables.yaml` defines the variable contract and values.
+   - Playbooks/scripts implement behavior using those values.
+   - If a value needs to be shared by multiple consumers, add a variable/context; do not hardcode it in one implementation.
+
+5. **Keep generators data-driven**
+   - Context generators must avoid hardcoded variable-name special cases.
+   - If formatting/output differs by consumer, represent that through context metadata and writer rules, not ad hoc checks for specific variable names.
+
+6. **Add contexts or context classes instead of hardcoding**
+   - If a consumer needs a distinct shape, add a new context and/or context type with explicit generation semantics.
+   - Keep transformations declarative where possible.
+
+7. **Use common directory for multi-application projects**
    - Provides consistency and clarity
    - Simplifies version control
    - Makes it obvious what's generated
    - Especially important for files without identifying extensions
 
-2. **Keep generated files clearly separated from source**
+8. **Keep generated files clearly separated from source**
    - Use dedicated directory (e.g., `vars/contexts/`)
    - Add header comments to generated files
    - Use consistent naming patterns
 
-3. **Use context-specific references to avoid variable pollution**
+9. **Use context-specific references to avoid variable pollution**
    - When a variable in one context needs values from another context, use `${context:VAR_NAME}` syntax
    - This prevents unnecessary variables from appearing in contexts where they're not needed
 
-4. **Document deployment process**
+10. **Document deployment process**
    - Explain why files are in common directory
    - Show how deployment maps files from source to target locations
    - Explain source/target structure differences
 
-5. **Use simple `.gitignore` patterns**
+11. **Use simple `.gitignore` patterns**
    - Ignore entire generated directory
    - Avoid per-file exclusions
 
-6. **Add convenience tooling**
+12. **Add convenience tooling**
    - Scripts to copy files for local development
    - Validation to detect manual edits
    - Clear error messages if files are missing

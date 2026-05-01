@@ -116,17 +116,28 @@
         - spark-master-headless.yaml
         - spark-history-service.yaml
 
+    - name: Fail if required Spark settings are missing from generated context variables
+      fail:
+        msg: "Required variable '{{ item }}' is missing or empty in vars/variables.yaml for the ansible/spark contexts."
+      when: vars[item] is not defined or (vars[item] | string | trim) == ''
+      loop:
+        - SPARK_EVENTS_DIR
+        - SPARK_NETWORK_TIMEOUT
+        - SPARK_RPC_ASK_TIMEOUT
+        - SPARK_RPC_LOOKUP_TIMEOUT
+        - SPARK_EXECUTOR_HEARTBEAT_INTERVAL
+
     - name: Template spark-defaults.conf from template
       template:
         src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/spark-defaults.conf.j2"
         dest: "/home/{{ ansible_user }}/spark/conf/spark-defaults.conf"
         mode: '0644'
       vars:
-        spark_events_dir: "{{ SPARK_EVENTS_DIR | default('/mnt/spark/events') }}"
-        spark_network_timeout: "{{ SPARK_NETWORK_TIMEOUT | default('600s') }}"
-        spark_rpc_ask_timeout: "{{ SPARK_RPC_ASK_TIMEOUT | default('60s') }}"
-        spark_rpc_lookup_timeout: "{{ SPARK_RPC_LOOKUP_TIMEOUT | default('60s') }}"
-        spark_executor_heartbeat_interval: "{{ SPARK_EXECUTOR_HEARTBEAT_INTERVAL | default('120s') }}"
+        spark_events_dir: "{{ SPARK_EVENTS_DIR }}"
+        spark_network_timeout: "{{ SPARK_NETWORK_TIMEOUT }}"
+        spark_rpc_ask_timeout: "{{ SPARK_RPC_ASK_TIMEOUT }}"
+        spark_rpc_lookup_timeout: "{{ SPARK_RPC_LOOKUP_TIMEOUT }}"
+        spark_executor_heartbeat_interval: "{{ SPARK_EXECUTOR_HEARTBEAT_INTERVAL }}"
 
     # spark-defaults.conf.j2 references log4j2-executor.properties; sync from repo checkout on controller.
     - name: Copy Spark log4j2 config files from repository for ConfigMap

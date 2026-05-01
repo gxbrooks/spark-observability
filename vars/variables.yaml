@@ -283,16 +283,16 @@ SPARK_MASTER:
 # Increased timeouts to handle connection resets and network instability
 SPARK_NETWORK_TIMEOUT:
   value: 900s
-  contexts: [spark-runtime]
+  contexts: [spark-runtime, ansible]
 SPARK_RPC_ASK_TIMEOUT:
   value: 120s
-  contexts: [spark-runtime]
+  contexts: [spark-runtime, ansible]
 SPARK_RPC_LOOKUP_TIMEOUT:
   value: 120s
-  contexts: [spark-runtime]
+  contexts: [spark-runtime, ansible]
 SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   value: 60s
-  contexts: [spark-runtime]
+  contexts: [spark-runtime, ansible]
 
 # Spark worker memory configuration
 # Set to 12g to leave ~2GB headroom within the 14GB pod limit

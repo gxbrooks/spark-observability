@@ -21,7 +21,7 @@ datasources:
       maxConcurrentShardRequests: 5
     secureJsonData:
       # password needs to be parametized and secured
-      basicAuthPassword: ${ELASTIC_PASSWORD}
+      basicAuthPassword: ${ES_PASSWORD}
 
   - name: Prometheus
     type: prometheus

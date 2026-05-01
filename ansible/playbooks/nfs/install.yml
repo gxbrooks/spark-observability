@@ -17,15 +17,30 @@
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
   vars:
     nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check,insecure)"
-    nfs_export_root: /srv/nfs/spark
+    nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
+    spark_mount_base_resolved: "{{ spark_mount_base }}"
+    spark_data_mount_resolved: "{{ spark_data_mount }}"
+    spark_events_mount_resolved: "{{ spark_mount_base_resolved }}/events"
+    spark_logs_mount_resolved: "{{ spark_mount_base_resolved }}/logs"
+    spark_checkpoints_mount_resolved: "{{ spark_mount_base_resolved }}/checkpoints"
+    spark_jupyter_mount_resolved: "{{ spark_mount_base_resolved }}/jupyter"
     nfs_export_dirs:
-      - /srv/nfs/spark/events
-      - /srv/nfs/spark/data
-      - /srv/nfs/spark/logs
-      - /srv/nfs/spark/checkpoints
+      - "{{ nfs_export_root }}/events"
+      - "{{ nfs_spark_data_export }}"
+      - "{{ nfs_export_root }}/logs"
+      - "{{ nfs_export_root }}/checkpoints"
       - /srv/nfs/jupyterhub
       - /srv/nfs/jupyterhub-users
   tasks:
+    - name: Fail if required NFS variables are missing from generated nfs context
+      fail:
+        msg: "Required variable '{{ item }}' is missing from vars/variables.yaml nfs context."
+      when: vars[item] is not defined or (vars[item] | string | trim) == ''
+      loop:
+        - spark_mount_base
+        - spark_data_mount
+        - nfs_spark_data_export
+
     - name: Install NFS server packages
       apt:
         name: 
@@ -71,17 +86,35 @@
 - name: Configure NFS Server Local Mounts (Bind Mounts)
   hosts: nfs_servers
   become: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
   vars:
+    nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
+    spark_mount_base_resolved: "{{ spark_mount_base }}"
+    spark_data_mount_resolved: "{{ spark_data_mount }}"
+    spark_events_mount_resolved: "{{ spark_mount_base_resolved }}/events"
+    spark_logs_mount_resolved: "{{ spark_mount_base_resolved }}/logs"
+    spark_checkpoints_mount_resolved: "{{ spark_mount_base_resolved }}/checkpoints"
+    spark_jupyter_mount_resolved: "{{ spark_mount_base_resolved }}/jupyter"
     bind_mounts:
-      - { mount: '/mnt/spark/events', src: '/srv/nfs/spark/events' }
-      - { mount: '/mnt/spark/data', src: '/srv/nfs/spark/data' }
-      - { mount: '/mnt/spark/logs', src: '/srv/nfs/spark/logs' }
-      - { mount: '/mnt/spark/checkpoints', src: '/srv/nfs/spark/checkpoints' }
-      - { mount: '/mnt/spark/jupyter', src: '/srv/nfs/jupyterhub' }
+      - { mount: "{{ spark_events_mount_resolved }}", src: "{{ nfs_export_root }}/events" }
+      - { mount: "{{ spark_data_mount_resolved }}", src: "{{ nfs_spark_data_export }}" }
+      - { mount: "{{ spark_logs_mount_resolved }}", src: "{{ nfs_export_root }}/logs" }
+      - { mount: "{{ spark_checkpoints_mount_resolved }}", src: "{{ nfs_export_root }}/checkpoints" }
+      - { mount: "{{ spark_jupyter_mount_resolved }}", src: '/srv/nfs/jupyterhub' }
   tasks:
-    - name: Create /mnt/spark root on NFS server
+    - name: Fail if required NFS variables are missing from generated nfs context
+      fail:
+        msg: "Required variable '{{ item }}' is missing from vars/variables.yaml nfs context."
+      when: vars[item] is not defined or (vars[item] | string | trim) == ''
+      loop:
+        - spark_mount_base
+        - spark_data_mount
+        - nfs_spark_data_export
+
+    - name: Create spark mount base on NFS server
       file:
-        path: /mnt/spark
+        path: "{{ spark_mount_base_resolved }}"
         state: directory
         mode: '2775'
         owner: spark
@@ -124,25 +157,43 @@
 - name: Configure NFS Clients
   hosts: kubernetes_master:kubernetes_workers:!nfs_servers
   become: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
   vars:
+    nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
+    spark_mount_base_resolved: "{{ spark_mount_base }}"
+    spark_data_mount_resolved: "{{ spark_data_mount }}"
+    spark_events_mount_resolved: "{{ spark_mount_base_resolved }}/events"
+    spark_logs_mount_resolved: "{{ spark_mount_base_resolved }}/logs"
+    spark_checkpoints_mount_resolved: "{{ spark_mount_base_resolved }}/checkpoints"
+    spark_jupyter_mount_resolved: "{{ spark_mount_base_resolved }}/jupyter"
     # Use DNS name (ansible_host) so /etc/fstab and mount(8) resolve the server correctly.
     nfs_server: "{{ hostvars[groups['nfs_servers'][0]]['ansible_host'] | default(groups['nfs_servers'][0], true) }}"
     nfs_mounts:
-      - { src: '/srv/nfs/spark/events', dest: '/mnt/spark/events' }
-      - { src: '/srv/nfs/spark/data', dest: '/mnt/spark/data' }
-      - { src: '/srv/nfs/spark/logs', dest: '/mnt/spark/logs' }
-      - { src: '/srv/nfs/spark/checkpoints', dest: '/mnt/spark/checkpoints' }
-      - { src: '/srv/nfs/jupyterhub', dest: '/mnt/spark/jupyter' }
+      - { src: "{{ nfs_export_root }}/events", dest: "{{ spark_events_mount_resolved }}" }
+      - { src: "{{ nfs_spark_data_export }}", dest: "{{ spark_data_mount_resolved }}" }
+      - { src: "{{ nfs_export_root }}/logs", dest: "{{ spark_logs_mount_resolved }}" }
+      - { src: "{{ nfs_export_root }}/checkpoints", dest: "{{ spark_checkpoints_mount_resolved }}" }
+      - { src: '/srv/nfs/jupyterhub', dest: "{{ spark_jupyter_mount_resolved }}" }
   tasks:
+    - name: Fail if required NFS variables are missing from generated nfs context
+      fail:
+        msg: "Required variable '{{ item }}' is missing from vars/variables.yaml nfs context."
+      when: vars[item] is not defined or (vars[item] | string | trim) == ''
+      loop:
+        - spark_mount_base
+        - spark_data_mount
+        - nfs_spark_data_export
+
     - name: Install NFS client packages
       apt:
         name: nfs-common
         state: present
         update_cache: yes
 
-    - name: Create /mnt/spark root on clients
+    - name: Create spark mount base on clients
       file:
-        path: /mnt/spark
+        path: "{{ spark_mount_base_resolved }}"
         state: directory
         mode: '2775'
         owner: spark

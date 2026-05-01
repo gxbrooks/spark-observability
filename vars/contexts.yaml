@@ -37,11 +37,90 @@ contexts:
     type: ansible_vars
     output: spark_ansible_vars.yml
     description: Ansible variables for deployment playbooks and roles (Spark, observability credentials)
+    ansible_render:
+      sections:
+        - title: Spark version
+          entries:
+            - key: spark_version
+              source: SPARK_VERSION
+              required: true
+        - title: Registry and image configuration (local registry on observability host)
+          entries:
+            - key: registry_host
+              source: SPARK_REGISTRY_HOST
+              required: true
+            - key: spark_image
+              template: "{{ registry_host }}/spark"
+            - key: spark_tag
+              template: "{{ spark_version }}"
+        - title: Paths and directories
+          entries:
+            - key: spark_events_dir
+              source: SPARK_EVENTS_DIR
+            - key: spark_home
+              source: SPARK_HOME
+        - title: Spark master hostname (used in spark-master.yaml.j2 template)
+          entries:
+            - key: SPARK_MASTER_HOST
+              source: SPARK_MASTER_HOST
+            - key: SPARK_MASTER_PORT
+              source: SPARK_MASTER_PORT
+        - title: Spark runtime timeouts (required by spark start playbook)
+          entries:
+            - key: SPARK_EVENTS_DIR
+              source: SPARK_EVENTS_DIR
+              required: true
+            - key: SPARK_NETWORK_TIMEOUT
+              source: SPARK_NETWORK_TIMEOUT
+              required: true
+            - key: SPARK_RPC_ASK_TIMEOUT
+              source: SPARK_RPC_ASK_TIMEOUT
+              required: true
+            - key: SPARK_RPC_LOOKUP_TIMEOUT
+              source: SPARK_RPC_LOOKUP_TIMEOUT
+              required: true
+            - key: SPARK_EXECUTOR_HEARTBEAT_INTERVAL
+              source: SPARK_EXECUTOR_HEARTBEAT_INTERVAL
+              required: true
+        - title: Kubernetes-specific settings
+          entries:
+            - key: k8s_namespace
+              value: spark
+        - title: Observability credentials
+          entries:
+            - key: ES_USER
+              source: ES_USER
+            - key: ES_PASSWORD
+              source: ES_PASSWORD
+            - key: ES_PORT
+              source: ES_PORT
+            - key: GF_SECURITY_ADMIN_USER
+              source: GF_SECURITY_ADMIN_USER
+            - key: GF_SECURITY_ADMIN_PASSWORD
+              source: GF_SECURITY_ADMIN_PASSWORD
 
   - name: nfs
     type: ansible_vars
     output: nfs_ansible_vars.yml
     description: Ansible variables for NFS server configuration
+    ansible_render:
+      sections:
+        - title: NFS configuration
+          entries:
+            - key: nfs_server
+              source: NFS_SERVER
+              required: true
+            - key: spark_mount_base
+              source: SPARK_MOUNT_BASE
+              required: true
+            - key: spark_data_mount
+              source: SPARK_DATA_MOUNT
+              required: true
+            - key: spark_data_source
+              source: SPARK_DATA_SOURCE
+            - key: nfs_spark_data_export
+              source: NFS_SPARK_DATA_EXPORT
+              required: true
 
   - name: spark-client
     type: shell_env
@@ -62,6 +141,13 @@ contexts:
     type: ansible_vars
     output: elastic_agent_ansible_vars.yml
     description: Ansible variables for Elastic Agent deployment playbooks
+    ansible_render:
+      sections:
+        - title: Elastic Agent settings
+          entries:
+            - key: elastic_agent_version
+              source: ELASTIC_AGENT_VERSION
+              required: true
 
   - name: devops
     type: shell_env

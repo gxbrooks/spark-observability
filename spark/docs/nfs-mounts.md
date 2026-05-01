@@ -2,7 +2,7 @@
 
 This document describes the **shared Spark storage contract** used across the lab: **export paths on the NFS server**, **host paths under `/mnt/spark`**, **ownership and permissions**, and **which automation owns each class of machine**.
 
-The **authoritative** automation for cluster nodes is Ansible: `ansible/playbooks/nfs/install.yml`. Shell helpers under `linux/` are for **developer / managed workstations** and overlap in intent but differ on the **NFS server host** (see [Classes of clients](#classes-of-clients)).
+`vars/variables.yaml` is the SSOT for shared variable specifications. `ansible/playbooks/nfs/install.yml` is the implementation SSOT for how mount points are created and enforced on cluster hosts. Shell helpers under `linux/` are for **developer / managed workstations** and overlap in intent but differ on the **NFS server host** (see [Classes of clients](#classes-of-clients)).
 
 ## Canonical mount table
 
@@ -19,6 +19,55 @@ All writable Spark shared directories use the same permission pattern: **owner `
 **Root directory:** `/mnt/spark` is also **`spark:spark`**, mode **`2775`**.
 
 **Exported but not under `/mnt/spark` in automation:** `/srv/nfs/jupyterhub-users` is listed in the server export list in `nfs/install.yml` for NFS use by JupyterHub (or other consumers). There is **no** corresponding `/mnt/spark/...` bind or client mount defined in that playbook today.
+
+## `vars/variables.yaml` and `/mnt/spark`
+
+Centralized variables live in `vars/variables.yaml` and are emitted into context files by `vars/generate_contexts.py` (e.g. `spark-runtime`, `spark-client`, `nfs`, `devops`). Only a **subset** of the five `/mnt/spark/*` paths are named there today; the rest are implied by playbooks and shell scripts.
+
+| Variable | Value (as in repo) | Contexts (where generated) | Role |
+|----------|-------------------|----------------------------|------|
+| `SPARK_EVENTS_DIR` | `/mnt/spark/events` | `spark-runtime`, `ansible`, `elastic-agent`, `spark-client` | Event log directory for cluster config, agents, and local clients |
+| `SPARK_MOUNT_BASE` | `/mnt/spark` | `spark-runtime`, `nfs` | Shared parent path under NFS on nodes |
+| `SPARK_DATA_MOUNT` | `/mnt/spark/data` | `spark-runtime`, `nfs`, `spark-client` | Dataset / shared data mount (also used by `linux/assert_nfs_client.sh`) |
+| `SPARK_DATA_SOURCE` | `/home/.../spark/data` (see TODO in file) | `spark-runtime`, `nfs` | **Not** an NFS mount path; legacy / local tree note in variables |
+| `NFS_SERVER` | e.g. `Lab3.lan` | `spark-runtime`, `nfs`, `devops` | NFS server hostname for clients and env scripts |
+| `NFS_SPARK_DATA_EXPORT` | `/srv/nfs/spark/data` | `nfs` only | Server-side export path for data (feeds generated `nfs_ansible_vars.yml`) |
+
+There are **no** separate variables today for `/mnt/spark/logs`, `/mnt/spark/checkpoints`, or `/mnt/spark/jupyter`; those paths appear in `ansible/playbooks/nfs/install.yml` and in `linux/assert_spark_mounts.sh` only.
+
+### Should we define variables for every mount point?
+
+**Not required for correctness today.** Ansible already encodes the full set in `nfs/install.yml` (`nfs_export_dirs`, `bind_mounts`, `nfs_mounts`). Variables are most useful where **generated config** must reference a path (ConfigMap, client env, agent docs).
+
+**You may add** `SPARK_LOGS_MOUNT`, `SPARK_CHECKPOINTS_MOUNT`, `SPARK_JUPYTER_MOUNT` (and matching `NFS_*_EXPORT` keys if you want symmetry with `NFS_SPARK_DATA_EXPORT`) if you want:
+
+- One place to edit paths that flow into templates and `generate_contexts` outputs, and  
+- Less risk of drift versus `MOUNT_POINTS` in `assert_spark_mounts.sh`.
+
+Until all mount paths are fully variableized, treat `vars/variables.yaml` as the value/specification SSOT and `nfs/install.yml` as the implementation SSOT, and keep both aligned.
+
+## Kubernetes: mounts on the node vs “only in pods”
+
+**The nodes must have the mounts.** Spark workloads here use **`hostPath`** volumes that bind **paths on the Linux host** (e.g. `/mnt/spark/data`) into containers. The kubelet does not mount NFS for you; it only bind-mounts what already exists on the node.
+
+So for each node that runs a pod with `hostPath: /mnt/spark/...`, you need:
+
+1. **On the host:** NFS client mount (or bind mount on the NFS server) at that path, and  
+2. **In the pod:** The `hostPath` volume pointing at that same host path.
+
+Mounting something **only inside a container** without `hostPath` (or a CSI/PVC that provisions NFS) would **not** satisfy this design. Optional NFS volumes in the pod spec could replace host mounts in a different architecture; that is **not** what the current playbooks assume.
+
+## Client mount checks
+
+`linux/assert_spark_mounts.sh` is the mount assertion script for client/dev machines:
+
+- Validates all five `/mnt/spark/*` paths.
+- Ensures `spark:spark` ownership + setgid/group-write contract.
+- Mounts and persists entries when run in apply mode.
+
+`linux/assert_nfs_client.sh` was retired to avoid overlapping sources of truth.
+
+Neither script replaces **`nfs/install.yml`** on Kubernetes nodes.
 
 ## Server perspective (`nfs_servers`)
 
@@ -80,7 +129,7 @@ Because the control plane host is also the NFS server in this lab, it is in `nfs
 
 ### 4) Lightweight NFS checks elsewhere
 
-- `linux/assert_nfs_client.sh` — sanity for **`SPARK_DATA_MOUNT`** (default `/mnt/spark/data`) only: mount present, writable, sample data. Does not manage all five paths.
+- Domain-specific data checks (e.g., Chapter_* dataset prerequisites) should live in dedicated data-validation scripts, separate from mount configuration scripts.
 
 ## Files that create or configure mounts
 

@@ -6,7 +6,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 checks=(
   "assert_client_reachability.sh"
   "assert_client_kubeconfig.sh"
-  "assert_nfs_client.sh"
   "assert_spark_client_env.sh"
 )
 

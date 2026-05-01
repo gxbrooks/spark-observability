@@ -420,3 +420,27 @@ observability stack). The warning is misleading and clutters the output.
 
 **Success Criteria**:
 - `assert_managed_node.sh` apply-mode output contains no secrets-related error blocks
+
+---
+
+### Investigate dual rendering paths in `linux/generate_spark_defaults.sh`
+**Priority**: Medium  
+**Status**: Not Started
+
+**Description**:  
+`linux/generate_spark_defaults.sh` currently has two generation paths:
+1. Python + Jinja2 rendering (preferred)
+2. `sed` substitution fallback when Jinja2 import is unavailable
+
+This creates two code paths that can drift in behavior, escaping rules, and required variable handling.
+
+**Investigation Questions**:
+1. Why is the `sed` fallback still needed in current environments?
+2. Can we make Jinja2 rendering mandatory and fail-fast when unavailable?
+3. If fallback must remain, can it be generated from the same mapping table to prevent drift?
+4. Should rendering be centralized in `vars/generate_contexts.py` with a dedicated context instead?
+
+**Success Criteria**:
+- Clear decision documented on one-path vs two-path rendering.
+- If two paths remain, equivalence tests or validation added.
+- If one path is chosen, fallback removed and prerequisites documented.

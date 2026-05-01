@@ -50,9 +50,9 @@ inputs:
 outputs:
   default:
     type: elasticsearch
-    hosts: ["${ELASTIC_URL}"]
-    username: "elastic"
-    password: "myElastic2025"
+    hosts: ["${ES_URL}"]
+    username: "${ES_USER}"
+    password: "${ES_PASSWORD}"
     ssl:
       certificate_authorities: ["${CA_CERT}"]
       verification_mode: full

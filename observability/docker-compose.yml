@@ -237,8 +237,6 @@ services:
       # GF_SERVER_HOST: localhost
       GF_SERVER_HTTP_PORT: ${GF_SERVER_HTTP_PORT}
       # GF_INSTALL_PLUGINS: "marcusolsson-dynamictext-panel"  # Disabled due to permission issues
-      ELASTIC_USER: "elastic"
-      ELASTIC_PASSWORD: ${ES_PASSWORD}
       # Grafana should not need the CA cert
       CA_CERT: "${CA_CERT}"
       TZ: ${TZ}    
@@ -282,8 +280,6 @@ services:
       KB_HOST: kibana
       KB_PORT: ${KB_PORT}
       KB_PASSWORD: ${KB_PASSWORD}
-      # Required by elasticsearch
-      ELASTIC_PASSWORD: ${ES_PASSWORD}
     depends_on:
       es01:
         condition: service_healthy

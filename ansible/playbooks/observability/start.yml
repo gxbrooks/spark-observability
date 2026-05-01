@@ -127,12 +127,17 @@
       ansible.builtin.wait_for:
         timeout: 15
 
+    - name: Fail if ES_PASSWORD environment variable is missing on controller
+      ansible.builtin.fail:
+        msg: "ES_PASSWORD environment variable is required for observability health checks."
+      when: (lookup('env', 'ES_PASSWORD') | string | trim) == ''
+
     - name: Wait for Elasticsearch to be ready
       ansible.builtin.uri:
         url: "https://localhost:9200"
         method: GET
         user: elastic
-        password: "{{ lookup('env', 'ELASTIC_PASSWORD') | default('myElastic2025', true) }}"
+        password: "{{ lookup('env', 'ES_PASSWORD') }}"
         validate_certs: false
         status_code: [200, 401]
       register: es_health
