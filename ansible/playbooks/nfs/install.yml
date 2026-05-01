@@ -17,9 +17,12 @@
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
   vars:
     nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check,insecure)"
+    nfs_export_root: /srv/nfs/spark
     nfs_export_dirs:
       - /srv/nfs/spark/events
       - /srv/nfs/spark/data
+      - /srv/nfs/spark/logs
+      - /srv/nfs/spark/checkpoints
       - /srv/nfs/jupyterhub
       - /srv/nfs/jupyterhub-users
   tasks:
@@ -31,13 +34,21 @@
         state: present
         update_cache: yes
 
+    - name: Create NFS Spark export root
+      file:
+        path: "{{ nfs_export_root }}"
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
     - name: Create NFS export directories
       file:
         path: "{{ item }}"
         state: directory
-        mode: '0777'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        mode: '2775'
+        owner: spark
+        group: spark
       loop: "{{ nfs_export_dirs }}"
 
     - name: Add exports to /etc/exports
@@ -49,6 +60,7 @@
 
     - name: Apply NFS exports
       command: exportfs -ra
+      changed_when: false
 
     - name: Start and enable NFS server
       systemd:
@@ -63,13 +75,39 @@
     bind_mounts:
       - { mount: '/mnt/spark/events', src: '/srv/nfs/spark/events' }
       - { mount: '/mnt/spark/data', src: '/srv/nfs/spark/data' }
+      - { mount: '/mnt/spark/logs', src: '/srv/nfs/spark/logs' }
+      - { mount: '/mnt/spark/checkpoints', src: '/srv/nfs/spark/checkpoints' }
       - { mount: '/mnt/spark/jupyter', src: '/srv/nfs/jupyterhub' }
   tasks:
+    - name: Create /mnt/spark root on NFS server
+      file:
+        path: /mnt/spark
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
+    - name: Stat NFS server bind mount points (detect legacy symlinks)
+      stat:
+        path: "{{ item.mount }}"
+        follow: false
+      loop: "{{ bind_mounts }}"
+      register: nfs_server_bind_mount_stats
+
+    - name: Remove legacy symlinks at NFS server bind mount points
+      file:
+        path: "{{ item.item.mount }}"
+        state: absent
+      loop: "{{ nfs_server_bind_mount_stats.results }}"
+      when: item.stat.exists | default(false) and item.stat.islnk | default(false)
+
     - name: Create local mount points on NFS server
       file:
         path: "{{ item.mount }}"
         state: directory
-        mode: '0777'
+        mode: '2775'
+        owner: spark
+        group: spark
       loop: "{{ bind_mounts }}"
 
     - name: Create bind mounts on NFS server
@@ -80,6 +118,7 @@
         opts: bind
         state: mounted
       loop: "{{ bind_mounts }}"
+      changed_when: false
 
 # Kubernetes nodes that mount NFS from nfs_servers (excludes the server host, which uses bind mounts above).
 - name: Configure NFS Clients
@@ -91,6 +130,8 @@
     nfs_mounts:
       - { src: '/srv/nfs/spark/events', dest: '/mnt/spark/events' }
       - { src: '/srv/nfs/spark/data', dest: '/mnt/spark/data' }
+      - { src: '/srv/nfs/spark/logs', dest: '/mnt/spark/logs' }
+      - { src: '/srv/nfs/spark/checkpoints', dest: '/mnt/spark/checkpoints' }
       - { src: '/srv/nfs/jupyterhub', dest: '/mnt/spark/jupyter' }
   tasks:
     - name: Install NFS client packages
@@ -99,11 +140,35 @@
         state: present
         update_cache: yes
 
+    - name: Create /mnt/spark root on clients
+      file:
+        path: /mnt/spark
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
+    - name: Stat NFS client mount points (detect legacy symlinks)
+      stat:
+        path: "{{ item.dest }}"
+        follow: false
+      loop: "{{ nfs_mounts }}"
+      register: nfs_client_mount_stats
+
+    - name: Remove legacy symlinks at NFS client mount points
+      file:
+        path: "{{ item.item.dest }}"
+        state: absent
+      loop: "{{ nfs_client_mount_stats.results }}"
+      when: item.stat.exists | default(false) and item.stat.islnk | default(false)
+
     - name: Create NFS mount points
       file:
         path: "{{ item.dest }}"
         state: directory
-        mode: '0777'
+        mode: '2775'
+        owner: spark
+        group: spark
       loop: "{{ nfs_mounts }}"
 
     - name: Mount NFS shares
@@ -115,3 +180,4 @@
         opts: rw,sync,nfsvers=4
         state: mounted
       loop: "{{ nfs_mounts }}"
+      changed_when: false

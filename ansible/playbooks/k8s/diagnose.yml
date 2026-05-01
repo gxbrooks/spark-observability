@@ -369,11 +369,103 @@
     # === NFS Data Mount Health ===
     # Detects the failure mode where /mnt/spark mounts are in fstab but have dropped
     # (e.g. after reboot) and Spark pods started before remounting see an empty directory.
-    - name: Count active /mnt/spark NFS mounts
-      shell: mount | grep -cE '/mnt/spark/(data|events)' || true
-      register: nfs_mount_count
+    - name: Check /mnt/spark mount points are active (NFS clients or bind mounts)
+      shell: |
+        set -eu
+        ok=0
+        for p in \
+          /mnt/spark/events \
+          /mnt/spark/data \
+          /mnt/spark/logs \
+          /mnt/spark/checkpoints \
+          /mnt/spark/jupyter \
+        ; do
+          # Use -T so this works under /bin/sh (no bash arrays) and does not rely on mountpoint(1).
+          tgt="$(findmnt -n -T "$p" -o TARGET 2>/dev/null || true)"
+          fst="$(findmnt -n -T "$p" -o FSTYPE 2>/dev/null || true)"
+          src="$(findmnt -n -T "$p" -o SOURCE 2>/dev/null || true)"
+          opts="$(findmnt -n -T "$p" -o OPTIONS 2>/dev/null || true)"
+          if [ -z "$tgt" ] || [ -z "$fst" ]; then
+            echo "missing:$p"
+            continue
+          fi
+          # If there is no mount *at this path*, findmnt falls back to the nearest parent (often "/").
+          if [ "$tgt" != "$p" ]; then
+            echo "missing:$p (nearest=${tgt:-unknown})"
+            continue
+          fi
+          case "$fst" in
+            nfs|nfs4)
+              echo "ok:$p ($fst)"
+              ok=$((ok+1))
+              ;;
+            *)
+              # NFS server uses bind mounts. findmnt often reports the backing fstype (e.g. ext4)
+              # and encodes the bind source as: /dev/...[/srv/nfs/...]
+              case "$src" in
+                *'['/srv/nfs/*|/srv/nfs/*)
+                  echo "ok:$p (bind:$fst src=$src)"
+                  ok=$((ok+1))
+                  ;;
+                *)
+                  case " $opts " in
+                    *" bind "*)
+                      echo "ok:$p (bind:$fst opts=$opts src=$src)"
+                      ok=$((ok+1))
+                      ;;
+                    *)
+                      echo "warn:$p mounted but unexpected fstype=$fst opts=$opts src=$src"
+                      ;;
+                  esac
+                  ;;
+              esac
+              ;;
+          esac
+        done
+        echo "summary_ok=$ok"
+      register: spark_mount_point_report
       failed_when: false
       changed_when: false
+
+    - name: Derive /mnt/spark mount point OK count
+      set_fact:
+        spark_mount_ok_count: >-
+          {{
+            (
+              spark_mount_point_report.stdout_lines | default([])
+              | select('match', '^summary_ok=')
+              | list
+              | first
+              | default('summary_ok=0')
+            )
+            | regex_replace('^summary_ok=', '')
+          }}
+
+    - name: Collect /mnt/spark mount contract stats
+      stat:
+        path: "{{ item }}"
+        follow: true
+      loop:
+        - /mnt/spark
+        - /mnt/spark/events
+        - /mnt/spark/data
+        - /mnt/spark/logs
+        - /mnt/spark/checkpoints
+        - /mnt/spark/jupyter
+      register: spark_mount_contract
+
+    - name: Derive /mnt/spark contract mismatches
+      set_fact:
+        spark_mount_contract_mismatches: "{{ spark_mount_contract_mismatches | default([]) + [item.item ~ ' owner=' ~ (item.stat.pw_name | default('UNKNOWN')) ~ ' group=' ~ (item.stat.gr_name | default('UNKNOWN')) ~ ' mode=' ~ (item.stat.mode | default('UNKNOWN'))] }}"
+      loop: "{{ spark_mount_contract.results }}"
+      when: >
+        (not item.stat.exists) or
+        (item.stat.pw_name is not defined) or
+        (item.stat.gr_name is not defined) or
+        (item.stat.mode is not defined) or
+        (item.stat.pw_name != 'spark') or
+        (item.stat.gr_name != 'spark') or
+        ((item.stat.mode | string) != '2775')
 
     - name: List active /mnt/spark mounts
       shell: mount | grep '/mnt/spark' || echo "NONE"
@@ -404,7 +496,9 @@
         msg: |
           NFS Data Mount Health — {{ ansible_hostname }}
           ─────────────────────────────────────────────
-          Active /mnt/spark mounts (expect 2): {{ nfs_mount_count.stdout | int }}
+          Active /mnt/spark mount points (expect 5): {{ spark_mount_ok_count | int }}
+          {{ spark_mount_point_report.stdout }}
+
           {{ nfs_mounts_detail.stdout }}
 
           fstab entries:
@@ -413,6 +507,15 @@
           Data accessibility:
           - /mnt/spark/data:                 {{ '✓  ' + data_dir_count.stdout + ' items' if data_dir_count.stdout | int > 0 else '✗  EMPTY or MISSING' }}
           - /mnt/spark/data/gutenberg_books: {{ '✓  ' + gutenberg_count.stdout + ' files' if gutenberg_count.stdout | int > 0 else '✗  EMPTY or MISSING' }}
+
+          Ownership and permissions contract (expect spark:spark mode 2775):
+          {% for mount_check in spark_mount_contract.results %}
+          - {{ mount_check.item }}: {{
+              '✓  ' + mount_check.stat.pw_name + ':' + mount_check.stat.gr_name + ' mode=' + mount_check.stat.mode
+              if (mount_check.stat.exists and mount_check.stat.pw_name == 'spark' and mount_check.stat.gr_name == 'spark' and (mount_check.stat.mode | string) == '2775')
+              else '✗  MISMATCH'
+            }}
+          {% endfor %}
 
     - name: WARN - fstab NFS mounts are configured but not active
       debug:
@@ -433,7 +536,7 @@
             kubectl delete pods -n spark -l app=spark-worker
       when:
         - nfs_fstab_entries.stdout != "NONE"
-        - nfs_mount_count.stdout | int == 0
+        - spark_mount_ok_count | int == 0
 
     - name: WARN - data directory inaccessible despite active mount
       debug:
@@ -444,8 +547,25 @@
           Check NFS server exports:
             ansible nfs_servers -i ansible/inventory.yml -b -m shell -a "exportfs -v"
       when:
-        - nfs_mount_count.stdout | int > 0
+        - spark_mount_ok_count | int > 0
         - data_dir_count.stdout | int == 0
+
+    - name: WARN - /mnt/spark ownership or mode contract mismatch
+      debug:
+        msg: |
+          ⚠️  WARNING: /mnt/spark ownership/mode contract mismatch on {{ ansible_hostname }}.
+          Expected owner/group/mode for each path: spark:spark 2775
+
+          Mismatches:
+          {% for mismatch in spark_mount_contract_mismatches | default([]) %}
+          - {{ mismatch }}
+          {% endfor %}
+
+          Fix:
+            ansible-playbook -i ansible/inventory.yml ansible/playbooks/nfs/install.yml --limit nfs_servers:kubernetes_master:kubernetes_workers
+      when:
+        - spark_mount_contract_mismatches is defined
+        - spark_mount_contract_mismatches | length > 0
 
     # === Spark Workload Health (master only) ===
     # Checks for stale pods and image pull policy issues that block pod restarts.

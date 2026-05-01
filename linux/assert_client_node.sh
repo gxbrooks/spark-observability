@@ -392,8 +392,8 @@ $root_dir/linux/assert_spark_user.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
-# Ensure /mnt/spark/events is mounted for event logging
-$root_dir/linux/assert_spark_events_mount.sh \
+# Ensure /mnt/spark subdirectories are mounted for Spark runtime and datasets
+$root_dir/linux/assert_spark_mounts.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
