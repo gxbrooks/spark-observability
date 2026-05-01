@@ -758,6 +758,7 @@ else
 fi
 
 echo "Creating application-events-metrics watcher..."
+echo "  NOTE: Watcher actions require a license above Basic; Spark System Metrics dashboard uses app-events-* directly."
 esapi PUT /_watcher/watch/application-events-metrics ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.watcher.json \
   > /dev/null 2>&1
 

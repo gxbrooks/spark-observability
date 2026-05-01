@@ -209,18 +209,26 @@ inputs:
     streams:
       - id: spark-gc-stream
         paths:
-          # GC log files from all Spark components - using natural Spark logging paths
-          - '/mnt/spark/logs/*/gc-master.log'    # Master daemon GC logs (current file only)
-          - '/mnt/spark/logs/*/gc-worker.log'    # Worker daemon GC logs (current file only)
-          - '/mnt/spark/logs/*/gc-history.log'   # History server GC logs (current file only)
-          - '/mnt/spark/logs/*/gc-executor.log'  # Executor GC logs (current file only)
-        exclude_files: ['\.0$', '\.1$', '\.2$', '\.3$', '\.4$', '\.5$', '\.6$', '\.7$', '\.8$', '\.9$']
+          # GC log files from all Spark components (see ansible spark-* YAML for -Xlog paths)
+          - '/mnt/spark/logs/*/gc-master.log'
+          - '/mnt/spark/logs/*/gc-worker.log'
+          - '/mnt/spark/logs/*/gc-history.log'
+          - '/mnt/spark/logs/*/gc-executor.log'
+          - '/mnt/spark/logs/*/gc-driver.log'
+          # JVM rotates to gc-*.log.N — those files must be harvested or metrics disappear after rotation
+          - '/mnt/spark/logs/*/gc-*.log.*'
+        exclude_files: ['\.tmp$', '\.lock$']
         tags: ["spark-gc", "test-step1"]
         data_stream:
           dataset: spark_gc
           namespace: default
         processors:
-          # STEP 1: Test with just file path extraction
+          # Rotated JVM GC files (e.g. gc-executor.log.0) — match this before the active *.log pattern
+          - dissect:
+              tokenizer: "/mnt/spark/logs/%{pod_name}/gc-%{component}.log.%{rotate_id}"
+              field: log.file.path
+              target_prefix: spark
+              ignore_failure: true
           - dissect:
               tokenizer: "/mnt/spark/logs/%{pod_name}/gc-%{component}.log"
               field: log.file.path

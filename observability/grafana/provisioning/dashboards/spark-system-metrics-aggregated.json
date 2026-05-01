@@ -139,17 +139,17 @@
           "metrics": [
             {
               "id": "1",
-              "type": "avg",
-              "field": "count"
+              "type": "count"
             }
           ],
-          "query": "_index:.ds-application-events-metrics-ds* AND _exists_:operation.type",
+          "query": "_index:app-events-* AND event.type:\"start\" AND event.state:\"open\"",
           "refId": "A",
           "timeField": "@timestamp",
           "alias": ""
         }
       ],
       "title": "Active Application Jobs",
+      "description": "Open START events from app-events-* (direct query). The application-events-metrics-ds watcher is not available under Elasticsearch Basic license.",
       "type": "timeseries"
     },
     {
