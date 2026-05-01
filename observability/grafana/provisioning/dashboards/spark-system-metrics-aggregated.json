@@ -142,14 +142,14 @@
               "type": "count"
             }
           ],
-          "query": "_index:app-events-* AND event.type:\"start\" AND event.state:\"open\"",
+          "query": "_index:app-events-* AND event.type:\"start\"",
           "refId": "A",
           "timeField": "@timestamp",
           "alias": ""
         }
       ],
-      "title": "Active Application Jobs",
-      "description": "Open START events from app-events-* (direct query). The application-events-metrics-ds watcher is not available under Elasticsearch Basic license.",
+      "title": "Application job starts",
+      "description": "Counts START events in app-events-* by operation.type (jobs that began in each interval). Open-only operations (event.state:open) are usually zero after jobs finish; this panel shows throughput instead. Watcher-fed application-events-metrics-ds is not used on Elasticsearch Basic license.",
       "type": "timeseries"
     },
     {
