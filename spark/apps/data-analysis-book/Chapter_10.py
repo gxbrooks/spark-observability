@@ -20,6 +20,10 @@ spark = SparkSession.builder \
     .appName("Chapter 10: Machine Learning") \
     .getOrCreate()
 
+# GSOD/book excerpts can include calendar-invalid y/m/d (e.g. Feb 29 in non-leap years).
+# With ANSI date validation, make_date/to_date abort the job; disable for this script only.
+spark.conf.set("spark.sql.ansi.enabled", "false")
+
 print("=== Chapter 10: Machine Learning ===")
 print(f"Spark version: {spark.version}")
 print(f"Spark master: {spark.sparkContext.master}")
@@ -526,8 +530,10 @@ gsod_light_p = (
     gsod_light.withColumn("year", F.lit(2019))
     .withColumn(
         "dt",
-        F.to_date(
-            F.concat_ws("-", F.col("year"), F.col("mo"), F.col("da"))
+        F.make_date(
+            F.col("year").cast("int"),
+            F.col("mo").cast("int"),
+            F.col("da").cast("int"),
         ),
     )
     .withColumn("dt_num", F.unix_timestamp("dt"))
@@ -535,7 +541,10 @@ gsod_light_p = (
 
 gsod_light_p = (
     gsod_light.withColumn("year", F.lit(2019))
-    .withColumn("dt_num", F.unix_timestamp(F.col("date")))
+    .withColumn(
+        "dt_num",
+        F.unix_timestamp(F.to_date(F.col("date"), "yyyy-MM-dd").cast("timestamp"))
+    )
 )
 
 gsod_light_p.show()
@@ -607,15 +616,24 @@ gsod_light_p.withColumn(
 def median(vals: pd.Series) -> float:
     return vals.median()
 
+# Keep the original pandas UDF window demo for reference only.
+RUN_ORIGINAL_MEDIAN_WINDOW_DEMO = False
 
-gsod_light.withColumn(
-    "median_temp", median("temp").over(Window.partitionBy("year"))    ## 1
-).withColumn(
-    "median_temp_g",
-    median("temp").over(
-        Window.partitionBy("year").orderBy("mo", "da")                ## 2
-    ),                                                                ## 2
-).show()
+if RUN_ORIGINAL_MEDIAN_WINDOW_DEMO:
+    gsod_light.withColumn(
+        "median_temp", median("temp").over(Window.partitionBy("year"))    ## 1
+    ).withColumn(
+        "median_temp_g",
+        median("temp").over(
+            Window.partitionBy("year").orderBy("mo", "da")                ## 2
+        ),                                                                ## 2
+    ).show()
+else:
+    # Optimized replacement: use built-in percentile_approx aggregation by year.
+    # This keeps the median concept while avoiding expensive pandas UDF window execution.
+    gsod_light.groupBy("year").agg(
+        F.percentile_approx("temp", 0.5, 10000).alias("median_temp")
+    ).orderBy("year").show()
 #                                          
 # +------+----+---+---+----+----------+-----------+-------------+
 # |   stn|year| mo| da|temp|count_temp|median_temp|median_temp_g|
@@ -741,7 +759,10 @@ seven_days_plus_minus = (
 (
     gsod
     .select(F.col("date"), F.col("stn"), F.col("temp"))
-    .withColumn("dt_num", F.unix_timestamp("date"))
+    .withColumn(
+        "dt_num",
+        F.unix_timestamp(F.to_date(F.col("date"), "yyyy-MM-dd").cast("timestamp"))
+    )
     .withColumn("max_temp", 
         F.max(F.col("temp")).over(seven_days_plus_minus))
     .withColumn("is_max", F.col("temp") == F.col("max_temp"))
@@ -770,8 +791,10 @@ gsod_light_p = (
     gsod_light_book.withColumn("year", F.lit(2019))
     .withColumn(
         "dt",
-        F.to_date(
-            F.concat_ws("-", F.col("year"), F.col("mo"), F.col("da"))
+        F.make_date(
+            F.col("year").cast("int"),
+            F.col("mo").cast("int"),
+            F.col("da").cast("int"),
         ),
     )
     .withColumn("dt_num", F.unix_timestamp("dt"))
