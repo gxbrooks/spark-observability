@@ -232,6 +232,10 @@ services:
       - certs:/etc/ssl/certs/elastic:ro
     environment:
       # Must match vars/contexts/observability_docker.env (from secrets.yaml / generate_contexts)
+      # Required for provisioning interpolation in grafana/provisioning/datasources/datasources.yaml
+      # (${ES_PASSWORD}, ${STACK_VERSION} in secureJsonData / jsonData)
+      ES_PASSWORD: ${ES_PASSWORD}
+      STACK_VERSION: ${STACK_VERSION}
       GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-mysecretpassword}
       # GF_SERVER_HOST: localhost
