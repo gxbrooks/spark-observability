@@ -2,6 +2,14 @@
 
 # Assert the spark user and group exist and add the calling user to the spark group
 # This script follows the pattern of other initialization scripts with --Debug and --Check flags
+
+
+# The Spark user exists to:
+#   - To run Spark daemons (master, worker, history server) as a dedicated, unprivileged user 
+#   rather than root, following the principle of least privilege.
+#   - To own Spark's installation directories, log files, and PID files.
+#   - To provide process isolation and security boundaries between Spark and other services on the same host.
+
 #
 # Spark UID/GID: 185/185
 # This MUST match the Kubernetes pod securityContext for proper file ownership

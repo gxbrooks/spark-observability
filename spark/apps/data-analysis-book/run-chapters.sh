@@ -4,6 +4,9 @@
 #
 # Usage: ./run-chapters.sh 03 04 06 07 08 09
 #        ./run-chapters.sh 03        # Run single chapter
+#        ./run-chapters.sh -a        # Run all Chapter_*.py files in this directory
+#        ./run-chapters.sh -t 900 10 # Kill Chapter_10.py after 900s
+#        ./run-chapters.sh --no-timeout 10  # Run without timeout
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,10 +58,82 @@ if [[ ! -d /opt/spark/logs ]] && command -v sudo >/dev/null 2>&1; then
     sudo -n mkdir -p /opt/spark/logs 2>/dev/null && sudo -n chmod 1777 /opt/spark/logs 2>/dev/null || true
 fi
 
-# Check if chapter numbers were provided
-if [ $# -eq 0 ]; then
+usage() {
     echo "Usage: $0 <chapter_number> [chapter_number ...]" >&2
+    echo "       $0 -a|--all" >&2
+    echo "       $0 -t|--timeout <seconds> <chapter_number> [chapter_number ...]" >&2
+    echo "       $0 --no-timeout <chapter_number> [chapter_number ...]" >&2
     echo "Example: $0 03 04 06 07 08 09" >&2
+}
+
+ALL_CHAPTERS=false
+CHAPTER_ARGS=()
+CHAPTER_TIMEOUT_SECONDS="${CHAPTER_TIMEOUT_SECONDS:-1800}"
+CHAPTER_TIMEOUT_ENABLED=true
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -a|--all)
+            ALL_CHAPTERS=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -t|--timeout)
+            if [ $# -lt 2 ]; then
+                echo "Error: --timeout requires a numeric value in seconds." >&2
+                usage
+                exit 1
+            fi
+            CHAPTER_TIMEOUT_SECONDS="$2"
+            if ! [[ "${CHAPTER_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || [ "${CHAPTER_TIMEOUT_SECONDS}" -le 0 ]; then
+                echo "Error: --timeout must be a positive integer (seconds)." >&2
+                exit 1
+            fi
+            shift 2
+            ;;
+        --no-timeout)
+            CHAPTER_TIMEOUT_ENABLED=false
+            shift
+            ;;
+        --)
+            shift
+            while [ $# -gt 0 ]; do
+                CHAPTER_ARGS+=("$1")
+                shift
+            done
+            ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            usage
+            exit 1
+            ;;
+        *)
+            CHAPTER_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [ "${ALL_CHAPTERS}" = true ]; then
+    CHAPTER_ARGS=()
+    for chapter_path in "${SCRIPT_DIR}"/Chapter_*.py; do
+        if [ ! -f "${chapter_path}" ]; then
+            continue
+        fi
+        chapter_name="$(basename "${chapter_path}")"
+        chapter_num="${chapter_name#Chapter_}"
+        chapter_num="${chapter_num%.py}"
+        CHAPTER_ARGS+=("${chapter_num}")
+    done
+fi
+
+# Check if chapter numbers were provided (explicitly or via --all discovery)
+if [ ${#CHAPTER_ARGS[@]} -eq 0 ]; then
+    echo "Error: No chapter files specified or discovered." >&2
+    usage
     exit 1
 fi
 
@@ -71,7 +146,7 @@ if [ ! -f "${TIMINGS_CSV}" ]; then
 fi
 
 # Run each chapter file
-for chapter_num in "$@"; do
+for chapter_num in "${CHAPTER_ARGS[@]}"; do
     chapter_file="${SCRIPT_DIR}/Chapter_${chapter_num}.py"
     
     if [ ! -f "${chapter_file}" ]; then
@@ -84,10 +159,19 @@ for chapter_num in "$@"; do
     echo "========================================"
     echo "Running Chapter_${chapter_num}.py"
     echo "Using Python: ${PYTHON_CMD}"
+    if [ "${CHAPTER_TIMEOUT_ENABLED}" = true ]; then
+        echo "Timeout: ${CHAPTER_TIMEOUT_SECONDS}s"
+    else
+        echo "Timeout: disabled"
+    fi
     echo "========================================"
     
     start_epoch=$(date +%s)
-    "${PYTHON_CMD}" "${chapter_file}"
+    if [ "${CHAPTER_TIMEOUT_ENABLED}" = true ] && command -v timeout >/dev/null 2>&1; then
+        timeout --signal=TERM --kill-after=30s "${CHAPTER_TIMEOUT_SECONDS}" "${PYTHON_CMD}" "${chapter_file}"
+    else
+        "${PYTHON_CMD}" "${chapter_file}"
+    fi
     exit_code=$?
     end_epoch=$(date +%s)
     elapsed=$(( end_epoch - start_epoch ))
@@ -95,6 +179,9 @@ for chapter_num in "$@"; do
     if [ $exit_code -eq 0 ]; then
         status="OK"
         echo "✅ Completed Chapter_${chapter_num}.py  (${elapsed}s)"
+    elif [ $exit_code -eq 124 ]; then
+        status="TIMEOUT(${CHAPTER_TIMEOUT_SECONDS}s)"
+        echo "⏱️ Chapter_${chapter_num}.py timed out after ${CHAPTER_TIMEOUT_SECONDS}s  (${elapsed}s)" >&2
     else
         status="FAIL(${exit_code})"
         echo "❌ Chapter_${chapter_num}.py failed with exit code $exit_code  (${elapsed}s)" >&2

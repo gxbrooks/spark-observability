@@ -18,6 +18,8 @@ gsod_light = (
     .agg(F.count("*").alias("count_temp"))
 )
 
+gsod_light.write.mode("ignore").parquet("/mnt/spark/data/gsod_light.parquet")
+
 (
     gsod
     .groupBy(F.col("stn"))
