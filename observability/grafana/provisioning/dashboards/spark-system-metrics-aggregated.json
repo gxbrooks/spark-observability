@@ -212,7 +212,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "16"
               },
               "type": "terms"
@@ -238,7 +238,7 @@
               "type": "count"
             }
           ],
-          "query": "_index:logs-spark-default*",
+          "query": "data_stream.type:logs AND data_stream.dataset:spark AND data_stream.namespace:default",
           "refId": "A",
           "timeField": "@timestamp"
         }

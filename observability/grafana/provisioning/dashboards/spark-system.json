@@ -41,7 +41,7 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "bars",
@@ -174,7 +174,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "16"
               },
               "type": "terms"
@@ -200,12 +200,12 @@
               "type": "count"
             }
           ],
-          "query": "_index:logs-spark-default*",
+          "query": "data_stream.type:logs AND data_stream.dataset:spark AND data_stream.namespace:default",
           "refId": "A",
           "timeField": "@timestamp"
         }
       ],
-      "title": "Spark application log count (count)",
+      "title": "Spark logs by severity",
       "type": "timeseries",
       "description": "Document counts from logs-spark-default by log.level (live). The metrics-spark-logs-default transform may lag; this panel reads raw logs."
     },
@@ -222,7 +222,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -289,7 +289,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "10"
               },
               "type": "terms"
@@ -320,7 +320,7 @@
           "alias": "{{host.name}} CPU"
         }
       ],
-      "title": "Host CPU utilization (%)",
+      "title": "Host compute saturation",
       "type": "timeseries"
     },
     {
@@ -336,7 +336,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -365,7 +365,7 @@
               }
             ]
           },
-          "unit": "percent(0-100)"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -397,7 +397,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "10"
               },
               "type": "terms"
@@ -428,7 +428,7 @@
           "alias": "{{host.name}} Memory"
         }
       ],
-      "title": "Host memory utilization (%)",
+      "title": "Host memory pressure",
       "type": "timeseries"
     },
     {
@@ -444,14 +444,27 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "lineWidth": 1,
             "fillOpacity": 0,
             "spanNulls": true
           },
           "unit": "Bps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* Out$"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -550,7 +563,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Network byte rate (bytes/s, physical NIC)",
+      "title": "Physical NIC throughput",
       "type": "timeseries"
     },
     {
@@ -566,14 +579,27 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "lineWidth": 1,
             "fillOpacity": 0,
             "spanNulls": true
           },
           "unit": "Bps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* Write$"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -672,7 +698,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Disk I/O byte rate (bytes/s)",
+      "title": "Disk throughput",
       "type": "timeseries"
     },
     {
@@ -688,14 +714,27 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "lineWidth": 1,
             "fillOpacity": 0,
             "spanNulls": true
           },
           "unit": "Bps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* Out$"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -794,7 +833,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Loopback network byte rate (bytes/s)",
+      "title": "Loopback throughput",
       "type": "timeseries"
     },
     {
@@ -810,7 +849,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -885,7 +924,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "10"
               }
             },
@@ -902,7 +941,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "System load average (dimensionless, 1 min)",
+      "title": "Host load trend",
       "type": "timeseries"
     },
     {
@@ -918,7 +957,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -979,7 +1018,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "10"
               },
               "type": "terms"
@@ -1017,7 +1056,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "10"
               },
               "type": "terms"
@@ -1048,7 +1087,7 @@
           "alias": "{{host.name}} Major Faults"
         }
       ],
-      "title": "Page fault rate (faults/s)",
+      "title": "Memory fault rate",
       "type": "timeseries"
     },
     {
@@ -1065,7 +1104,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -1103,7 +1142,20 @@
           "max": 100,
           "unit": "none"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* VRAM %$"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -1134,7 +1186,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "5"
               },
               "type": "terms"
@@ -1172,7 +1224,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "5"
               },
               "type": "terms"
@@ -1202,7 +1254,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU utilization (%)",
+      "title": "GPU card activity",
       "type": "timeseries"
     },
     {
@@ -1219,7 +1271,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -1281,7 +1333,7 @@
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
+                "orderBy": "_key",
                 "size": "5"
               },
               "type": "terms"
@@ -1311,7 +1363,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU die temperature (°C)",
+      "title": "GPU thermals",
       "type": "timeseries"
     }
   ],

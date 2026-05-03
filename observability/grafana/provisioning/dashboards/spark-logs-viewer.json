@@ -53,7 +53,7 @@
         "type": "custom"
       },
       {
-        "allValue": "",
+        "allValue": "*",
         "current": {
           "selected": true,
           "text": "All",
@@ -78,7 +78,7 @@
         "type": "query"
       },
       {
-        "allValue": "",
+        "allValue": "*",
         "current": {
           "selected": true,
           "text": "All",
@@ -95,7 +95,7 @@
         "multi": true,
         "name": "pod_name",
         "options": [],
-        "query": "{\"find\":\"terms\",\"field\":\"spark.pod_name.keyword\"}",
+        "query": "{\"find\":\"terms\",\"field\":\"spark.pod_name\"}",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -160,7 +160,7 @@
           "links": [
             {
               "title": "Jump to logs at this time",
-              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=now&viewPanel=102"
+              "url": "/d/spark-logs-viewer?orgId=1&from=${__value.time}&to=now&viewPanel=1"
             }
           ]
         },
@@ -249,16 +249,16 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "alias": "{{log_level}}",
+          "alias": "{{term log.level}}",
           "bucketAggs": [
             {
-              "field": "log_level",
+              "field": "log.level",
               "id": "3",
               "settings": {
                 "min_doc_count": "1",
                 "order": "desc",
-                "orderBy": "_term",
-                "size": "10"
+                "orderBy": "_key",
+                "size": "16"
               },
               "type": "terms"
             },
@@ -280,18 +280,17 @@
           "metrics": [
             {
               "id": "1",
-              "type": "sum",
-              "field": "log_count"
+              "type": "count"
             }
           ],
-          "query": "_index:metrics-spark-logs-default* AND (log_level:($log_level))",
+          "query": "data_stream.type:logs AND data_stream.dataset:spark AND data_stream.namespace:default AND log.level:($log_level) AND host.hostname.keyword:($hostname) AND spark.pod_name:($pod_name)",
           "refId": "A",
           "timeField": "@timestamp"
         }
       ],
       "title": "Spark Application Logs by Level",
       "type": "timeseries",
-      "description": "Count of Spark application log entries by log level over time (click-drag to zoom)"
+      "description": "Counts from raw logs-spark-default by log.level (same source and filters as Spark Application Logs table). Transform index metrics-spark-logs-default is not used here."
     },
     {
       "datasource": {
@@ -332,7 +331,7 @@
                 "value": [
                   {
                     "title": "\ud83d\udd0d View Details & Stack Trace",
-                    "url": "/d/spark-log-details/spark-log-details?orgId=1&var-log_id=${__data.fields._id}",
+                    "url": "/d/spark-log-details?orgId=1&var-log_id=${__data.fields[\"_id\"]}&from=${__from}&to=${__to}",
                     "targetBlank": true
                   }
                 ]
@@ -385,7 +384,7 @@
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "auto",
-                  "wrapText": true
+                  "wrapText": false
                 }
               }
             ]
@@ -445,12 +444,12 @@
             {
               "id": "1",
               "settings": {
-                "size": 500
+                "size": 100
               },
               "type": "raw_data"
             }
           ],
-          "query": "_index:logs-spark-default AND log.level:($log_level) AND host.hostname:($hostname) AND spark.pod_name:($pod_name)",
+          "query": "data_stream.type:logs AND data_stream.dataset:spark AND data_stream.namespace:default AND log.level:($log_level) AND host.hostname.keyword:($hostname) AND spark.pod_name:($pod_name)",
           "refId": "A",
           "timeField": "@timestamp"
         }
@@ -461,6 +460,7 @@
           "id": "organize",
           "options": {
             "excludeByName": {
+              "message": true,
               "msg.message": true,
               "msg.stack_trace": true,
               "_index": true,
@@ -516,24 +516,22 @@
               "spark.class": true,
               "spark.component": true,
               "error.stack_trace": true,
-              "message": true,
               "id": true
             },
             "indexByName": {
-              "@timestamp": 0,
-              "log.level": 1,
-              "host.hostname": 2,
-              "spark.pod_name": 3,
-              "log_message": 4,
-              "_id": 5,
-              "error.stack_trace": 6
+              "Time": 0,
+              "Host": 1,
+              "Pod": 2,
+              "Level": 3,
+              "Message": 4
             },
             "renameByName": {
               "@timestamp": "Time",
               "log.level": "Level",
               "host.hostname": "Host",
               "spark.pod_name": "Pod",
-              "log_message": "Message"
+              "log_message": "Message",
+              "msg.message": "Parsed message"
             },
             "exclude": [
               "msg.message",
@@ -553,13 +551,13 @@
     "enhanced"
   ],
   "time": {
-    "from": "now-1h",
+    "from": "now-7d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Spark Application Logs Viewer",
   "uid": "spark-logs-viewer",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }

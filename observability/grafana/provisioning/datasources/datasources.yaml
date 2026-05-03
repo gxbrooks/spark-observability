@@ -13,6 +13,9 @@ datasources:
     # Needed for the dashboards that use the data source to load
     uid: spark-elasticsearch
     jsonData:
+      # Required for Elasticsearch datasource: search path for all panel queries.
+      # Without this, Grafana may not resolve data streams / multi-index Lucene filters correctly.
+      index: "*"
       esVersion: ${STACK_VERSION}
       timeField: "@timestamp"
       timeout: 300
