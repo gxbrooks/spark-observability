@@ -21,8 +21,11 @@
     # the host; explicitly drop retired provisioned dashboards.
     - name: Remove retired provisioned dashboard files
       ansible.builtin.file:
-        path: "{{ observability_dir }}/grafana/provisioning/dashboards/spark-application-logs.json"
+        path: "{{ observability_dir }}/grafana/provisioning/dashboards/{{ item }}"
         state: absent
+      loop:
+        - spark-application-logs.json
+        - batch-job-dashboard4.json
 
     - name: Create Grafana plugins directory
       ansible.builtin.file:
