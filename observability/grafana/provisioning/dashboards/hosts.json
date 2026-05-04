@@ -17,7 +17,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -62,7 +62,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Host CPU utilization (%)",
+      "title": "Host Compute Saturation",
       "type": "timeseries"
     },
     {
@@ -74,7 +74,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 2,
@@ -114,7 +114,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU die temperature (°C)",
+      "title": "GPU Die Temperature",
       "type": "timeseries"
     },
     {
@@ -126,7 +126,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -172,7 +172,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU compute utilization (%)",
+      "title": "GPU Compute Use",
       "type": "timeseries"
     },
     {
@@ -184,7 +184,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 1,
@@ -224,7 +224,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Page fault rate (faults/s)",
+      "title": "Memory Fault Rate",
       "type": "timeseries"
     },
     {
@@ -236,7 +236,7 @@
           "custom": {
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 1,
@@ -264,7 +264,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "System load average (dimensionless, 1 min)",
+      "title": "Host Load Trend",
       "type": "timeseries"
     },
     {
@@ -280,7 +280,7 @@
             "stacking": { "mode": "normal", "group": "A" },
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": true
@@ -339,7 +339,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Network byte rate (bytes/s)",
+      "title": "Network Throughput",
       "type": "timeseries"
     },
     {
@@ -355,7 +355,7 @@
             "stacking": { "mode": "normal", "group": "A" },
             "axisLabel": "",
             "axisPlacement": "left",
-            "axisWidth": 50,
+            "axisWidth": 80,
             "axisBorderShow": false,
             "axisColorMode": "text",
             "axisCenteredZero": true
@@ -414,7 +414,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Disk I/O byte rate (bytes/s)",
+      "title": "Disk Throughput",
       "type": "timeseries"
     }
   ],
@@ -427,6 +427,6 @@
   "timezone": "browser",
   "title": "Hosts",
   "uid": "lab-hosts-metrics",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }

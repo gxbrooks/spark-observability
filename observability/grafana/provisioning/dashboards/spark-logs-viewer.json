@@ -119,8 +119,9 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Log Count",
-            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "bars",
             "fillOpacity": 80,
@@ -288,7 +289,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Spark Application Logs by Level",
+      "title": "Spark Logs by Level",
       "type": "timeseries",
       "description": "Counts from raw logs-spark-default by log.level (same source and filters as **Spark Log Entries** below). Transform index metrics-spark-logs-default is not used here."
     },
@@ -564,6 +565,6 @@
   "timezone": "browser",
   "title": "Spark Application Logs Viewer",
   "uid": "spark-logs-viewer",
-  "version": 11,
+  "version": 12,
   "weekStart": ""
 }

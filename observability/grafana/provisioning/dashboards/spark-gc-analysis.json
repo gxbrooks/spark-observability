@@ -8,7 +8,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 16,
-  "version": 0,
+  "version": 1,
   "refresh": "30s",
   "panels": [
     {
@@ -22,8 +22,9 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "CPU Utilization %",
-            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -120,7 +121,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Host CPU Utilization %",
+      "title": "Host Compute Saturation",
       "type": "timeseries",
       "legend": {
         "show": true,
@@ -137,15 +138,7 @@
         "count": false,
         "alignAsTable": false,
         "rightSide": false
-      },
-      "yaxes": [
-        {
-          "label": "CPU %",
-          "show": true,
-          "format": "percent"
-        },
-        {}
-      ]
+      }
     },
     {
       "datasource": {
@@ -162,7 +155,8 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
@@ -205,24 +199,7 @@
             ]
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Count gc.gc_tags"
-            },
-            "properties": [
-              {
-                "id": "custom.axisPlacement",
-                "value": "left"
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "GC Events Count"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -307,7 +284,8 @@
           },
           "custom": {
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -418,7 +396,8 @@
           },
           "custom": {
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -553,7 +532,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Spark Heap Usage (Before/After GC)",
+      "title": "Spark Heap Before and After GC",
       "type": "timeseries",
       "legend": {
         "show": true,
@@ -584,7 +563,8 @@
           },
           "custom": {
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,

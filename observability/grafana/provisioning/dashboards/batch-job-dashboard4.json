@@ -67,7 +67,7 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -191,7 +191,8 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "bars",
@@ -325,7 +326,7 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -430,7 +431,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Spark CPU Utilization",
+      "title": "Spark Compute Saturation",
       "type": "timeseries"
     },
     {
@@ -448,8 +449,8 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisWidth": 30,
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
@@ -583,7 +584,7 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -713,7 +714,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Network Byte Rates",
+      "title": "Network Throughput",
       "transformations": [
         {
           "id": "calculateField",
@@ -799,7 +800,7 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -982,7 +983,7 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
             "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -1080,7 +1081,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Page Fault Rates",
+      "title": "Memory Fault Rate",
       "transformations": [
         {
           "id": "calculateField",
@@ -1133,7 +1134,8 @@
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
-            "axisPlacement": "auto",
+            "axisPlacement": "left",
+            "axisWidth": 80,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
@@ -1260,7 +1262,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Network Byte Rates",
+      "title": "Network Throughput",
       "transformations": [
         {
           "id": "calculateField",
@@ -1344,8 +1346,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Active Batches2",
+  "title": "Active Batches",
   "uid": "be074uf1chzwgd2",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
