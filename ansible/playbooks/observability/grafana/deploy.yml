@@ -17,6 +17,13 @@
         rsync_opts:
           - "--exclude=plugins/"
 
+    # rsync uses delete: false so files removed from the repo are not deleted on
+    # the host; explicitly drop retired provisioned dashboards.
+    - name: Remove retired provisioned dashboard files
+      ansible.builtin.file:
+        path: "{{ observability_dir }}/grafana/provisioning/dashboards/spark-application-logs.json"
+        state: absent
+
     - name: Create Grafana plugins directory
       ansible.builtin.file:
         path: "{{ observability_dir }}/grafana/plugins"

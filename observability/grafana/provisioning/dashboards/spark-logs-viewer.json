@@ -290,7 +290,7 @@
       ],
       "title": "Spark Application Logs by Level",
       "type": "timeseries",
-      "description": "Counts from raw logs-spark-default by log.level (same source and filters as Spark Application Logs table). Transform index metrics-spark-logs-default is not used here."
+      "description": "Counts from raw logs-spark-default by log.level (same source and filters as **Spark Log Entries** below). Transform index metrics-spark-logs-default is not used here."
     },
     {
       "datasource": {
@@ -454,7 +454,7 @@
           "timeField": "@timestamp"
         }
       ],
-      "title": "Spark Application Logs",
+      "title": "Spark Log Entries",
       "transformations": [
         {
           "id": "organize",
@@ -518,13 +518,6 @@
               "error.stack_trace": true,
               "id": true
             },
-            "indexByName": {
-              "Time": 0,
-              "Host": 1,
-              "Pod": 2,
-              "Level": 3,
-              "Message": 4
-            },
             "renameByName": {
               "@timestamp": "Time",
               "log.level": "Level",
@@ -537,6 +530,19 @@
               "msg.message",
               "msg.stack_trace"
             ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "Time": 0,
+              "Level": 1,
+              "Host": 2,
+              "Pod": 3,
+              "Message": 4,
+              "_id": 5
+            }
           }
         }
       ],
@@ -558,6 +564,6 @@
   "timezone": "browser",
   "title": "Spark Application Logs Viewer",
   "uid": "spark-logs-viewer",
-  "version": 9,
+  "version": 11,
   "weekStart": ""
 }
