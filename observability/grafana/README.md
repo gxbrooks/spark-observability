@@ -21,7 +21,6 @@ Grafana provides visualization of metrics collected from:
 |-----------|-----|-------------|---------------|
 | Spark Cluster Metrics | `spark-system-metrics` | Host and Spark metrics | [spark-system-metrics.md](./dashboards/spark-system-metrics.md) |
 | Hosts | `lab-hosts-metrics` | Lab1–Lab3 system, network, disk, and GPU metrics (subset of Spark system panels) | — |
-| Batch Job Dashboard | `batch-job-dashboard` | Batch job processing metrics | [batch-job-dashboard.md](./dashboards/batch-job-dashboard.md) |
 
 ## Dashboard Organization
 
@@ -35,11 +34,9 @@ grafana/
 │   └── dashboards/
 │       ├── provisioning.yaml      # Dashboard provisioning config
 │       ├── spark-system.json      # Spark cluster metrics dashboard
-│       ├── hosts.json             # Lab1–Lab3 host metrics only
-│       └── batch-job-dashboard4.json  # Batch job dashboard
-└── dashboards/                    # Documentation for each dashboard
-    ├── spark-system-metrics.md
-    └── batch-job-dashboard.md
+│       └── hosts.json             # Lab1–Lab3 host metrics only
+└── dashboards/                    # Documentation for select dashboards
+    └── spark-system-metrics.md
 ```
 
 ## Data Sources
@@ -67,10 +64,8 @@ Collected from Spark event logs and GC logs:
 - **Fields**: GC pause times, heap usage, reclaimed memory
 - **Processing**: Elastic Agent → Logstash → Elasticsearch
 
-### Batch Job Metrics
-Collected from batch processing framework:
-- **Indices**: `batch-events-*`, `batch-metrics-*`, `batch-traces-*`
-- **Fields**: Job status, duration, resource usage
+### Batch job data (Elasticsearch / Kibana)
+Batch lifecycle and traces are indexed for search and watchers (not surfaced in a Grafana dashboard here). See [`../elasticsearch/docs/Elasticsearch_indices.md`](../elasticsearch/docs/Elasticsearch_indices.md) and Kibana saved objects under [`../elasticsearch/config/batch-events/`](../elasticsearch/config/batch-events/) and related config.
 
 ## Creating New Dashboards
 
