@@ -1,7 +1,7 @@
 {
   "attributes": {
     "kibanaSavedObjectMeta": {
-      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"index\":\"gpu-metrics\"}"
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
     },
     "title": "GPU Metrics Overview",
     "sort": [
@@ -11,6 +11,8 @@
       ]
     ],
     "columns": [
+      "@timestamp",
+      "host.name",
       "gpu.card",
       "gpu.bus.address",
       "gpu.utilization.core_percent_normalized",
@@ -29,6 +31,13 @@
     "timeRestore": false,
     "rowHeight": 3,
     "rowsPerPage": 50
-  }
+  },
+  "references": [
+    {
+      "id": "gpu-metrics",
+      "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+      "type": "index-pattern"
+    }
+  ]
 }
 

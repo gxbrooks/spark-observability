@@ -16,13 +16,13 @@
         "gpu.utilization.core_percent_normalized": {
           "type": "double",
           "script": {
-            "source": "emit(doc['gpu.utilization.core_percent'].value / 100.0)"
+            "source": "if (doc['gpu.utilization.core_percent'].size() != 0) { emit(doc['gpu.utilization.core_percent'].value / 100.0); }"
           }
         },
         "gpu.utilization.memory_percent_normalized": {
           "type": "double",
           "script": {
-            "source": "emit(doc['gpu.utilization.memory_percent'].value / 100.0)"
+            "source": "if (doc['gpu.utilization.memory_percent'].size() != 0) { emit(doc['gpu.utilization.memory_percent'].value / 100.0); }"
           }
         }
       },
