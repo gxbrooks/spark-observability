@@ -1,0 +1,55 @@
+---
+- name: Dynatrace deploy (tenant/API validation)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Validate Dynatrace tenant access
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
+      tags: [tenant_check]
+
+- name: Dynatrace deploy (remove host OneAgent conflict on Kubernetes nodes)
+  hosts: kubernetes_master:kubernetes_workers
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Remove host-installed OneAgent before Dynakube OneAgent rollout
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/remove_host_oneagent_conflict.yml"
+      tags: [k8s]
+
+- name: Dynatrace deploy (partitioning + k8s operator + OTel merge)
+  hosts: kubernetes_master
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+
+    - name: Deploy Dynatrace Operator
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/deploy_operator.yml"
+      tags: [k8s]
+
+    - name: Apply Dynakube CR
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_dynakube.yml"
+      tags: [k8s]
+
+    - name: Activate cluster in Dynatrace Kubernetes app
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
+      tags: [k8s]
+
+    - name: Apply management zone
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_management_zone.yml"
+      tags: [partitioning]
+
+    - name: Apply automatic tags
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_auto_tags.yml"
+      tags: [partitioning]
+
+    - name: Merge Dynatrace exporter into OTel collector config
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/merge_otel_dual_feed.yml"
+      tags: [otel_dual_feed]

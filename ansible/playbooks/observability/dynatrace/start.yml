@@ -1,0 +1,23 @@
+---
+- name: Dynatrace start/status (Kubernetes-managed OneAgent)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Activate cluster in Dynatrace Kubernetes app
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
+
+    - name: Check host OneAgent service status (informational)
+      ansible.builtin.command: systemctl is-active oneagent
+      register: oneagent_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Show host OneAgent status expectation
+      ansible.builtin.debug:
+        msg: >-
+          host oneagent on {{ inventory_hostname }} => {{ oneagent_status.stdout | default('unknown') }}
+          (expected inactive when Dynakube daemonset manages OneAgent on Kubernetes nodes).

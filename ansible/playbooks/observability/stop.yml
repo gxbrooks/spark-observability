@@ -13,6 +13,10 @@
     observability_dir: "/home/ansible/ops/observability"
     delete_volumes: false
   tasks:
+    - name: Skip elastic stop path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Verify we are on the designated observability host
       ansible.builtin.fail:
         msg: "FATAL: Observability stack must run on {{ observability_host }}, not {{ inventory_hostname }}."
@@ -57,3 +61,6 @@
 
           To restart:
             ansible-playbook -i inventory.yml playbooks/observability/start.yml
+
+- import_playbook: dynatrace/stop.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'

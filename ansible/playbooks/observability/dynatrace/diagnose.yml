@@ -1,0 +1,137 @@
+---
+- name: Dynatrace diagnose (tenant + k8s + host agent)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Validate tenant/API token
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
+      tags: [tenant_check]
+
+- name: Dynatrace diagnose (operator and dynakube)
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Get operator pods
+      ansible.builtin.command: kubectl -n dynatrace get pods
+      register: dynatrace_pods
+      changed_when: false
+      failed_when: false
+
+    - name: Show operator pods
+      ansible.builtin.debug:
+        var: dynatrace_pods.stdout_lines
+
+    - name: Get Dynakube custom resource
+      ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o yaml
+      register: dynakube_yaml
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube resource snapshot
+      ansible.builtin.debug:
+        var: dynakube_yaml.stdout_lines
+
+    - name: Get Dynakube custom resource conditions
+      ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o jsonpath={.status.conditions}
+      register: dynakube_conditions
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube conditions
+      ansible.builtin.debug:
+        msg: "Dynakube conditions => {{ dynakube_conditions.stdout | default('unavailable') }}"
+
+    - name: Read Dynakube ActiveGate version
+      ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o jsonpath={.status.activeGate.version}
+      register: dynakube_activegate_version
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube ActiveGate version compatibility
+      ansible.builtin.debug:
+        msg: >-
+          Dynakube ActiveGate version => {{ dynakube_activegate_version.stdout | default('unknown') }}
+          (new Kubernetes UI requires >= 1.327)
+
+    - name: Run operator troubleshoot command
+      ansible.builtin.command: kubectl exec deploy/dynatrace-operator -n dynatrace -- dynatrace-operator troubleshoot
+      register: operator_troubleshoot
+      changed_when: false
+      failed_when: false
+
+    - name: Show operator troubleshoot output
+      ansible.builtin.debug:
+        var: operator_troubleshoot.stdout_lines
+
+    - name: Get Dynakube OneAgent daemonset status
+      ansible.builtin.command: kubectl -n dynatrace get daemonset dynakube-oneagent -o wide
+      register: dynakube_oneagent_ds
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube OneAgent daemonset status
+      ansible.builtin.debug:
+        var: dynakube_oneagent_ds.stdout_lines
+
+    - name: Get Dynakube OneAgent pod readiness and crash-loop reasons
+      ansible.builtin.command: >
+        kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent
+        -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[0].ready,WAITING:.status.containerStatuses[0].state.waiting.reason,RESTARTS:.status.containerStatuses[0].restartCount
+        --no-headers
+      register: dynakube_oneagent_non_running
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube OneAgent pod readiness and crash-loop reasons
+      ansible.builtin.debug:
+        var: dynakube_oneagent_non_running.stdout_lines
+
+    - name: Resolve Dynatrace API token for cluster visibility diagnostics
+      ansible.builtin.set_fact:
+        dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+        dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: List all Kubernetes cluster entities with ActiveGate details
+      ansible.builtin.uri:
+        url: "{{ dt_api_url_resolved }}/v2/entities?entitySelector=type(KUBERNETES_CLUSTER)&fields=+properties&pageSize=100"
+        method: GET
+        headers:
+          Authorization: "Api-Token {{ dt_api_token_resolved }}"
+        status_code: [200, 401, 403]
+      register: dt_k8s_entities
+      failed_when: false
+      delegate_to: localhost
+      run_once: true
+
+    - name: Show Kubernetes cluster entities
+      ansible.builtin.debug:
+        var: dt_k8s_entities.json.entities
+      when: dt_k8s_entities.status | default(0) == 200
+      run_once: true
+
+- name: Dynatrace diagnose (OneAgent service on hosts)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Check OneAgent service status
+      ansible.builtin.command: systemctl is-active oneagent
+      register: oneagent_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Show OneAgent status
+      ansible.builtin.debug:
+        msg: "oneagent on {{ inventory_hostname }} => {{ oneagent_status.stdout | default('unknown') }}"

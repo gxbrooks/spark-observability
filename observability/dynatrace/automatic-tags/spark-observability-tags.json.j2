@@ -1,0 +1,73 @@
+[
+{% for tag in [
+  {"key": "Project", "value": "spark-observability"},
+  {"key": "Environment", "value": DT_ENVIRONMENT},
+  {"key": "OwnedBy", "value": DT_OWNED_BY}
+] %}
+  {
+    "schemaId": "builtin:tags.auto-tagging",
+    "scope": "environment",
+    "value": {
+      "name": "{{ tag.key }}",
+      "description": "Spark observability (Ansible deploy)",
+      "rules": [
+        {
+          "enabled": true,
+          "type": "ME",
+          "valueFormat": "{{ tag.value }}",
+          "valueNormalization": "Leave text as-is",
+          "attributeRule": {
+            "entityType": "HOST",
+            "conditions": [
+              {
+                "key": "HOST_GROUP_NAME",
+                "operator": "EQUALS",
+                "stringValue": "{{ DT_HOST_GROUP }}",
+                "caseSensitive": false
+              }
+            ],
+            "serviceToHostPropagation": false,
+            "serviceToPGPropagation": false,
+            "pgToHostPropagation": false,
+            "pgToServicePropagation": false,
+            "hostToPGPropagation": true,
+            "azureToServicePropagation": false,
+            "azureToPGPropagation": false
+          }
+        },
+        {
+          "enabled": true,
+          "type": "ME",
+          "valueFormat": "{{ tag.value }}",
+          "valueNormalization": "Leave text as-is",
+          "attributeRule": {
+            "entityType": "PROCESS_GROUP",
+            "conditions": [
+              {
+                "key": "HOST_GROUP_NAME",
+                "operator": "EQUALS",
+                "stringValue": "{{ DT_HOST_GROUP }}",
+                "caseSensitive": false
+              }
+            ],
+            "serviceToHostPropagation": false,
+            "serviceToPGPropagation": false,
+            "pgToHostPropagation": false,
+            "pgToServicePropagation": true,
+            "hostToPGPropagation": false,
+            "azureToServicePropagation": false,
+            "azureToPGPropagation": false
+          }
+        },
+        {
+          "enabled": true,
+          "type": "SELECTOR",
+          "valueFormat": "{{ tag.value }}",
+          "valueNormalization": "Leave text as-is",
+          "entitySelector": "type(KUBERNETES_CLUSTER),entityName.equals(\"{{ DT_K8S_CLUSTER_NAME }}\")"
+        }
+      ]
+    }
+  }{{ "," if not loop.last else "" }}
+{% endfor %}
+]

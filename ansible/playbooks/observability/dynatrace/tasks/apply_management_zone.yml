@@ -1,0 +1,111 @@
+- name: Resolve Dynatrace API token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_management_zone_resolved: "{{ (DT_MANAGEMENT_ZONE.value if (DT_MANAGEMENT_ZONE is mapping and 'value' in DT_MANAGEMENT_ZONE) else DT_MANAGEMENT_ZONE) | default('Spark Observability') }}"
+    dt_host_group_resolved: "{{ (DT_HOST_GROUP.value if (DT_HOST_GROUP is mapping and 'value' in DT_HOST_GROUP) else DT_HOST_GROUP) | default('spark-observability') }}"
+    dt_k8s_cluster_name_resolved: "{{ (DT_K8S_CLUSTER_NAME.value if (DT_K8S_CLUSTER_NAME is mapping and 'value' in DT_K8S_CLUSTER_NAME) else DT_K8S_CLUSTER_NAME) | default('spark-observability-k8s') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Render management zone payload (Git source)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../../../observability/dynatrace/management-zone/spark-observability-zone.json"
+    dest: /tmp/spark-observability-zone.json
+    mode: "0644"
+  vars:
+    DT_MANAGEMENT_ZONE: "{{ dt_management_zone_resolved }}"
+    DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
+    DT_K8S_CLUSTER_NAME: "{{ dt_k8s_cluster_name_resolved }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load management zone document
+  ansible.builtin.set_fact:
+    mz_document: "{{ lookup('file', '/tmp/spark-observability-zone.json') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: List existing management zone settings objects
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:management-zones&fields=objectId,value&pageSize=500"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 401, 403]
+  delegate_to: localhost
+  run_once: true
+  register: mz_settings_list
+  failed_when: false
+
+- name: Fail if cannot list management zone settings
+  ansible.builtin.assert:
+    that:
+      - mz_settings_list.status | default(0) == 200
+    fail_msg: >-
+      Cannot list builtin:management-zones (HTTP {{ mz_settings_list.status | default('unknown') }}).
+      Token needs settings.read and settings.write.
+  run_once: true
+
+- name: Resolve existing management zone objectId (by value.name)
+  ansible.builtin.set_fact:
+    mz_object_id: >-
+      {{ (mz_settings_list.json['items'] | default([])
+          | selectattr('value.name', 'defined')
+          | selectattr('value.name', 'equalto', dt_management_zone_resolved)
+          | map(attribute='objectId') | list | first) | default('', true) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Create management zone settings object
+  when: (mz_object_id | trim) == ''
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      - "{{ mz_document }}"
+    status_code: [200, 201, 400, 401, 403, 409, 422]
+  delegate_to: localhost
+  run_once: true
+  register: management_zone_create
+  failed_when: false
+
+- name: Assert management zone create succeeded
+  when: (mz_object_id | trim) == ''
+  ansible.builtin.assert:
+    that:
+      - management_zone_create.status | default(0) in [200, 201]
+    fail_msg: >-
+      Dynatrace management zone create failed: HTTP {{ management_zone_create.status | default('unknown') }}
+      {{ management_zone_create.json | default(management_zone_create.content) }}
+  run_once: true
+
+- name: Update management zone settings object
+  when: (mz_object_id | trim) != ''
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ mz_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ dict(value=mz_document.value) }}"
+    status_code: [200, 400, 401, 403, 404, 409, 422]
+  delegate_to: localhost
+  run_once: true
+  register: management_zone_update
+  failed_when: false
+
+- name: Assert management zone update succeeded
+  when: (mz_object_id | trim) != ''
+  ansible.builtin.assert:
+    that:
+      - management_zone_update.status | default(0) == 200
+    fail_msg: >-
+      Dynatrace management zone update failed: HTTP {{ management_zone_update.status | default('unknown') }}
+      {{ management_zone_update.json | default(management_zone_update.content) }}
+  run_once: true

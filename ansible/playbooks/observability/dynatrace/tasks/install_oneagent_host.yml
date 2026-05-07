@@ -1,0 +1,42 @@
+- name: Resolve Dynatrace PaaS token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_host_group_resolved: "{{ (DT_HOST_GROUP.value if (DT_HOST_GROUP is mapping and 'value' in DT_HOST_GROUP) else DT_HOST_GROUP) | default('') }}"
+    dt_environment_resolved: "{{ (DT_ENVIRONMENT.value if (DT_ENVIRONMENT is mapping and 'value' in DT_ENVIRONMENT) else DT_ENVIRONMENT) | default('lab') }}"
+    dt_owned_by_resolved: "{{ (DT_OWNED_BY.value if (DT_OWNED_BY is mapping and 'value' in DT_OWNED_BY) else DT_OWNED_BY) | default('gbrooks') }}"
+    dt_paas_token_resolved: "{{ ((DT_PAAS_TOKEN.value if (DT_PAAS_TOKEN is mapping and 'value' in DT_PAAS_TOKEN) else DT_PAAS_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_PAAS_TOKEN | default(''), true) }}"
+
+- name: Assert OneAgent prerequisites
+  ansible.builtin.assert:
+    that:
+      - (dt_api_url_resolved | default('') | trim) != ''
+      - (dt_paas_token_resolved | default('') | trim) != ''
+      - (dt_host_group_resolved | default('') | trim) != ''
+    fail_msg: "DT_API_URL, DT_PAAS_TOKEN, and DT_HOST_GROUP are required."
+
+- name: Download OneAgent installer script
+  ansible.builtin.get_url:
+    url: "{{ dt_api_url_resolved }}/v1/deployment/installer/agent/unix/default/latest?Api-Token={{ dt_paas_token_resolved }}&flavor=default"
+    dest: /tmp/dynatrace-oneagent.sh
+    mode: "0755"
+
+- name: Check if OneAgent is already installed
+  ansible.builtin.stat:
+    path: /opt/dynatrace/oneagent/agent/lib64/liboneagentproc.so
+  register: oneagent_installed
+
+- name: Install OneAgent
+  ansible.builtin.command: >
+    /bin/sh /tmp/dynatrace-oneagent.sh
+    --set-app-log-content-access=true
+    --set-host-group={{ dt_host_group_resolved }}
+    --set-host-property=Project=spark-observability
+    --set-host-property=Environment={{ dt_environment_resolved }}
+    --set-host-property=OwnedBy={{ dt_owned_by_resolved }}
+  become: true
+  when: not oneagent_installed.stat.exists
+
+- name: Remove OneAgent installer script
+  ansible.builtin.file:
+    path: /tmp/dynatrace-oneagent.sh
+    state: absent

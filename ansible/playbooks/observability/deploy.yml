@@ -11,6 +11,10 @@
   connection: local
   gather_facts: false
   tasks:
+    - name: Skip elastic deploy path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Run generate_contexts for observability context
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
@@ -30,6 +34,10 @@
     observability_host_ip: "{{ hostvars[groups['observability'][0]]['ansible_default_ipv4']['address'] | default('') }}"
     kubernetes_api_server_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
   tasks:
+    - name: Skip elastic deploy path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Detect host OS
       ansible.builtin.set_fact:
         is_linux: "{{ ansible_os_family in ['Debian', 'RedHat'] }}"
@@ -201,10 +209,15 @@
       failed_when: false
 
 - import_playbook: elasticsearch/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: grafana/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: logstash/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: otel-collector/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: tempo/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 
 - name: Build Docker images and finalize
   hosts: observability
@@ -213,6 +226,10 @@
   vars:
     observability_dir: "/home/ansible/ops/observability"
   tasks:
+    - name: Skip elastic deploy path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Build custom Docker images
       ansible.builtin.command: docker compose build
       args:
@@ -229,3 +246,7 @@
           Next: ansible-playbook -i inventory.yml playbooks/observability/start.yml
 
 - import_playbook: prometheus/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
+
+- import_playbook: dynatrace/deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'

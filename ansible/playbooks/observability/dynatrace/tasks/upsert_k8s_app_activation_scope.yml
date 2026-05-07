@@ -1,0 +1,70 @@
+- name: Resolve existing activation object for scope
+  ansible.builtin.set_fact:
+    k8s_activation_object: >-
+      {{ (k8s_activation_items
+          | selectattr('scope', 'equalto', dt_k8s_activation_scope)
+          | list | first) | default({}, true) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Create Kubernetes app activation settings object
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      - schemaId: builtin:app-transition.kubernetes
+        scope: "{{ dt_k8s_activation_scope }}"
+        value: "{{ dt_k8s_activation_value }}"
+    status_code: [200, 201, 400, 401, 403, 409, 422]
+  register: k8s_activation_create
+  failed_when: false
+  when: (k8s_activation_object | length) == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert Kubernetes app activation create succeeded
+  ansible.builtin.assert:
+    that:
+      - k8s_activation_create.status | default(0) in [200, 201]
+    fail_msg: >-
+      Kubernetes app activation create failed for scope {{ dt_k8s_activation_scope }}:
+      HTTP {{ k8s_activation_create.status | default('unknown') }} {{
+      k8s_activation_create.json | default(k8s_activation_create.content) }}.
+  when: (k8s_activation_object | length) == 0
+  run_once: true
+
+- name: Update Kubernetes app activation settings object
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ k8s_activation_object.objectId }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      value: "{{ dt_k8s_activation_value }}"
+    status_code: [200, 400, 401, 403, 404, 409, 422]
+  register: k8s_activation_update
+  failed_when: false
+  when:
+    - (k8s_activation_object | length) > 0
+    - not (k8s_activation_object.value.kubernetesAppOptions.enableKubernetesApp | default(false))
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert Kubernetes app activation update succeeded
+  ansible.builtin.assert:
+    that:
+      - k8s_activation_update.status | default(0) == 200
+    fail_msg: >-
+      Kubernetes app activation update failed for scope {{ dt_k8s_activation_scope }}:
+      HTTP {{ k8s_activation_update.status | default('unknown') }} {{
+      k8s_activation_update.json | default(k8s_activation_update.content) }}.
+  when:
+    - (k8s_activation_object | length) > 0
+    - not (k8s_activation_object.value.kubernetesAppOptions.enableKubernetesApp | default(false))
+  run_once: true

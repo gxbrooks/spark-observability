@@ -1,0 +1,11 @@
+---
+- name: Dynatrace install (OneAgent on all Lab hosts)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  become: false
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Install OneAgent on host
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/install_oneagent_host.yml"

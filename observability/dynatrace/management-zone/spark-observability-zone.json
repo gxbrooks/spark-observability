@@ -1,0 +1,55 @@
+{
+  "schemaId": "builtin:management-zones",
+  "scope": "environment",
+  "value": {
+    "name": "{{ DT_MANAGEMENT_ZONE }}",
+    "rules": [
+      {
+        "enabled": true,
+        "type": "ME",
+        "attributeRule": {
+          "entityType": "HOST",
+          "conditions": [
+            {
+              "key": "HOST_GROUP_NAME",
+              "operator": "EQUALS",
+              "stringValue": "{{ DT_HOST_GROUP }}",
+              "caseSensitive": false
+            }
+          ],
+          "serviceToHostPropagation": false,
+          "serviceToPGPropagation": false,
+          "pgToHostPropagation": false,
+          "pgToServicePropagation": false,
+          "hostToPGPropagation": true,
+          "customDeviceGroupToCustomDevicePropagation": false,
+          "azureToServicePropagation": false,
+          "azureToPGPropagation": false
+        }
+      },
+      {
+        "enabled": true,
+        "type": "ME",
+        "attributeRule": {
+          "entityType": "KUBERNETES_CLUSTER",
+          "conditions": [
+            {
+              "key": "KUBERNETES_CLUSTER_NAME",
+              "operator": "EQUALS",
+              "stringValue": "{{ DT_K8S_CLUSTER_NAME }}",
+              "caseSensitive": false
+            }
+          ],
+          "serviceToHostPropagation": false,
+          "serviceToPGPropagation": false,
+          "pgToHostPropagation": false,
+          "pgToServicePropagation": false,
+          "hostToPGPropagation": false,
+          "customDeviceGroupToCustomDevicePropagation": false,
+          "azureToServicePropagation": false,
+          "azureToPGPropagation": false
+        }
+      }
+    ]
+  }
+}

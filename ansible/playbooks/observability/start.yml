@@ -16,6 +16,10 @@
   connection: local
   gather_facts: false
   tasks:
+    - name: Skip elastic start path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Run generate_contexts for observability context
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
@@ -31,6 +35,10 @@
     env_source_file: "{{ playbook_dir }}/../../../vars/contexts/observability_docker.env"
     ca_cert_path: "/etc/ssl/certs/elastic/ca.crt"
   tasks:
+    - name: Skip elastic start path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Verify we are on the designated observability host
       ansible.builtin.fail:
         msg: "FATAL: Observability stack must run on {{ observability_host }}, not {{ inventory_hostname }}."
@@ -183,3 +191,7 @@
             Tempo          http://{{ ansible_hostname }}:3200
 
 - import_playbook: prometheus/start.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
+
+- import_playbook: dynatrace/start.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'

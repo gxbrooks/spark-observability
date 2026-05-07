@@ -41,6 +41,70 @@ FORCE_REGEN:
   value: ""
   contexts: [observability]
 
+# Observability platform switch (default keeps current behavior)
+OBSERVABILITY_PLATFORM:
+  value: elastic
+  contexts: [ansible, devops]
+
+# Dynatrace tenant and partitioning defaults
+DT_TENANT_URL:
+  value: https://pdt20158.apps.dynatrace.com
+  contexts: [ansible, devops]
+
+DT_API_URL:
+  value: https://pdt20158.live.dynatrace.com/api
+  contexts: [ansible, devops]
+
+DT_HOST_GROUP:
+  value: spark-observability
+  contexts: [ansible, devops]
+
+DT_K8S_CLUSTER_NAME:
+  value: spark-observability-k8s
+  contexts: [ansible, devops]
+
+DT_MANAGEMENT_ZONE:
+  value: Spark Observability
+  contexts: [ansible, devops]
+
+DT_ENVIRONMENT:
+  value: lab
+  contexts: [ansible, devops]
+
+DT_OWNED_BY:
+  value: gbrooks
+  contexts: [ansible, devops]
+
+DT_TOKEN_ADMIN_TOKEN:
+  value: ""  # SECRET: REQUIRED for API-driven token creation/rotation
+  contexts: [ansible, devops]
+  secret: true
+  required: false
+
+DT_PAAS_TOKEN:
+  value: ""  # SECRET: REQUIRED for OneAgent installer download
+  contexts: [ansible, devops]
+  secret: true
+  required: false
+
+DT_OPERATOR_TOKEN:
+  value: ""  # SECRET: REQUIRED for Dynatrace Operator / Dynakube
+  contexts: [ansible, devops]
+  secret: true
+  required: false
+
+DT_API_TOKEN:
+  value: ""  # SECRET: REQUIRED for Settings 2.0 management zone / tags automation
+  contexts: [ansible, devops]
+  secret: true
+  required: false
+
+DT_INGEST_TOKEN:
+  value: ""  # SECRET: REQUIRED to enable OTel dual-feed to Dynatrace
+  contexts: [ansible, devops]
+  secret: true
+  required: false
+
 # Elasticsearch Data Retention Policies (for downsampling)
 # Base metric sampling frequency (Elastic Agent collection period)
 ES_METRIC_SAMPLING_INTERVAL:

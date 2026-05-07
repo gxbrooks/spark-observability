@@ -72,6 +72,12 @@ processors:
           - set(resource.attributes["operation.type"], Split(attributes["span.kind"], ".")[1]) where attributes["span.kind"] != nil
 
 exporters:
+# BEGIN DYNATRACE_OTEL_EXPORTER
+otlphttp/dynatrace:
+  endpoint: "https://pdt20158.live.dynatrace.com/api/v2/otlp"
+  headers:
+    Authorization: "Api-Token ${DT_INGEST_TOKEN}"
+# END DYNATRACE_OTEL_EXPORTER
   # Traces: ECS mapping matches APM-style traces and existing dashboards.
   # PRW K8s metrics: force ECS via scope attribute elastic.mapping.mode (exporter ignores YAML mapping.mode ≥0.145).
   elasticsearch/traces:
@@ -121,12 +127,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, transform, batch]
-      exporters: [elasticsearch/traces, otlp/tempo, debug]
+      exporters: [elasticsearch/traces, otlp/tempo, otlphttp/dynatrace, debug]
       
     metrics:
       receivers: [otlp, prometheusremotewrite]
       processors: [memory_limiter, attributes/k8s_prom_ns, attributes/cadvisor_rename_id, transform/k8s_prom_job, transform/force_ecs_es_mapping, batch]
-      exporters: [elasticsearch/metrics, debug]
+      exporters: [elasticsearch/metrics, otlphttp/dynatrace, debug]
   
   telemetry:
     logs:

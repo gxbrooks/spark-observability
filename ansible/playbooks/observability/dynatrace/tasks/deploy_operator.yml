@@ -1,0 +1,183 @@
+- name: Resolve Operator and ingest tokens from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_token_admin_token_resolved: "{{ ((DT_TOKEN_ADMIN_TOKEN.value if (DT_TOKEN_ADMIN_TOKEN is mapping and 'value' in DT_TOKEN_ADMIN_TOKEN) else DT_TOKEN_ADMIN_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_TOKEN_ADMIN_TOKEN | default(''), true) }}"
+    dt_operator_token_resolved: "{{ ((DT_OPERATOR_TOKEN.value if (DT_OPERATOR_TOKEN is mapping and 'value' in DT_OPERATOR_TOKEN) else DT_OPERATOR_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_OPERATOR_TOKEN | default(''), true) }}"
+    dt_ingest_token_resolved: "{{ ((DT_INGEST_TOKEN.value if (DT_INGEST_TOKEN is mapping and 'value' in DT_INGEST_TOKEN) else DT_INGEST_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_INGEST_TOKEN | default(''), true) }}"
+
+- name: Assert Operator prerequisites
+  ansible.builtin.assert:
+    that:
+      - (dt_operator_token_resolved | default('') | trim) != ''
+      - (dt_ingest_token_resolved | default('') | trim) != ''
+      - (dt_api_url_resolved | default('') | trim) != ''
+    fail_msg: "DT_OPERATOR_TOKEN, DT_INGEST_TOKEN, and DT_API_URL are required."
+
+- name: Define required Dynakube API token scopes
+  ansible.builtin.set_fact:
+    dt_operator_required_scopes:
+      - entities.read
+      - events.ingest
+      - settings.read
+      - settings.write
+      - DataExport
+      - InstallerDownload
+      - activeGateTokenManagement.create
+
+- name: Lookup current DT_OPERATOR_TOKEN metadata
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/apiTokens/lookup"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_token_admin_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      token: "{{ dt_operator_token_resolved }}"
+    status_code: [200, 400, 401, 403, 404]
+  register: dt_operator_token_lookup
+  failed_when: false
+  no_log: true
+
+- name: Resolve missing DT_OPERATOR_TOKEN scopes
+  ansible.builtin.set_fact:
+    dt_operator_current_scopes: "{{ dt_operator_token_lookup.json.scopes | default([]) }}"
+    dt_operator_missing_scopes: "{{ dt_operator_required_scopes | difference(dt_operator_token_lookup.json.scopes | default([])) }}"
+  no_log: true
+
+- name: Create replacement DT_OPERATOR_TOKEN when scopes are missing
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/apiTokens"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_token_admin_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "spark-observability-operator"
+      personalAccessToken: false
+      scopes: "{{ (dt_operator_current_scopes + dt_operator_required_scopes) | unique }}"
+    status_code: [201, 400, 401, 403, 409]
+  register: dt_operator_token_create
+  failed_when: false
+  when: (dt_operator_missing_scopes | length) > 0
+  no_log: true
+
+- name: Assert replacement DT_OPERATOR_TOKEN creation succeeded
+  ansible.builtin.assert:
+    that:
+      - dt_operator_token_create.status | default(0) == 201
+    fail_msg: >-
+      DT_OPERATOR_TOKEN is missing required scopes {{ dt_operator_missing_scopes }} and auto-rotation failed.
+      Ensure DT_TOKEN_ADMIN_TOKEN has apiTokens.write and retry.
+  when: (dt_operator_missing_scopes | length) > 0
+  no_log: true
+
+- name: Switch runtime operator token to the replacement token
+  ansible.builtin.set_fact:
+    dt_operator_token_resolved: "{{ dt_operator_token_create.json.token }}"
+  when: (dt_operator_missing_scopes | length) > 0
+  no_log: true
+
+- name: Persist replacement operator token locally for manual secrets update
+  ansible.builtin.copy:
+    dest: "{{ playbook_dir }}/../../../../tmp/dt-operator-token-rotated.txt"
+    mode: "0600"
+    content: "{{ dt_operator_token_create.json.token }}"
+  when: (dt_operator_missing_scopes | length) > 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Report operator token rotation result
+  ansible.builtin.debug:
+    msg: >-
+      Rotated DT_OPERATOR_TOKEN due to missing scopes {{ dt_operator_missing_scopes }}.
+      Update vars/secrets.yaml dynatrace.DT_OPERATOR_TOKEN using tmp/dt-operator-token-rotated.txt.
+  when: (dt_operator_missing_scopes | length) > 0
+
+- name: Ensure Dynatrace namespace exists
+  ansible.builtin.command: kubectl create namespace dynatrace
+  register: create_namespace
+  changed_when: create_namespace.rc == 0
+  failed_when: create_namespace.rc != 0 and "AlreadyExists" not in (create_namespace.stderr | default(""))
+
+- name: Check whether Helm is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/helm
+  register: helm_binary
+
+- name: Download Helm archive when missing
+  ansible.builtin.get_url:
+    url: https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz
+    dest: /tmp/helm-v3.16.4-linux-amd64.tar.gz
+    mode: "0644"
+  when: not helm_binary.stat.exists
+
+- name: Extract Helm archive when missing
+  ansible.builtin.unarchive:
+    src: /tmp/helm-v3.16.4-linux-amd64.tar.gz
+    dest: /tmp/
+    remote_src: true
+  when: not helm_binary.stat.exists
+
+- name: Install Helm binary when missing
+  ansible.builtin.copy:
+    src: /tmp/linux-amd64/helm
+    dest: /usr/local/bin/helm
+    mode: "0755"
+    remote_src: true
+  become: true
+  when: not helm_binary.stat.exists
+
+- name: Add Dynatrace Helm repo
+  ansible.builtin.command: helm repo add dynatrace https://raw.githubusercontent.com/Dynatrace/helm-charts/master/repos/stable
+  register: add_repo
+  changed_when: add_repo.rc == 0
+  failed_when: add_repo.rc != 0 and "already exists" not in (add_repo.stderr | default(""))
+
+- name: Update Helm repositories
+  ansible.builtin.command: helm repo update
+  changed_when: false
+
+- name: Install or upgrade Dynatrace Operator
+  ansible.builtin.command: >
+    helm upgrade --install dynatrace-operator dynatrace/dynatrace-operator
+    --namespace dynatrace --create-namespace
+    --set installCRD=true
+
+- name: Render Dynakube token secret manifest
+  ansible.builtin.copy:
+    dest: /tmp/dynakube-secret.yaml
+    mode: "0600"
+    content: |
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: dynakube
+        namespace: dynatrace
+      type: Opaque
+      stringData:
+        apiToken: "{{ dt_operator_token_resolved }}"
+        dataIngestToken: "{{ dt_ingest_token_resolved }}"
+
+- name: Apply Dynakube token secret
+  ansible.builtin.command: kubectl apply -f /tmp/dynakube-secret.yaml
+
+- name: Check existing Dynakube token condition (preflight)
+  ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o jsonpath={.status.conditions}
+  register: dynakube_token_conditions
+  changed_when: false
+  failed_when: false
+
+- name: Fail fast when Dynakube reports token scope errors
+  ansible.builtin.assert:
+    that:
+      - "'TokenError' not in (dynakube_token_conditions.stdout | default(''))"
+      - "'scope errors' not in (dynakube_token_conditions.stdout | default(''))"
+    fail_msg: >-
+      Existing Dynakube reports token scope errors: {{ dynakube_token_conditions.stdout }}.
+      Rotate DT_OPERATOR_TOKEN with required scopes and rerun deploy.
+  when:
+    - dynakube_token_conditions.rc == 0
+    - (dt_operator_missing_scopes | length) == 0

@@ -1,0 +1,60 @@
+- name: Resolve Dynatrace API token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_host_group_resolved: "{{ (DT_HOST_GROUP.value if (DT_HOST_GROUP is mapping and 'value' in DT_HOST_GROUP) else DT_HOST_GROUP) | default('spark-observability') }}"
+    dt_k8s_cluster_name_resolved: "{{ (DT_K8S_CLUSTER_NAME.value if (DT_K8S_CLUSTER_NAME is mapping and 'value' in DT_K8S_CLUSTER_NAME) else DT_K8S_CLUSTER_NAME) | default('spark-observability-k8s') }}"
+    dt_environment_resolved: "{{ (DT_ENVIRONMENT.value if (DT_ENVIRONMENT is mapping and 'value' in DT_ENVIRONMENT) else DT_ENVIRONMENT) | default('lab') }}"
+    dt_owned_by_resolved: "{{ (DT_OWNED_BY.value if (DT_OWNED_BY is mapping and 'value' in DT_OWNED_BY) else DT_OWNED_BY) | default('gbrooks') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Render automatic tags payload (Git source)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../../../observability/dynatrace/automatic-tags/spark-observability-tags.json.j2"
+    dest: /tmp/spark-observability-tags.json
+    mode: "0644"
+  vars:
+    DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
+    DT_K8S_CLUSTER_NAME: "{{ dt_k8s_cluster_name_resolved }}"
+    DT_ENVIRONMENT: "{{ dt_environment_resolved }}"
+    DT_OWNED_BY: "{{ dt_owned_by_resolved }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load automatic tags document from rendered file
+  ansible.builtin.set_fact:
+    auto_tags_payload: "{{ lookup('file', '/tmp/spark-observability-tags.json') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: List existing automatic tag settings objects
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:tags.auto-tagging&fields=objectId,value&pageSize=500"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 401, 403]
+  delegate_to: localhost
+  run_once: true
+  register: at_settings_list
+  failed_when: false
+
+- name: Fail if cannot list automatic tag settings
+  ansible.builtin.assert:
+    that:
+      - at_settings_list.status | default(0) == 200
+    fail_msg: >-
+      Cannot list builtin:tags.auto-tagging (HTTP {{ at_settings_list.status | default('unknown') }}).
+      Token needs settings.read and settings.write.
+  run_once: true
+
+- name: Upsert each automatic tag (create or update by tag key / value.name)
+  ansible.builtin.include_tasks: upsert_one_autotag.yml
+  loop: "{{ auto_tags_payload }}"
+  loop_control:
+    loop_var: auto_tag_item
+    label: "{{ auto_tag_item.value.name }}"
+  vars:
+    at_existing_items: "{{ at_settings_list.json['items'] | default([]) }}"
+  run_once: true

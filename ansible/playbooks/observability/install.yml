@@ -5,3 +5,7 @@
 # Usage: ansible-playbook -i inventory.yml playbooks/observability/install.yml
 
 - import_playbook: deploy.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
+
+- import_playbook: dynatrace/install.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'

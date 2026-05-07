@@ -1,0 +1,27 @@
+apiVersion: dynatrace.com/v1beta6
+kind: DynaKube
+metadata:
+  name: dynakube
+  namespace: dynatrace
+  annotations:
+    # Required for Kubernetes API monitoring / cluster inventory in Dynatrace UI.
+    feature.dynatrace.com/automatic-kubernetes-api-monitoring: "true"
+    feature.dynatrace.com/automatic-kubernetes-api-monitoring-cluster-name: "{{ DT_K8S_CLUSTER_NAME }}"
+spec:
+  apiUrl: "{{ DT_API_URL }}"
+  tokens: dynakube
+  oneAgent:
+    cloudNativeFullStack:
+      args:
+        - "--set-host-group={{ DT_HOST_GROUP }}"
+        - "--set-host-property=Project=spark-observability"
+        - "--set-host-property=Environment={{ DT_ENVIRONMENT }}"
+        - "--set-host-property=OwnedBy={{ DT_OWNED_BY }}"
+  activeGate:
+    capabilities:
+      - routing
+      - kubernetes-monitoring
+      - dynatrace-api
+      - metrics-ingest
+  metadataEnrichment:
+    enabled: true

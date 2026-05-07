@@ -1,0 +1,41 @@
+---
+- name: Dynatrace test (tenant + ingest endpoint + k8s object presence)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Resolve Dynatrace ingest token from flat or nested secrets
+      ansible.builtin.set_fact:
+        dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+        dt_ingest_token_resolved: "{{ ((DT_INGEST_TOKEN.value if (DT_INGEST_TOKEN is mapping and 'value' in DT_INGEST_TOKEN) else DT_INGEST_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_INGEST_TOKEN | default(''), true) }}"
+
+    - name: Validate API token
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
+
+    - name: Validate Dynatrace OTLP endpoint accepts token
+      ansible.builtin.uri:
+        url: "{{ dt_api_url_resolved }}/v2/otlp/v1/metrics"
+        method: POST
+        headers:
+          Authorization: "Api-Token {{ dt_ingest_token_resolved }}"
+          Content-Type: "application/json"
+        body: "{}"
+        status_code: [200, 202, 400, 415]
+      register: otlp_endpoint_probe
+      failed_when: otlp_endpoint_probe.status not in [200, 202, 400, 415]
+      when: (dt_ingest_token_resolved | default('') | trim) != ''
+
+- name: Dynatrace test (dynakube object exists)
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Ensure Dynakube custom resource exists
+      ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o name
+      register: dynakube_name
+      changed_when: false

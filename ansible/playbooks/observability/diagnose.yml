@@ -11,6 +11,10 @@
   gather_facts: true
   tags: [diagnose]
   tasks:
+    - name: Skip elastic diagnose path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Display diagnostic header
       ansible.builtin.debug:
         msg: |
@@ -21,13 +25,21 @@
           OS:        {{ ansible_distribution }} {{ ansible_distribution_version }}
 
 - import_playbook: elasticsearch/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: kibana/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: grafana/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: logstash/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: otel-collector/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: tempo/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: elastic-agent/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 - import_playbook: prometheus/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 
 - name: Docker overview and connection details
   hosts: observability
@@ -36,6 +48,10 @@
   vars:
     observability_dir: "/home/ansible/ops/observability"
   tasks:
+    - name: Skip elastic diagnose path when dynatrace platform is selected
+      ansible.builtin.meta: end_play
+      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+
     - name: Docker Compose service status
       ansible.builtin.shell: "cd {{ observability_dir }} && docker compose ps --format table"
       register: docker_containers
@@ -64,3 +80,6 @@
     - name: Diagnostic complete
       ansible.builtin.debug:
         msg: "DIAGNOSTIC COMPLETE -- review results above for any issues."
+
+- import_playbook: dynatrace/diagnose.yml
+  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'

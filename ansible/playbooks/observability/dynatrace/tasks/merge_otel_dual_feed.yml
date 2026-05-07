@@ -1,0 +1,40 @@
+- name: Resolve Dynatrace ingest token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_ingest_token_resolved: "{{ ((DT_INGEST_TOKEN.value if (DT_INGEST_TOKEN is mapping and 'value' in DT_INGEST_TOKEN) else DT_INGEST_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_INGEST_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Skip Dynatrace OTel dual-feed when ingest token is missing
+  ansible.builtin.debug:
+    msg: "Skipping Dynatrace OTel exporter merge: DT_INGEST_TOKEN is empty."
+  when: (dt_ingest_token_resolved | default('') | trim) == ''
+
+- name: Insert Dynatrace exporter block
+  ansible.builtin.blockinfile:
+    path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    marker: "# {mark} DYNATRACE_OTEL_EXPORTER"
+    insertafter: "^exporters:"
+    block: |
+      otlphttp/dynatrace:
+        endpoint: "{{ dt_api_url_resolved }}/v2/otlp"
+        headers:
+          Authorization: "Api-Token ${DT_INGEST_TOKEN}"
+  delegate_to: localhost
+  when: (dt_ingest_token_resolved | default('') | trim) != ''
+
+- name: Ensure traces pipeline exports to Dynatrace
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    regexp: "exporters: \\[elasticsearch/traces, otlp/tempo, debug\\]"
+    replace: "exporters: [elasticsearch/traces, otlp/tempo, otlphttp/dynatrace, debug]"
+  delegate_to: localhost
+  when: (dt_ingest_token_resolved | default('') | trim) != ''
+
+- name: Ensure metrics pipeline exports to Dynatrace
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    regexp: "exporters: \\[elasticsearch/metrics, debug\\]"
+    replace: "exporters: [elasticsearch/metrics, otlphttp/dynatrace, debug]"
+  delegate_to: localhost
+  when: (dt_ingest_token_resolved | default('') | trim) != ''

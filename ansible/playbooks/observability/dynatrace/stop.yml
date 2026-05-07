@@ -1,0 +1,27 @@
+---
+- name: Dynatrace stop (operator scale-down)
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Scale Dynatrace Operator deployment to zero
+      ansible.builtin.command: kubectl -n dynatrace scale deployment dynatrace-operator --replicas=0
+      register: operator_scale
+      changed_when: operator_scale.rc == 0
+      failed_when: false
+
+- name: Dynatrace stop notice for OneAgent
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Display OneAgent stop guidance
+      ansible.builtin.debug:
+        msg: >-
+          Kubernetes OneAgent is managed by the Dynakube daemonset (not host systemd).
+          This stop playbook only scales down the operator deployment.
+          To fully remove Dynakube/OneAgent resources, run dynatrace/uninstall.yml.

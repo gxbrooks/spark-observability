@@ -1,0 +1,38 @@
+---
+- name: Dynatrace uninstall (k8s resources)
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Remove Dynakube resource
+      ansible.builtin.command: kubectl -n dynatrace delete dynakube dynakube --ignore-not-found
+      changed_when: false
+      failed_when: false
+
+    - name: Uninstall Dynatrace Operator release
+      ansible.builtin.command: helm -n dynatrace uninstall dynatrace-operator
+      changed_when: false
+      failed_when: false
+
+    - name: Remove dynatrace namespace
+      ansible.builtin.command: kubectl delete namespace dynatrace --ignore-not-found
+      changed_when: false
+      failed_when: false
+
+- name: Dynatrace uninstall (host oneagent)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Run OneAgent uninstall script when present
+      ansible.builtin.shell: |
+        if [ -x /opt/dynatrace/oneagent/agent/uninstall.sh ]; then
+          /opt/dynatrace/oneagent/agent/uninstall.sh
+        fi
+      become: true
+      changed_when: false
+      failed_when: false

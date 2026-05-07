@@ -1,0 +1,58 @@
+---
+# Upsert one builtin:tags.auto-tagging object from Git (idempotent).
+# Expects: auto_tag_item, at_existing_items, dt_api_url_resolved, dt_api_token_resolved
+- name: Resolve existing objectId for automatic tag (by value.name / tag key)
+  ansible.builtin.set_fact:
+    auto_tag_object_id: >-
+      {{ (at_existing_items | default([])
+          | selectattr('value.name', 'defined')
+          | selectattr('value.name', 'equalto', auto_tag_item.value.name)
+          | map(attribute='objectId') | list | first) | default('', true) }}
+
+- name: Create automatic tag settings object
+  when: (auto_tag_object_id | trim) == ''
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ [auto_tag_item] }}"
+    status_code: [200, 201, 400, 401, 403, 409, 422]
+  delegate_to: localhost
+  register: auto_tag_create
+  failed_when: false
+
+- name: Assert automatic tag create succeeded
+  when: (auto_tag_object_id | trim) == ''
+  ansible.builtin.assert:
+    that:
+      - auto_tag_create.status | default(0) in [200, 201]
+    fail_msg: >-
+      Dynatrace auto-tag create failed for {{ auto_tag_item.value.name }}: HTTP {{ auto_tag_create.status | default('unknown') }}
+      {{ auto_tag_create.json | default(auto_tag_create.content) }}
+
+- name: Update automatic tag settings object
+  when: (auto_tag_object_id | trim) != ''
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ auto_tag_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ dict(value=auto_tag_item.value) }}"
+    status_code: [200, 400, 401, 403, 404, 409, 422]
+  delegate_to: localhost
+  register: auto_tag_update
+  failed_when: false
+
+- name: Assert automatic tag update succeeded
+  when: (auto_tag_object_id | trim) != ''
+  ansible.builtin.assert:
+    that:
+      - auto_tag_update.status | default(0) == 200
+    fail_msg: >-
+      Dynatrace auto-tag update failed for {{ auto_tag_item.value.name }}: HTTP {{ auto_tag_update.status | default('unknown') }}
+      {{ auto_tag_update.json | default(auto_tag_update.content) }}

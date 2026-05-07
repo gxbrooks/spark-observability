@@ -1,0 +1,42 @@
+- name: Check for host OneAgent uninstall script
+  ansible.builtin.stat:
+    path: /opt/dynatrace/oneagent/agent/uninstall.sh
+  register: host_oneagent_uninstall
+  become: true
+
+- name: Uninstall host OneAgent to avoid Dynakube daemonset conflict
+  ansible.builtin.command: /opt/dynatrace/oneagent/agent/uninstall.sh
+  when: host_oneagent_uninstall.stat.exists
+  register: host_oneagent_uninstall_run
+  changed_when: host_oneagent_uninstall_run.rc == 0
+  failed_when: false
+  become: true
+
+- name: Ensure host OneAgent service is stopped when present
+  ansible.builtin.systemd:
+    name: oneagent
+    state: stopped
+    enabled: false
+  become: true
+  failed_when: false
+
+- name: Kill residual OneAgent watchdog/processes from host installs
+  ansible.builtin.shell: |
+    pkill -f oneagentwatchdog || true
+    pkill -f oneagentos || true
+    pkill -f oneagentloganalytics || true
+    pkill -f oneagentnetwork || true
+    pkill -f oneagentextensions || true
+  become: true
+  changed_when: false
+  failed_when: false
+
+- name: Remove residual host OneAgent installation paths
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /opt/dynatrace/oneagent
+    - /var/lib/dynatrace/oneagent
+  become: true
+  failed_when: false

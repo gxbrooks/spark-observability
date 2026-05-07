@@ -1,0 +1,9 @@
+exporters:
+  otlphttp/dynatrace:
+    endpoint: "${DT_API_URL}/v2/otlp"
+    headers:
+      Authorization: "Api-Token ${DT_INGEST_TOKEN}"
+
+# Append to service.pipelines only when DT_INGEST_TOKEN is set:
+# traces.exporters += otlphttp/dynatrace
+# metrics.exporters += otlphttp/dynatrace

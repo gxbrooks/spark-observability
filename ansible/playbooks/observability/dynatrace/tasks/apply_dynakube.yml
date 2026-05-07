@@ -1,0 +1,89 @@
+- name: Resolve Dynakube template variables
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_host_group_resolved: "{{ (DT_HOST_GROUP.value if (DT_HOST_GROUP is mapping and 'value' in DT_HOST_GROUP) else DT_HOST_GROUP) | default('spark-observability') }}"
+    dt_environment_resolved: "{{ (DT_ENVIRONMENT.value if (DT_ENVIRONMENT is mapping and 'value' in DT_ENVIRONMENT) else DT_ENVIRONMENT) | default('lab') }}"
+    dt_owned_by_resolved: "{{ (DT_OWNED_BY.value if (DT_OWNED_BY is mapping and 'value' in DT_OWNED_BY) else DT_OWNED_BY) | default('gbrooks') }}"
+    dt_k8s_cluster_name_resolved: "{{ (DT_K8S_CLUSTER_NAME.value if (DT_K8S_CLUSTER_NAME is mapping and 'value' in DT_K8S_CLUSTER_NAME) else DT_K8S_CLUSTER_NAME) | default('spark-observability-k8s') }}"
+
+- name: Render Dynakube CR
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../../../observability/dynatrace/dynakube/dynakube.yaml.j2"
+    dest: /tmp/dynakube.yaml
+    mode: "0644"
+  vars:
+    DT_API_URL: "{{ dt_api_url_resolved }}"
+    DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
+    DT_ENVIRONMENT: "{{ dt_environment_resolved }}"
+    DT_OWNED_BY: "{{ dt_owned_by_resolved }}"
+    DT_K8S_CLUSTER_NAME: "{{ dt_k8s_cluster_name_resolved }}"
+
+- name: Wait for dynakube CRD to exist
+  ansible.builtin.command: kubectl get crd dynakubes.dynatrace.com
+  register: dynakube_crd
+  changed_when: false
+  retries: 20
+  delay: 6
+  until: dynakube_crd.rc == 0
+
+- name: Apply Dynakube CR
+  ansible.builtin.command: kubectl apply -f /tmp/dynakube.yaml
+
+- name: Wait for Dynakube to be accepted
+  ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o name
+  register: dynakube_get
+  changed_when: false
+  until: dynakube_get.rc == 0
+  retries: 20
+  delay: 6
+
+- name: Wait for Dynakube ActiveGate rollout
+  ansible.builtin.command: kubectl -n dynatrace rollout status statefulset/dynakube-activegate --timeout=300s
+  register: dynakube_activegate_rollout
+  changed_when: false
+  failed_when: false
+
+- name: Read Dynakube ActiveGate version
+  ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o jsonpath={.status.activeGate.version}
+  register: dynakube_activegate_version
+  changed_when: false
+  failed_when: false
+
+- name: Assert ActiveGate version is compatible with new Kubernetes UI
+  ansible.builtin.assert:
+    that:
+      - (dynakube_activegate_version.stdout | default('') | trim) != ''
+      - ((dynakube_activegate_version.stdout | trim).split('.')[:2] | join('.')) is version('1.327', '>=')
+    fail_msg: >-
+      ActiveGate version {{ dynakube_activegate_version.stdout | default('unknown') }} is below required 1.327
+      for the new Dynatrace Kubernetes UI. Upgrade ActiveGate image/tenant rollout, then redeploy.
+
+- name: Wait for Dynakube OneAgent daemonset rollout
+  ansible.builtin.command: kubectl -n dynatrace rollout status daemonset/dynakube-oneagent --timeout=300s
+  register: dynakube_oneagent_rollout
+  changed_when: false
+  failed_when: false
+
+- name: Restart Dynakube OneAgent pods when rollout is stuck
+  ansible.builtin.command: kubectl -n dynatrace delete pods -l app.kubernetes.io/name=oneagent --ignore-not-found
+  when: dynakube_oneagent_rollout.rc != 0
+  changed_when: true
+  failed_when: false
+
+- name: Retry Dynakube OneAgent daemonset rollout after pod restart
+  ansible.builtin.command: kubectl -n dynatrace rollout status daemonset/dynakube-oneagent --timeout=300s
+  register: dynakube_oneagent_rollout_retry
+  when: dynakube_oneagent_rollout.rc != 0
+  changed_when: false
+  failed_when: false
+
+- name: Assert Dynakube OneAgent rollout succeeded
+  ansible.builtin.assert:
+    that:
+      - (dynakube_oneagent_rollout_retry.rc | default(dynakube_oneagent_rollout.rc)) == 0
+    fail_msg: >-
+      Dynakube OneAgent rollout failed:
+      {{ (dynakube_oneagent_rollout_retry.stdout | default(dynakube_oneagent_rollout_retry.stderr))
+         if (dynakube_oneagent_rollout_retry is defined) else
+         (dynakube_oneagent_rollout.stdout | default(dynakube_oneagent_rollout.stderr)) }}.
+      Run dynatrace/diagnose.yml and inspect dynakube-oneagent pod logs for host-agent conflicts.

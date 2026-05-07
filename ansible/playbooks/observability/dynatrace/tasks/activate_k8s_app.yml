@@ -1,0 +1,58 @@
+- name: Resolve Dynatrace API token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Read current Dynakube Kubernetes cluster MEID
+  ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o jsonpath={.status.kubernetesClusterMEID}
+  register: dynakube_cluster_meid
+  changed_when: false
+  failed_when: false
+
+- name: Assert Dynakube cluster MEID is available
+  ansible.builtin.assert:
+    that:
+      - (dynakube_cluster_meid.stdout | default('') | trim) != ''
+    fail_msg: "Dynakube cluster MEID not found; ensure dynakube is healthy before Kubernetes app activation."
+
+- name: Build Kubernetes app activation scopes and value
+  ansible.builtin.set_fact:
+    dt_k8s_activation_scopes:
+      - environment
+      - "{{ dynakube_cluster_meid.stdout | trim }}"
+    dt_k8s_activation_value:
+      kubernetesAppOptions:
+        enableKubernetesApp: true
+
+- name: List existing Kubernetes app activation settings objects
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:app-transition.kubernetes&fields=objectId,scope,value&pageSize=200"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 401, 403]
+  register: k8s_activation_settings_list
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert Kubernetes app activation settings are readable
+  ansible.builtin.assert:
+    that:
+      - k8s_activation_settings_list.status | default(0) == 200
+    fail_msg: >-
+      Cannot list builtin:app-transition.kubernetes settings (HTTP {{ k8s_activation_settings_list.status | default('unknown') }}).
+      DT_API_TOKEN needs settings.read and settings.write.
+  run_once: true
+
+- name: Upsert Kubernetes app activation for each scope
+  ansible.builtin.include_tasks: upsert_k8s_app_activation_scope.yml
+  loop: "{{ dt_k8s_activation_scopes }}"
+  loop_control:
+    loop_var: dt_k8s_activation_scope
+    label: "{{ dt_k8s_activation_scope }}"
+  vars:
+    k8s_activation_items: "{{ k8s_activation_settings_list.json['items'] | default([]) }}"
+  run_once: true
