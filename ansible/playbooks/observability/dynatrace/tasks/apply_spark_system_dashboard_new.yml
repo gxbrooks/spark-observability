@@ -1,0 +1,134 @@
+---
+# Create or update the "Spark System Metrics" New Dashboard (DQL tiles).
+#
+# New Dashboards are managed via the Dynatrace Document API:
+#   GET/PATCH  /platform/document/v1/documents/{id}
+#   POST       /platform/document/v1/documents
+# Token required: DT_PLATFORM_TOKEN (dt0s16.*) with document:write scope.
+#
+# GPU metrics: system.gpu.*  (REST ingest → Grail, Lab1+Lab2 only — no GPU on Lab3)
+# Host metrics: dt.host.*  (Grail-native, DynaKube OneAgent emits for all Kubernetes nodes)
+#   Lab3 runs DynaKube OneAgent (dynakube-oneagent DaemonSet pod) so it appears here.
+#   Do NOT quote these keys: quoting makes them string literals ("The parameter has to be a metric key").
+#   Do NOT use builtin:host.* in DQL timeseries: the colon makes them unquotable identifiers.
+# JVM GC: dt.runtime.jvm.*  (Grail-native mapping of builtin:tech.jvm.* Classic keys)
+#   Mapping ref: https://docs.dynatrace.com/docs/shortlink/built-in-metrics-on-grail
+
+- name: Resolve Dynatrace token values for New Dashboard
+  ansible.builtin.set_fact:
+    dt_platform_token_resolved: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN | default('') }}"
+    dt_tenant_url_resolved: "{{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL) else DT_TENANT_URL) | default('') }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: List existing New Dashboards named Spark System Metrics
+  ansible.builtin.uri:
+    url: "{{ dt_tenant_url_resolved }}/platform/document/v1/documents?type=dashboard&filter=name%3D%27Spark+System+Metrics%27"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ dt_platform_token_resolved }}"
+    status_code: [200, 401, 403]
+  register: dt_new_dashboards_list
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Resolve existing New Dashboard ID and version
+  ansible.builtin.set_fact:
+    spark_new_dashboard_id: >-
+      {{ (dt_new_dashboards_list.json.documents | default([]) | first | default({})).id | default('') }}
+    spark_new_dashboard_version: >-
+      {{ (dt_new_dashboards_list.json.documents | default([]) | first | default({})).version | default(0) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Show existing New Dashboard (if any)
+  ansible.builtin.debug:
+    msg: >-
+      New Dashboard id={{ spark_new_dashboard_id | default('(none)') }}
+      version={{ spark_new_dashboard_version | default('n/a') }}
+  run_once: true
+
+# Build dashboard content JSON as a temp file on the Ansible controller.
+# The layout grid is 24 columns wide; height in units of ~36 px rows.
+- name: Write New Dashboard content JSON to temp file
+  ansible.builtin.copy:
+    content: |
+      {"annotations": [], "importedWithCode": false, "settings": {"defaultTimeframe": {"enabled": true, "value": {"from": "now()-2h", "to": "now()"}}}, "layouts": {"1": {"x": 0, "y": 0, "w": 24, "h": 2}, "4": {"x": 0, "y": 8, "w": 24, "h": 2}, "11": {"x": 0, "y": 28, "w": 24, "h": 2}, "2": {"x": 0, "y": 2, "w": 12, "h": 6}, "3": {"x": 12, "y": 2, "w": 12, "h": 6}, "5": {"x": 0, "y": 10, "w": 12, "h": 6}, "6": {"x": 12, "y": 10, "w": 12, "h": 6}, "7": {"x": 0, "y": 16, "w": 12, "h": 6}, "8": {"x": 12, "y": 16, "w": 12, "h": 6}, "9": {"x": 0, "y": 22, "w": 12, "h": 6}, "10": {"x": 12, "y": 22, "w": 12, "h": 6}, "12": {"x": 0, "y": 30, "w": 12, "h": 6}, "13": {"x": 12, "y": 30, "w": 12, "h": 6}, "14": {"x": 0, "y": 36, "w": 12, "h": 6}, "15": {"x": 12, "y": 36, "w": 12, "h": 6}}, "tiles": {"1": {"type": "markdown", "content": "## GPU Hardware - system.gpu.* (AMD RDNA3, Lab1+Lab2)"}, "4": {"type": "markdown", "content": "## Host Resources - dt.host.* (Lab1, Lab2, Lab3)"}, "11": {"type": "markdown", "content": "## JVM GC - dt.runtime.jvm.* (Spark processes)"}, "2": {"type": "data", "title": "GPU Core Utilization (%)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name, gpu.card}", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "3": {"type": "data", "title": "GPU Edge Temperature (deg C)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries temp=avg(system.gpu.temperature_c.edge), by:{host.name, gpu.card}", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "5": {"type": "data", "title": "Average CPU Usage (%)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries cpu=avg(dt.host.cpu.usage), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "6": {"type": "data", "title": "Average Memory Usage (%)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries mem=avg(dt.host.memory.usage), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "7": {"type": "data", "title": "Network Throughput (B/s)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries {rx=avg(dt.host.net.nic.bytes_rx), tx=avg(dt.host.net.nic.bytes_tx)}, by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "8": {"type": "data", "title": "Disk Throughput (B/s)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries {read=avg(dt.host.disk.bytes_read), write=avg(dt.host.disk.bytes_written)}, by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "9": {"type": "data", "title": "System Load Average (1 min)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries load=avg(dt.host.cpu.load), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "10": {"type": "data", "title": "Disk Used (%)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries diskpct=avg(dt.host.disk.used.percent), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "12": {"type": "data", "title": "GC Pause Time (ms)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance}\n| fieldsAdd process=entityName(dt.entity.process_group_instance)\n| filter isNotNull(process)\n| fieldsRemove dt.entity.process_group_instance", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "13": {"type": "data", "title": "GC Suspension Time (ms)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries susp=sum(dt.runtime.jvm.gc.suspension_time), by:{dt.entity.process_group_instance}\n| fieldsAdd process=entityName(dt.entity.process_group_instance)\n| filter isNotNull(process)\n| fieldsRemove dt.entity.process_group_instance", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "14": {"type": "data", "title": "JVM Heap Used (B)", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries heap=avg(dt.runtime.jvm.memory_pool.used), by:{dt.entity.process_group_instance}\n| fieldsAdd process=entityName(dt.entity.process_group_instance)\n| filter isNotNull(process)\n| fieldsRemove dt.entity.process_group_instance", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}, "15": {"type": "data", "title": "GC Activation Count", "visualization": "lineChart", "subType": "dql-builder-metrics", "query": "timeseries gc_act=sum(dt.runtime.jvm.gc.total_activation_count), by:{dt.entity.process_group_instance}\n| fieldsAdd process=entityName(dt.entity.process_group_instance)\n| filter isNotNull(process)\n| fieldsRemove dt.entity.process_group_instance", "querySettings": {"enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1}, "visualizationSettings": {"autoSelectVisualization": false}, "davis": {"enabled": false, "davisVisualization": {"isAvailable": true}}}}}
+    dest: /tmp/spark_system_dashboard_content.json
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+# PATCH existing dashboard (optimistic-locking-version required)
+- name: Update existing New Dashboard via PATCH
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -s
+      - -w
+      - "\nHTTP:%{http_code}"
+      - -X
+      - PATCH
+      - "{{ dt_tenant_url_resolved }}/platform/document/v1/documents/{{ spark_new_dashboard_id }}?optimistic-locking-version={{ spark_new_dashboard_version }}"
+      - -H
+      - "Authorization: Bearer {{ dt_platform_token_resolved }}"
+      - -F
+      - "metadata={\"name\":\"Spark System Metrics\",\"type\":\"dashboard\",\"isPrivate\":false};type=application/json"
+      - -F
+      - "content=@/tmp/spark_system_dashboard_content.json;type=application/json"
+  register: spark_new_dashboard_patch
+  changed_when: "'version' in spark_new_dashboard_patch.stdout"
+  when: spark_new_dashboard_id | length > 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Show PATCH result
+  ansible.builtin.debug:
+    msg: "Dashboard PATCH stdout_length={{ spark_new_dashboard_patch.stdout | default('') | length }} rc={{ spark_new_dashboard_patch.rc | default('?') }}"
+  when: spark_new_dashboard_patch is not skipped
+  run_once: true
+
+# POST to create when no dashboard exists yet
+- name: Create new New Dashboard via POST
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -s
+      - -w
+      - "\nHTTP:%{http_code}"
+      - -X
+      - POST
+      - "{{ dt_tenant_url_resolved }}/platform/document/v1/documents"
+      - -H
+      - "Authorization: Bearer {{ dt_platform_token_resolved }}"
+      - -F
+      - "metadata={\"name\":\"Spark System Metrics\",\"type\":\"dashboard\",\"isPrivate\":false};type=application/json"
+      - -F
+      - "content=@/tmp/spark_system_dashboard_content.json;type=application/json"
+  register: spark_new_dashboard_post
+  changed_when: "'version' in spark_new_dashboard_post.stdout"
+  when: spark_new_dashboard_id | length == 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Show POST result
+  ansible.builtin.debug:
+    msg: "Dashboard POST rc={{ spark_new_dashboard_post.rc | default('?') }}"
+  when: spark_new_dashboard_post is not skipped
+  run_once: true
+
+- name: Assert New Dashboard operation succeeded
+  ansible.builtin.assert:
+    that:
+      - >-
+        (spark_new_dashboard_patch.rc | default(-1) == 0) or
+        (spark_new_dashboard_post.rc | default(-1) == 0)
+    fail_msg: >-
+      New Dashboard create/update failed.
+      PATCH rc={{ spark_new_dashboard_patch.rc | default('skipped') }},
+      POST rc={{ spark_new_dashboard_post.rc | default('skipped') }}.
+      Verify DT_PLATFORM_TOKEN has document:write scope.
+  run_once: true

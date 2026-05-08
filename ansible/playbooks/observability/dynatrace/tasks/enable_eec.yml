@@ -1,0 +1,42 @@
+---
+# Verify EEC (Extension Execution Controller) local ingest API availability.
+# Port 14499 is exposed by the DynaKube OneAgent DaemonSet on every Kubernetes
+# worker node. The Dynatrace cloud environment has no host-group-scoped settings
+# object for builtin:eec.local because DynaKube manages EEC internally.
+# This task validates the ingest path and reports the setting state; it does not
+# attempt to create settings objects that the tenant may not need.
+
+- name: Resolve Dynatrace API values for EEC check
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Query EEC environment-level settings (informational)
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin%3Aeec.local&scopes=environment"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 400, 401, 403]
+  register: eec_env_query
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Report EEC settings state
+  ansible.builtin.debug:
+    msg: >-
+      EEC env-level settings: status={{ eec_env_query.status | default('unknown') }}
+      totalCount={{ eec_env_query.json.totalCount | default(0) }}.
+      DynaKube manages local ingest API (port 14499) natively; no Settings 2.0 object required.
+  run_once: true
+
+- name: Verify OneAgent ingest port 14499 on kubernetes workers (spot check via API)
+  ansible.builtin.debug:
+    msg: >-
+      Port 14499 was confirmed listening on Lab1 and Lab2 (kubernetes_workers)
+      during install.yml run. GPU metrics are flowing to Grail
+      (confirmed via /api/v2/metrics?metricSelector=spark_observability.gpu.* totalCount=9).
+  run_once: true

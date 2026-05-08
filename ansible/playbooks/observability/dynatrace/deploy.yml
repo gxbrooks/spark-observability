@@ -1,5 +1,5 @@
 ---
-- name: Dynatrace deploy (tenant/API validation)
+- name: Dynatrace deploy (tenant/API validation + EEC)
   hosts: localhost
   connection: local
   gather_facts: false
@@ -10,6 +10,20 @@
     - name: Validate Dynatrace tenant access
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
       tags: [tenant_check]
+
+    - name: Ensure DT_API_TOKEN has required scopes
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/ensure_api_token_scopes.yml"
+        apply:
+          tags: [tenant_check]
+      tags: [tenant_check]
+
+    - name: Enable EEC and local metric ingest API
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/enable_eec.yml"
+        apply:
+          tags: [eec]
+      tags: [eec]
 
 - name: Dynatrace deploy (remove host OneAgent conflict on Kubernetes nodes)
   hosts: kubernetes_master:kubernetes_workers
@@ -53,3 +67,24 @@
     - name: Merge Dynatrace exporter into OTel collector config
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/merge_otel_dual_feed.yml"
       tags: [otel_dual_feed]
+
+    - name: Apply Spark System Metrics Classic dashboard (DATA_EXPLORER tiles)
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/apply_spark_system_dashboard.yml"
+        apply:
+          tags: [dashboards]
+      tags: [dashboards]
+
+    - name: Probe DQL dashboard tile queries (requires storage:metrics:read + storage:entities:read scopes)
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/probe_dql_dashboard_queries.yml"
+        apply:
+          tags: [probe_dql]
+      tags: [probe_dql]
+
+    - name: Apply Spark System Metrics New Dashboard (DQL tiles)
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/apply_spark_system_dashboard_new.yml"
+        apply:
+          tags: [dashboards, new_dashboard]
+      tags: [dashboards, new_dashboard]

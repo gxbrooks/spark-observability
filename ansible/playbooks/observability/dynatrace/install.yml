@@ -9,3 +9,24 @@
   tasks:
     - name: Install OneAgent on host
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/install_oneagent_host.yml"
+
+- name: Dynatrace install (GPU sampler on Kubernetes worker nodes)
+  hosts: kubernetes_workers
+  become: false
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  handlers:
+    - name: Restart gpu-metrics-dt timer
+      ansible.builtin.systemd:
+        name: gpu-metrics-dt.timer
+        state: restarted
+      become: true
+  tasks:
+    - name: Install AMD GPU → Dynatrace sampler and systemd timer
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/install_gpu_sampler.yml"
+        apply:
+          tags: [gpu_sampler]
+      tags: [gpu_sampler]

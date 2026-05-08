@@ -1,0 +1,507 @@
+- name: Resolve Dynatrace API token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_base_url_resolved: "{{ ((DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('')) | regex_replace('/api/?$', '') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: List existing Dynatrace dashboards
+  ansible.builtin.uri:
+    url: "{{ dt_base_url_resolved }}/api/config/v1/dashboards"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 401, 403]
+  register: dt_dashboards
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert dashboards are readable
+  ansible.builtin.assert:
+    that:
+      - dt_dashboards.status | default(0) == 200
+    fail_msg: >-
+      Cannot list Dynatrace dashboards (HTTP {{ dt_dashboards.status | default('unknown') }}).
+      DT_API_TOKEN requires ReadConfig.
+  run_once: true
+
+- name: Resolve existing Spark System Metrics dashboard
+  ansible.builtin.set_fact:
+    spark_system_dashboard_existing: >-
+      {{ (dt_dashboards.json.dashboards | default([])
+          | selectattr('name', 'equalto', 'Spark System Metrics')
+          | list | first) | default({}, true) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Build Spark System Metrics dashboard payload
+  ansible.builtin.set_fact:
+    spark_system_dashboard_payload:
+      dashboardMetadata:
+        name: "Spark System Metrics"
+        shared: true
+        owner: "admin"
+        preset: false
+        tags:
+          - spark
+          - system
+          - metrics
+      tiles:
+        - name: "Spark System Metrics Overview"
+          tileType: "MARKDOWN"
+          configured: true
+          bounds: { top: 0, left: 0, width: 760, height: 76 }
+          tileFilter: { timeframe: null, managementZone: null }
+          isAutoRefreshDisabled: false
+          markdown: |
+            ## Spark System Metrics
+            Global high-level Spark environment signals with OOB-first Dynatrace metrics.
+            Custom GPU/GC/computed active-job panels are added as telemetry plumbing matures.
+        - name: "Active Spark Applications"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 76, left: 0, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.spark.apps.gauge:splitBy():sum"
+              spaceAggregation: "SUM"
+              timeAggregation: "DEFAULT"
+              splitBy: []
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "SINGLE_VALUE"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            singleValueSettings: { showTrend: true, showSparkLine: true, linkTileColorToThreshold: false }
+            thresholds:
+              - axisTarget: "LEFT"
+                queryId: ""
+                visible: true
+                rules:
+                  - { value: null, color: "#7dc540" }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.spark.apps.gauge:splitBy():sum):limit(100):names:last"
+        - name: "Alive Spark Workers"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 76, left: 380, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.spark.aliveWorkers.gauge:splitBy():sum"
+              spaceAggregation: "SUM"
+              timeAggregation: "DEFAULT"
+              splitBy: []
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "SINGLE_VALUE"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            singleValueSettings: { showTrend: true, showSparkLine: true, linkTileColorToThreshold: false }
+            thresholds:
+              - axisTarget: "LEFT"
+                queryId: ""
+                visible: true
+                rules:
+                  - { value: null, color: "#7dc540" }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.spark.aliveWorkers.gauge:splitBy():sum):limit(100):names:last"
+        - name: "Average Host CPU Usage"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 304, left: 0, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:host.cpu.usage:splitBy():avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy: []
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:host.cpu.usage:splitBy():avg):limit(100):names"
+        - name: "Average Host Memory Usage"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 304, left: 380, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:host.mem.usage:splitBy():avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy: []
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:host.mem.usage:splitBy():avg):limit(100):names"
+        - name: "GPU Core Utilization"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 532, left: 0, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "system.gpu.utilization.core_percent:splitBy(\"gpu.card\"):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "gpu.card"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(system.gpu.utilization.core_percent:splitBy(\"gpu.card\"):avg):limit(100):names"
+        - name: "GPU Memory Utilization"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 532, left: 380, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "system.gpu.utilization.memory_percent:splitBy(\"gpu.card\"):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "gpu.card"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(system.gpu.utilization.memory_percent:splitBy(\"gpu.card\"):avg):limit(100):names"
+        - name: "GPU Temperature (Edge)"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 532, left: 760, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "system.gpu.temperature_c.edge:splitBy(\"gpu.card\"):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "gpu.card"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(system.gpu.temperature_c.edge:splitBy(\"gpu.card\"):avg):limit(100):names"
+        - name: "GPU Power Draw"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 760, left: 0, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "system.gpu.power.watts:splitBy(\"gpu.card\"):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "gpu.card"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(system.gpu.power.watts:splitBy(\"gpu.card\"):avg):limit(100):names"
+        - name: "GPU Core Clock"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 760, left: 380, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "system.gpu.clocks.core_mhz:splitBy(\"gpu.card\"):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "gpu.card"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(system.gpu.clocks.core_mhz:splitBy(\"gpu.card\"):avg):limit(100):names"
+        - name: "JVM GC Section"
+          tileType: "MARKDOWN"
+          configured: true
+          bounds: { top: 988, left: 0, width: 1140, height: 38 }
+          tileFilter: { timeframe: null, managementZone: null }
+          isAutoRefreshDisabled: false
+          markdown: |
+            ### JVM GC — Spark workers, master, and driver processes (OneAgent auto-instrumented)
+        - name: "JVM GC Collection Time"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 1026, left: 0, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.memory.gc.collectionTime:splitBy(dt.entity.process_group_instance):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "dt.entity.process_group_instance"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.memory.gc.collectionTime:splitBy(dt.entity.process_group_instance):avg):limit(100):names"
+        - name: "JVM GC Suspension Time"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 1026, left: 380, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.memory.gc.suspensionTime:splitBy(dt.entity.process_group_instance):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "dt.entity.process_group_instance"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.memory.gc.suspensionTime:splitBy(dt.entity.process_group_instance):avg):limit(100):names"
+        - name: "JVM Heap Used"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 1026, left: 760, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.memory.pool.used:filter(and(eq(\"dt.entity.process_group_instance.type\",\"JAVA\"))):splitBy(dt.entity.process_group_instance,javaGcName):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "dt.entity.process_group_instance"
+                - "javaGcName"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.memory.pool.used:splitBy(dt.entity.process_group_instance,javaGcName):avg):limit(100):names"
+        - name: "JVM GC Activation Count"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 1254, left: 0, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.memory.gc.activationCount:splitBy(dt.entity.process_group_instance):sum"
+              spaceAggregation: "SUM"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "dt.entity.process_group_instance"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.memory.gc.activationCount:splitBy(dt.entity.process_group_instance):sum):limit(100):names"
+        - name: "JVM Memory Allocation Rate"
+          tileType: "DATA_EXPLORER"
+          configured: true
+          bounds: { top: 1254, left: 380, width: 380, height: 228 }
+          tileFilter: { timeframe: "Last 2 hours", managementZone: null }
+          isAutoRefreshDisabled: false
+          customName: "Data explorer results"
+          queries:
+            - id: "A"
+              metricSelector: "builtin:tech.jvm.memory.memAllocationBytes:splitBy(dt.entity.process_group_instance):avg"
+              spaceAggregation: "AVG"
+              timeAggregation: "DEFAULT"
+              splitBy:
+                - "dt.entity.process_group_instance"
+              rate: "NONE"
+              enabled: true
+          visualConfig:
+            type: "GRAPH_CHART"
+            global: { hideLegend: false }
+            rules: []
+            axes: { xAxis: { visible: true }, yAxes: [] }
+            graphChartSettings: { connectNulls: false }
+          queriesSettings:
+            resolution: ""
+            foldTransformation: "LAST_VALUE"
+          metricExpressions:
+            - "resolution=null&(builtin:tech.jvm.memory.memAllocationBytes:splitBy(dt.entity.process_group_instance):avg):limit(100):names"
+
+- name: Create Spark System Metrics dashboard
+  ansible.builtin.uri:
+    url: "{{ dt_base_url_resolved }}/api/config/v1/dashboards"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ spark_system_dashboard_payload }}"
+    status_code: [200, 201, 400, 401, 403, 409]
+  register: spark_system_dashboard_create
+  failed_when: false
+  when: (spark_system_dashboard_existing | length) == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert dashboard create succeeded
+  ansible.builtin.assert:
+    that:
+      - spark_system_dashboard_create.status | default(0) in [200, 201]
+    fail_msg: >-
+      Spark System Metrics dashboard create failed:
+      HTTP {{ spark_system_dashboard_create.status | default('unknown') }}.
+  when: (spark_system_dashboard_existing | length) == 0
+  run_once: true
+
+- name: Update Spark System Metrics dashboard
+  ansible.builtin.uri:
+    url: "{{ dt_base_url_resolved }}/api/config/v1/dashboards/{{ spark_system_dashboard_existing.id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ spark_system_dashboard_payload | combine({'id': spark_system_dashboard_existing.id}) }}"
+    status_code: [200, 204, 400, 401, 403, 404, 409]
+  register: spark_system_dashboard_update
+  failed_when: false
+  when: (spark_system_dashboard_existing | length) > 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert dashboard update succeeded
+  ansible.builtin.assert:
+    that:
+      - spark_system_dashboard_update.status | default(0) in [200, 204]
+    fail_msg: >-
+      Spark System Metrics dashboard update failed:
+      HTTP {{ spark_system_dashboard_update.status | default('unknown') }}.
+  when: (spark_system_dashboard_existing | length) > 0
+  run_once: true

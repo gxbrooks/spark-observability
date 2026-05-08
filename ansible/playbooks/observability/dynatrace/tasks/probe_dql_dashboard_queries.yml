@@ -1,0 +1,158 @@
+---
+# Validate DQL tiles in the Spark System Metrics New Dashboard.
+#
+# Two validation stages run in sequence:
+#
+# Stage 1 — Static (always runs):
+#   Reads the content JSON from /tmp/spark_system_dashboard_content.json
+#   (written by the preceding copy task) and checks each data tile for
+#   known DQL anti-patterns: backticks in query strings, SQL-style `in` lists,
+#   `| fields` after `timeseries`, and custom lookup prefixes.
+#
+# Stage 2 — Live DQL execute (runs only when DT_PLATFORM_TOKEN_GRAIL is set):
+#   POSTs each tile query to /platform/storage/query/v1/query:execute and
+#   reports state + row count or error message.
+#   Requires a platform token with scopes: storage:metrics:read, storage:entities:read
+#   Create one at: Settings → Access Tokens → Generate new token
+#   Then add to vars/secrets.yaml:
+#     dynatrace:
+#       DT_PLATFORM_TOKEN_GRAIL: "dt0s16...."
+#
+# Usage:
+#   ansible-playbook deploy.yml -i ansible/inventory.yml -e @vars/secrets.yaml --tags probe_dql
+
+- name: Resolve tokens for DQL probe
+  ansible.builtin.set_fact:
+    dql_grail_token: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN_GRAIL | default('') }}"
+    dt_tenant_url_resolved: >-
+      {{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL)
+          else DT_TENANT_URL) | default('') }}
+  delegate_to: localhost
+  run_once: true
+
+# ── Stage 1: Static JSON validation ──────────────────────────────────────────
+- name: Static-validate dashboard tile DQL queries
+  ansible.builtin.shell:
+    cmd: |
+      python3 - << 'PYEOF'
+      import json, re, sys
+
+      path = "/tmp/spark_system_dashboard_content.json"
+      try:
+          d = json.load(open(path))
+      except Exception as e:
+          print(f"FAIL  cannot load {path}: {e}")
+          sys.exit(1)
+
+      tiles = d.get("tiles", {})
+      errors = []
+
+      anti_patterns = [
+          (r"`",                        "backtick in DQL query"),
+          (r"\|\s*fields\s+timeframe",  "| fields after timeseries (use fieldsAdd/fieldsRemove instead)"),
+          (r'prefix:"[^"]*"',           "custom lookup prefix (use default lookup. prefix)"),
+          (r'\w+\s+in\s+\(',            "SQL-style 'field in (list)' (use DQL in(field, v1, v2) form)"),
+          (r'\btimestamp\b',            "field 'timestamp' (timeseries outputs 'timeframe', not 'timestamp')"),
+          (r'managementZones|\.tags\b', "managementZones/tags inside lookup subquery (not allowed)"),
+      ]
+
+      for tile_id, tile in sorted(tiles.items(), key=lambda x: int(x[0])):
+          if tile.get("type") != "data":
+              continue
+          q = tile.get("query", "")
+          title = tile.get("title", f"tile {tile_id}")
+          for pattern, msg in anti_patterns:
+              if re.search(pattern, q):
+                  errors.append(f"  tile {tile_id} [{title}]: {msg}")
+
+      if errors:
+          print(f"Static validation FAILED - {len(errors)} issue(s):")
+          for e in errors:
+              print(e)
+          sys.exit(1)
+      else:
+          data_count = sum(1 for t in tiles.values() if t.get("type") == "data")
+          print(f"Static validation PASSED - {data_count} DQL tiles, 0 issues.")
+      PYEOF
+    executable: /bin/bash
+  register: static_probe
+  changed_when: false
+  failed_when: static_probe.rc != 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Show static validation result
+  ansible.builtin.debug:
+    msg: "{{ static_probe.stdout_lines }}"
+  run_once: true
+
+# ── Stage 2: Live DQL execute (optional, needs storage:metrics:read scope) ───
+- name: Skip live DQL probe (DT_PLATFORM_TOKEN_GRAIL not set)
+  ansible.builtin.debug:
+    msg: >-
+      Live DQL probe skipped — DT_PLATFORM_TOKEN_GRAIL not set.
+      To enable: create a platform token with storage:metrics:read + storage:entities:read
+      scopes and add it to vars/secrets.yaml under dynatrace.DT_PLATFORM_TOKEN_GRAIL.
+  when: dql_grail_token | length == 0
+  run_once: true
+
+- name: Run live DQL probe queries
+  ansible.builtin.uri:
+    url: "{{ dt_tenant_url_resolved }}/platform/storage/query/v1/query:execute"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ dql_grail_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      query: "{{ item.query }}"
+      defaultTimeframeStart: "now()-1h"
+      defaultTimeframeEnd: "now()"
+    status_code: [200, 202, 400, 401, 403]
+    timeout: 30
+  loop:
+    - label: "entity-fetch"
+      query: "fetch dt.entity.host | fields id, entity.name | limit 2"
+    - label: "host-cpu"
+      query: >-
+        timeseries cpu=avg(dt.host.cpu.usage), by:{dt.entity.host}
+        | fieldsAdd host=entityName(dt.entity.host)
+        | filter in(host, "Lab1", "Lab2", "Lab3")
+        | fieldsRemove dt.entity.host | limit 3
+    - label: "host-network"
+      query: >-
+        timeseries {rx=avg(dt.host.net.nic.bytes_rx), tx=avg(dt.host.net.nic.bytes_tx)}, by:{dt.entity.host}
+        | fieldsAdd host=entityName(dt.entity.host)
+        | filter in(host, "Lab1", "Lab2", "Lab3")
+        | fieldsRemove dt.entity.host | limit 3
+    - label: "gpu-utilization"
+      query: "timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name, gpu.card} | limit 3"
+    - label: "jvm-gc"
+      query: >-
+        timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance}
+        | fieldsAdd process=entityName(dt.entity.process_group_instance)
+        | filter isNotNull(process)
+        | fieldsRemove dt.entity.process_group_instance | limit 3
+  register: live_probe_results
+  failed_when: false
+  when: dql_grail_token | length > 0
+  loop_control:
+    label: "{{ item.label }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Report live DQL probe results
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.label | upper }}
+      HTTP={{ item.status | default('?') }}
+      state={{ (item.json.state | default('?')) if item.json is defined else 'no-json' }}
+      rows={{ (item.json.result.records | default([]) | length)
+              if (item.json is defined and item.json.state | default('') == 'SUCCEEDED') else 0 }}
+      error={{ (item.json.error.message | default(''))[:120]
+               if (item.json is defined and item.json.error is defined) else '' }}
+  loop: "{{ live_probe_results.results | default([]) }}"
+  when: dql_grail_token | length > 0
+  loop_control:
+    label: "{{ item.item.label }}"
+  run_once: true

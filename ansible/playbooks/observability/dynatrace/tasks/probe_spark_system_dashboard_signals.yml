@@ -1,0 +1,39 @@
+- name: Resolve Dynatrace API values for dashboard signal probe
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Search Dynatrace metric descriptors for Spark System dashboard signals
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/metrics?text={{ item }}&pageSize=50"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 401, 403]
+  loop:
+    - spark
+    - cpu
+    - memory
+    - network
+    - disk
+    - load
+    - page
+    - gc
+    - gpu
+  register: dt_metric_search
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Show metric descriptor search summary by signal
+  ansible.builtin.debug:
+    msg: >-
+      signal={{ item.item }} status={{ item.status | default('unknown') }}
+      matches={{ (item.json.totalCount | default(0)) if (item.status | default(0)) == 200 else 0 }}
+      sample={{ ((item.json.metrics | default([])) | map(attribute='metricId') | list)[:8] if (item.status | default(0)) == 200 else [] }}
+  loop: "{{ dt_metric_search.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('unknown') }}"
+  run_once: true

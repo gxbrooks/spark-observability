@@ -1,0 +1,116 @@
+---
+# Deploy AMD GPU → Dynatrace sampler + systemd timer on GPU worker nodes.
+# Target hosts: kubernetes_workers (Lab1, Lab2).
+# Prerequisite: install_oneagent_host.yml must have run so dynatrace_ingest exists.
+
+- name: Resolve sampler source root and credentials
+  ansible.builtin.set_fact:
+    gpu_sampler_src: "{{ playbook_dir }}/../../../../observability/dynatrace/sampler/gpu"
+    gpu_sampler_dest: /opt/dynatrace/oneagent/agent/tools/extensions
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_ingest_token_resolved: "{{ ((DT_INGEST_TOKEN.value if (DT_INGEST_TOKEN is mapping and 'value' in DT_INGEST_TOKEN) else DT_INGEST_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_INGEST_TOKEN | default(''), true) }}"
+  run_once: false
+
+- name: Ensure sampler destination directory exists
+  ansible.builtin.file:
+    path: "{{ gpu_sampler_dest }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+# Verify the OneAgent local ingest API port is reachable on this host.
+# Port 14499 is exposed on localhost by the DynaKube OneAgent DaemonSet pod.
+- name: Check if OneAgent ingest API port 14499 is listening
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 14499
+    state: started
+    timeout: 5
+  register: ingest_port_check
+  failed_when: false
+  ignore_errors: true
+
+- name: Warn when OneAgent ingest port is not reachable
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: localhost:14499 not reachable on {{ inventory_hostname }}.
+      GPU metrics will accumulate in journald until DynaKube OneAgent is running.
+      Install proceeds; the sampler script falls back to stdout on connection failure.
+  when: ingest_port_check is failed or ingest_port_check.elapsed is not defined
+
+- name: Ensure /etc/dynatrace config directory exists
+  ansible.builtin.file:
+    path: /etc/dynatrace
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+
+- name: Deploy gpu-sampler credentials env file
+  ansible.builtin.copy:
+    content: |
+      DT_API_URL={{ dt_api_url_resolved }}
+      DT_INGEST_TOKEN={{ dt_ingest_token_resolved }}
+    dest: /etc/dynatrace/gpu-sampler.env
+    owner: root
+    group: root
+    mode: "0640"
+  become: true
+  no_log: true
+  notify: Restart gpu-metrics-dt timer
+
+- name: Deploy gpu-metrics-dt.py to host
+  ansible.builtin.copy:
+    src: "{{ gpu_sampler_src }}/gpu-metrics-dt.py"
+    dest: "{{ gpu_sampler_dest }}/gpu-metrics-dt.py"
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: Restart gpu-metrics-dt timer
+
+- name: Deploy gpu-metrics-dt.service to host
+  ansible.builtin.copy:
+    src: "{{ gpu_sampler_src }}/gpu-metrics-dt.service"
+    dest: /etc/systemd/system/gpu-metrics-dt.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart gpu-metrics-dt timer
+
+- name: Deploy gpu-metrics-dt.timer to host
+  ansible.builtin.copy:
+    src: "{{ gpu_sampler_src }}/gpu-metrics-dt.timer"
+    dest: /etc/systemd/system/gpu-metrics-dt.timer
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart gpu-metrics-dt timer
+
+- name: Reload systemd daemon after unit file changes
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+- name: Enable and start gpu-metrics-dt.timer
+  ansible.builtin.systemd:
+    name: gpu-metrics-dt.timer
+    state: started
+    enabled: true
+  become: true
+
+- name: Verify timer is active
+  ansible.builtin.command: systemctl is-active gpu-metrics-dt.timer
+  register: timer_active
+  changed_when: false
+  failed_when: timer_active.rc != 0
+  become: true
+
+- name: Report timer status
+  ansible.builtin.debug:
+    msg: "gpu-metrics-dt.timer on {{ inventory_hostname }}: {{ timer_active.stdout }}"

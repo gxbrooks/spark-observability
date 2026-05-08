@@ -1,0 +1,87 @@
+- name: Resolve API and token-admin tokens from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_token_admin_token_resolved: "{{ ((DT_TOKEN_ADMIN_TOKEN.value if (DT_TOKEN_ADMIN_TOKEN is mapping and 'value' in DT_TOKEN_ADMIN_TOKEN) else DT_TOKEN_ADMIN_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_TOKEN_ADMIN_TOKEN | default(''), true) }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+
+- name: Define required API token scopes for dashboard and metric workflows
+  ansible.builtin.set_fact:
+    dt_api_required_scopes:
+      - entities.read
+      - settings.read
+      - settings.write
+      - metrics.read
+      - ReadConfig
+      - WriteConfig
+
+- name: Lookup current DT_API_TOKEN metadata
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/apiTokens/lookup"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_token_admin_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      token: "{{ dt_api_token_resolved }}"
+    status_code: [200, 400, 401, 403, 404]
+  register: dt_api_token_lookup
+  failed_when: false
+  no_log: true
+
+- name: Resolve missing DT_API_TOKEN scopes
+  ansible.builtin.set_fact:
+    dt_api_current_scopes: "{{ dt_api_token_lookup.json.scopes | default([]) }}"
+    dt_api_missing_scopes: "{{ dt_api_required_scopes | difference(dt_api_token_lookup.json.scopes | default([])) }}"
+  no_log: true
+
+- name: Create replacement DT_API_TOKEN when scopes are missing
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/apiTokens"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_token_admin_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "spark-observability-api"
+      personalAccessToken: false
+      scopes: "{{ (dt_api_current_scopes + dt_api_required_scopes) | unique }}"
+    status_code: [201, 400, 401, 403, 409]
+  register: dt_api_token_create
+  failed_when: false
+  when: (dt_api_missing_scopes | length) > 0
+  no_log: true
+
+- name: Assert replacement DT_API_TOKEN creation succeeded
+  ansible.builtin.assert:
+    that:
+      - dt_api_token_create.status | default(0) == 201
+    fail_msg: >-
+      DT_API_TOKEN is missing required scopes {{ dt_api_missing_scopes }} and auto-rotation failed.
+      Ensure DT_TOKEN_ADMIN_TOKEN has apiTokens.write and retry.
+  when: (dt_api_missing_scopes | length) > 0
+  no_log: true
+
+- name: Persist replacement API token in local secrets file
+  ansible.builtin.lineinfile:
+    path: "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    regexp: '^(\s*)DT_API_TOKEN:'
+    line: "  DT_API_TOKEN: \"{{ dt_api_token_create.json.token }}\""
+    backrefs: false
+  when: (dt_api_missing_scopes | length) > 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Switch runtime API token to replacement token
+  ansible.builtin.set_fact:
+    dt_api_token_resolved: "{{ dt_api_token_create.json.token }}"
+  when: (dt_api_missing_scopes | length) > 0
+  no_log: true
+
+- name: Report API token rotation result
+  ansible.builtin.debug:
+    msg: >-
+      Rotated DT_API_TOKEN due to missing scopes {{ dt_api_missing_scopes }} and updated vars/secrets.yaml.
+  when: (dt_api_missing_scopes | length) > 0

@@ -1,0 +1,14 @@
+[Unit]
+Description=Dynatrace GPU metrics sampler (AMD RDNA3 sysfs → Grail via REST ingest API)
+Documentation=https://docs.dynatrace.com/docs/extend-dynatrace/extend-metrics/ingestion-methods/rest-api
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/dynatrace/gpu-sampler.env
+ExecStart=/usr/bin/python3 /opt/dynatrace/oneagent/agent/tools/extensions/gpu-metrics-dt.py
+SuccessExitStatus=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gpu-metrics-dt

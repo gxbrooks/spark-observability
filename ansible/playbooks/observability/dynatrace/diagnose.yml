@@ -11,6 +11,13 @@
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
       tags: [tenant_check]
 
+    - name: Probe Spark System Metrics dashboard signal availability
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/probe_spark_system_dashboard_signals.yml"
+        apply:
+          tags: [dashboard_signals]
+      tags: [dashboard_signals]
+
 - name: Dynatrace diagnose (operator and dynakube)
   hosts: kubernetes_master
   gather_facts: false

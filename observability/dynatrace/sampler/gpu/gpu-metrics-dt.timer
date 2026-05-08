@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Dynatrace GPU metrics sampler every 10 seconds
+After=dynatrace-oneagent.service
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=10
+AccuracySec=1
+Unit=gpu-metrics-dt.service
+
+[Install]
+WantedBy=timers.target
