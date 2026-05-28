@@ -14,3 +14,6 @@
         dest: "{{ observability_dir }}/tempo/"
         delete: false
         recursive: true
+
+    - name: Ensure Tempo Docker volume is writable
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ensure_tempo_volume.yml"

@@ -1,0 +1,28 @@
+---
+# Ensure Tempo can write trace blocks under /var/lib/tempo/traces in the Docker volume.
+# Grafana Tempo runs non-root; after host reboot or volume recreate the directory may be missing
+# or owned root-only (permission denied on startup).
+
+- name: Detect Tempo Docker volume name
+  ansible.builtin.shell: docker volume ls -q --filter name=tempo-data | head -1
+  register: tempo_volume_detect
+  changed_when: false
+  failed_when: false
+
+- name: Set Tempo volume name
+  ansible.builtin.set_fact:
+    tempo_docker_volume: "{{ (tempo_volume_detect.stdout | default('') | trim) or 'observability_tempo-data' }}"
+
+- name: Initialize Tempo trace storage directory in Docker volume
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - -v
+      - "{{ tempo_docker_volume }}:/var/lib/tempo"
+      - alpine
+      - sh
+      - -c
+      - mkdir -p /var/lib/tempo/traces && chmod -R 777 /var/lib/tempo
+  changed_when: false

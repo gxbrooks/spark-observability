@@ -318,6 +318,7 @@ services:
       ES_USER: "elastic"
       ES_PASSWORD: "${ES_PASSWORD}"
       CA_CERT: ${CA_CERT}
+      DT_INGEST_TOKEN: "${DT_INGEST_TOKEN}"
     deploy:
       resources:
         limits:

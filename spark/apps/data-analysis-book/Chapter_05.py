@@ -5,6 +5,26 @@ import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from pyspark.sql.utils import AnalysisException
 
+
+def _commercial_ratio(commercial_col, total_col):
+    """Spark 4 ANSI mode rejects divide-by-zero; use try_divide when available."""
+    if hasattr(F, "try_divide"):
+        return F.try_divide(commercial_col, total_col)
+    return F.when(total_col != 0, commercial_col / total_col).otherwise(F.lit(None))
+
+
+def _duration_seconds_from_duration():
+    """Parse trailing HH:MM:SS from Duration; Spark 4 rejects cast('' as int)."""
+    dur = F.col("Duration").cast("string")
+    h = F.regexp_extract(dur, r"(\d{2}):(\d{2}):(\d{2})$", 1)
+    m = F.regexp_extract(dur, r"(\d{2}):(\d{2}):(\d{2})$", 2)
+    s = F.regexp_extract(dur, r"(\d{2}):(\d{2}):(\d{2})$", 3)
+    valid = (h != "") & (m != "") & (s != "")
+    return F.when(
+        valid, h.cast("int") * 3600 + m.cast("int") * 60 + s.cast("int")
+    ).otherwise(F.lit(0))
+
+
 # Python version controlled by PYSPARK_PYTHON environment variable (set via spark_env.sh)
 
 # Set Spark local IP to avoid hostname resolution warnings on multi-node labs.
@@ -36,15 +56,7 @@ logs = spark.read.csv(
     timestampFormat="yyyy-MM-dd",                             
 ) 
 
-_dur = F.col("Duration").cast("string")
-_dur_h = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 1).cast("int")
-_dur_m = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 2).cast("int")
-_dur_s = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 3).cast("int")
-logs = logs.withColumn(
-    "duration_seconds",
-    F.when(_dur_h.isNotNull() & _dur_m.isNotNull() & _dur_s.isNotNull(),
-           _dur_h * 3600 + _dur_m * 60 + _dur_s).otherwise(F.lit(0)),
-)
+logs = logs.withColumn("duration_seconds", _duration_seconds_from_duration())
     
 #########################################################################################
 #
@@ -367,8 +379,8 @@ answer = (
         F.sum("duration_seconds").alias("duration_total"),
     )
     .withColumn(
-        "commercial_ratio", F.col(
-            "duration_commercial") / F.col("duration_total")
+        "commercial_ratio",
+        _commercial_ratio(F.col("duration_commercial"), F.col("duration_total")),
     )
 )
  
@@ -530,15 +542,7 @@ logs = logs.drop("BroadcastLogID", "SequenceNO")
     # )
     
 # Robust duration parsing from trailing HH:MM:SS avoids Spark timestamp coercion issues.
-_dur = F.col("Duration").cast("string")
-_dur_h = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 1).cast("int")
-_dur_m = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 2).cast("int")
-_dur_s = F.regexp_extract(_dur, r"(\d{2}):(\d{2}):(\d{2})$", 3).cast("int")
-logs = logs.withColumn(
-    "duration_seconds",
-    F.when(_dur_h.isNotNull() & _dur_m.isNotNull() & _dur_s.isNotNull(),
-           _dur_h * 3600 + _dur_m * 60 + _dur_s).otherwise(F.lit(0)),
-)
+logs = logs.withColumn("duration_seconds", _duration_seconds_from_duration())
 
 # logs.select(
     # F.col("Duration"),                                                #❶
@@ -585,7 +589,8 @@ answer = (
         F.sum("duration_seconds").alias("duration_total"),
     )
     .withColumn(
-        "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
+        "commercial_ratio",
+        _commercial_ratio(F.col("duration_commercial"), F.col("duration_total")),
     )
     .fillna(0)
 )
@@ -719,14 +724,7 @@ logs = logs.drop("BroadcastLogID", "SequenceNO")
         # + F.col("Duration").substr(7, 2).cast("int")
     # ),
 # )
-logs = logs.withColumn(
-        "duration_seconds",
-        (
-            F.col("Duration").cast("string").substr(12, 2).cast("int") * 60 * 60
-            + F.col("Duration").cast("string").substr(15, 2).cast("int") * 60
-            + F.col("Duration").cast("string").substr(18, 2).cast("int")
-        ),
-    ) 
+logs = logs.withColumn("duration_seconds", _duration_seconds_from_duration())
 log_identifier = log_identifier.where(F.col("PrimaryFG") == 1)
  
 logs_and_channels = logs.join(log_identifier, "LogServiceID")
@@ -749,7 +747,8 @@ answer = (
         F.sum("duration_seconds").alias("duration_total"),
     )
     .withColumn(
-        "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
+        "commercial_ratio",
+        _commercial_ratio(F.col("duration_commercial"), F.col("duration_total")),
     )
     .fillna(0)
 )
@@ -802,7 +801,8 @@ answer_call_sign = (
         F.sum("duration_seconds").alias("duration_total")
     )
     .withColumn(
-        "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
+        "commercial_ratio",
+        _commercial_ratio(F.col("duration_commercial"), F.col("duration_total")),
     )
     .fillna(0)
 )
@@ -832,7 +832,8 @@ answer_call_sign_PRO = (
         F.sum("duration_seconds").alias("duration_total"),
     )
     .withColumn(
-        "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
+        "commercial_ratio",
+        _commercial_ratio(F.col("duration_commercial"), F.col("duration_total")),
     )
     .fillna(0)
     )   
@@ -845,7 +846,12 @@ answer_call_sign_PRO = (
 # On the data frame returned from commercials.py, return the number of channels in each bucket
 # based on their commercial_ratio. (Hint: look at the documentation for round on how to round a value.) commercial_ratio number_of_channels 
 
-exec(open("code/Ch05/commercials.py").read())
+# Exercise 5.7 — optional book artifact; inline logic below if missing.
+_commercials_py = os.path.join(os.path.dirname(__file__), "code", "Ch05", "commercials.py")
+if os.path.isfile(_commercials_py):
+    exec(open(_commercials_py).read())
+else:
+    print(f"Skipping Exercise 5.7 exec: {_commercials_py} not found (using inline aggregation below)")
 
 # 1.0 0.9 0.8 ... 0.1 0.0
 
@@ -860,9 +866,10 @@ commercial_ratio = full_log.groupby("LogIdentifierID").agg(
         ).otherwise(0)
     ).alias("duration_commercial"),
     F.sum("duration_seconds").alias("duration_total"),
-).withColumn(
-    "commercial_ratio", F.col("duration_commercial") / F.col("duration_total")
-).orderBy(
+)    .withColumn(
+        "commercial_ratio",
+        _commercial_ratio(F.col("duration_commercial"), F.col("duration_total")),
+    ).orderBy(
     "commercial_ratio", ascending=False
 )
 

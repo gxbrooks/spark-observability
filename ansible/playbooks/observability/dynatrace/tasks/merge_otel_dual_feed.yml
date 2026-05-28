@@ -15,7 +15,7 @@
     path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
     marker: "# {mark} DYNATRACE_OTEL_EXPORTER"
     insertafter: "^exporters:"
-    block: |
+    block: |2
       otlphttp/dynatrace:
         endpoint: "{{ dt_api_url_resolved }}/v2/otlp"
         headers:

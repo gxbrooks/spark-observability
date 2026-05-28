@@ -16,6 +16,19 @@
       changed_when: "'Started' in otel_start.stderr or 'Created' in otel_start.stderr"
       failed_when: false
 
+    - name: Wait for OTel Collector health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:13133"
+        method: GET
+        status_code: [200]
+      register: otel_collector_health
+      until: otel_collector_health.status | default(0) | int == 200
+      retries: 30
+      delay: 5
+      failed_when: false
+
     - name: Report
       ansible.builtin.debug:
-        msg: "OTel Collector started."
+        msg: >-
+          OTel Collector: {{ 'healthy' if otel_collector_health.status | default(0) | int == 200 else 'NOT READY' }}
+          (Spark OTel listener requires :4317 before client-mode jobs run)

@@ -8,6 +8,9 @@
   vars:
     observability_dir: "/home/ansible/ops/observability"
   tasks:
+    - name: Ensure Tempo Docker volume is writable before start
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ensure_tempo_volume.yml"
+
     - name: Start Tempo container
       ansible.builtin.command: docker compose up -d tempo
       args:
