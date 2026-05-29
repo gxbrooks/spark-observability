@@ -88,7 +88,7 @@ amdgpu sysfs  (/sys/class/drm/card1/device/**)
   → sampler/gpu/gpu-metrics-dt.py  (systemd timer, 10 s)
   → POST https://<tenant>.live.dynatrace.com/api/v2/metrics/ingest  (DT_INGEST_TOKEN)
   → Dynatrace Grail + Classic Metrics
-  → "Spark System Metrics" New Dashboard (DQL tiles) + Classic Dashboard (DATA_EXPLORER)
+  → "Spark Cluster Metrics" New Dashboard (DQL tiles) + Classic Dashboard (DATA_EXPLORER)
 ```
 
 **Metric namespace: `system.gpu.*`**  
@@ -122,11 +122,34 @@ custom split and telemetry plumbing requirements for GPU/GC/computed metrics.
 Two dashboards are maintained:
 
 **New Dashboard (DQL — primary):** `d879f582-1e11-486d-8f08-56d13a706eed`  
+Named **"Spark Cluster Metrics"** to mirror the Grafana dashboard of the same name.
 Managed by `tasks/apply_spark_system_dashboard_new.yml`, deployed by `deploy.yml`
 (tag `new_dashboard`). Tiles use DQL `timeseries` against Grail:
 - AMD GPU: core utilization, memory utilization, edge/junction temp, power, core/memory
   clocks, fan, voltage (`system.gpu.*`)
-- Host: CPU usage, memory usage, network throughput (`dt.host.*`)
+- Host: CPU usage, memory usage, physical NIC throughput, disk throughput (`dt.host.*`)
+
+**Envelope panels.** *Physical NIC Throughput* (rx up / tx down) and *Disk
+Throughput* (read up / write down) are rendered as envelope graphs per the
+`standards/visualizations.md` convention. There is no native "negative axis"
+toggle in New Dashboards, so the outbound series is negated in DQL with
+`| fieldsAdd <series> = <series> * (-1)` (the same array-scalar arithmetic used
+for unit conversions). Both series share the same UOM/UOT (bytes/s), satisfying
+the envelope requirements.
+
+**Loopback throughput is not available in Dynatrace.** The Grafana dashboard has
+a *Loopback Throughput* panel sourced from Elastic Agent's per-interface
+`system.network.*` metrics (`system.network.name:lo`). Dynatrace OneAgent does
+not monitor the loopback interface — only physical NIC entities are detected
+(`enp*`, Hyper-V adapter; no `lo`), and there is no host metric that isolates
+loopback traffic. Reproducing it would require a custom sysfs sampler
+(`/sys/class/net/lo/statistics/*`) POSTing to the metrics ingest API, analogous
+to the GPU sampler. This is deferred as out of scope; the physical NIC panel
+covers all externally observable traffic.
+
+The renamed New Dashboard lookup checks both the current name ("Spark Cluster
+Metrics") and the legacy name ("Spark System Metrics") so re-runs rename the
+existing document in place rather than creating a duplicate.
 
 **Classic Dashboard (DATA_EXPLORER — GC and Spark master):** `df044b4c-c7fb-472d-a6a0-fed81dccf2fc`  
 Managed by `tasks/apply_spark_system_dashboard.yml`. Uses Classic metric selector

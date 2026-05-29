@@ -82,7 +82,7 @@
           tags: [probe_dql]
       tags: [probe_dql]
 
-    - name: Apply Spark System Metrics New Dashboard (DQL tiles)
+    - name: Apply Spark Cluster Metrics New Dashboard (DQL tiles)
       ansible.builtin.include_tasks:
         file: "{{ playbook_dir }}/tasks/apply_spark_system_dashboard_new.yml"
         apply:
