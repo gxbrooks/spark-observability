@@ -39,7 +39,7 @@ When generating context files, secrets are resolved in the following order (high
 
 1. **Copy the secrets template:**
    ```bash
-   cp vars/secrets.yaml.example vars/secrets.yaml
+   cp vars/secrets.example.yaml vars/secrets.yaml
    ```
 
 2. **Edit secrets.yaml with your actual values:**
@@ -172,7 +172,7 @@ If you see this warning when running `generate_contexts.sh`:
 
 **Solution:** Copy the template and create your secrets file:
 ```bash
-cp vars/secrets.yaml.example vars/secrets.yaml
+cp vars/secrets.example.yaml vars/secrets.yaml
 chmod 600 vars/secrets.yaml
 # Edit vars/secrets.yaml with your values
 ```

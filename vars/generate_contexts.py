@@ -270,7 +270,7 @@ def get_vars(variables, context_name, secrets=None):
                     print(f"  Secret must be provided via one of:", file=sys.stderr)
                     print(f"    1. Environment variable: export {var_name}=\"your-secret\"", file=sys.stderr)
                     print(f"    2. vars/secrets.yaml file: {var_name}: \"your-secret\"", file=sys.stderr)
-                    print(f"  See vars/secrets.yaml.example for template", file=sys.stderr)
+                    print(f"  See vars/secrets.example.yaml for template", file=sys.stderr)
                     sys.exit(1)
                 # Non-required secret - use default (empty string)
                 expanded_value = var_value if var_value else ""
@@ -510,7 +510,7 @@ def main(requested_contexts=None, force=False, verbose=False):
         print(f"  Missing secrets: {', '.join(missing_secrets)}", file=sys.stderr)
         print(f"\n  To fix:", file=sys.stderr)
         if not SECRETS_FILE.exists():
-            print(f"    1. Copy template: cp vars/secrets.yaml.example vars/secrets.yaml", file=sys.stderr)
+            print(f"    1. Copy template: cp vars/secrets.example.yaml vars/secrets.yaml", file=sys.stderr)
             print(f"    2. Edit vars/secrets.yaml and set the required secrets", file=sys.stderr)
             print(f"    3. Set file permissions: chmod 600 vars/secrets.yaml", file=sys.stderr)
         else:
@@ -524,7 +524,7 @@ def main(requested_contexts=None, force=False, verbose=False):
     # Info message if secrets file doesn't exist but secrets are provided via env vars
     if not SECRETS_FILE.exists():
         print("ℹ Info: secrets.yaml not found, but all required secrets are provided via environment variables")
-        print(f"  To use secrets.yaml, copy vars/secrets.yaml.example to vars/secrets.yaml\n")
+        print(f"  To use secrets.yaml, copy vars/secrets.example.yaml to vars/secrets.yaml\n")
     
     if not contexts:
         print(f"No contexts defined in {CONTEXTS_FILE}")
