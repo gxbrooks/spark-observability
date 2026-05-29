@@ -65,7 +65,13 @@ DT_INGEST_TOKEN=<DT_INGEST_TOKEN from secrets.yaml>
 ```
 
 The script installs at:
-`/opt/dynatrace/oneagent/agent/tools/extensions/gpu-metrics-dt.py`
+`/usr/local/lib/dynatrace-gpu-sampler/gpu-metrics-dt.py`
+
+> **Note:** The sampler must live in this host-owned path, **not** under the
+> OneAgent tree (`/opt/dynatrace/oneagent/...`). In `cloudNativeFullStack`/CSI
+> mode that tree is provisioned and removed by the DynaKube OneAgent and is not
+> a stable host install; a script placed there is deleted on OneAgent reinstall
+> or host reboot, silently stopping GPU ingest to Dynatrace.
 
 ## Validation
 

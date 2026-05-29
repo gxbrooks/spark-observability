@@ -7,7 +7,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/dynatrace/gpu-sampler.env
-ExecStart=/usr/bin/python3 /opt/dynatrace/oneagent/agent/tools/extensions/gpu-metrics-dt.py
+ExecStart=/usr/bin/python3 /usr/local/lib/dynatrace-gpu-sampler/gpu-metrics-dt.py
 SuccessExitStatus=0
 StandardOutput=journal
 StandardError=journal

@@ -6,7 +6,10 @@
 - name: Resolve sampler source root and credentials
   ansible.builtin.set_fact:
     gpu_sampler_src: "{{ playbook_dir }}/../../../../observability/dynatrace/sampler/gpu"
-    gpu_sampler_dest: /opt/dynatrace/oneagent/agent/tools/extensions
+    # Host-owned location: must NOT live under the OneAgent-managed tree
+    # (/opt/dynatrace/oneagent/...), which is provisioned/removed by the DynaKube
+    # CSI driver and disappears on OneAgent reinstall, taking the script with it.
+    gpu_sampler_dest: /usr/local/lib/dynatrace-gpu-sampler
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
     dt_ingest_token_resolved: "{{ ((DT_INGEST_TOKEN.value if (DT_INGEST_TOKEN is mapping and 'value' in DT_INGEST_TOKEN) else DT_INGEST_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_INGEST_TOKEN | default(''), true) }}"
   run_once: false
