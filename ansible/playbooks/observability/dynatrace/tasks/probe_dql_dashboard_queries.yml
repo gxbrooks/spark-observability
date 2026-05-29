@@ -96,63 +96,100 @@
   when: dql_grail_token | length == 0
   run_once: true
 
-- name: Run live DQL probe queries
-  ansible.builtin.uri:
-    url: "{{ dt_tenant_url_resolved }}/platform/storage/query/v1/query:execute"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ dql_grail_token }}"
-      Content-Type: "application/json"
-    body_format: json
-    body:
-      query: "{{ item.query }}"
-      defaultTimeframeStart: "now()-1h"
-      defaultTimeframeEnd: "now()"
-    status_code: [200, 202, 400, 401, 403]
-    timeout: 30
-  loop:
-    - label: "entity-fetch"
-      query: "fetch dt.entity.host | fields id, entity.name | limit 2"
-    - label: "host-cpu"
-      query: >-
-        timeseries cpu=avg(dt.host.cpu.usage), by:{dt.entity.host}
-        | fieldsAdd host=entityName(dt.entity.host)
-        | filter in(host, "Lab1", "Lab2", "Lab3")
-        | fieldsRemove dt.entity.host | limit 3
-    - label: "host-network"
-      query: >-
-        timeseries {rx=avg(dt.host.net.nic.bytes_rx), tx=avg(dt.host.net.nic.bytes_tx)}, by:{dt.entity.host}
-        | fieldsAdd host=entityName(dt.entity.host)
-        | filter in(host, "Lab1", "Lab2", "Lab3")
-        | fieldsRemove dt.entity.host | limit 3
-    - label: "gpu-utilization"
-      query: "timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name, gpu.card} | limit 3"
-    - label: "jvm-gc"
-      query: >-
-        timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance}
-        | fieldsAdd process=entityName(dt.entity.process_group_instance)
-        | filter isNotNull(process)
-        | fieldsRemove dt.entity.process_group_instance | limit 3
-  register: live_probe_results
+# Grail query:execute is asynchronous (returns state=RUNNING + requestToken) and
+# requires ISO-8601 timeframes (relative "now()-1h" yields INVALID_TIMEFRAME).
+# This step executes each representative tile query, polls query:poll until the
+# query reaches a terminal state, and reports per-query pass/fail. The nic-envelope
+# and disk-envelope queries exercise the `tx[] * -1` / `write[] * -1` negation used
+# by the dashboard's envelope panels. Token is passed via environment (never on the
+# command line); no_log hides it, results are shown by the following debug task.
+- name: Run live DQL probe (execute + poll) against Grail
+  ansible.builtin.shell:
+    cmd: |
+      python3 - << 'PYEOF'
+      import json, os, sys, time, urllib.request, urllib.error, urllib.parse
+      from datetime import datetime, timedelta, timezone
+
+      base = os.environ["DT_TENANT_URL"].rstrip("/")
+      token = os.environ["DQL_GRAIL_TOKEN"]
+      now = datetime.now(timezone.utc)
+      tf_to = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+      tf_from = (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+      queries = [
+          ("entity-fetch", 'fetch dt.entity.host | fields id, entity.name | limit 2'),
+          ("host-cpu", 'timeseries cpu=avg(dt.host.cpu.usage), by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host'),
+          ("nic-envelope", 'timeseries {rx=avg(dt.host.net.nic.bytes_rx), tx=avg(dt.host.net.nic.bytes_tx)}, by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host | fieldsAdd tx = tx[] * -1'),
+          ("disk-envelope", 'timeseries {read=avg(dt.host.disk.bytes_read), write=avg(dt.host.disk.bytes_written)}, by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host | fieldsAdd write = write[] * -1'),
+          ("gpu-utilization", 'timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name, gpu.card}'),
+          ("jvm-gc", 'timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance} | fieldsAdd process=entityName(dt.entity.process_group_instance) | filter isNotNull(process) | fieldsRemove dt.entity.process_group_instance'),
+      ]
+
+      def call(method, url, body=None):
+          data = json.dumps(body).encode() if body is not None else None
+          headers = {"Authorization": "Bearer " + token}
+          if data is not None:
+              headers["Content-Type"] = "application/json"
+          req = urllib.request.Request(url, data=data, headers=headers, method=method)
+          with urllib.request.urlopen(req, timeout=30) as r:
+              return json.load(r)
+
+      execute_url = base + "/platform/storage/query/v1/query:execute"
+      poll_url = base + "/platform/storage/query/v1/query:poll"
+      failures = 0
+      for label, q in queries:
+          try:
+              resp = call("POST", execute_url, {"query": q, "defaultTimeframeStart": tf_from, "defaultTimeframeEnd": tf_to})
+              state = resp.get("state")
+              rtoken = resp.get("requestToken")
+              polls = 0
+              while state == "RUNNING" and polls < 20:
+                  time.sleep(2); polls += 1
+                  resp = call("GET", poll_url + "?request-token=" + urllib.parse.quote(rtoken))
+                  state = resp.get("state")
+              if state == "SUCCEEDED":
+                  rows = len(resp.get("result", {}).get("records", []))
+                  flag = "PASS" if rows > 0 else "WARN"
+                  note = "" if rows > 0 else " (no data in 2h window)"
+                  print(f"  {flag}  {label:16} state=SUCCEEDED rows={rows}{note}")
+              else:
+                  err = resp.get("error", {})
+                  msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                  print(f"  FAIL  {label:16} state={state} error={msg[:120]}")
+                  failures += 1
+          except urllib.error.HTTPError as e:
+              print(f"  FAIL  {label:16} HTTP {e.code}: {e.read().decode()[:120]}")
+              failures += 1
+          except Exception as e:
+              print(f"  FAIL  {label:16} {type(e).__name__}: {str(e)[:120]}")
+              failures += 1
+
+      print(f"\nLive DQL probe: {len(queries) - failures}/{len(queries)} queries succeeded.")
+      sys.exit(1 if failures else 0)
+      PYEOF
+    executable: /bin/bash
+  environment:
+    DT_TENANT_URL: "{{ dt_tenant_url_resolved }}"
+    DQL_GRAIL_TOKEN: "{{ dql_grail_token }}"
+  register: live_probe
+  changed_when: false
   failed_when: false
+  no_log: true
   when: dql_grail_token | length > 0
-  loop_control:
-    label: "{{ item.label }}"
   delegate_to: localhost
   run_once: true
 
-- name: Report live DQL probe results
+- name: Show live DQL probe results
   ansible.builtin.debug:
-    msg: >-
-      {{ item.item.label | upper }}
-      HTTP={{ item.status | default('?') }}
-      state={{ (item.json.state | default('?')) if item.json is defined else 'no-json' }}
-      rows={{ (item.json.result.records | default([]) | length)
-              if (item.json is defined and item.json.state | default('') == 'SUCCEEDED') else 0 }}
-      error={{ (item.json.error.message | default(''))[:120]
-               if (item.json is defined and item.json.error is defined) else '' }}
-  loop: "{{ live_probe_results.results | default([]) }}"
+    msg: "{{ live_probe.stdout_lines | default(['(no output)']) }}"
   when: dql_grail_token | length > 0
-  loop_control:
-    label: "{{ item.item.label }}"
+  run_once: true
+
+- name: Assert all live DQL tile queries succeeded
+  ansible.builtin.assert:
+    that:
+      - live_probe.rc | default(1) | int == 0
+    fail_msg: "One or more dashboard DQL tile queries failed against Grail (see probe output above)."
+    success_msg: "All live DQL tile queries succeeded against Grail."
+  when: dql_grail_token | length > 0
   run_once: true
