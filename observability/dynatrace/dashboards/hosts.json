@@ -82,7 +82,7 @@
     },
     "8": {
       "type": "data",
-      "title": "Memory Fault Rate (faults/s)",
+      "title": "Memory Fault Rate (major and minor faults, faults/s)",
       "visualization": "lineChart",
       "subType": "dql-builder-metrics",
       "query": "timeseries pf=avg(dt.host.memory.avail.pfps), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host",

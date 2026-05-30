@@ -150,7 +150,7 @@
     },
     "15": {
       "type": "data",
-      "title": "Total Page Fault Rate (faults/s)",
+      "title": "Total Page Fault Rate (major and minor faults, faults/s)",
       "visualization": "lineChart",
       "subType": "dql-builder-metrics",
       "query": "timeseries pf=sum(dt.host.memory.avail.pfps)",

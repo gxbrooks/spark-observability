@@ -15,7 +15,7 @@
     },
     "2": {
       "type": "data",
-      "title": "Page Fault Rate by Host (faults/s)",
+      "title": "Page Fault Rate by Host (major and minor faults, faults/s)",
       "visualization": "lineChart",
       "subType": "dql-builder-metrics",
       "query": "timeseries pf=avg(dt.host.memory.avail.pfps), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host",
