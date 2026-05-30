@@ -75,6 +75,8 @@
       - -F
       - "name={{ dashboard_name }}"
       - -F
+      - "isPrivate=false"
+      - -F
       - "content=@/tmp/dt_dashboard_{{ dashboard_name | regex_replace('[^A-Za-z0-9]+', '_') }}.json;type=application/json"
   register: dql_dashboard_patch
   changed_when: "'version' in (dql_dashboard_patch.stdout | default(''))"
@@ -99,6 +101,8 @@
       - "name={{ dashboard_name }}"
       - -F
       - "type=dashboard"
+      - -F
+      - "isPrivate=false"
       - -F
       - "content=@/tmp/dt_dashboard_{{ dashboard_name | regex_replace('[^A-Za-z0-9]+', '_') }}.json;type=application/json"
   register: dql_dashboard_post
