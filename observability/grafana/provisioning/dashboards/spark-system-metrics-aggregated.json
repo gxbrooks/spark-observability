@@ -14,22 +14,9 @@
   },
   "editable": true,
   "gnetId": null,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
-  "links": [
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": true,
-      "keepTime": true,
-      "tags": [],
-      "targetBlank": true,
-      "title": "View Detailed Logs",
-      "tooltip": "Click to view detailed application logs",
-      "type": "link",
-      "url": "/d/spark-logs-viewer"
-    }
-  ],
+  "links": [],
   "panels": [
     {
       "datasource": {
@@ -149,8 +136,8 @@
           "alias": ""
         }
       ],
-      "title": "Active Application Jobs",
-      "description": "Counts of open START operations by type, written every ~5s by the application-events-metrics watcher from app-events-*. Requires Elasticsearch Trial or a paid subscription (Watcher is not available on Basic).",
+      "title": "Active Spark Executions",
+      "description": "Counts of open START operations by type, written every ~5s by the application-events-metrics watcher from app-events-*. Host is not indexed on these aggregates, so no per-host drilldown is available. Requires Elasticsearch Trial or a paid subscription (Watcher is not available on Basic).",
       "type": "timeseries"
     },
     {
@@ -180,7 +167,25 @@
           "color": {
             "mode": "palette-classic"
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "ERROR" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "WARN" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "INFO" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "DEBUG" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -243,9 +248,12 @@
           "timeField": "@timestamp"
         }
       ],
+      "links": [
+        { "title": "View Detailed Logs", "url": "/d/spark-logs-viewer?${__url_time_range}", "targetBlank": false }
+      ],
       "title": "Spark Log Volume",
       "type": "timeseries",
-      "description": "Aggregated count of Spark application log entries by log level. Click on data points to view detailed logs."
+      "description": "Aggregated count of Spark application log entries by log level. Use the panel drilldown link to open the Spark Application Logs Viewer for the current time range."
     },
     {
       "datasource": {
@@ -354,6 +362,9 @@
           "alias": "Average CPU Usage"
         }
       ],
+      "links": [
+        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?${__url_time_range}", "targetBlank": false }
+      ],
       "title": "Average System Compute Use",
       "type": "timeseries"
     },
@@ -410,6 +421,9 @@
               }
             ]
           },
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
           "unit": "percentunit"
         },
         "overrides": []
@@ -461,6 +475,9 @@
           "timeField": "@timestamp",
           "alias": "Average Memory Usage"
         }
+      ],
+      "links": [
+        { "title": "Drilldown: Host Memory Pressure", "url": "/d/memory-pressure-by-host?${__url_time_range}", "targetBlank": false }
       ],
       "title": "Average System Memory Pressure",
       "type": "timeseries"
@@ -536,7 +553,7 @@
               "type": "bucket_script",
               "pipelineAgg": "1",
               "settings": {
-                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
+                "script": "params._value != null && params._value >= 0 ? params._value : null"
               },
               "pipelineVariables": [
                 {
@@ -579,7 +596,7 @@
               "type": "bucket_script",
               "pipelineAgg": "1",
               "settings": {
-                "script": "params._value != null && params._value >= 0 ? params._value : null"
+                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
               },
               "pipelineVariables": [
                 {
@@ -603,6 +620,9 @@
           "refId": "B",
           "timeField": "@timestamp"
         }
+      ],
+      "links": [
+        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?${__url_time_range}", "targetBlank": false }
       ],
       "title": "Total Network Throughput",
       "type": "timeseries",
@@ -679,7 +699,7 @@
               "type": "bucket_script",
               "pipelineAgg": "1",
               "settings": {
-                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
+                "script": "params._value != null && params._value >= 0 ? params._value : null"
               },
               "pipelineVariables": [
                 {
@@ -722,7 +742,7 @@
               "type": "bucket_script",
               "pipelineAgg": "1",
               "settings": {
-                "script": "params._value != null && params._value >= 0 ? params._value : null"
+                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
               },
               "pipelineVariables": [
                 {
@@ -746,6 +766,9 @@
           "refId": "B",
           "timeField": "@timestamp"
         }
+      ],
+      "links": [
+        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?${__url_time_range}", "targetBlank": false }
       ],
       "title": "Total Disk Throughput",
       "type": "timeseries",
@@ -849,14 +872,17 @@
           "timeField": "@timestamp"
         }
       ],
+      "links": [
+        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?${__url_time_range}", "targetBlank": false }
+      ],
       "title": "Total System Load Trend",
       "type": "timeseries",
       "description": "Total 1-minute load average across all hosts. For Default granularity. For 5m/15m/60m granularities, this represents the smoothed load over those intervals."
     },
     {
       "datasource": {
-        "type": "elasticsearch",
-        "uid": "spark-elasticsearch"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -890,6 +916,8 @@
           },
           "mappings": [],
           "nullValueMode": "null",
+          "decimals": 2,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -899,7 +927,7 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -924,61 +952,22 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "$__interval"
-              },
-              "type": "date_histogram"
-            }
-          ],
           "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
-          "metrics": [
-            {
-              "field": "system.memory.page_stats.pgfault.rate",
-              "id": "1",
-              "type": "sum"
-            }
-          ],
-          "query": "_index:metrics-system.memory-default*",
-          "refId": "A",
-          "timeField": "@timestamp",
-          "alias": "Total Page Faults"
-        },
-        {
-          "bucketAggs": [
-            {
-              "field": "@timestamp",
-              "id": "2",
-              "settings": {
-                "interval": "$__interval"
-              },
-              "type": "date_histogram"
-            }
-          ],
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "spark-elasticsearch"
-          },
-          "metrics": [
-            {
-              "field": "system.memory.page_stats.pgmajfault.rate",
-              "id": "1",
-              "type": "sum"
-            }
-          ],
-          "query": "_index:metrics-system.memory-default*",
-          "refId": "B",
-          "timeField": "@timestamp",
-          "alias": "Total Major Faults"
+          "editorMode": "code",
+          "expr": "sum(rate(node_vmstat_pgmajfault{job=\"node-exporter\"}[$__rate_interval]))",
+          "legendFormat": "Total hard page faults",
+          "range": true,
+          "refId": "A"
         }
       ],
-      "title": "Total Page Fault Rate",
+      "links": [
+        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?${__url_time_range}", "targetBlank": false }
+      ],
+      "title": "Total Hard Page Faults",
+      "description": "Hard (major) page faults across all hosts (node_vmstat_pgmajfault) - faults serviced from disk. Near-zero is expected when application memory is pinned and sized to fit RAM.",
       "type": "timeseries"
     },
     {
@@ -1024,7 +1013,7 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -1078,6 +1067,9 @@
           "timeField": "@timestamp"
         }
       ],
+      "links": [
+        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?${__url_time_range}", "targetBlank": false }
+      ],
       "title": "Total GC Pause Time",
       "type": "timeseries"
     },
@@ -1123,7 +1115,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "decmbytes"
         },
         "overrides": []
       },
@@ -1177,6 +1169,9 @@
           "timeField": "@timestamp"
         }
       ],
+      "links": [
+        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?${__url_time_range}", "targetBlank": false }
+      ],
       "title": "Total GC Heap Reclaimed",
       "type": "timeseries"
     },
@@ -1213,7 +1208,7 @@
             "spanNulls": true,
             "axisBorderShow": false,
             "axisColorMode": "text",
-            "axisCenteredZero": true
+            "axisCenteredZero": false
           },
           "decimals": 0,
           "mappings": [],
@@ -1230,9 +1225,9 @@
               }
             ]
           },
-          "min": -100,
+          "min": 0,
           "max": 100,
-          "unit": "none"
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1257,7 +1252,7 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "alias": "Average GPU %",
+          "alias": "Average GPU Utilization",
           "bucketAggs": [
             {
               "field": "@timestamp",
@@ -1282,9 +1277,93 @@
           "query": "_index:metrics-gpu-default*",
           "refId": "A",
           "timeField": "@timestamp"
+        }
+      ],
+      "links": [
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+      ],
+      "title": "Average GPU Utilization",
+      "description": "Average GPU core utilization across GPU-equipped nodes.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "axisCenteredZero": false
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "unit": "percent"
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 104,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
         {
-          "alias": "Average VRAM %",
+          "alias": "Average VRAM Utilization",
           "bucketAggs": [
             {
               "field": "@timestamp",
@@ -1301,33 +1380,40 @@
           },
           "metrics": [
             {
-              "field": "gpu.utilization.memory_percent",
+              "field": "gpu.memory.used_bytes",
               "id": "1",
               "type": "avg",
               "hide": true
             },
             {
+              "field": "gpu.memory.total_bytes",
               "id": "2",
+              "type": "avg",
+              "hide": true
+            },
+            {
+              "id": "3",
               "type": "bucket_script",
-              "pipelineAgg": "1",
+              "pipelineAgg": "2",
               "settings": {
-                "script": "params._value != null ? params._value * -1 : null"
+                "script": "params.used != null && params.total != null && params.total > 0 ? (params.used / params.total) * 100.0 : null"
               },
               "pipelineVariables": [
-                {
-                  "name": "_value",
-                  "pipelineAgg": "1"
-                }
+                { "name": "used", "pipelineAgg": "1" },
+                { "name": "total", "pipelineAgg": "2" }
               ]
             }
           ],
-          "query": "_index:metrics-gpu-default*",
-          "refId": "B",
+          "query": "_index:metrics-gpu-default* AND _exists_:gpu.memory.used_bytes AND _exists_:gpu.memory.total_bytes",
+          "refId": "A",
           "timeField": "@timestamp"
         }
       ],
-      "title": "GPU Compute Envelope",
-      "description": "GPU utilization (positive) and VRAM utilization (negative) across Lab1/Lab2 nodes",
+      "links": [
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+      ],
+      "title": "Average VRAM Utilization",
+      "description": "Average GPU VRAM occupancy (used/total bytes) across GPU-equipped nodes. Uses raw VRAM byte counters so mixed GPU models (Lab1/Lab2 vs Lab3) and legacy mem_busy_percent samples are excluded.",
       "type": "timeseries"
     },
     {
@@ -1375,15 +1461,15 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "celsius"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 48
+        "x": 0,
+        "y": 56
       },
       "id": 102,
       "options": {
@@ -1426,6 +1512,9 @@
           "refId": "C",
           "timeField": "@timestamp"
         }
+      ],
+      "links": [
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
       ],
       "title": "GPU Thermals",
       "description": "Average GPU edge temperature across Lab1/Lab2 nodes",

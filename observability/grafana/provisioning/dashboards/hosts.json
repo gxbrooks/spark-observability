@@ -1,6 +1,6 @@
 {
   "annotations": { "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
-  "description": "Lab1, Lab2, and Lab3 host metrics only. System metrics match Spark Cluster Metrics; GPU panels use metrics-gpu-default (hosts with no GPU show no series).",
+  "description": "Lab1, Lab2, and Lab3 host metrics. Per-host breakdown of the system metrics summarized on Spark System Metrics.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -63,7 +63,10 @@
         }
       ],
       "title": "Host Compute Saturation",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?${__url_time_range}", "targetBlank": false }
+      ]
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
@@ -115,7 +118,10 @@
         }
       ],
       "title": "GPU Die Temperature",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+      ]
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
@@ -173,7 +179,10 @@
         }
       ],
       "title": "GPU Compute Use",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+      ]
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
@@ -225,7 +234,10 @@
         }
       ],
       "title": "Memory Fault Rate",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?${__url_time_range}", "targetBlank": false }
+      ]
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
@@ -265,11 +277,14 @@
         }
       ],
       "title": "Host Load Trend",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?${__url_time_range}", "targetBlank": false }
+      ]
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-      "description": "Envelope chart (Spark System Metrics Aggregated style): ingress (In) summed per host and negated; egress (Out) positive. Stacked fill. Physical NICs only; Lab1–Lab3.",
+      "description": "Envelope chart: ingress (In, primary) summed per host and plotted positive with a solid line; egress (Out, secondary) negated and plotted with a dashed line. Per-host color. Physical NICs only; Lab1–Lab3.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -309,7 +324,7 @@
               "id": "2",
               "type": "bucket_script",
               "pipelineAgg": "1",
-              "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : null" },
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value : null" },
               "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
             }
           ],
@@ -330,7 +345,7 @@
               "id": "2",
               "type": "bucket_script",
               "pipelineAgg": "1",
-              "settings": { "script": "params._value != null && params._value >= 0 ? params._value : null" },
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : null" },
               "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
             }
           ],
@@ -340,11 +355,14 @@
         }
       ],
       "title": "Network Throughput",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?${__url_time_range}", "targetBlank": false }
+      ]
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-      "description": "Envelope chart: read rate per host summed over block devices (nvme/sd/vd), negated; write rate positive. Stacked fill. Lab1–Lab3.",
+      "description": "Envelope chart: read rate (primary) per host summed over block devices (nvme/sd/vd), plotted positive with a solid line; write rate (secondary) negated and plotted with a dashed line. Per-host color. Lab1–Lab3.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -384,7 +402,7 @@
               "id": "2",
               "type": "bucket_script",
               "pipelineAgg": "1",
-              "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : null" },
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value : null" },
               "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
             }
           ],
@@ -405,7 +423,7 @@
               "id": "2",
               "type": "bucket_script",
               "pipelineAgg": "1",
-              "settings": { "script": "params._value != null && params._value >= 0 ? params._value : null" },
+              "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : null" },
               "pipelineVariables": [{ "name": "_value", "pipelineAgg": "1" }]
             }
           ],
@@ -415,7 +433,10 @@
         }
       ],
       "title": "Disk Throughput",
-      "type": "timeseries"
+      "type": "timeseries",
+      "links": [
+        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?${__url_time_range}", "targetBlank": false }
+      ]
     }
   ],
   "refresh": "30s",

@@ -1,0 +1,61 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["spark", "drilldown", "memory"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Host Hard Page Faults",
+  "uid": "page-fault-rate-by-host",
+  "version": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Drilldown of 'Total Hard Page Faults'. Hard (major) page faults are faults serviced from disk (node_vmstat_pgmajfault). One line per host; near-zero is expected when application memory is pinned and sized to fit RAM.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 60,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": true,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "mappings": [],
+          "min": 0,
+          "decimals": 2,
+          "nullValueMode": "null",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "rate(node_vmstat_pgmajfault{job=\"node-exporter\"}[$__rate_interval]) * on(instance) group_left(nodename) node_uname_info{job=\"node-exporter\"}",
+          "legendFormat": "{{nodename}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Host Hard Page Faults (faults/sec)",
+      "type": "timeseries"
+    }
+  ]
+}

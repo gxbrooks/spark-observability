@@ -84,6 +84,16 @@ def collect_card_metrics(card_device: pathlib.Path) -> Optional[Dict]:
     if mem_busy is not None:
         mem_busy = min(100.0, max(0.0, mem_busy))
 
+    # VRAM occupancy (used/total) is the meaningful "memory utilization" for dashboards.
+    # mem_busy_percent above is memory-controller activity; it is frequently 0 and is not
+    # exposed by every amdgpu device (for example it is absent on some cards), which made
+    # the prior memory_percent read 0 or go missing per host.
+    vram_used = read_float(card_device / "mem_info_vram_used")
+    vram_total = read_float(card_device / "mem_info_vram_total")
+    vram_percent = None
+    if vram_used is not None and vram_total is not None and vram_total > 0:
+        vram_percent = min(100.0, max(0.0, (vram_used / vram_total) * 100.0))
+
     # Temperature metrics
     temp_edge = read_float(hwmon / "temp1_input", 1000.0) if hwmon else None
     temp_junction = read_float(hwmon / "temp2_input", 1000.0) if hwmon else None
@@ -137,12 +147,28 @@ def collect_card_metrics(card_device: pathlib.Path) -> Optional[Dict]:
     utilization = {}
     if gpu_busy is not None:
         utilization["core_percent"] = gpu_busy
-    if mem_busy is not None:
+    # memory_percent reports VRAM occupancy (used/total). Fall back to the memory-controller
+    # busy percentage only when VRAM occupancy cannot be read.
+    if vram_percent is not None:
+        utilization["memory_percent"] = vram_percent
+    elif mem_busy is not None:
         utilization["memory_percent"] = mem_busy
-    if gpu_busy is not None or mem_busy is not None:
-        utilization["active"] = (gpu_busy is not None and gpu_busy > 0) or (mem_busy is not None and mem_busy > 0)
+    # Preserve the memory-controller activity under its own field for completeness.
+    if mem_busy is not None:
+        utilization["memory_controller_percent"] = mem_busy
+    if gpu_busy is not None or utilization.get("memory_percent") is not None:
+        utilization["active"] = gpu_busy is not None and gpu_busy > 0
     if utilization:
         metrics["gpu"]["utilization"] = utilization
+
+    # Raw VRAM figures (bytes) for capacity context
+    memory = {}
+    if vram_used is not None:
+        memory["used_bytes"] = vram_used
+    if vram_total is not None:
+        memory["total_bytes"] = vram_total
+    if memory:
+        metrics["gpu"]["memory"] = memory
 
     # Temperature
     temperature = {}

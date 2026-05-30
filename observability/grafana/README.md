@@ -19,8 +19,9 @@ Grafana provides visualization of metrics collected from:
 
 | Dashboard | UID | Description | Documentation |
 |-----------|-----|-------------|---------------|
-| Spark Cluster Metrics | `spark-system-metrics` | Host and Spark metrics | [spark-system-metrics.md](./dashboards/spark-system-metrics.md) |
-| Hosts | `lab-hosts-metrics` | Lab1–Lab3 system, network, disk, and GPU metrics (subset of Spark system panels) | — |
+| Spark System Metrics | `spark-system-metrics-aggregated` | Aggregated cluster system, GPU, GC, and Spark log metrics | [spark-system-metrics-aggregated.md](./dashboards/spark-system-metrics-aggregated.md) |
+| Hosts | `lab-hosts-metrics` | Lab1–Lab3 per-host system, network, disk, and GPU metrics | — |
+| Spark Application Logs Viewer | `spark-logs-viewer` | Spark application logs by level and host with entry table | — |
 
 ## Dashboard Organization
 
@@ -33,10 +34,11 @@ grafana/
 │   │   └── datasources.yaml       # Elasticsearch datasource config
 │   └── dashboards/
 │       ├── provisioning.yaml      # Dashboard provisioning config
-│       ├── spark-system.json      # Spark cluster metrics dashboard
-│       └── hosts.json             # Lab1–Lab3 host metrics only
+│       ├── spark-system-metrics-aggregated.json  # Spark System Metrics dashboard
+│       ├── hosts.json             # Lab1–Lab3 host metrics
+│       └── spark-logs-viewer.json # Spark application logs viewer
 └── dashboards/                    # Documentation for select dashboards
-    └── spark-system-metrics.md
+    └── spark-system-metrics-aggregated.md
 ```
 
 ## Data Sources

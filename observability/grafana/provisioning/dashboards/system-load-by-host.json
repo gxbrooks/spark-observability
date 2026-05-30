@@ -1,0 +1,64 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["spark", "drilldown", "load"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Host System Load",
+  "uid": "system-load-by-host",
+  "version": 1,
+  "panels": [
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Drilldown of 'Total System Load Trend'. 1-minute load average, one line per host. Hosts are enumerated dynamically via a terms aggregation on host.name.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 60,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": true,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "mappings": [],
+          "min": 0,
+          "nullValueMode": "null",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "avg", "field": "system.load.1" }],
+          "query": "_index:metrics-system.load-default* AND _exists_:system.load.1",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Host System Load (1m)",
+      "type": "timeseries"
+    }
+  ]
+}

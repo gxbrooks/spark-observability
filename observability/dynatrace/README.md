@@ -132,10 +132,34 @@ Managed by `tasks/apply_spark_system_dashboard_new.yml`, deployed by `deploy.yml
 **Envelope panels.** *Physical NIC Throughput* (rx up / tx down) and *Disk
 Throughput* (read up / write down) are rendered as envelope graphs per the
 `standards/visualizations.md` convention. There is no native "negative axis"
-toggle in New Dashboards, so the outbound series is negated in DQL with
-`| fieldsAdd <series> = <series> * (-1)` (the same array-scalar arithmetic used
-for unit conversions). Both series share the same UOM/UOT (bytes/s), satisfying
-the envelope requirements.
+toggle in New Dashboards, so the outbound (secondary) series is negated in DQL
+with `| fieldsAdd <series> = <series>[] * -1` — the array-subscript form is
+required because array-by-scalar multiply does not broadcast element-wise.
+Both series share the same UOM/UOT (bytes/s), satisfying envelope statements
+17.1 and 17.2.
+
+**Color/line-style envelope cues (17.3–17.5) are Grafana-only.**
+`standards/visualizations.md` recommends that the primary and secondary
+dimensions of a metric share one color (17.3, *should*), that the primary use a
+solid line (17.4, *must*), and that the secondary use a dashed line (17.5,
+*should*). The Grafana panels apply all three (per-host fixed color, solid
+primary, dashed secondary). Dynatrace New Dashboards cannot reproduce 17.3 or
+17.5 within reasonable complexity, which is why the standard makes them
+*should*-level (see visualizations.md commentary 7):
+
+- Line charts expose only the *interpolation* line type (Linear / Smooth /
+  Connect data points). There is no per-series dashed style, so the secondary
+  series cannot be dashed (17.5). 17.4 is met — every line is solid.
+- Color rules in the documented tile JSON are value-based `thresholds`
+  (color by numeric range), not color-by-name/host, so the two series of one
+  host cannot be forced to a shared color via the Document API (17.3). The
+  UI Colors panel can color by field, but that is not expressible in the stable
+  API schema and the post-1.342 stricter dashboard validation rejects ad-hoc
+  tile JSON.
+
+The envelope's positive/negative axis split (17.1) already distinguishes the
+primary from the secondary dimension in Dynatrace, so the panels remain
+readable; the shared-color and dashed-line cues are Grafana-only.
 
 **Loopback throughput is not available in Dynatrace.** The Grafana dashboard has
 a *Loopback Throughput* panel sourced from Elastic Agent's per-interface

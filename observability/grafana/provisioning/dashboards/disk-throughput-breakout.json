@@ -1,0 +1,129 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["spark", "drilldown", "disk"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Host Disk Throughput",
+  "uid": "disk-throughput-breakout",
+  "version": 2,
+  "weekStart": "",
+  "panels": [
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Disk read throughput, one line per host. Hosts are enumerated dynamically by a terms aggregation on host.name, so no hostnames are hard-coded. Compare with the Writes panel (host colors are kept consistent by identical series naming/order).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "mappings": [],
+          "min": 0,
+          "nullValueMode": "null",
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "sum", "field": "system.diskio.read.bytes_rate" }],
+          "query": "_index:metrics-system.diskio-default* AND system.diskio.name:(nvme* OR sd* OR vd*) AND _exists_:system.diskio.read.bytes_rate",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Disk Reads by Host",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Disk write throughput, one line per host. Hosts are enumerated dynamically by a terms aggregation on host.name, so no hostnames are hard-coded. Compare with the Reads panel (host colors are kept consistent by identical series naming/order).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "axisWidth": 80,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "mappings": [],
+          "min": 0,
+          "nullValueMode": "null",
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 9 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "sum", "field": "system.diskio.write.bytes_rate" }],
+          "query": "_index:metrics-system.diskio-default* AND system.diskio.name:(nvme* OR sd* OR vd*) AND _exists_:system.diskio.write.bytes_rate",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Disk Writes by Host",
+      "type": "timeseries"
+    }
+  ]
+}

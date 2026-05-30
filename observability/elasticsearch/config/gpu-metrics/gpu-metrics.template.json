@@ -24,6 +24,12 @@
           "script": {
             "source": "if (doc['gpu.utilization.memory_percent'].size() != 0) { emit(doc['gpu.utilization.memory_percent'].value / 100.0); }"
           }
+        },
+        "gpu.vram.utilization_percent": {
+          "type": "double",
+          "script": {
+            "source": "if (doc['gpu.memory.used_bytes'].size() != 0 && doc['gpu.memory.total_bytes'].size() != 0) { double total = doc['gpu.memory.total_bytes'].value; if (total > 0) { emit(Math.min(100.0, Math.max(0.0, (doc['gpu.memory.used_bytes'].value / total) * 100.0))); return; } } if (doc['gpu.utilization.memory_percent'].size() != 0) { emit(Math.min(100.0, Math.max(0.0, doc['gpu.utilization.memory_percent'].value))); }"
+          }
         }
       },
       "properties": {
@@ -70,8 +76,21 @@
                 "memory_percent": {
                   "type": "float"
                 },
+                "memory_controller_percent": {
+                  "type": "float"
+                },
                 "active": {
                   "type": "boolean"
+                }
+              }
+            },
+            "memory": {
+              "properties": {
+                "used_bytes": {
+                  "type": "long"
+                },
+                "total_bytes": {
+                  "type": "long"
                 }
               }
             },

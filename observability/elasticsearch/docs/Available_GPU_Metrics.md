@@ -17,7 +17,10 @@ This document lists all GPU metrics available for collection from AMD Radeon RX 
 | Metric | Field Name (Generic) | Field Name (AMD) | Field Name (Device) | Category | Source (sysfs) | Currently Collected |
 |--------|---------------------|------------------|---------------------|----------|----------------|---------------------|
 | GPU Core Utilization % | `gpu.utilization.core_percent` | - | - | Generic | `/sys/class/drm/card*/device/gpu_busy_percent` | ✅ Yes |
-| VRAM Utilization % | `gpu.utilization.memory_percent` | - | - | Generic | `/sys/class/drm/card*/device/mem_busy_percent` | ✅ Yes |
+| VRAM Utilization % (occupancy) | `gpu.utilization.memory_percent` | - | - | Generic | `mem_info_vram_used` / `mem_info_vram_total` | ✅ Yes |
+| Memory Controller Busy % | `gpu.utilization.memory_controller_percent` | - | - | Generic | `/sys/class/drm/card*/device/mem_busy_percent` | ✅ Yes |
+| VRAM Used (Bytes) | `gpu.memory.used_bytes` | - | - | Generic | `/sys/class/drm/card*/device/mem_info_vram_used` | ✅ Yes |
+| VRAM Total (Bytes) | `gpu.memory.total_bytes` | - | - | Generic | `/sys/class/drm/card*/device/mem_info_vram_total` | ✅ Yes |
 | GPU Activity | `gpu.utilization.active` | - | - | Generic | Derived from utilization | ❌ No |
 
 ### Temperature Metrics

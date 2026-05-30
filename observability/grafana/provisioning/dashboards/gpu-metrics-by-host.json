@@ -1,0 +1,159 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["spark", "drilldown", "gpu"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Host GPU Metrics",
+  "uid": "gpu-metrics-by-host",
+  "version": 1,
+  "panels": [
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Drilldown of 'Average GPU Utilization'. GPU core utilization, one line per host (terms aggregation on host.name.keyword).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 60,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": true,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "max": 100,
+          "nullValueMode": "null",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "avg", "field": "gpu.utilization.core_percent" }],
+          "query": "_index:metrics-gpu-default* AND _exists_:gpu.utilization.core_percent",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU Core Utilization by Host",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Drilldown of 'Average VRAM Utilization'. VRAM occupancy from used/total bytes (one line per host). Preferentially uses gpu.memory.used_bytes and gpu.memory.total_bytes so mixed GPU models and legacy mem_busy_percent samples do not skew the series.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 60,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": true,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "max": 100,
+          "nullValueMode": "null",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "avg", "field": "gpu.memory.used_bytes", "hide": true }, { "id": "2", "type": "avg", "field": "gpu.memory.total_bytes", "hide": true }, { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params.used != null && params.total != null && params.total > 0 ? (params.used / params.total) * 100.0 : null" }, "pipelineVariables": [{ "name": "used", "pipelineAgg": "1" }, { "name": "total", "pipelineAgg": "2" }] }],
+          "query": "_index:metrics-gpu-default* AND _exists_:gpu.memory.used_bytes AND _exists_:gpu.memory.total_bytes",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU VRAM Utilization by Host",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Drilldown of 'GPU Thermals'. Average GPU edge temperature, one line per host (terms aggregation on host.name.keyword).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 60,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": true,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "nullValueMode": "null",
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "avg", "field": "gpu.temperature_c.edge" }],
+          "query": "_index:metrics-gpu-default* AND _exists_:gpu.temperature_c.edge",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GPU Edge Temperature by Host",
+      "type": "timeseries"
+    }
+  ]
+}

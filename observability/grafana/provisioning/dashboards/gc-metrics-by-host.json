@@ -1,0 +1,109 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["spark", "drilldown", "gc"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Host GC Metrics",
+  "uid": "gc-metrics-by-host",
+  "version": 1,
+  "panels": [
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Drilldown of 'Total GC Pause Time'. Sum of GC pause time per interval, one line per host (terms aggregation on host.name.keyword).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 70,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": false,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "mappings": [],
+          "min": 0,
+          "nullValueMode": "null",
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "sum", "field": "gc.paused.millis" }],
+          "query": "_index:logs-spark_gc-default* AND _exists_:gc.paused.millis",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GC Pause Time by Host",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "description": "Drilldown of 'Total GC Heap Reclaimed'. Sum of heap reclaimed per interval, one line per host (terms aggregation on host.name.keyword).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text",
+            "axisLabel": "", "axisPlacement": "left", "axisWidth": 70,
+            "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2,
+            "pointSize": 5, "showPoints": "never", "spanNulls": false,
+            "stacking": { "mode": "none", "group": "A" }
+          },
+          "mappings": [],
+          "min": 0,
+          "nullValueMode": "null",
+          "unit": "decmbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 9 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "maxDataPoints": 3000
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "alias": "{{term host.name.keyword}}",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "host.name.keyword", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_term", "size": "50" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "$__interval", "min_doc_count": 0 } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [{ "id": "1", "type": "sum", "field": "gc.paused.reclaimed" }],
+          "query": "_index:logs-spark_gc-default* AND _exists_:gc.paused.reclaimed",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "GC Heap Reclaimed by Host",
+      "type": "timeseries"
+    }
+  ]
+}

@@ -280,7 +280,7 @@
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-      "description": "Envelope: receives (Rx) negative, transmits (Tx) positive. Bytes/sec by namespace (eth0, loopback excluded). Source: cAdvisor container_network_*_bytes_total. SRE signal: Traffic.",
+      "description": "Envelope: receives (In, primary) positive with a solid line, transmits (Out, secondary) negated with a dashed line. Bytes/sec by namespace (eth0, loopback excluded). Source: cAdvisor container_network_*_bytes_total. SRE signal: Traffic. Per-namespace shared color is not applied because namespace series are dynamic (visualizations.md 17.3 is should-level).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -315,7 +315,7 @@
           "metrics": [
             { "id": "1", "type": "max", "field": "container_network_receive_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
-            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
           "bucketAggs": [
             { "id": "4", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
@@ -331,7 +331,7 @@
           "metrics": [
             { "id": "1", "type": "max", "field": "container_network_transmit_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
-            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
           "bucketAggs": [
             { "id": "4", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
@@ -403,7 +403,7 @@
     },
     {
       "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
-      "description": "Envelope: read rate negative, write rate positive. Per-namespace filesystem byte rate. Source: cAdvisor container_fs_*_bytes_total. SRE signal: Saturation.",
+      "description": "Envelope: read rate (primary) positive with a solid line, write rate (secondary) negated with a dashed line. Per-namespace filesystem byte rate. Source: cAdvisor container_fs_*_bytes_total. SRE signal: Saturation. Per-namespace shared color is not applied because namespace series are dynamic (visualizations.md 17.3 is should-level).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -438,7 +438,7 @@
           "metrics": [
             { "id": "1", "type": "max", "field": "container_fs_reads_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
-            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
           "bucketAggs": [
             { "id": "4", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
@@ -454,7 +454,7 @@
           "metrics": [
             { "id": "1", "type": "max", "field": "container_fs_writes_bytes_total", "hide": true },
             { "id": "2", "type": "derivative", "field": "1", "pipelineAgg": "1", "settings": { "unit": "$__interval" }, "hide": true },
-            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value : (params._max != null ? params._max / 60.0 : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
+            { "id": "3", "type": "bucket_script", "pipelineAgg": "2", "settings": { "script": "params._value != null && params._value >= 0 ? params._value * -1 : (params._max != null ? -(params._max / 60.0) : null)" }, "pipelineVariables": [ { "name": "_value", "pipelineAgg": "2" }, { "name": "_max", "pipelineAgg": "1" } ] }
           ],
           "bucketAggs": [
             { "id": "4", "type": "terms", "field": "kubernetes.namespace", "settings": { "min_doc_count": "1", "order": "desc", "orderBy": "_count", "size": "20" } },
