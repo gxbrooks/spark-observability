@@ -112,21 +112,21 @@ Both hosts run identical Spark worker fleets and monitoring agents. No observabi
 
 | Component     | Replicas | Mem request | Mem limit | CPU request | CPU limit | Config                                                                                                        |
 | ------------- | -------- | ----------- | --------- | ----------- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| Spark Worker  | 4        | 8 GiB       | 14 GiB    | 2           | 4         | `[ansible/roles/spark/templates/spark-worker.yaml.j2](../ansible/roles/spark/templates/spark-worker.yaml.j2)` |
+| Spark Worker  | 8        | 6 GiB       | 11 GiB    | 2           | 4         | `[ansible/roles/spark/templates/spark-worker.yaml.j2](../ansible/roles/spark/templates/spark-worker.yaml.j2)` |
 | node-exporter | 1        | 50 MiB      | 100 MiB   | 50m         | 200m      | `[k8s/monitoring/node-exporter.yaml](../k8s/monitoring/node-exporter.yaml)`                                   |
 | kube-flannel  | 1        | ~50 MiB     | ~50 MiB   | ~100m       | ~100m     | DaemonSet (system)                                                                                            |
 | kube-proxy    | 1        | ~128 MiB    | ~256 MiB  | ~100m       | ~500m     | DaemonSet (system)                                                                                            |
 
 
-**Per-host totals (4 workers):**
+**Per-host totals (8 workers):**
 
 
 | Metric                 | Value  |
 | ---------------------- | ------ |
-| Worker memory requests | 32 GiB |
-| Worker memory limits   | 56 GiB |
-| Worker CPU requests    | 8      |
-| Worker CPU limits      | 16     |
+| Worker memory requests | 48 GiB |
+| Worker memory limits   | 88 GiB |
+| Worker CPU requests    | 16     |
+| Worker CPU limits      | 32     |
 
 
 ### 3.2 Native services per host
@@ -144,23 +144,30 @@ Both hosts run identical Spark worker fleets and monitoring agents. No observabi
 
 | Category                           | Memory (limits) |
 | ---------------------------------- | --------------- |
-| K8s workloads (Spark + monitoring) | 56.4 GiB        |
+| K8s workloads (Spark + monitoring) | 88.4 GiB        |
 | Native services + OS               | 3.5 GiB         |
-| **Total allocated**                | **~60 GiB**     |
+| **Total allocated**                | **~92 GiB**     |
 | **Hardware**                       | **96 GiB**      |
-| **Headroom**                       | **~36 GiB**     |
+| **Headroom**                       | **~4 GiB**      |
 
 
-Headroom covers file-system page cache, Spark shuffle spill, and executor overhead beyond the JVM. CPU (32 logical) is adequate: limits sum to ~17 cores, well under 32.
+Headroom covers file-system page cache, Spark shuffle spill, and executor overhead beyond the JVM. CPU (32 logical) is adequate: limits sum to ~33 cores per host at 8 workers, near hardware maximum under full load.
+
+### 3.5 Spark worker ↔ master connectivity
+
+If the Spark Master pod is recreated, its cluster IP changes. Workers may briefly log `Connection to master failed` / `All masters are unresponsive! Giving up` while retrying a **stale** master IP (for example `No route to host: /10.244.0.99:7077` after the master moved to a new address). These errors are usually **non-fatal** once workers reconnect via `spark-master.spark.svc.cluster.local:7077`, but they indicate workers should be rolled after a master restart.
+
+**Operational rule:** when restarting the master (`spark_component=master restart=true`), also restart workers (the start playbook now stops/starts workers whenever `restart=true` and the component is `master`, `worker`, or `all`).
 
 ### 3.4 Spark worker sizing rationale
-
 
 | Setting               | Value | Why                                                                                           |
 | --------------------- | ----- | --------------------------------------------------------------------------------------------- |
 | `SPARK_WORKER_CORES`  | 4     | Matches the K8s CPU limit; prevents Spark from over-allocating based on host CPU count        |
-| `SPARK_WORKER_MEMORY` | 12 g  | Leaves ~2 GiB headroom within the 14 GiB pod memory limit for JVM non-heap and OS overhead    |
-| Replicas per host     | 4     | Symmetric; gives 8 total workers across the cluster (32 total cores, 96 GiB total Spark heap) |
+| `SPARK_WORKER_MEMORY` | 10 g  | Leaves ~1 GiB headroom within the 11 GiB pod memory limit for JVM non-heap and OS overhead      |
+| Replicas per host     | 8     | Symmetric; gives 16 total workers across the cluster (64 total cores, 160 GiB total Spark heap) |
+
+**Capacity note (2026-05-30):** With 4 workers per host, full Chapter runs plateaued Lab1/Lab2 CPU at ~31% average (~51% peak) while memory stayed ~37–38%. Doubling to 8 workers per host raised Lab1/Lab2 average CPU to ~51% and peak to ~100% during the same workload, with memory at ~44–46% — confirming executor pod count, not host RAM, was the primary bottleneck at the prior setting.
 
 
 `SPARK_WORKER_MEMORY` is set in `[vars/variables.yaml](../vars/variables.yaml)`. `SPARK_WORKER_CORES` is set inline in the worker manifest template.

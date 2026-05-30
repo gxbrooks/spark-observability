@@ -359,9 +359,9 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL:
   contexts: [spark-runtime, ansible]
 
 # Spark worker memory configuration
-# Set to 12g to leave ~2GB headroom within the 14GB pod limit
+# Set to 10g for 8 workers per host (11 GiB pod limit leaves JVM non-heap headroom)
 SPARK_WORKER_MEMORY:
-  value: 12g
+  value: 10g
   contexts: [spark-runtime]
 
 SPARK_EVENTS_DIR:

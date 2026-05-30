@@ -249,7 +249,7 @@
         }
       ],
       "links": [
-        { "title": "View Detailed Logs", "url": "/d/spark-logs-viewer?${__url_time_range}", "targetBlank": false }
+        { "title": "View Detailed Logs", "url": "/d/spark-logs-viewer?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Spark Log Volume",
       "type": "timeseries",
@@ -363,7 +363,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Average System Compute Use",
       "type": "timeseries"
@@ -477,7 +477,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Memory Pressure", "url": "/d/memory-pressure-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Memory Pressure", "url": "/d/memory-pressure-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Average System Memory Pressure",
       "type": "timeseries"
@@ -622,7 +622,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Total Network Throughput",
       "type": "timeseries",
@@ -768,7 +768,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Total Disk Throughput",
       "type": "timeseries",
@@ -873,7 +873,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Total System Load Trend",
       "type": "timeseries",
@@ -964,7 +964,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Total Hard Page Faults",
       "description": "Hard (major) page faults across all hosts (node_vmstat_pgmajfault) - faults serviced from disk. Near-zero is expected when application memory is pinned and sized to fit RAM.",
@@ -1068,7 +1068,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Total GC Pause Time",
       "type": "timeseries"
@@ -1170,7 +1170,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Total GC Heap Reclaimed",
       "type": "timeseries"
@@ -1280,7 +1280,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Average GPU Utilization",
       "description": "Average GPU core utilization across GPU-equipped nodes.",
@@ -1410,7 +1410,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "Average VRAM Utilization",
       "description": "Average GPU VRAM occupancy (used/total bytes) across GPU-equipped nodes. Uses raw VRAM byte counters so mixed GPU models (Lab1/Lab2 vs Lab3) and legacy mem_busy_percent samples are excluded.",
@@ -1514,7 +1514,7 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ],
       "title": "GPU Thermals",
       "description": "Average GPU edge temperature across Lab1/Lab2 nodes",

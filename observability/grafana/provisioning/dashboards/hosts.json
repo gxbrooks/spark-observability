@@ -65,7 +65,7 @@
       "title": "Host Compute Saturation",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     },
     {
@@ -120,7 +120,7 @@
       "title": "GPU Die Temperature",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     },
     {
@@ -181,7 +181,7 @@
       "title": "GPU Compute Use",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     },
     {
@@ -236,7 +236,7 @@
       "title": "Memory Fault Rate",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     },
     {
@@ -279,7 +279,7 @@
       "title": "Host Load Trend",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     },
     {
@@ -357,7 +357,7 @@
       "title": "Network Throughput",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     },
     {
@@ -435,7 +435,7 @@
       "title": "Disk Throughput",
       "type": "timeseries",
       "links": [
-        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?${__url_time_range}", "targetBlank": false }
+        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
       ]
     }
   ],
