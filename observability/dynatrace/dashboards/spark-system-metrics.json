@@ -90,10 +90,10 @@
     },
     "8": {
       "type": "data",
-      "title": "Total GC Heap Reclaimed",
+      "title": "Total JVM Heap Used (GC reclaimed proxy)",
       "visualization": "lineChart",
       "subType": "dql-builder-metrics",
-      "query": "timeseries heap=sum(dt.runtime.jvm.memory.pool.used)",
+      "query": "timeseries heap=sum(dt.runtime.jvm.memory_pool.used)",
       "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
       "visualizationSettings": { "autoSelectVisualization": false },
       "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
