@@ -112,9 +112,22 @@ def collect(card_device: pathlib.Path) -> list[str]:
     if gpu_busy is not None:
         lines.append(line("utilization.core_percent", max(0.0, min(100.0, gpu_busy))))
 
+    vram_used = _read_float(card_device / "mem_info_vram_used")
+    vram_total = _read_float(card_device / "mem_info_vram_total")
+    vram_percent = None
+    if vram_used is not None and vram_total is not None and vram_total > 0:
+        vram_percent = min(100.0, max(0.0, (vram_used / vram_total) * 100.0))
+
     mem_busy = _read_float(card_device / "mem_busy_percent")
-    if mem_busy is not None:
+    if vram_percent is not None:
+        lines.append(line("utilization.memory_percent", vram_percent))
+    elif mem_busy is not None:
         lines.append(line("utilization.memory_percent", max(0.0, min(100.0, mem_busy))))
+
+    if vram_used is not None:
+        lines.append(line("memory.used_bytes", vram_used))
+    if vram_total is not None:
+        lines.append(line("memory.total_bytes", vram_total))
 
     hw = _hwmon(card_device)
     if hw:

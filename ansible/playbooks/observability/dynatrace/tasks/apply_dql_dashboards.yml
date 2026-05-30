@@ -1,0 +1,58 @@
+---
+# Upsert Dynatrace New Dashboards (DQL) from observability/dynatrace/dashboards/*.json.
+# Replaces the inline JSON in apply_spark_system_dashboard_new.yml.
+#
+# Token: DT_PLATFORM_TOKEN (document:write). Metrics in tiles use Grail DQL.
+
+- name: Resolve Dynatrace token values for New Dashboards
+  ansible.builtin.set_fact:
+    dt_platform_token_resolved: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN | default('') }}"
+    dt_tenant_url_resolved: >-
+      {{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL)
+          else DT_TENANT_URL) | default('') }}
+    dt_dql_dashboards_dir: "{{ playbook_dir }}/../../../../observability/dynatrace/dashboards"
+  delegate_to: localhost
+  run_once: true
+
+- name: Upsert Dynatrace DQL dashboards
+  ansible.builtin.include_tasks: upsert_dql_dashboard.yml
+  loop:
+    - name: Spark System Metrics
+      content_file: spark-system-metrics.json
+      legacy_names:
+        - Spark Cluster Metrics
+        - Spark System Metrics
+    - name: Hosts
+      content_file: hosts.json
+      legacy_names: []
+    - name: Host CPU Usage
+      content_file: host-cpu-usage.json
+      legacy_names: []
+    - name: Host Memory Pressure
+      content_file: host-memory-pressure.json
+      legacy_names: []
+    - name: Host Network Throughput
+      content_file: host-network-throughput.json
+      legacy_names: []
+    - name: Host Disk Throughput
+      content_file: host-disk-throughput.json
+      legacy_names: []
+    - name: Host Hard Page Faults
+      content_file: host-page-fault-rate.json
+      legacy_names: []
+    - name: Host System Load
+      content_file: host-system-load.json
+      legacy_names: []
+    - name: Host GC Metrics
+      content_file: host-gc-metrics.json
+      legacy_names: []
+    - name: Host GPU Metrics
+      content_file: host-gpu-metrics.json
+      legacy_names: []
+  loop_control:
+    loop_var: dashboard_item
+    label: "{{ dashboard_item.name }}"
+  vars:
+    dashboard_name: "{{ dashboard_item.name }}"
+    dashboard_content_path: "{{ dt_dql_dashboards_dir }}/{{ dashboard_item.content_file }}"
+    dashboard_legacy_names: "{{ dashboard_item.legacy_names | default([]) }}"

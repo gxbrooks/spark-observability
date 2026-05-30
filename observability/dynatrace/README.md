@@ -88,7 +88,7 @@ amdgpu sysfs  (/sys/class/drm/card1/device/**)
   → sampler/gpu/gpu-metrics-dt.py  (systemd timer, 10 s)
   → POST https://<tenant>.live.dynatrace.com/api/v2/metrics/ingest  (DT_INGEST_TOKEN)
   → Dynatrace Grail + Classic Metrics
-  → "Spark Cluster Metrics" New Dashboard (DQL tiles) + Classic Dashboard (DATA_EXPLORER)
+  → "Spark System Metrics" New Dashboard (DQL tiles) + Hosts + drilldowns + Classic Dashboard (DATA_EXPLORER)
 ```
 
 **Metric namespace: `system.gpu.*`**  
@@ -119,15 +119,33 @@ in the Data Explorer by filtering on `dt.entity.process_group_instance` name.
 the Grafana "Spark System Metrics" dashboard to Dynatrace, including an OOB vs
 custom split and telemetry plumbing requirements for GPU/GC/computed metrics.
 
-Two dashboards are maintained:
+Two dashboard tiers are maintained:
 
-**New Dashboard (DQL — primary):** `d879f582-1e11-486d-8f08-56d13a706eed`  
-Named **"Spark Cluster Metrics"** to mirror the Grafana dashboard of the same name.
-Managed by `tasks/apply_spark_system_dashboard_new.yml`, deployed by `deploy.yml`
-(tag `new_dashboard`). Tiles use DQL `timeseries` against Grail:
-- AMD GPU: core utilization, memory utilization, edge/junction temp, power, core/memory
-  clocks, fan, voltage (`system.gpu.*`)
-- Host: CPU usage, memory usage, physical NIC throughput, disk throughput (`dt.host.*`)
+**New Dashboards (DQL — primary):** JSON under `dashboards/` in this directory.
+Managed by `tasks/apply_dql_dashboards.yml`, deployed by `deploy.yml`
+(tag `new_dashboard`). Mirrors Grafana **Spark System Metrics**, **Hosts**, and
+per-metric drilldown dashboards:
+
+| Dynatrace dashboard | Grafana counterpart |
+|---|---|
+| Spark System Metrics | spark-system-metrics-aggregated |
+| Hosts | hosts |
+| Host CPU Usage | cpu-use-by-host |
+| Host Memory Pressure | memory-pressure-by-host |
+| Host Network Throughput | network-throughput-by-host |
+| Host Disk Throughput | disk-throughput-breakout |
+| Host Hard Page Faults | page-fault-rate-by-host (markdown placeholder — no Grail metric) |
+| Host System Load | system-load-by-host |
+| Host GC Metrics | gc-metrics-by-host |
+| Host GPU Metrics | gpu-metrics-by-host |
+
+The primary dashboard was previously named **Spark Cluster Metrics**; deploy
+renames it in place via legacy-name lookup.
+
+Tiles use DQL `timeseries` against Grail:
+- AMD GPU: core/VRAM utilization, thermals (`system.gpu.*`, Lab1+Lab2)
+- Host: CPU, memory, NIC throughput, disk throughput, load (`dt.host.*`, Lab1–Lab3)
+- JVM GC: pause, suspension, heap proxy, activation (`dt.runtime.jvm.*`)
 
 **Envelope panels.** *Physical NIC Throughput* (rx up / tx down) and *Disk
 Throughput* (read up / write down) are rendered as envelope graphs per the
@@ -171,9 +189,10 @@ loopback traffic. Reproducing it would require a custom sysfs sampler
 to the GPU sampler. This is deferred as out of scope; the physical NIC panel
 covers all externally observable traffic.
 
-The renamed New Dashboard lookup checks both the current name ("Spark Cluster
-Metrics") and the legacy name ("Spark System Metrics") so re-runs rename the
-existing document in place rather than creating a duplicate.
+The renamed New Dashboard lookup checks both the current name (**Spark System
+Metrics**) and legacy names (**Spark Cluster Metrics**, **Spark System Metrics**
+document from earlier iterations) so re-runs rename the existing document in
+place rather than creating a duplicate.
 
 **Classic Dashboard (DATA_EXPLORER — GC and Spark master):** `df044b4c-c7fb-472d-a6a0-fed81dccf2fc`  
 Managed by `tasks/apply_spark_system_dashboard.yml`. Uses Classic metric selector

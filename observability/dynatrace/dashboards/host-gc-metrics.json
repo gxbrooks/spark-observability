@@ -1,0 +1,54 @@
+{
+  "annotations": [],
+  "importedWithCode": false,
+  "settings": {
+    "defaultTimeframe": {
+      "enabled": true,
+      "value": {
+        "from": "now()-6h",
+        "to": "now()"
+      }
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 2
+    },
+    "2": {
+      "x": 0,
+      "y": 2,
+      "w": 24,
+      "h": 8
+    }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "Drilldown of Grafana **Total GC Pause Time**. Dynatrace splits by JVM process (not host label)."
+    },
+    "2": {
+      "type": "data",
+      "title": "GC Pause Time by Process",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance}\n| fieldsAdd process=entityName(dt.entity.process_group_instance)\n| filter isNotNull(process)\n| fieldsRemove dt.entity.process_group_instance",
+      "querySettings": {
+        "enableSampling": false,
+        "maxResultRecords": 1000,
+        "maxResultMegaBytes": 1
+      },
+      "visualizationSettings": {
+        "autoSelectVisualization": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    }
+  }
+}

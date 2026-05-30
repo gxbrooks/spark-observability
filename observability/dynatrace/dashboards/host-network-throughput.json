@@ -1,0 +1,54 @@
+{
+  "annotations": [],
+  "importedWithCode": false,
+  "settings": {
+    "defaultTimeframe": {
+      "enabled": true,
+      "value": {
+        "from": "now()-6h",
+        "to": "now()"
+      }
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 2
+    },
+    "2": {
+      "x": 0,
+      "y": 2,
+      "w": 24,
+      "h": 8
+    }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "Drilldown of Grafana **Total Network Throughput**. Envelope: rx positive, tx negated."
+    },
+    "2": {
+      "type": "data",
+      "title": "Host Network Throughput (In positive)",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries {rx=avg(dt.host.net.nic.bytes_rx), tx=avg(dt.host.net.nic.bytes_tx)}, by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host\n| fieldsAdd tx = tx[] * -1",
+      "querySettings": {
+        "enableSampling": false,
+        "maxResultRecords": 1000,
+        "maxResultMegaBytes": 1
+      },
+      "visualizationSettings": {
+        "autoSelectVisualization": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    }
+  }
+}

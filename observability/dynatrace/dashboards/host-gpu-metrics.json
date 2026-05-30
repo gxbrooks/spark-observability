@@ -1,0 +1,38 @@
+{
+  "annotations": [],
+  "importedWithCode": false,
+  "settings": {
+    "defaultTimeframe": { "enabled": true, "value": { "from": "now()-6h", "to": "now()" } }
+  },
+  "layouts": {
+    "1": { "x": 0, "y": 0, "w": 24, "h": 2 },
+    "2": { "x": 0, "y": 2, "w": 24, "h": 8 },
+    "3": { "x": 0, "y": 10, "w": 24, "h": 8 }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "Drilldown of Grafana **Average GPU Utilization** and **Average VRAM Utilization**. Aggregated: **Spark System Metrics**."
+    },
+    "2": {
+      "type": "data",
+      "title": "GPU Core Utilization by Host",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name}\n| filter in(host.name, \"Lab1\", \"Lab2\", \"Lab3\", \"lab1\", \"lab2\", \"lab3\")",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "3": {
+      "type": "data",
+      "title": "VRAM Utilization by Host",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries vram=avg(system.gpu.utilization.memory_percent), by:{host.name}\n| filter in(host.name, \"Lab1\", \"Lab2\", \"Lab3\", \"lab1\", \"lab2\", \"lab3\")",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    }
+  }
+}

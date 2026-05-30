@@ -1,0 +1,156 @@
+{
+  "annotations": [],
+  "importedWithCode": false,
+  "settings": {
+    "defaultTimeframe": {
+      "enabled": true,
+      "value": { "from": "now()-6h", "to": "now()" }
+    }
+  },
+  "layouts": {
+    "1": { "x": 0, "y": 0, "w": 24, "h": 2 },
+    "2": { "x": 0, "y": 2, "w": 12, "h": 6 },
+    "3": { "x": 12, "y": 2, "w": 12, "h": 6 },
+    "4": { "x": 0, "y": 8, "w": 12, "h": 6 },
+    "5": { "x": 12, "y": 8, "w": 12, "h": 6 },
+    "6": { "x": 0, "y": 14, "w": 12, "h": 6 },
+    "7": { "x": 12, "y": 14, "w": 12, "h": 6 },
+    "8": { "x": 0, "y": 20, "w": 12, "h": 6 },
+    "9": { "x": 12, "y": 20, "w": 12, "h": 6 },
+    "10": { "x": 0, "y": 26, "w": 12, "h": 6 },
+    "11": { "x": 12, "y": 26, "w": 12, "h": 6 },
+    "13": { "x": 0, "y": 32, "w": 12, "h": 6 },
+    "14": { "x": 12, "y": 32, "w": 12, "h": 6 },
+    "15": { "x": 0, "y": 38, "w": 24, "h": 2 }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "## Spark System Metrics (aggregated)\nMirrors Grafana **Spark System Metrics**. Per-host drilldowns: **Host CPU Usage**, **Host Memory Pressure**, **Host Network Throughput**, **Host Disk Throughput**, **Host System Load**, **Host GPU Metrics**, **Host GC Metrics**.\n\n**Active Spark Executions** and **Spark Log Volume** are Elasticsearch-only in Grafana; not replicated here."
+    },
+    "2": {
+      "type": "data",
+      "title": "Average System Compute Use",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries cpu=avg(dt.host.cpu.usage)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "3": {
+      "type": "data",
+      "title": "Average System Memory Pressure",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries mem=avg(dt.host.memory.usage)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "4": {
+      "type": "data",
+      "title": "Total Network Throughput",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries {rx=sum(dt.host.net.nic.bytes_rx), tx=sum(dt.host.net.nic.bytes_tx)}\n| fieldsAdd tx = tx[] * -1",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "5": {
+      "type": "data",
+      "title": "Total Disk Throughput",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries {read=sum(dt.host.disk.bytes_read), write=sum(dt.host.disk.bytes_written)}\n| fieldsAdd write = write[] * -1",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "6": {
+      "type": "data",
+      "title": "Total System Load Trend",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries load=sum(dt.host.cpu.load)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "7": {
+      "type": "data",
+      "title": "Total GC Pause Time",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "8": {
+      "type": "data",
+      "title": "Total GC Heap Reclaimed",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries heap=sum(dt.runtime.jvm.memory.pool.used)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "9": {
+      "type": "data",
+      "title": "GC Suspension Time (ms)",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries susp=sum(dt.runtime.jvm.gc.suspension_time)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "10": {
+      "type": "data",
+      "title": "Average GPU Utilization",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries core=avg(system.gpu.utilization.core_percent)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "11": {
+      "type": "data",
+      "title": "Average VRAM Utilization",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries vram=avg(system.gpu.utilization.memory_percent)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "13": {
+      "type": "data",
+      "title": "GPU Thermals",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries temp=avg(system.gpu.temperature_c.edge)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "14": {
+      "type": "data",
+      "title": "GC Activation Count",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries gc_act=sum(dt.runtime.jvm.gc.total_activation_count)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "15": {
+      "type": "markdown",
+      "content": "**Total Hard Page Faults** — Grafana uses Prometheus `node_vmstat_pgmajfault`. No equivalent `dt.host.*` Grail metric in this tenant; use Grafana drilldown **Host Hard Page Faults**."
+    }
+  }
+}

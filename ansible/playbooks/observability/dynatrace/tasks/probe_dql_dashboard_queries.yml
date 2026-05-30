@@ -31,21 +31,23 @@
   run_once: true
 
 # ── Stage 1: Static JSON validation ──────────────────────────────────────────
+- name: Stage dashboard JSON files for static DQL validation
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../../observability/dynatrace/dashboards/"
+    dest: /tmp/dt_dql_dashboards/
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
 - name: Static-validate dashboard tile DQL queries
   ansible.builtin.shell:
     cmd: |
       python3 - << 'PYEOF'
-      import json, re, sys
+      import json, re, sys, pathlib
 
-      path = "/tmp/spark_system_dashboard_content.json"
-      try:
-          d = json.load(open(path))
-      except Exception as e:
-          print(f"FAIL  cannot load {path}: {e}")
-          sys.exit(1)
-
-      tiles = d.get("tiles", {})
+      root = pathlib.Path("/tmp/dt_dql_dashboards")
       errors = []
+      data_count = 0
 
       anti_patterns = [
           (r"`",                        "backtick in DQL query"),
@@ -56,14 +58,22 @@
           (r'managementZones|\.tags\b', "managementZones/tags inside lookup subquery (not allowed)"),
       ]
 
-      for tile_id, tile in sorted(tiles.items(), key=lambda x: int(x[0])):
-          if tile.get("type") != "data":
+      for path in sorted(root.glob("*.json")):
+          try:
+              d = json.load(open(path))
+          except Exception as e:
+              errors.append(f"  {path.name}: cannot load JSON: {e}")
               continue
-          q = tile.get("query", "")
-          title = tile.get("title", f"tile {tile_id}")
-          for pattern, msg in anti_patterns:
-              if re.search(pattern, q):
-                  errors.append(f"  tile {tile_id} [{title}]: {msg}")
+          tiles = d.get("tiles", {})
+          for tile_id, tile in sorted(tiles.items(), key=lambda x: int(x[0])):
+              if tile.get("type") != "data":
+                  continue
+              data_count += 1
+              q = tile.get("query", "")
+              title = tile.get("title", f"tile {tile_id}")
+              for pattern, msg in anti_patterns:
+                  if re.search(pattern, q):
+                      errors.append(f"  {path.name} tile {tile_id} [{title}]: {msg}")
 
       if errors:
           print(f"Static validation FAILED - {len(errors)} issue(s):")
@@ -71,8 +81,8 @@
               print(e)
           sys.exit(1)
       else:
-          data_count = sum(1 for t in tiles.values() if t.get("type") == "data")
-          print(f"Static validation PASSED - {data_count} DQL tiles, 0 issues.")
+          files = len(list(root.glob('*.json')))
+          print(f"Static validation PASSED - {files} dashboards, {data_count} DQL tiles, 0 issues.")
       PYEOF
     executable: /bin/bash
   register: static_probe
@@ -122,6 +132,7 @@
           ("nic-envelope", 'timeseries {rx=avg(dt.host.net.nic.bytes_rx), tx=avg(dt.host.net.nic.bytes_tx)}, by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host | fieldsAdd tx = tx[] * -1'),
           ("disk-envelope", 'timeseries {read=avg(dt.host.disk.bytes_read), write=avg(dt.host.disk.bytes_written)}, by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host | fieldsAdd write = write[] * -1'),
           ("gpu-utilization", 'timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name, gpu.card}'),
+          ("gpu-vram", 'timeseries vram=avg(system.gpu.utilization.memory_percent), by:{host.name}'),
           ("jvm-gc", 'timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance} | fieldsAdd process=entityName(dt.entity.process_group_instance) | filter isNotNull(process) | fieldsRemove dt.entity.process_group_instance'),
       ]
 

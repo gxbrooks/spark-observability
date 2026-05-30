@@ -1,0 +1,27 @@
+{
+  "annotations": [],
+  "importedWithCode": false,
+  "settings": {
+    "defaultTimeframe": {
+      "enabled": true,
+      "value": {
+        "from": "now()-6h",
+        "to": "now()"
+      }
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 4
+    }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "## Host Hard Page Faults\nGrafana drilldown uses Prometheus `node_vmstat_pgmajfault` via Elastic Agent. No Grail equivalent in this tenant."
+    }
+  }
+}

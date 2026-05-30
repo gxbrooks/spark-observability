@@ -1,0 +1,121 @@
+---
+# Upsert one Dynatrace New Dashboard from a content JSON file on the controller.
+# Vars: dashboard_name, dashboard_content_path, dashboard_legacy_names (optional list)
+
+- name: "Resolve dashboard content path for {{ dashboard_name }}"
+  ansible.builtin.set_fact:
+    dql_dashboard_content_path: "{{ dashboard_content_path }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: "List existing dashboards named {{ dashboard_name }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_tenant_url_resolved }}/platform/document/v1/documents?type=dashboard&filter=name%3D%27{{
+      dashboard_name | urlencode | replace('/', '%2F') | replace(' ', '+') }}%27
+    method: GET
+    headers:
+      Authorization: "Bearer {{ dt_platform_token_resolved }}"
+    status_code: [200, 401, 403]
+  register: dql_dashboard_list_current
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: "List legacy dashboard names for {{ dashboard_name }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_tenant_url_resolved }}/platform/document/v1/documents?type=dashboard&filter=name%3D%27{{
+      item | urlencode | replace('/', '%2F') | replace(' ', '+') }}%27
+    method: GET
+    headers:
+      Authorization: "Bearer {{ dt_platform_token_resolved }}"
+    status_code: [200, 401, 403]
+  loop: "{{ dashboard_legacy_names | default([]) }}"
+  register: dql_dashboard_list_legacy
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: "Resolve existing document for {{ dashboard_name }}"
+  ansible.builtin.set_fact:
+    dql_dashboard_doc: >-
+      {{ (dql_dashboard_list_current.json.documents | default([]) | first | default(
+           (dql_dashboard_list_legacy.results | default([]) | map(attribute='json') | map(attribute='documents') | flatten | first | default({})), true)) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: "Resolve document id/version for {{ dashboard_name }}"
+  ansible.builtin.set_fact:
+    dql_dashboard_id: "{{ dql_dashboard_doc.id | default('') }}"
+    dql_dashboard_version: "{{ dql_dashboard_doc.version | default(0) }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: "Stage dashboard content JSON for {{ dashboard_name }}"
+  ansible.builtin.copy:
+    src: "{{ dql_dashboard_content_path }}"
+    dest: "/tmp/dt_dashboard_{{ dashboard_name | regex_replace('[^A-Za-z0-9]+', '_') }}.json"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: "PATCH dashboard {{ dashboard_name }}"
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -s
+      - -w
+      - "\nHTTP:%{http_code}"
+      - -X
+      - PATCH
+      - "{{ dt_tenant_url_resolved }}/platform/document/v1/documents/{{ dql_dashboard_id }}?optimistic-locking-version={{ dql_dashboard_version }}"
+      - -H
+      - "Authorization: Bearer {{ dt_platform_token_resolved }}"
+      - -F
+      - "name={{ dashboard_name }}"
+      - -F
+      - "content=@/tmp/dt_dashboard_{{ dashboard_name | regex_replace('[^A-Za-z0-9]+', '_') }}.json;type=application/json"
+  register: dql_dashboard_patch
+  changed_when: "'version' in (dql_dashboard_patch.stdout | default(''))"
+  when: dql_dashboard_id | length > 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: "POST dashboard {{ dashboard_name }}"
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -s
+      - -w
+      - "\nHTTP:%{http_code}"
+      - -X
+      - POST
+      - "{{ dt_tenant_url_resolved }}/platform/document/v1/documents"
+      - -H
+      - "Authorization: Bearer {{ dt_platform_token_resolved }}"
+      - -F
+      - "name={{ dashboard_name }}"
+      - -F
+      - "type=dashboard"
+      - -F
+      - "content=@/tmp/dt_dashboard_{{ dashboard_name | regex_replace('[^A-Za-z0-9]+', '_') }}.json;type=application/json"
+  register: dql_dashboard_post
+  changed_when: "'version' in (dql_dashboard_post.stdout | default(''))"
+  when: dql_dashboard_id | length == 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: "Assert dashboard upsert succeeded for {{ dashboard_name }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (dql_dashboard_patch.rc | default(-1) == 0) or
+        (dql_dashboard_post.rc | default(-1) == 0)
+    fail_msg: >-
+      Dashboard {{ dashboard_name }} create/update failed.
+      PATCH rc={{ dql_dashboard_patch.rc | default('skipped') }},
+      POST rc={{ dql_dashboard_post.rc | default('skipped') }}.
+  run_once: true
