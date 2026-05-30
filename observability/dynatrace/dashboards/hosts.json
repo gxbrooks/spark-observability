@@ -81,8 +81,14 @@
       "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
     },
     "8": {
-      "type": "markdown",
-      "content": "**Memory Fault Rate** — Grafana uses Elasticsearch page-fault rates per host. Not available as `dt.host.*` in Grail; use Grafana **Hosts** or Infrastructure memory view."
+      "type": "data",
+      "title": "Memory Fault Rate (faults/s)",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries pf=avg(dt.host.memory.avail.pfps), by:{dt.entity.host}\n| fieldsAdd host=entityName(dt.entity.host)\n| filter in(host, \"Lab1\", \"Lab2\", \"Lab3\")\n| fieldsRemove dt.entity.host",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
     },
     "9": {
       "type": "data",

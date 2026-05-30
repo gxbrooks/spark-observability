@@ -21,12 +21,12 @@
     "11": { "x": 12, "y": 26, "w": 12, "h": 6 },
     "13": { "x": 0, "y": 32, "w": 12, "h": 6 },
     "14": { "x": 12, "y": 32, "w": 12, "h": 6 },
-    "15": { "x": 0, "y": 38, "w": 24, "h": 2 }
+    "15": { "x": 0, "y": 38, "w": 24, "h": 6 }
   },
   "tiles": {
     "1": {
       "type": "markdown",
-      "content": "## Spark System Metrics (aggregated)\nMirrors Grafana **Spark System Metrics**. Per-host drilldowns: **Host CPU Usage**, **Host Memory Pressure**, **Host Network Throughput**, **Host Disk Throughput**, **Host System Load**, **Host GPU Metrics**, **Host GC Metrics**.\n\n**Active Spark Executions** and **Spark Log Volume** are Elasticsearch-only in Grafana; not replicated here."
+      "content": "## Spark System Metrics (aggregated)\nMirrors Grafana **Spark System Metrics**. Per-host drilldowns: **Host CPU Usage**, **Host Memory Pressure**, **Host Network Throughput**, **Host Disk Throughput**, **Host System Load**, **Host Hard Page Faults**, **Host GPU Metrics**, **Host GC Metrics**.\n\n**Active Spark Executions** and **Spark Log Volume** are Elasticsearch-only in Grafana; not replicated here."
     },
     "2": {
       "type": "data",
@@ -149,8 +149,14 @@
       "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
     },
     "15": {
-      "type": "markdown",
-      "content": "**Total Hard Page Faults** — Grafana uses Prometheus `node_vmstat_pgmajfault`. No equivalent `dt.host.*` Grail metric in this tenant; use Grafana drilldown **Host Hard Page Faults**."
+      "type": "data",
+      "title": "Total Page Fault Rate (faults/s)",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries pf=sum(dt.host.memory.avail.pfps)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
     }
   }
 }

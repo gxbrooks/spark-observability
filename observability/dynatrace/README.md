@@ -134,7 +134,7 @@ per-metric drilldown dashboards:
 | Host Memory Pressure | memory-pressure-by-host |
 | Host Network Throughput | network-throughput-by-host |
 | Host Disk Throughput | disk-throughput-breakout |
-| Host Hard Page Faults | page-fault-rate-by-host (markdown placeholder — no Grail metric) |
+| Host Hard Page Faults | page-fault-rate-by-host |
 | Host System Load | system-load-by-host |
 | Host GC Metrics | gc-metrics-by-host |
 | Host GPU Metrics | gpu-metrics-by-host |
@@ -178,6 +178,19 @@ primary, dashed secondary). Dynatrace New Dashboards cannot reproduce 17.3 or
 The envelope's positive/negative axis split (17.1) already distinguishes the
 primary from the secondary dimension in Dynatrace, so the panels remain
 readable; the shared-color and dashed-line cues are Grafana-only.
+
+**Page fault rate is available in Dynatrace.** OneAgent emits a host page-fault
+rate as `dt.host.memory.avail.pfps` (Classic `builtin:host.mem.avail.pfps`,
+"Page Faults" in the Memory analysis view), measured in faults/s and collected
+from the OS kernel counters (`/proc/vmstat` on Linux). The Grafana panel sources
+the same signal from Prometheus `node_vmstat_pgmajfault` (major faults via Elastic
+Agent). The aggregated **Spark System Metrics** dashboard sums it across hosts;
+**Hosts** and the **Host Hard Page Faults** drilldown break it out per host.
+Note the metric is a single host-level page-fault rate (not split into major vs
+minor), whereas the Grafana panel is specifically major (hard) faults — values
+track closely because hard faults dominate the observable rate on these hosts.
+For per-process attribution, `dt.process.memory.page_faults`
+(`builtin:tech.generic.mem.pageFaults`) is also available.
 
 **Loopback throughput is not available in Dynatrace.** The Grafana dashboard has
 a *Loopback Throughput* panel sourced from Elastic Agent's per-interface

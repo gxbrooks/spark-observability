@@ -133,6 +133,7 @@
           ("disk-envelope", 'timeseries {read=avg(dt.host.disk.bytes_read), write=avg(dt.host.disk.bytes_written)}, by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host | fieldsAdd write = write[] * -1'),
           ("gpu-utilization", 'timeseries core=avg(system.gpu.utilization.core_percent), by:{host.name, gpu.card}'),
           ("gpu-vram", 'timeseries vram=avg(system.gpu.utilization.memory_percent), by:{host.name}'),
+          ("page-faults", 'timeseries pf=avg(dt.host.memory.avail.pfps), by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host'),
           ("jvm-gc", 'timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance} | fieldsAdd process=entityName(dt.entity.process_group_instance) | filter isNotNull(process) | fieldsRemove dt.entity.process_group_instance'),
       ]
 
