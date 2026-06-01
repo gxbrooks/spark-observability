@@ -1,0 +1,97 @@
+---
+# Client CA drift: compare pull-based clients to observability Docker volume CA.
+# Include with client_ca_drift_phase=detect from hosts: linux, then phase=summarize from localhost.
+# See docs/CA_CERTIFICATE_ARCHITECTURE.md
+
+- name: Get CA hash from observability Docker volume
+  ansible.builtin.shell: |
+    for vol in $(docker volume ls -q); do
+      if echo "$vol" | grep -q certs; then
+        docker run --rm -v "$vol:/certs:ro" alpine sh -c \
+          "sha256sum /certs/ca.crt 2>/dev/null || sha256sum /certs/ca/ca.crt 2>/dev/null" | awk '{print $1}'
+        exit 0
+      fi
+    done
+    echo ""
+  delegate_to: "{{ groups['observability'][0] }}"
+  become: true
+  run_once: true
+  register: observability_ca_hash
+  changed_when: false
+  failed_when: false
+  when: client_ca_drift_phase == 'detect'
+
+- name: Fail when observability CA hash is unavailable
+  ansible.builtin.fail:
+    msg: >-
+      Could not read CA hash from observability Docker volume on {{ groups['observability'][0] }}.
+      Ensure init-certs completed and the certs volume exists before checking client CA drift.
+  run_once: true
+  when:
+    - client_ca_drift_phase == 'detect'
+    - (observability_ca_hash.stdout | default('') | trim) == ''
+
+- name: Detect Elastic Agent installation on host
+  ansible.builtin.stat:
+    path: /opt/Elastic/Agent/data
+  register: elastic_agent_data_dir
+  when: client_ca_drift_phase == 'detect'
+
+- name: Get local CA hash on agent host
+  ansible.builtin.shell: "sha256sum {{ client_ca_cert_path | default('/etc/ssl/certs/elastic/ca.crt') }} 2>/dev/null | awk '{print $1}' || echo 'MISSING'"
+  register: local_ca_hash
+  changed_when: false
+  failed_when: false
+  when:
+    - client_ca_drift_phase == 'detect'
+    - elastic_agent_data_dir.stat.exists
+
+- name: Mark host CA as stale when hash differs from observability volume
+  ansible.builtin.set_fact:
+    ca_cert_stale: true
+  when:
+    - client_ca_drift_phase == 'detect'
+    - elastic_agent_data_dir.stat.exists
+    - (local_ca_hash.stdout | default('MISSING') | trim) != (observability_ca_hash.stdout | trim)
+
+- name: Summarize client CA drift
+  ansible.builtin.set_fact:
+    client_ca_drift_hosts: >-
+      {{
+        groups[client_ca_drift_group | default('linux')]
+        | map('extract', hostvars)
+        | selectattr('ca_cert_stale', 'defined')
+        | selectattr('ca_cert_stale')
+        | map(attribute='inventory_hostname')
+        | list
+      }}
+    client_ca_drift_detected: >-
+      {{
+        (
+          groups[client_ca_drift_group | default('linux')]
+          | map('extract', hostvars)
+          | selectattr('ca_cert_stale', 'defined')
+          | selectattr('ca_cert_stale')
+          | list
+          | length
+        ) > 0
+      }}
+  when: client_ca_drift_phase == 'summarize'
+
+- name: Report client CA drift (action required)
+  ansible.builtin.debug:
+    msg: |
+      Client CA drift detected — local Elastic Agent CA does not match observability volume.
+      Hosts: {{ client_ca_drift_hosts | join(', ') }}
+      This commonly happens after observability/stop.yml -e delete_volumes=true (certs regenerated).
+      Refreshing Elastic Agent CA and restarting agents...
+  when:
+    - client_ca_drift_phase == 'summarize'
+    - client_ca_drift_detected | default(false) | bool
+
+- name: Report client CA currency (no action)
+  ansible.builtin.debug:
+    msg: "Client CA certificates match observability volume; Elastic Agent refresh not required."
+  when:
+    - client_ca_drift_phase == 'summarize'
+    - not (client_ca_drift_detected | default(false) | bool)

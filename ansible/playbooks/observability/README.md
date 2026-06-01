@@ -131,7 +131,10 @@ When the trial expires, reset for a new trial (destroys Elasticsearch/Kibana Doc
 
 ```bash
 ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
+ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
 ansible-playbook -i inventory.yml playbooks/observability/start.yml
 ```
 
-See also: [Elastic: licenses and subscriptions](https://www.elastic.co/docs/deploy-manage/license).
+`start.yml` compares the observability Docker volume CA to each Elastic Agent host after Elasticsearch is healthy. When drift is detected (typical after volume wipe), it automatically runs `elastic-agent/start.yml` to redeploy the CA and restart agents. Force a refresh anytime with `-e force_client_ca_sync=true`.
+
+See also: [CA certificate architecture](../../../docs/CA_CERTIFICATE_ARCHITECTURE.md), [Elastic: licenses and subscriptions](https://www.elastic.co/docs/deploy-manage/license).

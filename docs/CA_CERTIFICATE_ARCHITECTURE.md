@@ -256,9 +256,11 @@ All playbooks follow this pattern:
 3. Optionally validate CA in volume (container check)
 4. Start services (docker compose up -d)
 5. Verify service health
+6. Detect client CA drift (compare volume hash to Elastic Agent hosts)
+7. When drift detected (or force_client_ca_sync=true), import elastic-agent/start.yml
 ```
 
-**Key**: Observability does not publish the CA to a host path. The certs volume is the source of truth; each app fetches from that volume in its own install/start.
+**Key**: Observability does not publish the CA to a host path. The certs volume is the source of truth; each app fetches from that volume in its own install/start playbook. After volume wipe or cert regeneration, `observability/start.yml` detects drift and triggers `elastic-agent/start.yml` so direct-ES pipelines recover without a separate manual step.
 
 ### Elastic Agent Playbooks
 
@@ -298,8 +300,7 @@ FORCE_REGEN=1 ansible-playbook -i ansible/inventory.yml \
   ansible/playbooks/observability/start.yml
 
 # 3. Restart services on managed hosts (pull new cert)
-ansible-playbook -i ansible/inventory.yml \
-  ansible/playbooks/elastic-agent/stop.yml
+#    observability/start.yml does this automatically when drift is detected; run manually if needed:
 ansible-playbook -i ansible/inventory.yml \
   ansible/playbooks/elastic-agent/start.yml
 ```

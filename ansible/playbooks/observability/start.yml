@@ -193,6 +193,34 @@
             Prometheus     http://{{ ansible_hostname }}:9090
             Tempo          http://{{ ansible_hostname }}:3200
 
+# After init-certs, pull-based clients (Elastic Agent on Lab hosts) may still trust a pre-reset CA.
+# Detect drift vs the observability Docker volume and refresh agents when needed.
+# See docs/CA_CERTIFICATE_ARCHITECTURE.md and playbooks/tasks/client_ca_drift.yml
+- name: Detect stale client CA certificates
+  hosts: linux
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Run client CA drift detection
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/client_ca_drift.yml"
+      vars:
+        client_ca_drift_phase: detect
+
+- name: Summarize client CA drift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Aggregate drift results
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/client_ca_drift.yml"
+      vars:
+        client_ca_drift_phase: summarize
+
+- import_playbook: ../elastic-agent/start.yml
+  when: >
+    (force_client_ca_sync | default(false) | bool) or
+    (hostvars['localhost']['client_ca_drift_detected'] | default(false) | bool)
+
 - import_playbook: prometheus/start.yml
 
 - import_playbook: dynatrace/start.yml

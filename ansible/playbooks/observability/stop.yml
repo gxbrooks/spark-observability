@@ -55,6 +55,11 @@
           Observability Platform Stopped
           ==============================
           Volumes: {{ 'DELETED' if (delete_volumes | bool) else 'preserved' }}
+          {% if delete_volumes | bool %}
+          CA note: Deleting volumes regenerates TLS certificates on next start.
+          Pull-based clients (Elastic Agent on Lab hosts) must refresh their local CA copy.
+          observability/start.yml detects drift and runs elastic-agent/start.yml automatically.
+          {% endif %}
 
           To stop a single subsystem:
             ansible-playbook -i inventory.yml playbooks/observability/<subsystem>/stop.yml
