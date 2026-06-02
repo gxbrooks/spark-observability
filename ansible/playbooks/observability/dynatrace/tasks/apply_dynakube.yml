@@ -83,7 +83,7 @@
       - (dynakube_oneagent_rollout_retry.rc | default(dynakube_oneagent_rollout.rc)) == 0
     fail_msg: >-
       Dynakube OneAgent rollout failed:
-      {{ (dynakube_oneagent_rollout_retry.stdout | default(dynakube_oneagent_rollout_retry.stderr))
-         if (dynakube_oneagent_rollout_retry is defined) else
-         (dynakube_oneagent_rollout.stdout | default(dynakube_oneagent_rollout.stderr)) }}.
+      {{ (dynakube_oneagent_rollout_retry.stdout | default(''))
+         if (dynakube_oneagent_rollout_retry is defined and not dynakube_oneagent_rollout_retry.skipped | default(false))
+         else (dynakube_oneagent_rollout.stdout | default('')) }}.
       Run dynatrace/diagnose.yml and inspect dynakube-oneagent pod logs for host-agent conflicts.

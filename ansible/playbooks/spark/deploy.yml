@@ -342,6 +342,8 @@
         dest: "/home/{{ ansible_user }}/spark/conf/spark-defaults.conf"
         mode: '0644'
       vars:
+        spark_jars_mount: "{{ SPARK_JARS_MOUNT.value | default(SPARK_JARS_MOUNT | default('/mnt/spark/jars')) }}"
+        otel_listener_jar_name: "{{ SPARK_OTEL_LISTENER_JAR_NAME.value | default(SPARK_OTEL_LISTENER_JAR_NAME | default('spark-otel-listener-1.0.0.jar')) }}"
         spark_network_timeout: "{{ SPARK_NETWORK_TIMEOUT | default('600s') }}"
         spark_rpc_ask_timeout: "{{ SPARK_RPC_ASK_TIMEOUT | default('60s') }}"
         spark_rpc_lookup_timeout: "{{ SPARK_RPC_LOOKUP_TIMEOUT | default('60s') }}"
@@ -382,5 +384,5 @@
 
     # Deployments and services are now handled by the spark role
 
-# OTel listener JAR: resolve/build on controller, copy to /mnt/spark/data on k8s nodes (see otel-listener/deploy.yml)
+# OTel listener JAR: resolve/build on controller, copy to /mnt/spark/jars on k8s nodes (see otel-listener/deploy.yml)
 - import_playbook: otel-listener/deploy.yml

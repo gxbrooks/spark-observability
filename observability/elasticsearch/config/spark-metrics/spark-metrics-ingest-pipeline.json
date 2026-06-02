@@ -1,0 +1,11 @@
+{
+  "description": "Default missing Spark OTLP stage-outcome fields to zero on metrics-spark-default ingest",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": "if (!ctx.containsKey('spark.stage.outcomes.failures')) { ctx['spark.stage.outcomes.failures'] = 0.0; } if (!ctx.containsKey('spark.stage.outcomes.spill.memory.bytes')) { ctx['spark.stage.outcomes.spill.memory.bytes'] = 0.0; } if (!ctx.containsKey('spark.stage.outcomes.spill.disk.bytes')) { ctx['spark.stage.outcomes.spill.disk.bytes'] = 0.0; }"
+      }
+    }
+  ]
+}

@@ -62,7 +62,7 @@ ansible-playbook -i inventory.yml playbooks/spark/otel-listener/deploy.yml
 ```
 
 - Distributes JAR to all managed nodes via Ansible (not NFS)
-- Copies to `/mnt/spark/data/spark-otel-listener-1.0.0.jar` (host path mounted into pods; matches `spark.jars` in cluster `spark-defaults`)
+- Copies to `/mnt/spark/jars/spark-otel-listener-1.0.0.jar` on each k8s node (hostPath; matches `spark.jars` in cluster `spark-defaults`)
 - See [FILE_DISTRIBUTION_STRATEGY.md](FILE_DISTRIBUTION_STRATEGY.md) for rationale
 
 ### Configure
@@ -80,7 +80,7 @@ OTEL_DEPLOYMENT_ENVIRONMENT: "production"
 ```properties
 # spark-defaults.conf.j2
 spark.extraListeners com.elastic.spark.otel.OTelSparkListener
-spark.jars /mnt/spark/data/spark-otel-listener-1.0.0.jar
+spark.jars /mnt/spark/jars/spark-otel-listener-1.0.0.jar
 ```
 
 ### Start/Stop

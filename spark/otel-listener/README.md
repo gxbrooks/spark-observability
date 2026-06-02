@@ -45,8 +45,9 @@ Deployment is automated via Ansible playbooks:
 2. **Deploy**: `ansible/playbooks/spark/otel-listener/deploy.yml` (also imported by `ansible/playbooks/spark/deploy.yml`)
 3. **Configure**: Integrated into Spark ConfigMap / `spark-defaults.conf`
 
-The JAR is copied to each Kubernetes node at the host path mounted as **`/mnt/spark/data`** in Spark pods (matches `spark.jars` in `spark-defaults.conf.j2`):
-- **Managed nodes**: `/mnt/spark/data/spark-otel-listener-1.0.0.jar`
+The JAR is copied to each Kubernetes node at **`/mnt/spark/jars`** (hostPath mount in Spark pods; matches `spark.jars` in `spark-defaults.conf.j2`). Application data remains on **`/mnt/spark/data`** only.
+
+- **Managed nodes**: `/mnt/spark/jars/spark-otel-listener-1.0.0.jar`
 
 ## Configuration
 
@@ -63,7 +64,7 @@ Spark configuration in `spark-defaults.conf`:
 
 ```properties
 spark.extraListeners=com.elastic.spark.otel.OTelSparkListener
-spark.jars=/mnt/spark/data/spark-otel-listener-1.0.0.jar
+spark.jars=/mnt/spark/jars/spark-otel-listener-1.0.0.jar
 ```
 
 ## Architecture

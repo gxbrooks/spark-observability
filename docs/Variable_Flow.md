@@ -77,6 +77,7 @@ All clients and managed nodes MUST run the same versions. This prevents:
 ## **Architecture Overview**
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14pt','fontFamily':'arial, sans-serif'},'flowchart':{'useMaxWidth':false,'htmlLabels':true,'nodeSpacing':55,'rankSpacing':55},'themeCSS':'.nodeLabel,.nodeLabel p{font-size:14pt!important;line-height:1.3!important}.cluster-label .nodeLabel,.cluster-label p,.cluster-label span{font-size:16pt!important;font-weight:600!important}.edgeLabel,.edgeLabel p{font-size:12pt!important;line-height:1.25!important}'}}%%
 flowchart LR
     A[vars/variables.yaml] -->|defines values| B[generate_contexts.sh]
     C[vars/contexts.yaml] -->|defines outputs| B

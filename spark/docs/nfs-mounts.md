@@ -11,7 +11,8 @@ All writable Spark shared directories use the same permission pattern: **owner `
 | Host path | NFS export (server) | Purpose |
 |-----------|---------------------|---------|
 | `/mnt/spark/events` | `/srv/nfs/spark/events` | Spark event logs (History Server, agents) |
-| `/mnt/spark/data` | `/srv/nfs/spark/data` | Shared datasets, OTel JAR copy target, etc. |
+| `/mnt/spark/data` | `/srv/nfs/spark/data` | Shared application datasets (read/write) |
+| `/mnt/spark/jars` | *(none — per-host hostPath)* | Runtime JARs for Spark in Kubernetes (OTel listener, etc.) |
 | `/mnt/spark/logs` | `/srv/nfs/spark/logs` | Application / GC logs layout under NFS |
 | `/mnt/spark/checkpoints` | `/srv/nfs/spark/checkpoints` | Streaming checkpoints |
 | `/mnt/spark/jupyter` | `/srv/nfs/jupyterhub` | JupyterHub shared tree (notebooks path under this tree) |

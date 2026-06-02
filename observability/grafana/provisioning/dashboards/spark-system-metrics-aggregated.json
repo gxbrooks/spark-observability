@@ -114,7 +114,7 @@
               "type": "date_histogram",
               "field": "@timestamp",
               "settings": {
-                "interval": "$__interval",
+                "interval": "5s",
                 "min_doc_count": "0"
               }
             }
@@ -137,8 +137,329 @@
         }
       ],
       "title": "Active Spark Executions",
-      "description": "Counts of open START operations by type, written every ~5s by the application-events-metrics watcher from app-events-*. Host is not indexed on these aggregates, so no per-host drilldown is available. Requires Elasticsearch Trial or a paid subscription (Watcher is not available on Basic).",
+      "description": "Open START operations counted every ~5s by the application-events-metrics Watcher (event.type=start, event.state=open, @timestamp within 24h). Should track Active Executions (OTel/Dynatrace) when app-events closes are healthy.",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisWidth": 80
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 201,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.executions.opened.app"
+            },
+            {
+              "id": "2",
+              "type": "max",
+              "field": "spark.executions.closed.app"
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params.o - params.c",
+                "buckets_path": {
+                  "o": "1",
+                  "c": "2"
+                }
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.opened.app",
+          "alias": "app",
+          "refId": "A",
+          "timeField": "@timestamp"
+        },
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.executions.opened.job"
+            },
+            {
+              "id": "2",
+              "type": "max",
+              "field": "spark.executions.closed.job"
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params.o - params.c",
+                "buckets_path": {
+                  "o": "1",
+                  "c": "2"
+                }
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.opened.job",
+          "alias": "job",
+          "refId": "B",
+          "timeField": "@timestamp"
+        },
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.executions.opened.stage"
+            },
+            {
+              "id": "2",
+              "type": "max",
+              "field": "spark.executions.closed.stage"
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params.o - params.c",
+                "buckets_path": {
+                  "o": "1",
+                  "c": "2"
+                }
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.opened.stage",
+          "alias": "stage",
+          "refId": "C",
+          "timeField": "@timestamp"
+        },
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.executions.opened.task"
+            },
+            {
+              "id": "2",
+              "type": "max",
+              "field": "spark.executions.closed.task"
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params.o - params.c",
+                "buckets_path": {
+                  "o": "1",
+                  "c": "2"
+                }
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.opened.task",
+          "alias": "task",
+          "refId": "D",
+          "timeField": "@timestamp"
+        },
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.executions.opened.sql"
+            },
+            {
+              "id": "2",
+              "type": "max",
+              "field": "spark.executions.closed.sql"
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "1",
+              "settings": {
+                "script": "params.o - params.c",
+                "buckets_path": {
+                  "o": "1",
+                  "c": "2"
+                }
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.opened.sql",
+          "alias": "sql",
+          "refId": "E",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Active Executions",
+      "description": "Open Spark executions (started, not yet completed) from OTLP lifecycle counters: max(opened) minus max(closed) per 5s bucket, by execution type. Each start emits +1 to opened.* and active.*; each close emits +1 to closed.* and -1 to active.*. Matches the Watcher semantics (open START count) and the Dynatrace Active Executions tile.",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 200,
+      "panels": [],
+      "title": "Spark Stage Metrics",
+      "type": "row"
     },
     {
       "datasource": {
@@ -170,28 +491,72 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "ERROR" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "WARN" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "WARN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "INFO" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "INFO"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "DEBUG" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
+            "matcher": {
+              "id": "byName",
+              "options": "DEBUG"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
           }
         ]
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
-        "y": 8
+        "y": 25
       },
       "id": 100,
       "options": {
@@ -249,7 +614,11 @@
         }
       ],
       "links": [
-        { "title": "View Detailed Logs", "url": "/d/spark-logs-viewer?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "View Detailed Logs",
+          "url": "/d/spark-logs-viewer?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Spark Log Volume",
       "type": "timeseries",
@@ -318,7 +687,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 25
       },
       "id": 2,
       "options": {
@@ -363,7 +732,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host CPU Usage", "url": "/d/cpu-use-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host CPU Usage",
+          "url": "/d/cpu-use-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Average System Compute Use",
       "type": "timeseries"
@@ -432,7 +805,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 33
       },
       "id": 3,
       "options": {
@@ -477,7 +850,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Memory Pressure", "url": "/d/memory-pressure-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host Memory Pressure",
+          "url": "/d/memory-pressure-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Average System Memory Pressure",
       "type": "timeseries"
@@ -517,7 +894,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 41
       },
       "id": 10,
       "options": {
@@ -622,7 +999,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Network Throughput", "url": "/d/network-throughput-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host Network Throughput",
+          "url": "/d/network-throughput-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Total Network Throughput",
       "type": "timeseries",
@@ -663,7 +1044,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 41
       },
       "id": 11,
       "options": {
@@ -768,7 +1149,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Disk Throughput", "url": "/d/disk-throughput-breakout?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host Disk Throughput",
+          "url": "/d/disk-throughput-breakout?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Total Disk Throughput",
       "type": "timeseries",
@@ -828,7 +1213,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 49
       },
       "id": 7,
       "options": {
@@ -873,7 +1258,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host System Load", "url": "/d/system-load-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host System Load",
+          "url": "/d/system-load-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Total System Load Trend",
       "type": "timeseries",
@@ -935,7 +1324,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 49
       },
       "id": 6,
       "options": {
@@ -964,7 +1353,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host Hard Page Faults", "url": "/d/page-fault-rate-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host Hard Page Faults",
+          "url": "/d/page-fault-rate-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Total Hard Page Faults (major faults)",
       "description": "Hard (major) page faults across all hosts (node_vmstat_pgmajfault) - faults serviced from disk. Near-zero is expected when application memory is pinned and sized to fit RAM.",
@@ -1021,7 +1414,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 57
       },
       "id": 8,
       "options": {
@@ -1068,7 +1461,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host GC Metrics",
+          "url": "/d/gc-metrics-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Total GC Pause Time",
       "type": "timeseries"
@@ -1123,7 +1520,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 57
       },
       "id": 9,
       "options": {
@@ -1170,7 +1567,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GC Metrics", "url": "/d/gc-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host GC Metrics",
+          "url": "/d/gc-metrics-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Total GC Heap Reclaimed",
       "type": "timeseries"
@@ -1235,7 +1636,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 65
       },
       "id": 103,
       "options": {
@@ -1280,7 +1681,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host GPU Metrics",
+          "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Average GPU Utilization",
       "description": "Average GPU core utilization across GPU-equipped nodes.",
@@ -1346,7 +1751,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 65
       },
       "id": 104,
       "options": {
@@ -1399,8 +1804,14 @@
                 "script": "params.used != null && params.total != null && params.total > 0 ? (params.used / params.total) * 100.0 : null"
               },
               "pipelineVariables": [
-                { "name": "used", "pipelineAgg": "1" },
-                { "name": "total", "pipelineAgg": "2" }
+                {
+                  "name": "used",
+                  "pipelineAgg": "1"
+                },
+                {
+                  "name": "total",
+                  "pipelineAgg": "2"
+                }
               ]
             }
           ],
@@ -1410,7 +1821,11 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host GPU Metrics",
+          "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "Average VRAM Utilization",
       "description": "Average GPU VRAM occupancy (used/total bytes) across GPU-equipped nodes. Uses raw VRAM byte counters so mixed GPU models (Lab1/Lab2 vs Lab3) and legacy mem_busy_percent samples are excluded.",
@@ -1469,7 +1884,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 73
       },
       "id": 102,
       "options": {
@@ -1514,10 +1929,403 @@
         }
       ],
       "links": [
-        { "title": "Drilldown: Host GPU Metrics", "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}", "targetBlank": false }
+        {
+          "title": "Drilldown: Host GPU Metrics",
+          "url": "/d/gpu-metrics-by-host?orgId=1&from=${__from}&to=${__to}",
+          "targetBlank": false
+        }
       ],
       "title": "GPU Thermals",
       "description": "Average GPU edge temperature across Lab1/Lab2 nodes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "axisCenteredZero": true
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 202,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.stage.shuffle.read.bytes"
+            },
+            {
+              "id": "3",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "1s"
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.stage.shuffle.read.bytes",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": "shuffle read"
+        },
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.stage.shuffle.write.bytes"
+            },
+            {
+              "id": "2",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "1s"
+              }
+            },
+            {
+              "id": "3",
+              "type": "bucket_script",
+              "pipelineAgg": "2",
+              "settings": {
+                "script": "params._value != null && params._value >= 0 ? params._value * -1 : null"
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.stage.shuffle.write.bytes",
+          "refId": "B",
+          "timeField": "@timestamp",
+          "alias": "shuffle write"
+        }
+      ],
+      "title": "Stage Shuffle (Write Positive)",
+      "description": "Shuffle byte rates at stage completion. Write is inverted (negative axis) per envelope graph standard.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "none"
+            },
+            "spanNulls": true
+          },
+          "unit": "short",
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 203,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.stage.outcomes.failures"
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.active.app",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Stage Failures",
+      "description": "Cumulative stage failures (flat zero when chapters complete without failed stages).",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "decbytes",
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "id": 204,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.stage.outcomes.spill.memory.bytes"
+            },
+            {
+              "id": "3",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "1s"
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.active.app",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": "memory spill"
+        },
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.stage.outcomes.spill.disk.bytes"
+            },
+            {
+              "id": "3",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "1s"
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.executions.active.app",
+          "refId": "B",
+          "timeField": "@timestamp",
+          "alias": "disk spill"
+        }
+      ],
+      "title": "Stage Spill",
+      "description": "Cumulative spill totals (flat zero when stages do not spill).",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "spark-elasticsearch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "cps",
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "id": 205,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "5s",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "spark-elasticsearch"
+          },
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "spark.stage.outcomes.completed"
+            },
+            {
+              "id": "3",
+              "type": "derivative",
+              "field": "1",
+              "pipelineAgg": "1",
+              "settings": {
+                "unit": "1s"
+              }
+            }
+          ],
+          "query": "_index:metrics-spark-default* AND _exists_:spark.stage.outcomes.completed",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": "completed rate"
+        }
+      ],
+      "title": "Stage Completed Rate",
+      "description": "Stages completed per second (sanity check that stage OTLP metrics are flowing).",
       "type": "timeseries"
     }
   ],
@@ -1541,5 +2349,5 @@
   "timezone": "browser",
   "title": "Spark System Metrics",
   "uid": "spark-system-metrics-aggregated",
-  "version": 7
+  "version": 8
 }

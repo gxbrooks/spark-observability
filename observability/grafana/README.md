@@ -19,7 +19,7 @@ Grafana provides visualization of metrics collected from:
 
 | Dashboard | UID | Description | Documentation |
 |-----------|-----|-------------|---------------|
-| Spark System Metrics | `spark-system-metrics-aggregated` | Aggregated cluster system, GPU, GC, and Spark log metrics | [spark-system-metrics-aggregated.md](./dashboards/spark-system-metrics-aggregated.md) |
+| Spark System Metrics | `spark-system-metrics-aggregated` | Aggregated cluster system, GPU, GC, Spark execution/stage OTLP metrics, and Spark log metrics | [spark-system-metrics-aggregated.md](./dashboards/spark-system-metrics-aggregated.md) |
 | Hosts | `lab-hosts-metrics` | Lab1–Lab3 per-host system, network, disk, and GPU metrics | — |
 | Spark Application Logs Viewer | `spark-logs-viewer` | Spark application logs by level and host with entry table | — |
 
@@ -65,6 +65,19 @@ Collected from Spark event logs and GC logs:
 - **Indices**: `logs-spark_gc-default`, `logs-spark-spark`
 - **Fields**: GC pause times, heap usage, reclaimed memory
 - **Processing**: Elastic Agent → Logstash → Elasticsearch
+
+### Spark OTLP execution and stage metrics
+Collected by **spark-otel-listener** (driver) via OTLP → OpenTelemetry Collector:
+- **Index**: `metrics-spark-default` (data stream; initialized in `elasticsearch/bin/init-index.sh` step 7.85)
+- **Active executions**: `spark.executions.active.{app,job,stage,task,sql}` — UpDownCounter (+1 start / −1 close); panels use `max(opened.*) − max(closed.*)` per bucket (same semantics as Watcher open-count)
+- **Stage metrics**: `spark.stage.shuffle.*` (counters), `spark.stage.outcomes.*` (completed counter + failures/spill gauges)
+- **Dynatrace parity**: same instruments ingested to Grail via collector pipeline `metrics/spark/dynatrace/*`
+- **Do not compare** `spark.executions.opened.*` / `closed.*` (lifetime counters) to active gauges or Dynatrace Active Executions tiles
+
+### Spark active executions (Watcher path)
+- **Index**: `application-events-metrics-ds` (from Elasticsearch Watcher on `app-events-*`)
+- **Semantics**: count of documents with `event.type=start` and `event.state=open` (24h `@timestamp` window)
+- **Requires**: Trial or paid Elasticsearch license (Watcher actions do not run on Basic)
 
 ### Batch job data (Elasticsearch / Kibana)
 Batch lifecycle and traces are indexed for search and watchers (not surfaced in a Grafana dashboard here). See [`../elasticsearch/docs/Elasticsearch_indices.md`](../elasticsearch/docs/Elasticsearch_indices.md) and Kibana saved objects under [`../elasticsearch/config/batch-events/`](../elasticsearch/config/batch-events/) and related config.

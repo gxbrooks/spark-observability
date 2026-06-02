@@ -108,7 +108,14 @@ def get_secret_value(var_name, secrets_dict):
         # Skip placeholder values
         if secret_value and secret_value.strip() and secret_value != "CHANGE_ME":
             return secret_value
-    
+
+    # Priority 3: nested dynatrace block in secrets.yaml
+    dynatrace = secrets_dict.get('dynatrace')
+    if isinstance(dynatrace, dict) and var_name in dynatrace:
+        secret_value = dynatrace[var_name]
+        if secret_value and secret_value.strip() and secret_value != "CHANGE_ME":
+            return secret_value
+
     # No valid secret found
     return None
 

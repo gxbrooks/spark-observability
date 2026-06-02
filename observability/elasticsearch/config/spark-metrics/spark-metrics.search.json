@@ -1,0 +1,36 @@
+{
+  "attributes": {
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+    },
+    "title": "Spark OTLP Metrics",
+    "sort": [["@timestamp", "desc"]],
+    "columns": [
+      "@timestamp",
+      "spark.executions.active.app",
+      "spark.executions.active.job",
+      "spark.executions.active.stage",
+      "spark.executions.active.task",
+      "spark.executions.active.sql",
+      "spark.stage.shuffle.read.bytes",
+      "spark.stage.shuffle.write.bytes",
+      "spark.stage.outcomes.completed",
+      "spark.stage.outcomes.failures",
+      "spark.stage.outcomes.spill.memory.bytes",
+      "spark.stage.outcomes.spill.disk.bytes"
+    ],
+    "description": "OTLP Spark execution and stage metrics exported by spark-otel-listener to metrics-spark-default",
+    "hideChart": false,
+    "isTextBasedQuery": false,
+    "usesAdHocDataView": false,
+    "timeRestore": false,
+    "version": 1
+  },
+  "references": [
+    {
+      "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+      "type": "index-pattern",
+      "id": "spark-metrics"
+    }
+  ]
+}

@@ -37,30 +37,60 @@ The dashboard includes a **Granularity** dropdown at the top. While Elasticsearc
 
 ## Panels
 
-### 1. Total System CPU Utilization %
+### Spark Executions (top row)
+
+#### Active Spark Executions
+- **Source**: `application-events-metrics-ds`
+- **Metric**: `avg(count)` by `operation.type`, 5s buckets
+- **Semantics**: open START operations in `app-events-*` (24h window); should track Active Executions when closes are healthy
+
+#### Active Executions
+- **Source**: `metrics-spark-default`
+- **Metric**: `max(opened.*) − max(closed.*)` per execution type, 5s buckets, stacked bars
+- **Listener**: each start +1 to `opened.*` and `active.*` (UpDownCounter); each close +1 to `closed.*` and −1 to `active.*`
+- **Dynatrace**: `max(spark.executions.active.*)` over 5s (same UpDownCounter net value)
+
+### Spark Stage Metrics row
+
+#### Stage Shuffle (Write Positive)
+- **Fields**: `spark.stage.shuffle.read.bytes`, `spark.stage.shuffle.write.bytes` (write inverted per envelope standard)
+- **Calculation**: derivative (rate) over 5s buckets
+
+#### Stage Failures
+- **Field**: `spark.stage.outcomes.failures` (cumulative; flat zero when no failed stages)
+
+#### Stage Spill
+- **Fields**: `spark.stage.outcomes.spill.memory.bytes`, `spark.stage.outcomes.spill.disk.bytes`
+
+#### Stage Completed Rate
+- **Field**: derivative of `spark.stage.outcomes.completed` (sanity check during runs)
+
+### System metrics (aggregated)
+
+#### Total System CPU Utilization %
 - **Metric**: Sum of `system.cpu.total.pct` across all hosts
 - **Type**: Time series
 - **Legend Stats**: Mean, Max, Last value
 
-### 2. Average System Memory Utilization %
+#### Average System Memory Utilization %
 - **Metric**: Average of `system.memory.used.pct` across all hosts
 - **Type**: Time series
 - **Legend Stats**: Mean, Max, Last value
 
-### 3. Total Network Byte Rate (In/Out)
+#### Total Network Byte Rate (In/Out)
 - **Metrics**: 
   - Network In: Derivative of `system.network.in.bytes`
   - Network Out: Derivative of `system.network.out.bytes`
-- **Type**: Time series
+- **Type**: Time series (envelope graph)
 - **Note**: Excludes loopback interface
 
-### 4. Total Disk I/O Rate (Read/Write)
+#### Total Disk I/O Rate (Read/Write)
 - **Metrics**:
   - Disk Read: Derivative of `system.diskio.read.bytes`
   - Disk Write: Derivative of `system.diskio.write.bytes`
-- **Type**: Time series
+- **Type**: Time series (envelope graph)
 
-### 5. Total System Load Average
+#### Total System Load Average
 - **Metrics**: 
   - Sum of `system.load.1` (1-minute load)
   - Sum of `system.load.5` (5-minute load)
@@ -68,25 +98,25 @@ The dashboard includes a **Granularity** dropdown at the top. While Elasticsearc
 - **Type**: Time series
 - **Legend Stats**: Mean, Max, Last value
 
-### 6. Total Page Fault Rate
+#### Total Page Fault Rate
 - **Metrics**:
   - Total Page Faults: Sum of `system.memory.page_stats.pgfault.rate`
   - Total Major Faults: Sum of `system.memory.page_stats.pgmajfault.rate`
 - **Type**: Time series
 
-### 7. Total GC Pause Time
+#### Total GC Pause Time
 - **Metric**: Sum of `gc.paused.millis` from Spark GC events
 - **Type**: Time series
 - **Unit**: Milliseconds
 - **Legend Stats**: Mean, Max, Sum
 
-### 8. Total GC Heap Reclaimed
+#### Total GC Heap Reclaimed
 - **Metric**: Sum of `gc.paused.reclaimed` from Spark GC events
 - **Type**: Time series
 - **Unit**: Kilobytes (displayed as deckbytes in Grafana)
 - **Legend Stats**: Mean, Max, Sum
 
-### 9. Total Spark Application Logs by Level
+#### Total Spark Application Logs by Level
 - **Metric**: Sum of `log_count` by `log_level`
 - **Type**: Stacked bar chart
 - **Color Coding**:
@@ -100,6 +130,8 @@ The dashboard includes a **Granularity** dropdown at the top. While Elasticsearc
 ## Data Sources
 
 The dashboard queries the following Elasticsearch indices:
+- `metrics-spark-default` — Spark OTLP execution and stage metrics (Phase 1)
+- `application-events-metrics-ds` — Watcher-fed active execution counts (optional comparison)
 - `metrics-system.cpu-default`
 - `metrics-system.memory-default`
 - `metrics-system.network-default`
@@ -213,4 +245,4 @@ Dashboard configuration is provisioned via Grafana's provisioning system:
 - [System Metrics ILM Policies](/observability/elasticsearch/system-metrics/README.md)
 - [Variables Configuration](/vars/variables.yaml) - Retention policy definitions
 - [Grafana Dashboard Provisioning](/observability/grafana/README.md)
-
+- [Visualization standards](/standards/visualizations.md)

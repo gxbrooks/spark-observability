@@ -4,7 +4,7 @@
   "settings": {
     "defaultTimeframe": {
       "enabled": true,
-      "value": { "from": "now()-6h", "to": "now()" }
+      "value": { "from": "now()-2h", "to": "now()" }
     }
   },
   "layouts": {
@@ -21,12 +21,16 @@
     "11": { "x": 12, "y": 26, "w": 12, "h": 6 },
     "13": { "x": 0, "y": 32, "w": 12, "h": 6 },
     "14": { "x": 12, "y": 32, "w": 12, "h": 6 },
-    "15": { "x": 0, "y": 38, "w": 24, "h": 6 }
+    "15": { "x": 0, "y": 38, "w": 24, "h": 6 },
+    "16": { "x": 0, "y": 44, "w": 12, "h": 6 },
+    "17": { "x": 12, "y": 44, "w": 12, "h": 6 },
+    "18": { "x": 0, "y": 50, "w": 12, "h": 6 },
+    "19": { "x": 12, "y": 50, "w": 12, "h": 6 }
   },
   "tiles": {
     "1": {
       "type": "markdown",
-      "content": "## Spark System Metrics (aggregated)\nMirrors Grafana **Spark System Metrics**. Per-host drilldowns: **Host CPU Usage**, **Host Memory Pressure**, **Host Network Throughput**, **Host Disk Throughput**, **Host System Load**, **Host Hard Page Faults**, **Host GPU Metrics**, **Host GC Metrics**.\n\n**Active Spark Executions** and **Spark Log Volume** are Elasticsearch-only in Grafana; not replicated here."
+      "content": "## Spark System Metrics (aggregated)\nMirrors Grafana **Spark System Metrics**. Per-host drilldowns: **Host CPU Usage**, **Host Memory Pressure**, **Host Network Throughput**, **Host Disk Throughput**, **Host System Load**, **Host Hard Page Faults**, **Host GPU Metrics**, **Host GC Metrics**.\n\n**Phase 1 OTLP tiles** (bottom section): use a **2h** timeframe centered on a chapter run. **Active Executions** = stacked bars, 5s, `max(spark.executions.active.*)` — concurrent open executions (same semantics as Grafana Active Executions OTel). **Stage Shuffle** uses Grail counter keys `*.count` with `rate:1s`. **Stage Failures / Spill** use OTLP gauges (`spark.stage.outcomes.failures`, `spark.stage.outcomes.spill.*`); flat zero is valid when chapters do not fail or spill."
     },
     "2": {
       "type": "data",
@@ -154,6 +158,49 @@
       "visualization": "lineChart",
       "subType": "dql-builder-metrics",
       "query": "timeseries pf=sum(dt.host.memory.avail.pfps)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "16": {
+      "type": "data",
+      "title": "Active Executions",
+      "visualization": "barChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries interval: 5s, {app=max(spark.executions.active.app, default: 0), job=max(spark.executions.active.job, default: 0), stage=max(spark.executions.active.stage, default: 0), task=max(spark.executions.active.task, default: 0), sql=max(spark.executions.active.sql, default: 0)}",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": { "stacked": true, "legend": { "position": "bottom", "showLegend": true } }
+      },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "17": {
+      "type": "data",
+      "title": "Stage Shuffle (Write Positive)",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries interval: 5s, {read=sum(spark.stage.shuffle.read.bytes.count, rate:1s, default: 0), write=sum(spark.stage.shuffle.write.bytes.count, rate:1s, default: 0)}",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "18": {
+      "type": "data",
+      "title": "Stage Failures",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries interval: 5s, failures=max(spark.stage.outcomes.failures, default: 0)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "19": {
+      "type": "data",
+      "title": "Stage Spill",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries interval: 5s, {mem=max(spark.stage.outcomes.spill.memory.bytes, default: 0), disk=max(spark.stage.outcomes.spill.disk.bytes, default: 0)}",
       "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
       "visualizationSettings": { "autoSelectVisualization": false },
       "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }

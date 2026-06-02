@@ -10,7 +10,8 @@
             "bool": {
               "filter": [
                 {"term": {"event.type": "start"}},
-                {"term": {"event.state": "open"}}
+                {"term": {"event.state": "open"}},
+                {"range": {"@timestamp": {"gte": "now-24h"}}}
               ]
             }
           },

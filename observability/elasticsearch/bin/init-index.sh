@@ -342,6 +342,43 @@ kapi POST /api/saved_objects/search/gpu-metrics-default?overwrite=true \
 echo "✅ GPU metrics initialized"
 
 # ============================================================================
+# STEP 7.85: Initialize Spark OTLP Metrics (Data Stream)
+# ============================================================================
+echo ""
+echo "=== STEP 7.85: INITIALIZING SPARK OTLP METRICS ==="
+
+echo "Creating spark-metrics ILM policy..."
+esapi PUT /_ilm/policy/spark-metrics ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.ilm.json \
+  > ${ES_OUTPUTS_DIR}/spark-metrics.ilm.out.json
+
+echo "Creating spark-metrics index template..."
+esapi PUT /_index_template/metrics-spark-default ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.template.json \
+  > ${ES_OUTPUTS_DIR}/spark-metrics.template.out.json
+
+echo "Creating spark-metrics ingest pipeline..."
+esapi PUT /_ingest/pipeline/spark-metrics-defaults ${ES_CONFIG_DIR}/spark-metrics/spark-metrics-ingest-pipeline.json \
+  > ${ES_OUTPUTS_DIR}/spark-metrics.pipeline.out.json
+
+echo "Creating metrics-spark-default data stream if it doesn't exist..."
+if ! esapi GET /_data_stream/metrics-spark-default >& /dev/null; then
+  esapi PUT /_data_stream/metrics-spark-default \
+    > ${ES_OUTPUTS_DIR}/spark-metrics.datastream.out.json 2>&1
+else
+  echo "  (data stream already exists, skipping)"
+fi
+
+echo "Creating spark-metrics data view..."
+kapi POST /api/data_views/data_view \
+  ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.dataview.json \
+  > ${ES_OUTPUTS_DIR}/spark-metrics.dataview.out.json
+
+echo "Creating spark-metrics saved search..."
+kapi POST /api/saved_objects/search/spark-metrics-default?overwrite=true \
+  ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.search.json > /dev/null 2>&1
+
+echo "✅ Spark OTLP metrics initialized"
+
+# ============================================================================
 # STEP 7.9: Initialize Elastic Agent Logs (ILM Policy)
 # ============================================================================
 echo ""

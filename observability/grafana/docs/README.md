@@ -21,6 +21,7 @@ Comprehensive guide for implementing rate calculations from cumulative counter m
 **Use Cases:**
 - Network byte rate monitoring (IN/OUT traffic)
 - Disk I/O rate visualization (Read/Write operations)
+- Spark OTLP stage shuffle throughput (derivative of cumulative counters in `metrics-spark-default`)
 - Any cumulative counter metric requiring rate calculation
 - Multi-host cluster monitoring with dynamic membership
 

@@ -101,7 +101,7 @@ DT_API_TOKEN:
 
 DT_INGEST_TOKEN:
   value: ""  # SECRET: REQUIRED to enable OTel dual-feed to Dynatrace
-  contexts: [ansible, devops]
+  contexts: [ansible, devops, observability]
   secret: true
   required: false
 
@@ -430,6 +430,15 @@ SPARK_MOUNT_BASE:
 SPARK_DATA_MOUNT:
   value: /mnt/spark/data
   contexts: [spark-runtime, nfs, spark-client]
+
+# Runtime JARs for Spark in Kubernetes (OTel listener, etc.) — per-host hostPath, not application data.
+SPARK_JARS_MOUNT:
+  value: /mnt/spark/jars
+  contexts: [spark-runtime, nfs, devops, ansible]
+
+SPARK_OTEL_LISTENER_JAR_NAME:
+  value: spark-otel-listener-1.0.0.jar
+  contexts: [spark-runtime, ansible, devops]
 
 # Spark Data Source
 # TODO: This is wrong. Spark data is now in /mnt/spark/data. Must be unused.

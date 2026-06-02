@@ -1,0 +1,104 @@
+{
+  "index_patterns": [
+    "metrics-spark-default"
+  ],
+  "data_stream": {},
+  "priority": 210,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "spark-metrics",
+      "index.default_pipeline": "spark-metrics-defaults"
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "spark": {
+          "properties": {
+            "executions": {
+              "properties": {
+                "opened": {
+                  "properties": {
+                    "app": { "type": "double" },
+                    "job": { "type": "double" },
+                    "stage": { "type": "double" },
+                    "task": { "type": "double" },
+                    "sql": { "type": "double" }
+                  }
+                },
+                "closed": {
+                  "properties": {
+                    "app": { "type": "double" },
+                    "job": { "type": "double" },
+                    "stage": { "type": "double" },
+                    "task": { "type": "double" },
+                    "sql": { "type": "double" }
+                  }
+                },
+                "active": {
+                  "properties": {
+                    "app": { "type": "double" },
+                    "job": { "type": "double" },
+                    "stage": { "type": "double" },
+                    "task": { "type": "double" },
+                    "sql": { "type": "double" }
+                  }
+                }
+              }
+            },
+            "metrics": {
+              "properties": {
+                "stage": {
+                  "properties": {
+                    "completed": { "type": "double" },
+                    "failures": { "type": "double" },
+                    "spill": {
+                      "properties": {
+                        "memory": { "properties": { "bytes": { "type": "double" } } },
+                        "disk": { "properties": { "bytes": { "type": "double" } } }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "stage": {
+              "properties": {
+                "outcomes": {
+                  "properties": {
+                    "completed": { "type": "double" },
+                    "failures": { "type": "double" },
+                    "spill": {
+                      "properties": {
+                        "memory": { "properties": { "bytes": { "type": "double" } } },
+                        "disk": { "properties": { "bytes": { "type": "double" } } }
+                      }
+                    }
+                  }
+                },
+                "failures": { "type": "double" },
+                "completed": { "type": "double" },
+                "spill": {
+                  "properties": {
+                    "memory": { "properties": { "bytes": { "type": "double" } } },
+                    "disk": { "properties": { "bytes": { "type": "double" } } }
+                  }
+                },
+                "shuffle": {
+                  "properties": {
+                    "read": { "properties": { "bytes": { "type": "double" } } },
+                    "write": { "properties": { "bytes": { "type": "double" } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

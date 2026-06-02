@@ -25,7 +25,7 @@ spark.driver.memory                    4g
 
 # OpenTelemetry Listener for real-time telemetry export
 spark.extraListeners                   com.elastic.spark.otel.OTelSparkListener
-spark.jars                             /mnt/spark/data/spark-otel-listener-1.0.0.jar
+spark.jars                             {{ spark_jars_mount | default('/mnt/spark/jars') }}/{{ otel_listener_jar_name | default('spark-otel-listener-1.0.0.jar') }}
 
 # Network configuration for better DNS resolution
 spark.driver.host                      ${SPARK_LOCAL_HOSTNAME}

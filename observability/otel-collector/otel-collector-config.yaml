@@ -18,7 +18,6 @@ processors:
     send_batch_size: 1024
     send_batch_max_size: 2048
 
-  # Map Prometheus label names to ECS-style kubernetes.namespace for Elasticsearch / Grafana
   attributes/k8s_prom_ns:
     actions:
       - key: kubernetes.namespace
@@ -28,7 +27,6 @@ processors:
         from_attribute: namespace
         action: insert
 
-  # cAdvisor uses label "id" (cgroup path). Top-level "id" in ECS docs can confuse ES/Grafana; use a dedicated field.
   attributes/cadvisor_rename_id:
     actions:
       - key: container_cgroup_path
@@ -37,8 +35,6 @@ processors:
       - key: id
         action: delete
 
-  # PRW maps Prometheus "job" to resource service.name; ECS metrics flatten datapoint attrs only.
-  # Copy to scrape_job so Grafana/Lucene can filter scrape_job.keyword:kubernetes-cadvisor (pre-Lab3 shape).
   transform/k8s_prom_job:
     error_mode: ignore
     metric_statements:
@@ -46,8 +42,6 @@ processors:
         statements:
           - set(attributes["scrape_job"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
 
-  # elasticsearchexporter v0.145+ ignores exporters.*.mapping.mode; default is OTel (nested metrics.* / bulk 400s).
-  # ECS mode = flat Prometheus metric names + numeric values (matches Grafana k8s-namespace dashboard).
   transform/force_ecs_es_mapping:
     error_mode: ignore
     metric_statements:
@@ -60,15 +54,41 @@ processors:
     limit_mib: 512
     spike_limit_mib: 128
 
-  # Extract application and operation.type from span.kind for efficient querying
+  # Dynatrace OTLP requires delta temporality for Counter instruments (not cumulative).
+  # (cumulativetodelta processor defined below filter/keep_spark_stage_for_dt)
+  filter/drop_spark_from_default:
+    error_mode: ignore
+    metric_conditions:
+      - 'IsMatch(metric.name, "^executions\\.") or IsMatch(metric.name, "^spark\\.")'
+
+  filter/keep_spark_only:
+    error_mode: ignore
+    metric_conditions:
+      - 'not (IsMatch(metric.name, "^executions\\.") or IsMatch(metric.name, "^spark\\."))'
+
+  # Dynatrace rejects cumulative Counter for opened/closed; active UpDownCounter and stage counters only.
+  filter/drop_spark_exec_counters_for_dt:
+    error_mode: ignore
+    metric_conditions:
+      - 'IsMatch(metric.name, "^spark\\.executions\\.(opened|closed)\\.") and not IsMatch(metric.name, "^spark\\.executions\\.(opened|closed)\\.(app|job|stage|task|sql)$")'
+
+  filter/keep_spark_active_for_dt:
+    error_mode: ignore
+    metric_conditions:
+      - 'not (IsMatch(metric.name, "^spark\\.executions\\.") or IsMatch(metric.name, "^spark\\.stage\\.outcomes\\.(failures|spill\\.memory\\.bytes|spill\\.disk\\.bytes)$"))'
+
+  filter/keep_spark_stage_for_dt:
+    error_mode: ignore
+    metric_conditions:
+      - 'not (IsMatch(metric.name, "^spark\\.stage\\.shuffle\\.") or IsMatch(metric.name, "^spark\\.stage\\.outcomes\\.completed$"))'
+
+  cumulativetodelta: {}
+
   transform:
     trace_statements:
       - context: span
         statements:
-          # Extract application from span.kind (e.g., "Spark.job" → "spark")
-          # Store as resource attribute so ECS exporter maps it to top-level field
           - set(resource.attributes["application"], Split(attributes["span.kind"], ".")[0]) where attributes["span.kind"] != nil
-          # Extract operation.type from span.kind (e.g., "Spark.job" → "job")
           - set(resource.attributes["operation.type"], Split(attributes["span.kind"], ".")[1]) where attributes["span.kind"] != nil
 
 exporters:
@@ -78,8 +98,6 @@ exporters:
     headers:
       Authorization: "Api-Token ${DT_INGEST_TOKEN}"
   # END DYNATRACE_OTEL_EXPORTER
-  # Traces: ECS mapping matches APM-style traces and existing dashboards.
-  # PRW K8s metrics: force ECS via scope attribute elastic.mapping.mode (exporter ignores YAML mapping.mode ≥0.145).
   elasticsearch/traces:
     endpoints:
       - https://es01:9200
@@ -99,18 +117,28 @@ exporters:
     password: ${ES_PASSWORD}
     metrics_index: metrics-kubernetes-default
     mapping:
-      mode: ecs # ignored by exporter ≥0.145; kept for documentation only
+      mode: ecs
     tls:
       ca_file: /etc/ssl/certs/elastic/ca.crt
       insecure_skip_verify: false
 
-  # Grafana Tempo exporter for distributed tracing
+  elasticsearch/metrics-spark:
+    endpoints:
+      - https://es01:9200
+    user: elastic
+    password: ${ES_PASSWORD}
+    metrics_index: metrics-spark-default
+    mapping:
+      mode: ecs
+    tls:
+      ca_file: /etc/ssl/certs/elastic/ca.crt
+      insecure_skip_verify: false
+
   otlp/tempo:
     endpoint: tempo:4317
     tls:
       insecure: true
 
-  # Debug exporter for troubleshooting
   debug:
     verbosity: normal
     sampling_initial: 5
@@ -122,20 +150,37 @@ extensions:
 
 service:
   extensions: [health_check]
-  
+
   pipelines:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, transform, batch]
       exporters: [elasticsearch/traces, otlp/tempo, otlphttp/dynatrace, debug]
-      
+
     metrics:
       receivers: [otlp, prometheusremotewrite]
-      processors: [memory_limiter, attributes/k8s_prom_ns, attributes/cadvisor_rename_id, transform/k8s_prom_job, transform/force_ecs_es_mapping, batch]
+      processors: [memory_limiter, filter/drop_spark_from_default, attributes/k8s_prom_ns, attributes/cadvisor_rename_id, transform/k8s_prom_job, transform/force_ecs_es_mapping, batch]
       exporters: [elasticsearch/metrics, otlphttp/dynatrace, debug]
-  
+
+    metrics/spark:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/keep_spark_only, transform/force_ecs_es_mapping, batch]
+      exporters: [elasticsearch/metrics-spark]
+
+    # Spark active execution gauges → Dynatrace (UpDownCounter cumulative maps to Gauge).
+    metrics/spark/dynatrace/active:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/keep_spark_only, filter/keep_spark_active_for_dt, batch]
+      exporters: [otlphttp/dynatrace]
+
+    # Spark stage counters → Dynatrace (delta conversion required for Counter instruments).
+    metrics/spark/dynatrace/stage:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/keep_spark_only, filter/keep_spark_stage_for_dt, cumulativetodelta, batch]
+      exporters: [otlphttp/dynatrace]
+
   telemetry:
     logs:
-      level: debug
+      level: info
     metrics:
-      level: detailed
+      level: basic

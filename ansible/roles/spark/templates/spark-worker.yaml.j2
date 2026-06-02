@@ -111,6 +111,8 @@ spec:
               mountPath: /mnt/spark/events
             - name: spark-data
               mountPath: /mnt/spark/data
+            - name: spark-jars
+              mountPath: /mnt/spark/jars
             - name: spark-logs-host
               mountPath: /opt/spark/logs
               subPathExpr: $(POD_NAME)
@@ -124,6 +126,10 @@ spec:
         - name: spark-data
           hostPath:
             path: /mnt/spark/data
+            type: DirectoryOrCreate
+        - name: spark-jars
+          hostPath:
+            path: /mnt/spark/jars
             type: DirectoryOrCreate
         - name: spark-logs-host
           hostPath:
@@ -241,6 +247,8 @@ spec:
               mountPath: /mnt/spark/events
             - name: spark-data
               mountPath: /mnt/spark/data
+            - name: spark-jars
+              mountPath: /mnt/spark/jars
             - name: spark-logs-host
               mountPath: /opt/spark/logs
               subPathExpr: $(POD_NAME)
@@ -254,6 +262,10 @@ spec:
         - name: spark-data
           hostPath:
             path: /mnt/spark/data
+            type: DirectoryOrCreate
+        - name: spark-jars
+          hostPath:
+            path: /mnt/spark/jars
             type: DirectoryOrCreate
         - name: spark-logs-host
           hostPath:

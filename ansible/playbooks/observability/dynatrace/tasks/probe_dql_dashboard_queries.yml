@@ -54,6 +54,7 @@
           (r"\|\s*fields\s+timeframe",  "| fields after timeseries (use fieldsAdd/fieldsRemove instead)"),
           (r'prefix:"[^"]*"',           "custom lookup prefix (use default lookup. prefix)"),
           (r'\w+\s+in\s+\(',            "SQL-style 'field in (list)' (use DQL in(field, v1, v2) form)"),
+          (r'\brate\s*\(',                  "rate() function (use sum(metric, rate:1s) in timeseries instead)"),
           (r'\btimestamp\b',            "field 'timestamp' (timeseries outputs 'timeframe', not 'timestamp')"),
           (r'managementZones|\.tags\b', "managementZones/tags inside lookup subquery (not allowed)"),
       ]
@@ -136,6 +137,11 @@
           ("page-faults", 'timeseries pf=avg(dt.host.memory.avail.pfps), by:{dt.entity.host} | fieldsAdd host=entityName(dt.entity.host) | filter in(host, "Lab1", "Lab2", "Lab3") | fieldsRemove dt.entity.host'),
           ("jvm-gc", 'timeseries gc_ms=sum(dt.runtime.jvm.gc.total_collection_time), by:{dt.entity.process_group_instance} | fieldsAdd process=entityName(dt.entity.process_group_instance) | filter isNotNull(process) | fieldsRemove dt.entity.process_group_instance'),
           ("jvm-heap", 'timeseries heap=sum(dt.runtime.jvm.memory_pool.used)'),
+          ("spark-active", 'timeseries interval: 5s, task=max(spark.executions.active.task, default: 0)'),
+          ("spark-shuffle", 'timeseries interval: 5s, read=sum(spark.stage.shuffle.read.bytes.count, rate:1s, default: 0)'),
+          ("spark-failures", 'timeseries interval: 5s, failures=max(spark.stage.outcomes.failures, default: 0)'),
+          ("spark-spill", 'timeseries interval: 5s, mem=max(spark.stage.outcomes.spill.memory.bytes, default: 0)'),
+          ("spark-completed", 'timeseries interval: 5s, stages=sum(spark.stage.outcomes.completed.count, rate:1s, default: 0)'),
       ]
 
       def call(method, url, body=None):

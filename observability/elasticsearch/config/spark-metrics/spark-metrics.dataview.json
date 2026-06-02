@@ -1,0 +1,37 @@
+{
+  "override": true,
+  "refresh_fields": true,
+  "data_view": {
+    "title": "metrics-spark-default",
+    "id": "spark-metrics",
+    "name": "Spark OTLP Metrics",
+    "allowNoIndex": true,
+    "timeFieldName": "@timestamp",
+    "fields": {
+      "@timestamp": { "name": "@timestamp", "type": "date", "customLabel": "Timestamp" },
+      "spark.executions.opened.app": { "name": "spark.executions.opened.app", "type": "number", "customLabel": "Executions Opened (app)" },
+      "spark.executions.opened.job": { "name": "spark.executions.opened.job", "type": "number", "customLabel": "Executions Opened (job)" },
+      "spark.executions.opened.stage": { "name": "spark.executions.opened.stage", "type": "number", "customLabel": "Executions Opened (stage)" },
+      "spark.executions.opened.task": { "name": "spark.executions.opened.task", "type": "number", "customLabel": "Executions Opened (task)" },
+      "spark.executions.opened.sql": { "name": "spark.executions.opened.sql", "type": "number", "customLabel": "Executions Opened (sql)" },
+      "spark.executions.closed.app": { "name": "spark.executions.closed.app", "type": "number", "customLabel": "Executions Closed (app)" },
+      "spark.executions.closed.job": { "name": "spark.executions.closed.job", "type": "number", "customLabel": "Executions Closed (job)" },
+      "spark.executions.closed.stage": { "name": "spark.executions.closed.stage", "type": "number", "customLabel": "Executions Closed (stage)" },
+      "spark.executions.closed.task": { "name": "spark.executions.closed.task", "type": "number", "customLabel": "Executions Closed (task)" },
+      "spark.executions.closed.sql": { "name": "spark.executions.closed.sql", "type": "number", "customLabel": "Executions Closed (sql)" },
+      "spark.executions.active.app": { "name": "spark.executions.active.app", "type": "number", "customLabel": "Active Executions (app)" },
+      "spark.executions.active.job": { "name": "spark.executions.active.job", "type": "number", "customLabel": "Active Executions (job)" },
+      "spark.executions.active.stage": { "name": "spark.executions.active.stage", "type": "number", "customLabel": "Active Executions (stage)" },
+      "spark.executions.active.task": { "name": "spark.executions.active.task", "type": "number", "customLabel": "Active Executions (task)" },
+      "spark.executions.active.sql": { "name": "spark.executions.active.sql", "type": "number", "customLabel": "Active Executions (sql)" },
+      "spark.stage.shuffle.read.bytes": { "name": "spark.stage.shuffle.read.bytes", "type": "number", "customLabel": "Stage Shuffle Read (bytes)" },
+      "spark.stage.shuffle.write.bytes": { "name": "spark.stage.shuffle.write.bytes", "type": "number", "customLabel": "Stage Shuffle Write (bytes)" },
+      "spark.stage.outcomes.completed": { "name": "spark.stage.outcomes.completed", "type": "number", "customLabel": "Stages Completed" },
+      "spark.stage.outcomes.failures": { "name": "spark.stage.outcomes.failures", "type": "number", "customLabel": "Stage Failures" },
+      "spark.stage.outcomes.spill.memory.bytes": { "name": "spark.stage.outcomes.spill.memory.bytes", "type": "number", "customLabel": "Stage Memory Spill (bytes)" },
+      "spark.stage.outcomes.spill.disk.bytes": { "name": "spark.stage.outcomes.spill.disk.bytes", "type": "number", "customLabel": "Stage Disk Spill (bytes)" }
+    },
+    "fieldFormats": {},
+    "sourceFilters": []
+  }
+}
