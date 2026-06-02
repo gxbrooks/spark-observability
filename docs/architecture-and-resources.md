@@ -2,7 +2,7 @@
 
 This document is the **project-wide** reference for lab host roles, service placement, and concrete CPU/RAM/disk allocations. Every software component that consumes measurable resources is listed with its configured value, not a range.
 
-For file-system paths and NFS layout see [File_System_Architecture.md](File_System_Architecture.md). For the Prometheus/Tempo/OTel metrics pipeline see [Prometheus and Grafana Tempo Architecture](../observability/docs/Prometheus_Tempo_Architecture.md).
+For file-system paths and NFS layout see [File_System_Architecture.md](File_System_Architecture.md). For the Elastic/Grafana observability stack see [Elastic and Grafana Stack Architecture](../observability/docs/Elastic_and_Grafana_Stack_Architecture.md).
 
 ---
 
@@ -281,5 +281,5 @@ Prometheus data retention is size- and time-bounded (not log rotation per se, bu
 - [Application_Locations.md](Application_Locations.md) — URLs and client tools.
 - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) — Setup entry points and playbooks.
 - [Log_Architecture.md](Log_Architecture.md) — Log pipelines (NFS server host = Lab3).
-- [Prometheus and Grafana Tempo Architecture](../observability/docs/Prometheus_Tempo_Architecture.md) — Metrics and traces path into Elasticsearch.
+- [Elastic and Grafana Stack Architecture](../observability/docs/Elastic_and_Grafana_Stack_Architecture.md) — Metrics, traces, and Spark telemetry path into Elasticsearch and Grafana.
 

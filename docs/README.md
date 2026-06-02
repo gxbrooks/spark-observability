@@ -6,7 +6,7 @@ This directory holds **repository-wide** documentation: concepts and runbooks th
 
 | Area | Path |
 |------|------|
-| Observability (Prometheus, Tempo, stack architecture) | `observability/docs/` |
+| Observability (Elastic/Grafana stack architecture) | `observability/docs/` |
 | Elasticsearch (indices, ILM, API client) | `observability/elasticsearch/docs/` |
 | Grafana | `observability/grafana/docs/` |
 | Elastic Agent | `elastic-agent/docs/` |
