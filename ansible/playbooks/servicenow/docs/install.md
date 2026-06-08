@@ -308,6 +308,83 @@ See `discovery/k8s/README.md` for playbook details.
 
 ---
 
+## 6. Docker prerequisites (Phase 3 — Lab3 observability stack)
+
+Phase 3 registers running Docker containers from the Lab3 observability Compose
+stack into CMDB. Location is inherited from the **Linux server CI** (`lab3`) via
+an instance business rule — the same GitOps pattern as Kubernetes.
+
+### Variable model (`vars/variables.yaml`)
+
+Docker host definitions live in **`vars/variables.yaml`** (immediately after
+`K8S_CLUSTERS`). Use **Docker-prefixed** names (not `SN_`) for host/stack constructs.
+
+| Variable | Purpose |
+| -------- | ------- |
+| **`DOCKER_PRIMARY_HOST`** | Name of the primary managed Docker stack (`lab3-observability`). |
+| **`DOCKER_HOSTS`** | Multi-entry registry (list). Each entry describes one Docker host/stack. |
+
+Regenerate context files after editing:
+
+```bash
+cd vars && ./generate_contexts.sh -f service-now
+```
+
+### `DOCKER_HOSTS` entry fields
+
+| Field | Required | Description |
+| ----- | -------- | ----------- |
+| **`name`** | Yes | Logical stack name (used in playbooks and logs). |
+| **`location`** | Yes | Expected `cmn_location.name` (inherited from host CI via business rule). |
+| **`location_full_name`** | Recommended | Display name when location is created by deploy. |
+| **`primary`** | Yes | Exactly one entry should be `true`. |
+| **`managed`** | Yes | `true` = run `docker/discover.yml` sync for this host. |
+| **`cmdb_host_name`** | Yes | CMDB Linux server name (e.g. `lab3` from Phase 1). |
+| **`ansible_host`** | When managed | Inventory host to run `docker ps` on (e.g. `Lab3`). |
+| **`compose_dir`** | Optional | Compose project directory name (documentation). |
+| **`description`** | Optional | Human-readable stack description. |
+
+**Example (current optimizincdemo1):**
+
+```yaml
+DOCKER_PRIMARY_HOST:
+  value: lab3-observability
+  contexts: [ansible, service-now]
+
+DOCKER_HOSTS:
+  value:
+    - name: lab3-observability
+      location: brooks-lab
+      location_full_name: Brooks Lab
+      primary: true
+      managed: true
+      cmdb_host_name: lab3
+      ansible_host: Lab3
+      compose_dir: observability
+      description: Lab3 observability Docker Compose stack
+  contexts: [ansible, service-now]
+```
+
+Phase 1 must have discovered **`lab3`** with `location=brooks-lab` before Phase 3.
+`docker/deploy.yml` installs business rule **`docker-inherit-location-from-host`**
+so new/updated `cmdb_ci_docker_container` rows copy `host.location`.
+
+### Phase 3 install sequence
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.yml \
+  -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+  -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml \
+  -e @../vars/secrets.yaml
+```
+
+See `discovery/docker/README.md` for playbook details.
+
+---
+
 ## Installation sequence
 
 Run from the `ansible/` directory:

@@ -88,6 +88,24 @@ K8S_CLUSTERS:
       cloud_provider: azure
   contexts: [ansible, service-now]
 
+# Docker hosts — observability / compose stacks (Phase 3 Discovery)
+DOCKER_PRIMARY_HOST:
+  value: lab3-observability
+  contexts: [ansible, service-now]
+
+DOCKER_HOSTS:
+  value:
+    - name: lab3-observability
+      location: brooks-lab
+      location_full_name: Brooks Lab
+      primary: true
+      managed: true
+      cmdb_host_name: lab3
+      ansible_host: Lab3
+      compose_dir: observability
+      description: Lab3 observability Docker Compose stack (ES, Kibana, Grafana, Prometheus, OTel, Logstash, Tempo)
+  contexts: [ansible, service-now]
+
 DT_MANAGEMENT_ZONE:
   value: Spark Observability
   contexts: [ansible, devops]

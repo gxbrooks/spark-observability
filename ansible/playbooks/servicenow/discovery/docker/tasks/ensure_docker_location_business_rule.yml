@@ -1,0 +1,45 @@
+---
+# Ensure instance business rule: docker containers inherit host.location.
+
+- name: Build Docker location inheritance business rule payload
+  ansible.builtin.set_fact:
+    sn_docker_location_br_body:
+      name: "{{ sn_docker_location_br_name }}"
+      active: "true"
+      collection: cmdb_ci_docker_container
+      when: before
+      action_insert: "true"
+      action_update: "true"
+      filter_condition: locationISEMPTY^hostISNOTEMPTY
+      description: >-
+        Docker Discovery leaves location empty; inherit from parent Linux server CI
+        (DOCKER_HOSTS registry in vars/variables.yaml).
+      script: "{{ lookup('file', playbook_dir + '/files/docker_inherit_location_from_host.br.js') }}"
+
+- name: Look up Docker location inheritance business rule
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=name={{ sn_docker_location_br_name | urlencode }}&sysparm_limit=1"
+
+- name: Record whether Docker location business rule exists
+  ansible.builtin.set_fact:
+    sn_docker_location_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_docker_location_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create Docker location inheritance business rule
+  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script
+    sn_rest_body: "{{ sn_docker_location_br_body }}"
+  when: not sn_docker_location_br_exists | bool
+
+- name: Update Docker location inheritance business rule
+  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ sn_docker_location_br_sys_id }}"
+    sn_rest_body: "{{ sn_docker_location_br_body }}"
+  when: sn_docker_location_br_exists | bool

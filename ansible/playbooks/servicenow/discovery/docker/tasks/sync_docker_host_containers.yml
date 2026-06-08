@@ -1,0 +1,107 @@
+---
+# Collect running containers on a DOCKER_HOSTS entry and upsert cmdb_ci_docker_container rows.
+
+- name: "Resolve CMDB host CI for {{ sn_docker_host.cmdb_host_name }}"
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_linux_server
+    sn_rest_query: "sysparm_query=name={{ sn_docker_host.cmdb_host_name | urlencode }}&sysparm_fields=sys_id,name,location,location.name&sysparm_limit=1"
+
+- name: "Fail when CMDB host {{ sn_docker_host.cmdb_host_name }} is missing"
+  ansible.builtin.fail:
+    msg: >-
+      Linux server CI '{{ sn_docker_host.cmdb_host_name }}' not found. Run Phase 1 discovery first.
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: "Record CMDB host sys_id for {{ sn_docker_host.name }}"
+  ansible.builtin.set_fact:
+    sn_docker_host_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_docker_host_location_sys_id: "{{ sn_rest_json.result[0].location.value | default(sn_rest_json.result[0].location | default('')) }}"
+
+- name: "Look up cmn_location {{ sn_docker_host.location }} when host has no location"
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmn_location
+    sn_rest_query: "sysparm_query=name={{ sn_docker_host.location | urlencode }}&sysparm_limit=1"
+  when: sn_docker_host_location_sys_id | default('') | length == 0
+
+- name: "Use registry location when host CI location is unset"
+  ansible.builtin.set_fact:
+    sn_docker_host_location_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+  when:
+    - sn_docker_host_location_sys_id | default('') | length == 0
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: "List running Docker containers on {{ sn_docker_host.ansible_host }}"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - ps
+      - --no-trunc
+      - --format
+      - "{{ '{{' }}.ID{{ '}}' }}|{{ '{{' }}.Names{{ '}}' }}|{{ '{{' }}.Image{{ '}}' }}"
+  delegate_to: "{{ sn_docker_host.ansible_host }}"
+  register: sn_docker_ps
+  changed_when: false
+
+- name: "Build Docker container records for {{ sn_docker_host.name }}"
+  ansible.builtin.set_fact:
+    sn_docker_containers: "{{ sn_docker_containers | default([]) + [ _container ] }}"
+  vars:
+    _parts: "{{ item.split('|') }}"
+    _container:
+      container_id: "{{ _parts[0] }}"
+      name: "{{ _parts[1] }}"
+      image: "{{ _parts[2] }}"
+  loop: "{{ sn_docker_ps.stdout_lines | default([]) }}"
+  when:
+    - item | length > 0
+    - item.split('|') | length >= 3
+
+- name: Look up existing Docker container CI
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_docker_container?sysparm_query=name={{ item.name | urlencode }}^host={{ sn_docker_host_sys_id | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  loop: "{{ sn_docker_containers | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: sn_docker_existing
+  no_log: true
+
+- name: Create or update Docker container CI
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_docker_container{% if item.json.result | default([]) | length > 0 %}/{{ item.json.result[0].sys_id }}{% endif %}
+    method: "{{ 'PATCH' if (item.json.result | default([]) | length > 0) else 'POST' }}"
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      name: "{{ item.item.name }}"
+      container_id: "{{ item.item.container_id }}"
+      image: "{{ item.item.image }}"
+      host: "{{ sn_docker_host_sys_id }}"
+      location: "{{ sn_docker_host_location_sys_id }}"
+      discovery_source: ServiceNow
+      short_description: "{{ sn_docker_host.name }} / {{ item.item.image }}"
+    status_code: [200, 201, 400, 403]
+    return_content: true
+  loop: "{{ sn_docker_existing.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  no_log: true
+  failed_when: false
+
+- name: "Docker sync summary for {{ sn_docker_host.name }}"
+  ansible.builtin.debug:
+    msg: >-
+      Synced {{ sn_docker_containers | default([]) | length }} containers from
+      {{ sn_docker_host.ansible_host }} to CMDB (host={{ sn_docker_host.cmdb_host_name }}).

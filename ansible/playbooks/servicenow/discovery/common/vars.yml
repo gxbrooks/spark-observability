@@ -58,6 +58,14 @@ sn_k8s_location_br_name: k8s-inherit-location-from-cluster
 sn_instance_short_name: "{{ SN_INSTANCE_SHORT_NAME | default('optimizincdemo1') }}"
 sn_k8s_informer_secret_name: "k8s-informer-cred-{{ sn_instance_short_name }}"
 sn_k8s_informer_helm_release: "k8s-informer-{{ k8s_primary_cluster_name | replace('_', '-') }}"
+
+# Phase 3 — Docker discovery (Lab3 observability stack)
+docker_hosts: "{{ DOCKER_HOSTS | default([]) }}"
+docker_primary_host_name: "{{ DOCKER_PRIMARY_HOST | default('lab3-observability') }}"
+docker_primary_host: >-
+  {{ (DOCKER_HOSTS | default([]) | selectattr('name', 'equalto', docker_primary_host_name) | list | first)
+     | default({'name': docker_primary_host_name, 'location': SN_LAB_LOCATION_NAME | default('brooks-lab'), 'cmdb_host_name': 'lab3'}, true) }}
+sn_docker_location_br_name: docker-inherit-location-from-host
 sn_k8s_discovery_namespaces:
   - default
   - kube-system

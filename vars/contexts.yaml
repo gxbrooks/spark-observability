@@ -96,6 +96,12 @@ contexts:
               required: true
             - key: K8S_KVA_HELM_REPO
               source: K8S_KVA_HELM_REPO
+        - title: Docker host registry
+          entries:
+            - key: DOCKER_PRIMARY_HOST
+              source: DOCKER_PRIMARY_HOST
+            - key: DOCKER_HOSTS
+              source: DOCKER_HOSTS
         - title: Observability credentials
           entries:
             - key: ES_USER
@@ -199,6 +205,12 @@ contexts:
               source: K8S_KVA_HELM_REPO
             - key: SN_INSTANCE_SHORT_NAME
               source: SN_INSTANCE_SHORT_NAME
+        - title: Docker host registry
+          entries:
+            - key: DOCKER_PRIMARY_HOST
+              source: DOCKER_PRIMARY_HOST
+            - key: DOCKER_HOSTS
+              source: DOCKER_HOSTS
         - title: MID Server on Lab3
           entries:
             - key: SN_MID_SERVER_NAME
