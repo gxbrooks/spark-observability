@@ -1,0 +1,139 @@
+---
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: Render CPU metric event payload
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../files/spark-cpu-metric-event.json.j2"
+    dest: /tmp/spark-cpu-metric-event.json
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: Render Spark ERROR log event payload
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../files/spark-error-log-event.json.j2"
+    dest: /tmp/spark-error-log-event.json
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load metric and log event documents
+  ansible.builtin.set_fact:
+    dt_cpu_metric_event_doc: "{{ lookup('file', '/tmp/spark-cpu-metric-event.json') | from_json }}"
+    dt_spark_error_log_event_doc: "{{ lookup('file', '/tmp/spark-error-log-event.json') | from_json }}"
+  run_once: true
+
+- name: List existing metric events
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:anomaly-detection.metric-events&fields=objectId,value&pageSize=200"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_metric_events
+  delegate_to: localhost
+  run_once: true
+
+- name: List existing log events
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:logmonitoring.log-events&fields=objectId,value&pageSize=200"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_log_events
+  delegate_to: localhost
+  run_once: true
+
+- name: Select existing CPU metric event objectId
+  ansible.builtin.set_fact:
+    dt_cpu_metric_event_object_id: "{{ item.objectId }}"
+  loop: "{{ dt_metric_events.json['items'] | default([]) }}"
+  when: item.value.summary | default('') == dt_sn_cpu_metric_event_summary
+  run_once: true
+
+- name: Select existing Spark ERROR log event objectId
+  ansible.builtin.set_fact:
+    dt_spark_error_log_event_object_id: "{{ item.objectId }}"
+  loop: "{{ dt_log_events.json['items'] | default([]) }}"
+  when: item.value.summary | default('') == dt_sn_spark_error_log_event_summary
+  run_once: true
+
+- name: Default anomaly detector objectIds when not found
+  ansible.builtin.set_fact:
+    dt_cpu_metric_event_object_id: "{{ dt_cpu_metric_event_object_id | default('') }}"
+    dt_spark_error_log_event_object_id: "{{ dt_spark_error_log_event_object_id | default('') }}"
+  run_once: true
+
+- name: Create CPU metric event (>80%)
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      - "{{ dt_cpu_metric_event_doc }}"
+    status_code: [200, 201]
+  when: dt_cpu_metric_event_object_id | length == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Update CPU metric event (>80%)
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_cpu_metric_event_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ dt_cpu_metric_event_doc }}"
+    status_code: [200, 204]
+  when: dt_cpu_metric_event_object_id | length > 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Create Spark ERROR log event
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      - "{{ dt_spark_error_log_event_doc }}"
+    status_code: [201, 400, 422]
+  register: dt_log_event_create
+  when: dt_spark_error_log_event_object_id | length == 0
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Update Spark ERROR log event
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_spark_error_log_event_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ dt_spark_error_log_event_doc }}"
+    status_code: [200, 204, 400, 422]
+  register: dt_log_event_update
+  when: dt_spark_error_log_event_object_id | length > 0
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Warn if log event configuration was rejected
+  ansible.builtin.debug:
+    msg: >-
+      Spark ERROR log event may need manual tuning in Dynatrace UI (Settings → Log monitoring → Log events).
+      API response status={{ (dt_log_event_create.status | default(dt_log_event_update.status | default('skipped'))) }}.
+  when: >-
+    (dt_log_event_create.status | default(201)) not in [200, 201, 204]
+    or (dt_log_event_update.status | default(204)) not in [200, 204]
+  run_once: true

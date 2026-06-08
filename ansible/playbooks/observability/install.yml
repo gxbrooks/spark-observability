@@ -2,11 +2,12 @@
 # Observability stack deployment (Docker Compose + related artifacts on Lab3)
 # Equivalent to observability/deploy.yml — kept for backward-compatible paths.
 # Top-level orchestration: use playbooks/deploy.yml (includes this via deploy chain).
+#
+# OBSERVABILITY_PLATFORM: elastic | dynatrace | elastic&dynatrace (lab: elastic&dynatrace)
+#
 # Usage: ansible-playbook -i inventory.yml playbooks/observability/install.yml
 
-# Elastic Docker stack (ES, OTel Collector, Logstash, Tempo) is required for Spark OTel listener
-# even when Dynatrace is the primary UI — dual-feed runs in parallel.
 - import_playbook: deploy.yml
 
 - import_playbook: dynatrace/install.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+  when: hostvars['localhost']['observability_dynatrace_enabled'] | bool

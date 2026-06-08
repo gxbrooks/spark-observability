@@ -6,11 +6,11 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Run generate_contexts for ansible (spark_ansible_vars.yml)
+    - name: Run generate_contexts for spark-ansible (spark_ansible_vars.yml)
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
         regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname }}"
-        regenerate_context_names: ['ansible']
+        regenerate_context_names: ['spark-ansible']
 
 - name: Deploy JupyterHub on Kubernetes
   hosts: kubernetes_master

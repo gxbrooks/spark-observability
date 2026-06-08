@@ -6,7 +6,7 @@
   gather_facts: false
   tags: [diagnose, grafana]
   vars_files:
-    - ../../../../vars/contexts/spark_ansible_vars.yml
+    - ../../../../vars/contexts/elastic_observability_ansible_vars.yml
   vars:
     timeout_seconds: 15
   tasks:

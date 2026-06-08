@@ -1,27 +1,19 @@
-# Context Specification File
-# Defines how variables from vars/variables.yaml are transformed into context-specific configuration files
+# Context specification — output formats and paths for vars/variables.yaml
 #
-# Each context specifies:
-#   - name: Unique identifier for the context
-#   - type: Output file format (docker-env, shell_env, toml, configmap, ansible_vars, systemd_env)
-#   - output: Path to the generated file (relative to vars/contexts/ directory)
-#   - description: Purpose of this context
+# Each context:
+#   name:        unique identifier (must match contexts: tags in variables.yaml)
+#   type:        docker-env | shell_env | toml | configmap | ansible_vars | systemd_env
+#   output:      filename under vars/contexts/ (flattened; no subdirectories)
+#   description: purpose (environment-agnostic)
 #
-# File Naming Conventions:
-# 1. Mandated names: Use when a context requires a specific name (e.g., Docker Compose expects .env)
-# 2. Standard conventions: Use industry-standard naming (e.g., spark-configmap.yaml for Kubernetes ConfigMaps)
-# 3. Shell environment scripts: Use *_env.sh suffix (e.g., spark_client_env.sh, devops_env.sh)
-# 4. Ansible variables: Use *_ansible_vars.yml suffix (e.g., spark_ansible_vars.yml)
-# 5. Systemd environment files: Use *_env.conf suffix (e.g., elastic_agent_env.conf)
-#
-# Directory Structure:
-# All context files are stored directly in vars/contexts/ (flattened structure, no subdirectories)
+# Ansible contexts: variables are selected solely by context tags in variables.yaml.
+# Application-specific naming (e.g. snake_case) belongs in playbook/role vars, not here.
 
 contexts:
   - name: observability
     type: docker-env
     output: observability_docker.env
-    description: Environment variables for Docker Compose observability stack (Elasticsearch, Kibana, Grafana)
+    description: Docker Compose environment for the Elastic/Grafana observability stack
 
   - name: spark-image
     type: toml
@@ -33,203 +25,57 @@ contexts:
     output: spark-configmap.yaml
     description: Kubernetes ConfigMap for Spark runtime environment variables
 
-  - name: ansible
+  - name: spark-ansible
     type: ansible_vars
     output: spark_ansible_vars.yml
-    description: Ansible variables for deployment playbooks and roles (Spark, observability credentials)
-    ansible_render:
-      sections:
-        - title: Spark version
-          entries:
-            - key: spark_version
-              source: SPARK_VERSION
-              required: true
-        - title: Registry and image configuration (local registry on observability host)
-          entries:
-            - key: registry_host
-              source: SPARK_REGISTRY_HOST
-              required: true
-            - key: spark_image
-              template: "{{ registry_host }}/spark"
-            - key: spark_tag
-              template: "{{ spark_version }}"
-        - title: Paths and directories
-          entries:
-            - key: spark_events_dir
-              source: SPARK_EVENTS_DIR
-            - key: spark_home
-              source: SPARK_HOME
-        - title: Spark master hostname (used in spark-master.yaml.j2 template)
-          entries:
-            - key: SPARK_MASTER_HOST
-              source: SPARK_MASTER_HOST
-            - key: SPARK_MASTER_PORT
-              source: SPARK_MASTER_PORT
-        - title: Spark runtime timeouts (required by spark start playbook)
-          entries:
-            - key: SPARK_EVENTS_DIR
-              source: SPARK_EVENTS_DIR
-              required: true
-            - key: SPARK_NETWORK_TIMEOUT
-              source: SPARK_NETWORK_TIMEOUT
-              required: true
-            - key: SPARK_RPC_ASK_TIMEOUT
-              source: SPARK_RPC_ASK_TIMEOUT
-              required: true
-            - key: SPARK_RPC_LOOKUP_TIMEOUT
-              source: SPARK_RPC_LOOKUP_TIMEOUT
-              required: true
-            - key: SPARK_EXECUTOR_HEARTBEAT_INTERVAL
-              source: SPARK_EXECUTOR_HEARTBEAT_INTERVAL
-              required: true
-        - title: Kubernetes-specific settings
-          entries:
-            - key: k8s_namespace
-              value: spark
-        - title: Kubernetes cluster registry
-          entries:
-            - key: K8S_PRIMARY_CLUSTER
-              source: K8S_PRIMARY_CLUSTER
-              required: true
-            - key: K8S_CLUSTERS
-              source: K8S_CLUSTERS
-              required: true
-            - key: K8S_KVA_HELM_REPO
-              source: K8S_KVA_HELM_REPO
-        - title: Docker host registry
-          entries:
-            - key: DOCKER_PRIMARY_HOST
-              source: DOCKER_PRIMARY_HOST
-            - key: DOCKER_HOSTS
-              source: DOCKER_HOSTS
-        - title: Observability credentials
-          entries:
-            - key: ES_USER
-              source: ES_USER
-            - key: ES_PASSWORD
-              source: ES_PASSWORD
-            - key: ES_PORT
-              source: ES_PORT
-            - key: GF_SECURITY_ADMIN_USER
-              source: GF_SECURITY_ADMIN_USER
-            - key: GF_SECURITY_ADMIN_PASSWORD
-              source: GF_SECURITY_ADMIN_PASSWORD
+    description: Ansible variables for Spark and Hadoop deployment playbooks
+
+  - name: dynatrace-ansible
+    type: ansible_vars
+    output: dynatrace_ansible_vars.yml
+    description: Ansible variables for Dynatrace observability playbooks
+
+  - name: elastic-observability-ansible
+    type: ansible_vars
+    output: elastic_observability_ansible_vars.yml
+    description: Ansible variables for Elastic/Grafana observability stack playbooks
 
   - name: nfs
     type: ansible_vars
     output: nfs_ansible_vars.yml
     description: Ansible variables for NFS server configuration
-    ansible_render:
-      sections:
-        - title: NFS configuration
-          entries:
-            - key: nfs_server
-              source: NFS_SERVER
-              required: true
-            - key: spark_mount_base
-              source: SPARK_MOUNT_BASE
-              required: true
-            - key: spark_data_mount
-              source: SPARK_DATA_MOUNT
-              required: true
-            - key: spark_data_source
-              source: SPARK_DATA_SOURCE
-            - key: nfs_spark_data_export
-              source: NFS_SPARK_DATA_EXPORT
-              required: true
 
   - name: spark-client
     type: shell_env
     output: spark_client_env.sh
-    description: Developer environment variables for running Spark applications locally
+    description: Developer environment for running Spark applications locally
 
   - name: ispark
     type: shell_env
     output: ispark_client_env.sh
-    description: Environment variables for interactive Spark (iPython) sessions
+    description: Environment for interactive Spark (iPython) sessions
 
   - name: elastic-agent
     type: systemd_env
     output: elastic_agent_env.conf
-    description: Systemd EnvironmentFile for Elastic Agent (Linux hosts)
+    description: Systemd EnvironmentFile for Elastic Agent on Linux hosts
 
   - name: elastic-agent-ansible
     type: ansible_vars
     output: elastic_agent_ansible_vars.yml
     description: Ansible variables for Elastic Agent deployment playbooks
-    ansible_render:
-      sections:
-        - title: Elastic Agent settings
-          entries:
-            - key: elastic_agent_version
-              source: ELASTIC_AGENT_VERSION
-              required: true
 
   - name: devops
     type: shell_env
     output: devops_env.sh
-    description: Environment variables for devops client initialization (Python, Java versions)
+    description: Devops client environment (Python, Java, OTEL)
 
   - name: service-now
     type: ansible_vars
     output: servicenow_ansible_vars.yml
-    description: Ansible variables for ServiceNow Discovery playbooks (instance URL, brooks-lab scope, MID install)
-    ansible_render:
-      sections:
-        - title: ServiceNow instance
-          entries:
-            - key: SN_URL
-              source: SN_URL
-              required: true
-        - title: brooks-lab Discovery scope
-          entries:
-            - key: SN_LAB_LOCATION_NAME
-              source: SN_LAB_LOCATION_NAME
-            - key: SN_LAB_LOCATION_FULL_NAME
-              source: SN_LAB_LOCATION_FULL_NAME
-            - key: SN_DISCOVERY_SUBNET
-              source: SN_DISCOVERY_SUBNET
-            - key: SN_DISCOVERY_USER
-              source: SN_DISCOVERY_USER
-            - key: SN_DISCOVERY_SCHEDULE_NAME
-              source: SN_DISCOVERY_SCHEDULE_NAME
-        - title: Kubernetes cluster registry
-          entries:
-            - key: K8S_PRIMARY_CLUSTER
-              source: K8S_PRIMARY_CLUSTER
-              required: true
-            - key: K8S_CLUSTERS
-              source: K8S_CLUSTERS
-              required: true
-            - key: K8S_KVA_HELM_REPO
-              source: K8S_KVA_HELM_REPO
-            - key: SN_INSTANCE_SHORT_NAME
-              source: SN_INSTANCE_SHORT_NAME
-        - title: Docker host registry
-          entries:
-            - key: DOCKER_PRIMARY_HOST
-              source: DOCKER_PRIMARY_HOST
-            - key: DOCKER_HOSTS
-              source: DOCKER_HOSTS
-        - title: MID Server on Lab3
-          entries:
-            - key: SN_MID_SERVER_NAME
-              source: SN_MID_SERVER_NAME
-            - key: SN_MID_INSTALL_DIR
-              source: SN_MID_INSTALL_DIR
-            - key: SN_MID_INSTALLER_DEB_URL
-              source: SN_MID_INSTALLER_DEB_URL
-              required: true
+    description: Ansible variables for ServiceNow Discovery playbooks
 
   - name: managed-node
     type: shell_env
     output: managed_node_env.sh
-    description: Environment variables for managed node initialization (Python, Java versions)
-
-# Supported output types and their generators:
-#   - docker-env: Simple KEY=VALUE format for Docker Compose .env files (no export)
-#   - shell_env: Shell environment file with export statements (*_env.sh)
-#   - systemd_env: Systemd EnvironmentFile format (*_env.conf)
-#   - toml: TOML format with [env] section
-#   - configmap: Kubernetes ConfigMap YAML (standard naming: *-configmap.yaml)
-#   - ansible_vars: Ansible variables YAML with structured formatting (*_ansible_vars.yml)
+    description: Managed node validation environment

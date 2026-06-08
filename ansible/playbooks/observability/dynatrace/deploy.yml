@@ -4,7 +4,7 @@
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Validate Dynatrace tenant access
@@ -29,7 +29,7 @@
   hosts: kubernetes_master:kubernetes_workers
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Remove host-installed OneAgent before Dynakube OneAgent rollout
@@ -40,7 +40,7 @@
   hosts: kubernetes_master
   gather_facts: true
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
 

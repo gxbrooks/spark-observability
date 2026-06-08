@@ -6,7 +6,7 @@
   gather_facts: false
   tags: [diagnose, elasticsearch]
   vars_files:
-    - ../../../../vars/contexts/spark_ansible_vars.yml
+    - ../../../../vars/contexts/elastic_observability_ansible_vars.yml
   vars:
     timeout_seconds: 20
     es_probe_host: "localhost"
@@ -15,7 +15,7 @@
     observability_env_file: "{{ observability_dir }}/.env"
   tasks:
     # Prefer password from the host's Docker Compose .env so probes match the running cluster
-    # (controller spark_ansible_vars.yml may be empty or stale after secrets/context drift).
+    # (controller elastic_observability_ansible_vars.yml may be empty or stale after secrets/context drift).
     - name: Read Elasticsearch password from observability .env
       ansible.builtin.shell: |
         awk -F= '/^ES_PASSWORD=/{print substr($0, index($0,$2)); exit}' "{{ observability_env_file }}"

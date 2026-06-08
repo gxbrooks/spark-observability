@@ -1,0 +1,38 @@
+---
+# Fail-fast platform resolution for top-level observability playbooks.
+# Sets cacheable facts on localhost for import_playbook when: clauses.
+#
+# Usage: import_playbook: common/resolve_platform.yml (first play in orchestrator)
+
+- name: Resolve observability platform flags (fail fast)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/platform_vars.yml"
+  tasks:
+    - name: Assert OBSERVABILITY_PLATFORM is defined and valid
+      ansible.builtin.assert:
+        that:
+          - OBSERVABILITY_PLATFORM is defined
+          - OBSERVABILITY_PLATFORM | string | trim | length > 0
+          - observability_elastic_enabled | bool or observability_dynatrace_enabled | bool
+        fail_msg: >-
+          OBSERVABILITY_PLATFORM is required. Regenerate vars/contexts/dynatrace_ansible_vars.yml
+          from vars/variables.yaml (dynatrace-ansible context). Valid values: elastic, dynatrace,
+          elastic&dynatrace.
+
+    - name: Cache observability platform flags for import_playbook guards
+      ansible.builtin.set_fact:
+        observability_elastic_enabled: "{{ observability_elastic_enabled | bool }}"
+        observability_dynatrace_enabled: "{{ observability_dynatrace_enabled | bool }}"
+        observability_platform: "{{ OBSERVABILITY_PLATFORM | trim }}"
+        cacheable: true
+
+    - name: Display active observability platforms
+      ansible.builtin.debug:
+        msg: >-
+          OBSERVABILITY_PLATFORM={{ observability_platform }}
+          (elastic={{ observability_elastic_enabled }},
+          dynatrace={{ observability_dynatrace_enabled }})

@@ -1,0 +1,22 @@
+{
+  "schemaId": "builtin:logmonitoring.log-events",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "{{ dt_sn_spark_error_log_event_summary }}",
+    "queryDefinition": {
+      "query": "loglevel == \"ERROR\" AND (log.source.path == \"/mnt/spark/logs/spark-app.log*\" OR log.source.path == \"/opt/spark/logs/*\" OR content contains \"ERROR\")",
+      "triggeringThreshold": {
+        "value": 1,
+        "operator": "ABOVE",
+        "timeWindow": "5m"
+      }
+    },
+    "eventTemplate": {
+      "title": "Spark ERROR log detected ({log.source})",
+      "description": "Spark application log line at ERROR level detected in brooks-lab.",
+      "eventType": "ERROR",
+      "davisMerge": false
+    }
+  }
+}

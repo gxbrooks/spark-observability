@@ -301,7 +301,9 @@ ES_HOST:
 
 ### 8. No Default Values in Scripts or Deployment Files
 
-**Rule**: Do not assign default values to variables defined in `variables.yaml` when using them in scripts or deployment files (e.g., `docker-compose.yml`). Instead, let the variable be null/empty, which will cause errors more quickly, or add explicit checks that error if the value is null.
+**Rule**: Do not assign default values to variables defined in `variables.yaml` when using them in scripts or deployment files (e.g., `docker-compose.yml`, Ansible playbooks). Instead, let the variable be null/empty, which will cause errors more quickly, or add explicit checks that error if the value is null.
+
+**Application vs context variables**: Playbooks and roles often use application-friendly names (`spark_version`, `observability_platform`) that map from generated context variables (`SPARK_VERSION`, `OBSERVABILITY_PLATFORM`). The mapping must be a direct reference — not `observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))`. Load the generated context file, map once in playbook/role `vars`, and assert the context variable is defined before use.
 
 **Rationale**: Default values mask configuration errors and can lead to applications running with incorrect settings. By requiring variables to be explicitly set, we ensure that:
 - Configuration errors are caught early
@@ -309,6 +311,11 @@ ES_HOST:
 - Missing variables fail fast rather than silently using incorrect defaults
 
 **Example - Bad** (avoid):
+```yaml
+# In an Ansible playbook — never default over a context variable
+when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+```
+
 ```bash
 # In a script
 ES_HOST="${ES_HOST:-es01}"  # Don't do this!
@@ -322,18 +329,19 @@ environment:
 ```
 
 **Example - Good**:
+```yaml
+# Playbook vars_files: vars/contexts/dynatrace_ansible_vars.yml
+# common/platform_vars.yml derives flags from OBSERVABILITY_PLATFORM (no default).
+# resolve_platform.yml asserts OBSERVABILITY_PLATFORM is set before any import_playbook.
+when: hostvars['localhost']['observability_dynatrace_enabled'] | bool
+```
+
 ```bash
 # In a script - check and error if not set
 if [[ -z "$ES_HOST" ]]; then
     echo "Error: ES_HOST not set. Source the appropriate environment file." >&2
     exit 1
 fi
-```
-
-```yaml
-# In docker-compose.yml - no default, will error if not set
-environment:
-  ES_HOST: "${ES_HOST}"  # Will be empty if not set, causing error
 ```
 
 **Exception**: Variables that are truly optional (not defined in `variables.yaml`) may have defaults, but should be clearly documented as such.
@@ -350,6 +358,7 @@ Before committing changes to `variables.yaml`, verify:
 - [ ] Variable names follow standardized naming conventions
 - [ ] Related variables are grouped together in the file
 - [ ] No default values assigned to variables from `variables.yaml` in scripts or deployment files
+- [ ] Application/playbook variables map directly from context variables (no nested `default()` over context vars)
 - [ ] Scripts check for required variables and error if not set
 
 ## Related Documents

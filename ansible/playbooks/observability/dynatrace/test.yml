@@ -4,7 +4,7 @@
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Resolve Dynatrace ingest token from flat or nested secrets
@@ -32,7 +32,7 @@
   hosts: kubernetes_master
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Ensure Dynakube custom resource exists

@@ -253,7 +253,7 @@ Each list item in `K8S_CLUSTERS` supports:
 ```yaml
 K8S_PRIMARY_CLUSTER:
   value: brooks-lab
-  contexts: [ansible, devops, service-now]
+  contexts: [dynatrace-ansible, devops, service-now]
 
 K8S_CLUSTERS:
   value:
@@ -272,7 +272,7 @@ K8S_CLUSTERS:
       managed: false
       environment: azure
       cloud_provider: azure
-  contexts: [ansible, service-now]
+  contexts: [service-now, dynatrace-ansible]
 ```
 
 No ServiceNow custom mapping table is required. `K8S_CLUSTERS` is the GitOps
@@ -349,7 +349,7 @@ cd vars && ./generate_contexts.sh -f service-now
 ```yaml
 DOCKER_PRIMARY_HOST:
   value: lab3-observability
-  contexts: [ansible, service-now]
+  contexts: [service-now, dynatrace-ansible]
 
 DOCKER_HOSTS:
   value:
@@ -362,7 +362,7 @@ DOCKER_HOSTS:
       ansible_host: Lab3
       compose_dir: observability
       description: Lab3 observability Docker Compose stack
-  contexts: [ansible, service-now]
+  contexts: [service-now, dynatrace-ansible]
 ```
 
 Phase 1 must have discovered **`lab3`** with `location=brooks-lab` before Phase 3.

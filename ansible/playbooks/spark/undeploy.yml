@@ -7,8 +7,9 @@
   become: false
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/ansible/spark_vars.yml"
-  
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+  vars:
+    k8s_namespace: "{{ K8S_NAMESPACE }}"
   tasks:
     - name: Delete Spark namespace
       kubernetes.core.k8s:

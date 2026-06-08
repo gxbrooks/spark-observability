@@ -2,84 +2,17 @@
 # Diagnose the full observability platform.
 # Orchestrates per-subsystem diagnose playbooks, then shows Docker overview.
 #
+# OBSERVABILITY_PLATFORM (vars/variables.yaml → dynatrace-ansible context):
+#   elastic | dynatrace | elastic&dynatrace
+#
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/observability/diagnose.yml
 
-- name: Observability diagnostic header
-  hosts: observability
-  gather_facts: true
-  tags: [diagnose]
-  tasks:
-    - name: Skip elastic diagnose path when dynatrace platform is selected
-      ansible.builtin.meta: end_play
-      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+- import_playbook: common/resolve_platform.yml
 
-    - name: Display diagnostic header
-      ansible.builtin.debug:
-        msg: |
-          OBSERVABILITY DIAGNOSTIC
-          ========================
-          Timestamp: {{ ansible_date_time.iso8601 }}
-          Host:      {{ inventory_hostname }} ({{ ansible_host }})
-          OS:        {{ ansible_distribution }} {{ ansible_distribution_version }}
-
-- import_playbook: elasticsearch/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: kibana/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: grafana/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: logstash/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: otel-collector/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: tempo/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: elastic-agent/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-- import_playbook: prometheus/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
-
-- name: Docker overview and connection details
-  hosts: observability
-  gather_facts: false
-  tags: [diagnose]
-  vars:
-    observability_dir: "/home/ansible/ops/observability"
-  tasks:
-    - name: Skip elastic diagnose path when dynatrace platform is selected
-      ansible.builtin.meta: end_play
-      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
-
-    - name: Docker Compose service status
-      ansible.builtin.shell: "cd {{ observability_dir }} && docker compose ps --format table"
-      register: docker_containers
-      changed_when: false
-      failed_when: false
-
-    - name: Display Docker container status
-      ansible.builtin.debug:
-        msg: |
-          DOCKER CONTAINER STATUS
-          =======================
-          {{ docker_containers.stdout | default('Error retrieving status') }}
-
-    - name: Display connection details
-      ansible.builtin.debug:
-        msg: |
-          CONNECTION DETAILS
-          ==================
-          Elasticsearch  https://{{ ansible_host }}:9200
-          Kibana         http://{{ ansible_host }}:5601
-          Grafana        http://{{ ansible_host }}:3000
-          Logstash       {{ ansible_host }}:5050 (beats), :5051 (system-metrics-rates)
-          Prometheus     http://{{ ansible_host }}:9090
-          Tempo          http://{{ ansible_host }}:3200
-
-    - name: Diagnostic complete
-      ansible.builtin.debug:
-        msg: "DIAGNOSTIC COMPLETE -- review results above for any issues."
+- import_playbook: elastic-stack/diagnose.yml
+  when: hostvars['localhost']['observability_elastic_enabled'] | bool
 
 - import_playbook: dynatrace/diagnose.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+  when: hostvars['localhost']['observability_dynatrace_enabled'] | bool

@@ -2,10 +2,15 @@
 # Stop Observability Platform
 # Stops all Docker Compose services. Use -e delete_volumes=true to also remove volumes.
 #
+# OBSERVABILITY_PLATFORM (vars/variables.yaml → dynatrace-ansible context):
+#   elastic | dynatrace | elastic&dynatrace
+#
 # To stop a single subsystem, use the per-subsystem stop playbook:
 #   ansible-playbook -i inventory.yml playbooks/observability/elasticsearch/stop.yml
 
-- name: Stop Observability Platform
+- import_playbook: common/resolve_platform.yml
+
+- name: Stop Observability Platform (Elastic Docker stack)
   hosts: observability
   become: false
   gather_facts: true
@@ -13,9 +18,9 @@
     observability_dir: "/home/ansible/ops/observability"
     delete_volumes: false
   tasks:
-    - name: Skip elastic stop path when dynatrace platform is selected
+    - name: Skip Elastic stack stop when elastic platform is disabled
       ansible.builtin.meta: end_play
-      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+      when: not (hostvars['localhost']['observability_elastic_enabled'] | bool)
 
     - name: Verify we are on the designated observability host
       ansible.builtin.fail:
@@ -68,4 +73,4 @@
             ansible-playbook -i inventory.yml playbooks/observability/start.yml
 
 - import_playbook: dynatrace/stop.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+  when: hostvars['localhost']['observability_dynatrace_enabled'] | bool

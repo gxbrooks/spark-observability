@@ -1,0 +1,10 @@
+---
+# Spark role: application naming mapped from generated spark-ansible context (vars/contexts/spark_ansible_vars.yml).
+spark_version: "{{ SPARK_VERSION }}"
+registry_host: "{{ SPARK_REGISTRY_HOST }}"
+spark_image: "{{ SPARK_REGISTRY_HOST }}/spark"
+spark_tag: "{{ SPARK_VERSION }}"
+spark_home: "{{ SPARK_HOME }}"
+spark_events_dir: "{{ SPARK_EVENTS_DIR }}"
+user_spark_home: "{{ USER_SPARK_HOME }}"
+k8s_namespace: "{{ K8S_NAMESPACE }}"

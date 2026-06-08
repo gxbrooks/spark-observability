@@ -12,6 +12,7 @@
   become: false
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ playbook_dir }}/vars.yml"
   vars:
     # Use user's home directory for k8s configs, not /opt/spark
     user_spark_home: "/home/{{ ansible_user }}/spark"
@@ -21,11 +22,11 @@
     # Use spark_component_var to avoid circular reference
     spark_component_var: "{{ spark_component | default('all') }}"
   pre_tasks:
-    - name: Run generate_contexts for Spark start (ansible, spark-runtime, spark-image)
+    - name: Run generate_contexts for Spark start (spark-ansible, spark-runtime, spark-image)
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
         regenerate_contexts_root: "{{ project_root }}"
-        regenerate_context_names: ['ansible', 'spark-runtime', 'spark-image']
+        regenerate_context_names: ['spark-ansible', 'spark-runtime', 'spark-image']
         regenerate_context_force: "{{ force_env_generation | default(false) }}"
     
     # Check if Docker is running (optional - only needed for building custom images)
@@ -99,8 +100,6 @@
         src: "{{ playbook_dir | dirname | dirname }}/roles/spark/templates/{{ item }}.j2"
         dest: "{{ k8s_config_dir }}/{{ item }}"
         mode: '0644'
-      vars:
-        SPARK_VERSION: "{{ spark_version }}"
       with_items:
         - spark-master.yaml
         - spark-worker.yaml
@@ -118,7 +117,7 @@
 
     - name: Fail if required Spark settings are missing from generated context variables
       fail:
-        msg: "Required variable '{{ item }}' is missing or empty in vars/variables.yaml for the ansible/spark contexts."
+        msg: "Required variable '{{ item }}' is missing from vars/variables.yaml spark-ansible context."
       when: vars[item] is not defined or (vars[item] | string | trim) == ''
       loop:
         - SPARK_EVENTS_DIR

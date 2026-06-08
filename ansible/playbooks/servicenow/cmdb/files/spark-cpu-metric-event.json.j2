@@ -1,0 +1,34 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "{{ dt_sn_cpu_metric_event_summary }}",
+    "queryDefinition": {
+      "type": "METRIC_KEY",
+      "metricKey": "builtin:host.cpu.usage",
+      "aggregation": "AVG",
+      "entityFilter": {
+        "conditions": []
+      },
+      "dimensionFilter": []
+    },
+    "eventEntityDimensionKey": "dt.entity.host",
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 80.0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 3,
+      "samples": 5,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "Spark Lab host CPU above 80% ({dims:dt.entity.host})",
+      "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 80%.",
+      "eventType": "CUSTOM_ALERT",
+      "davisMerge": false,
+      "metadata": []
+    }
+  }
+}

@@ -7,7 +7,7 @@
   gather_facts: false
   tags: [test, logstash]
   vars_files:
-    - ../../../../vars/contexts/spark_ansible_vars.yml
+    - ../../../../vars/contexts/elastic_observability_ansible_vars.yml
   vars:
     timeout_seconds: 20
     recent_window: "now-30m"

@@ -1,0 +1,9 @@
+---
+# Derived from OBSERVABILITY_PLATFORM (vars/contexts/dynatrace_ansible_vars.yml).
+# Do not default OBSERVABILITY_PLATFORM here — missing values fail in resolve_platform.yml.
+#
+# Valid values: elastic | dynatrace | elastic&dynatrace (lab default: both stacks).
+
+_observability_platform_tokens: "{{ OBSERVABILITY_PLATFORM.split('&') | map('trim') | list }}"
+observability_elastic_enabled: "{{ 'elastic' in _observability_platform_tokens }}"
+observability_dynatrace_enabled: "{{ 'dynatrace' in _observability_platform_tokens }}"

@@ -10,7 +10,7 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | Directory | Purpose |
 | --------- | ------- |
 | `discovery/` | Phase 1: MID Server, Discovery credentials, schedules, on-demand scans |
-| `cmdb/` | Reserved: CMDB reconciliation, Dynatrace SGC (Phase 2+) |
+| `cmdb/` | Phase 4: Dynatrace SGC + event integration (`cmdb/events/` for alerting webhook) |
 | *(future)* `event_management/`, `incident/` | Event and incident integrations |
 
 ## Variables and secrets

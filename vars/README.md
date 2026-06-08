@@ -80,17 +80,22 @@ python3 vars/generate_env.py -f observability spark-runtime
 
 | Context | Output File | Purpose |
 |---------|-------------|---------|
-| `observability` | `.env` | Docker Compose environment variables |
+| `observability` | `observability_docker.env` | Docker Compose environment variables |
 | `spark-image` | `spark-image.toml` | Spark Docker image build arguments |
 | `spark-runtime` | `spark-configmap.yaml` | Kubernetes ConfigMap for Spark pods |
-| `ansible` | `spark_vars.yml` | Ansible variables for Spark playbooks |
-| `nfs` | `nfs_vars.yml` | Ansible variables for NFS playbooks |
-| `spark-client` | `spark_env.sh` | Local Spark client environment |
-| `ispark` | `ispark_env.sh` | Interactive Spark (iPython) environment |
-| `elastic-agent` | `elastic_agent_env.sh` | Elastic Agent environment (reference only, unused) |
-| `elastic-agent-ansible` | `elastic_agent_vars.yml` | Ansible variables for Elastic Agent |
-| `devops` | `devops_env.sh` | DevOps client tooling environment |
+| `spark-ansible` | `spark_ansible_vars.yml` | Ansible variables for Spark/Hadoop playbooks |
+| `dynatrace-ansible` | `dynatrace_ansible_vars.yml` | Ansible variables for Dynatrace playbooks |
+| `elastic-observability-ansible` | `elastic_observability_ansible_vars.yml` | Ansible variables for Elastic/Grafana stack playbooks |
+| `nfs` | `nfs_ansible_vars.yml` | Ansible variables for NFS playbooks |
+| `service-now` | `servicenow_ansible_vars.yml` | Ansible variables for ServiceNow Discovery |
+| `spark-client` | `spark_client_env.sh` | Local Spark client environment |
+| `ispark` | `ispark_client_env.sh` | Interactive Spark (iPython) environment |
+| `elastic-agent` | `elastic_agent_env.conf` | Elastic Agent systemd EnvironmentFile |
+| `elastic-agent-ansible` | `elastic_agent_ansible_vars.yml` | Ansible variables for Elastic Agent |
+| `devops` | `devops_env.sh` | Devops client tooling environment |
 | `managed-node` | `managed_node_env.sh` | Managed node validation environment |
+
+Variables are selected by `contexts:` tags in `variables.yaml` only. Optional `section:` on each variable groups output in Ansible context files. Application-specific naming (e.g. snake_case) belongs in playbook/role `vars`, not in the generator.
 
 ## Common Workflow
 

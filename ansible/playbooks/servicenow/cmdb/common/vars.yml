@@ -1,0 +1,45 @@
+---
+# Shared ServiceNow CMDB / Dynatrace SGC + event integration variables.
+# Non-secret: vars/contexts/servicenow_ansible_vars.yml + dynatrace_ansible_vars.yml
+# Secrets: vars/secrets.yaml
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+sn_instance_short_name: "{{ SN_INSTANCE_SHORT_NAME | default('optimizincdemo1') }}"
+sn_lab_location_name: "{{ SN_LAB_LOCATION_NAME | default('brooks-lab') }}"
+
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+# Resolve servicenow/ playbooks root from cmdb/ or cmdb/events/ playbooks
+sn_servicenow_playbooks_dir: "{{ (playbook_dir | regex_replace('/events$', '')) | dirname }}"
+sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
+
+# SGC (2nd gen Observability connector)
+sn_sgc_app_scope: sn_dynatrace_integ
+sn_sgc_discovery_source: SGO-Dynatrace
+sn_sgc_event_source: SGO-Dynatrace
+
+# Legacy EM push connector (pre-SGC / parallel path on demo instances)
+sn_dt_legacy_event_source: dynatrace
+sn_dt_legacy_connector_sys_id: "{{ SN_DT_LEGACY_CONNECTOR_SYS_ID | default('712a39811ba483105488a937b04bcba5') }}"
+
+sn_dt_event_inbound_url_sgc: >-
+  {{ sn_url }}/api/sn_em_connector/em/inbound_event?source={{ sn_sgc_event_source }}
+sn_dt_event_inbound_url_legacy: >-
+  {{ sn_url }}/api/sn_em_connector/em/inbound_event?source={{ sn_dt_legacy_event_source }}&sys_id={{ sn_dt_legacy_connector_sys_id }}
+
+# Dynatrace API (resolved in tasks/resolve_dt_api.yml)
+dt_api_url_resolved: ""
+dt_api_token_resolved: ""
+dt_management_zone_resolved: "{{ DT_MANAGEMENT_ZONE | default('Spark Observability') }}"
+dt_management_zone_object_id: ""
+dt_host_group_resolved: "{{ DT_HOST_GROUP | default('spark-observability') }}"
+
+# Lab alerting / notification object names (idempotent upsert keys)
+dt_sn_alerting_profile_name: "Spark Observability - ServiceNow brooks-lab"
+dt_sn_problem_notification_name: "ServiceNow brooks-lab - Spark Observability"
+dt_sn_cpu_metric_event_summary: "Spark Lab - Host CPU above 80%"
+dt_sn_spark_error_log_event_summary: "Spark Lab - ERROR log lines"

@@ -1,0 +1,63 @@
+---
+# Diagnose Dynatrace → ServiceNow events
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/events/diagnose.yml -e @../vars/secrets.yaml
+
+- name: Diagnose Dynatrace → ServiceNow event path
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | dirname }}/common/vars.yml"
+    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/secrets.yaml"
+  tasks:
+    - name: Check SGC and sys_object_source rows
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
+
+    - name: Resolve Dynatrace API
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/resolve_dt_api.yml"
+
+    - name: List brooks-lab Dynatrace settings objects
+      ansible.builtin.uri:
+        url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:problem.notifications,builtin:alerting.profile,builtin:anomaly-detection.metric-events,builtin:logmonitoring.log-events&fields=objectId,value&pageSize=200"
+        method: GET
+        headers:
+          Authorization: "Api-Token {{ dt_api_token_resolved }}"
+        status_code: [200]
+      register: dt_event_settings
+      failed_when: false
+
+    - name: Show brooks-lab alerting configuration
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.value.displayName | default(item.value.name | default(item.value.summary))
+             }} (enabled={{ item.value.enabled | default('n/a') }})
+      loop: "{{ dt_event_settings.json['items'] | default([]) }}"
+      loop_control:
+        label: "{{ item.value.displayName | default(item.value.name | default(item.value.summary | default('?'))) }}"
+      when: >-
+        'brooks-lab' in (item.value.displayName | default(item.value.name | default(item.value.summary | default(''))) | lower)
+        or 'spark lab' in (item.value.summary | default('') | lower)
+
+    - name: Query recent ServiceNow em_event rows (Dynatrace sources)
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_event
+        sn_rest_query: >-
+          sysparm_query=sourceIN{{ sn_sgc_event_source }},{{ sn_dt_legacy_event_source }}
+          ^ORDERBYDESCsys_created_on
+          &sysparm_fields=number,source,severity,state,message,sys_created_on,cmdb_ci
+          &sysparm_limit=10
+
+    - name: Show em_event query result or permission note
+      ansible.builtin.debug:
+        msg: >-
+          {% if sn_rest_status | default(0) == 200 %}
+          Recent events: {{ sn_rest_json.result | default([]) }}
+          {% else %}
+          em_event query returned HTTP {{ sn_rest_status | default('unknown') }}.
+          Grant admin_brooks_lab event_management_admin (or em_event read ACL) to validate events via API.
+          {% endif %}

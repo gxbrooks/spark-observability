@@ -43,17 +43,31 @@ ansible-playbook -i ansible/inventory.yml \
   -e remove_monitoring_namespace=true
 ```
 
+### OBSERVABILITY_PLATFORM
+
+Set in `vars/variables.yaml` (dynatrace-ansible context). Valid values:
+
+| Value | Elastic stack | Dynatrace |
+|-------|---------------|-----------|
+| `elastic` | yes | no |
+| `dynatrace` | no | yes |
+| `elastic&dynatrace` | yes | yes (lab default) |
+
+Top-level playbooks import `common/resolve_platform.yml` first, which asserts `OBSERVABILITY_PLATFORM` is set (fail fast) and sets `observability_elastic_enabled` / `observability_dynatrace_enabled` on localhost for `import_playbook` guards.
+
 ## Integration with top-level playbooks
 
 Each sub-playbook is automatically called via `import_playbook` at the end of the corresponding top-level observability playbook:
 
 ```
-observability/deploy.yml    → imports prometheus/deploy.yml
-observability/start.yml     → imports prometheus/start.yml
-observability/stop.yml      → imports prometheus/stop.yml
-observability/diagnose.yml  → imports prometheus/diagnose.yml
-observability/uninstall.yml → imports prometheus/uninstall.yml
+observability/deploy.yml    → imports prometheus/deploy.yml (always — K8s metrics)
+observability/start.yml     → imports prometheus/start.yml (always)
+observability/stop.yml      → (prometheus stop via per-subsystem playbooks if needed)
+observability/diagnose.yml  → imports prometheus/diagnose.yml via elastic-stack/ when elastic enabled
+observability/uninstall.yml → imports prometheus/uninstall.yml (always — removes K8s exporters)
 ```
+
+**Prometheus is not gated by `OBSERVABILITY_PLATFORM`.** The Prometheus pipeline (node-exporter, kube-state-metrics, scrape config on Lab3) provides Kubernetes infrastructure metrics regardless of whether the primary UI is Elastic or Dynatrace. Elastic-stack diagnose includes Prometheus checks because they verify metrics flowing into Elasticsearch; deploy/start/uninstall always run Prometheus for the cluster.
 
 ## Architecture
 

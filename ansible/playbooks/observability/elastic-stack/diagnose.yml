@@ -1,0 +1,61 @@
+---
+# Elastic/Grafana stack diagnostics (imported when observability_elastic_enabled).
+
+- name: Elastic stack diagnostic header
+  hosts: observability
+  gather_facts: true
+  tags: [diagnose]
+  tasks:
+    - name: Display diagnostic header
+      ansible.builtin.debug:
+        msg: |
+          OBSERVABILITY DIAGNOSTIC (Elastic stack)
+          ========================================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Host:      {{ inventory_hostname }} ({{ ansible_host }})
+          OS:        {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+- import_playbook: ../elasticsearch/diagnose.yml
+- import_playbook: ../kibana/diagnose.yml
+- import_playbook: ../grafana/diagnose.yml
+- import_playbook: ../logstash/diagnose.yml
+- import_playbook: ../otel-collector/diagnose.yml
+- import_playbook: ../tempo/diagnose.yml
+- import_playbook: ../elastic-agent/diagnose.yml
+- import_playbook: ../prometheus/diagnose.yml
+
+- name: Docker overview and connection details
+  hosts: observability
+  gather_facts: false
+  tags: [diagnose]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Docker Compose service status
+      ansible.builtin.shell: "cd {{ observability_dir }} && docker compose ps --format table"
+      register: docker_containers
+      changed_when: false
+      failed_when: false
+
+    - name: Display Docker container status
+      ansible.builtin.debug:
+        msg: |
+          DOCKER CONTAINER STATUS
+          =======================
+          {{ docker_containers.stdout | default('Error retrieving status') }}
+
+    - name: Display connection details
+      ansible.builtin.debug:
+        msg: |
+          CONNECTION DETAILS
+          ==================
+          Elasticsearch  https://{{ ansible_host }}:9200
+          Kibana         http://{{ ansible_host }}:5601
+          Grafana        http://{{ ansible_host }}:3000
+          Logstash       {{ ansible_host }}:5050 (beats), :5051 (system-metrics-rates)
+          Prometheus     http://{{ ansible_host }}:9090
+          Tempo          http://{{ ansible_host }}:3200
+
+    - name: Elastic stack diagnostic complete
+      ansible.builtin.debug:
+        msg: "Elastic stack diagnostic complete — review results above for any issues."

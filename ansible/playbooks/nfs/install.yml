@@ -15,6 +15,7 @@
   become: true
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ playbook_dir }}/vars.yml"
   vars:
     nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check,insecure)"
     nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
@@ -88,6 +89,7 @@
   become: true
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ playbook_dir }}/vars.yml"
   vars:
     nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
     spark_mount_base_resolved: "{{ spark_mount_base }}"
@@ -159,6 +161,7 @@
   become: true
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ playbook_dir }}/vars.yml"
   vars:
     nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
     spark_mount_base_resolved: "{{ spark_mount_base }}"

@@ -4,7 +4,7 @@
   become: false
   gather_facts: true
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Install OneAgent on host
@@ -15,7 +15,7 @@
   become: false
   gather_facts: true
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   handlers:
     - name: Restart gpu-metrics-dt timer

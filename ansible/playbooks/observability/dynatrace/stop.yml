@@ -3,7 +3,7 @@
   hosts: kubernetes_master
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Scale Dynatrace Operator deployment to zero
@@ -16,7 +16,7 @@
   hosts: kubernetes_master:kubernetes_workers:observability
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../vars/variables.yaml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
     - name: Display OneAgent stop guidance

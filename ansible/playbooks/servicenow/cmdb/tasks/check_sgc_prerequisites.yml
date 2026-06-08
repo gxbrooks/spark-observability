@@ -1,0 +1,52 @@
+---
+# Verify Service Graph Connector for Observability – Dynatrace is installed and reachable.
+- name: Query scoped application for Dynatrace SGC
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_scope
+    sn_rest_query: "sysparm_query=scope={{ sn_sgc_app_scope }}&sysparm_fields=scope,name,sys_id&sysparm_limit=1"
+
+- name: Record SGC scoped app presence
+  ansible.builtin.set_fact:
+    sn_sgc_scope_present: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+  run_once: true
+
+- name: Query CMDB records sourced from Dynatrace SGC
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci
+    sn_rest_query: "sysparm_query=discovery_source={{ sn_sgc_discovery_source | urlencode }}&sysparm_fields=name,discovery_source,sys_class_name,sys_id&sysparm_limit=5"
+
+- name: Record SGC CMDB import count sample
+  ansible.builtin.set_fact:
+    sn_sgc_cmdb_sample_count: "{{ sn_rest_json.result | default([]) | length }}"
+  run_once: true
+
+- name: Query sys_object_source for Dynatrace entity keys (event CI binding)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_object_source
+    sn_rest_query: "sysparm_query=name={{ sn_sgc_discovery_source | urlencode }}&sysparm_fields=name,id,target_table,target_sys_id,sys_created_on&sysparm_limit=5"
+
+- name: Record SGC sys_object_source sample count
+  ansible.builtin.set_fact:
+    sn_sgc_object_source_count: "{{ sn_rest_json.result | default([]) | length }}"
+  run_once: true
+
+- name: Display SGC prerequisite summary
+  ansible.builtin.debug:
+    msg: |
+      Dynatrace SGC on {{ sn_url }}:
+        scoped app ({{ sn_sgc_app_scope }}): {{ 'INSTALLED' if sn_sgc_scope_present | bool else 'NOT INSTALLED' }}
+        CMDB rows (discovery_source={{ sn_sgc_discovery_source }}): sample={{ sn_sgc_cmdb_sample_count }}
+        sys_object_source rows (name={{ sn_sgc_discovery_source }}): sample={{ sn_sgc_object_source_count }}
+      {% if not sn_sgc_scope_present | bool %}
+      ACTION: Install from ServiceNow Store (order matters):
+        1. Observability Commons for CMDB (sn_observability)
+        2. Integrations Commons for CMDB (sn_cmdb_int_util)
+        3. CMDB CI Class Model (sn_cmdb_ci_class)
+        4. Event Management (sn_em_ai) — required for event push
+        5. Service Graph Connector for Observability – Dynatrace (sn_dynatrace_integ)
+      Then complete Guided Setup under Dynatrace Observability → Setup.
+      {% endif %}
+  run_once: true

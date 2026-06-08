@@ -161,6 +161,7 @@ The `ELASTICSEARCH_*` variables in `elastic-agent-systemd` context reference `ES
 2. **Fail fast when required variables are missing**
    - Scripts and playbooks must error when a required variable from `vars/variables.yaml` is undefined or empty.
    - Do not add fallback defaults in consumers (e.g. `VAR="${VAR:-/some/default}"`) for variables that are expected from generated contexts.
+   - **Application variables must not default over context variables.** When a playbook or role uses an application-specific name (e.g. `observability_platform`, `spark_version`), assign it directly from the generated context variable (e.g. `OBSERVABILITY_PLATFORM`, `SPARK_VERSION`). If the context variable is undefined, fail immediately — never `default('elastic')` or similar.
    - Missing-variable failures should be explicit and actionable.
 
 3. **Use generated contexts as the only input to consumers**

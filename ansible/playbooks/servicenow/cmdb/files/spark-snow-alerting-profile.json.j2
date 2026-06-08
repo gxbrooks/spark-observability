@@ -1,0 +1,16 @@
+{
+  "schemaId": "builtin:alerting.profile",
+  "scope": "environment",
+  "value": {
+    "name": "{{ dt_sn_alerting_profile_name }}",
+    "severityRules": [
+      { "severityLevel": "AVAILABILITY", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "ERRORS", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "PERFORMANCE", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "RESOURCE_CONTENTION", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "CUSTOM_ALERT", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" }
+    ],
+    "eventFilters": [],
+    "managementZone": "{{ dt_management_zone_object_id }}"
+  }
+}

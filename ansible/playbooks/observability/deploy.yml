@@ -2,9 +2,16 @@
 # Deploy Observability Platform
 # Orchestrates per-subsystem file deployment, then builds Docker images.
 #
+# OBSERVABILITY_PLATFORM (vars/variables.yaml → dynatrace-ansible context):
+#   elastic | dynatrace | elastic&dynatrace
+#
+# Prometheus deploy is always included (K8s metrics exporters + scrape config).
+#
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
+
+- import_playbook: common/resolve_platform.yml
 
 - name: Regenerate observability Docker env on controller
   hosts: localhost
@@ -200,35 +207,27 @@
       ansible.builtin.command: docker network create elastic
       failed_when: false
 
-- import_playbook: elasticsearch/deploy.yml
-- import_playbook: grafana/deploy.yml
-- import_playbook: logstash/deploy.yml
-- import_playbook: otel-collector/deploy.yml
-- import_playbook: tempo/deploy.yml
+- import_playbook: elastic-stack/deploy.yml
+  when: hostvars['localhost']['observability_elastic_enabled'] | bool
 
-- name: Build Docker images and finalize
-  hosts: observability
-  become: false
+- name: Deploy complete
+  hosts: localhost
+  connection: local
   gather_facts: false
-  vars:
-    observability_dir: "/home/ansible/ops/observability"
   tasks:
-    - name: Build custom Docker images
-      ansible.builtin.command: docker compose build
-      args:
-        chdir: "{{ observability_dir }}"
-
     - name: Display deployment status
       ansible.builtin.debug:
         msg: |
-          Observability Platform Deployed
-          ===============================
-          Files deployed to {{ observability_dir }}.
-          Docker images built.
+          Observability deploy finished.
+          Platform: {{ hostvars['localhost']['observability_platform'] }}
+          Elastic stack: {{ hostvars['localhost']['observability_elastic_enabled'] }}
+          Dynatrace: {{ hostvars['localhost']['observability_dynatrace_enabled'] }}
+          Prometheus/K8s exporters: always deployed when this playbook runs.
 
           Next: ansible-playbook -i inventory.yml playbooks/observability/start.yml
 
+# K8s metrics pipeline — not gated by OBSERVABILITY_PLATFORM (see prometheus/README.md).
 - import_playbook: prometheus/deploy.yml
 
 - import_playbook: dynatrace/deploy.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+  when: hostvars['localhost']['observability_dynatrace_enabled'] | bool

@@ -1,0 +1,26 @@
+---
+# Elastic/Grafana stack deployment (imported when observability_elastic_enabled).
+
+- import_playbook: ../elasticsearch/deploy.yml
+- import_playbook: ../grafana/deploy.yml
+- import_playbook: ../logstash/deploy.yml
+- import_playbook: ../otel-collector/deploy.yml
+- import_playbook: ../tempo/deploy.yml
+
+- name: Build Elastic stack Docker images
+  hosts: observability
+  become: false
+  gather_facts: false
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Build custom Docker images
+      ansible.builtin.command: docker compose build
+      args:
+        chdir: "{{ observability_dir }}"
+
+    - name: Display Elastic stack deployment status
+      ansible.builtin.debug:
+        msg: |
+          Elastic observability stack files deployed to {{ observability_dir }}.
+          Docker images built.

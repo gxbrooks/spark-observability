@@ -14,7 +14,7 @@
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
   vars:
-    k8s_namespace: "spark"
+    k8s_namespace: "{{ K8S_NAMESPACE }}"
     logstash_obs_host: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
     # Default true; override with -e spark_diagnose_run_smoke_test=false (do not self-reference in Jinja — recursion).
     spark_diagnose_run_smoke_test: true

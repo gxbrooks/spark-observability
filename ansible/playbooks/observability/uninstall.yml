@@ -2,20 +2,25 @@
 # Uninstall Observability Platform
 # Removes all Docker containers, volumes, and deployed files.
 #
+# OBSERVABILITY_PLATFORM (vars/variables.yaml → dynatrace-ansible context):
+#   elastic | dynatrace | elastic&dynatrace
+#
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/observability/uninstall.yml
 
-- name: Uninstall Observability Platform
+- import_playbook: common/resolve_platform.yml
+
+- name: Uninstall Observability Platform (Elastic Docker stack)
   hosts: observability
   become: false
   gather_facts: true
   vars:
     observability_dir: "/home/ansible/ops/observability"
   tasks:
-    - name: Skip elastic uninstall path when dynatrace platform is selected
+    - name: Skip Elastic stack uninstall when elastic platform is disabled
       ansible.builtin.meta: end_play
-      when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+      when: not (hostvars['localhost']['observability_elastic_enabled'] | bool)
 
     - name: Display uninstall warning
       ansible.builtin.debug:
@@ -56,18 +61,16 @@
     - name: Display uninstall summary
       ansible.builtin.debug:
         msg: |
-          Observability Platform Uninstalled
-          ==================================
-          All services and data removed from {{ inventory_hostname }}.
+          Elastic observability stack uninstalled from {{ inventory_hostname }}.
           K8s exporters will be removed next.
 
           To reinstall:
             ansible-playbook -i inventory.yml playbooks/observability/install.yml
 
+# K8s metrics exporters — always removed on full uninstall (see prometheus/README.md).
 - import_playbook: prometheus/uninstall.yml
   vars:
     skip_confirmation: true
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'elastic'
 
 - import_playbook: dynatrace/uninstall.yml
-  when: (observability_platform | default(OBSERVABILITY_PLATFORM | default('elastic'))) == 'dynatrace'
+  when: hostvars['localhost']['observability_dynatrace_enabled'] | bool

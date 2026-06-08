@@ -1,0 +1,114 @@
+---
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: List management zones
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:management-zones&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_mz_list
+  delegate_to: localhost
+  run_once: true
+
+- name: Resolve Spark Observability management zone objectId
+  ansible.builtin.set_fact:
+    dt_management_zone_object_id: "{{ item.objectId }}"
+  loop: "{{ dt_mz_list.json['items'] | default([]) }}"
+  when: item.value.name | default('') == dt_management_zone_resolved
+  run_once: true
+
+- name: Default management zone objectId when not matched in loop
+  ansible.builtin.set_fact:
+    dt_management_zone_object_id: "{{ dt_management_zone_object_id | default('') }}"
+  run_once: true
+
+- name: Fail when management zone is missing
+  ansible.builtin.assert:
+    that:
+      - dt_management_zone_object_id | length > 0
+    fail_msg: >-
+      Management zone '{{ dt_management_zone_resolved }}' not found in Dynatrace.
+      Run observability/dynatrace/deploy.yml first.
+  run_once: true
+
+- name: Render Spark lab alerting profile payload
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../files/spark-snow-alerting-profile.json.j2"
+    dest: /tmp/spark-snow-alerting-profile.json
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load alerting profile document
+  ansible.builtin.set_fact:
+    dt_alerting_profile_doc: "{{ lookup('file', '/tmp/spark-snow-alerting-profile.json') | from_json }}"
+  run_once: true
+
+- name: List existing alerting profiles
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:alerting.profile&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_alerting_profiles
+  delegate_to: localhost
+  run_once: true
+
+- name: Select existing brooks-lab alerting profile objectId
+  ansible.builtin.set_fact:
+    dt_alerting_profile_object_id: "{{ item.objectId }}"
+  loop: "{{ dt_alerting_profiles.json['items'] | default([]) }}"
+  when: item.value.name | default('') == dt_sn_alerting_profile_name
+  run_once: true
+
+- name: Default alerting profile objectId when not found
+  ansible.builtin.set_fact:
+    dt_alerting_profile_object_id: "{{ dt_alerting_profile_object_id | default('') }}"
+  run_once: true
+
+- name: Create brooks-lab alerting profile
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      - "{{ dt_alerting_profile_doc }}"
+    status_code: [200, 201]
+  when: dt_alerting_profile_object_id | length == 0
+  register: dt_alerting_profile_create
+  delegate_to: localhost
+  run_once: true
+
+- name: Record alerting profile objectId
+  ansible.builtin.set_fact:
+    dt_alerting_profile_object_id: >-
+      {{ dt_alerting_profile_object_id
+         if (dt_alerting_profile_object_id | length) > 0
+         else (dt_alerting_profile_create.json[0].objectId | default('')) }}
+  run_once: true
+
+- name: Update brooks-lab alerting profile
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_alerting_profile_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ dt_alerting_profile_doc }}"
+    status_code: [200, 204]
+  when: dt_alerting_profile_object_id | length > 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Show alerting profile objectId
+  ansible.builtin.debug:
+    msg: "Alerting profile '{{ dt_sn_alerting_profile_name }}' => {{ dt_alerting_profile_object_id }}"
+  run_once: true

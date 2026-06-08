@@ -1,0 +1,39 @@
+---
+# Validate Dynatrace → ServiceNow events after workload (chapters / stress)
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/events/test.yml -e @../vars/secrets.yaml
+
+- name: Test for recent Dynatrace-sourced ServiceNow events
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | dirname }}/common/vars.yml"
+  tasks:
+    - name: Query em_event in last 2 hours
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_event
+        sn_rest_query: >-
+          sysparm_query=sourceIN{{ sn_sgc_event_source }},{{ sn_dt_legacy_event_source }}
+          ^sys_created_on>javascript:gs.hoursAgo(2)
+          &sysparm_fields=number,source,severity,state,message,sys_created_on,cmdb_ci
+          &sysparm_limit=20
+
+    - name: Skip assertions when em_event table is not readable
+      ansible.builtin.debug:
+        msg: >-
+          Cannot read em_event (HTTP {{ sn_rest_status }}). Grant event_management_admin to {{ sn_user }}
+          or verify events in ServiceNow → Event Management → All Events.
+      when: sn_rest_status | default(0) != 200
+
+    - name: Assert at least one recent Dynatrace-sourced event exists
+      ansible.builtin.assert:
+        that:
+          - sn_rest_json.result | default([]) | length > 0
+        fail_msg: >-
+          No em_event rows from {{ sn_sgc_event_source }} or {{ sn_dt_legacy_event_source }} in the last 2 hours.
+          Run chapters to generate CPU load and Spark ERROR logs, then re-test.
+        success_msg: "Found {{ sn_rest_json.result | length }} recent Dynatrace-sourced event(s)."
+      when: sn_rest_status | default(0) == 200
