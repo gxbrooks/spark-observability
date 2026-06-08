@@ -1,0 +1,307 @@
+---
+# Idempotent ServiceNow Discovery configuration via Table API.
+
+- name: Check discovery_credentials read access
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_credentials
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_credential_name | urlencode }}&sysparm_limit=1"
+
+- name: Record discovery_credentials ACL
+  ansible.builtin.set_fact:
+    sn_acl_discovery_credentials: "{{ sn_rest_status == 200 }}"
+
+- name: Check discovery_schedule read access
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_schedule
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_limit=1"
+
+- name: Record discovery_schedule ACL
+  ansible.builtin.set_fact:
+    sn_acl_discovery_schedule: "{{ sn_rest_status == 200 }}"
+
+- name: Fail with required roles when Discovery tables are forbidden
+  ansible.builtin.fail:
+    msg: |
+      ServiceNow user {{ sn_user }} lacks Discovery table ACLs.
+      Grant discovery_admin (recommended) or admin on {{ sn_url }}, then re-run deploy.yml.
+
+      discovery_credentials GET: {{ 'ok' if sn_acl_discovery_credentials else 'FORBIDDEN' }}
+      discovery_schedule GET: {{ 'ok' if sn_acl_discovery_schedule else 'FORBIDDEN' }}
+
+      Current roles are listed in diagnose.yml output.
+  when: not sn_acl_discovery_credentials or not sn_acl_discovery_schedule
+
+- name: Look up brooks-lab location
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmn_location
+    sn_rest_query: "sysparm_query=name={{ sn_lab_location_name | urlencode }}&sysparm_limit=1"
+
+- name: Create brooks-lab location when missing
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: cmn_location
+    sn_rest_body:
+      name: "{{ sn_lab_location_name }}"
+      full_name: "{{ sn_lab_location_full_name }}"
+      city: Lab
+      state: ""
+      country: US
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Set location sys_id from create response
+  ansible.builtin.set_fact:
+    sn_location_sys_id: "{{ sn_rest_record.sys_id }}"
+  when: sn_rest_record.sys_id is defined
+
+- name: Refresh brooks-lab location lookup
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmn_location
+    sn_rest_query: "sysparm_query=name={{ sn_lab_location_name | urlencode }}&sysparm_limit=1"
+  when: sn_location_sys_id is not defined
+
+- name: Set location sys_id from lookup
+  ansible.builtin.set_fact:
+    sn_location_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+  when:
+    - sn_location_sys_id is not defined
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Look up existing SSH discovery credential
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_credentials
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_credential_name | urlencode }}&sysparm_limit=1"
+
+- name: Record whether SSH credential already exists
+  ansible.builtin.set_fact:
+    sn_credential_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_credential_sys_id_lookup: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Read discovery SSH private key
+  ansible.builtin.slurp:
+    src: "{{ sn_discovery_ssh_private_key_path }}"
+  register: sn_discovery_key_slurp
+  delegate_to: localhost
+  become: false
+
+- name: Create SSH Private Key discovery credential
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: discovery_credentials
+    sn_rest_body:
+      name: "{{ sn_discovery_credential_name }}"
+      type: SSH Private Key
+      user_name: "{{ sn_discovery_user }}"
+      password: "{{ sn_discovery_key_slurp.content | b64decode }}"
+      ssh_private_key: "{{ sn_discovery_key_slurp.content | b64decode }}"
+      use_sudo: "true"
+      sudo_password: ""
+      credential_alias: "{{ sn_discovery_credential_name }}"
+  when: not sn_credential_exists | bool
+
+- name: Set credential sys_id from create response
+  ansible.builtin.set_fact:
+    sn_credential_sys_id: "{{ sn_rest_record.sys_id }}"
+  when:
+    - not sn_credential_exists | bool
+    - sn_rest_record.sys_id is defined
+
+- name: Update SSH discovery credential key
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: put
+    sn_rest_table: discovery_credentials
+    sn_rest_sys_id: "{{ sn_credential_sys_id_lookup }}"
+    sn_rest_body:
+      name: "{{ sn_discovery_credential_name }}"
+      type: SSH Private Key
+      user_name: "{{ sn_discovery_user }}"
+      password: "{{ sn_discovery_key_slurp.content | b64decode }}"
+      ssh_private_key: "{{ sn_discovery_key_slurp.content | b64decode }}"
+      use_sudo: "true"
+      sudo_password: ""
+      credential_alias: "{{ sn_discovery_credential_name }}"
+  when: sn_credential_exists | bool
+
+- name: Set credential sys_id from existing record
+  ansible.builtin.set_fact:
+    sn_credential_sys_id: "{{ sn_credential_sys_id_lookup }}"
+  when:
+    - sn_credential_exists | bool
+    - sn_credential_sys_id is not defined
+
+- name: Refresh credential sys_id when still unknown
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_credentials
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_credential_name | urlencode }}&sysparm_limit=1"
+  when: sn_credential_sys_id is not defined
+
+- name: Set credential sys_id from refresh lookup
+  ansible.builtin.set_fact:
+    sn_credential_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+  when:
+    - sn_credential_sys_id is not defined
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Look up discovery range set
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_range
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_range_name | urlencode }}&sysparm_limit=1"
+
+- name: Create discovery range set for lab subnet
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: discovery_range
+    sn_rest_body:
+      name: "{{ sn_discovery_range_name }}"
+      active: "true"
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Refresh range sys_id
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_range
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_range_name | urlencode }}&sysparm_limit=1"
+
+- name: Set range sys_id
+  ansible.builtin.set_fact:
+    sn_range_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+
+- name: Parse discovery subnet into network and prefix
+  ansible.builtin.set_fact:
+    sn_discovery_network_ip: "{{ sn_discovery_subnet.split('/')[0] }}"
+    sn_discovery_netmask_prefix: "{{ sn_discovery_subnet.split('/')[1] | default('24') }}"
+
+- name: Look up discovery range item (CIDR) under range set
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_range_item
+    sn_rest_query: "sysparm_query=parent={{ sn_range_sys_id }}^summary={{ sn_discovery_subnet | urlencode }}&sysparm_limit=1"
+
+- name: Create discovery range item for lab CIDR
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: discovery_range_item
+    sn_rest_body:
+      parent: "{{ sn_range_sys_id }}"
+      name: "{{ sn_discovery_subnet }}"
+      summary: "{{ sn_discovery_subnet }}"
+      network_ip: "{{ sn_discovery_network_ip }}"
+      netmask: "{{ sn_discovery_netmask_prefix }}"
+      type: IP Network
+      active: "true"
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Look up MID Server record
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: ecc_agent
+    sn_rest_query: "sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_limit=1"
+
+- name: Set MID sys_id when registered
+  ansible.builtin.set_fact:
+    sn_mid_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Warn when MID Server not yet registered in ServiceNow
+  ansible.builtin.debug:
+    msg: |
+      MID Server {{ sn_mid_server_name }} not found in ecc_agent yet.
+      Complete MID install on Lab3 and validate in ServiceNow UI, then re-run deploy.yml.
+  when: sn_mid_sys_id | default('') | length == 0
+
+- name: Look up discovery schedule
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_schedule
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_limit=1"
+
+- name: Create CI Discovery schedule
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: discovery_schedule
+    sn_rest_body:
+      name: "{{ sn_discovery_schedule_name }}"
+      discover: "CIs"
+      active: "true"
+      location: "{{ sn_location_sys_id }}"
+      mid_server: "{{ sn_mid_sys_id }}"
+      mid_select_method: specific_mid
+      discovery_agent: mid
+      credential_aliases: "{{ sn_discovery_credential_name }}"
+      use_sn_discovery: "true"
+      description: "brooks-lab Phase 1 horizontal CI discovery (Lab1–Lab3 SSH); location brooks-lab"
+  when:
+    - sn_rest_json.result | default([]) | length == 0
+    - sn_mid_sys_id | default('') | length > 0
+
+- name: Update discovery schedule
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: discovery_schedule
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body:
+      location: "{{ sn_location_sys_id }}"
+      mid_server: "{{ sn_mid_sys_id }}"
+      mid_select_method: specific_mid
+      discovery_agent: mid
+      discover: "CIs"
+      active: "true"
+      credential_aliases: "{{ sn_discovery_credential_name }}"
+      use_sn_discovery: "true"
+      description: "brooks-lab Phase 1 horizontal CI discovery (Lab1–Lab3 SSH); location brooks-lab"
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - sn_mid_sys_id | default('') | length > 0
+
+- name: Refresh schedule sys_id
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_schedule
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_limit=1"
+  when: sn_schedule_sys_id is not defined
+
+- name: Set schedule sys_id
+  ansible.builtin.set_fact:
+    sn_schedule_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Link IP range to schedule (discovery_schedule_range)
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: discovery_schedule_range
+    sn_rest_query: "sysparm_query=dscheduler={{ sn_schedule_sys_id }}^range={{ sn_range_sys_id }}&sysparm_limit=1"
+  when: sn_schedule_sys_id | default('') | length > 0
+
+- name: Associate IP range with schedule
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: discovery_schedule_range
+    sn_rest_body:
+      dscheduler: "{{ sn_schedule_sys_id }}"
+      range: "{{ sn_range_sys_id }}"
+  when:
+    - sn_schedule_sys_id | default('') | length > 0
+    - sn_range_sys_id | default('') | length > 0
+    - sn_rest_json.result | default([]) | length == 0
+
+- name: Persist deploy facts for discover.yml
+  ansible.builtin.copy:
+    dest: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_discovery_deploy.json"
+    mode: "0644"
+    content: "{{ {'schedule_sys_id': sn_schedule_sys_id | default(''), 'location_sys_id': sn_location_sys_id | default(''), 'credential_sys_id': sn_credential_sys_id | default(''), 'range_sys_id': sn_range_sys_id | default(''), 'mid_sys_id': sn_mid_sys_id | default('')} | to_nice_json }}"
+  delegate_to: localhost
+  become: false

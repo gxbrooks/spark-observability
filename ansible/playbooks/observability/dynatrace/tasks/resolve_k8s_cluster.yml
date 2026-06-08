@@ -1,0 +1,7 @@
+---
+# Resolve K8 cluster name from vars/variables.yaml (raw {value, contexts} or flat generated vars).
+- name: Resolve K8S_PRIMARY_CLUSTER for Dynatrace
+  ansible.builtin.set_fact:
+    k8s_primary_cluster_name: >-
+      {{ (K8S_PRIMARY_CLUSTER.value if (K8S_PRIMARY_CLUSTER is mapping and 'value' in K8S_PRIMARY_CLUSTER)
+          else K8S_PRIMARY_CLUSTER) | default('brooks-lab') }}

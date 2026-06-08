@@ -1,0 +1,38 @@
+---
+# Phase 2: Restart KVA Informer to force a full CMDB sync.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/discover.yml -e @../vars/secrets.yaml
+
+- name: Restart KVA Informer for full brooks-lab sync
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Rollout restart KVA Informer deployment
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ sn_k8s_informer_namespace }} rollout restart deployment
+          -l app.kubernetes.io/name=k8s-informer
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: sn_kva_restart
+      failed_when: false
+
+    - name: Wait for KVA Informer Ready after restart
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ sn_k8s_informer_namespace }} wait --for=condition=Ready pod
+          -l app.kubernetes.io/name=k8s-informer --timeout=300s
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: sn_kva_wait
+      changed_when: false
+      failed_when: false
+
+    - name: Restart result
+      ansible.builtin.debug:
+        msg: |
+          KVA Informer restarted in {{ sn_k8s_informer_namespace }}.
+          Allow 3–10 minutes for CMDB sync, then run k8s/test.yml.
+          CMDB filter: cmdb_ci_kubernetes* name STARTSWITH brooks-lab

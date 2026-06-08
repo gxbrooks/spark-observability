@@ -1,0 +1,31 @@
+---
+# Phase 2: Install Kubernetes discovery prerequisites on the brooks-lab cluster.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/install.yml -e @../vars/secrets.yaml
+
+- name: Prepare Kubernetes API access and KVA Informer on Lab3
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Deploy Kubernetes Visibility Agent (Informer)
+      ansible.builtin.include_tasks: tasks/install_kva_informer.yml
+
+- name: Install summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Print install summary
+      ansible.builtin.debug:
+        msg: |
+          Phase 2 install complete.
+          KVA namespace: {{ sn_k8s_informer_namespace }}
+          CMDB cluster name: {{ sn_k8s_cluster_name }}
+          Next: ansible-playbook ... discovery/k8s/deploy.yml (cluster location + inheritance BR)
+          Then: discovery/k8s/test.yml after informer sync (~5 min)

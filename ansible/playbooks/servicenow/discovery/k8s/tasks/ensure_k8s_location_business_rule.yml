@@ -1,0 +1,52 @@
+---
+# Product-native step 2: business rule on cmdb_ci_kubernetes_component inherits
+# cluster.location to child CIs when KVA Informer inserts/updates without location.
+
+- name: Build K8s location inheritance business rule payload
+  ansible.builtin.set_fact:
+    sn_k8s_location_br_body:
+      name: "{{ sn_k8s_location_br_name }}"
+      active: "true"
+      collection: cmdb_ci_kubernetes_component
+      when: before
+      action_insert: "true"
+      action_update: "true"
+      filter_condition: locationISEMPTY^clusterISNOTEMPTY
+      description: >-
+        KVA Informer leaves location empty on child Kubernetes CIs; inherit from cluster CI
+        (location set by k8s/deploy.yml from vars/variables.yaml cluster-to-location map).
+      script: "{{ lookup('file', playbook_dir + '/files/k8s_inherit_location_from_cluster.br.js') }}"
+
+- name: Look up K8s location inheritance business rule
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=name={{ sn_k8s_location_br_name | urlencode }}&sysparm_limit=1"
+
+- name: Record whether K8s location business rule exists
+  ansible.builtin.set_fact:
+    sn_k8s_location_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_k8s_location_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create K8s location inheritance business rule
+  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script
+    sn_rest_body: "{{ sn_k8s_location_br_body }}"
+  when: not sn_k8s_location_br_exists | bool
+
+- name: Update K8s location inheritance business rule
+  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ sn_k8s_location_br_sys_id }}"
+    sn_rest_body: "{{ sn_k8s_location_br_body }}"
+  when: sn_k8s_location_br_exists | bool
+
+- name: K8s location business rule summary
+  ansible.builtin.debug:
+    msg: >-
+      Business rule '{{ sn_k8s_location_br_name }}' active on cmdb_ci_kubernetes_component.
+      Child K8s CIs inherit location from their cluster CI when KVA leaves location empty.

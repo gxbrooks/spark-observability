@@ -1,0 +1,27 @@
+---
+# POST or PATCH ServiceNow Table API. Sets sn_rest_status, sn_rest_json, sn_rest_record.
+- name: ServiceNow REST {{ sn_rest_method | upper }} {{ sn_rest_table }}
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/{{ sn_rest_table }}{% if sn_rest_sys_id is defined and (sn_rest_sys_id | string | length) > 0 %}/{{ sn_rest_sys_id }}{% endif %}"
+    method: "{{ sn_rest_method }}"
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: "{{ sn_rest_body }}"
+    status_code: [200, 201, 403, 405, 409]
+    return_content: true
+  register: sn_rest_mutate_result
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+- name: Record mutate response
+  ansible.builtin.set_fact:
+    sn_rest_status: "{{ sn_rest_mutate_result.status }}"
+    sn_rest_json: "{{ sn_rest_mutate_result.json | default({}) }}"
+    sn_rest_record: "{{ sn_rest_mutate_result.json.result | default({}) }}"
+    sn_rest_error: >-
+      {{ sn_rest_mutate_result.json.error.detail | default(sn_rest_mutate_result.json.error.message | default(''))
+         if sn_rest_mutate_result.status not in [200, 201] else '' }}

@@ -36,14 +36,14 @@ all:
               hosts:
                 Lab3:
                   ansible_host: Lab3.lan
-            hadoop:  # Hadoop cluster for Spark data storage
+            hadoop:  # Hadoop HDFS on Kubernetes (kubectl from control plane)
               hosts:
-                Lab2:
-                  ansible_host: Lab2.lan
-            jupyter_servers:  # JupyterHub for interactive Spark development
+                Lab3:
+                  ansible_host: Lab3.lan
+            jupyter_servers:  # JupyterHub on Kubernetes (Helm from control plane)
               hosts:
-                Lab2:
-                  ansible_host: Lab2.lan
+                Lab3:
+                  ansible_host: Lab3.lan
             observability:  # Observability stack (Docker Engine on native Ubuntu)
               hosts:
                 Lab3:

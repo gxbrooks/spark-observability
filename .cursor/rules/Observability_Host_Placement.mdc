@@ -13,7 +13,7 @@ alwaysApply: true
   - **Do NOT** run observability Docker Compose or observability playbooks on Lab2, Lab1, or any host outside the **observability** group. When running observability commands or playbooks, use `--limit observability` or target the observability host.
 
 - **Spark / Kubernetes stack** (K8s cluster, Spark workloads, node-exporter, kube-state-metrics, Jupyter, NFS, Hadoop where applicable)
-  - **Runs on:** **spark_kubernetes** (kubernetes_master: Lab2; kubernetes_workers: Lab2, Lab1) and related groups (nfs_servers, hadoop, jupyter_servers). Spark Docker image build and local registry (`lab3.lan:5000`) run on **observability** (Lab3) via `spark/deploy.yml`.
+  - **Runs on:** **spark_kubernetes** (kubernetes_master: Lab3; kubernetes_workers: Lab1, Lab2) and related groups (nfs_servers, hadoop, jupyter_servers on Lab3). Spark Docker image build and local registry (`lab3.lan:5000`) run on **observability** (Lab3) via `spark/deploy.yml`.
   - **Playbooks:** `ansible/playbooks/k8s/*.yml`, `ansible/playbooks/spark/*.yml`, `ansible/playbooks/jupyter/*.yml`, `ansible/playbooks/nfs/*.yml`, etc.
 
 **When deploying or starting/stopping stacks:** re-read `ansible/inventory.yml` and use the appropriate playbook and host limit so each stack runs only where the inventory specifies.

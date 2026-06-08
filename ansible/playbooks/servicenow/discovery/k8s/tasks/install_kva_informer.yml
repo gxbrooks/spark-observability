@@ -1,0 +1,78 @@
+---
+# Deploy ServiceNow Kubernetes Visibility Agent (Informer) via Helm on the brooks-lab cluster.
+
+- name: Ensure KVA namespace exists
+  ansible.builtin.command:
+    cmd: kubectl create namespace {{ sn_k8s_informer_namespace }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_ns
+  changed_when: sn_kva_ns.rc == 0
+  failed_when: false
+
+- name: Create or update ServiceNow credentials secret for KVA
+  ansible.builtin.shell: |
+    set -euo pipefail
+    kubectl -n {{ sn_k8s_informer_namespace }} delete secret {{ sn_k8s_informer_secret_name }} --ignore-not-found
+    kubectl -n {{ sn_k8s_informer_namespace }} create secret generic {{ sn_k8s_informer_secret_name }} \
+      --from-literal=.user='{{ sn_user }}' \
+      --from-literal=.password='{{ sn_password }}'
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  no_log: true
+  register: sn_kva_secret
+
+- name: Add ServiceNow KVA Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add k8s-informer {{ sn_k8s_informer_helm_repo }}
+  register: sn_kva_helm_repo
+  changed_when: sn_kva_helm_repo.rc == 0
+  failed_when: false
+
+- name: Update KVA Helm repository index
+  ansible.builtin.command:
+    cmd: helm repo update k8s-informer
+  changed_when: false
+
+- name: Install or upgrade KVA Informer Helm release
+  ansible.builtin.command:
+    cmd: >-
+      helm upgrade {{ sn_k8s_informer_helm_release }} k8s-informer/k8s-informer-chart
+      --install
+      --namespace {{ sn_k8s_informer_namespace }}
+      --set acceptEula=Y
+      --set instance.name={{ sn_instance_short_name }}
+      --set clusterName={{ sn_k8s_cluster_name }}
+      --wait
+      --timeout 10m
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_helm_install
+
+- name: Wait for KVA Informer pod to become Ready
+  ansible.builtin.command:
+    cmd: >-
+      kubectl -n {{ sn_k8s_informer_namespace }} wait --for=condition=Ready pod
+      -l app.kubernetes.io/name=k8s-informer --timeout=300s
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_pod_wait
+  changed_when: false
+  failed_when: false
+
+- name: KVA Informer deployment status
+  ansible.builtin.command:
+    cmd: kubectl -n {{ sn_k8s_informer_namespace }} get pods,deploy -o wide
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_status
+  changed_when: false
+
+- name: Report KVA install
+  ansible.builtin.debug:
+    msg: |
+      Kubernetes Visibility Agent installed in namespace {{ sn_k8s_informer_namespace }}.
+      Cluster name in CMDB: {{ sn_k8s_cluster_name }}
+      {{ sn_kva_status.stdout }}

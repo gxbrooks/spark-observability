@@ -1,9 +1,11 @@
+- name: Resolve platform variables
+  ansible.builtin.include_tasks: resolve_k8s_cluster.yml
+
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
     dt_management_zone_resolved: "{{ (DT_MANAGEMENT_ZONE.value if (DT_MANAGEMENT_ZONE is mapping and 'value' in DT_MANAGEMENT_ZONE) else DT_MANAGEMENT_ZONE) | default('Spark Observability') }}"
     dt_host_group_resolved: "{{ (DT_HOST_GROUP.value if (DT_HOST_GROUP is mapping and 'value' in DT_HOST_GROUP) else DT_HOST_GROUP) | default('spark-observability') }}"
-    dt_k8s_cluster_name_resolved: "{{ (DT_K8S_CLUSTER_NAME.value if (DT_K8S_CLUSTER_NAME is mapping and 'value' in DT_K8S_CLUSTER_NAME) else DT_K8S_CLUSTER_NAME) | default('spark-observability-k8s') }}"
     dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
   delegate_to: localhost
   run_once: true
@@ -16,7 +18,7 @@
   vars:
     DT_MANAGEMENT_ZONE: "{{ dt_management_zone_resolved }}"
     DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
-    DT_K8S_CLUSTER_NAME: "{{ dt_k8s_cluster_name_resolved }}"
+    K8S_PRIMARY_CLUSTER: "{{ k8s_primary_cluster_name }}"
   delegate_to: localhost
   run_once: true
 

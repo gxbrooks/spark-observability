@@ -1,0 +1,67 @@
+---
+# Shared ServiceNow Discovery variables (included by playbooks).
+# Non-secret defaults: vars/contexts/servicenow_ansible_vars.yml (service-now context).
+# Secrets: vars/secrets.yaml → servicenow: block.
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+sn_mid_user: "{{ servicenow.SN_MID_USER | default(SN_MID_USER | default('')) }}"
+sn_mid_password: "{{ servicenow.SN_MID_PASSWORD | default(SN_MID_PASSWORD | default('')) }}"
+
+sn_lab_location_name: "{{ SN_LAB_LOCATION_NAME | default('brooks-lab') }}"
+sn_lab_location_full_name: "{{ SN_LAB_LOCATION_FULL_NAME | default('Brooks Lab') }}"
+sn_discovery_subnet: "{{ SN_DISCOVERY_SUBNET | default('192.168.1.0/24') }}"
+sn_discovery_user: "{{ SN_DISCOVERY_USER | default('sn-discovery') }}"
+sn_discovery_schedule_name: "{{ SN_DISCOVERY_SCHEDULE_NAME | default('Brooks Lab CI Discovery') }}"
+sn_discovery_credential_name: brooks-lab-ssh
+sn_discovery_range_name: brooks-lab-subnet
+sn_mid_server_name: "{{ SN_MID_SERVER_NAME | default('mid-brooks-lab3') }}"
+# Linux systemd service name (alphanumeric + underscore only; not the ecc_agent display name)
+sn_mid_service_name: "{{ sn_mid_server_name | replace('-', '_') }}"
+sn_mid_run_as_user: servicenow-mid
+sn_mid_install_dir: "{{ SN_MID_INSTALL_DIR | default('/opt/servicenow/mid-brooks-lab3') }}"
+sn_mid_installer_deb_url: "{{ SN_MID_INSTALLER_DEB_URL | default('') }}"
+
+sn_discovery_ssh_private_key_path: "{{ playbook_dir }}/../../../../vars/sn_discovery_id_ed25519"
+sn_discovery_ssh_public_key_path: "{{ playbook_dir }}/../../../../vars/sn_discovery_id_ed25519.pub"
+
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+# Kubernetes cluster registry (K8S_CLUSTERS / K8S_PRIMARY_CLUSTER in vars/variables.yaml)
+k8s_clusters: "{{ K8S_CLUSTERS | default([]) }}"
+k8s_primary_cluster_name: "{{ K8S_PRIMARY_CLUSTER | default('brooks-lab') }}"
+k8s_primary_cluster: >-
+  {{ (K8S_CLUSTERS | default([]) | selectattr('name', 'equalto', k8s_primary_cluster_name) | list | first)
+     | default({'name': k8s_primary_cluster_name, 'location': SN_LAB_LOCATION_NAME | default('brooks-lab'), 'kva_namespace': 'servicenow-kva'}, true) }}
+k8s_managed_clusters: "{{ K8S_CLUSTERS | default([]) | selectattr('managed', 'equalto', true) | list }}"
+
+# CMDB list views filtered to brooks-lab location (all CI classes vs Linux servers only)
+sn_cmdb_location_query: "location.name={{ sn_lab_location_name }}"
+sn_cmdb_all_cis_url: >-
+  {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('location.name=' ~ sn_lab_location_name) | urlencode }}
+sn_cmdb_linux_servers_url: >-
+  {{ sn_url }}/cmdb_ci_linux_server_list.do?sysparm_query={{ ('location.name=' ~ sn_lab_location_name) | urlencode }}
+sn_cmdb_kubernetes_url: >-
+  {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('sys_class_nameSTARTSWITHcmdb_ci_kubernetes^cluster.name=' ~ k8s_primary_cluster_name) | urlencode }}
+sn_cmdb_kubernetes_at_location_url: >-
+  {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('sys_class_nameSTARTSWITHcmdb_ci_kubernetes^location.name=' ~ k8s_primary_cluster.location) | urlencode }}
+
+# Phase 2 — Kubernetes discovery (KVA Informer; cluster registry in vars/variables.yaml)
+sn_k8s_cluster_name: "{{ k8s_primary_cluster_name }}"
+sn_k8s_location_name: "{{ k8s_primary_cluster.location | default(SN_LAB_LOCATION_NAME | default('brooks-lab')) }}"
+sn_k8s_informer_namespace: "{{ k8s_primary_cluster.kva_namespace | default('servicenow-kva') }}"
+sn_k8s_informer_helm_repo: "{{ K8S_KVA_HELM_REPO | default('https://install.service-now.com/glide/distribution/builds/package/informer/informer-helm/repo') }}"
+sn_k8s_cluster_location_map: "{{ K8S_CLUSTERS | default([]) }}"
+sn_k8s_location_br_name: k8s-inherit-location-from-cluster
+sn_instance_short_name: "{{ SN_INSTANCE_SHORT_NAME | default('optimizincdemo1') }}"
+sn_k8s_informer_secret_name: "k8s-informer-cred-{{ sn_instance_short_name }}"
+sn_k8s_informer_helm_release: "k8s-informer-{{ k8s_primary_cluster_name | replace('_', '-') }}"
+sn_k8s_discovery_namespaces:
+  - default
+  - kube-system
+  - monitoring
+  - spark
+  - dynatrace
+  - hdfs

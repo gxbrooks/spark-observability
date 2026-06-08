@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <parameter name="url" value="{{ sn_url }}"/>
+  <parameter name="name" value="{{ sn_mid_server_name }}"/>
+  <parameter name="mid.instance.username" value="{{ sn_mid_user }}"/>
+  <parameter name="mid.instance.password" value="{{ sn_mid_password | replace('&', '&amp;') | replace('<', '&lt;') | replace('>', '&gt;') | replace('\"', '&quot;') }}"/>
+  <parameter name="mid.proxy.host" value=""/>
+  <parameter name="mid.proxy.port" value=""/>
+  <parameter name="mid.proxy.username" value=""/>
+  <parameter name="mid.proxy.password" value=""/>
+</config>

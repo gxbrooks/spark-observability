@@ -1,0 +1,29 @@
+---
+# Assert CMDB locations for every cluster in K8S_CLUSTERS that exists in ServiceNow.
+
+- name: Look up cluster CI {{ sn_k8s_cluster.name }}
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_cluster?sysparm_query=name={{ sn_k8s_cluster.name | urlencode }}&sysparm_fields=name,location,location.name&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_cluster_ci_lookup
+  no_log: true
+
+- name: Skip location assert when cluster CI is absent
+  ansible.builtin.debug:
+    msg: "Cluster {{ sn_k8s_cluster.name }} not in CMDB yet — location assert skipped."
+  when: sn_k8s_cluster_ci_lookup.json.result | default([]) | length == 0
+
+- name: Assert cluster {{ sn_k8s_cluster.name }} has location {{ sn_k8s_cluster.location }}
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_cluster_ci_lookup.json.result[0]['location.name'] | default('') == sn_k8s_cluster.location
+    fail_msg: >-
+      Cluster {{ sn_k8s_cluster.name }} location is not {{ sn_k8s_cluster.location }}.
+      Run k8s/deploy.yml after KVA sync.
+  when: sn_k8s_cluster_ci_lookup.json.result | default([]) | length > 0

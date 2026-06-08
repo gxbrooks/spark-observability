@@ -1,0 +1,76 @@
+---
+# Ensure brooks-lab MID Server is Up and validated (Discovery will not dispatch probes otherwise).
+# Sets sn_mid_validation_changed when validated was flipped via API (caller should restart MID).
+
+- name: Initialize MID validation flags
+  ansible.builtin.set_fact:
+    sn_mid_validation_changed: false
+
+- name: Look up brooks-lab MID Server in ecc_agent
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: ecc_agent
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=name,status,validated,sys_id&sysparm_limit=1
+
+- name: Record MID registration facts
+  ansible.builtin.set_fact:
+    sn_mid_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_mid_status: "{{ sn_rest_json.result[0].status | default('') }}"
+    sn_mid_validated: "{{ sn_rest_json.result[0].validated | default('') | string }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Fail when MID is not registered
+  ansible.builtin.fail:
+    msg: |
+      MID Server {{ sn_mid_server_name }} is not registered in ecc_agent.
+      Run install.yml --tags mid_server on Lab3, then re-run this playbook.
+      UI: {{ sn_url }}/ecc_agent_list.do
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Fail when MID is not Up
+  ansible.builtin.fail:
+    msg: |
+      MID Server {{ sn_mid_server_name }} status={{ sn_mid_status }} (expect Up).
+      Run start.yml on Lab3 or check MID Server > Issues in ServiceNow.
+      UI: {{ sn_url }}/ecc_agent.do?sys_id={{ sn_mid_sys_id }}
+  when: sn_mid_status != 'Up'
+
+- name: Validate MID Server when not yet validated
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/ecc_agent/{{ sn_mid_sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      validated: "true"
+    status_code: [200, 400, 403]
+    return_content: true
+  register: sn_mid_validate_patch
+  changed_when: sn_mid_validate_patch.status == 200
+  when: sn_mid_validated != 'true'
+  no_log: true
+
+- name: Record that MID validation was applied
+  ansible.builtin.set_fact:
+    sn_mid_validation_changed: true
+  when: sn_mid_validate_patch is changed
+
+- name: Report MID validation remediation
+  ansible.builtin.debug:
+    msg: >-
+      Set validated=true on {{ sn_mid_server_name }} (was {{ sn_mid_validated }}).
+      Restarting MID so Discovery probes are dispatched.
+  when: sn_mid_validation_changed | bool
+
+- name: Confirm MID is validated
+  ansible.builtin.assert:
+    that:
+      - sn_mid_validated == 'true' or (sn_mid_validate_patch.status | default(0) == 200)
+    fail_msg: |
+      Could not validate MID {{ sn_mid_server_name }} via API (HTTP {{ sn_mid_validate_patch.status | default('n/a') }}).
+      Validate manually: {{ sn_url }}/ecc_agent.do?sys_id={{ sn_mid_sys_id }}
+  when: sn_mid_validated != 'true'

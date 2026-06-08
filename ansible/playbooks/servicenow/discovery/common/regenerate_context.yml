@@ -1,0 +1,7 @@
+---
+# Regenerate vars/contexts/servicenow_ansible_vars.yml from variables.yaml.
+- name: Regenerate service-now context
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../../tasks/regenerate_contexts.yml"
+  vars:
+    regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+    regenerate_context_names: ['service-now']

@@ -1,0 +1,48 @@
+---
+# Preconditions before a brooks-lab Discovery run (included by discover.yml and diagnose host play).
+
+- name: Check sn-discovery account lock state in shadow
+  ansible.builtin.command: passwd -S {{ sn_discovery_user }}
+  register: sn_discovery_passwd_status
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Unlock sn-discovery when password flag is locked
+  ansible.builtin.command: usermod -p '*' {{ sn_discovery_user }}
+  become: true
+  when: sn_discovery_passwd_status.stdout is search('\\bL\\b')
+  register: sn_discovery_unlock
+
+- name: Report sn-discovery lock remediation
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: unlocked sn-discovery (was locked — blocks MID SSH probes)"
+  when: sn_discovery_unlock is changed
+
+- name: Verify SSH key login as sn-discovery from controller path
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - -i
+      - "{{ sn_discovery_ssh_private_key_path }}"
+      - -o
+      - BatchMode=yes
+      - -o
+      - StrictHostKeyChecking=no
+      - -o
+      - ConnectTimeout=10
+      - "{{ sn_discovery_user }}@{{ ansible_host }}"
+      - id
+  delegate_to: localhost
+  become: false
+  register: sn_discovery_ssh_probe
+  changed_when: false
+  failed_when: false
+
+- name: Fail when sn-discovery SSH probe fails
+  ansible.builtin.fail:
+    msg: |
+      sn-discovery SSH failed on {{ inventory_hostname }} ({{ ansible_host }}).
+      MID Server on Lab3 cannot classify this host until SSH works.
+      Run: ansible-playbook ... discovery/install.yml --tags discovery_user
+  when: sn_discovery_ssh_probe.rc != 0

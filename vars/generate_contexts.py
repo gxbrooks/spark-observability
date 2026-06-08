@@ -384,6 +384,16 @@ def _yaml_double_quote(value):
     return f'"{escaped}"'
 
 
+def _yaml_format_value(value):
+    """Format a scalar, list, or dict for inclusion in generated Ansible vars YAML."""
+    if isinstance(value, (dict, list)):
+        dumped = yaml.dump(value, default_flow_style=False, sort_keys=False).rstrip()
+        return f"\n{dumped}"
+    if value is None:
+        return '""'
+    return _yaml_double_quote(value)
+
+
 def _render_inline_template(template_str, emitted_vars, source_vars):
     """Render minimal {{ var_name }} placeholders from emitted + source vars."""
     def repl(match):
@@ -428,7 +438,7 @@ def write_ansible_vars(vars_dict, filename, context_name='ansible', context_spec
                                 raise ValueError(
                                     f"{source_key} is required for ansible context '{context_name}' generation"
                                 )
-                            if value is None or str(value).strip() == '':
+                            if value is None or (not isinstance(value, (dict, list)) and str(value).strip() == ''):
                                 continue
                         elif 'template' in entry:
                             value = _render_inline_template(entry['template'], emitted_vars, vars_dict)
@@ -436,7 +446,11 @@ def write_ansible_vars(vars_dict, filename, context_name='ansible', context_spec
                             value = entry.get('value', '')
 
                         emitted_vars[out_key] = value
-                        f.write(f'{out_key}: {_yaml_double_quote(value)}\n')
+                        formatted = _yaml_format_value(value)
+                        if formatted.startswith('\n'):
+                            f.write(f'{out_key}:{formatted}\n')
+                        else:
+                            f.write(f'{out_key}: {formatted}\n')
 
                     f.write('\n')
                 return True

@@ -1,0 +1,10 @@
+---
+# Product-native step 1: ensure cmn_location + set location on each cmdb_ci_kubernetes_cluster.
+# Source: K8S_CLUSTERS in vars/variables.yaml (GitOps cluster registry).
+
+- name: Apply cluster registry location for each K8S_CLUSTERS entry
+  ansible.builtin.include_tasks: set_k8s_cluster_location_entry.yml
+  loop: "{{ sn_k8s_cluster_location_map }}"
+  loop_control:
+    loop_var: sn_k8s_cluster
+    label: "{{ sn_k8s_cluster.name }} -> {{ sn_k8s_cluster.location }}"

@@ -1,0 +1,175 @@
+---
+- name: Install MID Server prerequisites
+  ansible.builtin.apt:
+    name:
+      - openjdk-17-jre-headless
+      - wget
+      - ca-certificates
+    state: present
+    update_cache: true
+  become: true
+
+- name: Check if MID Server service unit already exists
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ sn_mid_service_name }}.service"
+  register: sn_mid_service_unit
+  become: true
+
+- name: Resolve MID installer DEB URL when not pinned
+  ansible.builtin.set_fact:
+    sn_mid_installer_deb_url_resolved: "{{ sn_mid_installer_deb_url }}"
+  when: sn_mid_installer_deb_url | length > 0
+
+- name: Fail when MID installer URL is not configured
+  ansible.builtin.fail:
+    msg: >-
+      Set SN_MID_INSTALLER_DEB_URL in vars/variables.yaml to the Linux .deb from
+      ServiceNow MID Server Downloads for this instance build.
+  when:
+    - not sn_mid_service_unit.stat.exists
+    - sn_mid_installer_deb_url | length == 0
+
+- name: Download MID Server DEB
+  ansible.builtin.get_url:
+    url: "{{ sn_mid_installer_deb_url_resolved }}"
+    dest: "/tmp/servicenow-mid-installer.deb"
+    mode: "0644"
+  become: true
+  when:
+    - not sn_mid_service_unit.stat.exists
+    - sn_mid_installer_deb_url_resolved | default('') | length > 0
+
+- name: Check if ServiceNow agent package is already installed
+  ansible.builtin.command: dpkg-query -W -f='${Status}' agent
+  register: sn_mid_agent_pkg
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Install MID Server DEB package
+  ansible.builtin.apt:
+    deb: "/tmp/servicenow-mid-installer.deb"
+    state: present
+  become: true
+  register: sn_mid_apt_install
+  failed_when: false
+  when:
+    - not sn_mid_service_unit.stat.exists
+    - sn_mid_agent_pkg.stdout is not search('install ok installed')
+
+- name: Install MID Server DEB with forced dependencies (Ubuntu libc6 vs RPM glibc)
+  ansible.builtin.command:
+    cmd: dpkg -i --force-depends /tmp/servicenow-mid-installer.deb
+  become: true
+  register: sn_mid_dpkg_install
+  changed_when: "'Setting up agent' in sn_mid_dpkg_install.stdout"
+  when:
+    - not sn_mid_service_unit.stat.exists
+    - sn_mid_agent_pkg.stdout is not search('install ok installed')
+    - sn_mid_apt_install is failed or (sn_mid_apt_install.rc | default(0)) != 0
+
+- name: Locate default MID agent directory after package install
+  ansible.builtin.find:
+    paths: /opt/servicenow
+    patterns: agent
+    file_type: directory
+    recurse: true
+    depth: 3
+  register: sn_mid_agent_dirs
+  become: true
+
+- name: Set MID agent path
+  ansible.builtin.set_fact:
+    sn_mid_agent_path: "{{ (sn_mid_agent_dirs.files | map(attribute='path') | list | first) | default('/opt/servicenow/mid/agent') }}"
+
+- name: Require MID Server ServiceNow credentials
+  ansible.builtin.fail:
+    msg: >-
+      Add servicenow.SN_MID_USER and SN_MID_PASSWORD (mid_server role) to vars/secrets.yaml
+      before installing the MID Server.
+  when:
+    - sn_mid_user | length == 0 or sn_mid_password | length == 0
+
+- name: Ensure MID runtime user exists (installer rejects root)
+  ansible.builtin.user:
+    name: "{{ sn_mid_run_as_user }}"
+    system: true
+    shell: /bin/bash
+    create_home: false
+  become: true
+
+- name: Run MID Server installer script (silent — non-interactive)
+  ansible.builtin.command:
+    argv:
+      - "{{ sn_mid_agent_path }}/installer.sh"
+      - -silent
+      - -INSTANCE_URL
+      - "{{ sn_url }}"
+      - -MUTUAL_AUTH
+      - "N"
+      - -MID_USERNAME
+      - "{{ sn_mid_user }}"
+      - -MID_PASSWORD
+      - "{{ sn_mid_password }}"
+      - -USE_PROXY
+      - "N"
+      - -CERTIFICATE_REVOCATION
+      - "N"
+      - -MID_NAME
+      - "{{ sn_mid_server_name }}"
+      - -APP_NAME
+      - "{{ sn_mid_service_name }}"
+      - -APP_LONG_NAME
+      - "ServiceNow MID Server {{ sn_mid_server_name }}"
+      - -NON_ROOT_USER
+      - "{{ sn_mid_run_as_user }}"
+    chdir: "{{ sn_mid_agent_path }}"
+  become: true
+  register: sn_mid_installer_run
+  changed_when: sn_mid_installer_run.rc == 0
+  failed_when: false
+  no_log: true
+  when: not sn_mid_service_unit.stat.exists
+
+- name: Read MID installer log on failure
+  ansible.builtin.command: tail -30 "{{ sn_mid_agent_path }}/installer.log"
+  register: sn_mid_installer_log
+  changed_when: false
+  become: true
+  when:
+    - not sn_mid_service_unit.stat.exists
+    - sn_mid_installer_run.rc | default(0) != 0
+
+- name: Fail when silent MID installer did not succeed
+  ansible.builtin.fail:
+    msg: |
+      MID silent installer failed (rc={{ sn_mid_installer_run.rc }}).
+      stdout: {{ sn_mid_installer_run.stdout | default('') }}
+      stderr: {{ sn_mid_installer_run.stderr | default('') }}
+      installer.log: {{ sn_mid_installer_log.stdout | default('n/a') }}
+  when:
+    - not sn_mid_service_unit.stat.exists
+    - sn_mid_installer_run.rc | default(0) != 0
+
+- name: Ensure MID Server service is started
+  ansible.builtin.systemd:
+    name: "{{ sn_mid_service_name }}.service"
+    state: started
+    enabled: true
+  become: true
+  register: sn_mid_service_start
+  failed_when: false
+
+- name: Display MID Server service status
+  ansible.builtin.command: systemctl is-active "{{ sn_mid_service_name }}.service"
+  register: sn_mid_active
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: MID Server install summary
+  ansible.builtin.debug:
+    msg: |
+      MID Server {{ sn_mid_server_name }} agent path: {{ sn_mid_agent_path }}
+      Service state: {{ sn_mid_active.stdout | default('unknown') }}
+      Validate in ServiceNow: MID Server > Servers

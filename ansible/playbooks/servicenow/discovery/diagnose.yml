@@ -1,0 +1,397 @@
+---
+# Diagnose ServiceNow API access, Discovery ACLs, MID Server, and lab accounts.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e @../vars/secrets.yaml
+
+- name: Diagnose ServiceNow Discovery integration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: common/regenerate_context.yml
+
+    - name: Test API authentication
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/sys_user?sysparm_query=user_name={{ sn_user | urlencode }}&sysparm_limit=1"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 401, 403]
+        return_content: true
+      register: sn_auth_test
+      no_log: true
+
+    - name: List roles for API user
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/sys_user?sysparm_query=user_name={{ sn_user | urlencode }}&sysparm_fields=sys_id&sysparm_limit=1"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_user_lookup
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Fetch user roles
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/sys_user_has_role?sysparm_query=user={{ sn_user_lookup.json.result[0].sys_id }}&sysparm_fields=role.name&sysparm_limit=50"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_roles_lookup
+      no_log: true
+      when: sn_auth_test.status == 200 and (sn_user_lookup.json.result | default([]) | length > 0)
+
+    - name: Probe Discovery-related tables
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/{{ item.table }}?sysparm_limit=1"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 403, 404]
+        return_content: true
+      register: sn_table_probes
+      no_log: true
+      loop:
+        - { table: cmn_location, label: cmn_location }
+        - { table: discovery_credentials, label: discovery_credentials }
+        - { table: discovery_schedule, label: discovery_schedule }
+        - { table: discovery_range, label: discovery_range }
+        - { table: ecc_agent, label: ecc_agent_mid }
+        - { table: cmdb_ci_server, label: cmdb_ci_server }
+      loop_control:
+        label: "{{ item.label }}"
+
+    - name: Build ACL report
+      ansible.builtin.set_fact:
+        sn_acl_report: "{{ sn_table_probes.results | map(attribute='status') | list | zip(sn_table_probes.results | map(attribute='item') | map(attribute='label') | list) | map('reverse') | map('list') | list }}"
+
+    - name: Look up MID Server registration in ServiceNow
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/ecc_agent?sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=name,status,validated,ip_address,version,sys_id&sysparm_limit=1"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 403]
+        return_content: true
+      register: sn_mid_registration
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Record MID ServiceNow registration status
+      ansible.builtin.set_fact:
+        sn_mid_registered: "{{ (sn_mid_registration.json.result | default([]) | length) > 0 }}"
+        sn_mid_sn_status: "{{ sn_mid_registration.json.result[0].status | default('NOT_FOUND') }}"
+        sn_mid_sn_validated: "{{ sn_mid_registration.json.result[0].validated | default('') }}"
+        sn_mid_sn_ip: "{{ sn_mid_registration.json.result[0].ip_address | default('') }}"
+        sn_mid_sn_version: "{{ sn_mid_registration.json.result[0].version | default('') }}"
+        sn_mid_sn_sys_id: "{{ sn_mid_registration.json.result[0].sys_id | default('') }}"
+      when: sn_auth_test.status == 200
+
+    - name: Record MID registration unavailable
+      ansible.builtin.set_fact:
+        sn_mid_registered: false
+        sn_mid_sn_status: API_UNAVAILABLE
+      when: sn_auth_test.status != 200
+
+    - name: MID ServiceNow registration status
+      ansible.builtin.debug:
+        msg: >-
+          {{ sn_mid_server_name }}:
+          {{ 'REGISTERED status=' ~ sn_mid_sn_status ~ ' validated=' ~ sn_mid_sn_validated
+             if sn_mid_registered | default(false)
+             else 'NOT REGISTERED in ecc_agent (install MID on Lab3 or check name/credentials)' }}
+
+    - name: Warn when MID is not validated
+      ansible.builtin.debug:
+        msg: |
+          WARNING: {{ sn_mid_server_name }} validated={{ sn_mid_sn_validated }} — Discovery probes will NOT dispatch until validated=true.
+          Remediation: ansible-playbook ... discovery/deploy.yml (auto-validates and restarts MID)
+          Or UI: {{ sn_url }}/ecc_agent.do?sys_id={{ sn_mid_sn_sys_id }}
+      when:
+        - sn_mid_registered | default(false)
+        - sn_mid_sn_validated | default('') | string != 'true'
+
+    - name: Count CMDB CIs at brooks-lab location
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci?sysparm_query={{ sn_cmdb_location_query | urlencode }}&sysparm_fields=name,sys_class_name,ip_address&sysparm_limit=50
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+        status_code: [200, 403]
+      register: sn_cmdb_location_cis
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Record brooks-lab CMDB CI count
+      ansible.builtin.set_fact:
+        sn_cmdb_location_count: "{{ sn_cmdb_location_cis.json.result | default([]) | length }}"
+        sn_cmdb_location_sample: >-
+          {{ sn_cmdb_location_cis.json.result | default([]) | map(attribute='name') | list | join(', ') }}
+      when:
+        - sn_auth_test.status == 200
+        - sn_cmdb_location_cis.status == 200
+
+    - name: brooks-lab CMDB summary
+      ansible.builtin.debug:
+        msg: |
+          CMDB at {{ sn_lab_location_name }}: {{ sn_cmdb_location_count | default(0) }} CIs
+          {% if sn_cmdb_location_sample | default('') | length > 0 %}
+          Sample: {{ sn_cmdb_location_sample }}
+          {% endif %}
+          All CIs: {{ sn_cmdb_all_cis_url }}
+          Linux servers: {{ sn_cmdb_linux_servers_url }}
+      when:
+        - sn_auth_test.status == 200
+        - sn_cmdb_location_cis.status | default(0) == 200
+
+    - name: List all MID Servers on instance
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/ecc_agent?sysparm_query=ORDERBYname&sysparm_fields=name,status,ip_address,host_name,user_name,sys_id&sysparm_limit=20"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_all_mids
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Show all MID Servers
+      ansible.builtin.debug:
+        msg: >-
+          MID {{ item.name }}: status={{ item.status }}, host={{ item.host_name | default('') }},
+          ip={{ item.ip_address | default('') }}, user={{ item.user_name | default('') }}
+          {{ '(brooks-lab)' if item.name == sn_mid_server_name else '(other instance MID — ignore for brooks-lab)' }}
+      loop: "{{ sn_all_mids.json.result | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: sn_auth_test.status == 200
+
+    - name: Look up brooks-lab discovery schedule
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_schedule?sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_fields=name,active,discover,run_type,mid_server,credential_aliases,sys_id&sysparm_limit=1"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_brooks_schedule
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Record brooks-lab schedule facts
+      ansible.builtin.set_fact:
+        sn_brooks_schedule_row: "{{ sn_brooks_schedule.json.result[0] | default({}) }}"
+        sn_brooks_schedule_sys_id: "{{ sn_brooks_schedule.json.result[0].sys_id | default('') }}"
+      when:
+        - sn_auth_test.status == 200
+        - sn_brooks_schedule.json.result | default([]) | length > 0
+
+    - name: Look up discovery range items for brooks-lab subnet
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_range_item?sysparm_query=parent.name={{ sn_discovery_range_name | urlencode }}&sysparm_fields=name,summary,network_ip,netmask,active,parent&sysparm_limit=10"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_range_items
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Look up discovery_status runs for brooks-lab schedule
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_status?sysparm_query=dscheduler={{ sn_brooks_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=state,started,completed,sys_created_on,number,dscheduler&sysparm_limit=5"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_brooks_runs
+      no_log: true
+      when:
+        - sn_auth_test.status == 200
+        - sn_brooks_schedule_sys_id | default('') | length > 0
+
+    - name: Look up recent Kubernetes discovery_status runs (noise filter)
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_status?sysparm_query={{ 'dscheduler.name=Kubernetes top-down discovery^ORDERBYDESCsys_created_on' | urlencode }}&sysparm_fields=state,started,completed,sys_created_on,number&sysparm_limit=3"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_runs
+      no_log: true
+      when: sn_auth_test.status == 200
+
+    - name: Discovery schedule and run diagnostics
+      ansible.builtin.debug:
+        msg: |
+          Discovery schedules (brooks-lab vs other)
+          ==========================================
+          brooks-lab schedule: {{ sn_brooks_schedule_row.name | default('MISSING') }}
+            active={{ sn_brooks_schedule_row.active | default('') }}
+            discover={{ sn_brooks_schedule_row.discover | default('') }} (expect CIs)
+            run_type={{ sn_brooks_schedule_row.run_type | default('') }} (expect on_demand)
+            mid_server={{ sn_brooks_schedule_row.mid_server.value | default(sn_brooks_schedule_row.mid_server | default('NONE')) }}
+            credential_aliases={{ sn_brooks_schedule_row.credential_aliases | default('') }}
+
+          brooks-lab IP range items (expect {{ sn_discovery_subnet }}):
+          {% for item in sn_range_items.json.result | default([]) %}
+          - {{ item.summary | default(item.name) }} network={{ item.network_ip }}/{{ item.netmask }} active={{ item.active }}
+          {% else %}
+          - NONE — deploy.yml must create discovery_range_item (CIDR) under {{ sn_discovery_range_name }}
+          {% endfor %}
+
+          brooks-lab discovery_status runs (expect started/completed > 0 after Discover Now):
+          {% for run in sn_brooks_runs.json.result | default([]) %}
+          - {{ run.sys_created_on }} number={{ run.number | default('') }} state={{ run.state }} started={{ run.started }} completed={{ run.completed }}
+          {% else %}
+          - NONE — brooks-lab has never completed a Discovery run (UI: Discover Now on this schedule)
+          {% endfor %}
+
+          Kubernetes top-down discovery (NOT brooks-lab — ignore for lab CIs):
+          {% for run in sn_k8s_runs.json.result | default([]) %}
+          - {{ run.sys_created_on }} state={{ run.state }} started={{ run.started }} completed={{ run.completed }} (no MID; service discovery only)
+          {% endfor %}
+      when: sn_auth_test.status == 200
+
+- name: Diagnose lab host discovery account
+  hosts: k8s_nodes
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Check sn-discovery user exists
+      ansible.builtin.command: id {{ sn_discovery_user }}
+      register: sn_discovery_id
+      changed_when: false
+      failed_when: false
+
+    - name: Check sn-discovery account lock state
+      ansible.builtin.command: passwd -S {{ sn_discovery_user }}
+      register: sn_discovery_passwd_status
+      changed_when: false
+      failed_when: false
+
+    - name: Host discovery account status
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}: sn-discovery {{ 'present' if sn_discovery_id.rc == 0 else 'MISSING' }};
+          lock={{ 'LOCKED (run install.yml --tags discovery_user)' if sn_discovery_passwd_status.stdout is search('\\bL\\b') else 'ok' }}
+
+- name: Diagnose MID Server on Lab3
+  hosts: observability
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Check MID install directory
+      ansible.builtin.stat:
+        path: "{{ sn_mid_install_dir }}"
+      register: sn_mid_install_dir_stat
+
+    - name: Check MID agent path under /opt/servicenow
+      ansible.builtin.stat:
+        path: /opt/servicenow
+      register: sn_mid_opt_stat
+
+    - name: Check MID systemd unit file
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/{{ sn_mid_service_name }}.service"
+      register: sn_mid_unit_stat
+
+    - name: Check MID systemd service state
+      ansible.builtin.command: "systemctl is-active {{ sn_mid_service_name }}.service"
+      register: sn_mid_systemd
+      changed_when: false
+      failed_when: false
+      when: sn_mid_unit_stat.stat.exists | default(false)
+
+    - name: Record MID host install status
+      ansible.builtin.set_fact:
+        sn_mid_host_installed: "{{ sn_mid_unit_stat.stat.exists | default(false) or sn_mid_opt_stat.stat.exists | default(false) }}"
+        sn_mid_host_service: "{{ sn_mid_systemd.stdout | default('not-installed') if sn_mid_unit_stat.stat.exists | default(false) else 'not-installed' }}"
+
+    - name: MID Server host status
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} MID install:
+          - install dir {{ sn_mid_install_dir }}: {{ 'present' if sn_mid_install_dir_stat.stat.exists | default(false) else 'MISSING' }}
+          - /opt/servicenow: {{ 'present' if sn_mid_opt_stat.stat.exists | default(false) else 'MISSING' }}
+          - systemd {{ sn_mid_service_name }}.service: {{ 'present' if sn_mid_unit_stat.stat.exists | default(false) else 'MISSING' }}
+          - service state: {{ sn_mid_host_service }}
+
+- name: Diagnose summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Print summary
+      ansible.builtin.debug:
+        msg: |
+          ServiceNow Discovery diagnose
+          =============================
+          API auth: {{ hostvars['localhost'].sn_auth_test.status | default('n/a') }}
+          Roles: see sys_user_has_role query in play output above (role.name fields)
+
+          Table ACL probes:
+          {% for row in hostvars['localhost'].sn_acl_report | default([]) %}
+          - {{ row[1] }}: HTTP {{ row[0] }}
+          {% endfor %}
+
+          MID Server {{ sn_mid_server_name }}:
+          - ServiceNow ecc_agent: {{ 'REGISTERED (' ~ hostvars['localhost'].sn_mid_sn_status ~ ', validated=' ~ hostvars['localhost'].sn_mid_sn_validated ~ ')' if hostvars['localhost'].sn_mid_registered | default(false) else 'NOT REGISTERED' }}
+          - Lab3 install: {{ 'installed, service ' ~ hostvars['Lab3'].sn_mid_host_service if hostvars['Lab3'].sn_mid_host_installed | default(false) else 'NOT INSTALLED' }}
+          - MID credentials in secrets: SN_MID_USER={{ 'set' if sn_mid_user | length > 0 else 'MISSING' }}, SN_MID_PASSWORD={{ 'set' if sn_mid_password | length > 0 else 'MISSING' }}
+
+          CMDB at {{ sn_lab_location_name }}: {{ hostvars['localhost'].sn_cmdb_location_count | default('n/a') }} CIs
+          - All CIs: {{ sn_cmdb_all_cis_url }}
+          - Linux servers: {{ sn_cmdb_linux_servers_url }}
+
+          {% if hostvars['localhost'].sn_mid_registered | default(false) and hostvars['localhost'].sn_mid_sn_validated | default('') | string != 'true' %}
+          Next: deploy.yml (validates MID and restarts) before discover.yml
+          {% elif not (hostvars['localhost'].sn_mid_registered | default(false)) and not (hostvars['Lab3'].sn_mid_host_installed | default(false)) %}
+          Next: ansible-playbook ... discovery/install.yml -e @../vars/secrets.yaml --tags mid_server
+          {% elif hostvars['Lab3'].sn_mid_host_installed | default(false) and not (hostvars['localhost'].sn_mid_registered | default(false)) %}
+          Next: check mid_brooks_lab password in config.xml, journalctl on Lab3, MID Server > Issues in UI
+          {% elif hostvars['localhost'].sn_mid_registered | default(false) %}
+          Next: re-run deploy.yml to link Discovery schedule, then discover.yml
+          {% endif %}
+
+          Required for deploy.yml: discovery_schedule + discovery_credentials + cmn_location write.
+          Recommended role: discovery_admin (or admin on demo instance).

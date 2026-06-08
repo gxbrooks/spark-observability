@@ -1,0 +1,82 @@
+---
+# Create Kubernetes RBAC + long-lived token for ServiceNow serverless discovery (optional MID path).
+
+- name: Ensure servicenow-discovery service account exists
+  ansible.builtin.command:
+    cmd: kubectl create sa servicenow-discovery -n kube-system
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_k8s_sa_create
+  changed_when: sn_k8s_sa_create.rc == 0
+  failed_when: false
+
+- name: Ensure cluster read binding for servicenow-discovery
+  ansible.builtin.command:
+    cmd: kubectl create clusterrolebinding servicenow-discovery-read --clusterrole=view --serviceaccount=kube-system:servicenow-discovery
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_k8s_crb_create
+  changed_when: sn_k8s_crb_create.rc == 0
+  failed_when: false
+
+- name: Ensure token secret for servicenow-discovery
+  ansible.builtin.copy:
+    dest: /tmp/servicenow-discovery-token.yaml
+    mode: "0644"
+    content: |
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: servicenow-discovery-token
+        namespace: kube-system
+        annotations:
+          kubernetes.io/service-account.name: servicenow-discovery
+      type: kubernetes.io/service-account-token
+  register: sn_k8s_token_manifest
+
+- name: Apply servicenow-discovery token secret
+  ansible.builtin.command:
+    cmd: kubectl apply -f /tmp/servicenow-discovery-token.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: "'created' in sn_k8s_token_apply.stdout or 'configured' in sn_k8s_token_apply.stdout"
+  register: sn_k8s_token_apply
+
+- name: Wait for token secret to populate
+  ansible.builtin.pause:
+    seconds: 3
+
+- name: Read servicenow-discovery bearer token
+  ansible.builtin.command:
+    cmd: kubectl get secret servicenow-discovery-token -n kube-system -o jsonpath='{.data.token}'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_k8s_token_b64
+  changed_when: false
+
+- name: Decode bearer token
+  ansible.builtin.set_fact:
+    sn_k8s_bearer_token: "{{ sn_k8s_token_b64.stdout | b64decode }}"
+  no_log: true
+
+- name: Resolve Kubernetes API server URL
+  ansible.builtin.command:
+    cmd: kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_k8s_api_url_cmd
+  changed_when: false
+
+- name: Record Kubernetes API endpoint
+  ansible.builtin.set_fact:
+    sn_k8s_api_url: "{{ sn_k8s_api_url_cmd.stdout | trim }}"
+
+- name: Export cluster CA certificate for MID trust store
+  ansible.builtin.shell: |
+    set -euo pipefail
+    kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > /tmp/k8s-ca.crt
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: false

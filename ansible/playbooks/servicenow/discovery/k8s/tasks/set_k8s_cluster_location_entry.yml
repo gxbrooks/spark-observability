@@ -1,0 +1,62 @@
+---
+# Set cmn_location + cluster CI location for one K8S_CLUSTERS registry entry.
+
+- name: "Look up cmn_location {{ sn_k8s_cluster.location }}"
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmn_location
+    sn_rest_query: "sysparm_query=name={{ sn_k8s_cluster.location | urlencode }}&sysparm_limit=1"
+
+- name: "Create cmn_location {{ sn_k8s_cluster.location }} when missing"
+  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: cmn_location
+    sn_rest_body:
+      name: "{{ sn_k8s_cluster.location }}"
+      full_name: "{{ sn_k8s_cluster.location_full_name | default(sn_k8s_cluster.location) }}"
+      city: Lab
+      country: US
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: "Refresh cmn_location {{ sn_k8s_cluster.location }}"
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmn_location
+    sn_rest_query: "sysparm_query=name={{ sn_k8s_cluster.location | urlencode }}&sysparm_limit=1"
+
+- name: "Fail when cmn_location {{ sn_k8s_cluster.location }} is missing"
+  ansible.builtin.fail:
+    msg: >-
+      cmn_location '{{ sn_k8s_cluster.location }}' could not be created or found for cluster
+      {{ sn_k8s_cluster.name }}.
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: "Record location sys_id for {{ sn_k8s_cluster.location }}"
+  ansible.builtin.set_fact:
+    sn_k8s_target_location_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+
+- name: "Look up cluster CI {{ sn_k8s_cluster.name }}"
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_kubernetes_cluster
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_k8s_cluster.name | urlencode }}&sysparm_fields=sys_id,name,location&sysparm_limit=1
+
+- name: "Warn when cluster CI {{ sn_k8s_cluster.name }} is not yet in CMDB"
+  ansible.builtin.debug:
+    msg: >-
+      cmdb_ci_kubernetes_cluster '{{ sn_k8s_cluster.name }}' not found — skip location until KVA sync creates it.
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: "Set location on cluster CI {{ sn_k8s_cluster.name }}"
+  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: cmdb_ci_kubernetes_cluster
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body:
+      location: "{{ sn_k8s_target_location_sys_id }}"
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - (sn_rest_json.result[0].location.value | default('')) != sn_k8s_target_location_sys_id

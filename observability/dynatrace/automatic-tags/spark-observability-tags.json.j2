@@ -64,7 +64,7 @@
           "type": "SELECTOR",
           "valueFormat": "{{ tag.value }}",
           "valueNormalization": "Leave text as-is",
-          "entitySelector": "type(KUBERNETES_CLUSTER),entityName.equals(\"{{ DT_K8S_CLUSTER_NAME }}\")"
+          "entitySelector": "type(KUBERNETES_CLUSTER),entityName.equals(\"{{ K8S_PRIMARY_CLUSTER }}\")"
         }
       ]
     }

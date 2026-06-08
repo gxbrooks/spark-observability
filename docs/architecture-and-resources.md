@@ -11,14 +11,14 @@ For file-system paths and NFS layout see [File_System_Architecture.md](File_Syst
 
 | Host         | Logical CPUs | RAM   | Disk   | Role                                                                                                                               |
 | ------------ | ------------ | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Lab1.lan** | 32           | 96 GB | 937 GB | Kubernetes worker — Spark workers only                                                                                             |
-| **Lab2.lan** | 32           | 96 GB | 935 GB | Kubernetes worker — Spark workers only                                                                                             |
-| **Lab3.lan** | 32           | 64 GB | 915 GB | Observability (Docker Compose), K8s control plane, Spark Master, Spark History Server, HDFS, NFS server, JupyterHub, Elastic Agent |
+| **Lab1.lan** | 32           | 96 GB | 937 GB | Kubernetes worker — Spark workers only; Dynatrace OneAgent; Elastic Agent; ServiceNow SSH discovery target |
+| **Lab2.lan** | 32           | 96 GB | 935 GB | Kubernetes worker — Spark workers only (symmetric with Lab1); Dynatrace OneAgent + GPU sampler; Elastic Agent; ServiceNow SSH discovery target |
+| **Lab3.lan** | 32           | 64 GB | 915 GB | Observability (Docker Compose), K8s control plane, Spark Master/History, HDFS, NFS, JupyterHub, Dynatrace OneAgent, Elastic Agent, **ServiceNow MID Server** |
 
 
 DNS names (`*.lan`) are authoritative; IPs are in `ansible/inventory.yml` for reference only.
 
-Lab1 and Lab2 are **symmetric**: identical hardware, identical Spark worker count and resource spec. Lab3 is the single ops/control node.
+Lab1 and Lab2 are **symmetric**: identical hardware, identical Spark worker count and resource spec. Lab3 is the single ops/control node (Kubernetes API server, observability stack, NFS, Hadoop, JupyterHub, MID Server).
 
 ---
 
@@ -81,8 +81,10 @@ Static pods managed by kubelet on Lab3.
 | ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
 | NFS server (kernel)                       | 0.5 GiB     | Exports `/srv/nfs/spark/*`; see `[ansible/playbooks/nfs/](../ansible/playbooks/nfs/)` |
 | Elastic Agent                             | 0.5 GiB     | Systemd service; config at `[elastic-agent/](../elastic-agent/)`                      |
+| Dynatrace OneAgent                        | 0.5–1 GiB   | Host/process/K8s instrumentation; `[ansible/playbooks/observability/dynatrace/](../ansible/playbooks/observability/dynatrace/)` |
+| ServiceNow MID Server (JVM)             | 4–6 GiB     | Native systemd on Lab3; Discovery bridge to `[optimizincdemo1.service-now.com](https://optimizincdemo1.service-now.com/)`; `[ansible/playbooks/servicenow/discovery/](../ansible/playbooks/servicenow/discovery/)` |
 | OS, Docker engine, kubelet, sshd, logging | 3 GiB       |                                                                                       |
-| **Subtotal**                              | **4 GiB**   |                                                                                       |
+| **Subtotal**                              | **~9 GiB**  |                                                                                       |
 
 
 ### 2.5 Lab3 rollup
@@ -93,10 +95,10 @@ Static pods managed by kubelet on Lab3.
 | Docker Compose (Observability) | 16 GiB          |
 | K8s control plane              | 4 GiB           |
 | K8s workloads (limits)         | 16 GiB          |
-| Native services + OS           | 4 GiB           |
-| **Total allocated**            | **40 GiB**      |
+| Native services + OS (+ MID)   | 9 GiB           |
+| **Total allocated**            | **45 GiB**      |
 | **Hardware**                   | **64 GiB**      |
-| **Headroom**                   | **24 GiB**      |
+| **Headroom**                   | **~19 GiB**     |
 
 
 Headroom covers page cache, Elasticsearch segment merges, and burst allocation. CPU (32 logical) is well within budget.
@@ -105,7 +107,7 @@ Headroom covers page cache, Elasticsearch segment merges, and burst allocation. 
 
 ## 3. Lab1 and Lab2 — resource allocation (symmetric)
 
-Both hosts run identical Spark worker fleets and monitoring agents. No observability, no NFS, no HDFS, no control-plane pods.
+Both hosts run identical Spark worker fleets and monitoring agents. No observability Docker stack, no NFS, no HDFS, no JupyterHub, no control-plane pods.
 
 ### 3.1 Kubernetes workloads per host
 
@@ -135,8 +137,10 @@ Both hosts run identical Spark worker fleets and monitoring agents. No observabi
 | Component                     | Est. memory | Notes           |
 | ----------------------------- | ----------- | --------------- |
 | Elastic Agent                 | 0.5 GiB     | Systemd service |
+| Dynatrace OneAgent            | 0.5–1 GiB   | All lab hosts   |
+| Dynatrace GPU sampler (Lab1/Lab2 only) | ~0.1 GiB | systemd timer → Grail REST ingest |
 | OS, kubelet, containerd, sshd | 3 GiB       |                 |
-| **Subtotal**                  | **3.5 GiB** |                 |
+| **Subtotal**                  | **~4.5 GiB** |                |
 
 
 ### 3.3 Per-host rollup
@@ -195,7 +199,33 @@ There are no cgroup or systemd `MemoryMax`/`CPUQuota` limits configured. Typical
 
 ---
 
-## 6. iPython / PySpark interactive pods
+## 6. Dynatrace
+
+| Component | Hosts | Role |
+| --------- | ----- | ---- |
+| **OneAgent** | Lab1, Lab2, Lab3 | Host, process, and Kubernetes instrumentation → Dynatrace Grail / Classic metrics |
+| **Dynatrace Operator + Dynakube** | Lab3 (K8s control plane) | `cloudNativeFullStack` cluster monitoring |
+| **GPU sampler** | Lab1, Lab2 | `system.gpu.*` REST ingest for AMD GPUs |
+
+Playbooks: `[ansible/playbooks/observability/dynatrace/](../ansible/playbooks/observability/dynatrace/)`. Architecture: `[observability/dynatrace/docs/Dynatrace_Architecture.md](../observability/dynatrace/docs/Dynatrace_Architecture.md)`.
+
+---
+
+## 7. ServiceNow Discovery (CMDB)
+
+| Component | Hosts | Role |
+| --------- | ----- | ---- |
+| **MID Server** | Lab3 only | Outbound HTTPS to ServiceNow; runs Discovery jobs against the lab subnet |
+| **SSH discovery account** (`sn-discovery`) | Lab1, Lab2, Lab3 | Credential target for Linux CI classification (subnet scan `192.168.1.0/24`; SSH only on lab hosts) |
+| **CMDB location** | ServiceNow instance | `brooks-lab` — applied to Discovery schedule so discovered CIs are tagged to the lab |
+
+ServiceNow is the **system of record** for infrastructure CIs; Dynatrace SGC enrichment is Phase 2. Playbooks: `[ansible/playbooks/servicenow/discovery/](../ansible/playbooks/servicenow/discovery/)`.
+
+**MID memory note:** Budget **4–6 GiB** JVM heap on Lab3. With observability + K8s workloads, **~19 GiB headroom** remains on 64 GiB hardware — sufficient for lab Discovery load.
+
+---
+
+## 8. iPython / PySpark interactive pods
 
 The `launch_ipython.yml` playbook creates a short-lived PySpark pod for interactive use. Default resources: 500m CPU request / 1 CPU limit, 1 GiB memory request / 2 GiB memory limit. Override with `-e pyspark_ipython_cpu_limit=...` and `-e pyspark_ipython_memory_limit=...`.
 
@@ -203,11 +233,11 @@ Config: `[ansible/playbooks/spark/launch_ipython.yml](../ansible/playbooks/spark
 
 ---
 
-## 7. Log rotation and retention
+## 9. Log rotation and retention
 
 Every log-producing component is configured with bounded rotation to prevent disk exhaustion.
 
-### 7.1 Docker container logs (stdout/stderr)
+### 9.1 Docker container logs (stdout/stderr)
 
 All long-running Docker Compose services use a shared `json-file` logging driver with rotation. Configured via the `x-logging` anchor in [`observability/docker-compose.yml`](../observability/docker-compose.yml).
 
@@ -223,7 +253,7 @@ All long-running Docker Compose services use a shared `json-file` logging driver
 
 Init containers (`init-certs`, `set-kibana-password`, `init-index`) are short-lived and excluded.
 
-### 7.2 Application-level log rotation
+### 9.2 Application-level log rotation
 
 | Component | Rotation mechanism | Max size | Files/age | Config |
 | --------- | ------------------ | -------- | --------- | ------ |
@@ -232,7 +262,7 @@ Init containers (`init-certs`, `set-kibana-password`, `init-index`) are short-li
 | Filebeat | Built-in rotation | 10 MB | 10 files | [`observability/filebeat/filebeat.yml`](../observability/filebeat/filebeat.yml) |
 | Elastic Agent | Built-in rotation | 50 MB | 7 files | [`elastic-agent/elastic-agent.linux.yml.j2`](../elastic-agent/elastic-agent.linux.yml.j2) |
 
-### 7.3 Spark logs
+### 9.3 Spark logs
 
 | Component | Rotation mechanism | Max size | Files/age | Config |
 | --------- | ------------------ | -------- | --------- | ------ |
@@ -240,7 +270,7 @@ Init containers (`init-certs`, `set-kibana-password`, `init-index`) are short-li
 | Application logs (log4j2-cluster) | Log4j2 RollingFile | 20 MB | 10 files, 30-day delete | [`spark/conf/log4j2-cluster.properties`](../spark/conf/log4j2-cluster.properties) |
 | Event logs (`/mnt/spark/events`) | History Server cleaner | — | 7-day max age, 100 file max | `spark.history.fs.cleaner.*` in [`spark/conf/spark-defaults.conf`](../spark/conf/spark-defaults.conf) and [`ansible/roles/spark/templates/spark-defaults.conf.j2`](../ansible/roles/spark/templates/spark-defaults.conf.j2) |
 
-### 7.4 Kubernetes container logs
+### 9.4 Kubernetes container logs
 
 Kubelet container log rotation is configured in `/var/lib/kubelet/config.yaml` on each K8s node via [`ansible/playbooks/k8s/install.yml`](../ansible/playbooks/k8s/install.yml).
 
@@ -249,7 +279,7 @@ Kubelet container log rotation is configured in `/var/lib/kubelet/config.yaml` o
 | `containerLogMaxSize` | 50 Mi | Rotates when a container log hits 50 MB |
 | `containerLogMaxFiles` | 5    | Keeps at most 5 rotated files     |
 
-### 7.5 Prometheus TSDB retention
+### 9.5 Prometheus TSDB retention
 
 Prometheus data retention is size- and time-bounded (not log rotation per se, but relevant to disk).
 
@@ -260,7 +290,7 @@ Prometheus data retention is size- and time-bounded (not log rotation per se, bu
 
 ---
 
-## 8. Documentation map
+## 10. Documentation map
 
 
 | Location                                                  | Purpose                                                                                    |
@@ -271,11 +301,12 @@ Prometheus data retention is size- and time-bounded (not log rotation per se, bu
 | `**observability/grafana/docs/**`, `**prometheus/docs/**` | Component-specific notes.                                                                  |
 | `**elastic-agent/docs/**`                                 | Elastic Agent deployment and behavior.                                                     |
 | `**ansible/playbooks/spark/README.md**`                   | Spark playbook usage and resource details.                                                 |
+| `**ansible/playbooks/servicenow/**`                       | ServiceNow Discovery / CMDB automation (MID Server, schedules, scans).                     |
 
 
 ---
 
-## 9. Related documents
+## 11. Related documents
 
 - [File_System_Architecture.md](File_System_Architecture.md) — DevOps/Ops paths, NFS mounts, certificates.
 - [Application_Locations.md](Application_Locations.md) — URLs and client tools.

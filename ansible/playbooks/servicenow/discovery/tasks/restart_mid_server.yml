@@ -1,0 +1,8 @@
+---
+# Restart MID systemd unit on Lab3 (after validation or config change).
+
+- name: Restart MID Server systemd unit
+  ansible.builtin.systemd:
+    name: "{{ sn_mid_service_name }}.service"
+    state: restarted
+    enabled: true

@@ -1,0 +1,70 @@
+---
+# Deploy ServiceNow Discovery configuration (location, credential, range, schedule).
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/deploy.yml -e @../vars/secrets.yaml
+
+- name: Deploy ServiceNow Discovery configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  vars:
+    sn_discovery_credential_name: brooks-lab-ssh
+    sn_discovery_range_name: brooks-lab-subnet
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: common/regenerate_context.yml
+
+    - name: Ensure deploy context directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../../vars/contexts"
+        state: directory
+        mode: "0755"
+
+    - name: Require ServiceNow API credentials
+      ansible.builtin.assert:
+        that:
+          - sn_url | length > 0
+          - sn_user | length > 0
+          - sn_password | length > 0
+        fail_msg: "Configure SN_URL in vars/variables.yaml (service-now context) and servicenow.SN_USER, SN_PASSWORD in vars/secrets.yaml"
+
+    - name: Require discovery SSH private key
+      ansible.builtin.stat:
+        path: "{{ sn_discovery_ssh_private_key_path }}"
+      register: sn_discovery_key_stat
+
+    - name: Fail when discovery key is missing
+      ansible.builtin.fail:
+        msg: "Run playbooks/servicenow/discovery/install.yml first to generate the SSH key pair."
+      when: not sn_discovery_key_stat.stat.exists
+
+    - name: Configure ServiceNow Discovery objects
+      ansible.builtin.include_tasks: tasks/deploy_servicenow.yml
+
+    - name: Ensure MID Server is validated for Discovery
+      ansible.builtin.include_tasks: tasks/validate_mid_server.yml
+
+    - name: Deploy summary
+      ansible.builtin.debug:
+        msg: |
+          ServiceNow Discovery deploy complete (API objects).
+          Location: {{ sn_lab_location_name }} ({{ sn_location_sys_id | default('n/a') }})
+          Schedule: {{ sn_discovery_schedule_name }} ({{ sn_schedule_sys_id | default('pending MID registration') }})
+          MID {{ sn_mid_server_name }}: validated={{ 'true (just applied — restarting MID)' if sn_mid_validation_changed | default(false) else 'ok' }}
+          CMDB (all CIs at brooks-lab): {{ sn_cmdb_all_cis_url }}
+          Next: ansible-playbook ... playbooks/servicenow/discovery/discover.yml
+
+- name: Restart MID Server after validation
+  hosts: observability
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Restart MID when validation was just applied
+      ansible.builtin.include_tasks: tasks/restart_mid_server.yml
+      when: hostvars['localhost'].sn_mid_validation_changed | default(false)

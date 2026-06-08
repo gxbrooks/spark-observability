@@ -234,5 +234,5 @@ duplicate settings. Changes belong in Git first, then apply via Ansible.
 
 `dynakube/dynakube.yaml.j2` sets Operator feature annotations for **automatic
 Kubernetes API monitoring** and the **cluster display name** (must match
-`DT_K8S_CLUSTER_NAME`). Without these, the UI can show **Monitoring not
+`K8S_PRIMARY_CLUSTER`). Without these, the UI can show **Monitoring not
 available** for the cluster even when nodes report to Dynatrace.

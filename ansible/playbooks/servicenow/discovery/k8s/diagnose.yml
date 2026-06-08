@@ -1,0 +1,111 @@
+---
+# Phase 2: KVA Informer health + brooks-lab Kubernetes CMDB counts.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/diagnose.yml -e @../vars/secrets.yaml
+
+- name: Diagnose KVA Informer pod on brooks-lab cluster
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: KVA namespace and pod status
+      ansible.builtin.command:
+        cmd: kubectl -n {{ sn_k8s_informer_namespace }} get pods,deploy -o wide
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: sn_kva_kubectl
+      changed_when: false
+      failed_when: false
+
+    - name: Recent KVA Informer logs
+      ansible.builtin.shell: |
+        set -o pipefail
+        pod=$(kubectl -n {{ sn_k8s_informer_namespace }} get pods -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        if [ -n "$pod" ]; then
+          kubectl -n {{ sn_k8s_informer_namespace }} logs "$pod" --tail=30
+        else
+          echo "No KVA pod found in {{ sn_k8s_informer_namespace }}"
+        fi
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: sn_kva_logs
+      changed_when: false
+      failed_when: false
+
+    - name: KVA cluster report
+      ansible.builtin.debug:
+        msg: |
+          Namespace: {{ sn_k8s_informer_namespace }}
+          {{ sn_kva_kubectl.stdout | default('kubectl unavailable') }}
+
+          Recent logs:
+          {{ sn_kva_logs.stdout | default('') }}
+
+- name: Diagnose brooks-lab Kubernetes CMDB objects
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  vars:
+    sn_k8s_cmdb_tables:
+      - cmdb_ci_kubernetes_cluster
+      - cmdb_ci_kubernetes_node
+      - cmdb_ci_kubernetes_namespace
+      - cmdb_ci_kubernetes_deployment
+      - cmdb_ci_kubernetes_replicaset
+      - cmdb_ci_kubernetes_statefulset
+      - cmdb_ci_kubernetes_daemonset
+      - cmdb_ci_kubernetes_pod
+      - cmdb_ci_kubernetes_service
+  tasks:
+    - name: Resolve brooks-lab cluster sys_id
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_cluster?sysparm_query=name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_cluster_lookup
+      no_log: true
+
+    - name: Count CMDB objects per Kubernetes table
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/{{ item }}?sysparm_query=cluster={{ sn_k8s_cluster_sys_id | urlencode }}&sysparm_fields=name&sysparm_limit=1
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_table_counts
+      no_log: true
+      loop: "{{ sn_k8s_cmdb_tables }}"
+      when: sn_k8s_cluster_sys_id | default('') | length > 0
+      vars:
+        sn_k8s_cluster_sys_id: "{{ sn_k8s_cluster_lookup.json.result[0].sys_id | default('') }}"
+
+    - name: Build CMDB count report
+      ansible.builtin.set_fact:
+        sn_k8s_cmdb_report: >-
+          {{ dict(sn_k8s_cmdb_tables | zip(
+               sn_k8s_table_counts.results | default([]) | map(attribute='x_total_count') | map('int') | list
+             )) }}
+      when: sn_k8s_table_counts is defined
+
+    - name: CMDB diagnose summary
+      ansible.builtin.debug:
+        msg: |
+          brooks-lab Kubernetes CMDB (cluster={{ sn_k8s_cluster_name }})
+          Counts by table: {{ sn_k8s_cmdb_report | default({}) }}
+          CMDB filter: {{ sn_cmdb_kubernetes_url }}
+          K8s deploy context: vars/contexts/servicenow_k8s_discovery_deploy.json

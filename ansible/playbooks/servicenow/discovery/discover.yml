@@ -1,0 +1,186 @@
+---
+# Trigger an on-demand ServiceNow Discovery scan for the brooks-lab schedule.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
+
+- name: Preflight brooks-lab Discovery targets
+  hosts: k8s_nodes
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Run Discovery preflight on lab hosts
+      ansible.builtin.include_tasks: tasks/preflight_discovery.yml
+
+- name: Preflight ServiceNow Discovery configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: common/regenerate_context.yml
+
+    - name: Ensure MID Server is validated for Discovery
+      ansible.builtin.include_tasks: tasks/validate_mid_server.yml
+
+    - name: Verify brooks-lab schedule is active with MID and range
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/discovery_schedule?sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_fields=name,active,mid_server,credential_aliases,location,sys_id&sysparm_limit=1
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_discover_schedule_check
+      no_log: true
+
+    - name: Verify brooks-lab subnet range item exists
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/discovery_range_item?sysparm_query=parent.name={{ sn_discovery_range_name | urlencode }}&sysparm_fields=summary,active&sysparm_limit=5
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_discover_range_check
+      no_log: true
+
+    - name: Fail when schedule is not ready
+      ansible.builtin.assert:
+        that:
+          - sn_discover_schedule_check.json.result | default([]) | length > 0
+          - sn_discover_schedule_check.json.result[0].active | default('') | string == 'true'
+          - sn_discover_schedule_check.json.result[0].mid_server | default('') | length > 0
+          - sn_discover_range_check.json.result | default([]) | length > 0
+        fail_msg: |
+          brooks-lab Discovery not ready. Run deploy.yml and ensure MID {{ sn_mid_server_name }} is Up.
+          Schedule active={{ sn_discover_schedule_check.json.result[0].active | default('missing') if (sn_discover_schedule_check.json.result | default([]) | length > 0) else 'missing' }}
+          Range items={{ sn_discover_range_check.json.result | default([]) | length }}
+
+- name: Restart MID Server after validation
+  hosts: observability
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Restart MID when validation was just applied
+      ansible.builtin.include_tasks: tasks/restart_mid_server.yml
+      when: hostvars['localhost'].sn_mid_validation_changed | default(false)
+
+- name: Run ServiceNow Discovery scan
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Load deployed schedule sys_id
+      ansible.builtin.slurp:
+        src: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_discovery_deploy.json"
+      register: sn_deploy_context_file
+      failed_when: false
+
+    - name: Parse deploy context
+      ansible.builtin.set_fact:
+        sn_schedule_sys_id: "{{ (sn_deploy_context_file.content | b64decode | from_json).schedule_sys_id | default('') }}"
+      when: sn_deploy_context_file is succeeded
+
+    - name: Look up schedule by name when context missing
+      ansible.builtin.include_tasks: common/sn_rest_get.yml
+      vars:
+        sn_rest_table: discovery_schedule
+        sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_limit=1"
+      when: sn_schedule_sys_id | default('') | length == 0
+
+    - name: Set schedule sys_id from lookup
+      ansible.builtin.set_fact:
+        sn_schedule_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+      when:
+        - sn_schedule_sys_id | default('') | length == 0
+        - sn_rest_json.result | default([]) | length > 0
+
+    - name: Fail when schedule is unknown
+      ansible.builtin.fail:
+        msg: "Discovery schedule not found. Run deploy.yml after MID Server is validated in ServiceNow."
+      when: sn_schedule_sys_id | default('') | length == 0
+
+    - name: Snapshot brooks-lab discovery_status count before trigger
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_status?sysparm_query=dscheduler={{ sn_schedule_sys_id }}&sysparm_limit=1"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_status_before
+      no_log: true
+
+    - name: Trigger Discovery via Table API action (ITOM)
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_schedule/{{ sn_schedule_sys_id }}/action/run_discovery"
+        method: POST
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 201, 202, 400, 403, 404]
+        return_content: true
+      register: sn_discover_action
+      no_log: true
+
+    - name: Fallback — trigger via discovery runner endpoint
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/discovery_schedule/{{ sn_schedule_sys_id }}"
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          started: "true"
+        status_code: [200, 400, 403]
+        return_content: true
+      register: sn_discover_patch
+      no_log: true
+      when: sn_discover_action.status not in [200, 201, 202]
+
+    - name: Discovery trigger result
+      ansible.builtin.debug:
+        msg: |
+          Preflight passed (sn-discovery SSH on Lab1–Lab3, schedule active, range item present).
+
+          API trigger for {{ sn_discovery_schedule_name }} ({{ sn_schedule_sys_id }}):
+            action/run_discovery HTTP {{ sn_discover_action.status }}
+            PATCH fallback HTTP {{ sn_discover_patch.status | default('skipped') }}
+
+          brooks-lab discovery_status rows before trigger: {{ sn_status_before.json.result | default([]) | length }}
+
+          {% if sn_discover_action.status not in [200, 201, 202] %}
+          This instance requires UI Discover Now:
+            {{ sn_url }}/discovery_schedule.do?sys_id={{ sn_schedule_sys_id }}
+
+          Monitor brooks-lab runs only (not Kubernetes):
+            {{ sn_url }}/discovery_status_list.do?sysparm_query=dscheduler%3D{{ sn_schedule_sys_id }}
+
+          CMDB (all CIs at brooks-lab):
+            {{ sn_cmdb_all_cis_url }}
+
+          CMDB (Linux servers at brooks-lab):
+            {{ sn_cmdb_linux_servers_url }}
+          {% else %}
+          Scan started via API — wait several minutes, then run test.yml.
+          {% endif %}

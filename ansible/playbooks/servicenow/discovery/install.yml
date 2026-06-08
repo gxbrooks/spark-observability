@@ -1,0 +1,58 @@
+---
+# Install ServiceNow Discovery prerequisites on lab hosts.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml
+
+- name: Generate SSH key pair for Discovery credential
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [discovery_user, mid_server, always]
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: common/regenerate_context.yml
+
+    - name: Ensure vars directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../../vars"
+        state: directory
+        mode: "0755"
+
+    - name: Generate sn-discovery ed25519 key when missing
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ed25519 -N "" -f {{ sn_discovery_ssh_private_key_path }}
+        creates: "{{ sn_discovery_ssh_private_key_path }}"
+
+- name: Install sn-discovery account on Kubernetes nodes
+  hosts: k8s_nodes
+  become: true
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Install discovery user and sudoers
+      ansible.builtin.include_tasks:
+        file: tasks/install_discovery_user.yml
+        apply:
+          tags: [discovery_user]
+      tags: [discovery_user]
+
+- name: Install ServiceNow MID Server on Lab3
+  hosts: observability
+  become: true
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Install MID Server
+      ansible.builtin.include_tasks:
+        file: tasks/install_mid_server.yml
+        apply:
+          tags: [mid_server]
+      when: observability_host | default('Lab3') == inventory_hostname
+      tags: [mid_server]

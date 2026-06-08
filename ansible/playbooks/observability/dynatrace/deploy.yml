@@ -45,23 +45,38 @@
   tasks:
 
     - name: Deploy Dynatrace Operator
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/deploy_operator.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/deploy_operator.yml"
+        apply:
+          tags: [k8s]
       tags: [k8s]
 
     - name: Apply Dynakube CR
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_dynakube.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/apply_dynakube.yml"
+        apply:
+          tags: [k8s]
       tags: [k8s]
 
     - name: Activate cluster in Dynatrace Kubernetes app
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
+        apply:
+          tags: [k8s]
       tags: [k8s]
 
     - name: Apply management zone
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_management_zone.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/apply_management_zone.yml"
+        apply:
+          tags: [partitioning]
       tags: [partitioning]
 
     - name: Apply automatic tags
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_auto_tags.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/apply_auto_tags.yml"
+        apply:
+          tags: [partitioning]
       tags: [partitioning]
 
     - name: Merge Dynatrace exporter into OTel collector config

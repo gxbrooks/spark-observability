@@ -59,9 +59,34 @@ DT_HOST_GROUP:
   value: spark-observability
   contexts: [ansible, devops]
 
-DT_K8S_CLUSTER_NAME:
-  value: spark-observability-k8s
-  contexts: [ansible, devops]
+# Kubernetes — cluster registry (name aligns ServiceNow CMDB, KVA Informer, and Dynatrace)
+K8S_PRIMARY_CLUSTER:
+  value: brooks-lab
+  contexts: [ansible, devops, service-now]
+
+K8S_KVA_HELM_REPO:
+  value: https://install.service-now.com/glide/distribution/builds/package/informer/informer-helm/repo
+  contexts: [ansible, service-now]
+
+# Multi-cluster registry: name + location + cluster-specific options (GitOps source for k8s/deploy.yml)
+K8S_CLUSTERS:
+  value:
+    - name: brooks-lab
+      location: brooks-lab
+      location_full_name: Brooks Lab
+      primary: true
+      managed: true
+      api_url: https://192.168.1.207:6443
+      kva_namespace: servicenow-kva
+      environment: on-prem
+    - name: aks-otel-demo
+      location: bradens-cloud
+      location_full_name: Braden Cloud Demo
+      primary: false
+      managed: false
+      environment: azure
+      cloud_provider: azure
+  contexts: [ansible, service-now]
 
 DT_MANAGEMENT_ZONE:
   value: Spark Observability
@@ -74,6 +99,50 @@ DT_ENVIRONMENT:
 DT_OWNED_BY:
   value: gbrooks
   contexts: [ansible, devops]
+
+# ServiceNow / Discovery (brooks-lab) — service-now context only (see vars/contexts/servicenow_ansible_vars.yml)
+SN_URL:
+  value: https://optimizincdemo1.service-now.com
+  contexts: [service-now]
+
+SN_LAB_LOCATION_NAME:
+  value: brooks-lab
+  contexts: [service-now]
+
+SN_LAB_LOCATION_FULL_NAME:
+  value: Brooks Lab
+  contexts: [service-now]
+
+SN_DISCOVERY_SUBNET:
+  value: 192.168.1.0/24
+  contexts: [service-now]
+
+SN_DISCOVERY_USER:
+  value: sn-discovery
+  contexts: [service-now]
+
+SN_DISCOVERY_SCHEDULE_NAME:
+  value: Brooks Lab CI Discovery
+  contexts: [service-now]
+
+# ServiceNow instance short name (no domain) for KVA Helm / informer secret
+SN_INSTANCE_SHORT_NAME:
+  value: optimizincdemo1
+  contexts: [service-now]
+
+SN_MID_SERVER_NAME:
+  value: mid-brooks-lab3
+  contexts: [service-now]
+
+SN_MID_INSTALL_DIR:
+  value: /opt/servicenow/mid-brooks-lab3
+  contexts: [service-now]
+
+# Linux .deb for MID Server — must match instance build (glide.war on optimizincdemo1).
+# Update when the instance is upgraded; see playbooks/servicenow/docs/install.md
+SN_MID_INSTALLER_DEB_URL:
+  value: https://install.service-now.com/glide/distribution/builds/package/app-signed/mid-linux-installer/2026/05/19/mid-linux-installer.zurich-07-01-2025__patch7b-hotfix1-05-18-2026_05-19-2026_0833.linux.x86-64.deb
+  contexts: [service-now]
 
 DT_TOKEN_ADMIN_TOKEN:
   value: ""  # SECRET: REQUIRED for API-driven token creation/rotation
@@ -474,4 +543,4 @@ HDFS_DEFAULT_FS:
 HDFS_DEFAULT_FS_CLIENT:
   value: hdfs://Lab2.lan:30900
   contexts: [spark-client, ispark]
-
+  

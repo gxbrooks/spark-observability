@@ -86,6 +86,16 @@ contexts:
           entries:
             - key: k8s_namespace
               value: spark
+        - title: Kubernetes cluster registry
+          entries:
+            - key: K8S_PRIMARY_CLUSTER
+              source: K8S_PRIMARY_CLUSTER
+              required: true
+            - key: K8S_CLUSTERS
+              source: K8S_CLUSTERS
+              required: true
+            - key: K8S_KVA_HELM_REPO
+              source: K8S_KVA_HELM_REPO
         - title: Observability credentials
           entries:
             - key: ES_USER
@@ -153,6 +163,51 @@ contexts:
     type: shell_env
     output: devops_env.sh
     description: Environment variables for devops client initialization (Python, Java versions)
+
+  - name: service-now
+    type: ansible_vars
+    output: servicenow_ansible_vars.yml
+    description: Ansible variables for ServiceNow Discovery playbooks (instance URL, brooks-lab scope, MID install)
+    ansible_render:
+      sections:
+        - title: ServiceNow instance
+          entries:
+            - key: SN_URL
+              source: SN_URL
+              required: true
+        - title: brooks-lab Discovery scope
+          entries:
+            - key: SN_LAB_LOCATION_NAME
+              source: SN_LAB_LOCATION_NAME
+            - key: SN_LAB_LOCATION_FULL_NAME
+              source: SN_LAB_LOCATION_FULL_NAME
+            - key: SN_DISCOVERY_SUBNET
+              source: SN_DISCOVERY_SUBNET
+            - key: SN_DISCOVERY_USER
+              source: SN_DISCOVERY_USER
+            - key: SN_DISCOVERY_SCHEDULE_NAME
+              source: SN_DISCOVERY_SCHEDULE_NAME
+        - title: Kubernetes cluster registry
+          entries:
+            - key: K8S_PRIMARY_CLUSTER
+              source: K8S_PRIMARY_CLUSTER
+              required: true
+            - key: K8S_CLUSTERS
+              source: K8S_CLUSTERS
+              required: true
+            - key: K8S_KVA_HELM_REPO
+              source: K8S_KVA_HELM_REPO
+            - key: SN_INSTANCE_SHORT_NAME
+              source: SN_INSTANCE_SHORT_NAME
+        - title: MID Server on Lab3
+          entries:
+            - key: SN_MID_SERVER_NAME
+              source: SN_MID_SERVER_NAME
+            - key: SN_MID_INSTALL_DIR
+              source: SN_MID_INSTALL_DIR
+            - key: SN_MID_INSTALLER_DEB_URL
+              source: SN_MID_INSTALLER_DEB_URL
+              required: true
 
   - name: managed-node
     type: shell_env

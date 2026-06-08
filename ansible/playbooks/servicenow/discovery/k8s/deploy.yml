@@ -1,0 +1,42 @@
+---
+# Phase 2: Deploy ServiceNow KVA instance configuration (cluster location + inheritance BR).
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/deploy.yml -e @../vars/secrets.yaml
+#
+# Prerequisite: k8s/install.yml and KVA full discovery (cluster CI exists in CMDB).
+
+- name: Deploy ServiceNow KVA location configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Set location on Kubernetes cluster CIs from cluster-to-location map
+      ansible.builtin.include_tasks: tasks/set_k8s_cluster_locations.yml
+
+    - name: Ensure Kubernetes location inheritance business rule
+      ansible.builtin.include_tasks: tasks/ensure_k8s_location_business_rule.yml
+
+    - name: Persist brooks-lab K8s deploy context
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_k8s_discovery_deploy.json"
+        mode: "0644"
+        content: >-
+          {{ {
+            'cluster_name': sn_k8s_cluster_name,
+            'cluster_location_name': sn_k8s_location_name,
+            'kva_namespace': sn_k8s_informer_namespace,
+            'location_business_rule': sn_k8s_location_br_name
+          } | to_nice_json }}
+      delegate_to: localhost
+      become: false
+
+    - name: Deploy summary
+      ansible.builtin.debug:
+        msg: |
+          KVA instance configuration complete for {{ k8s_clusters | length }} cluster(s) in K8S_CLUSTERS.
+          Primary managed cluster: {{ k8s_primary_cluster_name }} -> {{ k8s_primary_cluster.location }}
+          Business rule: {{ sn_k8s_location_br_name }}
+          All brooks-lab CIs: {{ sn_cmdb_all_cis_url }}

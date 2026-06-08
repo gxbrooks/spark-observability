@@ -1,0 +1,188 @@
+---
+# Phase 2: Assert brooks-lab Kubernetes objects appear in CMDB.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/test.yml -e @../vars/secrets.yaml
+
+- name: Test CMDB for brooks-lab Kubernetes discovery
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Assert CMDB locations for all clusters in K8S_CLUSTERS registry
+      ansible.builtin.include_tasks: tasks/assert_k8s_cluster_location.yml
+      loop: "{{ k8s_clusters }}"
+      loop_control:
+        loop_var: sn_k8s_cluster
+        label: "{{ sn_k8s_cluster.name }}"
+
+    - name: Query Kubernetes cluster CI
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_cluster?sysparm_query=name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name,cluster_version,discovery_source,location,location.name&sysparm_limit=5
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_clusters
+      no_log: true
+
+    - name: Query Kubernetes nodes for brooks-lab cluster
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_node?sysparm_query=cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name,cluster&sysparm_limit=20
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_nodes
+      no_log: true
+
+    - name: Query Kubernetes workloads (deployments) for brooks-lab cluster
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_deployment?sysparm_query=cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name,namespace,cluster&sysparm_limit=50
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_deployments
+      no_log: true
+
+    - name: Query Kubernetes namespaces for brooks-lab cluster
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_namespace?sysparm_query=cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name&sysparm_limit=30
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_namespaces
+      no_log: true
+
+    - name: Query Kubernetes pods for brooks-lab cluster
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_pod?sysparm_query=cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name,namespace&sysparm_limit=100
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_pods
+      no_log: true
+
+    - name: Query Kubernetes services for brooks-lab cluster
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_service?sysparm_query=cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name,namespace&sysparm_limit=30
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_services
+      no_log: true
+
+    - name: Query Kubernetes daemonsets for brooks-lab cluster
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_daemonset?sysparm_query=cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name&sysparm_limit=20
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_k8s_daemonsets
+      no_log: true
+
+    - name: Query KVA informer status
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/sn_acc_visibility_kubernetes_informer?sysparm_query=informer_name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=name,status,informer_pod_name,last_full_discovery&sysparm_limit=5
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_kva_informer
+      no_log: true
+
+    - name: Discovery summary
+      ansible.builtin.debug:
+        msg: |
+          brooks-lab Kubernetes CMDB test
+          Cluster CIs: {{ sn_k8s_clusters.json.result | map(attribute='name') | list }}
+          Nodes: {{ sn_k8s_nodes.json.result | length }} — {{ sn_k8s_nodes.json.result | map(attribute='name') | list }}
+          Namespaces: {{ sn_k8s_namespaces.json.result | length }}
+          Deployments: {{ sn_k8s_deployments.json.result | length }}
+          Daemonsets: {{ sn_k8s_daemonsets.json.result | length }}
+          Services: {{ sn_k8s_services.json.result | length }}
+          Pods: {{ sn_k8s_pods.json.result | length }}
+          Sample deployments: {{ sn_k8s_deployments.json.result | map(attribute='name') | list | batch(10) | first }}
+          KVA informer: {{ sn_kva_informer.json.result | default([]) }}
+          All K8s CIs: {{ sn_cmdb_kubernetes_url }}
+
+    - name: Assert brooks-lab Kubernetes cluster CI exists
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_clusters.json.result | default([]) | length > 0
+        fail_msg: "No cmdb_ci_kubernetes_cluster named {{ sn_k8s_cluster_name }}. Run k8s/install.yml and wait for KVA sync."
+
+    - name: Assert brooks-lab Kubernetes cluster has location set
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_clusters.json.result[0]['location.name'] | default('') == k8s_primary_cluster.location
+        fail_msg: >-
+          Primary cluster {{ k8s_primary_cluster_name }} location is not {{ k8s_primary_cluster.location }}.
+          Run k8s/deploy.yml to apply K8S_CLUSTERS registry and inheritance business rule.
+
+    - name: Assert at least three Kubernetes nodes discovered
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_nodes.json.result | default([]) | length >= 3
+        fail_msg: "Expected 3 Kubernetes nodes for {{ sn_k8s_cluster_name }}; found {{ sn_k8s_nodes.json.result | default([]) | length }}."
+
+    - name: Assert Kubernetes deployments discovered
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_deployments.json.result | default([]) | length >= 5
+        fail_msg: "Expected multiple deployments in brooks-lab cluster; found {{ sn_k8s_deployments.json.result | default([]) | length }}."
+
+    - name: Assert Kubernetes namespaces discovered
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_namespaces.json.result | default([]) | length >= 8
+        fail_msg: "Expected brooks-lab namespaces in CMDB; found {{ sn_k8s_namespaces.json.result | default([]) | length }}."
+
+    - name: Assert Kubernetes pods discovered
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_pods.json.result | default([]) | length >= 25
+        fail_msg: "Expected brooks-lab pods in CMDB; found {{ sn_k8s_pods.json.result | default([]) | length }}."
+
+    - name: Assert Kubernetes services discovered
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_services.json.result | default([]) | length >= 5
+        fail_msg: "Expected brooks-lab services in CMDB; found {{ sn_k8s_services.json.result | default([]) | length }}."
+
+    - name: Assert Kubernetes daemonsets discovered
+      ansible.builtin.assert:
+        that:
+          - sn_k8s_daemonsets.json.result | default([]) | length >= 3
+        fail_msg: "Expected brooks-lab daemonsets in CMDB; found {{ sn_k8s_daemonsets.json.result | default([]) | length }}."
