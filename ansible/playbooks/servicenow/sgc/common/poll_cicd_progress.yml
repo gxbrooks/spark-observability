@@ -1,0 +1,38 @@
+---
+# Poll a ServiceNow CI/CD progress link until it reaches a terminal state.
+# Input:  sn_cicd_progress_url (absolute URL from a CI/CD API response)
+# Output: sn_cicd_progress_state — 'successful' | 'failed' | 'canceled' | 'unknown'
+#
+# CI/CD progress status values: 0 Pending, 1 Running, 2 Successful, 3 Failed, 4 Canceled.
+
+- name: Poll CI/CD progress until terminal state
+  ansible.builtin.uri:
+    url: "{{ sn_cicd_progress_url }}"
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_cicd_progress
+  until: (sn_cicd_progress.json.result.status | default('0') | string) in ['2', '3', '4']
+  retries: "{{ sn_cicd_progress_retries | default(60) }}"
+  delay: "{{ sn_cicd_progress_delay | default(10) }}"
+  failed_when: false
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record CI/CD progress state
+  ansible.builtin.set_fact:
+    sn_cicd_progress_state: >-
+      {{ {'2': 'successful', '3': 'failed', '4': 'canceled'}.get(
+           sn_cicd_progress.json.result.status | default('') | string, 'unknown') }}
+    sn_cicd_progress_message: "{{ sn_cicd_progress.json.result.status_message | default('') }}"
+  run_once: true
+
+- name: Show CI/CD progress result
+  ansible.builtin.debug:
+    msg: "CI/CD operation: {{ sn_cicd_progress_state }} — {{ sn_cicd_progress_message }}"
+  run_once: true

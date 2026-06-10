@@ -1,0 +1,21 @@
+---
+# Resolve Dynatrace API endpoint/token from the dynatrace-ansible context.
+# Context variables come from vars/contexts/dynatrace_ansible_vars.yml only —
+# no defaults; an undefined variable must fail the play.
+- name: Resolve Dynatrace API URL and token
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ DT_API_URL }}"
+    dt_management_zone_resolved: "{{ DT_MANAGEMENT_ZONE }}"
+    dt_api_token_resolved: "{{ DT_API_TOKEN }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert Dynatrace API settings are present
+  ansible.builtin.assert:
+    that:
+      - dt_api_url_resolved | length > 0
+      - dt_api_token_resolved | length > 0
+    fail_msg: >-
+      DT_API_URL and DT_API_TOKEN must be set in vars/variables.yaml
+      (dynatrace-ansible context); regenerate vars/contexts/dynatrace_ansible_vars.yml.
+  run_once: true

@@ -1,0 +1,96 @@
+---
+# Preflight for the CI/CD install path. Determines which (if any) one-time
+# bootstrap step is still missing so install.yml can fail fast with the exact
+# next manual action instead of a generic 403.
+#
+# Ordering constraint being checked: the role record sn_cicd.sys_ci_automation
+# only exists once the CI/CD tooling (plugin com.snc.ci_cd / CICD Spoke) is on
+# the instance — so on a bare instance the grant cannot precede the plugin.
+#
+# Sets:
+#   sn_cicd_role_exists  — true | false | 'unknown' (table not readable)
+#   sn_cicd_role_granted — true | false | 'unknown'
+
+- name: Query CI/CD automation role record
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sys_user_role?sysparm_query=name=sn_cicd.sys_ci_automation&sysparm_fields=sys_id,name&sysparm_limit=1"
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_cicd_role_row
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Query role grant for automation user
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_user_has_role?sysparm_query=user.user_name={{ sn_user
+      }}^role.name=sn_cicd.sys_ci_automation&sysparm_fields=sys_id,state&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_cicd_grant_row
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+# String values ('yes'/'no'/'unknown') — templated set_fact booleans are not
+# reliable across Ansible Jinja modes.
+- name: Record CI/CD bootstrap state
+  ansible.builtin.set_fact:
+    sn_cicd_role_exists: >-
+      {{ ('yes' if (sn_cicd_role_row.json.result | default([])) | length > 0 else 'no')
+         if (sn_cicd_role_row.status | int) == 200 else 'unknown' }}
+    sn_cicd_role_granted: >-
+      {{ ('yes' if (sn_cicd_grant_row.json.result | default([])) | length > 0 else 'no')
+         if (sn_cicd_grant_row.status | int) == 200 else 'unknown' }}
+  run_once: true
+
+- name: Show CI/CD bootstrap status
+  ansible.builtin.debug:
+    msg: >-
+      CI/CD bootstrap: role sn_cicd.sys_ci_automation exists={{ sn_cicd_role_exists }},
+      granted to {{ sn_user }}={{ sn_cicd_role_granted }}
+  run_once: true
+
+- name: Stop when the CI/CD tooling is not on the instance
+  ansible.builtin.fail:
+    msg: |
+      The role sn_cicd.sys_ci_automation does not exist on {{ sn_url }} —
+      the CI/CD tooling is not installed. Bootstrap (manual, instance admin):
+        1. Activate plugin com.snc.ci_cd (System Definition → Plugins).
+           The CI/CD API cannot activate its own plugin.
+        2. Grant sn_cicd.sys_ci_automation to {{ sn_user }}.
+        3. Re-run this playbook.
+      See docs/install.md §7 "Bootstrap sequence".
+  when: sn_cicd_role_exists == 'no'
+
+- name: Stop when the automation user lacks the CI/CD role
+  ansible.builtin.fail:
+    msg: |
+      {{ sn_user }} does not have sn_cicd.sys_ci_automation on {{ sn_url }}.
+      Grant it (instance admin, UI):
+        User Administration → Roles → sn_cicd.sys_ci_automation → Users → Edit…
+        (or the user record → Roles related list → Edit…; slushbucket search is
+        "starts with" — search "sn_cicd" or "*ci_automation")
+      Then re-run this playbook — already-installed components are skipped.
+      See docs/install.md §7 "Bootstrap sequence".
+  when:
+    - sn_cicd_role_exists == 'yes'
+    - sn_cicd_role_granted == 'no'
+
+- name: Note undetermined bootstrap state
+  ansible.builtin.debug:
+    msg: >-
+      Cannot read sys_user_role / sys_user_has_role with current access —
+      proceeding; CI/CD calls will report 403 if the bootstrap is incomplete.
+  when: sn_cicd_role_exists == 'unknown' or sn_cicd_role_granted == 'unknown'

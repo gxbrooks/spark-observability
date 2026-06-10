@@ -36,7 +36,7 @@
 
 - name: Render Spark lab alerting profile payload
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../files/spark-snow-alerting-profile.json.j2"
+    src: "{{ sn_dynatrace_source_dir }}/files/spark-snow-alerting-profile.json.j2"
     dest: /tmp/spark-snow-alerting-profile.json
     mode: "0644"
   delegate_to: localhost
@@ -58,16 +58,27 @@
   delegate_to: localhost
   run_once: true
 
-- name: Select existing brooks-lab alerting profile objectId
+- name: Select existing brooks-lab alerting profile
   ansible.builtin.set_fact:
     dt_alerting_profile_object_id: "{{ item.objectId }}"
+    dt_alerting_profile_existing_value: "{{ item.value }}"
   loop: "{{ dt_alerting_profiles.json['items'] | default([]) }}"
   when: item.value.name | default('') == dt_sn_alerting_profile_name
   run_once: true
 
-- name: Default alerting profile objectId when not found
+- name: Default alerting profile facts when not found
   ansible.builtin.set_fact:
     dt_alerting_profile_object_id: "{{ dt_alerting_profile_object_id | default('') }}"
+    dt_alerting_profile_existing_value: "{{ dt_alerting_profile_existing_value | default({}) }}"
+  run_once: true
+
+# On-needed check: desired value already contained in the existing object?
+- name: Determine whether alerting profile change is needed
+  ansible.builtin.set_fact:
+    dt_alerting_profile_change_needed: >-
+      {{ (dt_alerting_profile_object_id | length) == 0
+         or (dt_alerting_profile_existing_value
+             | combine(dt_alerting_profile_doc.value, recursive=True)) != dt_alerting_profile_existing_value }}
   run_once: true
 
 - name: Create brooks-lab alerting profile
@@ -104,11 +115,16 @@
     body_format: json
     body: "{{ dt_alerting_profile_doc }}"
     status_code: [200, 204]
-  when: dt_alerting_profile_object_id | length > 0
+  when:
+    - dt_alerting_profile_object_id | length > 0
+    - dt_alerting_profile_create is not defined or dt_alerting_profile_create is skipped
+    - dt_alerting_profile_change_needed | bool
   delegate_to: localhost
   run_once: true
 
-- name: Show alerting profile objectId
+- name: Show alerting profile state
   ansible.builtin.debug:
-    msg: "Alerting profile '{{ dt_sn_alerting_profile_name }}' => {{ dt_alerting_profile_object_id }}"
+    msg: >-
+      Alerting profile '{{ dt_sn_alerting_profile_name }}' => {{ dt_alerting_profile_object_id }}
+      ({{ 'created/updated' if dt_alerting_profile_change_needed | bool else 'already up to date — no change applied' }})
   run_once: true

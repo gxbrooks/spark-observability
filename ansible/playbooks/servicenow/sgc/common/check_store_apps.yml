@@ -1,0 +1,101 @@
+---
+# Determine install state of every required Store app / plugin in sn_store_apps
+# (manifest: common/store_apps.yml — callers must load it via vars_files).
+# Sets:
+#   sn_store_app_status — list of dicts:
+#     name, scope, type, pinned_version,
+#     status_known   — could the instance state be read?
+#     installed      — true when present (false when unknown)
+#     installed_version, store_sys_id, latest_version, update_available
+#
+# Store apps are read from sys_scope (readable by the automation user).
+# sys_store_app (sys_id, latest_version, update_available) and sys_plugins
+# often return 403 without elevated roles; that is reported, not fatal.
+
+- name: Query component presence (sys_scope / sys_plugins)
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/{{ 'sys_scope' if item.type == 'store_app' else 'sys_plugins' }}?sysparm_query={{
+      ('scope=' + item.scope) if item.type == 'store_app' else ('id=' + item.scope) }}&sysparm_fields=name,version,active,scope,id&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_component_presence
+  loop: "{{ sn_store_apps }}"
+  loop_control:
+    label: "{{ item.scope }}"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Query sys_store_app for sys_id / update availability (may be 403)
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_store_app?sysparm_query=scope={{ item.scope
+      }}&sysparm_fields=sys_id,scope,version,latest_version,update_available,active&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_component_store_rows
+  loop: "{{ sn_store_apps | selectattr('type', 'equalto', 'store_app') | list }}"
+  loop_control:
+    label: "{{ item.scope }}"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Index sys_store_app rows by scope
+  ansible.builtin.set_fact:
+    sn_store_rows_by_scope: >-
+      {{ (sn_store_rows_by_scope | default({}))
+         | combine({item.item.scope: (item.json.result | default([{}]) | first | default({}))
+                    if (item.status | int) == 200 else {'_unreadable': true}}) }}
+  loop: "{{ sn_component_store_rows.results }}"
+  loop_control:
+    label: "{{ item.item.scope }}"
+  run_once: true
+
+- name: Build component status list
+  ansible.builtin.set_fact:
+    sn_store_app_status: >-
+      {{ (sn_store_app_status | default([])) + [{
+           'name': item.item.name,
+           'scope': item.item.scope,
+           'type': item.item.type,
+           'pinned_version': item.item.version | default(''),
+           'status_known': (item.status | int) == 200,
+           'installed': ((item.status | int) == 200)
+                        and ((item.json.result | default([])) | length > 0)
+                        and ((item.json.result | first).active | default('') in ['true', 'active']),
+           'installed_version': ((item.json.result | default([{}]) | first | default({})).version | default(''))
+                                if (item.status | int) == 200 else '',
+           'store_sys_id': (sn_store_rows_by_scope | default({})).get(item.item.scope, {}).get('sys_id', ''),
+           'latest_version': (sn_store_rows_by_scope | default({})).get(item.item.scope, {}).get('latest_version', ''),
+           'update_available': (sn_store_rows_by_scope | default({})).get(item.item.scope, {}).get('update_available', '')
+         }] }}
+  loop: "{{ sn_component_presence.results }}"
+  loop_control:
+    label: "{{ item.item.scope }}"
+  run_once: true
+
+- name: Show component status summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.scope }} ({{ item.type }}):
+      {{ 'INSTALLED v' + item.installed_version if item.installed
+         else ('NOT INSTALLED' if item.status_known else 'STATE UNKNOWN (insufficient API access)') }}
+      {{ '— pinned v' + item.pinned_version if item.pinned_version | length > 0 else '— no version pin' }}
+      {{ '— PIN MISMATCH' if (item.installed and item.pinned_version | length > 0
+                              and item.installed_version != item.pinned_version) else '' }}
+  loop: "{{ sn_store_app_status }}"
+  loop_control:
+    label: "{{ item.scope }}"
+  run_once: true

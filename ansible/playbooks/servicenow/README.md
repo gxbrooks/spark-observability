@@ -9,9 +9,14 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 
 | Directory | Purpose |
 | --------- | ------- |
-| `discovery/` | Phase 1: MID Server, Discovery credentials, schedules, on-demand scans |
-| `cmdb/` | Phase 4: Dynatrace SGC + event integration (`cmdb/events/` for alerting webhook) |
-| *(future)* `event_management/`, `incident/` | Event and incident integrations |
+| `discovery/` | Phases 1–3: MID Server, Discovery credentials, schedules, on-demand scans, K8s/Docker discovery |
+| `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
+| *(future)* `incident/` | Incident integrations |
+
+`sgc/sources/` is organized by **observability source** (one subdirectory per
+SGC/event source). Dynatrace is the only source today; additional sources get
+sibling directories. CMDB-specific configuration beyond the SGC (none today)
+would go in a future `sgc/cmdb/` subdirectory.
 
 ## Variables and secrets
 

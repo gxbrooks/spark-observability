@@ -27,6 +27,7 @@
 - name: Select existing brooks-lab problem notification
   ansible.builtin.set_fact:
     dt_problem_notification_object_id: "{{ item.objectId }}"
+    dt_problem_notification_existing_value: "{{ item.value }}"
     dt_problem_notification_template: "{{ item.value }}"
   loop: "{{ dt_problem_notifications.json['items'] | default([]) }}"
   when: item.value.displayName | default('') == dt_sn_problem_notification_name
@@ -41,9 +42,10 @@
     - item.value.displayName | default('') == 'ServiceNow Demo 1 - Optimiz'
   run_once: true
 
-- name: Default problem notification objectId
+- name: Default problem notification facts
   ansible.builtin.set_fact:
     dt_problem_notification_object_id: "{{ dt_problem_notification_object_id | default('') }}"
+    dt_problem_notification_existing_value: "{{ dt_problem_notification_existing_value | default({}) }}"
     dt_problem_notification_template: "{{ dt_problem_notification_template | default({}) }}"
   run_once: true
 
@@ -76,6 +78,15 @@
       'ServiceNow Demo 1 - Optimiz' problem notification exists on the tenant.
   run_once: true
 
+# On-needed check: skip update when the existing notification already matches.
+- name: Determine whether problem notification change is needed
+  ansible.builtin.set_fact:
+    dt_problem_notification_change_needed: >-
+      {{ (dt_problem_notification_object_id | length) == 0
+         or (dt_problem_notification_existing_value
+             | combine(dt_problem_notification_doc.value, recursive=True)) != dt_problem_notification_existing_value }}
+  run_once: true
+
 - name: Create brooks-lab problem notification
   ansible.builtin.uri:
     url: "{{ dt_api_url_resolved }}/v2/settings/objects"
@@ -102,7 +113,9 @@
     body_format: json
     body: "{{ dt_problem_notification_doc }}"
     status_code: [200, 204]
-  when: dt_problem_notification_object_id | length > 0
+  when:
+    - dt_problem_notification_object_id | length > 0
+    - dt_problem_notification_change_needed | bool
   delegate_to: localhost
   run_once: true
 
@@ -110,6 +123,7 @@
   ansible.builtin.debug:
     msg: |
       Problem notification: {{ dt_sn_problem_notification_name }}
+      State: {{ 'created/updated' if dt_problem_notification_change_needed | bool else 'already up to date — no change applied' }}
       Webhook URL: {{ sn_dt_event_inbound_url_effective }}
       Alerting profile: {{ dt_alerting_profile_object_id }}
       SGC installed: {{ sn_sgc_scope_present | default(false) }}

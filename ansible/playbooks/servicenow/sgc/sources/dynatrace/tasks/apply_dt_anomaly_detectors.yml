@@ -4,7 +4,7 @@
 
 - name: Render CPU metric event payload
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../files/spark-cpu-metric-event.json.j2"
+    src: "{{ sn_dynatrace_source_dir }}/files/spark-cpu-metric-event.json.j2"
     dest: /tmp/spark-cpu-metric-event.json
     mode: "0644"
   delegate_to: localhost
@@ -12,7 +12,7 @@
 
 - name: Render Spark ERROR log event payload
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../files/spark-error-log-event.json.j2"
+    src: "{{ sn_dynatrace_source_dir }}/files/spark-error-log-event.json.j2"
     dest: /tmp/spark-error-log-event.json
     mode: "0644"
   delegate_to: localhost
@@ -46,24 +46,41 @@
   delegate_to: localhost
   run_once: true
 
-- name: Select existing CPU metric event objectId
+- name: Select existing CPU metric event
   ansible.builtin.set_fact:
     dt_cpu_metric_event_object_id: "{{ item.objectId }}"
+    dt_cpu_metric_event_existing_value: "{{ item.value }}"
   loop: "{{ dt_metric_events.json['items'] | default([]) }}"
   when: item.value.summary | default('') == dt_sn_cpu_metric_event_summary
   run_once: true
 
-- name: Select existing Spark ERROR log event objectId
+- name: Select existing Spark ERROR log event
   ansible.builtin.set_fact:
     dt_spark_error_log_event_object_id: "{{ item.objectId }}"
+    dt_spark_error_log_event_existing_value: "{{ item.value }}"
   loop: "{{ dt_log_events.json['items'] | default([]) }}"
   when: item.value.summary | default('') == dt_sn_spark_error_log_event_summary
   run_once: true
 
-- name: Default anomaly detector objectIds when not found
+- name: Default anomaly detector facts when not found
   ansible.builtin.set_fact:
     dt_cpu_metric_event_object_id: "{{ dt_cpu_metric_event_object_id | default('') }}"
+    dt_cpu_metric_event_existing_value: "{{ dt_cpu_metric_event_existing_value | default({}) }}"
     dt_spark_error_log_event_object_id: "{{ dt_spark_error_log_event_object_id | default('') }}"
+    dt_spark_error_log_event_existing_value: "{{ dt_spark_error_log_event_existing_value | default({}) }}"
+  run_once: true
+
+# On-needed checks: skip updates when desired config already matches.
+- name: Determine whether detector changes are needed
+  ansible.builtin.set_fact:
+    dt_cpu_metric_event_change_needed: >-
+      {{ (dt_cpu_metric_event_object_id | length) == 0
+         or (dt_cpu_metric_event_existing_value
+             | combine(dt_cpu_metric_event_doc.value, recursive=True)) != dt_cpu_metric_event_existing_value }}
+    dt_spark_error_log_event_change_needed: >-
+      {{ (dt_spark_error_log_event_object_id | length) == 0
+         or (dt_spark_error_log_event_existing_value
+             | combine(dt_spark_error_log_event_doc.value, recursive=True)) != dt_spark_error_log_event_existing_value }}
   run_once: true
 
 - name: Create CPU metric event (>80%)
@@ -91,8 +108,18 @@
     body_format: json
     body: "{{ dt_cpu_metric_event_doc }}"
     status_code: [200, 204]
-  when: dt_cpu_metric_event_object_id | length > 0
+  when:
+    - dt_cpu_metric_event_object_id | length > 0
+    - dt_cpu_metric_event_change_needed | bool
   delegate_to: localhost
+  run_once: true
+
+- name: Report CPU metric event already up to date
+  ansible.builtin.debug:
+    msg: "CPU metric event '{{ dt_sn_cpu_metric_event_summary }}' already up to date — no change applied."
+  when:
+    - dt_cpu_metric_event_object_id | length > 0
+    - not dt_cpu_metric_event_change_needed | bool
   run_once: true
 
 - name: Create Spark ERROR log event
@@ -123,9 +150,19 @@
     body: "{{ dt_spark_error_log_event_doc }}"
     status_code: [200, 204, 400, 422]
   register: dt_log_event_update
-  when: dt_spark_error_log_event_object_id | length > 0
+  when:
+    - dt_spark_error_log_event_object_id | length > 0
+    - dt_spark_error_log_event_change_needed | bool
   failed_when: false
   delegate_to: localhost
+  run_once: true
+
+- name: Report Spark ERROR log event already up to date
+  ansible.builtin.debug:
+    msg: "Log event '{{ dt_sn_spark_error_log_event_summary }}' already up to date — no change applied."
+  when:
+    - dt_spark_error_log_event_object_id | length > 0
+    - not dt_spark_error_log_event_change_needed | bool
   run_once: true
 
 - name: Warn if log event configuration was rejected

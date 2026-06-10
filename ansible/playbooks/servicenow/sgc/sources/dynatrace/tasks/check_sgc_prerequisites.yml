@@ -41,12 +41,9 @@
         CMDB rows (discovery_source={{ sn_sgc_discovery_source }}): sample={{ sn_sgc_cmdb_sample_count }}
         sys_object_source rows (name={{ sn_sgc_discovery_source }}): sample={{ sn_sgc_object_source_count }}
       {% if not sn_sgc_scope_present | bool %}
-      ACTION: Install from ServiceNow Store (order matters):
-        1. Observability Commons for CMDB (sn_observability)
-        2. Integrations Commons for CMDB (sn_cmdb_int_util)
-        3. CMDB CI Class Model (sn_cmdb_ci_class)
-        4. Event Management (sn_em_ai) — required for event push
-        5. Service Graph Connector for Observability – Dynatrace (sn_dynatrace_integ)
-      Then complete Guided Setup under Dynatrace Observability → Setup.
+      ACTION: Run playbooks/servicenow/sgc/install.yml (installs the
+      sgc/common/store_apps.yml manifest in order; skips apps already installed). Manual fallback:
+      docs/install.md §7. Then complete Guided Setup under Dynatrace
+      Observability → Setup.
       {% endif %}
   run_once: true

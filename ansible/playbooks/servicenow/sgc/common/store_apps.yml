@@ -1,0 +1,42 @@
+---
+# Required ServiceNow Store applications and plugins for the Dynatrace SGC +
+# Event Management stack, in install order (later items depend on earlier ones).
+#
+# Local to servicenow/sgc (consumed only by install.yml and diagnose.yml), so
+# this lives here rather than in vars/variables.yaml per the context-variable
+# criteria (vars/docs/Context_Variable_Best_Practice.md).
+#
+# version pins the expected installed version. Empty = no pin yet; install.yml
+# installs the latest resolvable version — pin it here after first install.
+# install.yml warns on pin drift but does not upgrade apps on the shared
+# instance; upgrade deliberately, then update the pin.
+
+sn_store_apps:
+  - name: Observability Commons for CMDB
+    scope: sn_observability
+    type: store_app
+    version: 1.1.0
+  - name: Integrations Commons for CMDB
+    scope: sn_cmdb_int_util
+    type: store_app
+    version: 2.19.0
+  - name: CMDB CI Class Model
+    scope: sn_cmdb_ci_class
+    type: store_app
+    version: 1.74.0
+  - name: ITOM Discovery License
+    scope: com.snc.itom.discovery.license
+    type: plugin
+    version: ""
+  - name: Event Management
+    scope: sn_em_ai
+    type: store_app
+    version: 23.6.2
+  - name: IntegrationHub Data Stream action type
+    scope: com.glide.hub.action_type.datastream
+    type: plugin
+    version: ""
+  - name: Service Graph Connector for Observability - Dynatrace
+    scope: sn_dynatrace_integ
+    type: store_app
+    version: 1.14.1

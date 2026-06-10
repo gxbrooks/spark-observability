@@ -2,17 +2,17 @@
 # Dynatrace → ServiceNow event integration (alerting profiles, detectors, webhook)
 # Usage:
 #   cd ansible
-#   ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/events/deploy.yml -e @../vars/secrets.yaml
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 
 - name: Configure Dynatrace alerting and ServiceNow event webhook for brooks-lab
   hosts: localhost
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/contexts/servicenow_ansible_vars.yml"
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir | dirname }}/common/vars.yml"
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/secrets.yaml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     - name: Detect SGC installation (controls webhook source= parameter)
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"

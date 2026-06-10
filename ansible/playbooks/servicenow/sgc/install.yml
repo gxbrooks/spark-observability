@@ -1,0 +1,170 @@
+---
+# SGC install — required ServiceNow Store applications and plugins
+# (manifest: common/store_apps.yml → sn_store_apps).
+#
+# Idempotent and on-needed:
+#   - Components already installed (per sys_scope) are skipped.
+#   - When something needs installing, a bootstrap preflight
+#     (common/check_cicd_bootstrap.yml) verifies the CI/CD tooling exists and
+#     the automation user holds sn_cicd.sys_ci_automation, and fails fast with
+#     the exact missing manual step otherwise (docs/install.md §7 "Bootstrap
+#     sequence"). Re-run after each bootstrap step — completed work is skipped.
+#   - Missing Store apps are installed via the CI/CD App Repo Install API
+#     (by scope, in manifest order — no sys_store_app read required).
+#   - Plugin state usually cannot be read via API (sys_plugins is 403 for
+#     non-admin users); per standards an informational message is emitted that
+#     the activation is being (re)done, then activation is requested.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml -e @../vars/secrets.yaml
+
+- name: Install ServiceNow Store applications and plugins for Dynatrace SGC
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/store_apps.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Check current component state
+      ansible.builtin.include_tasks: common/check_store_apps.yml
+
+    - name: Classify components needing action
+      ansible.builtin.set_fact:
+        sn_apps_missing: >-
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+             | rejectattr('installed') | list }}
+        sn_plugins_to_activate: >-
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+             | rejectattr('installed') | list }}
+
+    - name: Report nothing to do
+      ansible.builtin.debug:
+        msg: "All required Store applications are installed — nothing to install."
+      when:
+        - sn_apps_missing | length == 0
+        - sn_plugins_to_activate | length == 0
+
+    # Bootstrap preflight — only when there is something to install (on-needed).
+    # Fails fast with the exact missing manual step (plugin vs role grant).
+    - name: Check CI/CD bootstrap prerequisites
+      ansible.builtin.include_tasks: common/check_cicd_bootstrap.yml
+      when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+
+    - name: Warn on pinned-version drift (not auto-upgraded)
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.scope }}: installed v{{ item.installed_version }} differs from pinned
+          v{{ item.pinned_version }}. Review and either update the pin in
+          sgc/common/store_apps.yml or upgrade the app deliberately —
+          this playbook does not upgrade apps on a shared instance.
+      loop: >-
+        {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+           | selectattr('installed')
+           | selectattr('pinned_version', '!=', '')
+           | list }}
+      loop_control:
+        label: "{{ item.scope }}"
+      when: item.installed_version != item.pinned_version
+
+    # ----- Store apps (CI/CD App Repo Install) --------------------------------
+    # /api/sn_cicd/app_repo/install accepts the application *scope* directly,
+    # so no sys_store_app read is required — only sn_cicd.sys_ci_automation.
+    # Apps install sequentially in manifest order (later apps depend on earlier
+    # ones); each install is polled to completion before the next starts.
+    - name: Install missing Store apps via CI/CD App Repo API (manifest order)
+      ansible.builtin.include_tasks: common/install_store_app.yml
+      loop: "{{ sn_apps_missing }}"
+      loop_control:
+        loop_var: sn_app
+        label: "{{ sn_app.scope }}"
+
+    # ----- Plugins (CI/CD plugin activation) ----------------------------------
+    - name: Notify that plugin activation is being (re)done
+      ansible.builtin.debug:
+        msg: >-
+          Plugin {{ item.scope }}: state
+          {{ 'is NOT ACTIVE' if item.status_known else 'cannot be verified via API (sys_plugins not readable)' }}
+          — requesting activation{{ ' again (action is being redone)' if not item.status_known else '' }}.
+      loop: "{{ sn_plugins_to_activate }}"
+      loop_control:
+        label: "{{ item.scope }}"
+
+    - name: Request plugin activation via CI/CD API
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/sn_cicd/plugin/{{ item.scope }}/activate"
+        method: POST
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 202, 400, 403, 404]
+        return_content: true
+      register: sn_plugin_activations
+      loop: "{{ sn_plugins_to_activate }}"
+      loop_control:
+        label: "{{ item.scope }}"
+      no_log: true
+      delegate_to: localhost
+
+    - name: Report plugin activation outcome
+      ansible.builtin.debug:
+        msg: >-
+          Plugin {{ item.item.scope }}: HTTP {{ item.status }}
+          {{ '— activation accepted/queued' if item.status in [200, 202]
+             else ('— already active or invalid request: ' ~ (item.json.error.message | default(''))
+                   if item.status == 400
+                   else '— not authorized (grant sn_cicd.sys_ci_automation) or plugin id unknown; request manually: System Definition → Plugins (docs/install.md §7)') }}
+      loop: "{{ sn_plugin_activations.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.scope }}"
+
+    - name: Wait for plugin activation to complete
+      ansible.builtin.include_tasks: common/poll_cicd_progress.yml
+      vars:
+        sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
+      loop: "{{ sn_plugin_activations.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.scope }}"
+      when:
+        - item.status in [200, 202]
+        - item.json.result.links.progress.url is defined
+
+    # ----- Re-check and final gate --------------------------------------------
+    - name: Reset component status facts before re-check
+      ansible.builtin.set_fact:
+        sn_store_app_status: []
+        sn_store_rows_by_scope: {}
+      when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+
+    - name: Re-check component state after installs
+      ansible.builtin.include_tasks: common/check_store_apps.yml
+      when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+
+    - name: Assert all required Store applications are installed
+      ansible.builtin.assert:
+        that:
+          - sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+            | rejectattr('installed') | list | length == 0
+        fail_msg: >-
+          Store apps still missing:
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+             | rejectattr('installed') | map(attribute='scope') | list }}.
+          Install manually per docs/install.md §7 "Manual Store install", then
+          re-run this playbook (already-installed apps are skipped).
+        success_msg: "All required Store applications are installed."
+
+    - name: Note unverifiable plugin state
+      ansible.builtin.debug:
+        msg: >-
+          Plugin state for
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+             | rejectattr('status_known') | map(attribute='scope') | list }}
+          cannot be verified with the current API access. Verify in the UI under
+          System Definition → Plugins, or grant read on sys_plugins.
+      when: >-
+        sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+        | rejectattr('status_known') | list | length > 0

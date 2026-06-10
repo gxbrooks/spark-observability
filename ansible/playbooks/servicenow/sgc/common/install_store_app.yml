@@ -1,0 +1,52 @@
+---
+# Install one Store application via the CI/CD App Repo Install API.
+# POST /api/sn_cicd/app_repo/install accepts the application *scope* directly,
+# so no sys_store_app read is required — only sn_cicd.sys_ci_automation.
+#
+# Expects:
+#   sn_app — one entry from sn_store_app_status (scope, pinned_version, …)
+#
+# Appends to sn_apps_failed on a non-success response.
+
+- name: "Request install of {{ sn_app.scope }} via CI/CD App Repo API"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/sn_cicd/app_repo/install?scope={{ sn_app.scope }}{{
+      ('&version=' ~ sn_app.pinned_version)
+      if (sn_app.pinned_version | default('') | length > 0) else '' }}
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 202, 400, 403, 404]
+    return_content: true
+  register: sn_app_repo_install
+  no_log: true
+  delegate_to: localhost
+
+- name: "Report install request outcome for {{ sn_app.scope }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_app.scope }}: HTTP {{ sn_app_repo_install.status }}
+      {{ '— install accepted, waiting for completion'
+         if sn_app_repo_install.status in [200, 202]
+         else ('— rejected: ' ~ (sn_app_repo_install.json.error.message | default('unknown'))
+               ~ '. Likely not available in the app repository (Store entitlement /'
+               ~ ' first-time license click-through) — see docs/install.md §7'
+               ~ ' "Manual Store install".'
+               if sn_app_repo_install.status in [400, 404]
+               else '— not authorized: verify sn_cicd.sys_ci_automation (docs/install.md §7 roles table)') }}
+
+- name: "Wait for {{ sn_app.scope }} install to complete"
+  ansible.builtin.include_tasks: poll_cicd_progress.yml
+  vars:
+    sn_cicd_progress_url: "{{ sn_app_repo_install.json.result.links.progress.url }}"
+  when:
+    - sn_app_repo_install.status in [200, 202]
+    - sn_app_repo_install.json.result.links.progress.url is defined
+
+- name: "Record failed install request for {{ sn_app.scope }}"
+  ansible.builtin.set_fact:
+    sn_apps_failed: "{{ (sn_apps_failed | default([])) + [sn_app.scope] }}"
+  when: sn_app_repo_install.status not in [200, 202]
