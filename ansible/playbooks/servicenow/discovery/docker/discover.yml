@@ -1,8 +1,9 @@
 ---
-# Phase 3: Sync Docker containers from managed hosts into CMDB.
+# Phase 3: Sync Docker containers into CMDB for each container_discovery-enabled
+# DOCKER_HOSTS entry.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
 
-- name: Sync Docker containers for managed DOCKER_HOSTS entries
+- name: Sync Docker containers for container_discovery-enabled DOCKER_HOSTS entries
   hosts: localhost
   connection: local
   gather_facts: false
@@ -11,9 +12,9 @@
     - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
     - "{{ playbook_dir }}/../common/vars.yml"
   tasks:
-    - name: Sync containers for each managed Docker host
+    - name: Sync containers for each container_discovery host
       ansible.builtin.include_tasks: tasks/sync_docker_host_containers.yml
-      loop: "{{ docker_hosts | selectattr('managed', 'equalto', true) | list }}"
+      loop: "{{ docker_discovery_hosts }}"
       loop_control:
         loop_var: sn_docker_host
         label: "{{ sn_docker_host.name }}"

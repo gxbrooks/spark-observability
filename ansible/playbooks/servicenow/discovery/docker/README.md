@@ -6,8 +6,7 @@ Discovers Docker containers from **`DOCKER_HOSTS`** in `vars/variables.yaml` int
 
 | Variable | Purpose |
 | -------- | ------- |
-| `DOCKER_PRIMARY_HOST` | Registry key for the managed host (`lab3-observability`) |
-| `DOCKER_HOSTS` | Host entries: `cmdb_host_name`, `location`, `ansible_host`, `managed` |
+| `DOCKER_HOSTS` | Host entries: `cmdb_host_name`, `location`, `ansible_host`, and the capability flag `container_discovery` (`true` = sync containers into CMDB and validate; absent = location mapping only) |
 
 Location uses the same product-native pattern as K8s:
 

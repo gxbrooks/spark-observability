@@ -1,13 +1,17 @@
 # Phase 2 — Kubernetes discovery (KVA Informer)
 
-Discovers the **primary** cluster (`K8S_PRIMARY_CLUSTER`, currently `brooks-lab`) into ServiceNow CMDB.
+Discovers `kva_informer`-enabled clusters from **`K8S_CLUSTERS`** in
+`vars/variables.yaml` into ServiceNow CMDB.
 
 ## Cluster registry
 
-All clusters on the shared ServiceNow instance are defined in `vars/variables.yaml`:
+All clusters on the shared ServiceNow instance are defined in `K8S_CLUSTERS`
+(`vars/variables.yaml`). Per-entry **capability flags** (absent = false):
 
-- **`K8S_PRIMARY_CLUSTER`** — cluster this repo manages (KVA install, Dynatrace, tests)
-- **`K8S_CLUSTERS`** — multi-entry map: name, location, managed flag, per-cluster options
+- **`kva_informer: true`** — this repo installs the KVA informer and validates the cluster's CMDB content
+- **`dynatrace: true`** — this repo applies DynaKube, auto-tags, and the management zone for this cluster name
+
+Every entry with a `location` is location-mapped in the CMDB regardless of flags.
 
 See `../docs/install.md` §5 for field reference.
 
@@ -22,10 +26,10 @@ See `../docs/install.md` §5 for field reference.
 
 | Playbook | Purpose |
 | -------- | ------- |
-| `install.yml` | Helm KVA Informer on **managed** primary cluster |
+| `install.yml` | Helm KVA Informer on the `kva_informer`-enabled cluster |
 | `deploy.yml` | All registry locations + inheritance business rule |
 | `discover.yml` | Restart Informer for CMDB resync |
-| `test.yml` | Assert registry locations + primary cluster workloads |
+| `test.yml` | Assert all registry locations + workloads per `kva_informer` cluster |
 | `diagnose.yml` | Informer pod + CMDB counts |
 
 ```bash

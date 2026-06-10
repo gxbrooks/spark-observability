@@ -1,0 +1,172 @@
+---
+# Assert CMDB content for one kva_informer-enabled K8S_CLUSTERS entry.
+# Loop var: sn_kva_cluster (registry entry: name, location, kva_namespace, …)
+
+- name: "Query Kubernetes cluster CI ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_cluster?sysparm_query=name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name,cluster_version,discovery_source,location,location.name&sysparm_limit=5
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_clusters_q
+  no_log: true
+
+- name: "Query Kubernetes nodes ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_node?sysparm_query=cluster.name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name,cluster&sysparm_limit=20
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_nodes
+  no_log: true
+
+- name: "Query Kubernetes workloads (deployments) ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_deployment?sysparm_query=cluster.name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name,namespace,cluster&sysparm_limit=50
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_deployments
+  no_log: true
+
+- name: "Query Kubernetes namespaces ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_namespace?sysparm_query=cluster.name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name&sysparm_limit=30
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_namespaces
+  no_log: true
+
+- name: "Query Kubernetes pods ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_pod?sysparm_query=cluster.name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name,namespace&sysparm_limit=100
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_pods
+  no_log: true
+
+- name: "Query Kubernetes services ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_service?sysparm_query=cluster.name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name,namespace&sysparm_limit=30
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_services
+  no_log: true
+
+- name: "Query Kubernetes daemonsets ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_daemonset?sysparm_query=cluster.name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name&sysparm_limit=20
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_k8s_daemonsets
+  no_log: true
+
+- name: "Query KVA informer status ({{ sn_kva_cluster.name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sn_acc_visibility_kubernetes_informer?sysparm_query=informer_name={{ sn_kva_cluster.name | urlencode }}&sysparm_fields=name,status,informer_pod_name,last_full_discovery&sysparm_limit=5
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_kva_informer
+  no_log: true
+
+- name: "Discovery summary ({{ sn_kva_cluster.name }})"
+  ansible.builtin.debug:
+    msg: |
+      {{ sn_kva_cluster.name }} Kubernetes CMDB test
+      Cluster CIs: {{ sn_k8s_clusters_q.json.result | map(attribute='name') | list }}
+      Nodes: {{ sn_k8s_nodes.json.result | length }} — {{ sn_k8s_nodes.json.result | map(attribute='name') | list }}
+      Namespaces: {{ sn_k8s_namespaces.json.result | length }}
+      Deployments: {{ sn_k8s_deployments.json.result | length }}
+      Daemonsets: {{ sn_k8s_daemonsets.json.result | length }}
+      Services: {{ sn_k8s_services.json.result | length }}
+      Pods: {{ sn_k8s_pods.json.result | length }}
+      Sample deployments: {{ sn_k8s_deployments.json.result | map(attribute='name') | list | batch(10) | first }}
+      KVA informer: {{ sn_kva_informer.json.result | default([]) }}
+      All K8s CIs: {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('sys_class_nameSTARTSWITHcmdb_ci_kubernetes^cluster.name=' ~ sn_kva_cluster.name) | urlencode }}
+
+- name: "Assert Kubernetes cluster CI exists ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_clusters_q.json.result | default([]) | length > 0
+    fail_msg: "No cmdb_ci_kubernetes_cluster named {{ sn_kva_cluster.name }}. Run k8s/install.yml and wait for KVA sync."
+
+- name: "Assert Kubernetes cluster has location set ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_clusters_q.json.result[0]['location.name'] | default('') == sn_kva_cluster.location
+    fail_msg: >-
+      Cluster {{ sn_kva_cluster.name }} location is not {{ sn_kva_cluster.location }}.
+      Run k8s/deploy.yml to apply K8S_CLUSTERS registry and inheritance business rule.
+
+- name: "Assert at least three Kubernetes nodes discovered ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_nodes.json.result | default([]) | length >= 3
+    fail_msg: "Expected 3 Kubernetes nodes for {{ sn_kva_cluster.name }}; found {{ sn_k8s_nodes.json.result | default([]) | length }}."
+
+- name: "Assert Kubernetes deployments discovered ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_deployments.json.result | default([]) | length >= 5
+    fail_msg: "Expected multiple deployments in {{ sn_kva_cluster.name }}; found {{ sn_k8s_deployments.json.result | default([]) | length }}."
+
+- name: "Assert Kubernetes namespaces discovered ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_namespaces.json.result | default([]) | length >= 8
+    fail_msg: "Expected {{ sn_kva_cluster.name }} namespaces in CMDB; found {{ sn_k8s_namespaces.json.result | default([]) | length }}."
+
+- name: "Assert Kubernetes pods discovered ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_pods.json.result | default([]) | length >= 25
+    fail_msg: "Expected {{ sn_kva_cluster.name }} pods in CMDB; found {{ sn_k8s_pods.json.result | default([]) | length }}."
+
+- name: "Assert Kubernetes services discovered ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_services.json.result | default([]) | length >= 5
+    fail_msg: "Expected {{ sn_kva_cluster.name }} services in CMDB; found {{ sn_k8s_services.json.result | default([]) | length }}."
+
+- name: "Assert Kubernetes daemonsets discovered ({{ sn_kva_cluster.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_daemonsets.json.result | default([]) | length >= 3
+    fail_msg: "Expected {{ sn_kva_cluster.name }} daemonsets in CMDB; found {{ sn_k8s_daemonsets.json.result | default([]) | length }}."

@@ -18,7 +18,7 @@
     DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
     DT_ENVIRONMENT: "{{ dt_environment_resolved }}"
     DT_OWNED_BY: "{{ dt_owned_by_resolved }}"
-    K8S_PRIMARY_CLUSTER: "{{ k8s_primary_cluster_name }}"
+    K8S_DYNATRACE_CLUSTER: "{{ k8s_dynatrace_cluster_name }}"
 
 - name: Wait for dynakube CRD to exist
   ansible.builtin.command: kubectl get crd dynakubes.dynatrace.com

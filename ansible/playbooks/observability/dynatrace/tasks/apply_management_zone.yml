@@ -18,7 +18,7 @@
   vars:
     DT_MANAGEMENT_ZONE: "{{ dt_management_zone_resolved }}"
     DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
-    K8S_PRIMARY_CLUSTER: "{{ k8s_primary_cluster_name }}"
+    K8S_DYNATRACE_CLUSTER: "{{ k8s_dynatrace_cluster_name }}"
   delegate_to: localhost
   run_once: true
 

@@ -7,32 +7,32 @@
 # Kubernetes & Docker
 # =============================================================================
 
-K8S_PRIMARY_CLUSTER:
-  section: Kubernetes cluster registry
-  value: brooks-lab
-  contexts: [dynatrace-ansible, service-now]
-
 K8S_KVA_HELM_REPO:
   section: Kubernetes cluster registry
   value: https://install.service-now.com/glide/distribution/builds/package/informer/informer-helm/repo
   contexts: [service-now]
 
+# Registry of every cluster known to the shared ServiceNow instance.
+# Capability flags per entry (absent = false):
+#   kva_informer: true — this repo installs the ServiceNow KVA informer and
+#                        validates the cluster's CMDB content
+#   dynatrace: true    — this repo applies DynaKube, auto-tags, and the
+#                        management zone for this cluster name
+# Entries with a location are location-mapped in the CMDB regardless of flags.
 K8S_CLUSTERS:
   section: Kubernetes cluster registry
   value:
     - name: brooks-lab
       location: brooks-lab
       location_full_name: Brooks Lab
-      primary: true
-      managed: true
+      kva_informer: true
+      dynatrace: true
       api_url: https://192.168.1.207:6443
       kva_namespace: servicenow-kva
       environment: on-prem
     - name: aks-otel-demo
       location: bradens-cloud
       location_full_name: Braden Cloud Demo
-      primary: false
-      managed: false
       environment: azure
       cloud_provider: azure
   contexts: [service-now, dynatrace-ansible]
@@ -42,19 +42,18 @@ K8S_NAMESPACE:
   value: spark
   contexts: [spark-ansible]
 
-DOCKER_PRIMARY_HOST:
-  section: Docker host registry
-  value: lab3-observability
-  contexts: [service-now]
-
+# Registry of Docker hosts/stacks known to the shared ServiceNow instance.
+# Capability flags per entry (absent = false):
+#   container_discovery: true — this repo syncs running containers into
+#                               cmdb_ci_docker_container and validates them
+# Entries with a location are location-mapped in the CMDB regardless of flags.
 DOCKER_HOSTS:
   section: Docker host registry
   value:
     - name: lab3-observability
       location: brooks-lab
       location_full_name: Brooks Lab
-      primary: true
-      managed: true
+      container_discovery: true
       cmdb_host_name: lab3
       ansible_host: Lab3
       compose_dir: observability

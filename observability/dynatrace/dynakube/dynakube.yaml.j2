@@ -6,7 +6,7 @@ metadata:
   annotations:
     # Required for Kubernetes API monitoring / cluster inventory in Dynatrace UI.
     feature.dynatrace.com/automatic-kubernetes-api-monitoring: "true"
-    feature.dynatrace.com/automatic-kubernetes-api-monitoring-cluster-name: "{{ K8S_PRIMARY_CLUSTER }}"
+    feature.dynatrace.com/automatic-kubernetes-api-monitoring-cluster-name: "{{ K8S_DYNATRACE_CLUSTER }}"
 spec:
   apiUrl: "{{ DT_API_URL }}"
   tokens: dynakube

@@ -1,0 +1,70 @@
+---
+# Assert CMDB content for one container_discovery-enabled DOCKER_HOSTS entry.
+# Loop var: sn_docker_host (registry entry: name, location, cmdb_host_name, …)
+
+- name: "Resolve Docker host CMDB sys_id ({{ sn_docker_host.cmdb_host_name }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_linux_server?sysparm_query=name={{ sn_docker_host.cmdb_host_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_docker_host_lookup
+  no_log: true
+
+- name: "Query Docker containers synced for {{ sn_docker_host.name }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_docker_container?sysparm_query=host={{ sn_docker_host_lookup.json.result[0].sys_id | urlencode }}^short_descriptionSTARTSWITH{{ sn_docker_host.name | urlencode }}&sysparm_fields=name,location,location.name,image,short_description&sysparm_limit=50
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    return_content: true
+  register: sn_docker_containers_lookup
+  no_log: true
+  when: sn_docker_host_lookup.json.result | default([]) | length > 0
+
+- name: "Collect Docker container location names ({{ sn_docker_host.name }})"
+  ansible.builtin.set_fact:
+    sn_docker_location_names: >-
+      {{ sn_docker_location_names | default([]) + [item['location.name'] | default('')] }}
+  loop: "{{ sn_docker_containers_lookup.json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: sn_docker_containers_lookup is defined
+
+- name: "Docker discovery summary ({{ sn_docker_host.name }})"
+  ansible.builtin.debug:
+    msg: |
+      Docker CMDB test ({{ sn_docker_host.name }})
+      Host: {{ sn_docker_host.cmdb_host_name }}
+      Containers: {{ sn_docker_containers_lookup.json.result | default([]) | length }}
+      Names: {{ sn_docker_containers_lookup.json.result | default([]) | map(attribute='name') | list }}
+      Locations: {{ sn_docker_location_names | default([]) | unique | list }}
+
+- name: "Assert Docker containers discovered ({{ sn_docker_host.name }})"
+  ansible.builtin.assert:
+    that:
+      - sn_docker_containers_lookup.json.result | default([]) | length >= 5
+    fail_msg: >-
+      Expected Docker containers on {{ sn_docker_host.cmdb_host_name }}.
+      Run docker/discover.yml after docker/deploy.yml.
+
+- name: "Assert Docker containers have expected location ({{ sn_docker_host.name }})"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (sn_docker_location_names | default([]) | select('equalto', sn_docker_host.location) | list | length)
+        >= 5
+    fail_msg: >-
+      Docker containers missing location {{ sn_docker_host.location }}.
+      Ensure docker/deploy.yml business rule is active and re-run discover.yml.
+
+- name: "Reset collected location names ({{ sn_docker_host.name }})"
+  ansible.builtin.set_fact:
+    sn_docker_location_names: []

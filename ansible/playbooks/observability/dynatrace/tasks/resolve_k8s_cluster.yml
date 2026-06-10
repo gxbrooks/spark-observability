@@ -1,7 +1,25 @@
 ---
-# Resolve K8 cluster name from vars/variables.yaml (raw {value, contexts} or flat generated vars).
-- name: Resolve K8S_PRIMARY_CLUSTER for Dynatrace
+# Resolve the Dynatrace-instrumented cluster from the K8S_CLUSTERS registry
+# (entries flagged dynatrace: true in vars/variables.yaml).
+# The DynaKube CR, auto-tags, and management zone reference one cluster name,
+# and these tasks apply to the cluster of the active kubeconfig — so exactly
+# one entry must carry the flag.
+
+- name: Select Dynatrace-enabled clusters from K8S_CLUSTERS
   ansible.builtin.set_fact:
-    k8s_primary_cluster_name: >-
-      {{ (K8S_PRIMARY_CLUSTER.value if (K8S_PRIMARY_CLUSTER is mapping and 'value' in K8S_PRIMARY_CLUSTER)
-          else K8S_PRIMARY_CLUSTER) | default('brooks-lab') }}
+    dt_k8s_clusters: >-
+      {{ (K8S_CLUSTERS.value if (K8S_CLUSTERS is mapping and 'value' in K8S_CLUSTERS) else K8S_CLUSTERS)
+         | selectattr('dynatrace', 'defined') | selectattr('dynatrace') | list }}
+
+- name: Assert exactly one Dynatrace-enabled cluster
+  ansible.builtin.assert:
+    that:
+      - dt_k8s_clusters | length == 1
+    fail_msg: >-
+      Expected exactly one K8S_CLUSTERS entry with dynatrace: true; found
+      {{ dt_k8s_clusters | length }}. Update vars/variables.yaml (the DynaKube,
+      auto-tag, and management-zone templates reference a single cluster name).
+
+- name: Resolve Dynatrace cluster name
+  ansible.builtin.set_fact:
+    k8s_dynatrace_cluster_name: "{{ dt_k8s_clusters[0].name }}"

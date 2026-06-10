@@ -29,13 +29,21 @@ sn_api_headers:
   Accept: application/json
   Content-Type: application/json
 
-# Kubernetes cluster registry (K8S_CLUSTERS / K8S_PRIMARY_CLUSTER in vars/variables.yaml)
-k8s_clusters: "{{ K8S_CLUSTERS | default([]) }}"
-k8s_primary_cluster_name: "{{ K8S_PRIMARY_CLUSTER | default('brooks-lab') }}"
-k8s_primary_cluster: >-
-  {{ (K8S_CLUSTERS | default([]) | selectattr('name', 'equalto', k8s_primary_cluster_name) | list | first)
-     | default({'name': k8s_primary_cluster_name, 'location': SN_LAB_LOCATION_NAME | default('brooks-lab'), 'kva_namespace': 'servicenow-kva'}, true) }}
-k8s_managed_clusters: "{{ K8S_CLUSTERS | default([]) | selectattr('managed', 'equalto', true) | list }}"
+# Kubernetes cluster registry (K8S_CLUSTERS in vars/variables.yaml).
+# Capability flags per entry (absent = false):
+#   kva_informer: true — KVA informer installed by this repo; CMDB content validated
+# Entries with a location are location-mapped in the CMDB regardless of flags.
+k8s_clusters: "{{ K8S_CLUSTERS }}"
+k8s_kva_clusters: "{{ K8S_CLUSTERS | selectattr('kva_informer', 'defined') | selectattr('kva_informer') | list }}"
+
+# Host-side kubectl/helm tasks run on kubernetes_master, whose kubeconfig
+# controls exactly one cluster — the kva_informer-enabled entry for that host.
+# (Managing additional KVA clusters requires additional inventory hosts.)
+sn_k8s_kva_cluster: "{{ k8s_kva_clusters | first }}"
+sn_k8s_cluster_name: "{{ sn_k8s_kva_cluster.name }}"
+sn_k8s_location_name: "{{ sn_k8s_kva_cluster.location }}"
+sn_k8s_informer_namespace: "{{ sn_k8s_kva_cluster.kva_namespace }}"
+sn_k8s_informer_helm_release: "k8s-informer-{{ sn_k8s_kva_cluster.name | replace('_', '-') }}"
 
 # CMDB list views filtered to brooks-lab location (all CI classes vs Linux servers only)
 sn_cmdb_location_query: "location.name={{ sn_lab_location_name }}"
@@ -44,27 +52,20 @@ sn_cmdb_all_cis_url: >-
 sn_cmdb_linux_servers_url: >-
   {{ sn_url }}/cmdb_ci_linux_server_list.do?sysparm_query={{ ('location.name=' ~ sn_lab_location_name) | urlencode }}
 sn_cmdb_kubernetes_url: >-
-  {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('sys_class_nameSTARTSWITHcmdb_ci_kubernetes^cluster.name=' ~ k8s_primary_cluster_name) | urlencode }}
-sn_cmdb_kubernetes_at_location_url: >-
-  {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('sys_class_nameSTARTSWITHcmdb_ci_kubernetes^location.name=' ~ k8s_primary_cluster.location) | urlencode }}
+  {{ sn_url }}/cmdb_ci_list.do?sysparm_query={{ ('sys_class_nameSTARTSWITHcmdb_ci_kubernetes^cluster.name=' ~ sn_k8s_cluster_name) | urlencode }}
 
 # Phase 2 — Kubernetes discovery (KVA Informer; cluster registry in vars/variables.yaml)
-sn_k8s_cluster_name: "{{ k8s_primary_cluster_name }}"
-sn_k8s_location_name: "{{ k8s_primary_cluster.location | default(SN_LAB_LOCATION_NAME | default('brooks-lab')) }}"
-sn_k8s_informer_namespace: "{{ k8s_primary_cluster.kva_namespace | default('servicenow-kva') }}"
 sn_k8s_informer_helm_repo: "{{ K8S_KVA_HELM_REPO | default('https://install.service-now.com/glide/distribution/builds/package/informer/informer-helm/repo') }}"
-sn_k8s_cluster_location_map: "{{ K8S_CLUSTERS | default([]) }}"
+sn_k8s_cluster_location_map: "{{ K8S_CLUSTERS }}"
 sn_k8s_location_br_name: k8s-inherit-location-from-cluster
 sn_instance_short_name: "{{ SN_INSTANCE_SHORT_NAME | default('optimizincdemo1') }}"
 sn_k8s_informer_secret_name: "k8s-informer-cred-{{ sn_instance_short_name }}"
-sn_k8s_informer_helm_release: "k8s-informer-{{ k8s_primary_cluster_name | replace('_', '-') }}"
 
-# Phase 3 — Docker discovery (Lab3 observability stack)
-docker_hosts: "{{ DOCKER_HOSTS | default([]) }}"
-docker_primary_host_name: "{{ DOCKER_PRIMARY_HOST | default('lab3-observability') }}"
-docker_primary_host: >-
-  {{ (DOCKER_HOSTS | default([]) | selectattr('name', 'equalto', docker_primary_host_name) | list | first)
-     | default({'name': docker_primary_host_name, 'location': SN_LAB_LOCATION_NAME | default('brooks-lab'), 'cmdb_host_name': 'lab3'}, true) }}
+# Phase 3 — Docker discovery.
+# Capability flags per entry (absent = false):
+#   container_discovery: true — containers synced into cmdb_ci_docker_container and validated
+docker_hosts: "{{ DOCKER_HOSTS }}"
+docker_discovery_hosts: "{{ DOCKER_HOSTS | selectattr('container_discovery', 'defined') | selectattr('container_discovery') | list }}"
 sn_docker_location_br_name: docker-inherit-location-from-host
 sn_k8s_discovery_namespaces:
   - default

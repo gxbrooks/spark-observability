@@ -218,8 +218,7 @@ that exist in the cluster itself.
 
 | Variable | Purpose |
 | -------- | ------- |
-| **`K8S_PRIMARY_CLUSTER`** | Name of the cluster this repo manages (`brooks-lab`). Used by KVA Helm (`clusterName`), Dynatrace DynaKube annotation, auto-tags, and management zones. |
-| **`K8S_CLUSTERS`** | Multi-entry registry (list). Each entry describes one cluster known to the shared ServiceNow instance. |
+| **`K8S_CLUSTERS`** | Multi-entry registry (list). Each entry describes one cluster known to the shared ServiceNow instance, with per-entry **capability flags** selecting what this repo's automation does for it. |
 | **`K8S_KVA_HELM_REPO`** | ServiceNow KVA Informer Helm repository URL. |
 
 Regenerate context files after editing:
@@ -230,7 +229,7 @@ cd vars && ./generate_contexts.sh service-now
 ```
 
 Generated outputs: `vars/contexts/servicenow_ansible_vars.yml` (includes
-`K8S_CLUSTERS` and `K8S_PRIMARY_CLUSTER`).
+`K8S_CLUSTERS`).
 
 ### `K8S_CLUSTERS` entry fields
 
@@ -239,11 +238,11 @@ Each list item in `K8S_CLUSTERS` supports:
 | Field | Required | Description |
 | ----- | -------- | ----------- |
 | **`name`** | Yes | Kubernetes cluster name in CMDB and Dynatrace (must match KVA `clusterName`). |
-| **`location`** | Yes | `cmn_location.name` in ServiceNow (`k8s/deploy.yml` creates location if missing). |
+| **`location`** | Yes | `cmn_location.name` in ServiceNow (`k8s/deploy.yml` creates location if missing). Every entry with a location is location-mapped, regardless of flags. |
 | **`location_full_name`** | Recommended | Display name for `cmn_location` when created by deploy. |
-| **`primary`** | Yes | Exactly one entry should be `true` — the cluster this repo actively manages. |
-| **`managed`** | Yes | `true` = run `k8s/install.yml` (KVA on cluster). `false` = CMDB location only. |
-| **`kva_namespace`** | When managed | Namespace for KVA Informer (e.g. `servicenow-kva`). |
+| **`kva_informer`** | Capability flag | `true` = this repo installs the KVA informer (`k8s/install.yml`) and validates the cluster's CMDB content (`k8s/test.yml`). Absent = false. |
+| **`dynatrace`** | Capability flag | `true` = this repo applies DynaKube, auto-tags, and the management zone for this cluster name (Dynatrace playbooks). Absent = false. Exactly one entry may carry this flag (templates reference a single cluster name). |
+| **`kva_namespace`** | When `kva_informer` | Namespace for KVA Informer (e.g. `servicenow-kva`). |
 | **`api_url`** | Optional | Kubernetes API URL (documentation / future use). |
 | **`environment`** | Optional | `on-prem`, `azure`, etc. |
 | **`cloud_provider`** | Optional | Cloud provider when applicable. |
@@ -251,25 +250,19 @@ Each list item in `K8S_CLUSTERS` supports:
 **Example (current optimizincdemo1):**
 
 ```yaml
-K8S_PRIMARY_CLUSTER:
-  value: brooks-lab
-  contexts: [dynatrace-ansible, devops, service-now]
-
 K8S_CLUSTERS:
   value:
     - name: brooks-lab
       location: brooks-lab
       location_full_name: Brooks Lab
-      primary: true
-      managed: true
+      kva_informer: true
+      dynatrace: true
       api_url: https://192.168.1.207:6443
       kva_namespace: servicenow-kva
       environment: on-prem
     - name: aks-otel-demo
       location: bradens-cloud
       location_full_name: Braden Cloud Demo
-      primary: false
-      managed: false
       environment: azure
       cloud_provider: azure
   contexts: [service-now, dynatrace-ansible]
@@ -278,12 +271,14 @@ K8S_CLUSTERS:
 No ServiceNow custom mapping table is required. `K8S_CLUSTERS` is the GitOps
 source; `k8s/deploy.yml` applies locations to cluster CIs and installs the
 instance business rule that inherits `cluster.location` to child K8s CIs.
+Entries without capability flags (e.g. `aks-otel-demo`) exist solely for
+location mapping of CIs that arrive via someone else's instrumentation.
 
 ### Dynatrace alignment
 
-`K8S_PRIMARY_CLUSTER` replaces the former `DT_K8S_CLUSTER_NAME`. After changing
-the cluster name, redeploy Dynatrace so DynaKube, auto-tags, and management zones
-match:
+The `dynatrace: true` entry's `name` replaces the former `DT_K8S_CLUSTER_NAME`
+/ `K8S_PRIMARY_CLUSTER`. After changing the cluster name, redeploy Dynatrace
+so DynaKube, auto-tags, and management zones match:
 
 ```bash
 cd ansible
@@ -321,8 +316,7 @@ Docker host definitions live in **`vars/variables.yaml`** (immediately after
 
 | Variable | Purpose |
 | -------- | ------- |
-| **`DOCKER_PRIMARY_HOST`** | Name of the primary managed Docker stack (`lab3-observability`). |
-| **`DOCKER_HOSTS`** | Multi-entry registry (list). Each entry describes one Docker host/stack. |
+| **`DOCKER_HOSTS`** | Multi-entry registry (list). Each entry describes one Docker host/stack, with a per-entry **capability flag** selecting what this repo's automation does for it. |
 
 Regenerate context files after editing:
 
@@ -337,27 +331,21 @@ cd vars && ./generate_contexts.sh -f service-now
 | **`name`** | Yes | Logical stack name (used in playbooks and logs). |
 | **`location`** | Yes | Expected `cmn_location.name` (inherited from host CI via business rule). |
 | **`location_full_name`** | Recommended | Display name when location is created by deploy. |
-| **`primary`** | Yes | Exactly one entry should be `true`. |
-| **`managed`** | Yes | `true` = run `docker/discover.yml` sync for this host. |
+| **`container_discovery`** | Capability flag | `true` = this repo syncs running containers into `cmdb_ci_docker_container` (`docker/discover.yml`) and validates them (`docker/test.yml`). Absent = false. |
 | **`cmdb_host_name`** | Yes | CMDB Linux server name (e.g. `lab3` from Phase 1). |
-| **`ansible_host`** | When managed | Inventory host to run `docker ps` on (e.g. `Lab3`). |
+| **`ansible_host`** | When `container_discovery` | Inventory host to run `docker ps` on (e.g. `Lab3`). |
 | **`compose_dir`** | Optional | Compose project directory name (documentation). |
 | **`description`** | Optional | Human-readable stack description. |
 
 **Example (current optimizincdemo1):**
 
 ```yaml
-DOCKER_PRIMARY_HOST:
-  value: lab3-observability
-  contexts: [service-now, dynatrace-ansible]
-
 DOCKER_HOSTS:
   value:
     - name: lab3-observability
       location: brooks-lab
       location_full_name: Brooks Lab
-      primary: true
-      managed: true
+      container_discovery: true
       cmdb_host_name: lab3
       ansible_host: Lab3
       compose_dir: observability

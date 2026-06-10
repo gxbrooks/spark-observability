@@ -19,5 +19,5 @@
         msg: |
           Docker discovery configuration complete.
           DOCKER_HOSTS entries: {{ docker_hosts | map(attribute='name') | list }}
-          Primary: {{ docker_primary_host_name }} -> location {{ docker_primary_host.location }}
+          container_discovery-enabled: {{ docker_discovery_hosts | map(attribute='name') | list }}
           Business rule: {{ sn_docker_location_br_name }}
