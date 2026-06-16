@@ -9,6 +9,9 @@
     update_cache: true
   become: true
 
+- name: Install glibc metapackage (ServiceNow agent deb Depends on RHEL glibc name)
+  ansible.builtin.include_tasks: install_glibc_metapackage.yml
+
 - name: Check if MID Server service unit already exists
   ansible.builtin.stat:
     path: "/etc/systemd/system/{{ sn_mid_service_name }}.service"

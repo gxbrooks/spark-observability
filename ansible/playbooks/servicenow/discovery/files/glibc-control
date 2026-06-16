@@ -1,0 +1,11 @@
+Package: glibc
+Version: 2.17-9999ubuntu1
+Maintainer: spark-observability <local@localhost>
+Architecture: all
+Depends: libc6 (>= 2.17)
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Description: Satisfies ServiceNow MID agent deb Depends on glibc (RHEL name).
+ Ubuntu provides glibc via libc6; this local metapackage unblocks apt.
+ Remove when ServiceNow fixes mid-linux-installer .deb packaging.

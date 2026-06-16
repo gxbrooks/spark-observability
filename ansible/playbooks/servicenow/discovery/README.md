@@ -34,6 +34,9 @@ Playbooks load `vars/contexts/servicenow_ansible_vars.yml` (auto-regenerated).
 - Requires `SN_MID_USER` / `SN_MID_PASSWORD` with `mid_server` role.
 - `SN_MID_INSTALLER_DEB_URL` in `variables.yaml` (service-now context) — build-specific
   Linux `.deb`; see `../docs/install.md`.
+- Ubuntu workaround: ServiceNow’s `.deb` declares `Depends: glibc` (RHEL name). `install.yml`
+  builds `files/glibc-control` with `dpkg-deb` before installing the agent package so apt is not
+  left broken (blocks unrelated packages such as LibreOffice).
 
 ## Playbook pattern
 

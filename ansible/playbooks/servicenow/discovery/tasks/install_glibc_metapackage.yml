@@ -1,0 +1,52 @@
+---
+# ServiceNow mid-linux-installer .deb declares Depends: glibc (RHEL package name).
+# Ubuntu provides glibc via libc6, which leaves agent broken in dpkg and blocks apt.
+# Build and install a local glibc metapackage from files/glibc-control (idempotent).
+# Uses dpkg-deb (not equivs) so this works when apt is already broken by agent.
+
+- name: Check if glibc metapackage is already installed
+  ansible.builtin.command: dpkg-query -W -f='${Status}' glibc
+  register: sn_glibc_metapkg
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Ensure glibc metapackage build directory exists
+  ansible.builtin.file:
+    path: /tmp/glibc-metapkg/DEBIAN
+    state: directory
+    mode: "0755"
+  become: true
+  when: sn_glibc_metapkg.stdout is not search('install ok installed')
+
+- name: Copy glibc-control into metapackage DEBIAN directory
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/glibc-control"
+    dest: /tmp/glibc-metapkg/DEBIAN/control
+    mode: "0644"
+  become: true
+  when: sn_glibc_metapkg.stdout is not search('install ok installed')
+
+- name: Build glibc metapackage deb
+  ansible.builtin.command:
+    cmd: dpkg-deb --build /tmp/glibc-metapkg /tmp/glibc-metapkg/glibc_2.17-9999ubuntu1_all.deb
+  become: true
+  register: sn_glibc_deb_build
+  changed_when: sn_glibc_deb_build.rc == 0
+  when: sn_glibc_metapkg.stdout is not search('install ok installed')
+
+- name: Install glibc metapackage deb
+  ansible.builtin.command:
+    cmd: dpkg -i /tmp/glibc-metapkg/glibc_2.17-9999ubuntu1_all.deb
+  become: true
+  register: sn_glibc_deb_install
+  changed_when: "'Setting up glibc' in sn_glibc_deb_install.stdout"
+  when: sn_glibc_metapkg.stdout is not search('install ok installed')
+
+- name: Repair apt dependencies after glibc metapackage
+  ansible.builtin.command:
+    cmd: apt-get -f install -y
+  become: true
+  register: sn_apt_fix
+  changed_when: sn_apt_fix.stdout is search('Setting up')
+  when: sn_glibc_metapkg.stdout is not search('install ok installed')
