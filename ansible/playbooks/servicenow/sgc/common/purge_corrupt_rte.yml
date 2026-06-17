@@ -1,0 +1,51 @@
+---
+# Purge corrupt RTE metadata for all SGO-Dynatrace import feeds.
+#
+# ServiceNow has no CI/CD uninstall API for Store apps with the automation user's
+# roles. When admin UI Repair/Uninstall is unavailable, deleting orphaned RTE
+# field mappings removes the Import Log NullPointerException without retaining
+# corrupt table data.
+#
+# Sets sn_sgc_rte_orphan_maps_deleted (count across all feeds).
+
+- name: Reset orphaned RTE purge counters
+  ansible.builtin.set_fact:
+    sn_sgc_rte_orphan_map_ids: []
+    sn_sgc_rte_orphan_maps_deleted: 0
+  run_once: true
+
+- name: List SGO-Dynatrace RTE feeds
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_inst_application_feed?sysparm_query=nameSTARTSWITHSGO-Dynatrace&sysparm_fields=sys_id,name&sysparm_limit=100
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_rte_feeds
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Purge orphaned RTE mappings per feed
+  ansible.builtin.include_tasks: purge_corrupt_rte_feed.yml
+  loop: "{{ sn_sgc_rte_feeds.json.result | default([]) }}"
+  loop_control:
+    loop_var: sn_sgc_rte_feed
+    label: "{{ sn_sgc_rte_feed.name }}"
+  run_once: true
+
+- name: Record total orphaned mappings deleted
+  ansible.builtin.set_fact:
+    sn_sgc_rte_orphan_maps_deleted: "{{ sn_sgc_rte_orphan_map_ids | default([]) | length }}"
+  run_once: true
+
+- name: Report RTE purge summary
+  ansible.builtin.debug:
+    msg: >-
+      Purged {{ sn_sgc_rte_orphan_maps_deleted }} orphaned RTE field mapping(s)
+      across {{ sn_sgc_rte_feeds.json.result | default([]) | length }} SGO-Dynatrace feed(s).
+  run_once: true

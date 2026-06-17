@@ -423,7 +423,7 @@ idempotent and skips completed work.
 | - | ----- | ---- |
 | 1 | instance admin (manual, once) | Create automation user, grant Phase 1–3 roles (§1–2) |
 | 2 | instance admin (manual, once, **only if** the preflight reports the role record missing) | Activate plugin `com.snc.ci_cd` (System Definition → Plugins) — the CI/CD API cannot activate its own plugin |
-| 3 | instance admin (manual, once) | Grant `sn_cicd.sys_ci_automation`, `sn_appclient.app_client_user`, and `evt_mgmt_admin` (see the roles table) to `admin_brooks_lab` |
+| 3 | instance admin (manual, once) | Grant `sn_cicd.sys_ci_automation`, `sn_appclient.app_client_user`, `evt_mgmt_admin`, and `connection_admin` (see the roles table) to `admin_brooks_lab` |
 | 4 | automation | Run `sgc/install.yml` — installs everything else; re-run after any grant |
 | 5 | operator (manual, once) | Guided Setup (section E below) |
 
@@ -436,6 +436,7 @@ idempotent and skips completed work.
 | `evt_mgmt_admin` | Event Management — `em_event`, `em_alert`, event rules |
 | `rest_service` | Inbound REST web-service access (basic-auth API calls as this user) |
 | `sn_appclient.app_client_user` | `sys_store_app` read (App Manager visibility) — latest-version / update-available reporting in `diagnose.yml`. Not needed to install: the App Repo Install API takes the scope directly |
+| `connection_admin` | Connections & Credentials — `http_connection` (SGC connection Hostname set by `sgc/sources/dynatrace/deploy.yml`); `api_key_credentials` is writable without it |
 | `sn_cicd.sys_ci_automation` | CI/CD API — `/api/sn_cicd/app_repo/install` (by scope), `/api/sn_cicd/plugin/{id}/activate`, `/api/sn_cicd/progress/{id}` |
 | `snc_platform_rest_api_access` | Platform REST APIs — Table API `/api/now/table/*` (incl. `sys_scope`, `sys_user_role`, `sys_user_has_role`) |
 
@@ -530,17 +531,101 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/diagnose.yml -e @../v
 Expected after success: `scoped app (sn_dynatrace_integ): INSTALLED` and a
 per-component version report (installed vs pinned vs latest).
 
-#### E. Guided Setup (ServiceNow UI — not Ansible)
+#### Application maintain modes (`install.yml`)
 
-1. Navigate to **Dynatrace Observability → Setup** (module installed with `sn_dynatrace_integ`).
-2. Complete Guided Setup sections in order:
-   - **Connection** — Dynatrace tenant URL (`DT_API_URL` base), API token with `entities.read`, `settings.read`, etc.
-   - **Filters** — Management zone **`Spark Observability`** and/or tags (`Project:spark-observability`, `Environment:lab`).
-   - **Service types** — enable types your stack needs (see `tmp/Dynatrace-ServiceNow SGC.md`).
-   - **Create Default Notification Payload Template** — creates Dynatrace problem notification + ServiceNow webhook with `source=SGO-Dynatrace` (requires `sn_observability` installed first).
-3. **Advanced → Configure Instance Settings** — confirm `serviceTypes`, `tags`, connection properties.
-4. **Scheduled Data Imports** — run **Execute** on parent jobs (Hosts first, then Processes/Services). Monitor **Concurrent Import Sets** until complete.
-5. Verify **`sys_object_source`** rows with `name=SGO-Dynatrace` and CMDB CIs with `discovery_source=SGO-Dynatrace`.
+Use when the scoped app is installed but instance metadata is corrupt (for
+example Import Log `NullPointerException` on transform with orphaned RTE
+field mappings):
+
+| Mode | Variable | API | When to use |
+| ---- | -------- | --- | ----------- |
+| Install (default) | `sn_sgc_app_mode=install` | CI/CD App Repo Install | Missing Store apps/plugins |
+| Repair | `sn_sgc_app_mode=repair` | App Manager `GET .../app/repair?appId=&version=` | Re-apply app files without uninstall |
+| Reinstall | `sn_sgc_app_mode=reinstall` | App Manager `GET .../app/install?...&isReinstall=true` | Full reinstall of same version |
+| Reset (lab) | `sn_sgc_app_mode=reset` | REST DELETE orphaned RTE mappings + optional SGO CMDB purge | Fix Import NPE without admin UI; data rediscovered |
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+  -e @../vars/secrets.yaml -e sn_sgc_app_mode=repair
+
+# Lab instance — purge corrupt RTE metadata (no admin password required)
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+  -e @../vars/secrets.yaml -e sn_sgc_app_mode=reset
+```
+
+Target scope(s): `sn_sgc_maintain_scopes` (default `[sn_dynatrace_integ]`).
+
+**Full uninstall + reinstall:** ServiceNow exposes **no CI/CD uninstall API**.
+Uninstall (with **Retain tables and data** unchecked) requires **admin** or
+**`sn_appclient.app_client_company_installer`** in the UI. The automation user
+can install missing apps but cannot uninstall an installed version — CI/CD
+`reinstall=true` fails with *Application version is currently installed*, and
+App Manager repair/reinstall fails preprocessing with `id: null`.
+
+**Reset mode (automated alternative):** When lab data may be discarded,
+`reset` deletes orphaned `sys_rte_eb_field_mapping` rows across all
+SGO-Dynatrace RTE feeds (the NPE root cause) and optionally purges CMDB /
+`sys_object_source` rows with `discovery_source=SGO-Dynatrace`. The scoped app
+stays installed; run `sources/dynatrace/deploy.yml` and **Execute Now** on
+**SGO-Dynatrace Hosts** afterward.
+
+Set `sn_sgc_reset_purge_lab_data=false` to skip CMDB / object-source deletion.
+
+**Limits:** Repair/reinstall use the App Manager API, not
+`/api/sn_cicd/app_repo/install` (which rejects an already-installed version).
+The automation user may queue the job but fail preprocessing with
+`Unable to process schema and dependencies for id: null` — in that case use
+**System Applications → Applications → Service Graph Connector for
+Observability - Dynatrace → Repair** with a full **admin** account (steps 1–3
+below), then continue with steps 4–5.
+
+**Version compatibility:** `diagnose.yml` and `install.yml` call
+`common/validate_compatibility.yml`, which checks:
+
+- ServiceNow platform family (from `glide.war`) against Store compatibilities
+- Installed dependency versions against `sn_dynatrace_integ` Store-declared
+  dependencies (currently `sn_cmdb_int_util:2.25.0`, `sn_cmdb_ci_class:1.83.0`
+  for v1.15.0)
+- Orphaned RTE field mappings on **SGO-Dynatrace Hosts** (transform NPE root cause)
+
+Pins in `sgc/common/store_apps.yml` match the Store dependency matrix for
+v1.15.0.
+
+**After repair — manual import (steps 4–5):**
+
+4. **Dynatrace Observability → Scheduled Data Imports → SGO-Dynatrace Hosts →
+   Execute Now**
+5. Open the import set → **Import Log** — confirm no
+   `NullPointerException`; check **Concurrent Import Sets** until processed.
+
+#### E. Source deploy (mostly automated)
+
+The connection, credential, management-zone scoping, and import-schedule
+activation are automated by
+`playbooks/servicenow/sgc/sources/dynatrace/deploy.yml`. **No Guided Setup
+card requires manual configuration** — all six (app v1.14.x) are covered:
+
+| Guided Setup card | Manual action needed |
+| ----------------- | -------------------- |
+| Enable Access To SNC.ImpactManager | None — automated by `deploy.yml` |
+| Basic (credential, connection, test) | None — automated by `deploy.yml`; optional *Test Connection* sanity check |
+| Configure Dynatrace Grail OAuth | None — optional feature, not used; Skip |
+| Advanced | None — **do not run** *Configure Problem Notification* (owned by `events/deploy.yml`); Skip |
+| Add Multiple Instances | None — single-instance setup; Skip |
+| Set up scheduled import jobs | None — schedule activated by `deploy.yml` |
+
+See `../sgc/sources/dynatrace/docs/deploy.md` for the detailed card map,
+Dynatrace token model, and manual fallback. The two remaining manual steps
+live **outside** the wizard:
+
+1. Grant `connection_admin` to `admin_brooks_lab` (one-time; lets the playbook
+   set the connection Hostname).
+2. **Scheduled Data Imports** — run **Execute Now** on **SGO-Dynatrace Hosts**
+   (one-time); monitor **Concurrent Import Sets** until complete.
+
+Then verify **`sys_object_source`** rows with `name=SGO-Dynatrace` and CMDB
+CIs with `discovery_source=SGO-Dynatrace` (`sgc/diagnose.yml`).
 
 #### F. Ansible after SGC is installed
 
@@ -583,10 +668,9 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 
 | Action | Where | Why not automated |
 | ------ | ----- | ----------------- |
-| Grant roles (`sn_cicd.sys_ci_automation`, `sn_appclient.app_client_user`, `evt_mgmt_admin`) | User Administration | Role grants require instance admin on the shared demo |
+| Grant roles (`sn_cicd.sys_ci_automation`, `sn_appclient.app_client_user`, `evt_mgmt_admin`, `connection_admin`) | User Administration | Role grants require instance admin on the shared demo |
 | Store entitlement / license click-through | ServiceNow Store / Subscriptions | Contractual acceptance is UI-only |
 | Plugin request when CI/CD activation is denied | System Definition → Plugins / HI case | Strict instances gate plugin activation |
-| **Guided Setup** (connection, filters, service types, payload template) | Dynatrace Observability → Setup | No public API for the SGC guided-setup steps |
 | Scheduled Data Imports first execution | Dynatrace Observability → Scheduled Data Imports | Operator-triggered; monitor Concurrent Import Sets |
 
 **Required IDs / prerequisite configuration:**

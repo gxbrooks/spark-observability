@@ -1,0 +1,81 @@
+---
+# Delete lab SGO-Dynatrace discovery data so imports can repopulate cleanly.
+#
+# Expects sn_sgc_discovery_source (SGO-Dynatrace). Safe for lab instances where
+# data will be rediscovered. Does not uninstall the scoped app.
+
+- name: Query SGO-Dynatrace CMDB CIs
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci?sysparm_query=discovery_source={{
+      sn_sgc_discovery_source }}&sysparm_fields=sys_id,name&sysparm_limit=500
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_cmdb_rows
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Delete SGO-Dynatrace CMDB CIs
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/cmdb_ci/{{ item.sys_id }}"
+    method: DELETE
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [204, 404]
+    return_content: true
+  loop: "{{ sn_sgc_cmdb_rows.json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default(item.sys_id) }}"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Query SGO-Dynatrace sys_object_source rows
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_object_source?sysparm_query=name={{
+      sn_sgc_discovery_source }}&sysparm_fields=sys_id,name&sysparm_limit=500
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_object_source_rows
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Delete SGO-Dynatrace sys_object_source rows
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sys_object_source/{{ item.sys_id }}"
+    method: DELETE
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [204, 404]
+    return_content: true
+  loop: "{{ sn_sgc_object_source_rows.json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default(item.sys_id) }}"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report SGO lab data purge summary
+  ansible.builtin.debug:
+    msg: >-
+      Purged {{ sn_sgc_cmdb_rows.json.result | default([]) | length }} CMDB CI(s)
+      and {{ sn_sgc_object_source_rows.json.result | default([]) | length }}
+      sys_object_source row(s) for discovery_source={{ sn_sgc_discovery_source }}.
+  run_once: true

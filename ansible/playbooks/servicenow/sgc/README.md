@@ -9,10 +9,12 @@ Automates installation of the ServiceNow Store applications required for the
 | Path | Purpose |
 | ---- | ------- |
 | `install.yml` | Install required Store apps + plugins (`common/store_apps.yml`) via CI/CD App Repo Install (by scope) / plugin activation |
-| `deploy.yml` | Instance-side SGC validation; reminds operator to run scheduled imports |
+| `deploy.yml` | Instance-side SGC validation gate (cross-source) |
 | `diagnose.yml` | Component versions (installed vs pinned vs latest), SGC state, CMDB merge state |
 | `common/` | Shared vars and reusable tasks (`check_store_apps.yml`, `poll_cicd_progress.yml`) |
 | `sources/dynatrace/` | All Dynatrace-specific configuration for the SGC and events |
+| `sources/dynatrace/deploy.yml` | Automated SGC topology configuration (MZ scoping, scoped properties, schedule activation) |
+| `sources/dynatrace/docs/deploy.md` | Manual deployment steps (connection credential, first import run) |
 | `sources/dynatrace/events/` | Dynatrace → ServiceNow event playbooks (deploy / diagnose / test) |
 | `sources/dynatrace/tasks/`, `files/` | Dynatrace task fragments and JSON payload templates |
 
@@ -55,11 +57,22 @@ cd ansible
 # 0. Store apps + plugins (idempotent; skips what is installed)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml -e @../vars/secrets.yaml
 
+# 0a. Repair/reinstall Dynatrace SGC scoped app (when RTE/import metadata is corrupt)
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+  -e @../vars/secrets.yaml -e sn_sgc_app_mode=repair
+
+# 0b. Lab reset — purge corrupt RTE metadata without admin UI (then redeploy)
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+  -e @../vars/secrets.yaml -e sn_sgc_app_mode=reset
+
 # 1. Component versions / SGC / CMDB state
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/diagnose.yml -e @../vars/secrets.yaml
 
 # 2. Instance-side SGC validation
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/deploy.yml -e @../vars/secrets.yaml
+
+# 2a. Automated SGC topology configuration (manual steps: sources/dynatrace/docs/deploy.md)
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/deploy.yml -e @../vars/secrets.yaml
 
 # 3. Dynatrace → ServiceNow events (CPU >80%, Spark ERROR logs)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
@@ -81,8 +94,10 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
   once the CI/CD tooling exists; on a bare instance, activating
   `com.snc.ci_cd` (manual) precedes the grant. See `../docs/install.md` §7
   "Bootstrap sequence".
-- Guided Setup (connection, filters, scheduled imports, notification payload
-  template) is **manual** — see `../docs/install.md` §7.
+- SGC topology configuration is split: `sources/dynatrace/deploy.yml`
+  automates management-zone scoping and schedule activation; the connection
+  credential and first import run remain **manual** — see
+  `sources/dynatrace/docs/deploy.md`.
 - Grant `admin_brooks_lab` **`evt_mgmt_admin`** (or `em_event` read)
   for API validation of `em_event` rows.
 

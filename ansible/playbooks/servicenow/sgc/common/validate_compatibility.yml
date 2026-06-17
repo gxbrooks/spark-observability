@@ -1,0 +1,273 @@
+---
+# Validate ServiceNow platform, scoped-app, and Dynatrace compatibility for SGC.
+#
+# Sets facts:
+#   sn_platform_family, sn_platform_war
+#   sn_sgc_rte_broken_field_refs, sn_sgc_rte_field_refs_total
+#   sn_compat_issues — list of human-readable issue strings (empty when clean)
+#
+# Uses sn_dynatrace_integ GetAppById dependency metadata as the authoritative
+# version matrix for sn_dynatrace_integ 1.15.x (Store-declared dependencies).
+
+- name: Read ServiceNow platform build
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_properties?sysparm_query=name=glide.war&sysparm_fields=value&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_platform_war_row
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Derive platform family from glide.war
+  ansible.builtin.set_fact:
+    sn_platform_war: "{{ (sn_platform_war_row.json.result | first).value | default('') }}"
+    sn_platform_family: >-
+      {{ (sn_platform_war.split('glide-')[1].split('-')[0] | capitalize)
+         if ('glide-' in sn_platform_war) else 'unknown' }}
+  vars:
+    sn_platform_war: "{{ (sn_platform_war_row.json.result | first).value | default('') }}"
+  run_once: true
+
+- name: Resolve sn_dynatrace_integ scope sys_id
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_scope?sysparm_query=scope=sn_dynatrace_integ&sysparm_fields=sys_id&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_scope_row
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Read Dynatrace SGC app metadata from App Manager
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/sn_appclient/v1/appmanager/app/{{
+      (sn_sgc_scope_row.json.result | first).sys_id }}
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_sgc_app_manager_info
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Parse declared dependency versions from app metadata
+  ansible.builtin.set_fact:
+    sn_sgc_declared_dependencies: "{{ sn_sgc_declared_dependencies | default({}) | combine({item.split(':')[0]: item.split(':')[1]}) }}"
+  loop: >-
+    {{ (sn_sgc_app_manager_info.json.result.app_info_on_instance.dependencies | default(''))
+       .split(',') | map('trim') | select('search', ':') | list }}
+  loop_control:
+    label: "{{ item.split(':')[0] }}"
+  when: sn_sgc_app_manager_info.status | int == 200
+  run_once: true
+
+- name: Record Store metadata from App Manager
+  ansible.builtin.set_fact:
+    sn_sgc_store_compatibilities: >-
+      {{ (sn_sgc_app_manager_info.json.result.app_info_on_instance.compatibilities | default(''))
+         .split(';') | map('trim') | reject('equalto', '') | list }}
+    sn_sgc_store_latest_version: >-
+      {{ sn_sgc_app_manager_info.json.result.app_info_on_instance.latest_version | default('') }}
+  when: sn_sgc_app_manager_info.status | int == 200
+  run_once: true
+
+- name: Default dependency metadata when App Manager is unreadable
+  ansible.builtin.set_fact:
+    sn_sgc_declared_dependencies: {}
+    sn_sgc_store_compatibilities: []
+    sn_sgc_store_latest_version: ''
+  when: sn_sgc_app_manager_info.status | int != 200
+  run_once: true
+
+- name: Build compatibility issue list
+  ansible.builtin.set_fact:
+    sn_compat_issues: []
+  run_once: true
+
+- name: Check platform family against Store compatibilities
+  ansible.builtin.set_fact:
+    sn_compat_issues: >-
+      {{ sn_compat_issues + [
+           'ServiceNow platform family ' ~ sn_platform_family
+           ~ ' is not listed in sn_dynatrace_integ Store compatibilities ('
+           ~ (sn_sgc_store_compatibilities | join(', '))
+           ~ ') — verify with Optimiz before production use.'
+         ] }}
+  when:
+    - sn_sgc_store_compatibilities | length > 0
+    - sn_platform_family not in sn_sgc_store_compatibilities
+  run_once: true
+
+- name: Check installed dependency versions against Store-declared matrix
+  ansible.builtin.set_fact:
+    sn_compat_issues: >-
+      {{ sn_compat_issues + [
+           item.scope ~ ': installed v' ~ item.installed_version
+           ~ ' but sn_dynatrace_integ declares dependency v'
+           ~ sn_sgc_declared_dependencies[item.scope]
+         ] }}
+  loop: "{{ sn_store_app_status | default([]) | selectattr('type', 'equalto', 'store_app') | list }}"
+  loop_control:
+    label: "{{ item.scope }}"
+  when:
+    - sn_sgc_declared_dependencies | length > 0
+    - item.scope in sn_sgc_declared_dependencies
+    - item.installed
+    - item.installed_version != sn_sgc_declared_dependencies[item.scope]
+  run_once: true
+
+- name: Resolve Dynatrace cluster version (when API credentials available)
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v1/config/clusterversion"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_dt_cluster_version
+  failed_when: false
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+  when: dt_api_url_resolved | length > 0 and dt_api_token_resolved | length > 0
+
+- name: Look up SGO-Dynatrace Hosts RTE feed
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_inst_application_feed?sysparm_query=name=SGO-Dynatrace%20Hosts&sysparm_fields=sys_id,name,active&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_hosts_feed
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Read RTE field mappings for SGO-Dynatrace Hosts
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_rte_eb_field_mapping?sysparm_query=sys_rte_eb_definition={{
+      (sn_sgc_hosts_feed.json.result | first).sys_id }}&sysparm_fields=source_sys_rte_eb_field,target_sys_rte_eb_field&sysparm_limit=200
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_hosts_field_maps
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+  when: sn_sgc_hosts_feed.json.result | default([]) | length > 0
+
+- name: Collect referenced RTE field sys_ids
+  ansible.builtin.set_fact:
+    sn_sgc_rte_field_ids: >-
+      {{ (sn_sgc_rte_field_ids | default([]))
+         + [item.source_sys_rte_eb_field.value]
+         + [item.target_sys_rte_eb_field.value] }}
+  loop: "{{ sn_sgc_hosts_field_maps.json.result | default([]) }}"
+  when:
+    - sn_sgc_hosts_field_maps is defined
+    - item.source_sys_rte_eb_field is mapping
+    - item.target_sys_rte_eb_field is mapping
+    - item.source_sys_rte_eb_field.value | length > 0
+    - item.target_sys_rte_eb_field.value | length > 0
+  run_once: true
+
+- name: Unique RTE field sys_ids
+  ansible.builtin.set_fact:
+    sn_sgc_rte_field_ids: "{{ sn_sgc_rte_field_ids | default([]) | unique | list }}"
+  when: sn_sgc_hosts_field_maps is defined
+  run_once: true
+
+- name: Default RTE field id list when feed is missing
+  ansible.builtin.set_fact:
+    sn_sgc_rte_field_ids: []
+  when: sn_sgc_hosts_field_maps is not defined
+  run_once: true
+
+- name: List RTE field records for SGO-Dynatrace Hosts feed
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_rte_eb_field?sysparm_query=sys_rte_eb_definition={{
+      (sn_sgc_hosts_feed.json.result | first).sys_id }}&sysparm_fields=sys_id&sysparm_limit=500
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_rte_fields_defined
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+  when: sn_sgc_rte_field_ids | length > 0
+
+- name: Record RTE field reference health
+  ansible.builtin.set_fact:
+    sn_sgc_rte_field_refs_total: "{{ sn_sgc_rte_field_ids | length }}"
+    sn_sgc_rte_broken_field_refs: >-
+      {{ (sn_sgc_rte_field_ids | length)
+         - (sn_sgc_rte_fields_defined.json.result | default([]) | map(attribute='sys_id') | list
+            | intersect(sn_sgc_rte_field_ids) | length) }}
+  when: sn_sgc_rte_field_ids | length > 0
+  run_once: true
+
+- name: Default RTE health when no mappings exist
+  ansible.builtin.set_fact:
+    sn_sgc_rte_field_refs_total: 0
+    sn_sgc_rte_broken_field_refs: 0
+  when: sn_sgc_rte_field_ids | length == 0
+  run_once: true
+
+- name: Flag orphaned RTE field mappings
+  ansible.builtin.set_fact:
+    sn_compat_issues: >-
+      {{ sn_compat_issues + [
+           'SGO-Dynatrace Hosts RTE has ' ~ sn_sgc_rte_broken_field_refs
+           ~ ' orphaned field mapping(s) out of ' ~ sn_sgc_rte_field_refs_total
+           ~ ' references — Import Log NullPointerException during transform.'
+           ~ ' Run install.yml -e sn_sgc_app_mode=reset (automated lab purge) or'
+           ~ ' repair/reinstall (requires admin or app_client_company_installer).'
+         ] }}
+  when: sn_sgc_rte_broken_field_refs | int > 0
+  run_once: true
+
+- name: Display compatibility summary
+  ansible.builtin.debug:
+    msg: |
+      Platform: {{ sn_platform_family }} ({{ sn_platform_war }})
+      sn_dynatrace_integ Store compatibilities: {{ sn_sgc_store_compatibilities | join(', ') }}
+      sn_dynatrace_integ latest in Store (this instance): {{ sn_sgc_store_latest_version | default('unknown') }}
+      Dynatrace API: {{ dt_api_url_resolved | regex_replace('/api$', '') }}
+      Dynatrace cluster version: {{ sn_dt_cluster_version.json.version | default('unreadable') if (sn_dt_cluster_version is defined and (sn_dt_cluster_version.status | default(0) | int) == 200) else 'unreadable' }}
+      Declared dependency matrix (sn_dynatrace_integ): {{ sn_sgc_declared_dependencies }}
+      RTE field refs (SGO-Dynatrace Hosts): {{ sn_sgc_rte_broken_field_refs }} broken / {{ sn_sgc_rte_field_refs_total }} total
+      Issues: {{ sn_compat_issues if sn_compat_issues | length > 0 else 'none' }}
+      Note: Store latest for sn_dynatrace_integ on this instance: {{ sn_sgc_store_latest_version | default('unknown') }}.
+  run_once: true

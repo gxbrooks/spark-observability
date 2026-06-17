@@ -1,0 +1,330 @@
+---
+# Apply the automatable SGC topology configuration in ServiceNow (idempotent,
+# on-needed): management-zone scoping on the app connection row and scoped
+# properties, and activation of the SGO-Dynatrace Hosts scheduled import.
+#
+# Requires facts from resolve_dt_api.yml (dt_api_url_resolved, token, MZ name).
+# The connection credential (Dynatrace URL + API token behind the alias) is
+# admin-gated UI configuration — see ../docs/deploy.md.
+
+# ----- Resolve the numeric management-zone id from Dynatrace ------------------
+- name: Look up management zone id in Dynatrace
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/config/v1/managementZones"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+    return_content: true
+  register: dt_mz_list
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Resolve management zone id
+  ansible.builtin.set_fact:
+    dt_mz_id: >-
+      {{ (dt_mz_list.json['values'] | default([])
+          | selectattr('name', 'equalto', dt_management_zone_resolved)
+          | map(attribute='id') | list | first) | default('', true) }}
+  run_once: true
+
+- name: Assert management zone exists in Dynatrace
+  ansible.builtin.assert:
+    that:
+      - dt_mz_id | string | length > 0
+    fail_msg: >-
+      Management zone '{{ dt_management_zone_resolved }}' not found in Dynatrace
+      ({{ dt_api_url_resolved }}). Run observability/dynatrace/deploy.yml
+      --tags partitioning first.
+
+# ----- App connection row (sn_dynatrace_integ_connections) --------------------
+- name: Read SGC connection configuration row
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sn_dynatrace_integ_connections?sysparm_fields=sys_id,management_zone_name,management_zone_id,service_types_to_ingest,tags,status,connection_alias&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_conn_row
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert SGC connection row exists
+  ansible.builtin.assert:
+    that:
+      - sn_sgc_conn_row.json.result | default([]) | length > 0
+    fail_msg: >-
+      No row in sn_dynatrace_integ_connections — open Guided Setup once
+      (Dynatrace Observability → Setup) to seed the connection record, then
+      re-run. See ../docs/deploy.md.
+
+- name: Record current and desired connection configuration
+  ansible.builtin.set_fact:
+    sn_sgc_conn_current: "{{ sn_sgc_conn_row.json.result | first }}"
+    sn_sgc_conn_desired:
+      management_zone_name: "{{ dt_management_zone_resolved }}"
+      management_zone_id: "{{ dt_mz_id }}"
+  run_once: true
+
+- name: Report connection row already configured
+  ansible.builtin.debug:
+    msg: >-
+      SGC connection row already scoped to management zone
+      '{{ dt_management_zone_resolved }}' (id {{ dt_mz_id }}) — no update needed.
+  when: >-
+    sn_sgc_conn_current.management_zone_name == sn_sgc_conn_desired.management_zone_name
+    and (sn_sgc_conn_current.management_zone_id | string) == (sn_sgc_conn_desired.management_zone_id | string)
+
+- name: Update SGC connection row with management zone scoping
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_dynatrace_integ_connections/{{ sn_sgc_conn_current.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: "{{ sn_sgc_conn_desired }}"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sgc_conn_patch
+  when: >-
+    sn_sgc_conn_current.management_zone_name != sn_sgc_conn_desired.management_zone_name
+    or (sn_sgc_conn_current.management_zone_id | string) != (sn_sgc_conn_desired.management_zone_id | string)
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report connection row update outcome
+  ansible.builtin.debug:
+    msg: >-
+      SGC connection row update: HTTP {{ sn_sgc_conn_patch.status }}
+      {{ '— management zone set to ' ~ dt_management_zone_resolved
+         if sn_sgc_conn_patch.status == 200
+         else '— not authorized; set Management Zone in Guided Setup (see ../docs/deploy.md)' }}
+  when: sn_sgc_conn_patch is not skipped
+
+# ----- Scoped properties (sn_dynatrace_integ.management_zone_*) ---------------
+- name: Read scoped management-zone properties
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_properties?sysparm_query=nameSTARTSWITHsn_dynatrace_integ.management_zone&sysparm_fields=sys_id,name,value
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_props
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report when no scoped management-zone properties exist
+  ansible.builtin.debug:
+    msg: >-
+      No sn_dynatrace_integ.management_zone_* properties on this instance —
+      this app version stores MZ scoping on the connection row only; nothing to do.
+  when: sn_sgc_props.json.result | default([]) | length == 0
+  run_once: true
+
+- name: Update scoped management-zone properties (on needed)
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sys_properties/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      value: >-
+        {{ dt_management_zone_resolved if item.name.endswith('management_zone_name')
+           else dt_mz_id | string }}
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sgc_prop_patches
+  loop: "{{ sn_sgc_props.json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: >-
+    item.value != (dt_management_zone_resolved if item.name.endswith('management_zone_name')
+                   else dt_mz_id | string)
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report property update outcomes
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.name }}:
+      {{ 'already set — skipped' if item is skipped
+         else ('updated' if item.status == 200
+               else 'not authorized (403) — set via Guided Setup; see ../docs/deploy.md') }}
+  loop: "{{ sn_sgc_prop_patches.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# ----- Scheduled import connection overrides -----------------------------------
+# Some demo instances carry stale connection_override values (e.g. pointing at
+# an unrelated alias), which breaks the transform stage: rows load into staging
+# but stay 'pending' because the per-connection context cannot be resolved.
+- name: Resolve the SGC connection alias
+  ansible.builtin.set_fact:
+    sn_sgc_alias_id: >-
+      {{ (sn_sgc_conn_current.connection_alias.value
+          if sn_sgc_conn_current.connection_alias is mapping
+          else sn_sgc_conn_current.connection_alias) | default('') }}
+  run_once: true
+
+- name: Read SGO-Dynatrace scheduled import connection overrides
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?sysparm_query=nameSTARTSWITHSGO-Dynatrace&sysparm_fields=sys_id,name,connection_override&sysparm_limit=100
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_sched_overrides
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Select scheduled imports with a wrong connection override
+  ansible.builtin.set_fact:
+    sn_sgc_sched_mismatched: >-
+      {{ sn_sgc_sched_overrides.json.result | default([])
+         | selectattr('connection_override', 'mapping')
+         | rejectattr('connection_override.value', 'equalto', sn_sgc_alias_id)
+         | list }}
+  run_once: true
+
+- name: Report scheduled import overrides already correct
+  ansible.builtin.debug:
+    msg: >-
+      All SGO-Dynatrace scheduled import connection overrides are empty or
+      already point at the SGC connection alias — no update needed.
+  when: sn_sgc_sched_mismatched | length == 0
+
+- name: Repoint wrong scheduled import connection overrides at the SGC alias
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      connection_override: "{{ sn_sgc_alias_id }}"
+    status_code: [200]
+    return_content: true
+  loop: "{{ sn_sgc_sched_mismatched }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report repointed scheduled imports
+  ansible.builtin.debug:
+    msg: >-
+      Repointed connection override to the SGC alias on:
+      {{ sn_sgc_sched_mismatched | map(attribute='name') | list | join(', ') }}
+  when: sn_sgc_sched_mismatched | length > 0
+
+# ----- Scheduled import activation --------------------------------------------
+- name: Read SGO-Dynatrace Hosts scheduled import
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?sysparm_query=name=SGO-Dynatrace%20Hosts&sysparm_fields=sys_id,name,active,run_type,run_time&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_sched
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record Hosts scheduled import row
+  ansible.builtin.set_fact:
+    sn_sgc_sched_row: "{{ sn_sgc_sched.json.result | default([]) | first | default({}) }}"
+  run_once: true
+
+- name: Report Hosts scheduled import already active
+  ansible.builtin.debug:
+    msg: "Scheduled import 'SGO-Dynatrace Hosts' already active — no update needed."
+  when: sn_sgc_sched_row.active | default('') == 'true'
+
+- name: Activate SGO-Dynatrace Hosts scheduled import
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ sn_sgc_sched_row.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      active: "true"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sgc_sched_patch
+  when:
+    - sn_sgc_sched_row.sys_id is defined
+    - sn_sgc_sched_row.active | default('') != 'true'
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report scheduled import activation outcome
+  ansible.builtin.debug:
+    msg: >-
+      Scheduled import activation: HTTP {{ sn_sgc_sched_patch.status }}
+      {{ '— SGO-Dynatrace Hosts active (child imports run after it)'
+         if sn_sgc_sched_patch.status == 200
+         else '— not authorized; activate in the UI (see ../docs/deploy.md)' }}
+  when: sn_sgc_sched_patch is not skipped
+
+# ----- Payload template verification ------------------------------------------
+- name: Verify notification payload template exists
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sn_dynatrace_integ_dynatrace_notification_payload_template?sysparm_fields=sys_id&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_payload_tpl
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Topology configuration summary
+  ansible.builtin.debug:
+    msg: |
+      SGC topology configuration on {{ sn_url }}:
+        management zone: {{ dt_management_zone_resolved }} (id {{ dt_mz_id }})
+        connection row status: {{ sn_sgc_conn_current.status | default('unknown') }}
+        Hosts scheduled import: {{ 'active' if (sn_sgc_sched_row.active | default('') == 'true' or (sn_sgc_sched_patch.status | default(0)) == 200) else 'NOT active' }}
+        payload template: {{ 'present' if (sn_sgc_payload_tpl.json.result | default([]) | length > 0) else 'MISSING' }}
+      Remaining manual steps (one-time): connection credential + test, and
+      first import execution — see sources/dynatrace/docs/deploy.md.
+  run_once: true

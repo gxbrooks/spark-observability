@@ -1,0 +1,89 @@
+---
+# Ensure the EvtMgmtImpactManagerMediator script include has a Global-scope
+# copy (idempotent, on-needed). The connector's app-scope original cannot call
+# the SNC.ImpactManager API across scopes; Guided Setup's "Enable Access To
+# SNC.ImpactManager" card performs this same copy manually.
+
+- name: Check for Global copy of EvtMgmtImpactManagerMediator
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_script_include?sysparm_query=name=EvtMgmtImpactManagerMediator%5Esys_scope=global&sysparm_fields=sys_id,access,active&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_impact_script_global
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report ImpactManager script copy already in place
+  ansible.builtin.debug:
+    msg: >-
+      Global copy of EvtMgmtImpactManagerMediator already exists — no copy needed.
+  when: sn_impact_script_global.json.result | default([]) | length > 0
+
+- name: Copy ImpactManager mediator script to Global scope (when missing)
+  when: sn_impact_script_global.json.result | default([]) | length == 0
+  block:
+    - name: Read app-scope original script include
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/sys_script_include?sysparm_query=name=EvtMgmtImpactManagerMediator%5Esys_scope.scope={{ sn_sgc_app_scope }}&sysparm_fields=name,script&sysparm_limit=1
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+        return_content: true
+      register: sn_impact_script_orig
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+
+    - name: Assert the original script include exists
+      ansible.builtin.assert:
+        that:
+          - sn_impact_script_orig.json.result | default([]) | length > 0
+        fail_msg: >-
+          EvtMgmtImpactManagerMediator not found in scope {{ sn_sgc_app_scope }} —
+          is the SGC app installed? Run install.yml first.
+
+    - name: Create Global copy of the mediator script
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/sys_script_include"
+        method: POST
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          name: "{{ (sn_impact_script_orig.json.result | first).name }}"
+          script: "{{ (sn_impact_script_orig.json.result | first).script }}"
+          access: public
+          active: "true"
+          sys_scope: global
+          description: >-
+            Copied from {{ sn_sgc_app_scope }} scope by
+            sgc/sources/dynatrace/deploy.yml (SNC.ImpactManager access;
+            equivalent of Guided Setup "Enable Access To SNC.ImpactManager").
+        status_code: [201, 403]
+        return_content: true
+      register: sn_impact_script_copy
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+
+    - name: Report ImpactManager script copy outcome
+      ansible.builtin.debug:
+        msg: >-
+          ImpactManager script copy: HTTP {{ sn_impact_script_copy.status }}
+          {{ '— Global copy created (global.EvtMgmtImpactManagerMediator)'
+             if sn_impact_script_copy.status == 201
+             else '— not authorized; copy manually via Guided Setup card
+             "Enable Access To SNC.ImpactManager" (Insert and Stay in Global scope)' }}

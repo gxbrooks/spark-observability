@@ -8,8 +8,10 @@
 #
 # version pins the expected installed version. Empty = no pin yet; install.yml
 # installs the latest resolvable version — pin it here after first install.
-# install.yml warns on pin drift but does not upgrade apps on the shared
-# instance; upgrade deliberately, then update the pin.
+# Pins match sn_dynatrace_integ 1.15.0 Store-declared dependencies (see
+# validate_compatibility.yml / App Manager GetAppById). install.yml warns on
+# pin drift but does not upgrade apps on the shared instance; upgrade
+# deliberately, then update the pin.
 
 sn_store_apps:
   - name: Observability Commons for CMDB
@@ -19,11 +21,11 @@ sn_store_apps:
   - name: Integrations Commons for CMDB
     scope: sn_cmdb_int_util
     type: store_app
-    version: 2.19.0
+    version: 2.25.0
   - name: CMDB CI Class Model
     scope: sn_cmdb_ci_class
     type: store_app
-    version: 1.74.0
+    version: 1.83.0
   - name: ITOM Discovery License
     scope: com.snc.itom.discovery.license
     type: plugin
@@ -39,4 +41,4 @@ sn_store_apps:
   - name: Service Graph Connector for Observability - Dynatrace
     scope: sn_dynatrace_integ
     type: store_app
-    version: 1.14.1
+    version: 1.15.0

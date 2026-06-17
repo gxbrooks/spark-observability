@@ -47,6 +47,10 @@ dt_management_zone_resolved: "{{ DT_MANAGEMENT_ZONE }}"
 dt_management_zone_object_id: ""
 dt_host_group_resolved: "{{ DT_HOST_GROUP }}"
 
+# Dedicated Dynatrace token for the SGC connection (minted by
+# sources/dynatrace/tasks/ensure_sgc_credential.yml via DT_TOKEN_ADMIN_TOKEN)
+dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration
+
 # Lab alerting / notification object names (idempotent upsert keys)
 dt_sn_alerting_profile_name: "Spark Observability - ServiceNow brooks-lab"
 dt_sn_problem_notification_name: "ServiceNow brooks-lab - Spark Observability"

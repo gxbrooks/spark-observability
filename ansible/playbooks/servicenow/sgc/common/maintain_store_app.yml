@@ -1,0 +1,104 @@
+---
+# Repair or reinstall one installed Store application via the App Manager API.
+#
+# Uses GET /api/sn_appclient/v1/appmanager/app/repair or .../app/install
+# (not /api/sn_cicd/app_repo/install — that path cannot repair/reinstall an
+# already-installed version). Resolves the instance store-app sys_id from
+# sys_scope (same id returned by GetAppById).
+#
+# Expects:
+#   sn_app — one entry from sn_store_app_status (scope, installed_version, …)
+#   sn_sgc_app_mode — repair | reinstall
+#
+# Appends to sn_apps_failed on failure.
+
+- name: "Resolve store sys_id for {{ sn_app.scope }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_scope?sysparm_query=scope={{
+      sn_app.scope }}&sysparm_fields=sys_id,scope,version&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_maintain_scope_row
+  no_log: true
+  delegate_to: localhost
+
+- name: "Assert {{ sn_app.scope }} is installed before {{ sn_sgc_app_mode }}"
+  ansible.builtin.assert:
+    that:
+      - sn_app.installed | bool
+      - (sn_maintain_scope_row.json.result | default([])) | length > 0
+    fail_msg: >-
+      {{ sn_app.scope }} is not installed — nothing to {{ sn_sgc_app_mode }}.
+      Run install.yml (default mode) first.
+
+- name: "Record maintain target for {{ sn_app.scope }}"
+  ansible.builtin.set_fact:
+    sn_maintain_app_id: "{{ (sn_maintain_scope_row.json.result | first).sys_id }}"
+    sn_maintain_version: >-
+      {{ sn_app.installed_version if (sn_app.installed_version | default('') | length > 0)
+         else sn_app.pinned_version }}
+  run_once: true
+
+- name: "Request {{ sn_sgc_app_mode }} of {{ sn_app.scope }} via App Manager API"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/sn_appclient/v1/appmanager/app/{{
+      'repair' if sn_sgc_app_mode == 'repair' else 'install' }}?appId={{
+      sn_maintain_app_id }}&version={{ sn_maintain_version }}{{
+      '&isReinstall=true&loadDemoData=false'
+      if sn_sgc_app_mode == 'reinstall' else '' }}
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 400, 403]
+    return_content: true
+  register: sn_maintain_request
+  no_log: true
+  delegate_to: localhost
+
+- name: "Report {{ sn_sgc_app_mode }} request outcome for {{ sn_app.scope }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_app.scope }} {{ sn_sgc_app_mode }}: HTTP {{ sn_maintain_request.status }}
+      {{ '— queued (App Manager)' if sn_maintain_request.status == 200
+         else ('— rejected: ' ~ (sn_maintain_request.json.error.message | default('unknown'))
+               if sn_maintain_request.status in [400, 403]
+               else '') }}
+
+- name: "Wait for {{ sn_sgc_app_mode }} of {{ sn_app.scope }} to complete"
+  ansible.builtin.include_tasks: poll_cicd_progress.yml
+  vars:
+    sn_cicd_progress_url: >-
+      {{ sn_maintain_request.json.result.links.progress.url }}
+    sn_cicd_progress_retries: "{{ sn_maintain_progress_retries | default(90) }}"
+    sn_cicd_progress_delay: "{{ sn_maintain_progress_delay | default(10) }}"
+  when:
+    - sn_maintain_request.status == 200
+    - sn_maintain_request.json.result.links.progress.url is defined
+
+- name: "Record failed {{ sn_sgc_app_mode }} for {{ sn_app.scope }}"
+  ansible.builtin.set_fact:
+    sn_apps_failed: "{{ (sn_apps_failed | default([])) + [sn_app.scope] }}"
+  when: >-
+    sn_maintain_request.status != 200
+    or (sn_cicd_progress_state | default('failed') != 'successful')
+
+- name: "Note manual fallback when automated {{ sn_sgc_app_mode }} fails"
+  ansible.builtin.debug:
+    msg: >-
+      Automated {{ sn_sgc_app_mode }} of {{ sn_app.scope }} did not succeed
+      ({{ sn_cicd_progress_message | default('HTTP ' ~ sn_maintain_request.status) }}).
+      Manual fallback (requires admin or sn_appclient.app_client_company_installer):
+        System Applications → Applications → Service Graph Connector for
+        Observability - Dynatrace → {{ sn_sgc_app_mode | capitalize }}.
+      The App Manager API often requires elevated Store privileges beyond
+      sn_cicd.sys_ci_automation; see docs/install.md §7 "Application maintain modes".
+  when: sn_app.scope in (sn_apps_failed | default([]))

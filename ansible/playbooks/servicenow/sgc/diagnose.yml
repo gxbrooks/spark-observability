@@ -19,6 +19,12 @@
     - name: Check Store application and plugin versions
       ansible.builtin.include_tasks: common/check_store_apps.yml
 
+    - name: Resolve Dynatrace API
+      ansible.builtin.include_tasks: sources/dynatrace/tasks/resolve_dt_api.yml
+
+    - name: Validate platform, dependency, and RTE compatibility
+      ansible.builtin.include_tasks: common/validate_compatibility.yml
+
     - name: Report version pinning and update availability
       ansible.builtin.debug:
         msg: >-
@@ -51,9 +57,6 @@
         var: sn_rest_json.result
 
     # ----- Dynatrace side -------------------------------------------------------
-    - name: Resolve Dynatrace API
-      ansible.builtin.include_tasks: sources/dynatrace/tasks/resolve_dt_api.yml
-
     - name: Query Dynatrace HOST entities (sample)
       ansible.builtin.uri:
         url: "{{ dt_api_url_resolved }}/v2/entities?entitySelector=type(HOST)&pageSize=50"

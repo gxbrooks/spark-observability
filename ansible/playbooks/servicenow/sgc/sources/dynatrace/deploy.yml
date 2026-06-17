@@ -1,0 +1,56 @@
+---
+# Dynatrace SGC source deploy — automated topology configuration.
+# Idempotent and on-needed: every write is preceded by a state read and skipped
+# when the instance already matches the desired state.
+#
+# Automates:
+#   - Global-scope copy of the SNC.ImpactManager mediator script (the Guided
+#     Setup "Enable Access To SNC.ImpactManager" card)
+#   - management-zone id resolution from the Dynatrace API
+#   - management-zone scoping on the SGC connection row and scoped properties
+#   - activation of the SGO-Dynatrace Hosts scheduled import
+#
+# Cannot automate (admin-gated; see docs/deploy.md):
+#   - the SGC connection credential (Dynatrace URL + API token behind the
+#     credential alias) — Connections & Credentials are ACL-protected
+#   - the first "Execute Now" import run
+#
+# Prerequisites: sgc/install.yml has run (scoped app installed) and the
+# Dynatrace management zone exists (observability/dynatrace/deploy.yml).
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml \
+#     playbooks/servicenow/sgc/sources/dynatrace/deploy.yml -e @../vars/secrets.yaml
+
+- name: Deploy Dynatrace SGC topology configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Resolve Dynatrace API settings
+      ansible.builtin.include_tasks: tasks/resolve_dt_api.yml
+
+    - name: Check SGC application presence
+      ansible.builtin.include_tasks: tasks/check_sgc_prerequisites.yml
+
+    - name: Stop when SGC scoped application is not installed
+      ansible.builtin.fail:
+        msg: |
+          Service Graph Connector for Observability – Dynatrace is not installed on {{ sn_url }}.
+          Run playbooks/servicenow/sgc/install.yml first (manual fallback: docs/install.md §7),
+          then re-run this playbook.
+      when: not sn_sgc_scope_present | bool
+
+    - name: Ensure ImpactManager mediator script is accessible from Global scope
+      ansible.builtin.include_tasks: tasks/ensure_impactmanager_script.yml
+
+    - name: Ensure SGC Dynatrace credential and connection hostname
+      ansible.builtin.include_tasks: tasks/ensure_sgc_credential.yml
+
+    - name: Apply SGC topology configuration
+      ansible.builtin.include_tasks: tasks/apply_sgc_topology_config.yml

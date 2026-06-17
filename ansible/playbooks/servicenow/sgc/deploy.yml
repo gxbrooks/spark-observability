@@ -30,9 +30,11 @@
           See ansible/playbooks/servicenow/sgc/README.md
       when: not sn_sgc_scope_present | bool
 
-    - name: Remind operator to run SGC scheduled imports
+    - name: Point operator at the Dynatrace source deploy
       ansible.builtin.debug:
         msg: |
-          SGC application detected. Run scheduled imports from ServiceNow:
-            Dynatrace Observability → Scheduled Data Imports → Execute (Hosts, then Processes/Services)
-          Wait for Concurrent Import Sets to finish, then verify sys_object_source rows for SGO-Dynatrace.
+          SGC application detected. Next:
+            1. One-time connection credential (manual): sources/dynatrace/docs/deploy.md §1
+            2. ansible-playbook playbooks/servicenow/sgc/sources/dynatrace/deploy.yml -e @../vars/secrets.yaml
+            3. First import run (manual, one-time): sources/dynatrace/docs/deploy.md §2
+          Then verify sys_object_source rows for SGO-Dynatrace via diagnose.yml.

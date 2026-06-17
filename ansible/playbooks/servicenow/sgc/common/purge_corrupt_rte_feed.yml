@@ -1,0 +1,97 @@
+---
+# Remove orphaned sys_rte_eb_field_mapping rows for one SGO-Dynatrace RTE feed.
+#
+# Orphaned mappings reference deleted sys_rte_eb_field records and cause Import
+# Log NullPointerException during transform. Deleting them is safe when the
+# referenced fields no longer exist (lab reset / no data to preserve).
+#
+# Expects:
+#   sn_sgc_rte_feed — dict with sys_id, name from cmdb_inst_application_feed
+#
+# Appends deleted sys_ids to sn_sgc_rte_orphan_map_ids (running total).
+
+- name: "Reset feed-local orphan list for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.set_fact:
+    sn_sgc_rte_feed_orphan_map_ids: []
+  run_once: true
+
+- name: "Load RTE fields for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_rte_eb_field?sysparm_query=sys_rte_eb_definition={{
+      sn_sgc_rte_feed.sys_id }}&sysparm_fields=sys_id&sysparm_limit=500
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_rte_feed_fields
+  no_log: true
+  delegate_to: localhost
+
+- name: "Load RTE field mappings for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_rte_eb_field_mapping?sysparm_query=sys_rte_eb_definition={{
+      sn_sgc_rte_feed.sys_id }}&sysparm_fields=sys_id,source_sys_rte_eb_field,target_sys_rte_eb_field&sysparm_limit=500
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_rte_feed_maps
+  no_log: true
+  delegate_to: localhost
+
+- name: "Identify orphaned mappings for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.set_fact:
+    sn_sgc_rte_feed_orphan_map_ids: >-
+      {{ sn_sgc_rte_feed_orphan_map_ids + ([item.sys_id] if (
+           (item.source_sys_rte_eb_field is mapping
+            and item.source_sys_rte_eb_field.value | length > 0
+            and item.source_sys_rte_eb_field.value not in sn_sgc_rte_feed_field_ids)
+           or (item.target_sys_rte_eb_field is mapping
+               and item.target_sys_rte_eb_field.value | length > 0
+               and item.target_sys_rte_eb_field.value not in sn_sgc_rte_feed_field_ids)
+         ) else []) }}
+  vars:
+    sn_sgc_rte_feed_field_ids: >-
+      {{ sn_sgc_rte_feed_fields.json.result | default([]) | map(attribute='sys_id') | list }}
+  loop: "{{ sn_sgc_rte_feed_maps.json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.sys_id }}"
+  run_once: true
+
+- name: "Delete orphaned mappings for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sys_rte_eb_field_mapping/{{ item }}"
+    method: DELETE
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [204, 404]
+    return_content: true
+  loop: "{{ sn_sgc_rte_feed_orphan_map_ids | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+  delegate_to: localhost
+
+- name: "Accumulate orphaned mapping purge count for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.set_fact:
+    sn_sgc_rte_orphan_map_ids: >-
+      {{ (sn_sgc_rte_orphan_map_ids | default([]))
+         + (sn_sgc_rte_feed_orphan_map_ids | default([])) }}
+  run_once: true
+
+- name: "Report orphaned mapping purge for {{ sn_sgc_rte_feed.name }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_sgc_rte_feed.name }}: deleted
+      {{ sn_sgc_rte_feed_orphan_map_ids | default([]) | length }} orphaned RTE field mapping(s)
+  when: sn_sgc_rte_feed_orphan_map_ids | default([]) | length > 0

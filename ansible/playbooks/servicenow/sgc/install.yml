@@ -17,154 +17,277 @@
 #
 # Usage:
 #   cd ansible
+#   # Default — install missing Store apps and plugins (idempotent)
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml -e @../vars/secrets.yaml
+#
+#   # Repair or reinstall the Dynatrace SGC scoped app (App Manager API)
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+#     -e @../vars/secrets.yaml -e sn_sgc_app_mode=repair
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+#     -e @../vars/secrets.yaml -e sn_sgc_app_mode=reinstall
+#
+#   # Lab reset — purge corrupt RTE metadata + SGO discovery data (no admin UI)
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
+#     -e @../vars/secrets.yaml -e sn_sgc_app_mode=reset
+#
+# Extra variables:
+#   sn_sgc_app_mode — install (default) | repair | reinstall | reset
+#   sn_sgc_maintain_scopes — scopes to repair/reinstall (default: [sn_dynatrace_integ])
+#   sn_sgc_reset_purge_lab_data — when reset, delete SGO CMDB/object_source rows (default: true)
 
 - name: Install ServiceNow Store applications and plugins for Dynatrace SGC
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    sn_sgc_app_mode: install
+    sn_sgc_maintain_scopes:
+      - sn_dynatrace_integ
+    sn_sgc_reset_purge_lab_data: true
   vars_files:
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/store_apps.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
+    - name: Validate sn_sgc_app_mode
+      ansible.builtin.assert:
+        that:
+          - sn_sgc_app_mode in ['install', 'repair', 'reinstall', 'reset']
+        fail_msg: >-
+          sn_sgc_app_mode must be install, repair, reinstall, or reset (got
+          {{ sn_sgc_app_mode }}).
+
     - name: Check current component state
       ansible.builtin.include_tasks: common/check_store_apps.yml
 
-    - name: Classify components needing action
-      ansible.builtin.set_fact:
-        sn_apps_missing: >-
-          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
-             | rejectattr('installed') | list }}
-        sn_plugins_to_activate: >-
-          {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
-             | rejectattr('installed') | list }}
+    - name: Validate platform, dependency, and RTE compatibility
+      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      when: sn_sgc_app_mode != 'reset'
 
-    - name: Report nothing to do
-      ansible.builtin.debug:
-        msg: "All required Store applications are installed — nothing to install."
-      when:
-        - sn_apps_missing | length == 0
-        - sn_plugins_to_activate | length == 0
-
-    # Bootstrap preflight — only when there is something to install (on-needed).
-    # Fails fast with the exact missing manual step (plugin vs role grant).
-    - name: Check CI/CD bootstrap prerequisites
-      ansible.builtin.include_tasks: common/check_cicd_bootstrap.yml
-      when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
-
-    - name: Warn on pinned-version drift (not auto-upgraded)
+    # ----- Reset mode (automated lab rebuild without admin uninstall UI) ------
+    - name: Report reset mode start
       ansible.builtin.debug:
         msg: >-
-          {{ item.scope }}: installed v{{ item.installed_version }} differs from pinned
-          v{{ item.pinned_version }}. Review and either update the pin in
-          sgc/common/store_apps.yml or upgrade the app deliberately —
-          this playbook does not upgrade apps on a shared instance.
-      loop: >-
-        {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
-           | selectattr('installed')
-           | selectattr('pinned_version', '!=', '')
-           | list }}
+          Mode reset: purge corrupt SGO-Dynatrace RTE metadata{{
+          ' and lab discovery data' if sn_sgc_reset_purge_lab_data | bool else ''
+          }}. Full Store app uninstall is not available via API for the
+          automation user — this removes the corrupt table rows that cause
+          Import Log NPEs without retaining damaged metadata.
+      when: sn_sgc_app_mode == 'reset'
+
+    - name: Purge orphaned RTE field mappings for SGO-Dynatrace feeds
+      ansible.builtin.include_tasks: common/purge_corrupt_rte.yml
+      when: sn_sgc_app_mode == 'reset'
+
+    - name: Purge SGO-Dynatrace lab CMDB and object-source rows
+      ansible.builtin.include_tasks: common/purge_sgc_lab_data.yml
+      when:
+        - sn_sgc_app_mode == 'reset'
+        - sn_sgc_reset_purge_lab_data | bool
+
+    - name: Re-validate compatibility after reset
+      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      when: sn_sgc_app_mode == 'reset'
+
+    - name: Assert reset cleared orphaned RTE references
+      ansible.builtin.assert:
+        that:
+          - sn_sgc_rte_broken_field_refs | default(0) | int == 0
+        fail_msg: >-
+          reset did not clear all orphaned RTE field references on SGO-Dynatrace
+          Hosts ({{ sn_sgc_rte_broken_field_refs }} remaining). Request Optimiz to
+          grant sn_appclient.app_client_company_installer for a full UI Uninstall
+          (without retaining tables/data), then run install.yml (default mode).
+        success_msg: >-
+          Reset complete — orphaned RTE refs cleared. Re-run
+          sources/dynatrace/deploy.yml, Execute Now on SGO-Dynatrace Hosts, then
+          diagnose.yml.
+      when: sn_sgc_app_mode == 'reset'
+
+    # ----- Maintain modes (repair / reinstall) --------------------------------
+    - name: Select scoped apps to repair or reinstall
+      ansible.builtin.set_fact:
+        sn_apps_to_maintain: >-
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+             | selectattr('scope', 'in', sn_sgc_maintain_scopes)
+             | selectattr('installed') | list }}
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
+
+    - name: Report maintain mode start
+      ansible.builtin.debug:
+        msg: >-
+          Mode {{ sn_sgc_app_mode }}: {{ item.scope }} v{{ item.installed_version }}
+      loop: "{{ sn_apps_to_maintain | default([]) }}"
       loop_control:
         label: "{{ item.scope }}"
-      when: item.installed_version != item.pinned_version
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
 
-    # ----- Store apps (CI/CD App Repo Install) --------------------------------
-    # /api/sn_cicd/app_repo/install accepts the application *scope* directly,
-    # so no sys_store_app read is required — only sn_cicd.sys_ci_automation.
-    # Apps install sequentially in manifest order (later apps depend on earlier
-    # ones); each install is polled to completion before the next starts.
-    - name: Install missing Store apps via CI/CD App Repo API (manifest order)
-      ansible.builtin.include_tasks: common/install_store_app.yml
-      loop: "{{ sn_apps_missing }}"
+    - name: Repair or reinstall scoped Store apps via App Manager API
+      ansible.builtin.include_tasks: common/maintain_store_app.yml
+      loop: "{{ sn_apps_to_maintain | default([]) }}"
       loop_control:
         loop_var: sn_app
         label: "{{ sn_app.scope }}"
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
 
-    # ----- Plugins (CI/CD plugin activation) ----------------------------------
-    - name: Notify that plugin activation is being (re)done
-      ansible.builtin.debug:
-        msg: >-
-          Plugin {{ item.scope }}: state
-          {{ 'is NOT ACTIVE' if item.status_known else 'cannot be verified via API (sys_plugins not readable)' }}
-          — requesting activation{{ ' again (action is being redone)' if not item.status_known else '' }}.
-      loop: "{{ sn_plugins_to_activate }}"
-      loop_control:
-        label: "{{ item.scope }}"
-
-    - name: Request plugin activation via CI/CD API
-      ansible.builtin.uri:
-        url: "{{ sn_url }}/api/sn_cicd/plugin/{{ item.scope }}/activate"
-        method: POST
-        user: "{{ sn_user }}"
-        password: "{{ sn_password }}"
-        force_basic_auth: true
-        headers: "{{ sn_api_headers }}"
-        status_code: [200, 202, 400, 403, 404]
-        return_content: true
-      register: sn_plugin_activations
-      loop: "{{ sn_plugins_to_activate }}"
-      loop_control:
-        label: "{{ item.scope }}"
-      no_log: true
-      delegate_to: localhost
-
-    - name: Report plugin activation outcome
-      ansible.builtin.debug:
-        msg: >-
-          Plugin {{ item.item.scope }}: HTTP {{ item.status }}
-          {{ '— activation accepted/queued' if item.status in [200, 202]
-             else ('— already active or invalid request: ' ~ (item.json.error.message | default(''))
-                   if item.status == 400
-                   else '— not authorized (grant sn_cicd.sys_ci_automation) or plugin id unknown; request manually: System Definition → Plugins (docs/install.md §7)') }}
-      loop: "{{ sn_plugin_activations.results | default([]) }}"
-      loop_control:
-        label: "{{ item.item.scope }}"
-
-    - name: Wait for plugin activation to complete
-      ansible.builtin.include_tasks: common/poll_cicd_progress.yml
-      vars:
-        sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
-      loop: "{{ sn_plugin_activations.results | default([]) }}"
-      loop_control:
-        label: "{{ item.item.scope }}"
-      when:
-        - item.status in [200, 202]
-        - item.json.result.links.progress.url is defined
-
-    # ----- Re-check and final gate --------------------------------------------
-    - name: Reset component status facts before re-check
+    - name: Reset component status facts after maintain
       ansible.builtin.set_fact:
         sn_store_app_status: []
         sn_store_rows_by_scope: {}
-      when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
 
-    - name: Re-check component state after installs
+    - name: Re-check component state after maintain
       ansible.builtin.include_tasks: common/check_store_apps.yml
-      when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
 
-    - name: Assert all required Store applications are installed
+    - name: Re-validate compatibility after maintain
+      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
+
+    - name: Assert maintain mode completed without failures
       ansible.builtin.assert:
         that:
-          - sn_store_app_status | selectattr('type', 'equalto', 'store_app')
-            | rejectattr('installed') | list | length == 0
+          - (sn_apps_failed | default([])) | length == 0
+          - sn_sgc_rte_broken_field_refs | default(0) | int == 0
         fail_msg: >-
-          Store apps still missing:
-          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
-             | rejectattr('installed') | map(attribute='scope') | list }}.
-          Install manually per docs/install.md §7 "Manual Store install", then
-          re-run this playbook (already-installed apps are skipped).
-        success_msg: "All required Store applications are installed."
+          {{ sn_sgc_app_mode }} did not fully remediate the scoped app(s).
+          Failed scopes: {{ sn_apps_failed | default([]) }}.
+          RTE broken refs: {{ sn_sgc_rte_broken_field_refs | default('unknown') }}.
+          Use manual Repair in System Applications (admin account) — see
+          docs/install.md §7 "Application maintain modes". Then Execute Now on
+          SGO-Dynatrace Hosts and re-run diagnose.yml.
+      when: sn_sgc_app_mode in ['repair', 'reinstall']
 
-    - name: Note unverifiable plugin state
-      ansible.builtin.debug:
-        msg: >-
-          Plugin state for
-          {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
-             | rejectattr('status_known') | map(attribute='scope') | list }}
-          cannot be verified with the current API access. Verify in the UI under
-          System Definition → Plugins, or grant read on sys_plugins.
-      when: >-
-        sn_store_app_status | selectattr('type', 'equalto', 'plugin')
-        | rejectattr('status_known') | list | length > 0
+    # ----- Default install mode -----------------------------------------------
+    - name: Install missing Store apps and plugins
+      when: sn_sgc_app_mode == 'install'
+      block:
+        - name: Classify components needing action
+          ansible.builtin.set_fact:
+            sn_apps_missing: >-
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+                 | rejectattr('installed') | list }}
+            sn_plugins_to_activate: >-
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+                 | rejectattr('installed') | list }}
+
+        - name: Report nothing to do
+          ansible.builtin.debug:
+            msg: "All required Store applications are installed — nothing to install."
+          when:
+            - sn_apps_missing | length == 0
+            - sn_plugins_to_activate | length == 0
+
+        # Bootstrap preflight — only when there is something to install (on-needed).
+        - name: Check CI/CD bootstrap prerequisites
+          ansible.builtin.include_tasks: common/check_cicd_bootstrap.yml
+          when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+
+        - name: Warn on pinned-version drift (not auto-upgraded)
+          ansible.builtin.debug:
+            msg: >-
+              {{ item.scope }}: installed v{{ item.installed_version }} differs from pinned
+              v{{ item.pinned_version }}. Review and either update the pin in
+              sgc/common/store_apps.yml or upgrade the app deliberately —
+              this playbook does not upgrade apps on a shared instance.
+          loop: >-
+            {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+               | selectattr('installed')
+               | selectattr('pinned_version', '!=', '')
+               | list }}
+          loop_control:
+            label: "{{ item.scope }}"
+          when: item.installed_version != item.pinned_version
+
+        - name: Install missing Store apps via CI/CD App Repo API (manifest order)
+          ansible.builtin.include_tasks: common/install_store_app.yml
+          loop: "{{ sn_apps_missing }}"
+          loop_control:
+            loop_var: sn_app
+            label: "{{ sn_app.scope }}"
+
+        - name: Notify that plugin activation is being (re)done
+          ansible.builtin.debug:
+            msg: >-
+              Plugin {{ item.scope }}: state
+              {{ 'is NOT ACTIVE' if item.status_known else 'cannot be verified via API (sys_plugins not readable)' }}
+              — requesting activation{{ ' again (action is being redone)' if not item.status_known else '' }}.
+          loop: "{{ sn_plugins_to_activate }}"
+          loop_control:
+            label: "{{ item.scope }}"
+
+        - name: Request plugin activation via CI/CD API
+          ansible.builtin.uri:
+            url: "{{ sn_url }}/api/sn_cicd/plugin/{{ item.scope }}/activate"
+            method: POST
+            user: "{{ sn_user }}"
+            password: "{{ sn_password }}"
+            force_basic_auth: true
+            headers: "{{ sn_api_headers }}"
+            status_code: [200, 202, 400, 403, 404]
+            return_content: true
+          register: sn_plugin_activations
+          loop: "{{ sn_plugins_to_activate }}"
+          loop_control:
+            label: "{{ item.scope }}"
+          no_log: true
+          delegate_to: localhost
+
+        - name: Report plugin activation outcome
+          ansible.builtin.debug:
+            msg: >-
+              Plugin {{ item.item.scope }}: HTTP {{ item.status }}
+              {{ '— activation accepted/queued' if item.status in [200, 202]
+                 else ('— already active or invalid request: ' ~ (item.json.error.message | default(''))
+                       if item.status == 400
+                       else '— not authorized (grant sn_cicd.sys_ci_automation) or plugin id unknown; request manually: System Definition → Plugins (docs/install.md §7)') }}
+          loop: "{{ sn_plugin_activations.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item.scope }}"
+
+        - name: Wait for plugin activation to complete
+          ansible.builtin.include_tasks: common/poll_cicd_progress.yml
+          vars:
+            sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
+          loop: "{{ sn_plugin_activations.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item.scope }}"
+          when:
+            - item.status in [200, 202]
+            - item.json.result.links.progress.url is defined
+
+        - name: Reset component status facts before re-check
+          ansible.builtin.set_fact:
+            sn_store_app_status: []
+            sn_store_rows_by_scope: {}
+          when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+
+        - name: Re-check component state after installs
+          ansible.builtin.include_tasks: common/check_store_apps.yml
+          when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
+
+        - name: Assert all required Store applications are installed
+          ansible.builtin.assert:
+            that:
+              - sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+                | rejectattr('installed') | list | length == 0
+            fail_msg: >-
+              Store apps still missing:
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+                 | rejectattr('installed') | map(attribute='scope') | list }}.
+              Install manually per docs/install.md §7 "Manual Store install", then
+              re-run this playbook (already-installed apps are skipped).
+            success_msg: "All required Store applications are installed."
+
+        - name: Note unverifiable plugin state
+          ansible.builtin.debug:
+            msg: >-
+              Plugin state for
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+                 | rejectattr('status_known') | map(attribute='scope') | list }}
+              cannot be verified with the current API access. Verify in the UI under
+              System Definition → Plugins, or grant read on sys_plugins.
+          when: >-
+            sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+            | rejectattr('status_known') | list | length > 0
