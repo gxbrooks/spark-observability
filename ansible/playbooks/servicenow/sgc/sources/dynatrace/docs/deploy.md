@@ -13,8 +13,9 @@ Run order for this source:
 2. **Manual step 1 below** — grant `connection_admin` (one-time).
 3. `playbooks/servicenow/sgc/sources/dynatrace/deploy.yml` — automated
    topology configuration, credential, and connection Hostname.
-4. **Manual step 2 below** — first import execution (one-time).
-5. `playbooks/servicenow/sgc/test.yml` / `diagnose.yml` — verification.
+4. `playbooks/servicenow/sgc/sources/dynatrace/start.yml` — queue Execute Now
+   on SGO-Dynatrace Hosts and monitor the import cascade.
+5. `playbooks/servicenow/sgc/diagnose.yml` — verification.
 
 ## Dynatrace tokens (who holds what)
 
@@ -29,8 +30,13 @@ always means minting a replacement token. Three tokens are involved:
 
 `deploy.yml` mints the SGC token on first run. On-needed: when the token
 already exists the play skips with an informational message (token values are
-not retrievable after creation). Rotate any time with
-`-e sgc_rotate_token=true` — deletes, re-mints, validates, re-pushes.
+not retrievable after creation) **unless** the scoped app was updated after the
+last processed **SGO-Dynatrace Hosts** import — then it auto re-mints and
+re-pushes (detected via `sys_scope.sys_updated_on` vs `sys_import_set`). That
+covers Store uninstall/reinstall leaving a stale ServiceNow credential while
+the Dynatrace token still exists. Force rotation any time with
+`-e sgc_rotate_token=true`; disable auto detection with
+`-e sgc_auto_rotate_token=false`.
 
 ## Guided Setup map (app v1.14.x)
 
@@ -99,17 +105,44 @@ For the remaining two Basic tasks (*Create Default Notification Payload
 Template*, *Upgrade Source Native Keys*), see the Guided Setup map above —
 Mark as Complete without running them.
 
-## Manual step 2 — first import execution (one-time)
+## Import execution — start.yml (automated)
 
-`deploy.yml` activates the **SGO-Dynatrace Hosts** scheduled import (child
-imports for processes, services, and relationships chain after it), but the
-integration user is not authorized to trigger an immediate run.
+ServiceNow does not expose `gs.executeNow()` on `scheduled_import_set` as a
+documented REST endpoint. The supported external-automation pattern (same path
+the UI **Execute Now** button uses) is:
+
+1. PATCH `scheduled_import_set` with `run_start` ≈ now + 30s and `run_type=once`
+2. Let the platform scheduler enqueue `com.snc.automation.ScheduledImportSetJob`
+3. Restore the original daily schedule (`run_type`, `run_start`, `run_time`)
+4. Monitor `sys_concurrent_import_set`, `sys_import_set`, and `import_log`
+
+`start.yml` implements that flow and polls every **5 minutes** (default) until
+the batch reaches a terminal state or times out (default 60 minutes).
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml \
+  playbooks/servicenow/sgc/sources/dynatrace/start.yml -e @../vars/secrets.yaml
+```
+
+Monitor an already-running batch (skip Execute Now):
+
+```bash
+ansible-playbook -i inventory.yml \
+  playbooks/servicenow/sgc/sources/dynatrace/start.yml \
+  -e @../vars/secrets.yaml -e sgc_import_execute=false
+```
+
+Optional overrides: `sgc_import_poll_interval` (seconds), `sgc_import_poll_retries`,
+`sgc_import_skip_if_running=false` (force a new run).
+
+### Manual fallback — Execute Now in the UI
+
+If `scheduled_import_set` write is denied (HTTP 403):
 
 1. Navigate to **Dynatrace Observability → Scheduled Data Imports**.
 2. Open **SGO-Dynatrace Hosts** and click **Execute Now**.
-3. Monitor **Concurrent Import Sets** until all child imports complete.
-
-Subsequent runs happen on the schedule; no further manual action is needed.
+3. Re-run `start.yml -e sgc_import_execute=false` to monitor progress.
 
 ## Verification
 

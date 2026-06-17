@@ -1,0 +1,134 @@
+---
+# Decide whether to re-mint and re-push the SGC Dynatrace API token.
+#
+# Dynatrace token values are not readable after creation; when the token already
+# exists in Dynatrace, ensure_sgc_credential.yml otherwise assumes the ServiceNow
+# credential still holds it. That breaks after Store uninstall/reinstall: the
+# scoped app is rebuilt (sys_scope.sys_updated_on advances) but the Dynatrace
+# token and a stale SN credential can remain.
+#
+# Heuristic (when sgc_auto_rotate_token is true, the default):
+#   Re-mint if the scoped app was updated AFTER the last *processed* Hosts import,
+#   or if no processed Hosts import exists yet but a Dynatrace token already exists.
+#
+# Note: sys_scope.sys_created_on is the original Store install date and is NOT
+# reset on reinstall; sys_updated_on reflects install/reinstall/repair activity.
+#
+# Sets:
+#   sn_sgc_scope_updated_on, sn_sgc_last_hosts_import_on, sgc_rotate_token_resolved
+#
+# Manual override: -e sgc_rotate_token=true always wins.
+# Disable auto detection: -e sgc_auto_rotate_token=false
+
+- name: Read sn_dynatrace_integ scope install metadata
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_scope?sysparm_query=scope={{ sn_sgc_app_scope }}&sysparm_fields=sys_id,scope,version,sys_created_on,sys_updated_on&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_scope_meta
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record scoped app update timestamp
+  ansible.builtin.set_fact:
+    sn_sgc_scope_updated_on: >-
+      {{ (sn_sgc_scope_meta.json.result | first).sys_updated_on | default('') }}
+    sn_sgc_scope_version: >-
+      {{ (sn_sgc_scope_meta.json.result | first).version | default('') }}
+  when: sn_sgc_scope_meta.json.result | default([]) | length > 0
+  run_once: true
+
+- name: Default scoped app metadata when scope row is missing
+  ansible.builtin.set_fact:
+    sn_sgc_scope_updated_on: ''
+    sn_sgc_scope_version: ''
+  when: sn_sgc_scope_meta.json.result | default([]) | length == 0
+  run_once: true
+
+- name: Read last processed SGO-Dynatrace Hosts import
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_import_set?sysparm_query=table_name={{
+      sgc_hosts_import_table }}^state=processed^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,sys_created_on,state&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_last_hosts_import
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record last successful Hosts import timestamp
+  ansible.builtin.set_fact:
+    sn_sgc_last_hosts_import_on: >-
+      {{ (sn_sgc_last_hosts_import.json.result | first).sys_created_on | default('') }}
+    sn_sgc_last_hosts_import_number: >-
+      {{ (sn_sgc_last_hosts_import.json.result | first).number | default('') }}
+  when: sn_sgc_last_hosts_import.json.result | default([]) | length > 0
+  run_once: true
+
+- name: Default when no processed Hosts import exists
+  ansible.builtin.set_fact:
+    sn_sgc_last_hosts_import_on: ''
+    sn_sgc_last_hosts_import_number: ''
+  when: sn_sgc_last_hosts_import.json.result | default([]) | length == 0
+  run_once: true
+
+- name: Resolve whether token re-mint is required
+  ansible.builtin.set_fact:
+    sgc_rotate_token_resolved: >-
+      {{ (sgc_rotate_token | default(false) | bool)
+         or (
+           (sgc_auto_rotate_token | default(true) | bool)
+           and (
+             (sn_sgc_last_hosts_import_on | default('') | length == 0)
+             or (
+               (sn_sgc_scope_updated_on | default('') | length > 0)
+               and (sn_sgc_scope_updated_on > sn_sgc_last_hosts_import_on)
+             )
+           )
+         ) }}
+  run_once: true
+
+- name: Report manual token rotation override
+  ansible.builtin.debug:
+    msg: Token re-mint requested explicitly (-e sgc_rotate_token=true).
+  when: sgc_rotate_token | default(false) | bool
+  run_once: true
+
+- name: Report automatic token re-mint after scoped app rebuild
+  ansible.builtin.debug:
+    msg: >-
+      Auto re-mint: sn_dynatrace_integ v{{ sn_sgc_scope_version }} was updated at
+      {{ sn_sgc_scope_updated_on }}, after the last processed Hosts import{{
+      ' (' ~ sn_sgc_last_hosts_import_number ~ ' @ ' ~ sn_sgc_last_hosts_import_on ~ ')'
+      if (sn_sgc_last_hosts_import_on | default('') | length > 0) else ' (none yet)' }}.
+      The ServiceNow credential may be stale after install/reinstall — re-minting
+      dynatrace-servicenow-sgc-integration and re-pushing to api_key_credentials.
+  when:
+    - not (sgc_rotate_token | default(false) | bool)
+    - sgc_rotate_token_resolved | bool
+  run_once: true
+
+- name: Report token rotation not needed
+  ansible.builtin.debug:
+    msg: >-
+      Token re-mint not required: scoped app last updated {{ sn_sgc_scope_updated_on }},
+      last processed Hosts import {{
+      sn_sgc_last_hosts_import_number ~ ' @ ' ~ sn_sgc_last_hosts_import_on
+      if (sn_sgc_last_hosts_import_on | default('') | length > 0) else 'none' }}.
+  when:
+    - not (sgc_rotate_token_resolved | bool)
+    - sn_sgc_scope_updated_on | default('') | length > 0
+  run_once: true

@@ -11,9 +11,10 @@
 #   - activation of the SGO-Dynatrace Hosts scheduled import
 #
 # Cannot automate (admin-gated; see docs/deploy.md):
-#   - the SGC connection credential (Dynatrace URL + API token behind the
-#     credential alias) — Connections & Credentials are ACL-protected
-#   - the first "Execute Now" import run
+#   - the first-time Guided Setup connection test (optional sanity check)
+#
+# Import execution: sources/dynatrace/start.yml queues Execute Now via the Table
+# API and monitors the cascade (replaces manual Execute Now in docs/deploy.md §2).
 #
 # Prerequisites: sgc/install.yml has run (scoped app installed) and the
 # Dynatrace management zone exists (observability/dynatrace/deploy.yml).

@@ -1,0 +1,228 @@
+---
+# Trigger Execute Now for the SGO-Dynatrace Hosts scheduled import.
+#
+# ServiceNow has no documented REST endpoint for gs.executeNow() on
+# scheduled_import_set. The supported external-automation pattern (Table API +
+# scheduler) is to set run_start near-now and run_type=once; the platform
+# scheduler enqueues com.snc.automation.ScheduledImportSetJob (same as the UI
+# Execute Now control). The original schedule is restored after the batch is
+# queued.
+#
+# Expects: sn_sgc_hosts_sched_row (resolve_hosts_scheduled_import.yml)
+# Sets: sn_sgc_import_cis_sys_id, sn_sgc_import_batch_start, sgc_import_triggered
+
+- name: Resolve Hosts scheduled import when row fact is missing
+  ansible.builtin.include_tasks: resolve_hosts_scheduled_import.yml
+  when: sn_sgc_hosts_sched_row.sys_id is not defined
+
+- name: Record schedule snapshot before Execute Now
+  ansible.builtin.set_fact:
+    sn_sgc_sched_run_type_before: "{{ sn_sgc_hosts_sched_row.run_type | default('daily') }}"
+    sn_sgc_sched_run_start_before: "{{ sn_sgc_hosts_sched_row.run_start | default('') }}"
+    sn_sgc_sched_run_time_before: "{{ sn_sgc_hosts_sched_row.run_time | default('') }}"
+  run_once: true
+
+- name: Read latest Hosts concurrent import set
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_concurrent_import_set?sysparm_query=scheduled_import={{
+      sn_sgc_hosts_sched_row.sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,sys_created_on,transaction_id&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_latest_cis
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record latest concurrent import set
+  ansible.builtin.set_fact:
+    sn_sgc_latest_cis_row: "{{ sn_sgc_latest_cis.json.result | default([]) | first | default({}) }}"
+  run_once: true
+
+- name: Detect in-progress import sets for the latest batch
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_import_set?sysparm_query=sys_created_on>={{
+      sn_sgc_latest_cis_row.sys_created_on | default('1970-01-01 00:00:00') | urlencode
+      }}^stateINloading,loaded,processing,pending,transforming&sysparm_fields=sys_id&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_inprogress_imports
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+  when: sn_sgc_latest_cis_row.sys_created_on is defined
+
+- name: Default in-progress probe when no prior concurrent import set
+  ansible.builtin.set_fact:
+    sn_sgc_inprogress_imports:
+      json:
+        result: []
+  when: sn_sgc_latest_cis_row.sys_created_on is not defined
+  run_once: true
+
+- name: Decide whether a batch is already running
+  ansible.builtin.set_fact:
+    sgc_import_already_running: >-
+      {{ (sgc_import_skip_if_running | default(true) | bool)
+         and ((sn_sgc_inprogress_imports.json.result | default([]) | length > 0)) }}
+    sgc_import_triggered: false
+  run_once: true
+
+- name: Skip Execute Now when a batch is already in progress
+  ansible.builtin.debug:
+    msg: >-
+      Skipping Execute Now — import sets are still in a non-terminal state for concurrent import
+      {{ sn_sgc_latest_cis_row.number | default('unknown') }}
+      @ {{ sn_sgc_latest_cis_row.sys_created_on | default('unknown') }}.
+      Monitoring only; pass -e sgc_import_skip_if_running=false to force a new run.
+  when: sgc_import_already_running | bool
+  run_once: true
+
+- name: Attach monitor context to the running batch
+  ansible.builtin.set_fact:
+    sn_sgc_import_cis_sys_id: "{{ sn_sgc_latest_cis_row.sys_id }}"
+    sn_sgc_import_batch_start: "{{ sn_sgc_latest_cis_row.sys_created_on }}"
+    sgc_import_triggered: false
+  when: sgc_import_already_running | bool
+  run_once: true
+
+- name: Queue Execute Now via scheduled_import_set run_start
+  when: not (sgc_import_already_running | bool)
+  block:
+    - name: Compute run_start for Execute Now
+      ansible.builtin.set_fact:
+        sgc_import_run_start: >-
+          {{ '%Y-%m-%d %H:%M:%S' | strftime(
+               (ansible_date_time.epoch | int) + (sgc_import_start_offset_seconds | default(30) | int)
+             ) }}
+      run_once: true
+
+    - name: Request Execute Now on SGO-Dynatrace Hosts
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/scheduled_import_set/{{ sn_sgc_hosts_sched_row.sys_id }}
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          run_start: "{{ sgc_import_run_start }}"
+          run_type: once
+        status_code: [200, 403]
+        return_content: true
+      register: sn_sgc_execute_now_patch
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+
+    - name: Report Execute Now request outcome
+      ansible.builtin.debug:
+        msg: >-
+          Execute Now request: HTTP {{ sn_sgc_execute_now_patch.status }}
+          {{ '— run_start set to ' ~ sgc_import_run_start ~ ' (run_type=once)'
+             if sn_sgc_execute_now_patch.status == 200
+             else '— not authorized; run Execute Now manually (docs/deploy.md §2)' }}
+      run_once: true
+
+    - name: Fail when Execute Now cannot be queued
+      ansible.builtin.fail:
+        msg: >-
+          Could not queue Execute Now on scheduled_import_set (HTTP {{
+          sn_sgc_execute_now_patch.status }}). Grant write on scheduled_import_set
+          or run Execute Now manually in Dynatrace Observability → Scheduled Data Imports.
+      when: sn_sgc_execute_now_patch.status != 200
+
+    - name: Wait for new Hosts concurrent import set
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/sys_concurrent_import_set?sysparm_query=scheduled_import={{
+          sn_sgc_hosts_sched_row.sys_id }}^sys_created_on>={{
+          sn_sgc_latest_cis_row.sys_created_on | default('1970-01-01 00:00:00') | urlencode
+          }}^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,sys_created_on&sysparm_limit=1
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+        return_content: true
+      register: sn_sgc_new_cis_poll
+      until: sn_sgc_new_cis_poll.json.result | default([]) | length > 0
+      retries: "{{ sgc_import_queue_retries | default(12) }}"
+      delay: "{{ sgc_import_queue_delay | default(10) }}"
+      failed_when: false
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+
+    - name: Record new concurrent import set
+      ansible.builtin.set_fact:
+        sn_sgc_import_cis_row: "{{ sn_sgc_new_cis_poll.json.result | first }}"
+        sn_sgc_import_cis_sys_id: "{{ (sn_sgc_new_cis_poll.json.result | first).sys_id }}"
+        sn_sgc_import_batch_start: "{{ (sn_sgc_new_cis_poll.json.result | first).sys_created_on }}"
+        sgc_import_triggered: true
+      when: sn_sgc_new_cis_poll.json.result | default([]) | length > 0
+      run_once: true
+
+    - name: Fail when concurrent import set did not appear
+      ansible.builtin.fail:
+        msg: >-
+          Execute Now was requested but no new sys_concurrent_import_set appeared within {{
+          (sgc_import_queue_retries | default(12) | int) * (sgc_import_queue_delay | default(10) | int) }}s.
+          Check Scheduled Data Imports in the UI and system logs.
+      when: sn_sgc_new_cis_poll.json.result | default([]) | length == 0
+
+    - name: Report queued concurrent import set
+      ansible.builtin.debug:
+        msg: >-
+          Execute Now queued — {{ sn_sgc_import_cis_row.number }} @
+          {{ sn_sgc_import_batch_start }} (Hosts cascade + child imports).
+      when: sgc_import_triggered | bool
+      run_once: true
+
+    - name: Restore daily schedule after Execute Now is queued
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/scheduled_import_set/{{ sn_sgc_hosts_sched_row.sys_id }}
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          run_type: "{{ sn_sgc_sched_run_type_before }}"
+          run_start: "{{ sn_sgc_sched_run_start_before }}"
+          run_time: "{{ sn_sgc_sched_run_time_before }}"
+        status_code: [200, 403]
+        return_content: true
+      register: sn_sgc_sched_restore
+      when:
+        - sgc_import_restore_schedule | default(true) | bool
+        - sn_sgc_sched_run_type_before | default('') | length > 0
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+
+    - name: Note schedule restoration outcome
+      ansible.builtin.debug:
+        msg: >-
+          Restored scheduled import cadence (run_type={{ sn_sgc_sched_run_type_before }},
+          run_start={{ sn_sgc_sched_run_start_before }}).
+      when:
+        - sn_sgc_sched_restore is not skipped
+        - sn_sgc_sched_restore.status | default(0) | int == 200
+      run_once: true

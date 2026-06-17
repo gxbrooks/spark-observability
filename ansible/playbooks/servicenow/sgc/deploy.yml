@@ -36,5 +36,5 @@
           SGC application detected. Next:
             1. One-time connection credential (manual): sources/dynatrace/docs/deploy.md §1
             2. ansible-playbook playbooks/servicenow/sgc/sources/dynatrace/deploy.yml -e @../vars/secrets.yaml
-            3. First import run (manual, one-time): sources/dynatrace/docs/deploy.md §2
+            3. First import run (automated): sources/dynatrace/start.yml
           Then verify sys_object_source rows for SGO-Dynatrace via diagnose.yml.

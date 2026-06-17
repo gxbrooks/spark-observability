@@ -1,0 +1,23 @@
+---
+# Poll SGO-Dynatrace import batch until terminal or timeout (recursive include).
+
+- name: Report current import batch progress
+  ansible.builtin.include_tasks: report_sgc_import_progress.yml
+
+- name: Wait before next progress poll
+  ansible.builtin.pause:
+    seconds: "{{ sgc_import_poll_interval | default(300) | int }}"
+  when: not (sgc_import_batch_complete | default(false) | bool)
+  run_once: true
+
+- name: Advance import poll iteration
+  ansible.builtin.set_fact:
+    sgc_import_poll_iteration: "{{ (sgc_import_poll_iteration | default(1) | int) + 1 }}"
+  when: not (sgc_import_batch_complete | default(false) | bool)
+  run_once: true
+
+- name: Continue import batch monitoring
+  ansible.builtin.include_tasks: monitor_sgc_import_batch.yml
+  when:
+    - not (sgc_import_batch_complete | default(false) | bool)
+    - (sgc_import_poll_iteration | default(1) | int) <= (sgc_import_poll_retries | default(12) | int)

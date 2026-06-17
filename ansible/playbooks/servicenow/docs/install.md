@@ -567,8 +567,8 @@ App Manager repair/reinstall fails preprocessing with `id: null`.
 `reset` deletes orphaned `sys_rte_eb_field_mapping` rows across all
 SGO-Dynatrace RTE feeds (the NPE root cause) and optionally purges CMDB /
 `sys_object_source` rows with `discovery_source=SGO-Dynatrace`. The scoped app
-stays installed; run `sources/dynatrace/deploy.yml` and **Execute Now** on
-**SGO-Dynatrace Hosts** afterward.
+stays installed; run `sources/dynatrace/deploy.yml` and
+`sources/dynatrace/start.yml` afterward.
 
 Set `sn_sgc_reset_purge_lab_data=false` to skip CMDB / object-source deletion.
 
@@ -592,12 +592,11 @@ below), then continue with steps 4–5.
 Pins in `sgc/common/store_apps.yml` match the Store dependency matrix for
 v1.15.0.
 
-**After repair — manual import (steps 4–5):**
+**After repair — run import (steps 4–5):**
 
-4. **Dynatrace Observability → Scheduled Data Imports → SGO-Dynatrace Hosts →
-   Execute Now**
-5. Open the import set → **Import Log** — confirm no
-   `NullPointerException`; check **Concurrent Import Sets** until processed.
+4. `playbooks/servicenow/sgc/sources/dynatrace/start.yml` — queues Execute Now
+   and monitors the cascade (or run Execute Now manually; see deploy.md).
+5. Confirm Import Log has no `NullPointerException`; lab feeds reach `processed`.
 
 #### E. Source deploy (mostly automated)
 
@@ -616,15 +615,15 @@ card requires manual configuration** — all six (app v1.14.x) are covered:
 | Set up scheduled import jobs | None — schedule activated by `deploy.yml` |
 
 See `../sgc/sources/dynatrace/docs/deploy.md` for the detailed card map,
-Dynatrace token model, and manual fallback. The two remaining manual steps
-live **outside** the wizard:
+Dynatrace token model, and manual fallbacks. Remaining manual steps **outside**
+the wizard:
 
 1. Grant `connection_admin` to `admin_brooks_lab` (one-time; lets the playbook
    set the connection Hostname).
-2. **Scheduled Data Imports** — run **Execute Now** on **SGO-Dynatrace Hosts**
-   (one-time); monitor **Concurrent Import Sets** until complete.
+2. Optional: run Basic card **Test Connection** as a sanity check.
 
-Then verify **`sys_object_source`** rows with `name=SGO-Dynatrace` and CMDB
+Import execution is automated by `sources/dynatrace/start.yml` after
+`deploy.yml`. Then verify **`sys_object_source`** rows with `name=SGO-Dynatrace` and CMDB
 CIs with `discovery_source=SGO-Dynatrace` (`sgc/diagnose.yml`).
 
 #### F. Ansible after SGC is installed

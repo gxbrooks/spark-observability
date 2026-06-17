@@ -1,0 +1,129 @@
+---
+# Report SGO-Dynatrace import batch progress (one poll iteration).
+#
+# Expects:
+#   sn_sgc_import_batch_start — sys_created_on of the Hosts concurrent import set
+#
+# Sets:
+#   sgc_import_batch_complete — true when no in-progress import sets remain
+#   sgc_import_batch_errors — list of import_log level-2 messages in the window
+
+- name: Assert import batch monitor window is set
+  ansible.builtin.assert:
+    that:
+      - sn_sgc_import_batch_start | default('') | length > 0
+    fail_msg: >-
+      sn_sgc_import_batch_start is not set — queue Execute Now first or use
+      -e sgc_import_monitor_only=true when a concurrent import already exists.
+  run_once: true
+
+- name: Read import sets for the current batch
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_import_set?sysparm_query=sys_created_on>={{
+      sn_sgc_import_batch_start | urlencode }}&sysparm_fields=number,table_name,state,sys_created_on&sysparm_limit=500
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_import_batch_rows
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Initialize lab feed and state counters
+  ansible.builtin.set_fact:
+    sgc_import_lab_state: {}
+    sgc_import_state_counts: {}
+  run_once: true
+
+- name: Index latest lab feed import set per table
+  ansible.builtin.set_fact:
+    sgc_import_lab_state: >-
+      {{ sgc_import_lab_state | combine({item.table_name: item})
+         if (item.table_name not in sgc_import_lab_state)
+            or (item.sys_created_on > sgc_import_lab_state[item.table_name].sys_created_on)
+         else sgc_import_lab_state }}
+  loop: "{{ sn_sgc_import_batch_rows.json.result | default([]) }}"
+  when: item.table_name in sgc_import_lab_feeds
+  run_once: true
+
+- name: Count import set states in the batch
+  ansible.builtin.set_fact:
+    sgc_import_state_counts: >-
+      {{ sgc_import_state_counts | combine({item: (sgc_import_state_counts[item] | default(0)) + 1}) }}
+  loop: >-
+    {{ sn_sgc_import_batch_rows.json.result | default([]) | map(attribute='state') | list }}
+  run_once: true
+
+- name: Derive batch progress counters
+  ansible.builtin.set_fact:
+    sgc_import_in_progress_count: >-
+      {{ (sgc_import_state_counts | default({})).get('loading', 0)
+         + (sgc_import_state_counts | default({})).get('loaded', 0)
+         + (sgc_import_state_counts | default({})).get('processing', 0)
+         + (sgc_import_state_counts | default({})).get('pending', 0)
+         + (sgc_import_state_counts | default({})).get('transforming', 0) }}
+    sgc_import_processed_count: "{{ (sgc_import_state_counts | default({})).get('processed', 0) }}"
+    sgc_import_cancelled_count: "{{ (sgc_import_state_counts | default({})).get('cancelled', 0) }}"
+  run_once: true
+
+- name: Read import_log errors for the batch window
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/import_log?sysparm_query=sys_created_on>={{
+      sn_sgc_import_batch_start | urlencode }}^level=2&sysparm_fields=message,sys_created_on&sysparm_limit=20&sysparm_orderby=-sys_created_on
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_import_error_rows
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record import_log errors
+  ansible.builtin.set_fact:
+    sgc_import_batch_errors: >-
+      {{ sn_sgc_import_error_rows.json.result | default([])
+         | map(attribute='message') | list }}
+  run_once: true
+
+- name: Decide whether the batch is terminal
+  ansible.builtin.set_fact:
+    sgc_import_batch_complete: >-
+      {{ (sgc_import_in_progress_count | default(0) | int == 0)
+         and ((sgc_import_processed_count | default(0) | int)
+              + (sgc_import_cancelled_count | default(0) | int) > 0) }}
+  run_once: true
+
+- name: Report import batch progress
+  ansible.builtin.debug:
+    msg: |
+      SGO-Dynatrace import batch since {{ sn_sgc_import_batch_start }}:
+        import sets: {{ sn_sgc_import_batch_rows.json.result | default([]) | length }}
+          processed={{ sgc_import_processed_count | default(0) }}
+          cancelled={{ sgc_import_cancelled_count | default(0) }}
+          in-progress={{ sgc_import_in_progress_count | default(0) }}
+        lab feeds: {{ sgc_import_lab_state | default({}) | length }} / {{ sgc_import_lab_feeds | length }} tracked
+      {% for feed in sgc_import_lab_feeds %}
+      {% if feed in (sgc_import_lab_state | default({})) %}
+        - {{ feed | regex_replace('^sn_dynatrace_integ_(sgo_)?', '') }}: {{ sgc_import_lab_state[feed].state }} ({{ sgc_import_lab_state[feed].number }})
+      {% endif %}
+      {% endfor %}
+      {% if sgc_import_batch_errors | default([]) | length > 0 %}
+        recent errors (level 2):
+      {% for err in (sgc_import_batch_errors | default([]))[:5] %}
+        - {{ err[:160] }}
+      {% endfor %}
+      {% else %}
+        recent errors: none (level 2)
+      {% endif %}
+      status: {{ 'COMPLETE' if (sgc_import_batch_complete | bool) else 'IN PROGRESS — next poll in ' ~ (sgc_import_poll_interval | default(300)) ~ 's' }}
+  run_once: true

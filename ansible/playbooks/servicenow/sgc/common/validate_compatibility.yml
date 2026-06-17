@@ -67,6 +67,15 @@
   no_log: true
   delegate_to: localhost
   run_once: true
+  when: sn_sgc_scope_row.json.result | default([]) | length > 0
+
+- name: Default dependency metadata when scoped app is not installed
+  ansible.builtin.set_fact:
+    sn_sgc_declared_dependencies: {}
+    sn_sgc_store_compatibilities: []
+    sn_sgc_store_latest_version: ''
+  when: sn_sgc_scope_row.json.result | default([]) | length == 0
+  run_once: true
 
 - name: Parse declared dependency versions from app metadata
   ansible.builtin.set_fact:
@@ -76,7 +85,9 @@
        .split(',') | map('trim') | select('search', ':') | list }}
   loop_control:
     label: "{{ item.split(':')[0] }}"
-  when: sn_sgc_app_manager_info.status | int == 200
+  when:
+    - sn_sgc_scope_row.json.result | default([]) | length > 0
+    - (sn_sgc_app_manager_info.status | default(0) | int) == 200
   run_once: true
 
 - name: Record Store metadata from App Manager
@@ -86,7 +97,9 @@
          .split(';') | map('trim') | reject('equalto', '') | list }}
     sn_sgc_store_latest_version: >-
       {{ sn_sgc_app_manager_info.json.result.app_info_on_instance.latest_version | default('') }}
-  when: sn_sgc_app_manager_info.status | int == 200
+  when:
+    - sn_sgc_scope_row.json.result | default([]) | length > 0
+    - (sn_sgc_app_manager_info.status | default(0) | int) == 200
   run_once: true
 
 - name: Default dependency metadata when App Manager is unreadable
@@ -94,7 +107,9 @@
     sn_sgc_declared_dependencies: {}
     sn_sgc_store_compatibilities: []
     sn_sgc_store_latest_version: ''
-  when: sn_sgc_app_manager_info.status | int != 200
+  when:
+    - sn_sgc_scope_row.json.result | default([]) | length > 0
+    - (sn_sgc_app_manager_info.status | default(0) | int) != 200
   run_once: true
 
 - name: Build compatibility issue list

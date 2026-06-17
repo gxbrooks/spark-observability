@@ -310,11 +310,20 @@
     password: "{{ sn_password }}"
     force_basic_auth: true
     headers: "{{ sn_api_headers }}"
-    status_code: [200]
+    status_code: [200, 403]
     return_content: true
   register: sn_sgc_payload_tpl
   no_log: true
   delegate_to: localhost
+  run_once: true
+
+- name: Note payload template table not readable
+  ansible.builtin.debug:
+    msg: >-
+      sn_dynatrace_integ_dynatrace_notification_payload_template is not readable
+      by {{ sn_user }} (HTTP 403). Verify in Guided Setup or grant scoped-table
+      read; see sources/dynatrace/docs/deploy.md.
+  when: sn_sgc_payload_tpl.status | default(0) | int == 403
   run_once: true
 
 - name: Topology configuration summary
@@ -324,7 +333,11 @@
         management zone: {{ dt_management_zone_resolved }} (id {{ dt_mz_id }})
         connection row status: {{ sn_sgc_conn_current.status | default('unknown') }}
         Hosts scheduled import: {{ 'active' if (sn_sgc_sched_row.active | default('') == 'true' or (sn_sgc_sched_patch.status | default(0)) == 200) else 'NOT active' }}
-        payload template: {{ 'present' if (sn_sgc_payload_tpl.json.result | default([]) | length > 0) else 'MISSING' }}
+        payload template: {{
+          'present' if (sn_sgc_payload_tpl.status | default(0) | int == 200
+            and (sn_sgc_payload_tpl.json.result | default([]) | length > 0))
+          else ('unverifiable (403)' if (sn_sgc_payload_tpl.status | default(0) | int == 403)
+                else 'MISSING') }}
       Remaining manual steps (one-time): connection credential + test, and
       first import execution — see sources/dynatrace/docs/deploy.md.
   run_once: true

@@ -1,0 +1,142 @@
+---
+# Start SGO-Dynatrace Hosts scheduled import and monitor the cascade.
+#
+# Queues Execute Now via the Table API (run_start + run_type=once — the same
+# scheduler path the UI button uses), then polls sys_import_set and import_log
+# every sgc_import_poll_interval seconds until the batch completes or times out.
+#
+# Prerequisites: install.yml + sources/dynatrace/deploy.yml (scoped app, credential,
+# active Hosts scheduled import).
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml \
+#     playbooks/servicenow/sgc/sources/dynatrace/start.yml -e @../vars/secrets.yaml
+#
+# Monitor an already-running batch (skip Execute Now):
+#   ansible-playbook ... start.yml -e @../vars/secrets.yaml -e sgc_import_execute=false
+#
+# Extra variables:
+#   sgc_import_execute — queue Execute Now (default: true)
+#   sgc_import_monitor — poll until complete (default: true)
+#   sgc_import_skip_if_running — skip trigger when import sets are in-progress (default: true)
+#   sgc_import_poll_interval — seconds between progress reports (default: 300)
+#   sgc_import_poll_retries — max polls before timeout (default: 12 → 60 minutes)
+
+- name: Start SGO-Dynatrace Hosts import and monitor cascade
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Check SGC application presence
+      ansible.builtin.include_tasks: tasks/check_sgc_prerequisites.yml
+
+    - name: Stop when SGC scoped application is not installed
+      ansible.builtin.fail:
+        msg: |
+          Service Graph Connector for Observability – Dynatrace is not installed on {{ sn_url }}.
+          Run playbooks/servicenow/sgc/install.yml then sources/dynatrace/deploy.yml first.
+      when: not sn_sgc_scope_present | bool
+
+    - name: Resolve SGO-Dynatrace Hosts scheduled import
+      ansible.builtin.include_tasks: tasks/resolve_hosts_scheduled_import.yml
+
+    - name: Attach monitor context for monitor-only mode
+      when: not (sgc_import_execute | default(true) | bool)
+      block:
+        - name: Read latest Hosts concurrent import set for monitoring
+          ansible.builtin.uri:
+            url: >-
+              {{ sn_url }}/api/now/table/sys_concurrent_import_set?sysparm_query=scheduled_import={{
+              sn_sgc_hosts_sched_row.sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,sys_created_on&sysparm_limit=1
+            method: GET
+            user: "{{ sn_user }}"
+            password: "{{ sn_password }}"
+            force_basic_auth: true
+            headers: "{{ sn_api_headers }}"
+            status_code: [200]
+            return_content: true
+          register: sn_sgc_monitor_cis
+          no_log: true
+          delegate_to: localhost
+          run_once: true
+
+        - name: Record monitor-only batch context
+          ansible.builtin.set_fact:
+            sn_sgc_import_cis_sys_id: "{{ (sn_sgc_monitor_cis.json.result | first).sys_id }}"
+            sn_sgc_import_cis_number: "{{ (sn_sgc_monitor_cis.json.result | first).number }}"
+            sn_sgc_import_batch_start: "{{ (sn_sgc_monitor_cis.json.result | first).sys_created_on }}"
+          when: sn_sgc_monitor_cis.json.result | default([]) | length > 0
+          run_once: true
+
+        - name: Fail when no concurrent import exists to monitor
+          ansible.builtin.fail:
+            msg: >-
+              sgc_import_execute=false but no sys_concurrent_import_set exists for
+              {{ sgc_hosts_scheduled_import_name }}. Run without -e sgc_import_execute=false
+              to queue Execute Now first.
+          when: sn_sgc_monitor_cis.json.result | default([]) | length == 0
+
+    - name: Queue Execute Now on SGO-Dynatrace Hosts
+      ansible.builtin.include_tasks: tasks/execute_hosts_scheduled_import.yml
+      when: sgc_import_execute | default(true) | bool
+
+    - name: Record concurrent import label for progress reports
+      ansible.builtin.set_fact:
+        sn_sgc_import_cis_number: "{{ sn_sgc_import_cis_row.number | default(sn_sgc_import_cis_number | default('')) }}"
+      when: sn_sgc_import_cis_row is defined
+      run_once: true
+
+    - name: Monitor import batch until terminal state
+      when: sgc_import_monitor | default(true) | bool
+      block:
+        - name: Initialize import poll iteration
+          ansible.builtin.set_fact:
+            sgc_import_poll_iteration: 1
+          run_once: true
+
+        - name: Poll import batch progress
+          ansible.builtin.include_tasks: tasks/monitor_sgc_import_batch.yml
+
+        - name: Fail when import batch did not complete within the poll window
+          ansible.builtin.fail:
+            msg: >-
+              SGO-Dynatrace import batch starting {{ sn_sgc_import_batch_start }} did not
+              reach a terminal state within {{
+              ((sgc_import_poll_retries | default(12) | int)
+              * (sgc_import_poll_interval | default(300) | int) / 60) | round(0, 'ceil') | int }} minute(s).
+              Re-run with -e sgc_import_execute=false to continue monitoring, or inspect
+              Import Log in the UI.
+          when: not (sgc_import_batch_complete | default(false) | bool)
+
+        - name: Fail when lab feeds were cancelled
+          ansible.builtin.fail:
+            msg: >-
+              Import batch completed with cancelled lab feeds:
+              {{ sgc_import_lab_state | default({})
+                 | dict2items
+                 | selectattr('value.state', 'equalto', 'cancelled')
+                 | map(attribute='key')
+                 | map('regex_replace', '^sn_dynatrace_integ_(sgo_)?', '')
+                 | list | join(', ') }}.
+              Inspect import_log for level-2 errors (credential, Dynatrace API, RTE).
+          when:
+            - sgc_import_batch_complete | default(false) | bool
+            - sgc_import_lab_state | default({})
+              | dict2items
+              | selectattr('value.state', 'equalto', 'cancelled')
+              | list | length > 0
+
+        - name: Report successful import batch completion
+          ansible.builtin.debug:
+            msg: >-
+              SGO-Dynatrace import batch complete — {{
+              sgc_import_processed_count | default(0) }} import set(s) processed,
+              {{ sgc_import_lab_state | default({}) | length }} lab feed(s) tracked.
+              Run diagnose.yml to verify CMDB and sys_object_source rows.
+          when: sgc_import_batch_complete | default(false) | bool

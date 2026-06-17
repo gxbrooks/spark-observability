@@ -51,6 +51,34 @@ dt_host_group_resolved: "{{ DT_HOST_GROUP }}"
 # sources/dynatrace/tasks/ensure_sgc_credential.yml via DT_TOKEN_ADMIN_TOKEN)
 dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration
 
+# SGC credential rotation (sources/dynatrace/tasks/check_sgc_token_remint_needed.yml)
+sgc_hosts_import_table: sn_dynatrace_integ_sg_dynatrace_hosts
+sgc_auto_rotate_token: true
+
+# SGO-Dynatrace Hosts scheduled import (sources/dynatrace/start.yml)
+sgc_hosts_scheduled_import_name: SGO-Dynatrace Hosts
+sgc_import_execute: true
+sgc_import_monitor: true
+sgc_import_skip_if_running: true
+sgc_import_restore_schedule: true
+sgc_import_start_offset_seconds: 30
+sgc_import_queue_retries: 12
+sgc_import_queue_delay: 10
+sgc_import_poll_interval: 300
+sgc_import_poll_retries: 12
+sgc_import_lab_feeds:
+  - sn_dynatrace_integ_sg_dynatrace_hosts
+  - sn_dynatrace_integ_sg_dynatrace_processes
+  - sn_dynatrace_integ_sg_dynatrace_process_groups
+  - sn_dynatrace_integ_sg_dynatrace_services
+  - sn_dynatrace_integ_sg_dynatrace_applications
+  - sn_dynatrace_integ_sg_dynatrace_application_relationships
+  - sn_dynatrace_integ_sgo_dynatrace_kubernetes_cluster
+  - sn_dynatrace_integ_sgo_dynatrace_kubernetes_node
+  - sn_dynatrace_integ_sgo_dynatrace_kubernetes_pod
+  - sn_dynatrace_integ_sgo_dynatrace_kubernetes_namespace
+  - sn_dynatrace_integ_sgo_dynatrace_custom_applications
+
 # Lab alerting / notification object names (idempotent upsert keys)
 dt_sn_alerting_profile_name: "Spark Observability - ServiceNow brooks-lab"
 dt_sn_problem_notification_name: "ServiceNow brooks-lab - Spark Observability"

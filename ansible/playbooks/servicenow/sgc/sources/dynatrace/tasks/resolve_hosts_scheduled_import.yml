@@ -1,0 +1,35 @@
+---
+# Resolve the SGO-Dynatrace Hosts scheduled_import_set row.
+# Sets: sn_sgc_hosts_sched_row
+
+- name: Read SGO-Dynatrace Hosts scheduled import
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?sysparm_query=name={{
+      sgc_hosts_scheduled_import_name | urlencode }}&sysparm_fields=sys_id,name,active,run_type,run_start,run_time,run_end&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_hosts_sched_lookup
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record Hosts scheduled import row
+  ansible.builtin.set_fact:
+    sn_sgc_hosts_sched_row: "{{ sn_sgc_hosts_sched_lookup.json.result | default([]) | first | default({}) }}"
+  run_once: true
+
+- name: Assert SGO-Dynatrace Hosts scheduled import exists
+  ansible.builtin.assert:
+    that:
+      - sn_sgc_hosts_sched_row.sys_id is defined
+      - sn_sgc_hosts_sched_row.sys_id | length > 0
+    fail_msg: >-
+      Scheduled import '{{ sgc_hosts_scheduled_import_name }}' was not found.
+      Run sources/dynatrace/deploy.yml after install.yml.
+  run_once: true

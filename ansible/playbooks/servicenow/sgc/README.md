@@ -14,7 +14,8 @@ Automates installation of the ServiceNow Store applications required for the
 | `common/` | Shared vars and reusable tasks (`check_store_apps.yml`, `poll_cicd_progress.yml`) |
 | `sources/dynatrace/` | All Dynatrace-specific configuration for the SGC and events |
 | `sources/dynatrace/deploy.yml` | Automated SGC topology configuration (MZ scoping, scoped properties, schedule activation) |
-| `sources/dynatrace/docs/deploy.md` | Manual deployment steps (connection credential, first import run) |
+| `sources/dynatrace/start.yml` | Queue Execute Now on SGO-Dynatrace Hosts and monitor import cascade |
+| `sources/dynatrace/docs/deploy.md` | Manual deployment steps (connection_admin grant, UI fallbacks) |
 | `sources/dynatrace/events/` | Dynatrace → ServiceNow event playbooks (deploy / diagnose / test) |
 | `sources/dynatrace/tasks/`, `files/` | Dynatrace task fragments and JSON payload templates |
 
@@ -74,6 +75,9 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/deploy.yml -e @../var
 # 2a. Automated SGC topology configuration (manual steps: sources/dynatrace/docs/deploy.md)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/deploy.yml -e @../vars/secrets.yaml
 
+# 2b. Start SGO-Dynatrace Hosts import and monitor cascade (5-minute polls)
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/start.yml -e @../vars/secrets.yaml
+
 # 3. Dynatrace → ServiceNow events (CPU >80%, Spark ERROR logs)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/diagnose.yml -e @../vars/secrets.yaml
@@ -95,8 +99,9 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
   `com.snc.ci_cd` (manual) precedes the grant. See `../docs/install.md` §7
   "Bootstrap sequence".
 - SGC topology configuration is split: `sources/dynatrace/deploy.yml`
-  automates management-zone scoping and schedule activation; the connection
-  credential and first import run remain **manual** — see
+  automates management-zone scoping and schedule activation;
+  `sources/dynatrace/start.yml` queues Execute Now and monitors imports.
+  One-time `connection_admin` grant may still be manual — see
   `sources/dynatrace/docs/deploy.md`.
 - Grant `admin_brooks_lab` **`evt_mgmt_admin`** (or `em_event` read)
   for API validation of `em_event` rows.
