@@ -118,7 +118,7 @@ graph TB
 | Policy Name | Applied To | Configuration File | Retention |
 |-------------|------------|-------------------|-----------|
 | `spark-logs` | logs-spark-default | `spark-logs/spark-logs.ilm.json` | 90 days |
-| `spark-metrics` | metrics-spark-logs-default | `spark-logs/metrics-spark-logs.ilm.json` | 90 days |
+| `spark-log-metrics` | metrics-spark-logs-default | `spark-logs/metrics-spark-logs.ilm.json` | 90 days (delete; no rollover) |
 | `spark-gc` | logs-spark_gc-default | `spark-gc/spark-gc.ilm.json` | 30 days |
 | `batch-events` | batch-events-* | `batch-events/batch-events.ilm-policy.json` | 90 days |
 | `batch-traces` | batch-traces | `batch-traces/batch-traces.ilm-policy.json` | 30 days |

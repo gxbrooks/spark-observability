@@ -608,9 +608,9 @@ kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
   ${ES_CONFIG_DIR}/spark-logs/spark-logs.search.json \
   > ${ES_OUTPUTS_DIR}/spark-logs.search.out.json 2>&1
 
-# Create metrics data stream infrastructure
-echo "Creating metrics ILM policy..."
-esapi PUT /_ilm/policy/spark-metrics ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs.ilm.json \
+# Transform output index (metrics-spark-logs-default): no rollover — dedicated ILM policy.
+echo "Creating spark-log-metrics ILM policy (transform output index)..."
+esapi PUT /_ilm/policy/spark-log-metrics ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs.ilm.json \
   > ${ES_OUTPUTS_DIR}/metrics-spark-logs.ilm.out.json
 
 echo "Creating spark-logs-metrics-downsampled ILM policy..."
@@ -662,10 +662,20 @@ esapi POST /_transform/spark-log-metrics/_start \
 
 echo "✅ Transform created and started"
 
-echo "Attaching downsampling policy to spark log metrics data stream..."
-if esapi --allow-errors GET "/_data_stream/metrics-spark-logs-default" > /dev/null 2>&1; then
-  esapi PUT "metrics-spark-logs-default/_settings" -d '{"index.lifecycle.name":"spark-logs-metrics-downsampled"}' > /dev/null 2>&1 || true
+echo "Applying spark-log-metrics ILM to transform output index..."
+if esapi --allow-errors GET "/metrics-spark-logs-default" > /dev/null 2>&1; then
+  esapi POST "metrics-spark-logs-default/_ilm/remove" \
+    > ${ES_OUTPUTS_DIR}/metrics-spark-logs.ilm-remove.out.json 2>&1 || true
+  esapi PUT "metrics-spark-logs-default/_settings" \
+    -d '{"index.lifecycle.name":"spark-log-metrics","index.lifecycle.rollover_alias":null}' \
+    > ${ES_OUTPUTS_DIR}/metrics-spark-logs.settings.out.json 2>&1 || true
+  esapi POST "metrics-spark-logs-default/_ilm/retry" \
+    > ${ES_OUTPUTS_DIR}/metrics-spark-logs.ilm-retry.out.json 2>&1 || true
 fi
+
+echo "Restoring spark-metrics ILM policy (OTLP data stream)..."
+esapi PUT /_ilm/policy/spark-metrics ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.ilm.json \
+  > ${ES_OUTPUTS_DIR}/spark-metrics.ilm.restore.out.json
 
 echo "✅ Spark Application Logs initialized"
 

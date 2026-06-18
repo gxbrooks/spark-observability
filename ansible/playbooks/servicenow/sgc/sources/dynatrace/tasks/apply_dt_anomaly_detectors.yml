@@ -132,11 +132,18 @@
     body_format: json
     body:
       - "{{ dt_spark_error_log_event_doc }}"
-    status_code: [201, 400, 422]
+    status_code: [200, 201]
   register: dt_log_event_create
   when: dt_spark_error_log_event_object_id | length == 0
-  failed_when: false
   delegate_to: localhost
+  run_once: true
+
+- name: Record Spark ERROR log event objectId after create
+  ansible.builtin.set_fact:
+    dt_spark_error_log_event_object_id: "{{ dt_log_event_create.json[0].objectId | default('') }}"
+  when:
+    - dt_log_event_create is defined
+    - not dt_log_event_create is skipped
   run_once: true
 
 - name: Update Spark ERROR log event
@@ -148,12 +155,10 @@
       Content-Type: application/json
     body_format: json
     body: "{{ dt_spark_error_log_event_doc }}"
-    status_code: [200, 204, 400, 422]
-  register: dt_log_event_update
+    status_code: [200, 204]
   when:
     - dt_spark_error_log_event_object_id | length > 0
     - dt_spark_error_log_event_change_needed | bool
-  failed_when: false
   delegate_to: localhost
   run_once: true
 
@@ -165,12 +170,9 @@
     - not dt_spark_error_log_event_change_needed | bool
   run_once: true
 
-- name: Warn if log event configuration was rejected
+- name: Show Spark ERROR log event state
   ansible.builtin.debug:
     msg: >-
-      Spark ERROR log event may need manual tuning in Dynatrace UI (Settings → Log monitoring → Log events).
-      API response status={{ (dt_log_event_create.status | default(dt_log_event_update.status | default('skipped'))) }}.
-  when: >-
-    (dt_log_event_create.status | default(201)) not in [200, 201, 204]
-    or (dt_log_event_update.status | default(204)) not in [200, 204]
+      Log event '{{ dt_sn_spark_error_log_event_summary }}' => {{ dt_spark_error_log_event_object_id }}
+      ({{ 'created/updated' if dt_spark_error_log_event_change_needed | bool else 'already up to date — no change applied' }})
   run_once: true

@@ -50,6 +50,11 @@ Key context variables: `SN_URL`, `SN_DT_LEGACY_CONNECTOR_SYS_ID`,
 `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
 (`sn_store_apps`) is sgc-local in `common/store_apps.yml`.
 
+Webhook credentials for the SGO-Dynatrace cutover live in `vars/secrets.yaml`
+under `servicenow.SN_DT_WEBHOOK_USER` / `SN_DT_WEBHOOK_PASSWORD` (written on
+first `events/deploy.yml` after SGC install). `events/deploy.yml` updates only
+the brooks-lab Dynatrace problem notification — not Demo 1 (`712a39811…`).
+
 ## Playbooks
 
 ```bash

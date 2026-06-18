@@ -4,17 +4,10 @@
   "value": {
     "enabled": true,
     "summary": "{{ dt_sn_spark_error_log_event_summary }}",
-    "queryDefinition": {
-      "query": "loglevel == \"ERROR\" AND (log.source.path == \"/mnt/spark/logs/spark-app.log*\" OR log.source.path == \"/opt/spark/logs/*\" OR content contains \"ERROR\")",
-      "triggeringThreshold": {
-        "value": 1,
-        "operator": "ABOVE",
-        "timeWindow": "5m"
-      }
-    },
+    "query": "loglevel == \"ERROR\" AND (matchesValue(log.source.path, \"/mnt/spark/logs/*\") OR matchesValue(log.source.path, \"/opt/spark/logs/*\") OR matchesValue(content, \"*TaskSetManager*\") OR matchesValue(content, \"*org.apache.spark*\"))",
     "eventTemplate": {
       "title": "Spark ERROR log detected ({log.source})",
-      "description": "Spark application log line at ERROR level detected in brooks-lab.",
+      "description": "Spark application log line at ERROR level detected in brooks-lab ({log.source.path}).",
       "eventType": "ERROR",
       "davisMerge": false
     }

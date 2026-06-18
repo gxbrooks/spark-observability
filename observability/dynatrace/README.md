@@ -28,6 +28,16 @@ The tenant is shared, so partitioning is done in-tenant:
 Playbooks live in `ansible/playbooks/observability/dynatrace/` and follow:
 `install`, `deploy`, `start`, `stop`, `diagnose`, `test`, `uninstall`.
 
+### Spark worker `LD_PRELOAD` errors
+
+Dynatrace `cloudNativeFullStack` injects `LD_PRELOAD=/opt/dynatrace/oneagent-paas/...`
+into pods. Spark **worker** Deployments on Lab1/Lab2 can fail to mount the OneAgent
+CSI volume, producing `ld.so: ... liboneagentproc.so ... cannot be preloaded`.
+
+Automation sets `oneagent.dynatrace.com/inject: "false"` on `spark-worker-lab1` and
+`spark-worker-lab2` (see `tasks/reconcile_spark_oneagent.yml`). Host-level monitoring
+via `dynakube-oneagent` DaemonSet is unchanged; master/history on Lab3 keep app injection.
+
 ## Prerequisites (IAM and tokens)
 
 Use three IAM/token objects for this module:

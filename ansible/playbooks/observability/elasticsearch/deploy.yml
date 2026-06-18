@@ -5,8 +5,13 @@
   hosts: observability
   gather_facts: false
   tags: [deploy, elasticsearch]
+  vars_files:
+    - ../../../../vars/contexts/elastic_observability_ansible_vars.yml
   vars:
     observability_dir: "/home/ansible/ops/observability"
+    observability_env_file: "{{ observability_dir }}/.env"
+    es_probe_host: "localhost"
+    es_config_src_dir: "{{ playbook_dir }}/../../../../observability/elasticsearch/config"
   tasks:
     - name: Synchronize Elasticsearch directory
       ansible.posix.synchronize:
@@ -22,3 +27,27 @@
         mode: '0775'
         owner: ansible
         group: ansible
+
+    - name: Read Elasticsearch password from observability .env
+      ansible.builtin.shell: |
+        awk -F= '/^ES_PASSWORD=/{print substr($0, index($0,$2)); exit}' "{{ observability_env_file }}"
+      register: es_password_from_env
+      changed_when: false
+      failed_when: false
+
+    - name: Resolve ES password for API apply
+      ansible.builtin.set_fact:
+        ES_PASSWORD: >-
+          {{ (es_password_from_env.stdout | default('') | trim | length > 0)
+             | ternary(es_password_from_env.stdout | trim, ES_PASSWORD | default('') | trim) }}
+
+    - name: Apply spark-log-metrics ILM fix on live cluster
+      ansible.builtin.include_tasks: common/spark_log_metrics_ilm_tasks.yml
+      when: ES_PASSWORD | default('') | length > 0
+
+    - name: Skip ILM apply when ES password is unavailable
+      ansible.builtin.debug:
+        msg: >-
+          Skipped live ILM apply — ES_PASSWORD not found in {{ observability_env_file }}.
+          Run init-index.sh or redeploy after setting ES_PASSWORD.
+      when: ES_PASSWORD | default('') | length == 0

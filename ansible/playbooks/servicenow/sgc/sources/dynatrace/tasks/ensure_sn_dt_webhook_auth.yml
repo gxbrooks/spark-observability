@@ -1,0 +1,94 @@
+---
+# Provision brooks-lab Dynatrace → ServiceNow webhook Basic auth (SGO-Dynatrace path).
+#
+# inbound_event?source=SGO-Dynatrace validates sys_user Basic auth. The lab
+# automation user (admin_brooks_lab) already has rest_service +
+# snc_platform_rest_api_access; dynatrace.integration does not and cannot be
+# granted those roles without instance admin.
+#
+# Stores SN_DT_WEBHOOK_USER / SN_DT_WEBHOOK_PASSWORD in vars/secrets.yaml for
+# Dynatrace problem-notification PUTs (secret re-entry). Does not modify Demo 1
+# legacy connector (712a39811…) or ServiceNow user passwords.
+
+- name: Resolve webhook auth paths
+  ansible.builtin.set_fact:
+    sn_secrets_file: >-
+      {{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml
+    sn_dt_webhook_user_resolved: >-
+      {{ (servicenow | default({})).SN_DT_WEBHOOK_USER | default(sn_user, true) }}
+    sn_dt_webhook_password_resolved: >-
+      {{ (servicenow | default({})).SN_DT_WEBHOOK_PASSWORD
+         | default(sn_password, true) }}
+  no_log: true
+  run_once: true
+
+- name: Mark webhook secrets for first-time persistence
+  ansible.builtin.set_fact:
+    sn_dt_webhook_secrets_persist_needed: >-
+      {{ ((servicenow | default({})).SN_DT_WEBHOOK_USER | default('') | length) == 0
+         or ((servicenow | default({})).SN_DT_WEBHOOK_PASSWORD | default('') | length) == 0 }}
+  run_once: true
+
+- name: Build Dynatrace Authorization header value
+  ansible.builtin.set_fact:
+    sn_dt_webhook_authorization: >-
+      Basic {{ (sn_dt_webhook_user_resolved ~ ':' ~ sn_dt_webhook_password_resolved) | b64encode }}
+  no_log: true
+  run_once: true
+
+- name: Verify SGO-Dynatrace inbound webhook accepts brooks-lab credentials
+  ansible.builtin.uri:
+    url: "{{ sn_dt_event_inbound_url_sgc }}"
+    method: POST
+    headers:
+      Authorization: "{{ sn_dt_webhook_authorization }}"
+      Content-Type: application/json
+      Accept: application/json
+    body_format: json
+    body:
+      ConnectionId: "{{ sn_sgc_connection_alias_sys_id }}"
+      ProblemTitle: Dynatrace problem notification test run
+      ProblemID: brooks-lab-ansible-webhook-verify
+      ProblemSeverity: CUSTOM_ALERT
+      ProblemImpact: INFRASTRUCTURE
+      State: OPEN
+      ProblemDetailsJSON:
+        id: brooks-lab-ansible-webhook-verify
+        rankedEvents: []
+      ProblemDetailsText: brooks-lab SGO-Dynatrace webhook credential verify
+      ImpactedEntity: brooks-lab-webhook-verify
+      ImpactedEntities: []
+      PID: "1"
+      ProblemURL: https://example.invalid/brooks-lab-webhook-verify
+      Tags: ""
+    status_code: [200]
+  register: sn_dt_webhook_verify
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Persist brooks-lab webhook credentials to secrets.yaml
+  ansible.builtin.lineinfile:
+    path: "{{ sn_secrets_file }}"
+    regexp: '^(\s*){{ item.key }}:'
+    line: '  {{ item.key }}: "{{ item.value }}"'
+    insertafter: '^servicenow:'
+  loop:
+    - key: SN_DT_WEBHOOK_USER
+      value: "{{ sn_dt_webhook_user_resolved }}"
+    - key: SN_DT_WEBHOOK_PASSWORD
+      value: "{{ sn_dt_webhook_password_resolved }}"
+  when: sn_dt_webhook_secrets_persist_needed | bool
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Report brooks-lab webhook auth state
+  ansible.builtin.debug:
+    msg: >-
+      SGO-Dynatrace webhook auth: user={{ sn_dt_webhook_user_resolved }},
+      endpoint={{ sn_dt_event_inbound_url_sgc }},
+      verify=OK,
+      secrets={{ 'written to vars/secrets.yaml (SN_DT_WEBHOOK_*)' if sn_dt_webhook_secrets_persist_needed | bool else 'unchanged' }}.
+      Demo 1 legacy connector (712a39811…) and notification are not modified.
+  run_once: true

@@ -40,6 +40,8 @@ sn_dt_event_inbound_url_sgc: >-
 sn_dt_event_inbound_url_legacy: >-
   {{ sn_url }}/api/sn_em_connector/em/inbound_event?source={{ sn_dt_legacy_event_source }}&sys_id={{ sn_dt_legacy_connector_sys_id }}
 
+# SGO-Dynatrace webhook Basic auth (ensure_sn_dt_webhook_auth.yml → secrets.yaml SN_DT_WEBHOOK_*)
+
 # Dynatrace API (resolved in sources/dynatrace/tasks/resolve_dt_api.yml)
 dt_api_url_resolved: ""
 dt_api_token_resolved: ""

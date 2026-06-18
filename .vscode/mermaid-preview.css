@@ -1,0 +1,36 @@
+/*
+ * Mermaid type in Markdown preview — sized relative to preview body text.
+ * Body size: markdown.preview.fontSize (14px ≈ 10.5pt in .vscode/settings.json).
+ * Floors: edge labels ≥12pt, node labels ≥14pt, subgraph titles ≥16pt.
+ */
+.markdown-preview-view .mermaid {
+  font-size: inherit;
+}
+
+.markdown-preview-view .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid .edgeLabel,
+.mermaid .edgeLabel p,
+.mermaid .edgeLabel span {
+  font-size: max(12pt, 1em) !important;
+  line-height: 1.25 !important;
+}
+
+.mermaid .nodeLabel,
+.mermaid .nodeLabel p,
+.mermaid .nodeLabel span {
+  font-size: max(14pt, 1.15em) !important;
+  line-height: 1.3 !important;
+}
+
+.mermaid .cluster-label,
+.mermaid .cluster-label .nodeLabel,
+.mermaid .cluster-label p,
+.mermaid .cluster-label span {
+  font-size: max(16pt, 1.3em) !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}

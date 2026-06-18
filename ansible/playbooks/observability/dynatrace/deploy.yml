@@ -58,6 +58,13 @@
           tags: [k8s]
       tags: [k8s]
 
+    - name: Reconcile Spark worker OneAgent injection (prevent LD_PRELOAD errors)
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/reconcile_spark_oneagent.yml"
+        apply:
+          tags: [k8s]
+      tags: [k8s]
+
     - name: Activate cluster in Dynatrace Kubernetes app
       ansible.builtin.include_tasks:
         file: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"

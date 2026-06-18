@@ -6,6 +6,14 @@
   ansible.builtin.include_tasks: apply_dt_alerting_profile.yml
   when: dt_alerting_profile_object_id is not defined or (dt_alerting_profile_object_id | string | trim) == ''
 
+- name: Resolve SGC ConnectionId for webhook payload
+  ansible.builtin.include_tasks: resolve_sgc_connection_alias.yml
+  when: sn_sgc_scope_present | default(false) | bool
+
+- name: Provision brooks-lab SGO-Dynatrace webhook credentials
+  ansible.builtin.include_tasks: ensure_sn_dt_webhook_auth.yml
+  when: sn_sgc_scope_present | default(false) | bool
+
 - name: Set ServiceNow inbound event URL (SGC when installed, else legacy)
   ansible.builtin.set_fact:
     sn_dt_event_inbound_url_effective: >-
@@ -28,25 +36,42 @@
   ansible.builtin.set_fact:
     dt_problem_notification_object_id: "{{ item.objectId }}"
     dt_problem_notification_existing_value: "{{ item.value }}"
-    dt_problem_notification_template: "{{ item.value }}"
+    dt_problem_notification_payload_body: "{{ item.value.webHookNotification.payload | default('') }}"
   loop: "{{ dt_problem_notifications.json['items'] | default([]) }}"
   when: item.value.displayName | default('') == dt_sn_problem_notification_name
   run_once: true
 
-- name: Select Demo 1 payload template when brooks-lab notification is new
+- name: Select Demo 1 payload body only when brooks-lab notification is new (legacy path)
   ansible.builtin.set_fact:
-    dt_problem_notification_template: "{{ item.value }}"
+    dt_problem_notification_payload_body: "{{ item.value.webHookNotification.payload | default('') }}"
   loop: "{{ dt_problem_notifications.json['items'] | default([]) }}"
   when:
-    - dt_problem_notification_template is not defined or (dt_problem_notification_template | length) == 0
+    - not (sn_sgc_scope_present | default(false) | bool)
+    - dt_problem_notification_payload_body is not defined or (dt_problem_notification_payload_body | length) == 0
     - item.value.displayName | default('') == 'ServiceNow Demo 1 - Optimiz'
+  run_once: true
+
+- name: Build SGC problem notification payload body
+  ansible.builtin.set_fact:
+    dt_problem_notification_payload_body: >-
+      {{ lookup('template', sn_dynatrace_source_dir + '/files/sgc-problem-notification-payload.json.j2') }}
+  when: sn_sgc_scope_present | default(false) | bool
   run_once: true
 
 - name: Default problem notification facts
   ansible.builtin.set_fact:
     dt_problem_notification_object_id: "{{ dt_problem_notification_object_id | default('') }}"
     dt_problem_notification_existing_value: "{{ dt_problem_notification_existing_value | default({}) }}"
-    dt_problem_notification_template: "{{ dt_problem_notification_template | default({}) }}"
+    dt_problem_notification_payload_body: "{{ dt_problem_notification_payload_body | default('') }}"
+  run_once: true
+
+- name: Build brooks-lab webhook Authorization header
+  ansible.builtin.set_fact:
+    dt_problem_notification_auth_headers: >-
+      {{ [{'name': 'Authorization', 'secret': true, 'secretValue': sn_dt_webhook_authorization}]
+         if (sn_sgc_scope_present | default(false) | bool)
+         else (dt_problem_notification_existing_value.webHookNotification.headers | default([])) }}
+  no_log: true
   run_once: true
 
 - name: Build brooks-lab problem notification payload
@@ -64,8 +89,9 @@
           acceptAnyCertificate: false
           notifyEventMergesEnabled: false
           notifyClosedProblems: true
-          headers: "{{ dt_problem_notification_template.webHookNotification.headers | default([]) }}"
-          payload: "{{ dt_problem_notification_template.webHookNotification.payload | default('') }}"
+          headers: "{{ dt_problem_notification_auth_headers }}"
+          payload: "{{ dt_problem_notification_payload_body }}"
+  no_log: true
   run_once: true
 
 - name: Fail when webhook payload template is missing
@@ -73,9 +99,19 @@
     that:
       - dt_problem_notification_doc.value.webHookNotification.payload | length > 0
     fail_msg: >-
-      No ServiceNow webhook payload template found. Complete SGC Guided Setup
-      (Create Default Notification Payload Template) or ensure
-      'ServiceNow Demo 1 - Optimiz' problem notification exists on the tenant.
+      No ServiceNow webhook payload template found. When SGC is installed, run
+      resolve_sgc_connection_alias.yml (included above). Otherwise complete SGC
+      Guided Setup or ensure 'ServiceNow Demo 1 - Optimiz' exists on the tenant.
+  run_once: true
+
+- name: Fail when SGC webhook Authorization is missing
+  ansible.builtin.assert:
+    that:
+      - not (sn_sgc_scope_present | default(false) | bool)
+        or (sn_dt_webhook_authorization | default('') | length > 0)
+    fail_msg: >-
+      SGC is installed but brooks-lab webhook Authorization was not resolved.
+      Run ensure_sn_dt_webhook_auth.yml (included when sn_sgc_scope_present).
   run_once: true
 
 # On-needed check: skip update when the existing notification already matches.
@@ -100,6 +136,7 @@
     status_code: [200, 201]
   when: dt_problem_notification_object_id | length == 0
   register: dt_problem_notification_create
+  no_log: true
   delegate_to: localhost
   run_once: true
 
@@ -116,6 +153,7 @@
   when:
     - dt_problem_notification_object_id | length > 0
     - dt_problem_notification_change_needed | bool
+  no_log: true
   delegate_to: localhost
   run_once: true
 
@@ -127,4 +165,10 @@
       Webhook URL: {{ sn_dt_event_inbound_url_effective }}
       Alerting profile: {{ dt_alerting_profile_object_id }}
       SGC installed: {{ sn_sgc_scope_present | default(false) }}
+      Auth: {{ 'brooks-lab SN_DT_WEBHOOK_* (SGO-Dynatrace)' if (sn_sgc_scope_present | default(false) | bool) else 'legacy (unchanged)' }}
+      Demo 1 notification: not modified
+      UI note: this webhook is a Classic builtin:problem.notifications row. It does NOT
+      appear under Settings → Connections → ServiceNow until registered there manually.
+      Find it via Settings search or Integration → Problem notifications — see
+      observability/dynatrace/docs/DT_Problems_to_SN_Event.md § Dynatrace UI navigation.
   run_once: true

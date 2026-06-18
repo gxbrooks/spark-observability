@@ -45,12 +45,19 @@ Index Lifecycle Management (ILM) policies with automatic downsampling reduce sto
 **Applies to**:
 - `logs-spark_gc-default`
 
+### spark-log-metrics
+
+**Location**: `config/spark-logs/metrics-spark-logs.ilm.json`
+
+**Applies to**:
+- `metrics-spark-logs-default` (transform output index; **no rollover**)
+
 ### spark-logs-metrics-downsampled
 
 **Location**: `config/spark-logs/spark-logs-metrics-downsampled.ilm.json`
 
 **Applies to**:
-- `metrics-spark-logs-default`
+- *(reserved — not used for transform output; transform indices cannot use rollover ILM)*
 
 ## Configuration
 

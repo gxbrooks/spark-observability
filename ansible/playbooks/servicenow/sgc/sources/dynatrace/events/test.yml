@@ -9,14 +9,20 @@
   gather_facts: false
   vars_files:
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
   tasks:
+    - name: Detect SGC installation
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
+
     - name: Query em_event in last 2 hours
       ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
       vars:
         sn_rest_table: em_event
-        sn_rest_query: "sysparm_query=sourceIN{{ sn_sgc_event_source }},{{ sn_dt_legacy_event_source }}^sys_created_on>javascript:gs.hoursAgo(2)&sysparm_fields=number,source,severity,state,message,sys_created_on,cmdb_ci&sysparm_limit=20"
+        sn_rest_query: >-
+          sysparm_query={{ ('source=' + sn_sgc_event_source) if (sn_sgc_scope_present | default(false) | bool)
+             else ('sourceIN' + sn_sgc_event_source + ',' + sn_dt_legacy_event_source) }}^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,description,type,sys_created_on,cmdb_ci&sysparm_limit=20
 
     - name: Skip assertions when em_event table is not readable
       ansible.builtin.debug:
@@ -25,7 +31,23 @@
           or verify events in ServiceNow → Event Management → All Events.
       when: sn_rest_status | default(0) != 200
 
-    - name: Assert at least one recent Dynatrace-sourced event exists
+    - name: Assert at least one recent SGC Dynatrace event exists
+      ansible.builtin.assert:
+        that:
+          - sn_rest_json.result | default([]) | length > 0
+          - sn_rest_json.result | selectattr('source', 'equalto', sn_sgc_event_source) | list | length > 0
+          - sn_rest_json.result | selectattr('source', 'equalto', sn_sgc_event_source) | selectattr('state', 'in', ['Ready', 'Processed']) | list | length > 0
+        fail_msg: >-
+          No Processed/Ready em_event rows from {{ sn_sgc_event_source }} in the last 2 hours.
+          Run events/deploy.yml (SGC payload template), generate CPU or ERROR problems, then re-test.
+        success_msg: >-
+          Found {{ sn_rest_json.result | selectattr('source', 'equalto', sn_sgc_event_source) | list | length }}
+          recent {{ sn_sgc_event_source }} event(s).
+      when:
+        - sn_rest_status | default(0) == 200
+        - sn_sgc_scope_present | default(false) | bool
+
+    - name: Assert at least one recent Dynatrace-sourced event exists (legacy fallback)
       ansible.builtin.assert:
         that:
           - sn_rest_json.result | default([]) | length > 0
@@ -33,4 +55,6 @@
           No em_event rows from {{ sn_sgc_event_source }} or {{ sn_dt_legacy_event_source }} in the last 2 hours.
           Run chapters to generate CPU load and Spark ERROR logs, then re-test.
         success_msg: "Found {{ sn_rest_json.result | length }} recent Dynatrace-sourced event(s)."
-      when: sn_rest_status | default(0) == 200
+      when:
+        - sn_rest_status | default(0) == 200
+        - not (sn_sgc_scope_present | default(false) | bool)

@@ -1,0 +1,112 @@
+---
+# Spark worker pods run executors; Dynatrace cloudNativeFullStack injection sets
+# LD_PRELOAD=/opt/dynatrace/oneagent-paas/... which requires a CSI volume mount.
+# On worker nodes the CSI mount can fail (empty host /opt/dynatrace), producing:
+#   ld.so: object '.../liboneagentproc.so' from LD_PRELOAD cannot be preloaded
+# Disable OneAgent *application* injection on long-lived Spark worker Deployments.
+# Host/process monitoring remains via dynakube-oneagent DaemonSet on each node.
+
+- name: Remove stale empty host paths that block OneAgent CSI mounts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  become: true
+  loop:
+    - /opt/dynatrace/oneagent-paas
+  failed_when: false
+
+- name: Check whether Spark namespace exists
+  ansible.builtin.command: kubectl get namespace spark
+  register: spark_ns_check
+  changed_when: false
+  failed_when: false
+
+- name: Disable OneAgent injection on Spark worker deployments
+  ansible.builtin.command: >-
+    kubectl patch deployment {{ item }} -n spark
+    --type=merge
+    -p '{"spec":{"template":{"metadata":{"annotations":{"oneagent.dynatrace.com/inject":"false"}}}}}'
+  loop:
+    - spark-worker-lab1
+    - spark-worker-lab2
+  register: spark_worker_inject_patch
+  changed_when: "'patched' in (spark_worker_inject_patch.stdout | default(''))"
+  failed_when: false
+  when: spark_ns_check.rc == 0
+
+- name: Rollout restart Spark worker deployments
+  ansible.builtin.command: kubectl rollout restart deployment/{{ item }} -n spark
+  loop:
+    - spark-worker-lab1
+    - spark-worker-lab2
+  register: spark_worker_rollout_restart
+  changed_when: true
+  when:
+    - spark_ns_check.rc == 0
+    - spark_worker_inject_patch is defined
+    - spark_worker_inject_patch.results | selectattr('rc', 'equalto', 0) | list | length > 0
+
+- name: Wait for Spark worker rollouts
+  ansible.builtin.command: kubectl rollout status deployment/{{ item }} -n spark --timeout=300s
+  loop:
+    - spark-worker-lab1
+    - spark-worker-lab2
+  register: spark_worker_rollout_wait
+  changed_when: false
+  when: spark_ns_check.rc == 0
+
+- name: Collect Spark pods with LD_PRELOAD set
+  ansible.builtin.shell: |
+    set -euo pipefail
+    kubectl get pods -n spark -o json | python3 -c "
+    import json,sys
+    data=json.load(sys.stdin)
+    for pod in data.get('items', []):
+      name=pod['metadata']['name']
+      for c in pod['spec'].get('containers', []):
+        for e in c.get('env', []):
+          if e.get('name')=='LD_PRELOAD':
+            print(name)
+    "
+  register: spark_ld_preload_pods
+  changed_when: false
+  failed_when: false
+  when: spark_ns_check.rc == 0
+
+- name: Verify LD_PRELOAD pods have OneAgent library mounted
+  ansible.builtin.shell: |
+    set -euo pipefail
+    pod="{{ item }}"
+    if kubectl exec -n spark "$pod" -- test -f /opt/dynatrace/oneagent-paas/agent/lib64/liboneagentproc.so; then
+      echo "$pod: OK"
+    else
+      echo "$pod: BROKEN_LD_PRELOAD"
+      exit 1
+    fi
+  loop: "{{ spark_ld_preload_pods.stdout_lines | default([]) }}"
+  register: spark_ld_preload_verify
+  changed_when: false
+  failed_when: false
+  when:
+    - spark_ns_check.rc == 0
+    - (spark_ld_preload_pods.stdout_lines | default([]) | length) > 0
+
+- name: Assert no Spark pod has broken LD_PRELOAD
+  ansible.builtin.assert:
+    that:
+      - spark_ld_preload_verify.results | default([]) | selectattr('rc', 'ne', 0) | list | length == 0
+    fail_msg: >-
+      Spark pod(s) have LD_PRELOAD but missing liboneagentproc.so:
+      {{ spark_ld_preload_verify.results | default([]) | selectattr('rc', 'ne', 0) | map(attribute='item') | list }}.
+      Rollout restart affected workloads or set oneagent.dynatrace.com/inject=false.
+  when:
+    - spark_ld_preload_verify is defined
+    - not spark_ld_preload_verify.skipped | default(false)
+
+- name: Summarize Spark OneAgent reconciliation
+  ansible.builtin.debug:
+    msg: >-
+      Spark workers: OneAgent app injection disabled on lab1/lab2 deployments;
+      pods with LD_PRELOAD={{ spark_ld_preload_pods.stdout_lines | default([]) | length }}.
+      Host monitoring via dynakube-oneagent DaemonSet is unchanged.
+  when: spark_ns_check.rc == 0

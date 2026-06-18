@@ -1,0 +1,28 @@
+---
+# Resolve the Dynatrace Connection sys_alias sys_id embedded in SGC webhook payloads
+# as ConnectionId (see sn_dynatrace_integ DynatraceEventTemplate.defaultTemplate).
+
+- name: Query Dynatrace SGC connection row
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_dynatrace_integ_connections
+    sn_rest_query: >-
+      sysparm_query=connection_aliasISNOTEMPTY^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,connection_alias,status&sysparm_limit=1
+
+- name: Set SGC connection alias sys_id from connection row
+  ansible.builtin.set_fact:
+    sn_sgc_connection_alias_sys_id: >-
+      {{ (sn_rest_json.result | default([]) | first).connection_alias.value
+         | default((sn_rest_json.result | default([]) | first).connection_alias, true) }}
+  when: sn_rest_json.result | default([]) | length > 0
+  run_once: true
+
+- name: Assert SGC connection alias is resolved
+  ansible.builtin.assert:
+    that:
+      - sn_sgc_connection_alias_sys_id | default('') | length > 0
+    fail_msg: >-
+      No sn_dynatrace_integ_connections row with connection_alias found.
+      Complete SGC Guided Setup Basic card (Configure HTTP Connection for Dynatrace)
+      or run sources/dynatrace/deploy.yml — see sources/dynatrace/docs/deploy.md.
+  run_once: true

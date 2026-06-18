@@ -244,6 +244,10 @@
         state: present
         src: "{{ k8s_config_dir }}/spark-worker.yaml"
       when: spark_component_var in ['worker', 'all']
+
+    - name: Disable Dynatrace app injection on Spark workers
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../observability/dynatrace/tasks/reconcile_spark_oneagent.yml"
+      when: spark_component_var in ['worker', 'all']
       
     # Debug tasks to check component status
     - name: Check pod status

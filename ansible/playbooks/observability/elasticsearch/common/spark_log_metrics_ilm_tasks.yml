@@ -1,0 +1,121 @@
+---
+# Apply spark-log-metrics ILM for transform output index metrics-spark-logs-default.
+# Transform indices must not use rollover or rollover_alias (no alias on destination).
+
+- name: Load spark-log-metrics ILM policy document
+  ansible.builtin.set_fact:
+    spark_log_metrics_ilm_policy: "{{ lookup('file', es_config_src_dir + '/spark-logs/metrics-spark-logs.ilm.json') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load metrics-spark-logs index template document
+  ansible.builtin.set_fact:
+    metrics_spark_logs_template: "{{ lookup('file', es_config_src_dir + '/spark-logs/metrics-spark-logs.template.json') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load spark-metrics OTLP ILM policy document (restore after historical overwrite)
+  ansible.builtin.set_fact:
+    spark_metrics_otlp_ilm_policy: "{{ lookup('file', es_config_src_dir + '/spark-metrics/spark-metrics.ilm.json') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Create or update spark-log-metrics ILM policy
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/_ilm/policy/spark-log-metrics"
+    method: PUT
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    body_format: json
+    body: "{{ spark_log_metrics_ilm_policy }}"
+    status_code: [200]
+  register: spark_log_metrics_ilm_put
+
+- name: Update metrics-spark-logs-default index template
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/_index_template/metrics-spark-logs-default"
+    method: PUT
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    body_format: json
+    body: "{{ metrics_spark_logs_template }}"
+    status_code: [200]
+  register: metrics_spark_logs_template_put
+
+- name: Check whether metrics-spark-logs-default index exists
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/metrics-spark-logs-default"
+    method: GET
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: metrics_spark_logs_index_get
+
+- name: Remove stale ILM execution from metrics-spark-logs-default
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/metrics-spark-logs-default/_ilm/remove"
+    method: POST
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    status_code: [200]
+  when: metrics_spark_logs_index_get.status | default(404) | int == 200
+  register: metrics_spark_logs_ilm_remove
+
+- name: Apply spark-log-metrics ILM to existing transform output index
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/metrics-spark-logs-default/_settings"
+    method: PUT
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    body_format: json
+    body:
+      index.lifecycle.name: spark-log-metrics
+      index.lifecycle.rollover_alias: null
+    status_code: [200]
+  when: metrics_spark_logs_index_get.status | default(404) | int == 200
+  register: metrics_spark_logs_settings_put
+
+- name: Retry ILM execution on metrics-spark-logs-default
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/metrics-spark-logs-default/_ilm/retry"
+    method: POST
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    status_code: [200, 400, 404]
+  when: metrics_spark_logs_index_get.status | default(404) | int == 200
+  register: metrics_spark_logs_ilm_retry
+  failed_when: false
+
+- name: Restore spark-metrics ILM policy for OTLP data stream
+  ansible.builtin.uri:
+    url: "https://{{ es_probe_host | default('localhost') }}:9200/_ilm/policy/spark-metrics"
+    method: PUT
+    user: elastic
+    password: "{{ ES_PASSWORD }}"
+    validate_certs: false
+    force_basic_auth: true
+    body_format: json
+    body: "{{ spark_metrics_otlp_ilm_policy }}"
+    status_code: [200]
+  register: spark_metrics_otlp_ilm_restore
+
+- name: Summarize spark-log-metrics ILM apply
+  ansible.builtin.debug:
+    msg: >-
+      spark-log-metrics ILM policy applied;
+      template updated={{ metrics_spark_logs_template_put.status | default('skipped') }};
+      index exists={{ metrics_spark_logs_index_get.status | default('n/a') == 200 }};
+      index settings updated={{ metrics_spark_logs_settings_put is defined and not metrics_spark_logs_settings_put is skipped }};
+      spark-metrics OTLP ILM restored={{ spark_metrics_otlp_ilm_restore.status | default('skipped') }}.
