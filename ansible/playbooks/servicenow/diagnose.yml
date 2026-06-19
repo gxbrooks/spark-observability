@@ -1,0 +1,25 @@
+---
+# ServiceNow diagnose — Discovery, CMDB 360, Dynatrace SGC.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
+
+- name: ServiceNow diagnose banner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always, servicenow]
+  tasks:
+    - name: Display ServiceNow diagnose information
+      ansible.builtin.debug:
+        msg: |
+          ServiceNow diagnose: discovery → cmdb → sgc
+
+- import_playbook: discovery/diagnose.yml
+  tags: [servicenow]
+
+- import_playbook: cmdb/diagnose.yml
+  tags: [servicenow]
+
+- import_playbook: sgc/diagnose.yml
+  tags: [servicenow]

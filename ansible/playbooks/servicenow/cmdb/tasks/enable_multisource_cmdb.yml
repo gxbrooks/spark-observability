@@ -1,0 +1,10 @@
+---
+# Enable CMDB 360 / Multisource CMDB (IRE attribute-level source tracking).
+# License activation: tasks/check_cmdb_licenses.yml (CI/CD API, run by deploy.yml first).
+
+- name: Apply CMDB 360 sys_properties
+  ansible.builtin.include_tasks: apply_sys_property.yml
+  loop: "{{ sn_cmdb_multisource_properties }}"
+  loop_control:
+    loop_var: sn_sysprop_item
+    label: "{{ sn_sysprop_item.name }}"

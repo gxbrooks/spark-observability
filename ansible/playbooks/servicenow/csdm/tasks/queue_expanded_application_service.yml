@@ -1,0 +1,21 @@
+---
+# Add one expanded application service per inventory host to sn_csdm_app_svc_queue.
+# Input: sn_csdm_app_svc_entry
+
+- name: Require expand.inventory_group on application service
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_app_svc_entry.expand.inventory_group is defined
+      - groups[sn_csdm_app_svc_entry.expand.inventory_group] | default([]) | length > 0
+    fail_msg: >-
+      Application service '{{ sn_csdm_app_svc_entry.name }}' expand.inventory_group
+      '{{ sn_csdm_app_svc_entry.expand.inventory_group | default('') }}' has no hosts in inventory.
+
+- name: Append expanded application service instances to queue
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_queue: >-
+      {{ sn_csdm_app_svc_queue + [ {'spec': sn_csdm_app_svc_entry, 'host': expand_host} ] }}
+  loop: "{{ groups[sn_csdm_app_svc_entry.expand.inventory_group] }}"
+  loop_control:
+    loop_var: expand_host
+    label: "{{ expand_host }}"

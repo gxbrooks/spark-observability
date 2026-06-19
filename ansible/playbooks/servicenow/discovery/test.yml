@@ -10,16 +10,19 @@
     - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
     - "{{ playbook_dir }}/common/vars.yml"
-  vars:
-    sn_expected_hosts:
-      - Lab1.lan
-      - Lab2.lan
-      - Lab3.lan
   tasks:
+    - name: Require k8s_nodes inventory group for host expectations
+      ansible.builtin.assert:
+        that:
+          - groups['k8s_nodes'] | default([]) | length > 0
+        fail_msg: >-
+          Inventory group k8s_nodes is empty — run with -i inventory.yml so expected
+          lab hostnames come from host-defined names (Lab1–Lab3), not hardcoded FQDNs.
+
     - name: Query CMDB Linux servers at brooks-lab location
       ansible.builtin.uri:
         url: >-
-          {{ sn_url }}/api/now/table/cmdb_ci_linux_server?sysparm_query=location.name={{ sn_lab_location_name | urlencode }}^ORnameIN{{ sn_expected_hosts | join(',') | urlencode }}&sysparm_fields=name,host_name,location,discovery_source,sys_class_name&sysparm_limit=20
+          {{ sn_url }}/api/now/table/cmdb_ci_linux_server?sysparm_query=location.name={{ sn_lab_location_name | urlencode }}&sysparm_fields=name,host_name,location,discovery_source,sys_class_name&sysparm_limit=50
         method: GET
         user: "{{ sn_user }}"
         password: "{{ sn_password }}"
@@ -42,10 +45,24 @@
           All CIs at {{ sn_lab_location_name }}: {{ sn_cmdb_all_cis_url }}
           Linux only: {{ sn_cmdb_linux_servers_url }}
 
-    - name: Assert expected lab hostnames are present
+    - name: Assert each inventory k8s node appears in CMDB (case-insensitive)
+      vars:
+        sn_node_aliases: >-
+          {{
+            [item | lower, hostvars[item].ansible_host | default('') | lower]
+            | reject('equalto', '')
+            | unique
+            | list
+          }}
+        sn_cmdb_names_lower: >-
+          {{ sn_cmdb_hosts.json.result | default([]) | map(attribute='name') | map('lower') | list }}
+        sn_cmdb_host_names_lower: >-
+          {{ sn_cmdb_hosts.json.result | default([]) | map(attribute='host_name') | map('lower') | list }}
       ansible.builtin.assert:
         that:
-          - (sn_cmdb_hosts.json.result | map(attribute='name') | list | select('match', item) | list | length > 0) or
-            (sn_cmdb_hosts.json.result | map(attribute='host_name') | list | select('match', item) | list | length > 0)
-        fail_msg: "CMDB missing discovered host {{ item }}. Run discover.yml and wait for scan completion."
-      loop: "{{ sn_expected_hosts }}"
+          - sn_node_aliases | intersect(sn_cmdb_names_lower + sn_cmdb_host_names_lower) | length > 0
+        fail_msg: >-
+          CMDB missing discovered host for inventory node {{ item }}
+          (expected name or host_name matching {{ sn_node_aliases | join(' or ') }}, case-insensitive).
+          Run discover.yml and wait for scan completion.
+      loop: "{{ groups['k8s_nodes'] }}"

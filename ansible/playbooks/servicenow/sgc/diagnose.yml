@@ -56,6 +56,9 @@
       ansible.builtin.debug:
         var: sn_rest_json.result
 
+    - name: Diagnose IRE host merge for lab nodes
+      ansible.builtin.include_tasks: tasks/diagnose_ire_host_merge.yml
+
     # ----- Dynatrace side -------------------------------------------------------
     - name: Query Dynatrace HOST entities (sample)
       ansible.builtin.uri:

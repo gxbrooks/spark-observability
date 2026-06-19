@@ -1,0 +1,42 @@
+---
+# Idempotent CMDB record ensure (lookup by name, create or patch on needed).
+# Inputs: sn_csdm_table, sn_csdm_lookup_name, sn_csdm_body
+# Output: sn_csdm_record_sys_id, sn_csdm_record_exists
+
+- name: "Look up {{ sn_csdm_table }} '{{ sn_csdm_lookup_name }}'"
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: "{{ sn_csdm_table }}"
+    sn_rest_query: "sysparm_query=name={{ sn_csdm_lookup_name | urlencode }}&sysparm_limit=1"
+
+- name: Record CMDB lookup state
+  ansible.builtin.set_fact:
+    sn_csdm_record_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_csdm_record_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_csdm_record_current: "{{ sn_rest_json.result[0] | default({}) }}"
+
+- name: "Create {{ sn_csdm_table }} '{{ sn_csdm_lookup_name }}'"
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: "{{ sn_csdm_table }}"
+    sn_rest_body: "{{ sn_csdm_body | combine({'name': sn_csdm_lookup_name}, recursive=True) }}"
+  when: not sn_csdm_record_exists | bool
+
+- name: Capture sys_id after create
+  ansible.builtin.set_fact:
+    sn_csdm_record_sys_id: "{{ sn_rest_record.sys_id }}"
+  when:
+    - not sn_csdm_record_exists | bool
+    - sn_rest_status in [200, 201]
+
+- name: "Update {{ sn_csdm_table }} '{{ sn_csdm_lookup_name }}' when fields differ"
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: "{{ sn_csdm_table }}"
+    sn_rest_sys_id: "{{ sn_csdm_record_sys_id }}"
+    sn_rest_body: "{{ sn_csdm_patch_body }}"
+  when:
+    - sn_csdm_record_exists | bool
+    - sn_csdm_patch_body | default({}) | length > 0

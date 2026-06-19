@@ -1,0 +1,16 @@
+---
+# Query one CMDB record by name and print presence.
+# Inputs: sn_csdm_diagnose_table, sn_csdm_diagnose_name, sn_csdm_diagnose_label
+
+- name: Query CMDB record
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: "{{ sn_csdm_diagnose_table }}"
+    sn_rest_query: "sysparm_query=name={{ sn_csdm_diagnose_name | urlencode }}&sysparm_limit=1"
+
+- name: Show CMDB record status
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_csdm_diagnose_label }} '{{ sn_csdm_diagnose_name }}':
+      {{ 'present (' ~ sn_rest_json.result[0].sys_id ~ ')' if (sn_rest_json.result | default([]) | length) > 0
+         else 'MISSING — run csdm/deploy.yml' }}

@@ -1,0 +1,76 @@
+---
+# Idempotent sys_properties update for one property (expects sn_sysprop_item dict).
+- name: "Read sys_property {{ sn_sysprop_item.name }}"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_properties?sysparm_query=name={{
+      sn_sysprop_item.name | urlencode }}&sysparm_fields=sys_id,name,value,description&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sysprop_lookup
+  no_log: true
+  delegate_to: localhost
+
+- name: Fail when sys_properties is not readable
+  ansible.builtin.fail:
+    msg: >-
+      Cannot read sys_properties — grant admin or cmdb_inst_admin to {{ sn_user }}.
+  when: sn_sysprop_lookup.status != 200
+
+- name: Record existing sys_property row
+  ansible.builtin.set_fact:
+    sn_sysprop_row: "{{ sn_sysprop_lookup.json.result | default([]) | first | default({}) }}"
+    sn_sysprop_current_value: >-
+      {{ (sn_sysprop_lookup.json.result | default([]) | first | default({})).value | default('') | string }}
+  when: sn_sysprop_lookup.json.result | default([]) | length > 0
+
+- name: Default missing sys_property facts
+  ansible.builtin.set_fact:
+    sn_sysprop_row: {}
+    sn_sysprop_current_value: ""
+  when: sn_sysprop_lookup.json.result | default([]) | length == 0
+
+- name: "Report {{ sn_sysprop_item.name }} already set"
+  ansible.builtin.debug:
+    msg: >-
+      sys_property {{ sn_sysprop_item.name }}={{ sn_sysprop_current_value }} — no change needed.
+  when: sn_sysprop_current_value | lower == sn_sysprop_item.value | lower
+
+- name: "Create sys_property {{ sn_sysprop_item.name }}"
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_properties
+    sn_rest_body:
+      name: "{{ sn_sysprop_item.name }}"
+      value: "{{ sn_sysprop_item.value }}"
+      description: "{{ sn_sysprop_item.description | default('') }}"
+      type: string
+  when:
+    - sn_sysprop_current_value | lower != sn_sysprop_item.value | lower
+    - sn_sysprop_row | length == 0
+
+- name: "Update sys_property {{ sn_sysprop_item.name }}"
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_properties
+    sn_rest_sys_id: "{{ sn_sysprop_row.sys_id }}"
+    sn_rest_body:
+      value: "{{ sn_sysprop_item.value }}"
+  when:
+    - sn_sysprop_current_value | lower != sn_sysprop_item.value | lower
+    - sn_sysprop_row | length > 0
+
+- name: "Report sys_property {{ sn_sysprop_item.name }} outcome"
+  ansible.builtin.debug:
+    msg: >-
+      sys_property {{ sn_sysprop_item.name }}:
+      {{ 'created' if (sn_sysprop_row | length) == 0 else 'updated' }}
+      → {{ sn_sysprop_item.value }} (HTTP {{ sn_rest_status | default('skipped') }})
+  when: sn_sysprop_current_value | lower != sn_sysprop_item.value | lower

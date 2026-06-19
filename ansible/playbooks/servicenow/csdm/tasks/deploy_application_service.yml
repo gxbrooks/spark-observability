@@ -1,0 +1,58 @@
+---
+# Deploy one application service instance (optionally expanded per inventory host).
+# Input: sn_csdm_app_svc_item { spec, host }
+
+- name: Resolve application service name and description for instance
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_name: >-
+      {{ sn_csdm_app_svc_item.spec.name
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+    sn_csdm_app_svc_short_description: >-
+      {{ sn_csdm_app_svc_item.spec.short_description | default('')
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+
+- name: Ensure application service
+  ansible.builtin.include_tasks: ensure_cmdb_record.yml
+  vars:
+    sn_csdm_table: cmdb_ci_service_discovered
+    sn_csdm_lookup_name: "{{ sn_csdm_app_svc_name }}"
+    sn_csdm_body: >-
+      {{ sn_csdm_app_svc_item.spec
+         | dict2items
+         | rejectattr('key', 'in', ['name', 'short_description', 'parent_business_service', 'entry_points', 'expand', 'discover'])
+         | items2dict
+         | combine({'short_description': sn_csdm_app_svc_short_description}, recursive=True) }}
+    sn_csdm_patch_body:
+      short_description: "{{ sn_csdm_app_svc_short_description }}"
+
+- name: Record application service sys_id in registry
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_sys_id: "{{ sn_csdm_record_sys_id }}"
+    sn_csdm_registry: >-
+      {{ sn_csdm_registry | combine(
+           {'application_services': sn_csdm_registry.application_services | default({}) | combine({sn_csdm_app_svc_name: sn_csdm_record_sys_id})},
+           recursive=True) }}
+
+- name: Link business service to application service
+  ansible.builtin.include_tasks: ensure_relationship.yml
+  vars:
+    sn_rel_parent: "{{ sn_csdm_registry.business_services[sn_csdm_app_svc_item.spec.parent_business_service] }}"
+    sn_rel_child: "{{ sn_csdm_app_svc_sys_id }}"
+    sn_rel_type_name: "{{ sn_sm_rel_contains }}"
+  when:
+    - sn_csdm_app_svc_item.spec.parent_business_service is defined
+    - sn_csdm_registry.business_services[sn_csdm_app_svc_item.spec.parent_business_service] is defined
+
+- name: Deploy entry points for application service
+  ansible.builtin.include_tasks: deploy_entry_point.yml
+  loop: "{{ sn_csdm_app_svc_item.spec.entry_points | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_entry_point_spec
+    label: "{{ sn_csdm_entry_point_spec.table | default('') }}"
+
+- name: Queue Service Mapping discovery for application service
+  ansible.builtin.set_fact:
+    sn_sm_discover_service_names: "{{ sn_sm_discover_service_names + [sn_csdm_app_svc_name] }}"
+  when: sn_csdm_app_svc_item.spec.discover | default(false) | bool

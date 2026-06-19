@@ -36,6 +36,9 @@
 
 - import_playbook: spark/start.yml
 
+- import_playbook: servicenow/start.yml
+  tags: [servicenow]
+
 - name: Display startup completion status
   hosts: localhost
   connection: local

@@ -198,9 +198,34 @@ from registering or causes ECC queue failures.
 | SSH credential | `brooks-lab-ssh` → `sn-discovery` |
 | Schedule | `Brooks Lab CI Discovery` |
 | MID Server name | `mid-brooks-lab3` (Lab3) |
+| Discover Now API | **Discovery Operations API** (global Scripted REST; `discovery/deploy.yml`) |
 
 Only Lab1–Lab3 have SSH credentials; other addresses on the subnet may appear
 as network or unclassified devices.
+
+### Discovery Operations REST API (`discovery/deploy.yml`)
+
+`deploy.yml` creates a **global-scoped Scripted REST API** (**Discovery Operations
+API**) that wraps the platform `global.Discovery()` scriptable API. `discover.yml`
+calls the schedule endpoint; operators and automation may also call Quick Discovery.
+
+| Endpoint | Script API | Body (JSON) |
+| -------- | ---------- | ----------- |
+| `POST …/schedule/run` (or legacy `…/run`) | `discoverNow(scheduleGr)` | `schedule_name` **or** `schedule_sys_id` |
+| `POST …/quick/run` | `discoveryFromIP(ip, mid?)` | `ip_address`; optional `mid_server` |
+
+| Requirement | Role |
+| ----------- | ---- |
+| Create `sys_ws_definition` / `sys_ws_operation` | **`web_service_admin`** |
+| Execute Discovery in the script | **`discovery_admin`** |
+| Invoke the REST endpoint | **`rest_service`**, **`snc_platform_rest_api_access`** |
+
+ServiceNow assigns the base path (instance-specific). Operation URIs are written
+to `vars/contexts/servicenow_discovery_deploy.json` as `discovery_rest_operation_uri`
+and `discovery_rest_quick_uri`.
+
+CMDB license checks use the **CI/CD plugin activate API** (`sn_cicd.sys_ci_automation`)
+— not Table API reads on `sys_plugins`.
 
 ---
 
@@ -437,12 +462,8 @@ idempotent and skips completed work.
 | `rest_service` | Inbound REST web-service access (basic-auth API calls as this user) |
 | `sn_appclient.app_client_user` | `sys_store_app` read (App Manager visibility) — latest-version / update-available reporting in `diagnose.yml`. Not needed to install: the App Repo Install API takes the scope directly |
 | `connection_admin` | Connections & Credentials — `http_connection` (SGC connection Hostname set by `sgc/sources/dynatrace/deploy.yml`); `api_key_credentials` is writable without it |
-| `sn_cicd.sys_ci_automation` | CI/CD API — `/api/sn_cicd/app_repo/install` (by scope), `/api/sn_cicd/plugin/{id}/activate`, `/api/sn_cicd/progress/{id}` |
+| `sn_cicd.sys_ci_automation` | CI/CD API — `/api/sn_cicd/app_repo/install` (by scope), `/api/sn_cicd/plugin/{id}/activate`, `/api/sn_cicd/progress/{id}` (plugin entitlement checks for CMDB 360 and SGC install) |
 | `snc_platform_rest_api_access` | Platform REST APIs — Table API `/api/now/table/*` (incl. `sys_scope`, `sys_user_role`, `sys_user_has_role`) |
-
-Not grantable as a role: **`sys_plugins`** read is admin-only by default. The
-playbooks treat plugin state as unverifiable, report it as such, and request
-activation idempotently via the CI/CD API.
 
 ### Required Store applications and plugins (install order)
 

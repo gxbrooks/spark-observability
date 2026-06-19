@@ -1,0 +1,36 @@
+---
+# Diagnose CSDM registration and Service Mapping discovery status for all configured specs.
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
+#     -e @../vars/secrets.yaml
+
+- name: Diagnose ServiceNow CSDM and Service Mapping discovery
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Resolve CSDM specification file paths
+      ansible.builtin.set_fact:
+        sn_csdm_spec_paths: >-
+          {{ sn_csdm_spec_paths | default([]) + [
+               (item if item is match('^/') else sn_playbooks_root ~ '/' ~ item)
+             ] }}
+      loop: "{{ sn_csdm_spec_files }}"
+
+    - name: Diagnose each CSDM specification
+      ansible.builtin.include_tasks: tasks/diagnose_csdm_spec.yml
+      vars:
+        sn_csdm_spec_path: "{{ item }}"
+      loop: "{{ sn_csdm_spec_paths }}"
+      loop_control:
+        label: "{{ item | basename }}"
+
+    - name: Service Mapping discovery status note
+      ansible.builtin.debug:
+        msg: |
+          process_status on cmdb_ci_service_discovered: 1 = Discovered, 2 = In Progress (typical after trigger).
+          Vertical discovery can take many minutes per application service. Re-run diagnose.yml to refresh status.

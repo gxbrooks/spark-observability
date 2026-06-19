@@ -1,0 +1,32 @@
+---
+# Load and parse one CSDM specification file (Jinja-templated YAML).
+# Input: sn_csdm_spec_path (absolute)
+# Output: sn_csdm_spec
+
+- name: Resolve CSDM specification path
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_spec_path | length > 0
+    fail_msg: "sn_csdm_spec_path is unset."
+
+- name: Require CSDM specification file
+  ansible.builtin.stat:
+    path: "{{ sn_csdm_spec_path }}"
+  register: sn_csdm_spec_stat
+
+- name: Fail when CSDM specification file is missing
+  ansible.builtin.fail:
+    msg: "CSDM specification not found: {{ sn_csdm_spec_path }}"
+  when: not sn_csdm_spec_stat.stat.exists
+
+- name: Load CSDM specification (template + YAML parse)
+  ansible.builtin.set_fact:
+    sn_csdm_spec: "{{ lookup('template', sn_csdm_spec_path) | from_yaml }}"
+
+- name: Validate CSDM specification has at least one section
+  ansible.builtin.assert:
+    that:
+      - (sn_csdm_spec.business_applications | default([]) | length) > 0
+        or (sn_csdm_spec.business_services | default([]) | length) > 0
+        or (sn_csdm_spec.application_services | default([]) | length) > 0
+    fail_msg: "CSDM specification {{ sn_csdm_spec_path }} has no business_applications, business_services, or application_services."

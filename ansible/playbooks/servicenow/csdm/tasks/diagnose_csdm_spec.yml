@@ -1,0 +1,53 @@
+---
+# Diagnose one CSDM specification file.
+# Input: sn_csdm_spec_path
+
+- name: Load CSDM specification
+  ansible.builtin.include_tasks: load_csdm_spec.yml
+
+- name: Initialize application service diagnose queue
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_queue: []
+
+- name: Queue static application services for diagnose
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_queue: >-
+      {{ sn_csdm_app_svc_queue + [ {'spec': app_svc_spec, 'host': ''} ] }}
+  loop: "{{ sn_csdm_spec.application_services | default([]) | rejectattr('expand', 'defined') | list }}"
+  loop_control:
+    loop_var: app_svc_spec
+    label: "{{ app_svc_spec.name | default('') }}"
+
+- name: Queue expanded application services for diagnose
+  ansible.builtin.include_tasks: queue_expanded_application_service.yml
+  loop: "{{ sn_csdm_spec.application_services | default([]) | selectattr('expand', 'defined') | list }}"
+  loop_control:
+    loop_var: sn_csdm_app_svc_entry
+    label: "{{ sn_csdm_app_svc_entry.name | default('') }}"
+
+- name: Diagnose business applications
+  ansible.builtin.include_tasks: diagnose_cmdb_record.yml
+  vars:
+    sn_csdm_diagnose_table: cmdb_ci_business_app
+    sn_csdm_diagnose_name: "{{ item.name }}"
+    sn_csdm_diagnose_label: Business Application
+  loop: "{{ sn_csdm_spec.business_applications | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('') }}"
+
+- name: Diagnose business services
+  ansible.builtin.include_tasks: diagnose_cmdb_record.yml
+  vars:
+    sn_csdm_diagnose_table: cmdb_ci_service
+    sn_csdm_diagnose_name: "{{ item.name }}"
+    sn_csdm_diagnose_label: Business Service
+  loop: "{{ sn_csdm_spec.business_services | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('') }}"
+
+- name: Diagnose application services and discovery status
+  ansible.builtin.include_tasks: diagnose_application_service.yml
+  loop: "{{ sn_csdm_app_svc_queue }}"
+  loop_control:
+    loop_var: sn_csdm_app_svc_item
+    label: "{{ sn_csdm_app_svc_item.spec.name | default('') }}"

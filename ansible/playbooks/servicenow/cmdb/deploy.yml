@@ -1,0 +1,62 @@
+---
+# Enable CMDB 360 (Multisource CMDB) on the ServiceNow instance.
+# Idempotent: skips sys_properties already set; re-requests plugin activation when needed.
+# License checks emit non-fatal warnings when entitlements are missing.
+#
+# Prerequisites:
+#   - admin_brooks_lab with cmdb_inst_admin (sys_properties) and sn_cicd.sys_ci_automation (plugin API)
+#   - ITOM Discovery entitlement on the instance
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../vars/secrets.yaml
+#
+# Next (typical brooks-lab sequence):
+#   playbooks/servicenow/discovery/discover.yml   — force Discovery scan (IRE-populated CIs)
+#   playbooks/servicenow/sgc/sources/dynatrace/start.yml — Dynatrace SGC import cascade
+
+- name: Deploy CMDB 360 (Multisource CMDB) settings
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
+
+    - name: Require ServiceNow API credentials
+      ansible.builtin.assert:
+        that:
+          - sn_url | length > 0
+          - sn_user | length > 0
+          - sn_password | length > 0
+        fail_msg: >-
+          Configure SN_URL in vars/variables.yaml and servicenow.SN_USER / SN_PASSWORD in vars/secrets.yaml
+
+    - name: Check CMDB 360 license prerequisites (non-fatal)
+      ansible.builtin.include_tasks: tasks/check_cmdb_licenses.yml
+
+    - name: Enable CMDB 360 / Multisource CMDB
+      ansible.builtin.include_tasks: tasks/enable_multisource_cmdb.yml
+
+    - name: Deploy summary
+      ansible.builtin.debug:
+        msg: |
+          CMDB 360 (Multisource CMDB) deploy complete on {{ sn_url }}.
+          License check satisfied: {{ sn_cmdb_licenses_satisfied | default('unknown') }}
+          Properties enabled:
+          {% for p in sn_cmdb_multisource_properties %}
+            - {{ p.name }}={{ p.value }}
+          {% endfor %}
+
+          Verify in UI: Configuration → CMDB 360 Properties (or CMDB Workspace → CMDB 360).
+
+          Recommended next steps:
+            1. discovery/discover.yml — run brooks-lab CI Discovery (populates IRE / cmdb_multisource_data)
+            2. sgc/sources/dynatrace/start.yml — Execute Now on SGO-Dynatrace Hosts (after SGC deploy)
+
+          Or run the full ServiceNow start orchestrator:
+            playbooks/servicenow/start.yml -e @../vars/secrets.yaml

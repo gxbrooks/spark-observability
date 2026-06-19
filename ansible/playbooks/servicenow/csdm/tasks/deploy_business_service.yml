@@ -1,0 +1,29 @@
+---
+# Deploy one business service and link to parent business application when specified.
+# Input: sn_csdm_bs_spec
+
+- name: Ensure business service
+  ansible.builtin.include_tasks: ensure_cmdb_record.yml
+  vars:
+    sn_csdm_table: cmdb_ci_service
+    sn_csdm_lookup_name: "{{ sn_csdm_bs_spec.name }}"
+    sn_csdm_body: "{{ sn_csdm_bs_spec | dict2items | rejectattr('key', 'in', ['name', 'parent_business_application']) | items2dict }}"
+    sn_csdm_patch_body: "{{ sn_csdm_bs_spec | dict2items | rejectattr('key', 'in', ['name', 'parent_business_application']) | items2dict }}"
+
+- name: Record business service sys_id in registry
+  ansible.builtin.set_fact:
+    sn_csdm_registry: >-
+      {{ sn_csdm_registry | combine(
+           {'business_services': sn_csdm_registry.business_services | default({}) | combine({sn_csdm_bs_spec.name: sn_csdm_record_sys_id})},
+           recursive=True) }}
+
+- name: Link business application to business service
+  ansible.builtin.include_tasks: ensure_relationship.yml
+  vars:
+    sn_rel_parent: "{{ sn_csdm_registry.business_applications[sn_csdm_bs_spec.parent_business_application] }}"
+    sn_rel_child: "{{ sn_csdm_record_sys_id }}"
+    sn_rel_type_name: "{{ sn_sm_rel_contains }}"
+  when:
+    - sn_csdm_bs_spec.parent_business_application is defined
+    - sn_csdm_bs_spec.parent_business_application | length > 0
+    - sn_csdm_registry.business_applications[sn_csdm_bs_spec.parent_business_application] is defined

@@ -1,0 +1,42 @@
+---
+# Deploy CSDM objects from application servicenow.yaml specifications.
+# Idempotent — safe to re-run after application or inventory changes.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+#     -e @../vars/secrets.yaml
+
+- name: Deploy ServiceNow CSDM objects
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
+
+    - name: Deploy Service Mapping Operations REST API
+      ansible.builtin.include_tasks: tasks/deploy_sm_rest_api.yml
+
+    - name: Resolve CSDM specification file paths
+      ansible.builtin.set_fact:
+        sn_csdm_spec_paths: >-
+          {{ sn_csdm_spec_paths | default([]) + [
+               (item if item is match('^/') else sn_playbooks_root ~ '/' ~ item)
+             ] }}
+      loop: "{{ sn_csdm_spec_files }}"
+
+    - name: Deploy CSDM specifications
+      ansible.builtin.include_tasks: tasks/deploy_csdm_spec.yml
+      vars:
+        sn_csdm_spec_path: "{{ item }}"
+      loop: "{{ sn_csdm_spec_paths }}"
+      loop_control:
+        label: "{{ item | basename }}"
+
+    - name: Trigger Service Mapping vertical discovery (async — does not wait for completion)
+      ansible.builtin.include_tasks: tasks/trigger_sm_discovery.yml
+      when: sn_sm_discover_service_names | default([]) | length > 0

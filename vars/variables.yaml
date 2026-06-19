@@ -44,6 +44,8 @@ K8S_NAMESPACE:
 
 # Registry of Docker hosts/stacks known to the shared ServiceNow instance.
 # Capability flags per entry (absent = false):
+#   discovery_docker_pattern: true — sn-discovery joins docker group + Docker Pattern
+#                               sudoers on this host (horizontal Discovery via MID SSH)
 #   container_discovery: true — this repo syncs running containers into
 #                               cmdb_ci_docker_container and validates them
 # Entries with a location are location-mapped in the CMDB regardless of flags.
@@ -53,6 +55,7 @@ DOCKER_HOSTS:
     - name: lab3-observability
       location: brooks-lab
       location_full_name: Brooks Lab
+      discovery_docker_pattern: true
       container_discovery: true
       cmdb_host_name: lab3
       ansible_host: Lab3
@@ -157,22 +160,24 @@ SPARK_OTEL_LISTENER_JAR_NAME:
 
 SPARK_MASTER_HOST:
   section: Spark master
-  contexts: [observability, ispark, spark-client, spark-ansible]
+  contexts: [observability, ispark, spark-client, spark-ansible, service-now]
   values:
     observability: Lab3.lan
     ispark: Lab3.lan
     spark-client: Lab3.lan
     spark-ansible: Lab3.lan
+    service-now: Lab3.lan
 
 SPARK_MASTER_PORT:
   section: Spark master
-  contexts: [spark-runtime, observability, ispark, spark-client, spark-ansible]
+  contexts: [spark-runtime, observability, ispark, spark-client, spark-ansible, service-now]
   values:
     spark-runtime: 7077
     observability: 31686
     ispark: 31686
     spark-client: 31686
     spark-ansible: 31686
+    service-now: 31686
 
 SPARK_MASTER:
   section: Spark master
@@ -535,6 +540,16 @@ GF_SECURITY_ADMIN_PASSWORD:
 # =============================================================================
 # ServiceNow Discovery
 # =============================================================================
+
+SPARK_MASTER_UI_NODEPORT:
+  section: Spark master
+  value: 32636
+  contexts: [service-now, spark-ansible, observability]
+
+SPARK_HISTORY_NODEPORT:
+  section: Spark history server
+  value: 31534
+  contexts: [service-now, spark-ansible, observability]
 
 SN_URL:
   section: ServiceNow instance

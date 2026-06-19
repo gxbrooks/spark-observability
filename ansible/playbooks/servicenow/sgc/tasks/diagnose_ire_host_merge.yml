@@ -1,0 +1,53 @@
+---
+# IRE / host identity diagnostics — duplicate host CIs and discovery-source alignment.
+
+- name: Query lab-related computer CIs for merge analysis
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_computer
+    sn_rest_query: >-
+      sysparm_query=nameSTARTSWITHlab^ORname=lab1^ORname=lab2^ORname=lab3
+      &sysparm_fields=name,host_name,discovery_source,sys_class_name,sys_id,location
+      &sysparm_limit=100
+
+- name: List matched host CIs
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.name | default('') }} ({{ item.sys_class_name | default('') }}):
+      discovery_source={{ item.discovery_source | default('') }},
+      sys_id={{ item.sys_id | default('') }}
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('') }}"
+  when: sn_rest_status == 200
+
+- name: Detect duplicate host CIs by normalized name
+  ansible.builtin.set_fact:
+    sn_ire_host_names_lower: >-
+      {{ sn_rest_json.result | default([]) | map(attribute='name') | map('lower') | list }}
+    sn_ire_unique_host_names: >-
+      {{ sn_rest_json.result | default([]) | map(attribute='name') | map('lower') | unique | list }}
+  when: sn_rest_status == 200
+
+- name: Report IRE host merge state
+  ansible.builtin.debug:
+    msg: |
+      IRE host merge (lab1/lab2/lab3):
+        Matched computer CIs: {{ sn_rest_json.result | default([]) | length }}
+        Unique normalized names: {{ sn_ire_unique_host_names | default([]) | length }}
+        {% if (sn_ire_host_names_lower | default([]) | length) == (sn_ire_unique_host_names | default([]) | length) %}
+        No duplicate host CIs — IRE appears to have merged lab hosts to single records.
+        {% else %}
+        Duplicate host name(s) detected — review hostname form (short vs FQDN) and IRE identifiers.
+        {% endif %}
+        Note: case differences (lab1 vs Lab1) are OK; multiple sys_ids per normalized name are not.
+  when: sn_rest_status == 200
+
+- name: Warn when duplicate host CIs detected
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: duplicate CMDB host CIs for the same normalized name. SGC imports and
+      Event Management may not bind to Discovery hosts until IRE merges them.
+  when:
+    - sn_rest_status == 200
+    - (sn_ire_host_names_lower | default([]) | length) != (sn_ire_unique_host_names | default([]) | length)

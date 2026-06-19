@@ -55,3 +55,6 @@
 
     - name: Apply SGC topology configuration
       ansible.builtin.include_tasks: tasks/apply_sgc_topology_config.yml
+
+    - name: Ensure SGC location inheritance business rule
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/ensure_sgc_location_business_rule.yml"

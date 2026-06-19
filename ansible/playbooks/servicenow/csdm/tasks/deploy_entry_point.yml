@@ -1,0 +1,61 @@
+---
+# Resolve and link one entry point CI for an application service.
+# Input: sn_csdm_entry_point_spec, sn_csdm_app_svc_item, sn_csdm_app_svc_sys_id
+
+- name: Resolve entry point lookup name
+  ansible.builtin.set_fact:
+    sn_csdm_entry_lookup_name: >-
+      {{ sn_csdm_entry_point_spec.name
+         | default(sn_csdm_entry_point_spec.lookup_name)
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+
+- name: Ensure IP service entry point CI
+  ansible.builtin.include_tasks: ensure_cmdb_record.yml
+  vars:
+    sn_csdm_table: cmdb_ci_ip_service
+    sn_csdm_lookup_name: "{{ sn_csdm_entry_lookup_name }}"
+    sn_csdm_body: >-
+      {{ sn_csdm_entry_point_spec
+         | dict2items
+         | rejectattr('key', 'in', ['table', 'name', 'lookup_name'])
+         | items2dict }}
+    sn_csdm_patch_body: >-
+      {{ sn_csdm_entry_point_spec
+         | dict2items
+         | rejectattr('key', 'in', ['table', 'name', 'lookup_name'])
+         | items2dict }}
+  when: sn_csdm_entry_point_spec.table == 'cmdb_ci_ip_service'
+
+- name: Record IP service entry point sys_id
+  ansible.builtin.set_fact:
+    sn_csdm_entry_sys_id: "{{ sn_csdm_record_sys_id }}"
+  when: sn_csdm_entry_point_spec.table == 'cmdb_ci_ip_service'
+
+- name: Look up Linux server entry point CI
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_linux_server
+    sn_rest_query: "sysparm_query=name={{ sn_csdm_entry_lookup_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+  when: sn_csdm_entry_point_spec.table == 'cmdb_ci_linux_server'
+
+- name: Fail when Linux server entry point CI is missing
+  ansible.builtin.fail:
+    msg: >-
+      Linux server CI '{{ sn_csdm_entry_lookup_name }}' not found for application service
+      '{{ sn_csdm_app_svc_name }}'. Run horizontal discovery first.
+  when:
+    - sn_csdm_entry_point_spec.table == 'cmdb_ci_linux_server'
+    - (sn_rest_json.result | default([]) | length) == 0
+
+- name: Record Linux server entry point sys_id
+  ansible.builtin.set_fact:
+    sn_csdm_entry_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+  when: sn_csdm_entry_point_spec.table == 'cmdb_ci_linux_server'
+
+- name: Link application service to entry point
+  ansible.builtin.include_tasks: ensure_relationship.yml
+  vars:
+    sn_rel_parent: "{{ sn_csdm_app_svc_sys_id }}"
+    sn_rel_child: "{{ sn_csdm_entry_sys_id }}"
+    sn_rel_type_name: "{{ sn_sm_rel_depends }}"

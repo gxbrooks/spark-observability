@@ -30,6 +30,9 @@
 
 - import_playbook: elastic-agent/install.yml
 
+- import_playbook: servicenow/install.yml
+  tags: [servicenow]
+
 - name: Display installation completion
   hosts: localhost
   connection: local

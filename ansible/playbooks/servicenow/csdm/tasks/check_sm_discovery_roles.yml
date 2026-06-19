@@ -1,0 +1,38 @@
+---
+# Verify admin_brooks_lab (or sn_user) has roles needed for Service Mapping Discover.
+
+- name: Resolve ServiceNow automation user sys_id
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_user
+    sn_rest_query: "sysparm_query=user_name={{ sn_user | urlencode }}&sysparm_fields=sys_id,user_name&sysparm_limit=1"
+
+- name: Record automation user sys_id
+  ansible.builtin.set_fact:
+    sn_sm_automation_user_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+  when: (sn_rest_json.result | default([]) | length) > 0
+
+- name: Query roles assigned to automation user
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_user_has_role
+    sn_rest_query: "sysparm_query=user={{ sn_sm_automation_user_sys_id }}&sysparm_fields=role.name&sysparm_limit=100"
+  when: sn_sm_automation_user_sys_id | default('') | length > 0
+
+- name: Initialize role name list
+  ansible.builtin.set_fact:
+    sn_sm_user_roles: []
+  when: sn_sm_automation_user_sys_id | default('') | length > 0
+
+- name: Collect role names for automation user
+  ansible.builtin.set_fact:
+    sn_sm_user_roles: "{{ sn_sm_user_roles + [item['role.name']] }}"
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  when: sn_sm_automation_user_sys_id | default('') | length > 0
+
+- name: Record Service Mapping role presence
+  ansible.builtin.set_fact:
+    sn_sm_has_service_mapping_admin: "{{ 'service_mapping_admin' in sn_sm_user_roles }}"
+    sn_sm_has_discovery_admin: "{{ 'discovery_admin' in sn_sm_user_roles }}"
+    sn_sm_has_app_service_admin: "{{ 'app_service_admin' in sn_sm_user_roles }}"
+  when: sn_sm_automation_user_sys_id | default('') | length > 0

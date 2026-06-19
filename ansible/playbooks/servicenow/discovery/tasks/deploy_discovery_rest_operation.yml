@@ -1,0 +1,59 @@
+---
+# Deploy or update one Scripted REST operation on sn_discovery_rest_ws_sys_id.
+# Expects sn_discovery_rest_op: { name, relative_path, script_file }
+
+- name: "Read REST operation script {{ sn_discovery_rest_op.script_file }}"
+  ansible.builtin.set_fact:
+    sn_discovery_rest_op_script: "{{ lookup('file', playbook_dir + '/files/' + sn_discovery_rest_op.script_file) }}"
+
+- name: "Look up REST operation {{ sn_discovery_rest_op.relative_path }}"
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_discovery_rest_ws_sys_id }}^http_method=POST^relative_path={{
+      sn_discovery_rest_op.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri,operation_script&sysparm_limit=1
+
+- name: "Create REST operation {{ sn_discovery_rest_op.relative_path }}"
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_operation
+    sn_rest_body:
+      web_service_definition: "{{ sn_discovery_rest_ws_sys_id }}"
+      name: "{{ sn_discovery_rest_op.name }}"
+      http_method: POST
+      relative_path: "{{ sn_discovery_rest_op.relative_path }}"
+      active: "true"
+      operation_script: "{{ sn_discovery_rest_op_script }}"
+      requires_authentication: "true"
+      requires_acl_authorization: "true"
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: "Update REST operation script {{ sn_discovery_rest_op.relative_path }}"
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_operation
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body:
+      operation_script: "{{ sn_discovery_rest_op_script }}"
+      active: "true"
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - sn_rest_json.result[0].operation_script | default('') != sn_discovery_rest_op_script
+
+- name: "Refresh REST operation {{ sn_discovery_rest_op.relative_path }}"
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_discovery_rest_ws_sys_id }}^http_method=POST^relative_path={{
+      sn_discovery_rest_op.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri&sysparm_limit=1
+
+- name: "Record operation URI for {{ sn_discovery_rest_op.relative_path }}"
+  ansible.builtin.set_fact:
+    sn_discovery_rest_operation_uris: >-
+      {{ (sn_discovery_rest_operation_uris | default({}))
+         | combine({ sn_discovery_rest_op.relative_path: sn_rest_json.result[0].operation_uri }) }}
+  when: sn_rest_json.result | default([]) | length > 0

@@ -1,0 +1,89 @@
+---
+# Diagnose CMDB 360 (Multisource CMDB) settings.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/diagnose.yml -e @../vars/secrets.yaml
+
+- name: Diagnose CMDB 360 (Multisource CMDB)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Check CMDB 360 license plugins
+      ansible.builtin.include_tasks: tasks/check_cmdb_licenses.yml
+
+    - name: Read CMDB 360 sys_properties
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/sys_properties?sysparm_query=nameIN{{
+          sn_cmdb_multisource_properties | map(attribute='name') | join(',') | urlencode
+          }}&sysparm_fields=name,value&sysparm_limit=10
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 403]
+        return_content: true
+      register: sn_cmdb_ms_props
+      no_log: true
+
+    - name: Sample cmdb_multisource_data rows
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/cmdb_multisource_data?sysparm_fields=discovery_source,cmdb_ci,attribute,value,sys_updated_on&sysparm_limit=5
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 403, 404]
+        return_content: true
+      register: sn_cmdb_ms_data
+      no_log: true
+      failed_when: false
+
+    - name: Count cmdb_multisource_data rows
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/stats/cmdb_multisource_data?sysparm_count=true"
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 403]
+        return_content: true
+      register: sn_cmdb_ms_count
+      no_log: true
+      failed_when: false
+
+    - name: CMDB 360 diagnostic summary
+      ansible.builtin.debug:
+        msg: |
+          CMDB 360 on {{ sn_url }}:
+          Licenses satisfied: {{ sn_cmdb_licenses_satisfied | default('unknown') }}
+          {% if sn_cmdb_ms_props.status != 200 %}
+          sys_properties: FORBIDDEN (grant cmdb_inst_admin or admin to {{ sn_user }})
+          {% else %}
+          sys_properties:
+          {% for row in sn_cmdb_ms_props.json.result | default([]) %}
+            - {{ row.name }}={{ row.value }}
+          {% endfor %}
+          {% for expected in sn_cmdb_multisource_properties %}
+          {% if expected.name not in (sn_cmdb_ms_props.json.result | default([]) | map(attribute='name') | list) %}
+            - {{ expected.name }}=MISSING (run cmdb/deploy.yml)
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          cmdb_multisource_data: HTTP {{ sn_cmdb_ms_data.status | default('n/a') }},
+            total rows={{ sn_cmdb_ms_count.json.result.stats.count | default('unknown') if (sn_cmdb_ms_count.status | default(0) | int) == 200 else 'unknown' }}
+            (populated only when CIs are created/updated through IRE **after** CMDB 360 properties are enabled)
+          {% if (sn_cmdb_ms_count.json.result.stats.count | default('0') | string) == '0' %}
+          Hint: run a fresh Discovery scan and/or sgc/sources/dynatrace/start.yml after cmdb/deploy.yml.
+          {% endif %}
+
+          UI: CMDB Workspace → CMDB 360 | Configuration → CMDB 360 Properties

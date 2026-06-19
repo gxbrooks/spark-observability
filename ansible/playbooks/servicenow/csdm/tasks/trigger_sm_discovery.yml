@@ -1,0 +1,63 @@
+---
+# Trigger Service Mapping top-down discovery for queued application services.
+# Uses Service Mapping Operations REST API (SNC.BusinessServiceManager server-side).
+# Does not poll for completion — use diagnose.yml to check status.
+
+- name: Load persisted Service Mapping REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_discover_uri_loaded: "{{ lookup('file', playbook_dir + '/../../../../vars/contexts/servicenow_sm_deploy.json') | from_json }}"
+  failed_when: false
+
+- name: Apply persisted Service Mapping discover URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_discover_uri: "{{ sn_sm_rest_discover_uri_loaded.sm_rest_discover_uri }}"
+  when:
+    - sn_sm_rest_discover_uri_loaded is mapping
+    - sn_sm_rest_discover_uri_loaded.sm_rest_discover_uri | default('') | length > 0
+
+- name: Require Service Mapping discover REST URI
+  ansible.builtin.assert:
+    that:
+      - sn_sm_rest_discover_uri | default('') | length > 0
+      - sn_sm_discover_service_names | default([]) | length > 0
+    fail_msg: >-
+      Service Mapping discover REST URI or application service list is unset.
+
+- name: Trigger Service Mapping discovery for each application service (fire-and-forget)
+  ansible.builtin.uri:
+    url: "{{ sn_url }}{{ sn_sm_rest_discover_uri }}"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      service_name: "{{ item }}"
+      register_entry_point: true
+    status_code: [202, 400, 404, 500]
+    return_content: true
+  register: sn_sm_discover_triggers
+  loop: "{{ sn_sm_discover_service_names | unique }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+
+- name: Report Service Mapping discovery trigger results
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item }}: HTTP {{ item.status }}
+      {{ item.json.result if item.json.result is defined else item.json.error | default(item.json) }}
+  loop: "{{ sn_sm_discover_triggers.results }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+
+- name: Fail when any Service Mapping discovery trigger failed
+  ansible.builtin.fail:
+    msg: >-
+      Service Mapping discovery trigger failed for {{ item.item }} (HTTP {{ item.status }}):
+      {{ item.json.error | default(item.json) }}
+  loop: "{{ sn_sm_discover_triggers.results }}"
+  when: item.status != 202
+  loop_control:
+    label: "{{ item.item | default('') }}"

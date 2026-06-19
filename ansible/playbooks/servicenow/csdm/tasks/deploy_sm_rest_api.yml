@@ -1,0 +1,115 @@
+---
+# Deploy global-scoped Scripted REST API for Service Mapping operations.
+
+- name: Look up Service Mapping Operations REST API definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_ws_definition
+    sn_rest_query: "sysparm_query=name={{ sn_sm_rest_api_name | urlencode }}&sysparm_fields=sys_id,name,base_uri,active&sysparm_limit=1"
+
+- name: Record current Service Mapping REST API definition
+  ansible.builtin.set_fact:
+    sn_sm_rest_ws_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_sm_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Create Service Mapping Operations REST API definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_definition
+    sn_rest_body:
+      name: "{{ sn_sm_rest_api_name }}"
+      active: "true"
+      consumes: application/json
+      produces: application/json
+      short_description: >-
+        Register entry points and trigger Service Mapping top-down discovery (Ansible).
+  when: sn_sm_rest_ws_sys_id | default('') | length == 0
+
+- name: Record Service Mapping REST API sys_id from create
+  ansible.builtin.set_fact:
+    sn_sm_rest_ws_sys_id: "{{ sn_rest_record.sys_id }}"
+  when:
+    - sn_sm_rest_ws_sys_id | default('') | length == 0
+    - sn_rest_status in [200, 201]
+
+- name: Refresh Service Mapping REST API base URI
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_ws_definition
+    sn_rest_query: "sysparm_query=sys_id={{ sn_sm_rest_ws_sys_id }}&sysparm_fields=base_uri&sysparm_limit=1"
+  when: sn_sm_rest_base_uri | default('') | length == 0
+
+- name: Store Service Mapping REST base URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
+  when:
+    - sn_sm_rest_base_uri | default('') | length == 0
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Build Service Mapping REST discover operation payload
+  ansible.builtin.set_fact:
+    sn_sm_rest_discover_script: "{{ lookup('file', playbook_dir + '/files/sm_discover_service.js') }}"
+
+- name: Look up Service Mapping discover REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method=POST^relative_path={{
+      sn_sm_rest_discover_path | urlencode }}&sysparm_fields=sys_id,operation_uri,operation_script&sysparm_limit=1
+
+- name: Create Service Mapping discover REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_operation
+    sn_rest_body:
+      web_service_definition: "{{ sn_sm_rest_ws_sys_id }}"
+      name: Run Service Mapping discovery
+      http_method: POST
+      relative_path: "{{ sn_sm_rest_discover_path }}"
+      active: "true"
+      operation_script: "{{ sn_sm_rest_discover_script }}"
+      requires_authentication: "true"
+      requires_acl_authorization: "true"
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Update Service Mapping discover REST operation script
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_operation
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body:
+      operation_script: "{{ sn_sm_rest_discover_script }}"
+      active: "true"
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - sn_rest_json.result[0].operation_script | default('') != sn_sm_rest_discover_script
+
+- name: Refresh Service Mapping discover operation URI
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method=POST^relative_path={{
+      sn_sm_rest_discover_path | urlencode }}&sysparm_fields=operation_uri&sysparm_limit=1
+
+- name: Record Service Mapping discover REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_discover_uri: "{{ sn_rest_json.result[0].operation_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Persist Service Mapping REST URI to context file
+  ansible.builtin.copy:
+    dest: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_sm_deploy.json"
+    mode: "0644"
+    content: "{{ {'sm_rest_discover_uri': sn_sm_rest_discover_uri | default(''), 'sm_rest_base_uri': sn_sm_rest_base_uri | default('')} | to_nice_json }}"
+
+- name: Service Mapping REST API summary
+  ansible.builtin.debug:
+    msg: >-
+      Service Mapping Operations API: POST {{ sn_sm_rest_discover_uri | default('pending') }}
+      body {"service_name": "Spark Master"}

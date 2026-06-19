@@ -66,4 +66,5 @@
       {{ sn_discovery_user }} ALL=(root) NOPASSWD: /usr/bin/lscpu, /bin/cat /sys/class/dmi/id/*
       {{ sn_discovery_user }} ALL=(root) NOPASSWD: /usr/bin/lsblk, /sbin/fdisk -l
       {{ sn_discovery_user }} ALL=(root) NOPASSWD: /usr/bin/ip, /sbin/ip
+      {{ sn_discovery_user }} ALL=(root) NOPASSWD: /usr/bin/lsof, /usr/bin/ss, /sbin/ss, /bin/netstat, /usr/sbin/netstat, /bin/ps, /usr/bin/ps
   become: true

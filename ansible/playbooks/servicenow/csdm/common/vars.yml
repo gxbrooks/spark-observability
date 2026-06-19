@@ -1,0 +1,32 @@
+---
+# Shared ServiceNow CSDM deploy variables (application-agnostic).
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+sn_lab_location_name: "{{ SN_LAB_LOCATION_NAME | default('brooks-lab') }}"
+
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
+sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
+sn_playbooks_root: "{{ sn_servicenow_playbooks_dir | dirname }}"
+
+sn_sm_rel_contains: "Contains::Contained by"
+sn_sm_rel_depends: "Depends on::Used by"
+sn_mid_server_name: "{{ SN_MID_SERVER_NAME | default('mid-brooks-lab3') }}"
+
+sn_sm_rest_api_name: Service Mapping Operations API
+sn_sm_rest_discover_path: /discover
+sn_sm_poll_discovery: false
+
+# Explicit list of CSDM specification files to deploy (application playbook dirs).
+# Each path is relative to ansible/playbooks/ unless absolute.
+sn_csdm_spec_files:
+  - spark/servicenow/servicenow.yaml
+
+sn_csdm_registry: {}
+sn_csdm_app_svc_queue: []
+sn_sm_discover_service_names: []

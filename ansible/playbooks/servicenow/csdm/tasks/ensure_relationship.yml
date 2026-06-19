@@ -1,0 +1,45 @@
+---
+# Ensure cmdb_rel_ci exists (idempotent). Inputs: sn_rel_parent, sn_rel_child, sn_rel_type_name
+# Output: sn_rel_sys_id
+
+- name: "Resolve relationship type '{{ sn_rel_type_name }}'"
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_type
+    sn_rest_query: "sysparm_query=name={{ sn_rel_type_name | urlencode }}&sysparm_limit=1"
+
+- name: Fail when relationship type is missing
+  ansible.builtin.fail:
+    msg: "CMDB relationship type '{{ sn_rel_type_name }}' not found on {{ sn_url }}."
+  when: (sn_rest_json.result | default([]) | length) == 0
+
+- name: Record relationship type sys_id
+  ansible.builtin.set_fact:
+    sn_rel_type_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+
+- name: Look up existing relationship
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: "sysparm_query=parent={{ sn_rel_parent }}^child={{ sn_rel_child }}^type={{ sn_rel_type_sys_id }}&sysparm_limit=1"
+
+- name: Record existing relationship lookup
+  ansible.builtin.set_fact:
+    sn_rel_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_rel_existing_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create CMDB relationship
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_body:
+      parent: "{{ sn_rel_parent }}"
+      child: "{{ sn_rel_child }}"
+      type: "{{ sn_rel_type_sys_id }}"
+  when: not sn_rel_exists | bool
+
+- name: Record relationship sys_id
+  ansible.builtin.set_fact:
+    sn_rel_sys_id: >-
+      {{ sn_rel_existing_sys_id if sn_rel_exists | bool else sn_rest_record.sys_id | default('') }}

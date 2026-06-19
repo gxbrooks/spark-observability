@@ -1,0 +1,130 @@
+---
+# Deploy global-scoped Scripted REST API for Discovery operations (schedule + quick).
+# ServiceNow assigns base_uri; operation URIs are persisted in servicenow_discovery_deploy.json.
+#
+# Requires: web_service_admin (create sys_ws_*), discovery_admin (script calls Discovery API).
+
+- name: Look up Discovery Operations REST API definition
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: sys_ws_definition
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_discovery_rest_api_name | urlencode }}&sysparm_fields=sys_id,name,base_uri,active&sysparm_limit=1
+
+- name: Record current REST API definition
+  ansible.builtin.set_fact:
+    sn_discovery_rest_ws_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_discovery_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Look up legacy REST API definition names
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_ws_definition?sysparm_query=name={{ item | urlencode
+      }}&sysparm_fields=sys_id,name,base_uri&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_legacy_rest_api_lookups
+  loop: "{{ sn_discovery_rest_api_legacy_names }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: true
+  when: sn_discovery_rest_ws_sys_id | default('') | length == 0
+
+- name: Adopt legacy REST API definition
+  ansible.builtin.set_fact:
+    sn_discovery_rest_ws_sys_id: "{{ item.json.result[0].sys_id }}"
+    sn_discovery_rest_base_uri: "{{ item.json.result[0].base_uri }}"
+    sn_discovery_rest_legacy_name: "{{ item.item }}"
+  loop: "{{ sn_legacy_rest_api_lookups.results | default([]) }}"
+  when:
+    - sn_discovery_rest_ws_sys_id | default('') | length == 0
+    - item.json.result | default([]) | length > 0
+  loop_control:
+    label: "{{ item.item | default('legacy') }}"
+
+- name: Rename legacy REST API definition to current name
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_definition
+    sn_rest_sys_id: "{{ sn_discovery_rest_ws_sys_id }}"
+    sn_rest_body:
+      name: "{{ sn_discovery_rest_api_name }}"
+      short_description: >-
+        Trigger Discovery schedule runs and Quick Discovery (Ansible / REST automation).
+  when: sn_discovery_rest_legacy_name | default('') | length > 0
+
+- name: Create Discovery Operations REST API definition
+  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_definition
+    sn_rest_body:
+      name: "{{ sn_discovery_rest_api_name }}"
+      active: "true"
+      consumes: application/json
+      produces: application/json
+      short_description: >-
+        Trigger Discovery schedule runs and Quick Discovery (Ansible / REST automation).
+  when: sn_discovery_rest_ws_sys_id | default('') | length == 0
+
+- name: Record REST API definition sys_id from create
+  ansible.builtin.set_fact:
+    sn_discovery_rest_ws_sys_id: "{{ sn_rest_record.sys_id }}"
+  when:
+    - sn_discovery_rest_ws_sys_id | default('') | length == 0
+    - sn_rest_record.sys_id is defined
+    - sn_rest_record.sys_id | length > 0
+
+- name: Refresh Discovery Operations REST API definition lookup
+  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: sys_ws_definition
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_discovery_rest_api_name | urlencode }}&sysparm_fields=sys_id,name,base_uri,active&sysparm_limit=1
+  when: sn_discovery_rest_ws_sys_id | default('') | length == 0
+
+- name: Record REST API definition facts after refresh
+  ansible.builtin.set_fact:
+    sn_discovery_rest_ws_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_discovery_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
+  when:
+    - sn_discovery_rest_ws_sys_id | default('') | length == 0
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Fail when REST API definition is missing
+  ansible.builtin.fail:
+    msg: >-
+      Could not create or read Scripted REST API '{{ sn_discovery_rest_api_name }}'.
+      Grant web_service_admin to {{ sn_user }} (docs/install.md §7).
+  when: sn_discovery_rest_ws_sys_id | default('') | length == 0
+
+- name: Deploy Discovery REST API operations
+  ansible.builtin.include_tasks: deploy_discovery_rest_operation.yml
+  loop: "{{ sn_discovery_rest_operations }}"
+  loop_control:
+    loop_var: sn_discovery_rest_op
+    label: "{{ sn_discovery_rest_op.relative_path }}"
+
+- name: Set primary schedule-run URI for discover.yml
+  ansible.builtin.set_fact:
+    sn_discovery_rest_operation_uri: >-
+      {{ sn_discovery_rest_operation_uris[sn_discovery_rest_schedule_path]
+         | default(sn_discovery_rest_operation_uris['/run']
+         | default(sn_discovery_rest_operation_uris.values() | list | first | default(''))) }}
+    sn_discovery_rest_quick_uri: "{{ sn_discovery_rest_operation_uris[sn_discovery_rest_quick_path] | default('') }}"
+
+- name: Report Discovery Operations REST API deploy
+  ansible.builtin.debug:
+    msg: |
+      Scripted REST API '{{ sn_discovery_rest_api_name }}' ({{ sn_discovery_rest_base_uri | default('') }})
+      Schedule run: POST {{ sn_discovery_rest_operation_uri | default('') }}
+        body: {"schedule_name": "<discovery_schedule.name>"} or {"schedule_sys_id": "<sys_id>"}
+      Quick discovery: POST {{ sn_discovery_rest_quick_uri | default('') }}
+        body: {"ip_address": "<ip>", "mid_server": "<ecc_agent.name>"}  (mid_server optional)

@@ -72,7 +72,7 @@ python3 vars/generate_env.py -f observability spark-runtime
 
 ## Documentation
 
-- **[BEST_PRACTICES.md](docs/BEST_PRACTICES.md)** - Rationale for the common directory approach and comparison with alternatives
+- **[Context_Variable_Best_Practice.md](docs/Context_Variable_Best_Practice.md)** - Context variable technical policy and guidelines (TPG)
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - High-level architecture, data flow, and component design
 - **[IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** - Detailed implementation: all generated files, formats, consumers, and deployment processes
 
@@ -96,6 +96,12 @@ python3 vars/generate_env.py -f observability spark-runtime
 | `managed-node` | `managed_node_env.sh` | Managed node validation environment |
 
 Variables are selected by `contexts:` tags in `variables.yaml` only. Optional `section:` on each variable groups output in Ansible context files. Application-specific naming (e.g. snake_case) belongs in playbook/role `vars`, not in the generator.
+
+### Singleton contexts and application-local configuration
+
+See **[docs/Context_Variable_Best_Practice.md](docs/Context_Variable_Best_Practice.md)** for the full policy. In brief: a **singleton context** is referenced by only one variable in `variables.yaml`. Such variables **should** move to application-local files instead (for example `ansible/playbooks/<app>/servicenow/servicenow.yaml` for ServiceNow CSDM names, or `common/vars.yml` next to playbooks).
+
+Shared ServiceNow infrastructure values (instance URL, lab location, Spark host/port NodePorts used by discovery and CSDM) remain in `variables.yaml` under the `service-now` context. Spark CSDM object names and hierarchy live in `ansible/playbooks/spark/servicenow/servicenow.yaml` and are deployed by `ansible/playbooks/servicenow/csdm/deploy.yml`.
 
 ## Common Workflow
 

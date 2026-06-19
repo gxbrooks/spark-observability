@@ -1,0 +1,53 @@
+---
+# Post-import: SGO-Dynatrace infrastructure CIs inherit location from host CI when empty.
+
+- name: Build SGC location inheritance business rule payload
+  ansible.builtin.set_fact:
+    sn_sgc_location_br_body:
+      name: "{{ sn_sgc_location_br_name }}"
+      active: "true"
+      collection: cmdb_ci
+      when: before
+      action_insert: "true"
+      action_update: "true"
+      filter_condition: >-
+        locationISEMPTY^hostISNOTEMPTY^discovery_sourceLIKE*SGO-Dynatrace*
+      description: >-
+        SGO-Dynatrace imports leave location empty on infrastructure CIs; inherit from
+        the related host CI when that host already has location (e.g. from Discovery).
+        Does not map Dynatrace management zones to location.
+      script: "{{ lookup('file', sn_sgc_dir + '/files/sgc_inherit_location_from_host.br.js') }}"
+
+- name: Look up SGC location inheritance business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=name={{ sn_sgc_location_br_name | urlencode }}&sysparm_limit=1"
+
+- name: Record whether SGC location business rule exists
+  ansible.builtin.set_fact:
+    sn_sgc_location_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_sgc_location_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create SGC location inheritance business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script
+    sn_rest_body: "{{ sn_sgc_location_br_body }}"
+  when: not sn_sgc_location_br_exists | bool
+
+- name: Update SGC location inheritance business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ sn_sgc_location_br_sys_id }}"
+    sn_rest_body: "{{ sn_sgc_location_br_body }}"
+  when: sn_sgc_location_br_exists | bool
+
+- name: SGC location business rule summary
+  ansible.builtin.debug:
+    msg: >-
+      Business rule '{{ sn_sgc_location_br_name }}' active on cmdb_ci (SGO-Dynatrace,
+      infrastructure classes only). Child CIs inherit location from host when empty.

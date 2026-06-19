@@ -6,7 +6,14 @@ Discovers Docker containers from **`DOCKER_HOSTS`** in `vars/variables.yaml` int
 
 | Variable | Purpose |
 | -------- | ------- |
-| `DOCKER_HOSTS` | Host entries: `cmdb_host_name`, `location`, `ansible_host`, and the capability flag `container_discovery` (`true` = sync containers into CMDB and validate; absent = location mapping only) |
+| `DOCKER_HOSTS` | Host entries: `cmdb_host_name`, `location`, `ansible_host`, and capability flags (see below) |
+
+Capability flags per entry (absent = false):
+
+| Flag | Purpose |
+| ---- | ------- |
+| `discovery_docker_pattern` | `sn-discovery` joins `docker` group + Docker Pattern sudoers on this host (`discovery/install.yml`) |
+| `container_discovery` | Sync running containers into CMDB via `docker/discover.yml` |
 
 Location uses the same product-native pattern as K8s:
 

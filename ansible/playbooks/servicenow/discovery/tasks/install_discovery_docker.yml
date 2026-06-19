@@ -1,0 +1,38 @@
+---
+# Docker Pattern permissions for sn-discovery on DOCKER_HOSTS registry entries only.
+# Requires install_discovery_user.yml on the same host first (SSH account + base sudoers).
+
+- name: Detect Docker daemon socket on host
+  ansible.builtin.stat:
+    path: /var/run/docker.sock
+  register: sn_discovery_docker_sock
+  become: true
+
+- name: Fail when Docker socket is missing on a registered Docker host
+  ansible.builtin.fail:
+    msg: >-
+      Host {{ inventory_hostname }} ({{ ansible_host }}) is in DOCKER_HOSTS with
+      discovery_docker_pattern but /var/run/docker.sock is missing. Install Docker
+      or remove/fix the registry entry in vars/variables.yaml.
+  when: not (sn_discovery_docker_sock.stat.exists | default(false) | bool)
+
+- name: Add sn-discovery to docker group for horizontal Docker Pattern
+  ansible.builtin.user:
+    name: "{{ sn_discovery_user }}"
+    groups: docker
+    append: true
+  become: true
+  when:
+    - sn_discovery_docker_sock.stat.exists | bool
+    - sn_discovery_docker_sock.stat.issock | default(false) | bool
+
+- name: Deploy Docker Pattern sudoers lines for sn-discovery
+  ansible.builtin.blockinfile:
+    path: /etc/sudoers.d/99-servicenow-discovery
+    marker: "# {mark} ANSIBLE MANAGED BLOCK docker pattern"
+    insertafter: EOF
+    validate: "visudo -cf %s"
+    block: |
+      {{ sn_discovery_user }} ALL=(root) NOPASSWD: /usr/bin/docker, /usr/bin/docker ps, /usr/bin/docker inspect
+    create: false
+  become: true

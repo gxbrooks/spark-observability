@@ -95,7 +95,12 @@
     - name: Parse deploy context
       ansible.builtin.set_fact:
         sn_schedule_sys_id: "{{ (sn_deploy_context_file.content | b64decode | from_json).schedule_sys_id | default('') }}"
+        sn_discovery_rest_operation_uri: "{{ (sn_deploy_context_file.content | b64decode | from_json).discovery_rest_operation_uri | default('') }}"
       when: sn_deploy_context_file is succeeded
+
+    - name: Resolve Discover Now REST API when missing from deploy context
+      ansible.builtin.include_tasks: tasks/deploy_discovery_rest_api.yml
+      when: sn_discovery_rest_operation_uri | default('') | length == 0
 
     - name: Look up schedule by name when context missing
       ansible.builtin.include_tasks: common/sn_rest_get.yml
@@ -116,9 +121,11 @@
         msg: "Discovery schedule not found. Run deploy.yml after MID Server is validated in ServiceNow."
       when: sn_schedule_sys_id | default('') | length == 0
 
-    - name: Snapshot brooks-lab discovery_status count before trigger
+    - name: Snapshot latest brooks-lab discovery_status before trigger
       ansible.builtin.uri:
-        url: "{{ sn_url }}/api/now/table/discovery_status?sysparm_query=dscheduler={{ sn_schedule_sys_id }}&sysparm_limit=1"
+        url: >-
+          {{ sn_url }}/api/now/table/discovery_status?sysparm_query=dscheduler={{
+          sn_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=number,state,sys_created_on&sysparm_limit=1
         method: GET
         user: "{{ sn_user }}"
         password: "{{ sn_password }}"
@@ -128,59 +135,90 @@
       register: sn_status_before
       no_log: true
 
-    - name: Trigger Discovery via Table API action (ITOM)
-      ansible.builtin.uri:
-        url: "{{ sn_url }}/api/now/table/discovery_schedule/{{ sn_schedule_sys_id }}/action/run_discovery"
-        method: POST
-        user: "{{ sn_user }}"
-        password: "{{ sn_password }}"
-        force_basic_auth: true
-        headers: "{{ sn_api_headers }}"
-        status_code: [200, 201, 202, 400, 403, 404]
-        return_content: true
-      register: sn_discover_action
-      no_log: true
+    - name: Record latest discovery_status timestamp before trigger
+      ansible.builtin.set_fact:
+        sn_discover_status_before_ts: >-
+          {{ (sn_status_before.json.result | default([]) | first | default({})).sys_created_on | default('') }}
 
-    - name: Fallback — trigger via discovery runner endpoint
+    - name: Trigger Discovery via Scripted REST API (Discover Now)
       ansible.builtin.uri:
-        url: "{{ sn_url }}/api/now/table/discovery_schedule/{{ sn_schedule_sys_id }}"
-        method: PATCH
+        url: "{{ sn_url }}{{ sn_discovery_rest_operation_uri }}"
+        method: POST
         user: "{{ sn_user }}"
         password: "{{ sn_password }}"
         force_basic_auth: true
         headers: "{{ sn_api_headers }}"
         body_format: json
         body:
-          started: "true"
-        status_code: [200, 400, 403]
+          schedule_name: "{{ sn_discovery_schedule_name }}"
+        status_code: [200, 202, 403, 404, 500]
         return_content: true
-      register: sn_discover_patch
+      register: sn_discover_rest
       no_log: true
-      when: sn_discover_action.status not in [200, 201, 202]
+      failed_when: false
+      when: sn_discovery_rest_operation_uri | default('') | length > 0
+
+    - name: Fail when Discover Now REST API is not deployed
+      ansible.builtin.fail:
+        msg: >-
+          discovery_rest_operation_uri is missing. Run playbooks/servicenow/discovery/deploy.yml
+          to create the Discovery Operations API Scripted REST endpoint.
+      when: sn_discovery_rest_operation_uri | default('') | length == 0
+
+    - name: Wait briefly for discovery_status row after REST trigger
+      ansible.builtin.pause:
+        seconds: 10
+      when:
+        - sn_discover_rest.status | default(0) | int == 202
+
+    - name: Check for new brooks-lab discovery_status after trigger attempt
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/discovery_status?sysparm_query=dscheduler={{
+          sn_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=number,state,sys_created_on&sysparm_limit=1
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: sn_status_after
+      no_log: true
+
+    - name: Determine whether a new Discovery run actually started
+      ansible.builtin.set_fact:
+        sn_discover_triggered: >-
+          {{ (sn_discover_rest.status | default(0) | int == 202)
+             or ((sn_status_after.json.result | default([]) | length > 0)
+                 and ((sn_status_after.json.result | first).sys_created_on | default(''))
+                     != (sn_discover_status_before_ts | default(''))) }}
 
     - name: Discovery trigger result
       ansible.builtin.debug:
         msg: |
           Preflight passed (sn-discovery SSH on Lab1–Lab3, schedule active, range item present).
 
-          API trigger for {{ sn_discovery_schedule_name }} ({{ sn_schedule_sys_id }}):
-            action/run_discovery HTTP {{ sn_discover_action.status }}
-            PATCH fallback HTTP {{ sn_discover_patch.status | default('skipped') }}
+          Discover Now REST API for {{ sn_discovery_schedule_name }} ({{ sn_schedule_sys_id }}):
+            POST {{ sn_discovery_rest_operation_uri }} HTTP {{ sn_discover_rest.status | default('skipped') }}
+            {% if sn_discover_rest.status | default(0) | int == 202 %}
+            discovery_status={{ sn_discover_rest.json.result.discovery_status_number | default('') }}
+            {% elif sn_discover_rest.status | default(0) | int == 403 %}
+            FORBIDDEN — grant discovery_admin (script executes discoverNow).
+            {% elif sn_discover_rest.status | default(0) | int == 404 %}
+            REST API missing — run discovery/deploy.yml.
+            {% endif %}
 
-          brooks-lab discovery_status rows before trigger: {{ sn_status_before.json.result | default([]) | length }}
+          discovery_status before: {{ sn_discover_status_before_ts | default('none') }}
+          discovery_status after:  {{ (sn_status_after.json.result | default([]) | first | default({})).sys_created_on | default('none') }}
+          New run started: {{ sn_discover_triggered | bool }}
 
-          {% if sn_discover_action.status not in [200, 201, 202] %}
-          This instance requires UI Discover Now:
-            {{ sn_url }}/discovery_schedule.do?sys_id={{ sn_schedule_sys_id }}
-
-          Monitor brooks-lab runs only (not Kubernetes):
-            {{ sn_url }}/discovery_status_list.do?sysparm_query=dscheduler%3D{{ sn_schedule_sys_id }}
-
-          CMDB (all CIs at brooks-lab):
-            {{ sn_cmdb_all_cis_url }}
-
-          CMDB (Linux servers at brooks-lab):
-            {{ sn_cmdb_linux_servers_url }}
+          {% if not sn_discover_triggered | bool %}
+          WARNING: brooks-lab CI Discovery did not start.
+          UI fallback: {{ sn_url }}/discovery_schedule.do?sys_id={{ sn_schedule_sys_id }}
+          Monitor: {{ sn_url }}/discovery_status_list.do?sysparm_query=dscheduler%3D{{ sn_schedule_sys_id }}
           {% else %}
-          Scan started via API — wait several minutes, then run test.yml.
+          Scan started — wait several minutes, then run discovery/test.yml and cmdb/diagnose.yml.
           {% endif %}
+
+          CMDB (all CIs at brooks-lab): {{ sn_cmdb_all_cis_url }}
+          CMDB (Linux servers at brooks-lab): {{ sn_cmdb_linux_servers_url }}

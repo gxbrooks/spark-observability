@@ -10,13 +10,17 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | Directory | Purpose |
 | --------- | ------- |
 | `discovery/` | Phases 1–3: MID Server, Discovery credentials, schedules, on-demand scans, K8s/Docker discovery |
+| `cmdb/` | CMDB 360 (Multisource CMDB): license check, sys_properties, diagnose |
 | `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
 | *(future)* `incident/` | Incident integrations |
 
+Top-level orchestrators: `install.yml`, `deploy.yml`, `start.yml`, `diagnose.yml`
+(import child playbooks in order). Global playbooks import these with tag
+`servicenow` (use `--skip-tags servicenow` to omit).
+
 `sgc/sources/` is organized by **observability source** (one subdirectory per
 SGC/event source). Dynatrace is the only source today; additional sources get
-sibling directories. CMDB-specific configuration beyond the SGC (none today)
-would go in a future `sgc/cmdb/` subdirectory.
+sibling directories.
 
 ## Variables and secrets
 
@@ -41,22 +45,24 @@ Full prerequisite checklist: **`docs/install.md`**
 SSH discovery private key is generated on first `discovery/install.yml` run and
 stored at `vars/sn_discovery_id_ed25519` (gitignored).
 
-## Phase 1 entry points
+## Entry points
 
 ```bash
 cd ansible
 
-# 1. Lab discovery account on Lab1–Lab3 (+ MID Server package on Lab3)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml
+# Full ServiceNow stack (or run individual playbooks below)
+ansible-playbook -i inventory.yml playbooks/servicenow/install.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/deploy.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
 
-# 2. ServiceNow instance config (location, credential, range, schedule, MID record)
+# Phase 1 — Discovery only
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/deploy.yml -e @../vars/secrets.yaml
 
-# 3. On-demand Discovery scan
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
-
-# Permissions / connectivity check
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e @../vars/secrets.yaml
+# CMDB 360 (Multisource CMDB)
+ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../vars/secrets.yaml
 ```
 
 ## ServiceNow users (two required)

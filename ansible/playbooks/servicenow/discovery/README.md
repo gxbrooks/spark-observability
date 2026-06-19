@@ -6,7 +6,8 @@ Automates brooks-lab Discovery:
    MID Server package + systemd on Lab3 (`observability` host).
 2. **deploy.yml** — ServiceNow location `brooks-lab`, SSH credential, subnet
    range `192.168.1.0/24`, CI Discovery schedule bound to MID `mid-brooks-lab3`.
-3. **discover.yml** — Trigger an on-demand Discovery run (manual scan).
+3. **discover.yml** — Preflight lab hosts, then trigger a schedule run via the
+   **Discovery Operations API** deployed by `deploy.yml`.
 4. **diagnose.yml** — API permissions, MID state, credential presence.
 5. **test.yml** — Assert lab Linux server CIs exist in CMDB after a scan.
 6. **stop.yml** / **start.yml** — MID Server service lifecycle on Lab3.

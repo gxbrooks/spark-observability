@@ -51,6 +51,9 @@
 
 - import_playbook: elastic-agent/diagnose.yml
 
+- import_playbook: servicenow/diagnose.yml
+  tags: [servicenow]
+
 - name: Display diagnose summary
   hosts: localhost
   connection: local

@@ -40,6 +40,21 @@
           tags: [discovery_user]
       tags: [discovery_user]
 
+- name: Install sn-discovery Docker Pattern permissions on Docker hosts
+  hosts: "{{ docker_pattern_discovery_hosts | map(attribute='ansible_host') | unique | list }}"
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Install Docker Pattern permissions for sn-discovery
+      ansible.builtin.include_tasks:
+        file: tasks/install_discovery_docker.yml
+        apply:
+          tags: [discovery_user]
+      tags: [discovery_user]
+
 - name: Install ServiceNow MID Server on Lab3
   hosts: observability
   become: true

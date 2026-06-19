@@ -1,0 +1,58 @@
+---
+# Deploy CSDM objects from one specification file.
+# Input: sn_csdm_spec_path
+
+- name: Load CSDM specification
+  ansible.builtin.include_tasks: load_csdm_spec.yml
+
+- name: Initialize CSDM registry for this specification
+  ansible.builtin.set_fact:
+    sn_csdm_registry: "{{ sn_csdm_registry | default({}) | combine({'business_applications': sn_csdm_registry.business_applications | default({}), 'business_services': sn_csdm_registry.business_services | default({}), 'application_services': sn_csdm_registry.application_services | default({})}, recursive=True) }}"
+    sn_csdm_app_svc_queue: []
+    sn_sm_discover_service_names: "{{ sn_sm_discover_service_names | default([]) }}"
+
+- name: Deploy business applications from specification
+  ansible.builtin.include_tasks: deploy_business_application.yml
+  loop: "{{ sn_csdm_spec.business_applications | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_ba_spec
+    label: "{{ sn_csdm_ba_spec.name | default('') }}"
+
+- name: Deploy business services from specification
+  ansible.builtin.include_tasks: deploy_business_service.yml
+  loop: "{{ sn_csdm_spec.business_services | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_bs_spec
+    label: "{{ sn_csdm_bs_spec.name | default('') }}"
+
+- name: Queue static application services (no inventory expand)
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_queue: >-
+      {{ sn_csdm_app_svc_queue + [ {'spec': app_svc_spec, 'host': ''} ] }}
+  loop: "{{ sn_csdm_spec.application_services | default([]) | rejectattr('expand', 'defined') | list }}"
+  loop_control:
+    loop_var: app_svc_spec
+    label: "{{ app_svc_spec.name | default('') }}"
+
+- name: Queue expanded application services (inventory group loop)
+  ansible.builtin.include_tasks: queue_expanded_application_service.yml
+  loop: "{{ sn_csdm_spec.application_services | default([]) | selectattr('expand', 'defined') | list }}"
+  loop_control:
+    loop_var: sn_csdm_app_svc_entry
+    label: "{{ sn_csdm_app_svc_entry.name | default('') }}"
+
+- name: Deploy application services from queue
+  ansible.builtin.include_tasks: deploy_application_service.yml
+  loop: "{{ sn_csdm_app_svc_queue }}"
+  loop_control:
+    loop_var: sn_csdm_app_svc_item
+    label: "{{ sn_csdm_app_svc_item.spec.name | default('') }} — {{ sn_csdm_app_svc_item.host | default('') }}"
+
+- name: CSDM specification deploy summary
+  ansible.builtin.debug:
+    msg: >-
+      Deployed {{ sn_csdm_spec_path | basename }}:
+      {{ sn_csdm_spec.business_applications | default([]) | length }} business application(s),
+      {{ sn_csdm_spec.business_services | default([]) | length }} business service(s),
+      {{ sn_csdm_app_svc_queue | length }} application service instance(s),
+      {{ sn_sm_discover_service_names | length }} discovery trigger(s) queued.

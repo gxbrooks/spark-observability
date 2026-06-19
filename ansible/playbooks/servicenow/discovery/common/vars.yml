@@ -25,6 +25,23 @@ sn_mid_installer_deb_url: "{{ SN_MID_INSTALLER_DEB_URL | default('') }}"
 sn_discovery_ssh_private_key_path: "{{ playbook_dir }}/../../../../vars/sn_discovery_id_ed25519"
 sn_discovery_ssh_public_key_path: "{{ playbook_dir }}/../../../../vars/sn_discovery_id_ed25519.pub"
 
+# Scripted REST API — Discovery operations (deploy_discovery_rest_api.yml)
+sn_discovery_rest_api_name: Discovery Operations API
+sn_discovery_rest_api_legacy_names:
+  - Brooks Lab Discovery Trigger
+sn_discovery_rest_schedule_path: /schedule/run
+sn_discovery_rest_quick_path: /quick/run
+sn_discovery_rest_operations:
+  - name: Run discovery schedule
+    relative_path: /schedule/run
+    script_file: discovery_run_schedule.js
+  - name: Run discovery schedule (legacy path)
+    relative_path: /run
+    script_file: discovery_run_schedule.js
+  - name: Quick discovery
+    relative_path: /quick/run
+    script_file: discovery_run_quick.js
+
 sn_api_headers:
   Accept: application/json
   Content-Type: application/json
@@ -63,8 +80,14 @@ sn_k8s_informer_secret_name: "k8s-informer-cred-{{ sn_instance_short_name }}"
 
 # Phase 3 — Docker discovery.
 # Capability flags per entry (absent = false):
+#   discovery_docker_pattern: true — sn-discovery docker group on host (horizontal Docker Pattern)
 #   container_discovery: true — containers synced into cmdb_ci_docker_container and validated
 docker_hosts: "{{ DOCKER_HOSTS }}"
+docker_pattern_discovery_hosts: >-
+  {{ DOCKER_HOSTS
+     | selectattr('discovery_docker_pattern', 'defined')
+     | selectattr('discovery_docker_pattern')
+     | list }}
 docker_discovery_hosts: "{{ DOCKER_HOSTS | selectattr('container_discovery', 'defined') | selectattr('container_discovery') | list }}"
 sn_docker_location_br_name: docker-inherit-location-from-host
 sn_k8s_discovery_namespaces:

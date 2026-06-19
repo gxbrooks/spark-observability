@@ -44,6 +44,24 @@
     - name: Configure ServiceNow Discovery objects
       ansible.builtin.include_tasks: tasks/deploy_servicenow.yml
 
+    - name: Deploy Scripted REST API for Discover Now trigger
+      ansible.builtin.include_tasks: tasks/deploy_discovery_rest_api.yml
+
+    - name: Persist deploy facts for discover.yml
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_discovery_deploy.json"
+        mode: "0644"
+        content: >-
+          {{ {
+               'schedule_sys_id': sn_schedule_sys_id | default(''),
+               'location_sys_id': sn_location_sys_id | default(''),
+               'credential_sys_id': sn_credential_sys_id | default(''),
+               'range_sys_id': sn_range_sys_id | default(''),
+               'mid_sys_id': sn_mid_sys_id | default(''),
+               'discovery_rest_operation_uri': sn_discovery_rest_operation_uri | default(''),
+               'discovery_rest_quick_uri': sn_discovery_rest_quick_uri | default('')
+             } | to_nice_json }}
+
     - name: Ensure MID Server is validated for Discovery
       ansible.builtin.include_tasks: tasks/validate_mid_server.yml
 
@@ -53,6 +71,8 @@
           ServiceNow Discovery deploy complete (API objects).
           Location: {{ sn_lab_location_name }} ({{ sn_location_sys_id | default('n/a') }})
           Schedule: {{ sn_discovery_schedule_name }} ({{ sn_schedule_sys_id | default('pending MID registration') }})
+          Discover Now API: POST {{ sn_url }}{{ sn_discovery_rest_operation_uri | default('(run deploy.yml)') }}
+          Quick Discovery API: POST {{ sn_url }}{{ sn_discovery_rest_quick_uri | default('(run deploy.yml)') }}
           MID {{ sn_mid_server_name }}: validated={{ 'true (just applied — restarting MID)' if sn_mid_validation_changed | default(false) else 'ok' }}
           CMDB (all CIs at brooks-lab): {{ sn_cmdb_all_cis_url }}
           Next: ansible-playbook ... playbooks/servicenow/discovery/discover.yml

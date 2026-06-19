@@ -1,0 +1,53 @@
+---
+# Spark CSDM specification — consumed by playbooks/servicenow/csdm/deploy.yml
+# See playbooks/servicenow/csdm/docs/Specifications.md
+
+business_applications:
+  - name: Data and Analytic Services
+    short_description: Data processing and analytics platform services (Spark and related workloads)
+    operational_status: "1"
+    active: "true"
+
+business_services:
+  - name: Apache Spark
+    short_description: Distributed data processing cluster
+    operational_status: "1"
+    parent_business_application: Data and Analytic Services
+
+application_services:
+  - name: Spark Master
+    short_description: Spark master — client and Web UI entry via NodePort
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    discover: true
+    entry_points:
+      - table: cmdb_ci_ip_service
+        name: "{{ SPARK_MASTER_HOST }}:{{ SPARK_MASTER_PORT }}"
+        port: "{{ SPARK_MASTER_PORT | string }}"
+        short_description: Spark master client NodePort
+      - table: cmdb_ci_ip_service
+        name: "{{ SPARK_MASTER_HOST }}:{{ SPARK_MASTER_UI_NODEPORT }}"
+        port: "{{ SPARK_MASTER_UI_NODEPORT | string }}"
+        short_description: Spark master Web UI NodePort
+
+  - name: Spark History Server
+    short_description: Spark history server — completed application UI via NodePort
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    discover: true
+    entry_points:
+      - table: cmdb_ci_ip_service
+        name: "{{ SPARK_MASTER_HOST }}:{{ SPARK_HISTORY_NODEPORT }}"
+        port: "{{ SPARK_HISTORY_NODEPORT | string }}"
+        short_description: Spark History Server Web UI NodePort
+
+  - name: "Spark Worker ({host})"
+    short_description: "Spark worker on {host} — entry via Linux server CI"
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    discover: true
+    expand:
+      inventory_group: kubernetes_workers
+    entry_points:
+      - table: cmdb_ci_linux_server
+        lookup_name: "{host_lower}"

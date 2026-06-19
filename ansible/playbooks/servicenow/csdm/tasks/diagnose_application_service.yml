@@ -1,0 +1,46 @@
+---
+# Diagnose one application service instance including Service Mapping process_status.
+# Input: sn_csdm_app_svc_item
+
+- name: Resolve application service name for diagnose
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_name: >-
+      {{ sn_csdm_app_svc_item.spec.name
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+
+- name: Query application service
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_service_discovered
+    sn_rest_query: "sysparm_query=name={{ sn_csdm_app_svc_name | urlencode }}&sysparm_fields=name,sys_id,process_status,service_status,operational_status&sysparm_limit=1"
+
+- name: Record application service query result
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_diag: "{{ sn_rest_json.result[0] | default({}) }}"
+    sn_csdm_app_svc_present: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+
+- name: Show application service and discovery status
+  ansible.builtin.debug:
+    msg: >-
+      Application Service '{{ sn_csdm_app_svc_name }}':
+      {{ 'present (' ~ sn_csdm_app_svc_diag.sys_id ~ ')' if sn_csdm_app_svc_present | bool
+         else 'MISSING — run csdm/deploy.yml' }}
+      {{ '— process_status=' ~ sn_csdm_app_svc_diag.process_status | default('?')
+         ~ ', service_status=' ~ sn_csdm_app_svc_diag.service_status | default('?')
+         if sn_csdm_app_svc_present | bool else '' }}
+
+- name: Query Service Mapping entry points for application service
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sa_m2m_service_entry_point
+    sn_rest_query: "sysparm_query=cmdb_ci_service.name={{ sn_csdm_app_svc_name | urlencode }}&sysparm_fields=cmdb_ci_endpoint.name,cmdb_ci_endpoint.sys_class_name&sysparm_limit=10"
+  when: sn_csdm_app_svc_present | bool
+
+- name: Show registered entry points
+  ansible.builtin.debug:
+    msg: >-
+      Entry points for '{{ sn_csdm_app_svc_name }}':
+      {{ sn_rest_json.result | default([]) | map(attribute='cmdb_ci_endpoint.name') | list | join(', ')
+         if (sn_rest_json.result | default([]) | length) > 0 else 'none registered' }}
+  when: sn_csdm_app_svc_present | bool

@@ -1,0 +1,72 @@
+---
+# Verify CMDB 360 license plugins via CI/CD activate API (non-fatal).
+# Plugin read via sys_plugins is intentionally not used.
+
+- name: Request CMDB license plugin activation via CI/CD API
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/sn_cicd/plugin/{{ item.id }}/activate"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 202, 400, 403, 404]
+    return_content: true
+  register: sn_cmdb_license_activate
+  loop: "{{ sn_cmdb_required_licenses }}"
+  loop_control:
+    label: "{{ item.id }}"
+  no_log: true
+  delegate_to: localhost
+  failed_when: false
+
+- name: Build CMDB license status from CI/CD responses
+  ansible.builtin.set_fact:
+    sn_cmdb_license_status: >-
+      {{ (sn_cmdb_license_status | default([])) + [{
+           'id': item.item.id,
+           'name': item.item.name,
+           'required_for': item.item.required_for,
+           'http_status': item.status | int,
+           'satisfied': item.status | int in [200, 202, 400]
+         }] }}
+  loop: "{{ sn_cmdb_license_activate.results }}"
+  loop_control:
+    label: "{{ item.item.id }}"
+
+- name: Wait for CMDB license activation progress
+  ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/sgc/common/poll_cicd_progress.yml"
+  vars:
+    sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
+  loop: "{{ sn_cmdb_license_activate.results }}"
+  loop_control:
+    label: "{{ item.item.id }}"
+  when:
+    - item.status | int in [200, 202]
+    - item.json.result.links.progress.url is defined
+
+- name: Report CMDB license check summary
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.name }} ({{ item.id }}): HTTP {{ item.http_status }}
+      {{ '— active or activation accepted' if item.satisfied
+         else '— WARNING: grant sn_cicd.sys_ci_automation or activate under System Definition → Plugins' }}
+      — required for {{ item.required_for }}
+  loop: "{{ sn_cmdb_license_status }}"
+  loop_control:
+    label: "{{ item.id }}"
+
+- name: Warn when a CMDB license could not be verified or activated (non-fatal)
+  ansible.builtin.debug:
+    msg: >-
+      WARNING (non-fatal): {{ item.name }} ({{ item.id }}) — CI/CD plugin activation
+      returned HTTP {{ item.http_status }}. {{ item.required_for }} may not function until
+      the ITOM Discovery entitlement is granted (docs/install.md §7).
+  loop: "{{ sn_cmdb_license_status | rejectattr('satisfied') | list }}"
+  loop_control:
+    label: "{{ item.id }}"
+
+- name: Record whether required licenses were satisfied via CI/CD API
+  ansible.builtin.set_fact:
+    sn_cmdb_licenses_satisfied: >-
+      {{ (sn_cmdb_license_status | rejectattr('satisfied') | list | length) == 0 }}

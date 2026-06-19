@@ -270,7 +270,45 @@ After disk-pressure recovery on **lab3**, the `hdfs` namespace still showed only
 
 ---
 
-**Last Updated**: 2026-04-03
+---
+
+## ServiceNow CMDB / CSDM
+
+### Observability management zone attribute on CIs (multi-vendor pattern)
+
+**Priority**: Medium  
+**Status**: Not Started  
+
+**Description**:  
+Dynatrace **management zones** (and analogous scopes in other observability and cloud platforms) are **not** CSDM `location` values. They are vendor-specific visibility/filter boundaries. Today SGC connection rows and Dynatrace alerting use management zones, but CMDB CIs lack a normalized cross-vendor attribute for “which observability scope owns this entity.”
+
+**Goal**:  
+Define and implement a **repeatable pattern** for storing observability scope on CIs — without overloading `location` — that works across:
+
+| Source | Scope concept | Example |
+| ------ | ------------- | ------- |
+| Dynatrace | Management zone | `Spark Observability` |
+| AWS / Azure / GCP | Account / subscription / project + tags | `bradens-cloud` |
+| Datadog / New Relic / Splunk (future) | Org / environment / tag sets | TBD |
+| ServiceNow Discovery | Schedule / MID / location | `brooks-lab` (physical site — keep separate) |
+
+**Proposed approach** (pick one in design):
+
+1. **Custom CMDB attributes** per source family (e.g. `u_observability_scope`, `u_cloud_account`) with IRE/SGC post-import population; or  
+2. **Standard tags** on CIs (`observability:scope=…`) consumed by Dynamic CI Groups and Service Mapping tag-based services; or  
+3. **Reference table** `u_observability_scope` + `cmdb_rel_ci` **Monitored by::Monitors** to scope records.
+
+**Deliverables**:
+
+1. Design note in `ansible/playbooks/servicenow/docs/` (or standards) describing the chosen pattern and mapping from `vars/variables.yaml` registries (`K8S_CLUSTERS`, `DOCKER_HOSTS`, SGC connection config).  
+2. Post-import BR or transform (mirror `sgc-inherit-location-from-host`) to set scope from SGC/Dynatrace — **not** from management zone → location.  
+3. Diagnose playbook check: CIs in brooks-lab lab hosts have expected observability scope attribute populated.
+
+**Out of scope**: Mapping management zone directly to `cmn_location` (explicitly rejected — different CSDM semantics).
+
+---
+
+**Last Updated**: 2026-06-19
 
 ### Investigate Elasticsearch SSL Handshake Warnings
 **Priority**: Medium  
