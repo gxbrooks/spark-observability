@@ -1,0 +1,15 @@
+---
+# Delete one business service declared with csdm_op: delete.
+# Input: sn_csdm_bs_spec
+
+- name: Resolve csdm_op for business service
+  ansible.builtin.include_tasks: resolve_csdm_op.yml
+  vars:
+    sn_csdm_object_spec: "{{ sn_csdm_bs_spec }}"
+
+- name: Delete business service
+  ansible.builtin.include_tasks: delete_cmdb_ci_by_name.yml
+  vars:
+    sn_csdm_table: cmdb_ci_service
+    sn_csdm_lookup_name: "{{ sn_csdm_bs_spec.name }}"
+  when: sn_csdm_effective_op == 'delete'

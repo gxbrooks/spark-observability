@@ -1,0 +1,49 @@
+---
+# Probe one cmdb_ci_endpoint for host linkage and TCP CI on its port.
+# Input: item (cmdb_rel_ci row with child endpoint reference)
+
+- name: Resolve endpoint sys_id
+  ansible.builtin.set_fact:
+    sn_csdm_ep_sys_id: >-
+      {{ item.child.sys_id if item.child is defined and item.child is mapping
+         else item['child.sys_id'] | default('') }}
+
+- name: Query endpoint CI details
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_endpoint
+    sn_rest_query: "sysparm_query=sys_id={{ sn_csdm_ep_sys_id }}&sysparm_fields=name,port,host,ip_address&sysparm_limit=1"
+  when: sn_csdm_ep_sys_id | default('') | length > 0
+
+- name: Record endpoint host linkage
+  ansible.builtin.set_fact:
+    sn_csdm_enrich_endpoint_host_ok: true
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - >-
+      {{ (sn_rest_json.result[0].host.value if sn_rest_json.result[0].host is mapping
+          else sn_rest_json.result[0].host) | default('') | string | length > 0 }}
+
+- name: Parse endpoint port
+  ansible.builtin.set_fact:
+    sn_csdm_ep_port: "{{ sn_rest_json.result[0].port | default('') | string }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Track probed port
+  ansible.builtin.set_fact:
+    sn_csdm_enrich_ports: "{{ sn_csdm_enrich_ports | default([]) + [sn_csdm_ep_port] }}"
+  when:
+    - sn_csdm_ep_port | default('') | length > 0
+    - sn_csdm_ep_port | default('') != 'None'
+
+- name: Query TCP listener CI on endpoint port (cmdb_tcp from horizontal Discovery)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_tcp
+    sn_rest_query: "sysparm_query=port={{ sn_csdm_ep_port }}&sysparm_fields=port,ip,process,computer&sysparm_limit=5"
+  when: sn_csdm_ep_port | default('') | length > 0
+
+- name: Record TCP enrichment found
+  ansible.builtin.set_fact:
+    sn_csdm_enrich_tcp_found: true
+  when: sn_rest_json.result | default([]) | length > 0

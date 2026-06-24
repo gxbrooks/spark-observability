@@ -13,6 +13,12 @@
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
+    - name: Compare horizontal vs vertical Discovery timing
+      ansible.builtin.include_tasks: tasks/diagnose_discovery_coordination.yml
+
+    - name: Probe SM prerequisite #4 enrichment for Requirements services
+      ansible.builtin.include_tasks: tasks/diagnose_sm_enrichment.yml
+
     - name: Resolve CSDM specification file paths
       ansible.builtin.set_fact:
         sn_csdm_spec_paths: >-

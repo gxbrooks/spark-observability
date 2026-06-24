@@ -1,6 +1,6 @@
-# Phase 3 — Docker discovery (Lab3 observability stack)
+# Phase 3 — Docker container discovery
 
-Discovers Docker containers from **`DOCKER_HOSTS`** in `vars/variables.yaml` into CMDB.
+Discovers Docker containers from **`DOCKER_HOSTS`** entries with **`container_discovery: true`** in `vars/variables.yaml` into CMDB.
 
 ## Registry
 
@@ -28,3 +28,13 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.y
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml -e @../vars/secrets.yaml
 ```
+
+`discover.yml` syncs running containers, writes **`servicenow.io/*`** and **`com.docker.compose.*`** labels to **`cmdb_key_value`** (required for tag-based Service Mapping), retires container CIs whose `container_id` is no longer running, and deduplicates multiple CMDB rows that share the same container **name** on a host when only one matching container is running.
+
+Retire stale containers and deduplicate by name (same cleanup steps as `discover.yml`, without upsert or label sync):
+
+```bash
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/cleanup.yml -e @../vars/secrets.yaml
+```
+
+Tag-based SM instance configuration: `playbooks/servicenow/csdm/docs/Tag_Based_Service_Mapping.md`.

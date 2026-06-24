@@ -12,6 +12,19 @@ spec:
     metadata:
       labels:
         app: spark-history
+        app.kubernetes.io/name: spark-history-server
+        app.kubernetes.io/instance: brooks-lab
+        app.kubernetes.io/component: history
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible
+        servicenow.io/application-identifier: data-and-analytic-services
+        servicenow.io/business-service-identifier: apache-spark
+        servicenow.io/application-service-identifier: spark-history-server
+        servicenow.io/environment: on-prem
+        servicenow.io/location: brooks-lab
+        servicenow.io/service-tier: web
+        servicenow.io/cluster: brooks-lab
+        servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
       # Pin history server to the configured Kubernetes control-plane node.

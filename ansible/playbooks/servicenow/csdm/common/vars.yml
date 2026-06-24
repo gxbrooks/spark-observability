@@ -16,7 +16,17 @@ sn_playbooks_root: "{{ sn_servicenow_playbooks_dir | dirname }}"
 
 sn_sm_rel_contains: "Contains::Contained by"
 sn_sm_rel_depends: "Depends on::Used by"
+sn_sm_rel_runs_on: "Runs on::Runs"
 sn_mid_server_name: "{{ SN_MID_SERVER_NAME | default('mid-brooks-lab3') }}"
+sn_discovery_schedule_name: "{{ SN_DISCOVERY_SCHEDULE_NAME | default('Brooks Lab CI Discovery') }}"
+sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
+sn_csdm_trigger_horizontal_discovery: true
+sn_csdm_runtime_tag_output_dir: "{{ playbook_dir }}/../../../../vars/contexts/csdm_runtime_tags"
+docker_discovery_hosts: >-
+  {{ DOCKER_HOSTS | default([])
+     | selectattr('container_discovery', 'defined')
+     | selectattr('container_discovery')
+     | list }}
 
 sn_sm_rest_api_name: Service Mapping Operations API
 sn_sm_rest_discover_path: /discover
@@ -25,8 +35,12 @@ sn_sm_poll_discovery: false
 # Explicit list of CSDM specification files to deploy (application playbook dirs).
 # Each path is relative to ansible/playbooks/ unless absolute.
 sn_csdm_spec_files:
-  - spark/servicenow/servicenow.yaml
+  - observability/servicenow/csdm.yaml
+  - observability/dynatrace/servicenow/csdm.yaml
+  - elastic-agent/servicenow/csdm.yaml
+  - spark/servicenow/csdm.yaml
 
 sn_csdm_registry: {}
 sn_csdm_app_svc_queue: []
 sn_sm_discover_service_names: []
+sn_csdm_depends_on_queue: []

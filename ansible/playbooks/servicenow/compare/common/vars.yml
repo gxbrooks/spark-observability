@@ -1,0 +1,45 @@
+---
+# ServiceNow ↔ Dynatrace model comparison (compare.yml).
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
+sn_compare_dir: "{{ playbook_dir }}"
+sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
+sn_csdm_dir: "{{ sn_servicenow_playbooks_dir }}/csdm"
+sn_playbooks_root: "{{ sn_servicenow_playbooks_dir | dirname }}"
+sn_repo_root: "{{ sn_servicenow_playbooks_dir | dirname | dirname | dirname }}"
+
+# sn_compare_run_id and sn_compare_output_dir are set at runtime in compare/run.yml
+
+# Scope correlation registry — one row per comparison boundary (see docs/DT_CN_Comparison_Process.md).
+# Override with -e sn_compare_scope_units='[...]' or filter with sn_compare_scope_unit_id.
+sn_compare_scope_units:
+  - scope_unit_id: "{{ SN_LAB_LOCATION_NAME }}-onprem"
+    cmdb_location: "{{ SN_LAB_LOCATION_NAME }}"
+    cmdb_environment: on-prem
+    dynatrace_management_zones:
+      - "{{ DT_MANAGEMENT_ZONE }}"
+    kubernetes_clusters:
+      - servicenow_name: brooks-lab
+        dynatrace_name: spark-observability-k8s
+    csdm_spec_files:
+      - observability/servicenow/csdm.yaml
+      - observability/dynatrace/servicenow/csdm.yaml
+      - elastic-agent/servicenow/csdm.yaml
+      - spark/servicenow/csdm.yaml
+
+sn_compare_identifier_tag_key: servicenow.io/application-service-identifier
+sn_compare_dt_entity_types:
+  - HOST
+  - PROCESS_GROUP
+  - SERVICE
+  - KUBERNETES_CLUSTER
+
+sn_compare_data: {}

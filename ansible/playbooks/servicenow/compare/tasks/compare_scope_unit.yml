@@ -1,0 +1,46 @@
+---
+# Collect and diff one scope unit. Input: sn_compare_scope_unit
+# Appends to sn_compare_data[scope_unit_id]
+
+- name: Reset per-scope specification path accumulator
+  ansible.builtin.set_fact:
+    sn_compare_spec_paths: []
+
+- name: Initialize scope unit result
+  ansible.builtin.set_fact:
+    sn_compare_unit_result:
+      scope_unit: "{{ sn_compare_scope_unit }}"
+      generated_at: "{{ lookup('pipe', 'date -Iseconds') }}"
+      intent: {}
+      servicenow: {}
+      dynatrace: {}
+      diff: {}
+
+- name: Collect CSDM intent from specification files
+  ansible.builtin.include_tasks: collect_csdm_intent.yml
+
+- name: Collect ServiceNow CMDB hosts
+  ansible.builtin.include_tasks: collect_sn_hosts.yml
+
+- name: Collect ServiceNow application services
+  ansible.builtin.include_tasks: collect_sn_application_services.yml
+
+- name: Collect ServiceNow tag key values
+  ansible.builtin.include_tasks: collect_sn_tag_bindings.yml
+
+- name: Collect Dynatrace entities for scope management zones
+  ansible.builtin.include_tasks: collect_dt_entities.yml
+
+- name: Build host and application service diffs
+  ansible.builtin.include_tasks: build_diffs.yml
+
+- name: Record scope unit compare result
+  ansible.builtin.set_fact:
+    sn_compare_data: >-
+      {{ sn_compare_data | combine({sn_compare_scope_unit.scope_unit_id: sn_compare_unit_result}, recursive=True) }}
+
+- name: Write scope unit JSON snapshot
+  ansible.builtin.copy:
+    content: "{{ sn_compare_unit_result | to_nice_json }}"
+    dest: "{{ sn_compare_output_dir }}/{{ sn_compare_scope_unit.scope_unit_id }}.json"
+    mode: "0644"

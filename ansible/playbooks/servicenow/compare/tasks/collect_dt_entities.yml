@@ -1,0 +1,25 @@
+---
+# Collect Dynatrace entities for each management zone on the scope unit.
+
+- name: Initialize Dynatrace entity accumulator
+  ansible.builtin.set_fact:
+    sn_compare_dt_entities: {}
+
+- name: Collect entities per management zone and type
+  ansible.builtin.include_tasks: collect_dt_entities_for_mz_type.yml
+  loop: "{{ sn_compare_scope_unit.dynatrace_management_zones | default([]) | product(sn_compare_dt_entity_types) | list }}"
+  loop_control:
+    label: "{{ item.0 }} / {{ item.1 }}"
+  vars:
+    sn_compare_mz_name: "{{ item.0 }}"
+    sn_compare_entity_type: "{{ item.1 }}"
+
+- name: Store Dynatrace entities on scope unit result
+  ansible.builtin.set_fact:
+    sn_compare_unit_result: >-
+      {{ sn_compare_unit_result | combine({
+           'dynatrace': {
+             'management_zones': sn_compare_scope_unit.dynatrace_management_zones | default([]),
+             'entities': sn_compare_dt_entities
+           }
+         }, recursive=True) }}

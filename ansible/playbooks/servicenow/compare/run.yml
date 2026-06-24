@@ -1,0 +1,78 @@
+---
+# Compare ServiceNow CMDB/CSDM models with Dynatrace entities for each scope unit.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml -e @../vars/secrets.yaml
+#   ansible-playbook ... -e sn_compare_scope_unit_id=brooks-lab-onprem
+
+- name: Compare ServiceNow and Dynatrace models
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  vars:
+    sn_compare_scope_units_effective: >-
+      {{ sn_compare_scope_units
+         | selectattr('scope_unit_id', 'equalto', sn_compare_scope_unit_id)
+         | list
+         if sn_compare_scope_unit_id | default('') | length > 0
+         else sn_compare_scope_units }}
+  tasks:
+    - name: Set compare run id
+      ansible.builtin.set_fact:
+        sn_compare_run_id: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+    - name: Set compare output directory
+      ansible.builtin.set_fact:
+        sn_compare_output_dir: "{{ sn_compare_output_base | default(sn_repo_root ~ '/tmp/compare') }}/{{ sn_compare_run_id }}"
+
+    - name: Ensure compare output directory exists
+      ansible.builtin.file:
+        path: "{{ sn_compare_output_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Initialize compare data aggregate
+      ansible.builtin.set_fact:
+        sn_compare_data: {}
+
+    - name: Resolve Dynatrace API
+      ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/sgc/sources/dynatrace/tasks/resolve_dt_api.yml"
+
+    - name: Resolve Dynatrace management zone ids for scope units
+      ansible.builtin.include_tasks: tasks/resolve_management_zone_ids.yml
+
+    - name: Compare each scope unit
+      ansible.builtin.include_tasks: tasks/compare_scope_unit.yml
+      loop: "{{ sn_compare_scope_units_effective }}"
+      loop_control:
+        loop_var: sn_compare_scope_unit
+        label: "{{ sn_compare_scope_unit.scope_unit_id }}"
+
+    - name: Write aggregated compare JSON
+      ansible.builtin.copy:
+        content: "{{ sn_compare_data | to_nice_json }}"
+        dest: "{{ sn_compare_output_dir }}/compare_data.json"
+        mode: "0644"
+
+    - name: Generate Excel workbook from compare data
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ sn_compare_dir }}/files/generate_compare_workbook.py
+          {{ sn_compare_output_dir }}/compare_data.json
+          {{ sn_compare_output_dir }}/DT_SN_Compare.xlsx
+      register: sn_compare_workbook
+      changed_when: true
+
+    - name: Report compare output locations
+      ansible.builtin.debug:
+        msg: |
+          Compare complete for {{ sn_compare_scope_units_effective | length }} scope unit(s).
+          Output directory: {{ sn_compare_output_dir }}
+          Workbook: {{ sn_compare_output_dir }}/DT_SN_Compare.xlsx
+          JSON: {{ sn_compare_output_dir }}/compare_data.json
+          {{ sn_compare_workbook.stdout | default('') }}

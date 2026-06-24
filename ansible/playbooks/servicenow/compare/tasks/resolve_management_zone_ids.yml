@@ -1,0 +1,23 @@
+---
+# Resolve numeric management zone ids for all configured scope units.
+# Output: sn_compare_mz_name_to_id map
+
+- name: Query Dynatrace management zones
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/config/v1/managementZones"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+    return_content: true
+  register: sn_compare_mz_list
+  no_log: true
+
+- name: Build management zone name to id map
+  ansible.builtin.set_fact:
+    sn_compare_mz_names: "{{ sn_compare_mz_list.json['values'] | map(attribute='name') | list }}"
+    sn_compare_mz_ids: "{{ sn_compare_mz_list.json['values'] | map(attribute='id') | list }}"
+
+- name: Combine management zone name/id pairs
+  ansible.builtin.set_fact:
+    sn_compare_mz_name_to_id: "{{ dict(sn_compare_mz_names | zip(sn_compare_mz_ids)) }}"

@@ -100,6 +100,20 @@
   no_log: true
   failed_when: false
 
+- name: Sync Docker container labels to cmdb_key_value
+  ansible.builtin.include_tasks: sync_docker_container_labels.yml
+  when: sn_docker_containers | default([]) | length > 0
+
+- name: Retire stale Docker container CIs on host
+  ansible.builtin.include_tasks: cleanup_stale_container_cis.yml
+  vars:
+    sn_csdm_tasks_dir: "{{ playbook_dir }}/../../csdm/tasks"
+
+- name: Retire duplicate Docker container CIs by name on host
+  ansible.builtin.include_tasks: cleanup_duplicate_docker_cis_by_name.yml
+  vars:
+    sn_csdm_tasks_dir: "{{ playbook_dir }}/../../csdm/tasks"
+
 - name: "Docker sync summary for {{ sn_docker_host.name }}"
   ansible.builtin.debug:
     msg: >-

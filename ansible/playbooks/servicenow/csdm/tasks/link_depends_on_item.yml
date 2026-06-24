@@ -1,0 +1,31 @@
+---
+# Link one queued depends_on relationship (consumer application service → target CI).
+# Input: sn_csdm_depends_item { consumer_sys_id, consumer_name, expand_host, target }
+
+- name: Resolve depends_on target CI
+  ansible.builtin.include_tasks: resolve_depends_on_target.yml
+  vars:
+    sn_dep_target_ref: "{{ sn_csdm_depends_item.target }}"
+    sn_dep_expand_host: "{{ sn_csdm_depends_item.expand_host | default('') }}"
+
+- name: Link depends_on relationship when target CI exists
+  ansible.builtin.include_tasks: ensure_relationship.yml
+  vars:
+    sn_rel_parent: "{{ sn_csdm_depends_item.consumer_sys_id }}"
+    sn_rel_child: "{{ sn_dep_target_sys_id }}"
+    sn_rel_type_name: "{{ sn_sm_rel_depends }}"
+  when: sn_dep_target_resolved | default(false) | bool
+
+- name: Record linked depends_on
+  ansible.builtin.set_fact:
+    sn_csdm_depends_on_linked: "{{ sn_csdm_depends_on_linked | default(0) + 1 }}"
+  when: sn_dep_target_resolved | default(false) | bool
+
+- name: Defer depends_on when target CI is not yet available
+  ansible.builtin.set_fact:
+    sn_csdm_depends_on_deferred: "{{ sn_csdm_depends_on_deferred | default(0) + 1 }}"
+    sn_csdm_depends_on_deferred_items: >-
+      {{ sn_csdm_depends_on_deferred_items | default([]) + [
+           sn_csdm_depends_item.consumer_name ~ ' → ' ~ sn_dep_target_label
+         ] }}
+  when: not (sn_dep_target_resolved | default(false) | bool)

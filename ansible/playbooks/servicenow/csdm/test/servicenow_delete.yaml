@@ -1,0 +1,24 @@
+---
+# Delete synthetic CSDM test objects (idempotent — absent objects log and skip).
+# Run after servicenow_insert.yaml:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+#     -e @../vars/secrets.yaml \
+#     -e '{"sn_csdm_spec_files": ["servicenow/csdm/test/servicenow_delete.yaml"]}'
+
+business_applications:
+  - name: CSDM Synthetic Test BA
+    csdm_op: delete
+
+  - name: CSDM Synthetic Nonexistent BA
+    csdm_op: delete
+
+business_services:
+  - name: CSDM Synthetic Test BS
+    csdm_op: delete
+
+application_services:
+  - name: CSDM Synthetic Test AS
+    csdm_op: delete
+
+  - name: CSDM Synthetic Nonexistent AS
+    csdm_op: delete

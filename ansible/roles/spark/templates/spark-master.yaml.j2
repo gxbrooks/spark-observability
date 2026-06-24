@@ -13,6 +13,19 @@ spec:
     metadata:
       labels:
         app: spark-master
+        app.kubernetes.io/name: spark-master
+        app.kubernetes.io/instance: brooks-lab
+        app.kubernetes.io/component: master
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible
+        servicenow.io/application-identifier: data-and-analytic-services
+        servicenow.io/business-service-identifier: apache-spark
+        servicenow.io/application-service-identifier: spark-master
+        servicenow.io/environment: on-prem
+        servicenow.io/location: brooks-lab
+        servicenow.io/service-tier: app
+        servicenow.io/cluster: brooks-lab
+        servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
       # Add pod hostname and subdomain for better DNS resolution

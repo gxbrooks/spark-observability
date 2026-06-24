@@ -1,0 +1,118 @@
+---
+# Spark — CSDM specification
+# See playbooks/servicenow/csdm/docs/CSDM_Specifications.md
+
+tag_defaults:
+  environment: on-prem
+  location: "{{ SN_LAB_LOCATION_NAME }}"
+  cluster: brooks-lab
+
+csdm_defaults:
+  business_owner: gbrooks
+  it_application_owner: gbrooks
+  owned_by: gbrooks
+  busines_criticality: "4 - not critical"
+
+business_applications:
+  - name: Data and Analytic Services
+    identifier: data-and-analytic-services
+    short_description: Data processing and analytics platform services
+    operational_status: "1"
+    active: "true"
+
+business_services:
+  - name: Apache Spark
+    identifier: apache-spark
+    short_description: Distributed data processing cluster
+    operational_status: "1"
+    parent_business_application: Data and Analytic Services
+
+application_services:
+  - name: Spark Master
+    identifier: spark-master
+    short_description: Spark master — Kubernetes StatefulSet
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    service_tier: app
+    namespace: spark
+    depends_on:
+      # Tier 1 — data path
+      - OpenTelemetry Collector
+      - Logstash
+      - Elasticsearch
+      # Tier 2 — host runtime
+      - name: lab3
+        type: linux_server
+      # Tier 4 — shared storage
+      - name: lab3
+        type: nfs_server
+    tags:
+      kubernetes:
+        app.kubernetes.io/name: spark-master
+        app.kubernetes.io/instance: brooks-lab
+        app.kubernetes.io/component: master
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible
+
+  - name: Spark History Server
+    identifier: spark-history-server
+    short_description: Spark history server — completed application UI
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    service_tier: web
+    namespace: spark
+    depends_on:
+      # Tier 1 — data path
+      - OpenTelemetry Collector
+      - Logstash
+      - Elasticsearch
+      # Tier 2 — host runtime
+      - name: lab3
+        type: linux_server
+      # Tier 4 — shared storage
+      - name: lab3
+        type: nfs_server
+    tags:
+      kubernetes:
+        app.kubernetes.io/name: spark-history-server
+        app.kubernetes.io/instance: brooks-lab
+        app.kubernetes.io/component: history
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible
+
+  - name: "Spark Worker ({host})"
+    identifier: "spark-worker-{host_lower}"
+    short_description: "Spark worker on {host}"
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    service_tier: compute
+    namespace: spark
+    depends_on:
+      # Tier 1 — data path
+      - OpenTelemetry Collector
+      - Logstash
+      - Elasticsearch
+      # Tier 2 — worker host runtime
+      - name: "{host_lower}"
+        type: linux_server
+      # Tier 4 — NFS mount
+      - name: lab3
+        type: nfs_server
+    expand:
+      inventory_group: kubernetes_workers
+    tags:
+      kubernetes:
+        app.kubernetes.io/name: spark-worker
+        app.kubernetes.io/instance: "brooks-lab-{host_lower}"
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible

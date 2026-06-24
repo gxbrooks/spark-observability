@@ -1,0 +1,58 @@
+---
+# Retire duplicate cmdb_ci_docker_container rows for one container name on a host.
+# Keeps rows whose container_id is in sn_docker_running_id_set; deletes other duplicates.
+# Input: sn_docker_host, sn_docker_host_sys_id, sn_docker_running_id_set, dedupe_name
+
+- name: Query Docker container CIs by name on host
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_docker_container
+    sn_rest_query: >-
+      sysparm_query=name={{ dedupe_name | urlencode }}^host={{ sn_docker_host_sys_id | urlencode }}&sysparm_fields=sys_id,name,container_id,short_description&sysparm_limit=20
+
+- name: Skip dedupe when fewer than two CIs share this name
+  ansible.builtin.debug:
+    msg: >-
+      {{ dedupe_name }}: {{ sn_rest_json.result | default([]) | length }} CI(s) on
+      {{ sn_docker_host.cmdb_host_name }} — no duplicate cleanup needed.
+  when: sn_rest_json.result | default([]) | length < 2
+
+- name: Retire duplicate Docker container CIs for name
+  when: sn_rest_json.result | default([]) | length > 1
+  block:
+    - name: Select non-running duplicate Docker container CIs
+      ansible.builtin.set_fact:
+        sn_docker_name_dupes: "{{ sn_docker_name_dupes | default([]) + [item] }}"
+      loop: "{{ sn_rest_json.result | default([]) }}"
+      loop_control:
+        label: "{{ item.name | default(item.sys_id) }}"
+      when:
+        - sn_rest_json.result | default([]) | length > 1
+        - item.container_id | default('') not in sn_docker_running_id_set
+
+    - name: Delete relationships for duplicate Docker container CI
+      ansible.builtin.include_tasks: "{{ sn_csdm_tasks_dir }}/delete_cmdb_relationships_for_ci.yml"
+      vars:
+        sn_csdm_ci_sys_id: "{{ dup_ci.sys_id }}"
+      loop: "{{ sn_docker_name_dupes | default([]) }}"
+      loop_control:
+        loop_var: dup_ci
+        label: "{{ dup_ci.name | default(dup_ci.sys_id) }}"
+
+    - name: Delete duplicate Docker container CI
+      ansible.builtin.include_tasks: "{{ sn_csdm_tasks_dir }}/delete_cmdb_record.yml"
+      vars:
+        sn_csdm_table: cmdb_ci_docker_container
+        sn_csdm_ci_sys_id: "{{ dup_ci.sys_id }}"
+        sn_csdm_lookup_name: "{{ dup_ci.name | default(dup_ci.sys_id) }}"
+      loop: "{{ sn_docker_name_dupes | default([]) }}"
+      loop_control:
+        loop_var: dup_ci
+        label: "{{ dup_ci.name | default(dup_ci.sys_id) }}"
+
+    - name: Report duplicate cleanup for container name
+      ansible.builtin.debug:
+        msg: >-
+          {{ dedupe_name }}: retired {{ sn_docker_name_dupes | default([]) | length }}
+          duplicate CI(s) on {{ sn_docker_host.cmdb_host_name }}.
+      when: sn_docker_name_dupes | default([]) | length > 0

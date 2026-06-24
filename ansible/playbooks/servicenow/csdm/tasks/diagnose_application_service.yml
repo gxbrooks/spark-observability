@@ -34,13 +34,44 @@
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
   vars:
     sn_rest_table: sa_m2m_service_entry_point
-    sn_rest_query: "sysparm_query=cmdb_ci_service.name={{ sn_csdm_app_svc_name | urlencode }}&sysparm_fields=cmdb_ci_endpoint.name,cmdb_ci_endpoint.sys_class_name&sysparm_limit=10"
+    sn_rest_query: "sysparm_query=cmdb_ci_service={{ sn_csdm_app_svc_diag.sys_id }}&sysparm_fields=cmdb_ci_endpoint.name,cmdb_ci_endpoint.sys_class_name,cmdb_ci_endpoint.sys_id&sysparm_limit=10"
+  when: sn_csdm_app_svc_present | bool
+
+- name: Record sa_m2m entry point query
+  ansible.builtin.set_fact:
+    sn_csdm_sm_m2m_entries: "{{ sn_rest_json.result | default([]) }}"
+  when: sn_csdm_app_svc_present | bool
+
+- name: Query Depends on entry point CIs (Table API fallback when sa_m2m is ACL-restricted)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: >-
+      sysparm_query=parent={{ sn_csdm_app_svc_diag.sys_id }}^type.name={{ sn_sm_rel_depends | urlencode
+      }}&sysparm_fields=child.name,child.sys_class_name,child.sys_id&sysparm_limit=20
+  when: sn_csdm_app_svc_present | bool
+
+- name: Collect Depends on entry point labels
+  ansible.builtin.set_fact:
+    sn_csdm_depends_entry_label_list: >-
+      {{ sn_csdm_depends_entry_label_list | default([]) + [
+           (item.child.name if item.child is defined and item.child is mapping
+            else item['child.name'] | default(''))
+         ] }}
+  loop: "{{ sn_rest_json.result | default([]) }}"
   when: sn_csdm_app_svc_present | bool
 
 - name: Show registered entry points
   ansible.builtin.debug:
     msg: >-
       Entry points for '{{ sn_csdm_app_svc_name }}':
-      {{ sn_rest_json.result | default([]) | map(attribute='cmdb_ci_endpoint.name') | list | join(', ')
-         if (sn_rest_json.result | default([]) | length) > 0 else 'none registered' }}
+      SM sa_m2m={{ sn_csdm_sm_m2m_entries | default([]) | map(attribute='cmdb_ci_endpoint.name') | list | join(', ')
+         if (sn_csdm_sm_m2m_entries | default([]) | length) > 0 else 'not readable via Table API (may still be registered server-side)' }};
+      Depends on::Used by={{ sn_csdm_depends_entry_label_list | default([]) | reject('equalto', '') | list | join(', ')
+         if (sn_csdm_depends_entry_label_list | default([]) | length) > 0 else 'none linked' }}
+  when: sn_csdm_app_svc_present | bool
+
+- name: Reset Depends on label accumulator for next application service
+  ansible.builtin.set_fact:
+    sn_csdm_depends_entry_label_list: []
   when: sn_csdm_app_svc_present | bool

@@ -1,0 +1,61 @@
+---
+# When multiple cmdb_ci_docker_container rows share name+host, retire rows whose
+# container_id is not in the current running set on the Docker host.
+# Scans all container CIs synced for this DOCKER_HOSTS entry (short_description prefix).
+# Input: sn_docker_host, sn_docker_host_sys_id, sn_docker_running_id_set
+#        (sn_docker_running_id_set is set by cleanup_stale_container_cis.yml when
+#        discover.yml runs stale cleanup first; resolve running IDs here if missing.)
+
+- name: Resolve running Docker container IDs when not already set
+  when: sn_docker_running_id_set is not defined
+  block:
+    - name: List running Docker container IDs on host
+      ansible.builtin.command:
+        argv:
+          - docker
+          - ps
+          - -q
+          - --no-trunc
+      delegate_to: "{{ sn_docker_host.ansible_host }}"
+      register: sn_docker_running_ids
+      changed_when: false
+
+    - name: Normalize running container ID set
+      ansible.builtin.set_fact:
+        sn_docker_running_id_set: >-
+          {{ sn_docker_running_ids.stdout_lines | default([])
+             | map('trim') | reject('equalto', '') | list }}
+
+- name: Query Docker container CIs on host for duplicate-name scan
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_docker_container
+    sn_rest_query: >-
+      sysparm_query=host={{ sn_docker_host_sys_id | urlencode }}^short_descriptionSTARTSWITH{{ sn_docker_host.name | urlencode }}&sysparm_fields=sys_id,name,container_id&sysparm_limit=500
+
+- name: Reset duplicate container name list
+  ansible.builtin.set_fact:
+    sn_docker_dedupe_names: []
+
+- name: Collect container names with more than one CI on host
+  ansible.builtin.set_fact:
+    sn_docker_dedupe_names: "{{ sn_docker_dedupe_names + [item.0] }}"
+  loop: "{{ sn_rest_json.result | default([]) | groupby('name') }}"
+  loop_control:
+    label: "{{ item.0 }}"
+  when: item.1 | length > 1
+
+- name: Report when no duplicate container names on host
+  ansible.builtin.debug:
+    msg: >-
+      No duplicate cmdb_ci_docker_container names on {{ sn_docker_host.cmdb_host_name }}
+      ({{ sn_docker_host.name }}).
+  when: sn_docker_dedupe_names | default([]) | length == 0
+
+- name: Deduplicate Docker container CIs by name on host
+  ansible.builtin.include_tasks: cleanup_duplicate_docker_name.yml
+  loop: "{{ sn_docker_dedupe_names | default([]) }}"
+  loop_control:
+    loop_var: dedupe_name
+    label: "{{ dedupe_name }}"
+  when: sn_docker_dedupe_names | default([]) | length > 0

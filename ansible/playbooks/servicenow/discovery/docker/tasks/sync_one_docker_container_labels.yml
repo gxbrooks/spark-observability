@@ -1,0 +1,54 @@
+---
+# Sync labels for one running container into cmdb_key_value.
+# Input: sn_docker_host, sn_docker_host_sys_id, sn_docker_container {name, container_id, image}
+
+- name: Inspect Docker container labels
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{' }}json .Config.Labels{{ '}}' }}"
+      - "{{ sn_docker_container.container_id }}"
+  delegate_to: "{{ sn_docker_host.ansible_host }}"
+  register: sn_docker_label_inspect
+  changed_when: false
+
+- name: Parse Docker container labels
+  ansible.builtin.set_fact:
+    sn_docker_container_labels: "{{ sn_docker_label_inspect.stdout | default('{}') | from_json }}"
+
+- name: Look up Docker container CI by container_id
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_docker_container
+    sn_rest_query: >-
+      sysparm_query=container_id={{ sn_docker_container.container_id | urlencode }}^host={{ sn_docker_host_sys_id | urlencode }}&sysparm_fields=sys_id,name,container_id&sysparm_limit=1
+
+- name: Skip label sync when Docker container CI is missing
+  ansible.builtin.debug:
+    msg: >-
+      Docker container CI not found for {{ sn_docker_container.name }}
+      (container_id={{ sn_docker_container.container_id[:12] }}...) — skip label sync.
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Sync ServiceNow and Compose labels to cmdb_key_value
+  when: sn_rest_json.result | default([]) | length > 0
+  block:
+    - name: Record Docker container CI sys_id
+      ansible.builtin.set_fact:
+        sn_docker_container_ci_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+
+    - name: Upsert cmdb_key_value for container label
+      ansible.builtin.include_tasks: ../../common/ensure_cmdb_key_value.yml
+      vars:
+        sn_kv_ci_sys_id: "{{ sn_docker_container_ci_sys_id }}"
+        sn_kv_key: "{{ label_item.key }}"
+        sn_kv_value: "{{ label_item.value | string }}"
+      loop: "{{ sn_docker_container_labels | default({}) | dict2items }}"
+      loop_control:
+        loop_var: label_item
+        label: "{{ label_item.key }}"
+      when: >-
+        label_item.key is match('^servicenow\\.io/')
+        or label_item.key is match('^com\\.docker\\.compose\\.')

@@ -20,7 +20,7 @@ Audiences: engineers who edit `variables.yaml` or `contexts.yaml`, authors of pl
 - **Generated context file**: A file the generator writes into the flat `contexts/` directory (for example `servicenow_ansible_vars.yml`, `spark_client_env.sh`). Generated files are gitignored and carry a "Do not edit manually!" header.
 - **Generator**: The script that reads `variables.yaml` and `contexts.yaml` and writes context output (for example `generate_contexts.py` invoked via a bootstrap wrapper).
 - **Application variable**: A consumer-side name (typically `snake_case`, for example `sn_url`, `observability_platform`) that a playbook or role maps from a context variable.
-- **Application-local variable**: Configuration defined in a file colocated with the consuming application (for example `common/vars.yml` next to playbooks, or `servicenow/servicenow.yaml` in an application playbook tree), not in `variables.yaml`.
+- **Application-local variable**: Configuration defined in a file colocated with the consuming application (for example `common/vars.yml` next to playbooks, or `servicenow/csdm.yaml` in an application playbook tree), not in `variables.yaml`.
 - **Secret variable**: A context variable marked `secret: true` in `variables.yaml`. Its value is resolved at generation time from an environment variable first, then a local secrets file; a secret also marked `required: true` aborts generation when unset.
 
 ## Roles and Responsibilities

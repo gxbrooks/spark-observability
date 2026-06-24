@@ -1,0 +1,96 @@
+---
+# Resolve a depends_on target to a CMDB sys_id (best-effort; may be deferred).
+# Inputs: sn_dep_target_ref (string or {name, type?}), sn_dep_expand_host (optional, for {host} substitution)
+# Outputs: sn_dep_target_sys_id, sn_dep_target_resolved, sn_dep_target_label
+
+- name: Normalize depends_on target reference
+  ansible.builtin.set_fact:
+    sn_dep_target_resolved: false
+    sn_dep_target_sys_id: ""
+    sn_dep_target_type: >-
+      {{ sn_dep_target_ref.type | default('application_service')
+         if sn_dep_target_ref is mapping else 'application_service' }}
+    sn_dep_target_name: >-
+      {{ (sn_dep_target_ref if sn_dep_target_ref is string else sn_dep_target_ref.name)
+         | replace('{host}', sn_dep_expand_host | default(''))
+         | replace('{host_lower}', (sn_dep_expand_host | default('')) | lower) }}
+    sn_dep_target_label: >-
+      {{ sn_dep_target_ref if sn_dep_target_ref is string
+         else (sn_dep_target_ref.name ~ ' [' ~ (sn_dep_target_ref.type | default('application_service')) ~ ']') }}
+
+- name: Derive depends_on target CMDB table from type
+  ansible.builtin.set_fact:
+    sn_dep_target_table: >-
+      {{ 'cmdb_ci_linux_server'
+         if sn_dep_target_type in ['linux_server', 'nfs_server', 'cmdb_ci_linux_server']
+         else ('cmdb_ci_service' if sn_dep_target_type == 'business_service' else 'cmdb_ci_service_discovered') }}
+
+- name: Resolve application service target from deploy registry
+  ansible.builtin.set_fact:
+    sn_dep_target_sys_id: "{{ sn_csdm_registry.application_services[sn_dep_target_name] }}"
+    sn_dep_target_resolved: true
+  when:
+    - sn_dep_target_type == 'application_service'
+    - sn_csdm_registry.application_services[sn_dep_target_name] is defined
+
+- name: Look up application service target in CMDB when not in registry
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_service_discovered
+    sn_rest_query: "sysparm_query=name={{ sn_dep_target_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+  when:
+    - sn_dep_target_type == 'application_service'
+    - not (sn_dep_target_resolved | default(false) | bool)
+
+- name: Record application service target from CMDB lookup
+  ansible.builtin.set_fact:
+    sn_dep_target_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_dep_target_resolved: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+  when:
+    - sn_dep_target_type == 'application_service'
+    - not (sn_dep_target_resolved | default(false) | bool)
+    - sn_rest_json is defined
+
+- name: Resolve business service target from deploy registry
+  ansible.builtin.set_fact:
+    sn_dep_target_sys_id: "{{ sn_csdm_registry.business_services[sn_dep_target_name] }}"
+    sn_dep_target_resolved: true
+  when:
+    - sn_dep_target_type == 'business_service'
+    - sn_csdm_registry.business_services[sn_dep_target_name] is defined
+
+- name: Look up business service target in CMDB when not in registry
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_service
+    sn_rest_query: "sysparm_query=name={{ sn_dep_target_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+  when:
+    - sn_dep_target_type == 'business_service'
+    - not (sn_dep_target_resolved | default(false) | bool)
+
+- name: Record business service target from CMDB lookup
+  ansible.builtin.set_fact:
+    sn_dep_target_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_dep_target_resolved: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+  when:
+    - sn_dep_target_type == 'business_service'
+    - not (sn_dep_target_resolved | default(false) | bool)
+    - sn_rest_json is defined
+
+- name: Look up infrastructure target CI by name
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: "{{ sn_dep_target_table }}"
+    sn_rest_query: "sysparm_query=name={{ sn_dep_target_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+  when:
+    - sn_dep_target_type in ['linux_server', 'cmdb_ci_linux_server', 'nfs_server']
+    - not (sn_dep_target_resolved | default(false) | bool)
+
+- name: Record infrastructure target from CMDB lookup
+  ansible.builtin.set_fact:
+    sn_dep_target_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_dep_target_resolved: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+  when:
+    - sn_dep_target_type in ['linux_server', 'cmdb_ci_linux_server', 'nfs_server']
+    - sn_rest_json is defined
+    - not (sn_dep_target_resolved | default(false) | bool)

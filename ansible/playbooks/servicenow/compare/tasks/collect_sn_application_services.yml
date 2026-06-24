@@ -1,0 +1,22 @@
+---
+# Query application services declared in CSDM intent (by name).
+
+- name: Initialize ServiceNow application service query results
+  ansible.builtin.set_fact:
+    sn_compare_sn_app_services: []
+
+- name: Query each intent application service in CMDB
+  ansible.builtin.include_tasks: query_one_sn_app_service.yml
+  loop: "{{ sn_compare_unit_result.intent.application_services | default([]) }}"
+  loop_control:
+    loop_var: sn_compare_intent_app
+    label: "{{ sn_compare_intent_app.name | default('') }}"
+
+- name: Store ServiceNow application services on scope unit result
+  ansible.builtin.set_fact:
+    sn_compare_unit_result: >-
+      {{ sn_compare_unit_result | combine({
+           'servicenow': sn_compare_unit_result.servicenow | default({}) | combine({
+             'application_services': sn_compare_sn_app_services
+           }, recursive=True)
+         }, recursive=True) }}

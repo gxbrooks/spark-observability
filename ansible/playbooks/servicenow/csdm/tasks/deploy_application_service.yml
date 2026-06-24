@@ -13,19 +13,33 @@
          | replace('{host}', sn_csdm_app_svc_item.host)
          | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
 
+- name: Validate application service specification
+  ansible.builtin.include_tasks: validate_application_service.yml
+
+- name: Resolve merged runtime tags for application service
+  ansible.builtin.include_tasks: resolve_application_service_tags.yml
+  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+
+- name: Record runtime tag manifest entry
+  ansible.builtin.include_tasks: write_runtime_tag_manifest.yml
+  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+
+- name: Resolve application service CMDB body
+  ansible.builtin.include_tasks: resolve_csdm_cmdb_body.yml
+  vars:
+    sn_csdm_object_kind: application_service
+    sn_csdm_source_spec: >-
+      {{ sn_csdm_app_svc_item.spec | combine(
+           {'short_description': sn_csdm_app_svc_short_description},
+           recursive=True) }}
+
 - name: Ensure application service
   ansible.builtin.include_tasks: ensure_cmdb_record.yml
   vars:
     sn_csdm_table: cmdb_ci_service_discovered
     sn_csdm_lookup_name: "{{ sn_csdm_app_svc_name }}"
-    sn_csdm_body: >-
-      {{ sn_csdm_app_svc_item.spec
-         | dict2items
-         | rejectattr('key', 'in', ['name', 'short_description', 'parent_business_service', 'entry_points', 'expand', 'discover'])
-         | items2dict
-         | combine({'short_description': sn_csdm_app_svc_short_description}, recursive=True) }}
-    sn_csdm_patch_body:
-      short_description: "{{ sn_csdm_app_svc_short_description }}"
+    sn_csdm_body: "{{ sn_csdm_cmdb_body }}"
+    sn_csdm_patch_body: "{{ sn_csdm_cmdb_body }}"
 
 - name: Record application service sys_id in registry
   ansible.builtin.set_fact:
@@ -45,14 +59,37 @@
     - sn_csdm_app_svc_item.spec.parent_business_service is defined
     - sn_csdm_registry.business_services[sn_csdm_app_svc_item.spec.parent_business_service] is defined
 
-- name: Deploy entry points for application service
+- name: Deploy entry points for vertical Service Mapping
   ansible.builtin.include_tasks: deploy_entry_point.yml
   loop: "{{ sn_csdm_app_svc_item.spec.entry_points | default([]) }}"
   loop_control:
     loop_var: sn_csdm_entry_point_spec
     label: "{{ sn_csdm_entry_point_spec.table | default('') }}"
+  when:
+    - sn_csdm_app_svc_item.spec.service_mapping == 'vertical'
+    - sn_csdm_app_svc_item.spec.platform != 'kubernetes'
 
-- name: Queue Service Mapping discovery for application service
+- name: Queue depends_on relationships for deferred linking pass
+  ansible.builtin.set_fact:
+    sn_csdm_depends_on_queue: >-
+      {{ sn_csdm_depends_on_queue | default([]) + [
+           {
+             'consumer_sys_id': sn_csdm_app_svc_sys_id,
+             'consumer_name': sn_csdm_app_svc_name,
+             'expand_host': sn_csdm_app_svc_item.host | default(''),
+             'target': dep_target
+           }
+         ] }}
+  loop: "{{ sn_csdm_app_svc_item.spec.depends_on | default([]) }}"
+  loop_control:
+    loop_var: dep_target
+    label: "{{ dep_target }}"
+  when: sn_csdm_app_svc_item.spec.depends_on | default([]) | length > 0
+
+- name: Queue vertical Service Mapping discovery for application service
   ansible.builtin.set_fact:
     sn_sm_discover_service_names: "{{ sn_sm_discover_service_names + [sn_csdm_app_svc_name] }}"
-  when: sn_csdm_app_svc_item.spec.discover | default(false) | bool
+  when:
+    - sn_csdm_app_svc_item.spec.discover | default(false) | bool
+    - sn_csdm_app_svc_item.spec.service_mapping == 'vertical'
+    - sn_csdm_app_svc_item.spec.platform != 'kubernetes'

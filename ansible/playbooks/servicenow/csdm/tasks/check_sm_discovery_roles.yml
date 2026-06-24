@@ -1,5 +1,5 @@
 ---
-# Verify admin_brooks_lab (or sn_user) has roles needed for Service Mapping Discover.
+# Verify sn_user has roles needed for Service Mapping vertical discovery.
 
 - name: Resolve ServiceNow automation user sys_id
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"

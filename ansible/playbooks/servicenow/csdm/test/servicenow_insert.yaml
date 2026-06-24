@@ -1,0 +1,45 @@
+---
+# Synthetic CSDM objects for csdm_op insert/delete testing.
+# Run:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+#     -e @../vars/secrets.yaml \
+#     -e '{"sn_csdm_spec_files": ["servicenow/csdm/test/servicenow_insert.yaml"]}'
+
+csdm_defaults:
+  business_owner: gbrooks
+  it_application_owner: gbrooks
+  owned_by: gbrooks
+  busines_criticality: "4 - not critical"
+
+tag_defaults:
+  environment: on-prem
+  location: "{{ SN_LAB_LOCATION_NAME }}"
+
+business_applications:
+  - name: CSDM Synthetic Test BA
+    identifier: csdm-synthetic-test-ba
+    short_description: Ephemeral object for csdm_op delete testing
+    operational_status: "1"
+    active: "true"
+    csdm_op: insert
+
+business_services:
+  - name: CSDM Synthetic Test BS
+    identifier: csdm-synthetic-test-bs
+    short_description: Ephemeral business service for csdm_op delete testing
+    operational_status: "1"
+    parent_business_application: CSDM Synthetic Test BA
+    csdm_op: insert
+
+application_services:
+  - name: CSDM Synthetic Test AS
+    identifier: csdm-synthetic-test-as
+    short_description: Ephemeral application service for csdm_op delete testing
+    operational_status: "1"
+    parent_business_service: CSDM Synthetic Test BS
+    platform: saas
+    service_mapping: manual
+    discover: false
+    environment: on-prem
+    location: "{{ SN_LAB_LOCATION_NAME }}"
+    csdm_op: insert

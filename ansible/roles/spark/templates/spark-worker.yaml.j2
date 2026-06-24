@@ -14,6 +14,19 @@ spec:
       labels:
         app: spark-worker
         node: lab2
+        app.kubernetes.io/name: spark-worker
+        app.kubernetes.io/instance: brooks-lab-lab2
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible
+        servicenow.io/application-identifier: data-and-analytic-services
+        servicenow.io/business-service-identifier: apache-spark
+        servicenow.io/application-service-identifier: spark-worker-lab2
+        servicenow.io/environment: on-prem
+        servicenow.io/location: brooks-lab
+        servicenow.io/service-tier: compute
+        servicenow.io/cluster: brooks-lab
+        servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
       # Add tolerations for control-plane taint
@@ -155,6 +168,19 @@ spec:
       labels:
         app: spark-worker
         node: lab1
+        app.kubernetes.io/name: spark-worker
+        app.kubernetes.io/instance: brooks-lab-lab1
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: apache-spark
+        app.kubernetes.io/managed-by: ansible
+        servicenow.io/application-identifier: data-and-analytic-services
+        servicenow.io/business-service-identifier: apache-spark
+        servicenow.io/application-service-identifier: spark-worker-lab1
+        servicenow.io/environment: on-prem
+        servicenow.io/location: brooks-lab
+        servicenow.io/service-tier: compute
+        servicenow.io/cluster: brooks-lab
+        servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
       affinity:

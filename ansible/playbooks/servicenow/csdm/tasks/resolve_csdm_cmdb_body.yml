@@ -1,0 +1,109 @@
+---
+# Merge csdm_defaults, validate mandatory attributes, resolve user references, build CMDB POST/PATCH body.
+# Input: sn_csdm_object_kind (business_application|business_service|application_service), sn_csdm_source_spec, sn_csdm_spec
+# Output: sn_csdm_cmdb_body
+
+- name: Merge file-level csdm_defaults into object specification
+  ansible.builtin.set_fact:
+    sn_csdm_merged_spec: >-
+      {{ sn_csdm_spec.csdm_defaults | default({}) | combine(sn_csdm_source_spec, recursive=True) }}
+
+- name: Validate mandatory business application CMDB attributes
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_merged_spec.business_owner is defined
+      - sn_csdm_merged_spec.business_owner | length > 0
+      - sn_csdm_merged_spec.it_application_owner is defined
+      - sn_csdm_merged_spec.it_application_owner | length > 0
+      - sn_csdm_merged_spec.operational_status is defined
+      - sn_csdm_merged_spec.active is defined
+    fail_msg: >-
+      Business application '{{ sn_csdm_source_spec.name | default('') }}' missing mandatory CMDB attributes
+      (business_owner, it_application_owner, operational_status, active).
+      See CSDM_Specifications.md.
+  when: sn_csdm_object_kind == 'business_application'
+
+- name: Validate mandatory business service CMDB attributes
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_merged_spec.owned_by is defined
+      - sn_csdm_merged_spec.owned_by | length > 0
+      - sn_csdm_merged_spec.busines_criticality is defined
+      - sn_csdm_merged_spec.busines_criticality | length > 0
+      - sn_csdm_merged_spec.operational_status is defined
+    fail_msg: >-
+      Business service '{{ sn_csdm_source_spec.name | default('') }}' missing mandatory CMDB attributes
+      (owned_by, busines_criticality, operational_status).
+      See CSDM_Specifications.md.
+  when: sn_csdm_object_kind == 'business_service'
+
+- name: Validate mandatory application service CMDB attributes
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_merged_spec.owned_by is defined
+      - sn_csdm_merged_spec.owned_by | length > 0
+      - sn_csdm_merged_spec.busines_criticality is defined
+      - sn_csdm_merged_spec.busines_criticality | length > 0
+      - sn_csdm_merged_spec.operational_status is defined
+    fail_msg: >-
+      Application service '{{ sn_csdm_source_spec.name | default('') }}' missing mandatory CMDB attributes
+      (owned_by, busines_criticality, operational_status).
+      See CSDM_Specifications.md.
+  when: sn_csdm_object_kind == 'application_service'
+
+- name: Initialize CMDB body for user reference resolution
+  ansible.builtin.set_fact:
+    sn_csdm_cmdb_body: {}
+
+- name: Resolve business application user reference fields
+  ansible.builtin.include_tasks: lookup_csdm_user_sys_id.yml
+  vars:
+    sn_csdm_user_name: "{{ sn_csdm_merged_spec[item.yaml] }}"
+  loop:
+    - { yaml: business_owner, cmdb: owned_by }
+    - { yaml: it_application_owner, cmdb: it_application_owner }
+  loop_control:
+    loop_var: item
+    label: "{{ item.yaml }}"
+  when: sn_csdm_object_kind == 'business_application'
+
+- name: Apply business application user fields to CMDB body
+  ansible.builtin.set_fact:
+    sn_csdm_cmdb_body: >-
+      {{ sn_csdm_cmdb_body | combine(
+           {item.cmdb: sn_csdm_user_cache[sn_csdm_merged_spec[item.yaml]]},
+           recursive=True) }}
+  loop:
+    - { yaml: business_owner, cmdb: owned_by }
+    - { yaml: it_application_owner, cmdb: it_application_owner }
+  loop_control:
+    loop_var: item
+    label: "{{ item.cmdb }}"
+  when: sn_csdm_object_kind == 'business_application'
+
+- name: Resolve service user reference fields
+  ansible.builtin.include_tasks: lookup_csdm_user_sys_id.yml
+  vars:
+    sn_csdm_user_name: "{{ sn_csdm_merged_spec.owned_by }}"
+  when: sn_csdm_object_kind in ['business_service', 'application_service']
+
+- name: Apply owned_by to service CMDB body
+  ansible.builtin.set_fact:
+    sn_csdm_cmdb_body: "{{ sn_csdm_cmdb_body | combine({'owned_by': sn_csdm_user_sys_id}, recursive=True) }}"
+  when: sn_csdm_object_kind in ['business_service', 'application_service']
+
+- name: Apply passthrough CMDB scalar fields
+  ansible.builtin.set_fact:
+    sn_csdm_cmdb_body: >-
+      {{ sn_csdm_cmdb_body | combine({
+           'operational_status': sn_csdm_merged_spec.operational_status,
+           'busines_criticality': sn_csdm_merged_spec.busines_criticality
+         } if sn_csdm_object_kind in ['business_service', 'application_service'] else {}, recursive=True)
+         | combine({
+             'operational_status': sn_csdm_merged_spec.operational_status,
+             'active': sn_csdm_merged_spec.active
+           } if sn_csdm_object_kind == 'business_application' else {}, recursive=True)
+         | combine(
+             {'short_description': sn_csdm_merged_spec.short_description}
+             if sn_csdm_merged_spec.short_description is defined else {},
+             recursive=True) }}

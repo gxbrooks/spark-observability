@@ -1,0 +1,40 @@
+---
+# Elastic Agent — CSDM specification
+# Business Application Observability Platform is defined in observability/servicenow/csdm.yaml
+
+tag_defaults:
+  environment: on-prem
+  location: "{{ SN_LAB_LOCATION_NAME }}"
+
+csdm_defaults:
+  owned_by: gbrooks
+  busines_criticality: "4 - not critical"
+
+business_services:
+  - name: Elastic Agent
+    identifier: elastic-agent
+    short_description: Host metrics and log shipping to Elasticsearch
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+application_services:
+  - name: "Elastic Agent ({host})"
+    identifier: "elastic-agent-{host_lower}"
+    short_description: "Elastic Agent on {host} — ships logs and metrics"
+    operational_status: "1"
+    parent_business_service: Elastic Agent
+    platform: host
+    service_mapping: tags
+    discover: false
+    service_tier: ingest
+    depends_on:
+      - Elasticsearch
+      - name: "{host_lower}"
+        type: linux_server
+      - name: lab3
+        type: nfs_server
+    expand:
+      inventory_group: k8s_nodes
+    tags:
+      docker:
+        com.docker.compose.service: elastic-agent

@@ -1,0 +1,19 @@
+---
+# Resolve sn_docker_host_sys_id for one DOCKER_HOSTS entry.
+# Input: sn_docker_host
+
+- name: "Look up Linux server CI for {{ sn_docker_host.cmdb_host_name }}"
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_linux_server
+    sn_rest_query: "sysparm_query=name={{ sn_docker_host.cmdb_host_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+
+- name: "Fail when CMDB host {{ sn_docker_host.cmdb_host_name }} is missing"
+  ansible.builtin.fail:
+    msg: >-
+      Linux server CI '{{ sn_docker_host.cmdb_host_name }}' not found. Run Phase 1 discovery first.
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: "Record CMDB host sys_id for {{ sn_docker_host.name }}"
+  ansible.builtin.set_fact:
+    sn_docker_host_sys_id: "{{ sn_rest_json.result[0].sys_id }}"

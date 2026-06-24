@@ -1,0 +1,23 @@
+---
+# Delete all cmdb_rel_ci rows where the CI is parent or child.
+# Input: sn_csdm_ci_sys_id
+
+- name: Query relationships for CI
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: "sysparm_query=parent={{ sn_csdm_ci_sys_id }}^ORchild={{ sn_csdm_ci_sys_id }}&sysparm_fields=sys_id&sysparm_limit=200"
+
+- name: Delete CMDB relationship
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/cmdb_rel_ci/{{ item.sys_id }}"
+    method: DELETE
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 204, 404]
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.sys_id }}"
+  no_log: true

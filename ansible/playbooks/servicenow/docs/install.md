@@ -46,7 +46,7 @@ CMDB locations. On optimizincdemo1 the following roles are effective:
 | Role | Why |
 | ---- | --- |
 | **discovery_admin** | Discovery schedules, ranges, credentials, run scans *(or equivalent ACLs via elevated CMDB/admin roles)* |
-| **cmdb_inst_admin** | Create/update `cmn_location` (**brooks-lab**) |
+| **cmdb_inst_admin** | Create/update `cmn_location` (**brooks-lab**); CMDB CI tables. For tag-based Service Mapping, also requires a **table ACL extension** on **`cmdb_key_value`** — see [§6.1](#61-table-acl--cmdb_key_value-access-for-cmdb_inst_admin) |
 | **rest_service** | REST API access |
 | **snc_platform_rest_api_access** | Table API authentication |
 | **cmdb_query_builder** or **cmdb_read** | `test.yml` CMDB validation |
@@ -382,7 +382,83 @@ Phase 1 must have discovered **`lab3`** with `location=brooks-lab` before Phase 
 `docker/deploy.yml` installs business rule **`docker-inherit-location-from-host`**
 so new/updated `cmdb_ci_docker_container` rows copy `host.location`.
 
+### 6.1 Table ACL — `cmdb_key_value` access for `cmdb_inst_admin`
+
+**One-time instance admin task** (requires **`security_admin`** elevation). Perform
+this before expecting tag-based Service Mapping or `discovery/docker/discover.yml`
+to populate Docker Compose labels in CMDB.
+
+#### Rationale
+
+| Topic | Detail |
+| ----- | ------ |
+| **What `cmdb_key_value` is** | CMDB table **Key Values** (`cmdb_key_value.list`) — one row per label key/value attached to a CI. Tag-based Service Mapping matches application services to workload CIs using these rows. |
+| **How Kubernetes labels get there today** | KVA (Phase 2) writes `app.kubernetes.io/*` and related keys as internal user **`system`**, bypassing REST table ACLs. |
+| **How Docker labels should get there** | Compose services carry **`servicenow.io/*`** and **`com.docker.compose.*`** labels (`observability/docker-compose.yml`). Playbook **`discovery/docker/discover.yml`** reads them from `docker inspect` and upserts **`cmdb_key_value`** via the Table API as **`admin_brooks_lab`**. |
+| **Why role grant alone is not enough** | **`cmdb_inst_admin`** is already assigned to **`admin_brooks_lab`** and covers many CMDB tables (`cmdb_ci_*`, `cmdb_rel_ci`, locations, etc.), but **out-of-the-box table ACLs on `cmdb_key_value` do not list `cmdb_inst_admin` in Requires role** for create/write. REST insert then fails with `ACL Exception Insert Failed due to security constraints` even though GET (read) succeeds. |
+| **Why extend `cmdb_inst_admin` (not a new role)** | The automation user already holds **`cmdb_inst_admin`** for CMDB install and CI materialization. Label rows are CMDB metadata required for CSDM tag-based application services — the same operators who grant **`cmdb_inst_admin`** should be able to authorize REST upsert of Key Values without inventing a separate role. |
+| **Scope of change** | Add **`cmdb_inst_admin`** to the **Requires role** list on the active **read**, **write**, **create**, and **delete** ACL rules for table **`cmdb_key_value`** only. Does not broaden access to unrelated tables. |
+| **Why include delete** | Current playbooks upsert only (POST/PATCH). **Delete** is included in this ACL change so future automation can remove stale label rows when keys are dropped from Compose or during label cleanup — without a second **`security_admin`** pass. |
+
+> **Do not update `cmdb_key_value_v2`.** That is a **different table** (label **Key Value V2** / *External system metadata* in newer CMDB CI Class Models). Tag-based Service Mapping and KVA use **`cmdb_key_value`** (label **Key Values**). On optimizincdemo1, REST POST to **`cmdb_key_value_v2`** may succeed while **`cmdb_key_value`** still returns 403 — that does **not** fix Docker tag-based mapping. Filter ACLs by Name = **`cmdb_key_value`** exactly (not `_v2`).
+
+Further context: `csdm/docs/Tag_Based_Service_Mapping.md`, `csdm/docs/CSDM_Specifications.md` (Statements 1.3, 4.4–4.5).
+
+#### Steps (instance administrator)
+
+1. Sign in with an account that can elevate to **`security_admin`** (typically **`admin`**).
+2. **Elevate role** → select **`security_admin`**.
+3. Open **System Security → Access Control (ACL)**  
+   (Filter navigator: `sys_security_acl.list`).
+4. For each **Operation** below, locate the **active** ACL whose **Name** is **`cmdb_key_value`** (Type = **record**). There may be one ACL per operation or inherited rules — edit each active rule that governs REST access to this table.
+
+   | Operation | Purpose for brooks-lab automation |
+   | --------- | --------------------------------- |
+   | **read** | `discover.yml` / diagnose queries existing label rows |
+   | **write** | Update label **value** when a Compose label changes (PATCH) |
+   | **create** | Insert new key/value rows for `servicenow.io/*` and `com.docker.compose.*` |
+   | **delete** | Remove stale label rows when keys are removed from Compose or during future label cleanup (not used by current playbooks) |
+
+5. On each ACL form:
+   - Confirm **Active** is checked and **Admin overrides** is **not** relied on (automation user is not **`admin`**).
+   - Open the **Requires role** related list.
+   - **Edit** → add **`cmdb_inst_admin`** → **Save**.
+   - If no role is listed and insert is denied by a **Deny unless** rule, add a new **Allow if** ACL instead: Type **record**, Name **`cmdb_key_value`**, Operation **create** (repeat for **write**, **read**, and **delete** as needed), Decision **Allow if**, Requires role **`cmdb_inst_admin`**, **Active** checked.
+
+   Current playbooks (`ensure_cmdb_key_value.yml`) do not call DELETE yet; include **delete** in this one-time ACL change anyway so label cleanup can be added without reopening ACLs.
+
+6. **Save** each ACL. Leave **`security_admin`** elevation when finished.
+7. **Verify** (as **`admin_brooks_lab`** or via Ansible):
+
+   ```bash
+   cd ansible
+   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+     -e @../vars/secrets.yaml
+   ```
+
+   In ServiceNow: **`cmdb_key_value.list`** → filter **Key** = `servicenow.io/application-service-identifier` → expect rows on Lab3 observability container CIs (values such as `grafana`, `elasticsearch`).
+
+8. Optional Table API spot-check (should return **201**, not **403**):
+
+   ```bash
+   # From a host with secrets; POST one test row, then delete in UI if desired
+   curl -s -o /dev/null -w '%{http_code}\n' -u "$SN_USER:$SN_PASSWORD" \
+     -H 'Content-Type: application/json' \
+     -d '{"configuration_item":"<container_ci_sys_id>","key":"servicenow.io/application-service-identifier","value":"grafana"}' \
+     'https://optimizincdemo1.service-now.com/api/now/table/cmdb_key_value'
+   ```
+
+#### After ACL change
+
+Re-run CSDM deploy/diagnose if application services were stuck waiting for tags:
+
+```bash
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml
+```
+
 ### Phase 3 install sequence
+
+**Prerequisite:** complete [§6.1](#61-table-acl--cmdb_key_value-access-for-cmdb_inst_admin) if using tag-based Service Mapping for Docker (observability stack).
 
 ```bash
 cd ansible
@@ -446,7 +522,7 @@ idempotent and skips completed work.
 
 | # | Actor | Step |
 | - | ----- | ---- |
-| 1 | instance admin (manual, once) | Create automation user, grant Phase 1–3 roles (§1–2) |
+| 1 | instance admin (manual, once) | Create automation user, grant Phase 1–3 roles (§1–2); extend **`cmdb_key_value`** ACLs for **`cmdb_inst_admin`** ([§6.1](#61-table-acl--cmdb_key_value-access-for-cmdb_inst_admin)) when using tag-based Docker/CSDM |
 | 2 | instance admin (manual, once, **only if** the preflight reports the role record missing) | Activate plugin `com.snc.ci_cd` (System Definition → Plugins) — the CI/CD API cannot activate its own plugin |
 | 3 | instance admin (manual, once) | Grant `sn_cicd.sys_ci_automation`, `sn_appclient.app_client_user`, `evt_mgmt_admin`, and `connection_admin` (see the roles table) to `admin_brooks_lab` |
 | 4 | automation | Run `sgc/install.yml` — installs everything else; re-run after any grant |
@@ -456,7 +532,7 @@ idempotent and skips completed work.
 
 | Role | Needed for (tables / APIs) |
 | ---- | -------------------------- |
-| `cmdb_inst_admin` | CMDB tables — `cmdb_ci_*`, `cmdb_rel_ci`, `sys_object_source`; Identification/Reconciliation API `/api/now/identifyreconcile` |
+| `cmdb_inst_admin` | CMDB tables — `cmdb_ci_*`, `cmdb_rel_ci`, `sys_object_source`; Identification/Reconciliation API `/api/now/identifyreconcile`. **Also requires** [§6.1 table ACL extension](#61-table-acl--cmdb_key_value-access-for-cmdb_inst_admin) on **`cmdb_key_value`** for Docker label sync |
 | `discovery_admin` | Discovery configuration and status — `discovery_schedule`, `discovery_status`, `ecc_agent` (MID server), `ecc_queue` |
 | `evt_mgmt_admin` | Event Management — `em_event`, `em_alert`, event rules |
 | `rest_service` | Inbound REST web-service access (basic-auth API calls as this user) |
@@ -591,7 +667,7 @@ SGO-Dynatrace RTE feeds (the NPE root cause) and optionally purges CMDB /
 stays installed; run `sources/dynatrace/deploy.yml` and
 `sources/dynatrace/start.yml` afterward.
 
-Set `sn_sgc_reset_purge_lab_data=false` to skip CMDB / object-source deletion.
+Set `sn_sgc_reset_purge_data=false` to skip CMDB / object-source deletion.
 
 **Limits:** Repair/reinstall use the App Manager API, not
 `/api/sn_cicd/app_repo/install` (which rejects an already-installed version).
@@ -689,6 +765,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 | Action | Where | Why not automated |
 | ------ | ----- | ----------------- |
 | Grant roles (`sn_cicd.sys_ci_automation`, `sn_appclient.app_client_user`, `evt_mgmt_admin`, `connection_admin`) | User Administration | Role grants require instance admin on the shared demo |
+| Extend **`cmdb_key_value`** ACLs for **`cmdb_inst_admin`** (read, write, create, delete) | System Security → Access Control | Table ACL change requires **`security_admin`**; see [§6.1](#61-table-acl--cmdb_key_value-access-for-cmdb_inst_admin) |
 | Store entitlement / license click-through | ServiceNow Store / Subscriptions | Contractual acceptance is UI-only |
 | Plugin request when CI/CD activation is denied | System Definition → Plugins / HI case | Strict instances gate plugin activation |
 | Scheduled Data Imports first execution | Dynatrace Observability → Scheduled Data Imports | Operator-triggered; monitor Concurrent Import Sets |
@@ -781,6 +858,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml \
 | Symptom | Check |
 | ------- | ----- |
 | `deploy.yml` 403 on Discovery tables | `admin_brooks_lab` roles; run `diagnose.yml` |
+| `cmdb_key_value` REST insert 403 | Complete [§6.1](#61-table-acl--cmdb_key_value-access-for-cmdb_inst_admin); re-run `discovery/docker/discover.yml` |
 | MID stays Down | `mid_brooks_lab` has `mid_server`; password matches `config.xml`; `&` in password XML-escaped |
 | MID user cannot run deploy | Expected — use `admin_brooks_lab` (`SN_USER`) |
 | No CIs after scan | MID Up; schedule linked to range + credential; wait for scan completion |
@@ -791,6 +869,9 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml \
 ## Related documentation
 
 - `../README.md` — playbook layout
+- `../discovery/docker/README.md` — Docker container sync and label upsert
+- `../csdm/docs/Tag_Based_Service_Mapping.md` — tag-based Service Mapping UI and `cmdb_key_value`
+- `../csdm/docs/CSDM_Specifications.md` — CSDM YAML and runtime label requirements
 - `../discovery/README.md` — playbook verbs
 - `docs/architecture-and-resources.md` — Lab3 MID memory budget
 - `tmp/ServiceNow_Dynatrace_Integration.md` — CMDB / Dynatrace design

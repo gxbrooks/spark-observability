@@ -163,6 +163,16 @@
   register: sn_mid_service_start
   failed_when: false
 
+- name: Allow MID runtime user passwordless systemctl for auto-upgrade
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/servicenow-mid
+    mode: "0440"
+    validate: "visudo -cf %s"
+    content: |
+      Cmnd_Alias MIDCTL = /bin/systemctl start {{ sn_mid_service_name }}, /bin/systemctl start {{ sn_mid_service_name }}.service, /bin/systemctl stop {{ sn_mid_service_name }}, /bin/systemctl stop {{ sn_mid_service_name }}.service, /bin/systemctl restart {{ sn_mid_service_name }}, /bin/systemctl restart {{ sn_mid_service_name }}.service, /bin/systemctl status {{ sn_mid_service_name }}, /bin/systemctl status {{ sn_mid_service_name }}.service
+      {{ sn_mid_run_as_user }} ALL=(ALL) NOPASSWD: MIDCTL
+  become: true
+
 - name: Display MID Server service status
   ansible.builtin.command: systemctl is-active "{{ sn_mid_service_name }}.service"
   register: sn_mid_active

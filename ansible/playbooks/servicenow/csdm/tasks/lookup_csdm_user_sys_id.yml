@@ -1,0 +1,33 @@
+---
+# Resolve a ServiceNow user_name to sys_user.sys_id (cached in sn_csdm_user_cache).
+# Input: sn_csdm_user_name
+# Output: sn_csdm_user_sys_id
+
+- name: Return cached user sys_id when already resolved
+  ansible.builtin.set_fact:
+    sn_csdm_user_sys_id: "{{ sn_csdm_user_cache[sn_csdm_user_name] }}"
+  when:
+    - sn_csdm_user_cache is defined
+    - sn_csdm_user_name in sn_csdm_user_cache
+
+- name: Look up sys_user by user_name
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_user
+    sn_rest_query: "sysparm_query=user_name={{ sn_csdm_user_name | urlencode }}&sysparm_fields=sys_id,user_name&sysparm_limit=1"
+  when: sn_csdm_user_sys_id | default('') | length == 0
+
+- name: Record user sys_id from lookup
+  ansible.builtin.set_fact:
+    sn_csdm_user_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_csdm_user_cache: >-
+      {{ sn_csdm_user_cache | default({}) | combine({sn_csdm_user_name: sn_rest_json.result[0].sys_id}) }}
+  when:
+    - sn_csdm_user_sys_id | default('') | length == 0
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Fail when user is unknown
+  ansible.builtin.fail:
+    msg: >-
+      ServiceNow user '{{ sn_csdm_user_name }}' not found. Create the user or update csdm_defaults.
+  when: sn_csdm_user_sys_id | default('') | length == 0

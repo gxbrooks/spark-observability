@@ -1,0 +1,42 @@
+---
+# Check SM prerequisite #4 (CMDB enrichment) for application services stuck in Requirements.
+# Probes cmdb_ci_endpoint host linkage and cmdb_ci_tcp on declared entry ports.
+
+- name: Query application services in Requirements status
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_service_discovered
+    sn_rest_query: "sysparm_query=service_status=requirements&sysparm_fields=name,sys_id,service_status,process_status&sysparm_limit=100"
+
+- name: Record Requirements application services
+  ansible.builtin.set_fact:
+    sn_csdm_requirements_services: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Skip enrichment probe when no Requirements services
+  ansible.builtin.debug:
+    msg: No application services in service_status=requirements — SM prerequisite #4 probe skipped.
+  when: sn_csdm_requirements_services | default([]) | length == 0
+
+- name: Probe SM enrichment for each Requirements application service
+  ansible.builtin.include_tasks: diagnose_sm_enrichment_service.yml
+  loop: "{{ sn_csdm_requirements_services | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: sn_csdm_requirements_services | default([]) | length > 0
+
+- name: SM enrichment summary
+  ansible.builtin.debug:
+    msg: |
+      SM prerequisite #4 (horizontal enrichment) summary
+      ==================================================
+      {% if sn_csdm_enrichment_summary | default([]) | length == 0 %}
+      No Requirements services or probes did not run.
+      {% else %}
+      {% for row in sn_csdm_enrichment_summary %}
+      - {{ row.name }}: endpoint_host={{ row.endpoint_host_ok }}, tcp_on_port={{ row.tcp_found }}, ports={{ row.ports | join(', ') }}
+      {% endfor %}
+      {% endif %}
+
+      If endpoint_host=true but tcp_on_port=false, horizontal Discovery may not have
+      populated cmdb_tcp for the entry port, or the platform may not expose listeners
+      to classic vertical Service Mapping (for example Kubernetes NodePort via kube-proxy).

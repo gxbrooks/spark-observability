@@ -1,0 +1,25 @@
+---
+# Second-pass linking of depends_on relationships after all specifications deploy.
+
+- name: Skip depends_on pass when queue is empty
+  ansible.builtin.debug:
+    msg: No depends_on relationships queued.
+  when: sn_csdm_depends_on_queue | default([]) | length == 0
+
+- name: Link queued depends_on relationships
+  ansible.builtin.include_tasks: link_depends_on_item.yml
+  loop: "{{ sn_csdm_depends_on_queue | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_depends_item
+    label: "{{ sn_csdm_depends_item.consumer_name | default('') }} → {{ sn_csdm_depends_item.target }}"
+  when: sn_csdm_depends_on_queue | default([]) | length > 0
+
+- name: Report depends_on linking summary
+  ansible.builtin.debug:
+    msg: >-
+      depends_on: {{ sn_csdm_depends_on_linked | default(0) }} linked,
+      {{ sn_csdm_depends_on_deferred | default(0) }} deferred (target CI not found — re-run deploy after Discovery).
+      {% if (sn_csdm_depends_on_deferred_items | default([]) | length) > 0 %}
+      Deferred: {{ sn_csdm_depends_on_deferred_items | join('; ') }}
+      {% endif %}
+  when: sn_csdm_depends_on_queue | default([]) | length > 0

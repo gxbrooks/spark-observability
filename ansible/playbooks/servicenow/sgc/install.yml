@@ -26,14 +26,14 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
 #     -e @../vars/secrets.yaml -e sn_sgc_app_mode=reinstall
 #
-#   # Lab reset — purge corrupt RTE metadata + SGO discovery data (no admin UI)
+#   # Reset — purge corrupt RTE metadata + SGO discovery data (no admin UI)
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
 #     -e @../vars/secrets.yaml -e sn_sgc_app_mode=reset
 #
 # Extra variables:
 #   sn_sgc_app_mode — install (default) | repair | reinstall | reset
 #   sn_sgc_maintain_scopes — scopes to repair/reinstall (default: [sn_dynatrace_integ])
-#   sn_sgc_reset_purge_lab_data — when reset, delete SGO CMDB/object_source rows (default: true)
+#   sn_sgc_reset_purge_data — when reset, delete SGO CMDB/object_source rows (default: true)
 
 - name: Install ServiceNow Store applications and plugins for Dynatrace SGC
   hosts: localhost
@@ -43,7 +43,7 @@
     sn_sgc_app_mode: install
     sn_sgc_maintain_scopes:
       - sn_dynatrace_integ
-    sn_sgc_reset_purge_lab_data: true
+    sn_sgc_reset_purge_data: true
   vars_files:
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
@@ -65,12 +65,12 @@
       ansible.builtin.include_tasks: common/validate_compatibility.yml
       when: sn_sgc_app_mode != 'reset'
 
-    # ----- Reset mode (automated lab rebuild without admin uninstall UI) ------
+    # ----- Reset mode (automated rebuild without admin uninstall UI) ------
     - name: Report reset mode start
       ansible.builtin.debug:
         msg: >-
           Mode reset: purge corrupt SGO-Dynatrace RTE metadata{{
-          ' and lab discovery data' if sn_sgc_reset_purge_lab_data | bool else ''
+          ' and SGO discovery data' if sn_sgc_reset_purge_data | bool else ''
           }}. Full Store app uninstall is not available via API for the
           automation user — this removes the corrupt table rows that cause
           Import Log NPEs without retaining damaged metadata.
@@ -80,11 +80,11 @@
       ansible.builtin.include_tasks: common/purge_corrupt_rte.yml
       when: sn_sgc_app_mode == 'reset'
 
-    - name: Purge SGO-Dynatrace lab CMDB and object-source rows
-      ansible.builtin.include_tasks: common/purge_sgc_lab_data.yml
+    - name: Purge SGO-Dynatrace CMDB and object-source rows
+      ansible.builtin.include_tasks: common/purge_sgc_data.yml
       when:
         - sn_sgc_app_mode == 'reset'
-        - sn_sgc_reset_purge_lab_data | bool
+        - sn_sgc_reset_purge_data | bool
 
     - name: Re-validate compatibility after reset
       ansible.builtin.include_tasks: common/validate_compatibility.yml

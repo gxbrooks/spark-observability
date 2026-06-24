@@ -10,7 +10,75 @@
          | replace('{host}', sn_csdm_app_svc_item.host)
          | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
 
-- name: Ensure IP service entry point CI
+- name: Resolve entry point host for cmdb_ci_endpoint
+  ansible.builtin.include_tasks: resolve_entry_point_host.yml
+  vars:
+    sn_csdm_host_lookup_name: >-
+      {{ sn_csdm_entry_point_spec.host_lookup_name
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+  when:
+    - sn_csdm_entry_point_spec.table in ['cmdb_ci_endpoint', 'cmdb_ci_ip_service']
+    - sn_csdm_entry_point_spec.host_lookup_name is defined
+
+- name: Fail when entry point host_lookup_name is missing
+  ansible.builtin.fail:
+    msg: >-
+      Entry point for application service '{{ sn_csdm_app_svc_name }}' requires
+      host_lookup_name (Linux server CMDB name). See CSDM_Specifications.md.
+  when:
+    - sn_csdm_entry_point_spec.table in ['cmdb_ci_endpoint', 'cmdb_ci_ip_service']
+    - sn_csdm_entry_point_spec.host_lookup_name is not defined
+
+- name: Ensure Service Mapping endpoint CI (preferred for top-down discovery)
+  ansible.builtin.include_tasks: ensure_cmdb_record.yml
+  vars:
+    sn_csdm_table: cmdb_ci_endpoint
+    sn_csdm_lookup_name: "{{ sn_csdm_entry_lookup_name }}"
+    sn_csdm_body: >-
+      {{ sn_csdm_entry_point_spec
+         | dict2items
+         | rejectattr('key', 'in', ['table', 'name', 'lookup_name', 'host_lookup_name', 'primary'])
+         | items2dict
+         | combine({
+             'host': sn_csdm_host_sys_id,
+             'ip_address': sn_csdm_entry_point_spec.ip_address | default(sn_csdm_host_ip_address),
+             'port': sn_csdm_entry_point_spec.port | string,
+             'operational_status': sn_csdm_entry_point_spec.operational_status | default('1')
+           }, recursive=True) }}
+    sn_csdm_patch_body: >-
+      {{ {
+           'host': sn_csdm_host_sys_id,
+           'ip_address': sn_csdm_entry_point_spec.ip_address | default(sn_csdm_host_ip_address),
+           'port': sn_csdm_entry_point_spec.port | string,
+           'operational_status': sn_csdm_entry_point_spec.operational_status | default('1')
+         } }}
+  when: sn_csdm_entry_point_spec.table == 'cmdb_ci_endpoint'
+
+- name: Record Service Mapping endpoint sys_id
+  ansible.builtin.set_fact:
+    sn_csdm_entry_sys_id: "{{ sn_csdm_record_sys_id }}"
+    sn_csdm_primary_endpoint_sys_id: "{{ sn_csdm_record_sys_id }}"
+  when:
+    - sn_csdm_entry_point_spec.table == 'cmdb_ci_endpoint'
+    - sn_csdm_entry_point_spec.primary | default(true) | bool
+
+- name: Record non-primary endpoint sys_id
+  ansible.builtin.set_fact:
+    sn_csdm_entry_sys_id: "{{ sn_csdm_record_sys_id }}"
+  when:
+    - sn_csdm_entry_point_spec.table == 'cmdb_ci_endpoint'
+    - not (sn_csdm_entry_point_spec.primary | default(true) | bool)
+
+- name: Link endpoint to host (Runs on)
+  ansible.builtin.include_tasks: ensure_relationship.yml
+  vars:
+    sn_rel_parent: "{{ sn_csdm_entry_sys_id }}"
+    sn_rel_child: "{{ sn_csdm_host_sys_id }}"
+    sn_rel_type_name: "{{ sn_sm_rel_runs_on }}"
+  when: sn_csdm_entry_point_spec.table == 'cmdb_ci_endpoint'
+
+- name: Ensure legacy IP service CI (CMDB enrichment; SM uses cmdb_ci_endpoint)
   ansible.builtin.include_tasks: ensure_cmdb_record.yml
   vars:
     sn_csdm_table: cmdb_ci_ip_service
@@ -18,16 +86,19 @@
     sn_csdm_body: >-
       {{ sn_csdm_entry_point_spec
          | dict2items
-         | rejectattr('key', 'in', ['table', 'name', 'lookup_name'])
-         | items2dict }}
-    sn_csdm_patch_body: >-
-      {{ sn_csdm_entry_point_spec
-         | dict2items
-         | rejectattr('key', 'in', ['table', 'name', 'lookup_name'])
-         | items2dict }}
+         | rejectattr('key', 'in', ['table', 'name', 'lookup_name', 'host_lookup_name', 'primary'])
+         | items2dict
+         | combine({
+             'host': sn_csdm_host_sys_id,
+             'port': sn_csdm_entry_point_spec.port | string,
+             'operational_status': '1'
+           }, recursive=True) }}
+    sn_csdm_patch_body:
+      host: "{{ sn_csdm_host_sys_id }}"
+      port: "{{ sn_csdm_entry_point_spec.port | string }}"
   when: sn_csdm_entry_point_spec.table == 'cmdb_ci_ip_service'
 
-- name: Record IP service entry point sys_id
+- name: Record IP service sys_id
   ansible.builtin.set_fact:
     sn_csdm_entry_sys_id: "{{ sn_csdm_record_sys_id }}"
   when: sn_csdm_entry_point_spec.table == 'cmdb_ci_ip_service'

@@ -1,8 +1,8 @@
 ---
-# Delete lab SGO-Dynatrace discovery data so imports can repopulate cleanly.
+# Delete SGO-Dynatrace discovery data so imports can repopulate cleanly.
 #
-# Expects sn_sgc_discovery_source (SGO-Dynatrace). Safe for lab instances where
-# data will be rediscovered. Does not uninstall the scoped app.
+# Expects sn_sgc_discovery_source (SGO-Dynatrace). Safe on instances where
+# discovery data will be rediscovered. Does not uninstall the scoped app.
 
 - name: Query SGO-Dynatrace CMDB CIs
   ansible.builtin.uri:
@@ -72,7 +72,7 @@
   delegate_to: localhost
   run_once: true
 
-- name: Report SGO lab data purge summary
+- name: Report SGO data purge summary
   ansible.builtin.debug:
     msg: >-
       Purged {{ sn_sgc_cmdb_rows.json.result | default([]) | length }} CMDB CI(s)

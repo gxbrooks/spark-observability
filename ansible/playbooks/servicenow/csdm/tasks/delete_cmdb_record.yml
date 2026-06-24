@@ -1,0 +1,21 @@
+---
+# Delete one CMDB record by table and sys_id after relationships are removed.
+# Input: sn_csdm_table, sn_csdm_ci_sys_id, sn_csdm_lookup_name (for messages)
+
+- name: Delete CMDB record
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/{{ sn_csdm_table }}/{{ sn_csdm_ci_sys_id }}"
+    method: DELETE
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 204, 404]
+  register: sn_csdm_delete_result
+  no_log: true
+
+- name: Report CMDB record deletion
+  ansible.builtin.debug:
+    msg: >-
+      Deleted {{ sn_csdm_table }} '{{ sn_csdm_lookup_name | default(sn_csdm_ci_sys_id) }}'
+      (HTTP {{ sn_csdm_delete_result.status | default('skipped') }})

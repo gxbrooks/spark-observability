@@ -1,0 +1,22 @@
+---
+# Resolve Linux server sys_id by CMDB name for entry-point host linkage.
+# Input: sn_csdm_host_lookup_name (supports {host_lower} via caller)
+# Output: sn_csdm_host_sys_id
+
+- name: Look up Linux server for entry point host linkage
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_linux_server
+    sn_rest_query: "sysparm_query=name={{ sn_csdm_host_lookup_name | urlencode }}&sysparm_fields=sys_id,name,ip_address&sysparm_limit=1"
+
+- name: Fail when Linux server for host linkage is missing
+  ansible.builtin.fail:
+    msg: >-
+      Linux server CI '{{ sn_csdm_host_lookup_name }}' not found for entry point host linkage.
+      Run horizontal discovery first (discovery/discover.yml).
+  when: (sn_rest_json.result | default([]) | length) == 0
+
+- name: Record Linux server sys_id for entry point host
+  ansible.builtin.set_fact:
+    sn_csdm_host_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_csdm_host_ip_address: "{{ sn_rest_json.result[0].ip_address | default('') }}"

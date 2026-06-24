@@ -1,0 +1,33 @@
+---
+# Fetch Dynatrace entities for one management zone and entity type (single page).
+# Input: sn_compare_mz_name, sn_compare_entity_type
+
+- name: Resolve management zone id for entity query
+  ansible.builtin.set_fact:
+    sn_compare_mz_id: "{{ sn_compare_mz_name_to_id[sn_compare_mz_name] | default('') }}"
+
+- name: Skip entity collection when management zone id is unknown
+  ansible.builtin.debug:
+    msg: "Skip Dynatrace {{ sn_compare_entity_type }} collection — unknown MZ '{{ sn_compare_mz_name }}'."
+  when: sn_compare_mz_id | length == 0
+
+- name: Query Dynatrace entities
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_api_url_resolved }}/v2/entities?entitySelector=type({{ sn_compare_entity_type }}),mzId({{ sn_compare_mz_id }})&pageSize=500
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+    return_content: true
+  register: sn_compare_dt_entity_response
+  when: sn_compare_mz_id | length > 0
+
+- name: Record entities for management zone and type
+  ansible.builtin.set_fact:
+    sn_compare_dt_entities: >-
+      {{ sn_compare_dt_entities | combine({
+           sn_compare_mz_name ~ '::' ~ sn_compare_entity_type:
+             (sn_compare_dt_entity_response.json.entities | default([]) if sn_compare_mz_id | length > 0 else [])
+         }, recursive=True) }}
+  when: sn_compare_mz_id | length > 0

@@ -2,13 +2,19 @@
 # Deploy one business application from specification.
 # Input: sn_csdm_ba_spec
 
+- name: Resolve business application CMDB body
+  ansible.builtin.include_tasks: resolve_csdm_cmdb_body.yml
+  vars:
+    sn_csdm_object_kind: business_application
+    sn_csdm_source_spec: "{{ sn_csdm_ba_spec }}"
+
 - name: Ensure business application
   ansible.builtin.include_tasks: ensure_cmdb_record.yml
   vars:
     sn_csdm_table: cmdb_ci_business_app
     sn_csdm_lookup_name: "{{ sn_csdm_ba_spec.name }}"
-    sn_csdm_body: "{{ sn_csdm_ba_spec | dict2items | rejectattr('key', 'in', ['name', 'parent_business_application']) | items2dict }}"
-    sn_csdm_patch_body: "{{ sn_csdm_ba_spec | dict2items | rejectattr('key', 'in', ['name', 'parent_business_application']) | items2dict }}"
+    sn_csdm_body: "{{ sn_csdm_cmdb_body }}"
+    sn_csdm_patch_body: "{{ sn_csdm_cmdb_body }}"
 
 - name: Record business application sys_id in registry
   ansible.builtin.set_fact:

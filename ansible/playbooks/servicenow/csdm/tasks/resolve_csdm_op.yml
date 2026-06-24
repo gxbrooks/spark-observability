@@ -1,0 +1,19 @@
+---
+# Resolve effective csdm_op for one specification object.
+# Input: sn_csdm_object_spec
+# Output: sn_csdm_effective_op (insert | delete)
+
+- name: Resolve csdm_op for specification object
+  ansible.builtin.set_fact:
+    sn_csdm_effective_op: >-
+      {{ sn_csdm_object_spec.csdm_op
+         | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) }}
+
+- name: Validate csdm_op value
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_effective_op in ['insert', 'delete']
+    fail_msg: >-
+      Invalid csdm_op '{{ sn_csdm_effective_op }}' on object
+      '{{ sn_csdm_object_spec.name | default('') }}'.
+      Allowed values: insert, delete.

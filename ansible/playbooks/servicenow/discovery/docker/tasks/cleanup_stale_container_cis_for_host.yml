@@ -1,0 +1,12 @@
+---
+# Resolve host sys_id and run Docker CMDB cleanup for one DOCKER_HOSTS entry.
+# Input: sn_docker_host
+
+- name: Resolve CMDB host sys_id
+  ansible.builtin.include_tasks: resolve_docker_host_sys_id.yml
+
+- name: Retire stale Docker container CIs on host
+  ansible.builtin.include_tasks: cleanup_stale_container_cis.yml
+
+- name: Retire duplicate Docker container CIs by name on host
+  ansible.builtin.include_tasks: cleanup_duplicate_docker_cis_by_name.yml

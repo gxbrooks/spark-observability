@@ -282,7 +282,7 @@ OBSERVABILITY_PLATFORM:
 DT_TENANT_URL:
   section: Dynatrace tenant
   value: https://pdt20158.apps.dynatrace.com
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, service-now]
 
 DT_API_URL:
   section: Dynatrace tenant
@@ -412,7 +412,7 @@ ES_HOST:
 ES_PORT:
   section: Elasticsearch connectivity
   value: 9200
-  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client, elastic-observability-ansible]
+  contexts: [observability, spark-runtime, elastic-agent, devops, spark-client, elastic-observability-ansible, service-now]
 
 ES_USER:
   section: Elasticsearch credentials
@@ -470,15 +470,16 @@ EB_ENCRYPTION_KEY:
 
 KB_HOST:
   section: Kibana
-  contexts: [observability, devops]
+  contexts: [observability, devops, service-now]
   values:
     observability: Lab3.lan
     devops: Lab3.lan
+    service-now: Lab3.lan
 
 KB_PORT:
   section: Kibana
   value: 5601
-  contexts: [observability, devops]
+  contexts: [observability, devops, service-now]
 
 KB_USER:
   section: Kibana
@@ -512,17 +513,17 @@ LS_DOCKER_METRICS_PORT:
 LS_SPARK_EVENTS_PORT:
   section: Logstash
   value: 5050
-  contexts: [observability, elastic-agent]
+  contexts: [observability, elastic-agent, service-now]
 
 GRAFANA_HOST:
   section: Grafana
   value: Lab3.lan
-  contexts: [observability]
+  contexts: [observability, service-now]
 
 GF_SERVER_HTTP_PORT:
   section: Grafana
   value: 3000
-  contexts: [observability]
+  contexts: [observability, service-now]
 
 GF_SECURITY_ADMIN_USER:
   section: Grafana credentials
@@ -535,6 +536,42 @@ GF_SECURITY_ADMIN_PASSWORD:
   contexts: [observability, elastic-observability-ansible]
   secret: true
   required: true
+
+
+OBSERVABILITY_STACK_HOST:
+  section: Observability stack (Lab3 Docker Compose)
+  value: Lab3.lan
+  contexts: [observability, service-now, elastic-agent, devops, elastic-observability-ansible]
+
+PROMETHEUS_PORT:
+  section: Prometheus
+  value: 9090
+  contexts: [observability, service-now, elastic-observability-ansible]
+
+TEMPO_HTTP_PORT:
+  section: Grafana Tempo
+  value: 3200
+  contexts: [observability, service-now, elastic-observability-ansible]
+
+OTEL_COLLECTOR_GRPC_PORT:
+  section: OpenTelemetry Collector
+  value: 4317
+  contexts: [observability, service-now, elastic-observability-ansible]
+
+OTEL_COLLECTOR_HTTP_PORT:
+  section: OpenTelemetry Collector
+  value: 4318
+  contexts: [observability, service-now, elastic-observability-ansible]
+
+OTEL_COLLECTOR_HEALTH_PORT:
+  section: OpenTelemetry Collector
+  value: 13133
+  contexts: [observability, service-now, elastic-observability-ansible]
+
+LOGSTASH_API_PORT:
+  section: Logstash
+  value: 9600
+  contexts: [observability, service-now, elastic-observability-ansible]
 
 
 # =============================================================================

@@ -1,0 +1,22 @@
+---
+# Delete one application service instance declared with csdm_op: delete.
+# Input: sn_csdm_app_svc_item { spec, host }
+
+- name: Resolve application service name for instance
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_name: >-
+      {{ sn_csdm_app_svc_item.spec.name
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+
+- name: Resolve csdm_op for application service
+  ansible.builtin.include_tasks: resolve_csdm_op.yml
+  vars:
+    sn_csdm_object_spec: "{{ sn_csdm_app_svc_item.spec }}"
+
+- name: Delete application service
+  ansible.builtin.include_tasks: delete_cmdb_ci_by_name.yml
+  vars:
+    sn_csdm_table: cmdb_ci_service_discovered
+    sn_csdm_lookup_name: "{{ sn_csdm_app_svc_name }}"
+  when: sn_csdm_effective_op == 'delete'

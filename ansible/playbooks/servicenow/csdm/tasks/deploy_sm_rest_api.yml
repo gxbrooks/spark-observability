@@ -112,4 +112,4 @@
   ansible.builtin.debug:
     msg: >-
       Service Mapping Operations API: POST {{ sn_sm_rest_discover_uri | default('pending') }}
-      body {"service_name": "Spark Master"}
+      body {"service_name": "Example Application Service"}

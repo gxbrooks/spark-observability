@@ -1,0 +1,24 @@
+---
+# Validate csdm_op on every object in a loaded specification.
+# Input: sn_csdm_spec
+
+- name: Validate csdm_op on business applications
+  ansible.builtin.include_tasks: resolve_csdm_op.yml
+  loop: "{{ sn_csdm_spec.business_applications | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_object_spec
+    label: "{{ sn_csdm_object_spec.name | default('') }}"
+
+- name: Validate csdm_op on business services
+  ansible.builtin.include_tasks: resolve_csdm_op.yml
+  loop: "{{ sn_csdm_spec.business_services | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_object_spec
+    label: "{{ sn_csdm_object_spec.name | default('') }}"
+
+- name: Validate csdm_op on application services
+  ansible.builtin.include_tasks: resolve_csdm_op.yml
+  loop: "{{ sn_csdm_spec.application_services | default([]) }}"
+  loop_control:
+    loop_var: sn_csdm_object_spec
+    label: "{{ sn_csdm_object_spec.name | default('') }}"

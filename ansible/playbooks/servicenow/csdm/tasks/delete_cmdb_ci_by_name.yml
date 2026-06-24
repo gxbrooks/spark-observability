@@ -1,0 +1,32 @@
+---
+# Delete one CMDB CI by name after removing all relationships.
+# Input: sn_csdm_table, sn_csdm_lookup_name
+
+- name: Look up CMDB CI for deletion
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: "{{ sn_csdm_table }}"
+    sn_rest_query: "sysparm_query=name={{ sn_csdm_lookup_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+
+- name: Preserve CMDB CI lookup for deletion
+  ansible.builtin.set_fact:
+    sn_csdm_delete_lookup: "{{ sn_rest_json }}"
+
+- name: Report CMDB CI absent (nothing to delete)
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_csdm_table }} '{{ sn_csdm_lookup_name }}' not found — skip delete.
+  when: sn_csdm_delete_lookup.result | default([]) | length == 0
+
+- name: Delete CMDB CI and relationships
+  when: sn_csdm_delete_lookup.result | default([]) | length > 0
+  block:
+    - name: Record CI sys_id for deletion
+      ansible.builtin.set_fact:
+        sn_csdm_ci_sys_id: "{{ sn_csdm_delete_lookup.result[0].sys_id }}"
+
+    - name: Delete relationships for CI
+      ansible.builtin.include_tasks: delete_cmdb_relationships_for_ci.yml
+
+    - name: Delete CMDB CI record
+      ansible.builtin.include_tasks: delete_cmdb_record.yml

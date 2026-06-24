@@ -46,6 +46,9 @@ sn_api_headers:
   Accept: application/json
   Content-Type: application/json
 
+sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
+sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/common"
+
 # Kubernetes cluster registry (K8S_CLUSTERS in vars/variables.yaml).
 # Capability flags per entry (absent = false):
 #   kva_informer: true — KVA informer installed by this repo; CMDB content validated

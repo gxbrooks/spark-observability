@@ -1,0 +1,50 @@
+---
+# Dynatrace monitoring — CSDM specification
+# Business Application Observability Platform is defined in observability/servicenow/csdm.yaml
+
+tag_defaults:
+  environment: on-prem
+  location: "{{ SN_LAB_LOCATION_NAME }}"
+
+csdm_defaults:
+  owned_by: gbrooks
+  busines_criticality: "4 - not critical"
+
+business_services:
+  - name: Dynatrace Monitoring
+    identifier: dynatrace-monitoring
+    short_description: Dynatrace SaaS tenant, OneAgent, and Kubernetes monitoring
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+application_services:
+  - name: Dynatrace Tenant
+    identifier: dynatrace-tenant
+    short_description: Dynatrace SaaS environment — problems, metrics, and event ingest
+    operational_status: "1"
+    parent_business_service: Dynatrace Monitoring
+    platform: saas
+    service_mapping: manual
+    discover: false
+    service_tier: data
+    tags:
+      docker: {}
+
+  - name: "Dynatrace OneAgent ({host})"
+    identifier: "dynatrace-oneagent-{host_lower}"
+    short_description: "Dynatrace OneAgent on Kubernetes node {host}"
+    operational_status: "1"
+    parent_business_service: Dynatrace Monitoring
+    platform: host
+    service_mapping: tags
+    discover: false
+    service_tier: ingest
+    depends_on:
+      - Dynatrace Tenant
+      - name: "{host_lower}"
+        type: linux_server
+    expand:
+      inventory_group: k8s_nodes
+    tags:
+      docker:
+        com.docker.compose.service: dynatrace-oneagent

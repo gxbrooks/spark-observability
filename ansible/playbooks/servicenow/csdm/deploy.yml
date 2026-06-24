@@ -1,5 +1,5 @@
 ---
-# Deploy CSDM objects from application servicenow.yaml specifications.
+# Deploy CSDM objects from application csdm.yaml specifications.
 # Idempotent — safe to re-run after application or inventory changes.
 # Usage:
 #   cd ansible
@@ -15,11 +15,21 @@
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
+    - name: Initialize CSDM user reference cache
+      ansible.builtin.set_fact:
+        sn_csdm_user_cache: {}
+
     - name: Regenerate service-now context when stale
       ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
 
     - name: Deploy Service Mapping Operations REST API
       ansible.builtin.include_tasks: tasks/deploy_sm_rest_api.yml
+
+    - name: Ensure runtime tag manifest output directory exists
+      ansible.builtin.file:
+        path: "{{ sn_csdm_runtime_tag_output_dir }}"
+        state: directory
+        mode: "0755"
 
     - name: Resolve CSDM specification file paths
       ansible.builtin.set_fact:
@@ -36,6 +46,13 @@
       loop: "{{ sn_csdm_spec_paths }}"
       loop_control:
         label: "{{ item | basename }}"
+
+    - name: Link depends_on relationships (second pass; deferred when target CIs missing)
+      ansible.builtin.include_tasks: tasks/link_all_depends_on.yml
+
+    - name: Trigger horizontal Discovery (async adjunct — does not wait for completion)
+      ansible.builtin.include_tasks: tasks/trigger_horizontal_discovery.yml
+      when: sn_csdm_trigger_horizontal_discovery | default(true) | bool
 
     - name: Trigger Service Mapping vertical discovery (async — does not wait for completion)
       ansible.builtin.include_tasks: tasks/trigger_sm_discovery.yml

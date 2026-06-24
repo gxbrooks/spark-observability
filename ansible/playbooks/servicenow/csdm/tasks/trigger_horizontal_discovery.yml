@@ -1,0 +1,22 @@
+---
+# Adjunct async horizontal Discovery — does not wait for completion or coordinate with SM vertical.
+
+- name: Trigger Discovery schedule (async)
+  ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/discovery/tasks/trigger_schedule_discovery.yml"
+  vars:
+    sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
+
+- name: Sync Docker containers for container_discovery hosts (best-effort enrichment)
+  ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/discovery/docker/tasks/sync_docker_host_containers.yml"
+  loop: "{{ docker_discovery_hosts | default([]) }}"
+  loop_control:
+    loop_var: sn_docker_host
+    label: "{{ sn_docker_host.name }}"
+  when: docker_discovery_hosts | default([]) | length > 0
+
+- name: Note optional Kubernetes CMDB sync
+  ansible.builtin.debug:
+    msg: >-
+      Kubernetes CMDB population is outside CSDM deploy — run the Kubernetes
+      Visibility Agent (or equivalent cluster discovery) separately when pod and
+      controller CIs are required for tag-based Service Mapping.

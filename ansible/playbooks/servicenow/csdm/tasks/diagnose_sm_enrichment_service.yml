@@ -1,0 +1,31 @@
+---
+# Probe one application service for endpoint host + TCP enrichment.
+# Input: item (cmdb_ci_service_discovered row)
+
+- name: Query Depends on endpoint CIs for application service
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: "sysparm_query=parent={{ item.sys_id }}^type.name={{ sn_sm_rel_depends | urlencode }}^child.sys_class_name=cmdb_ci_endpoint&sysparm_fields=child.sys_id,child.name&sysparm_limit=10"
+
+- name: Initialize enrichment probe for service
+  ansible.builtin.set_fact:
+    sn_csdm_enrich_ports: []
+    sn_csdm_enrich_endpoint_host_ok: false
+    sn_csdm_enrich_tcp_found: false
+
+- name: Probe each endpoint CI
+  ansible.builtin.include_tasks: diagnose_sm_enrichment_endpoint.yml
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  loop_control:
+    label: "{{ item['child.name'] | default(item.child.name | default('endpoint')) }}"
+
+- name: Record enrichment summary row
+  ansible.builtin.set_fact:
+    sn_csdm_enrichment_summary: >-
+      {{ sn_csdm_enrichment_summary | default([]) + [{
+           'name': item.name,
+           'endpoint_host_ok': sn_csdm_enrich_endpoint_host_ok | bool,
+           'tcp_found': sn_csdm_enrich_tcp_found | bool,
+           'ports': sn_csdm_enrich_ports | unique | list
+         }] }}

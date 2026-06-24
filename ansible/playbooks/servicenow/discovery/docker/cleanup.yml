@@ -1,0 +1,24 @@
+---
+# Retire stale and duplicate Docker container CIs for container_discovery-enabled DOCKER_HOSTS entries.
+# Compares docker ps on each host to CMDB rows scoped by host and stack short_description prefix.
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/cleanup.yml \
+#     -e @../vars/secrets.yaml
+
+- name: Clean up Docker container CIs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  vars:
+    sn_csdm_tasks_dir: "{{ playbook_dir }}/../../csdm/tasks"
+  tasks:
+    - name: Clean up Docker container CIs per host
+      ansible.builtin.include_tasks: tasks/cleanup_stale_container_cis_for_host.yml
+      loop: "{{ docker_discovery_hosts }}"
+      loop_control:
+        loop_var: sn_docker_host
+        label: "{{ sn_docker_host.name }}"

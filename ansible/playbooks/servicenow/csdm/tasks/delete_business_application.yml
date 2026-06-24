@@ -1,0 +1,15 @@
+---
+# Delete one business application declared with csdm_op: delete.
+# Input: sn_csdm_ba_spec
+
+- name: Resolve csdm_op for business application
+  ansible.builtin.include_tasks: resolve_csdm_op.yml
+  vars:
+    sn_csdm_object_spec: "{{ sn_csdm_ba_spec }}"
+
+- name: Delete business application
+  ansible.builtin.include_tasks: delete_cmdb_ci_by_name.yml
+  vars:
+    sn_csdm_table: cmdb_ci_business_app
+    sn_csdm_lookup_name: "{{ sn_csdm_ba_spec.name }}"
+  when: sn_csdm_effective_op == 'delete'

@@ -1,0 +1,127 @@
+---
+# Compare horizontal Discovery timing vs Service Mapping vertical discovery launches.
+# Advises whether to re-run horizontal Discovery, wait, or re-trigger vertical SM — without coordinating them.
+
+- name: Load discovery deploy context
+  ansible.builtin.slurp:
+    src: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_discovery_deploy.json"
+  register: sn_csdm_disc_deploy_ctx
+  failed_when: false
+
+- name: Parse discovery schedule sys_id
+  ansible.builtin.set_fact:
+    sn_csdm_disc_schedule_sys_id: >-
+      {{ (sn_csdm_disc_deploy_ctx.content | b64decode | from_json).schedule_sys_id | default('') }}
+  when: sn_csdm_disc_deploy_ctx is succeeded
+
+- name: Look up Discovery schedule when context missing
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: discovery_schedule
+    sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_fields=sys_id&sysparm_limit=1"
+  when: sn_csdm_disc_schedule_sys_id | default('') | length == 0
+
+- name: Record schedule sys_id from lookup
+  ansible.builtin.set_fact:
+    sn_csdm_disc_schedule_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+  when:
+    - sn_csdm_disc_schedule_sys_id | default('') | length == 0
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Query recent horizontal discovery_status runs
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: discovery_status
+    sn_rest_query: "sysparm_query=dscheduler={{ sn_csdm_disc_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=number,state,started,completed,progress,sys_created_on,sys_updated_on&sysparm_limit=5"
+  when: sn_csdm_disc_schedule_sys_id | default('') | length > 0
+
+- name: Record horizontal discovery run facts
+  ansible.builtin.set_fact:
+    sn_csdm_horizontal_runs: "{{ sn_rest_json.result | default([]) }}"
+    sn_csdm_horizontal_latest: "{{ sn_rest_json.result | default([]) | first | default({}) }}"
+  when: sn_csdm_disc_schedule_sys_id | default('') | length > 0
+
+- name: Query application services with active Service Mapping sessions
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_service_discovered
+    sn_rest_query: "sysparm_query=process_status=2^ORservice_status=requirements&sysparm_fields=name,sys_id,process_status,service_status,sys_updated_on,last_discovered&sysparm_limit=100"
+
+- name: Record vertical discovery application service facts
+  ansible.builtin.set_fact:
+    sn_csdm_vertical_pending: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Derive latest horizontal completed timestamp
+  ansible.builtin.set_fact:
+    sn_csdm_horizontal_last_completed: >-
+      {{ (sn_csdm_horizontal_runs | default([])
+          | selectattr('state', 'defined')
+          | selectattr('state', 'equalto', 'Completed')
+          | map(attribute='sys_updated_on')
+          | list | first) | default('') }}
+    sn_csdm_horizontal_in_progress: >-
+      {{ (sn_csdm_horizontal_latest.state | default('')) == 'Active' }}
+
+- name: Derive latest vertical trigger timestamp from pending application services
+  ansible.builtin.set_fact:
+    sn_csdm_vertical_last_updated: >-
+      {{ (sn_csdm_vertical_pending | default([])
+          | map(attribute='sys_updated_on')
+          | list | sort | last) | default('') }}
+
+- name: Derive horizontal run state summary
+  ansible.builtin.set_fact:
+    sn_csdm_horizontal_state: "{{ sn_csdm_horizontal_latest.state | default('unknown') }}"
+    sn_csdm_horizontal_started: "{{ sn_csdm_horizontal_latest.started | default('') }}"
+    sn_csdm_horizontal_number: "{{ sn_csdm_horizontal_latest.number | default('') }}"
+
+- name: Recommend Discovery coordination action
+  ansible.builtin.set_fact:
+    sn_csdm_coordination_recommendation: >-
+      {% set h_done = sn_csdm_horizontal_last_completed | default('') %}
+      {% set h_state = sn_csdm_horizontal_state | default('') | string %}
+      {% set v_upd = sn_csdm_vertical_last_updated | default('') %}
+      {% set pending = sn_csdm_vertical_pending | default([]) | length %}
+      {% if sn_csdm_disc_schedule_sys_id | default('') | length == 0 %}
+      horizontal Discovery schedule not deployed — run discovery/deploy.yml
+      {% elif sn_csdm_horizontal_in_progress | default(false) %}
+      wait — horizontal Discovery run {{ sn_csdm_horizontal_number | default('') }} in progress (state=Active, progress={{ sn_csdm_horizontal_latest.progress | default('?') }}%); re-run diagnose when state=Completed
+      {% elif h_done | length == 0 %}
+      run horizontal Discovery — no completed scan found for schedule {{ sn_discovery_schedule_name }}
+      {% elif pending == 0 %}
+      no pending vertical SM sessions — horizontal last completed {{ h_done }}
+      {% elif v_upd | length > 0 and h_done > v_upd %}
+      re-trigger vertical SM — horizontal completed ({{ h_done }}) after last vertical activity ({{ v_upd }}); run csdm/deploy.yml or trigger SM REST only
+      {% elif v_upd | length > 0 and h_done <= v_upd %}
+      enrichment may still be insufficient — horizontal last completed {{ h_done }} before/at vertical update {{ v_upd }}; if still in Requirements after fresh horizontal scan, re-trigger vertical or review entry points and platform service_mapping method
+      {% else %}
+      review manually — timestamps unavailable (last_discovered empty on {{ pending }} pending services)
+      {% endif %}
+
+- name: Discovery timing and coordination summary
+  ansible.builtin.debug:
+    msg: |
+      Horizontal vs vertical Discovery timing
+      =======================================
+      Configured Discovery schedule: {{ sn_discovery_schedule_name }} ({{ sn_csdm_disc_schedule_sys_id | default('missing') }})
+
+      Latest horizontal discovery_status:
+        number={{ sn_csdm_horizontal_number | default('none') }}
+        state={{ sn_csdm_horizontal_state | default('none') }}
+        started={{ sn_csdm_horizontal_started | default('none') }} (probes)
+        sys_updated_on={{ sn_csdm_horizontal_last_completed | default('none') }} (when state=Completed)
+
+      Recent horizontal runs:
+      {% for run in sn_csdm_horizontal_runs | default([]) %}
+      - {{ run.sys_created_on | default('') }} {{ run.number | default('') }} state={{ run.state | default('') }} progress={{ run.progress | default('') }}% probes={{ run.completed | default('') }}/{{ run.started | default('') }}
+      {% else %}
+      - none readable
+      {% endfor %}
+
+      Vertical SM (pending: process_status=In Progress or service_status=Requirements): {{ sn_csdm_vertical_pending | default([]) | length }} services
+      Latest sys_updated_on among pending: {{ sn_csdm_vertical_last_updated | default('none') }}
+      Note: last_discovered is often empty while stuck in Requirements; sys_updated_on approximates last SM trigger.
+
+      Recommendation: {{ sn_csdm_coordination_recommendation }}
+
+      Horizontal monitor: {{ sn_url }}/discovery_status_list.do?sysparm_query=dscheduler%3D{{ sn_csdm_disc_schedule_sys_id | default('') }}

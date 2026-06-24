@@ -1,0 +1,76 @@
+---
+# Validate one application service specification against CSDM TPG rules.
+# Input: sn_csdm_app_svc_item { spec, host }
+
+- name: Resolve application service name for validation
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_name: >-
+      {{ sn_csdm_app_svc_item.spec.name
+         | replace('{host}', sn_csdm_app_svc_item.host)
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | lower) }}
+
+- name: Validate required application service attributes
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_app_svc_item.spec.identifier is defined
+      - sn_csdm_app_svc_item.spec.identifier | length > 0
+      - sn_csdm_app_svc_item.spec.platform is defined
+      - sn_csdm_app_svc_item.spec.platform in ['kubernetes', 'docker', 'host', 'saas']
+      - sn_csdm_app_svc_item.spec.service_mapping is defined
+      - sn_csdm_app_svc_item.spec.service_mapping in ['tags', 'vertical', 'manual']
+      - sn_csdm_app_svc_item.spec.environment is defined or sn_csdm_spec.tag_defaults.environment is defined
+      - sn_csdm_app_svc_item.spec.location is defined or sn_csdm_spec.tag_defaults.location is defined
+    fail_msg: >-
+      Application service '{{ sn_csdm_app_svc_name }}' missing required attributes
+      (identifier, platform, service_mapping, environment, location).
+      See CSDM_Specifications.md.
+
+- name: Validate Kubernetes application service rules
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+      - not (sn_csdm_app_svc_item.spec.discover | default(false) | bool)
+    fail_msg: >-
+      Kubernetes application service '{{ sn_csdm_app_svc_name }}' must use
+      service_mapping: tags and discover: false (vertical discovery must not apply).
+  when: sn_csdm_app_svc_item.spec.platform == 'kubernetes'
+
+- name: Validate SaaS application service rules
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_app_svc_item.spec.service_mapping == 'manual'
+      - not (sn_csdm_app_svc_item.spec.discover | default(false) | bool)
+    fail_msg: >-
+      SaaS application service '{{ sn_csdm_app_svc_name }}' must use
+      service_mapping: manual and discover: false.
+  when: sn_csdm_app_svc_item.spec.platform == 'saas'
+
+- name: Validate tag-based application service has tags
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_app_svc_item.spec.tags is defined
+      - (sn_csdm_app_svc_item.spec.tags | length) > 0
+    fail_msg: >-
+      Application service '{{ sn_csdm_app_svc_name }}' with service_mapping: tags
+      must declare a tags map.
+  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+
+- name: Validate tag-based application service must not enable discover
+  ansible.builtin.assert:
+    that:
+      - not (sn_csdm_app_svc_item.spec.discover | default(false) | bool)
+    fail_msg: >-
+      Application service '{{ sn_csdm_app_svc_name }}' with service_mapping: tags
+      must set discover: false (vertical discovery must not apply).
+  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+
+- name: Validate vertical application service has entry points when discover enabled
+  ansible.builtin.assert:
+    that:
+      - (sn_csdm_app_svc_item.spec.entry_points | default([]) | length) > 0
+    fail_msg: >-
+      Application service '{{ sn_csdm_app_svc_name }}' with service_mapping: vertical
+      and discover: true must declare entry_points.
+  when:
+    - sn_csdm_app_svc_item.spec.service_mapping == 'vertical'
+    - sn_csdm_app_svc_item.spec.discover | default(false) | bool

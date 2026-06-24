@@ -1,0 +1,17 @@
+---
+# Query CMDB Linux servers for scope unit location.
+
+- name: Query ServiceNow Linux servers at scope location
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_linux_server
+    sn_rest_query: "sysparm_query=location.name={{ sn_compare_scope_unit.cmdb_location | urlencode }}&sysparm_fields=name,host_name,discovery_source,sys_id,operational_status&sysparm_limit=200"
+
+- name: Store ServiceNow hosts on scope unit result
+  ansible.builtin.set_fact:
+    sn_compare_unit_result: >-
+      {{ sn_compare_unit_result | combine({
+           'servicenow': sn_compare_unit_result.servicenow | default({}) | combine({
+             'hosts': sn_rest_json.result | default([])
+           }, recursive=True)
+         }, recursive=True) }}

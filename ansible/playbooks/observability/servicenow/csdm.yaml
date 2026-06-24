@@ -1,0 +1,195 @@
+---
+# Observability stack — CSDM specification
+# See playbooks/servicenow/csdm/docs/CSDM_Specifications.md
+# Docker Compose services use tag-based Service Mapping (servicenow.io/* labels on compose services).
+
+tag_defaults:
+  environment: on-prem
+  location: "{{ SN_LAB_LOCATION_NAME }}"
+
+csdm_defaults:
+  business_owner: gbrooks
+  it_application_owner: gbrooks
+  owned_by: gbrooks
+  busines_criticality: "4 - not critical"
+
+business_applications:
+  - name: Observability Platform
+    identifier: observability-platform
+    short_description: Monitoring, logging, metrics, and tracing
+    operational_status: "1"
+    active: "true"
+
+business_services:
+  - name: Elasticsearch
+    identifier: elasticsearch
+    short_description: Primary metrics, logs, and trace storage (Elastic Stack)
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+  - name: Kibana
+    identifier: kibana
+    short_description: Elastic Stack UI and index management
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+  - name: Grafana
+    identifier: grafana
+    short_description: Dashboards and visualization
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+  - name: Prometheus
+    identifier: prometheus
+    short_description: Kubernetes and infrastructure metrics collection
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+  - name: Grafana Tempo
+    identifier: grafana-tempo
+    short_description: Distributed trace storage and query
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+  - name: OpenTelemetry Collector
+    identifier: opentelemetry-collector
+    short_description: OTLP ingest, Prometheus remote write, and export
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+  - name: Logstash
+    identifier: logstash
+    short_description: Event and metrics pipeline into Elasticsearch
+    operational_status: "1"
+    parent_business_application: Observability Platform
+
+application_services:
+  - name: Elasticsearch
+    identifier: elasticsearch
+    short_description: Elasticsearch — HTTPS API
+    operational_status: "1"
+    parent_business_service: Elasticsearch
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: data
+    depends_on:
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: es01
+
+  - name: Kibana
+    identifier: kibana
+    short_description: Kibana UI
+    operational_status: "1"
+    parent_business_service: Kibana
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: web
+    depends_on:
+      - Elasticsearch
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: kibana
+
+  - name: Grafana
+    identifier: grafana
+    short_description: Grafana UI
+    operational_status: "1"
+    parent_business_service: Grafana
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: web
+    depends_on:
+      - Elasticsearch
+      - Prometheus
+      - Grafana Tempo
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: grafana
+
+  - name: Prometheus
+    identifier: prometheus
+    short_description: Prometheus TSDB and scrape API
+    operational_status: "1"
+    parent_business_service: Prometheus
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: data
+    depends_on:
+      - OpenTelemetry Collector
+      - Elasticsearch
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: prometheus
+
+  - name: Grafana Tempo
+    identifier: grafana-tempo
+    short_description: Tempo trace query HTTP API
+    operational_status: "1"
+    parent_business_service: Grafana Tempo
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: data
+    depends_on:
+      - OpenTelemetry Collector
+      - Elasticsearch
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: tempo
+
+  - name: OpenTelemetry Collector
+    identifier: opentelemetry-collector
+    short_description: OTel Collector health and OTLP receivers
+    operational_status: "1"
+    parent_business_service: OpenTelemetry Collector
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: ingest
+    depends_on:
+      - Elasticsearch
+      - Dynatrace Tenant
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: otel-collector
+
+  - name: Logstash
+    identifier: logstash
+    short_description: Logstash monitoring API and events input
+    operational_status: "1"
+    parent_business_service: Logstash
+    platform: docker
+    service_mapping: tags
+    discover: false
+    service_tier: ingest
+    depends_on:
+      - Elasticsearch
+      - name: lab3
+        type: linux_server
+    tags:
+      docker:
+        com.docker.compose.project: observability
+        com.docker.compose.service: logstash01

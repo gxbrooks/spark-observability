@@ -99,9 +99,9 @@ Variables are selected by `contexts:` tags in `variables.yaml` only. Optional `s
 
 ### Singleton contexts and application-local configuration
 
-See **[docs/Context_Variable_Best_Practice.md](docs/Context_Variable_Best_Practice.md)** for the full policy. In brief: a **singleton context** is referenced by only one variable in `variables.yaml`. Such variables **should** move to application-local files instead (for example `ansible/playbooks/<app>/servicenow/servicenow.yaml` for ServiceNow CSDM names, or `common/vars.yml` next to playbooks).
+See **[docs/Context_Variable_Best_Practice.md](docs/Context_Variable_Best_Practice.md)** for the full policy. In brief: a **singleton context** is referenced by only one variable in `variables.yaml`. Such variables **should** move to application-local files instead (for example `ansible/playbooks/<app>/servicenow/csdm.yaml` for ServiceNow CSDM names, or `common/vars.yml` next to playbooks).
 
-Shared ServiceNow infrastructure values (instance URL, lab location, Spark host/port NodePorts used by discovery and CSDM) remain in `variables.yaml` under the `service-now` context. Spark CSDM object names and hierarchy live in `ansible/playbooks/spark/servicenow/servicenow.yaml` and are deployed by `ansible/playbooks/servicenow/csdm/deploy.yml`.
+Shared ServiceNow infrastructure values (instance URL, lab location, Spark host/port NodePorts used by discovery and CSDM) remain in `variables.yaml` under the `service-now` context. Spark CSDM object names and hierarchy live in `ansible/playbooks/spark/servicenow/csdm.yaml` and are deployed by `ansible/playbooks/servicenow/csdm/deploy.yml`.
 
 ## Common Workflow
 

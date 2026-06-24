@@ -1,6 +1,6 @@
 ---
-# Add one expanded application service per inventory host to sn_csdm_app_svc_queue.
-# Input: sn_csdm_app_svc_entry
+# Add one expanded application service per inventory host to the application service queue.
+# Input: sn_csdm_app_svc_entry, sn_csdm_app_svc_queue (list fact to append to)
 
 - name: Require expand.inventory_group on application service
   ansible.builtin.assert:

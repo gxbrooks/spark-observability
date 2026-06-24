@@ -1,0 +1,72 @@
+---
+# Retire cmdb_ci_docker_container rows on a host when the container_id is no longer running.
+# Input: sn_docker_host, sn_docker_host_sys_id
+
+- name: List running Docker container IDs on host
+  ansible.builtin.command:
+    argv:
+      - docker
+      - ps
+      - -q
+      - --no-trunc
+  delegate_to: "{{ sn_docker_host.ansible_host }}"
+  register: sn_docker_running_ids
+  changed_when: false
+
+- name: Normalize running container ID set
+  ansible.builtin.set_fact:
+    sn_docker_running_id_set: >-
+      {{ sn_docker_running_ids.stdout_lines | default([])
+         | map('trim') | reject('equalto', '') | list }}
+
+- name: Query CMDB Docker container CIs synced by this playbook for host
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_docker_container
+    sn_rest_query: >-
+      sysparm_query=host={{ sn_docker_host_sys_id | urlencode }}^short_descriptionSTARTSWITH{{ sn_docker_host.name | urlencode }}&sysparm_fields=sys_id,name,container_id,operational_status,short_description&sysparm_limit=500
+
+- name: Build stale Docker container CI list
+  ansible.builtin.set_fact:
+    sn_docker_stale_cis: "{{ sn_docker_stale_cis | default([]) + [item] }}"
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default(item.sys_id) }}"
+  when: item.container_id | default('') not in sn_docker_running_id_set
+
+- name: Report when no stale Docker container CIs
+  ansible.builtin.debug:
+    msg: >-
+      No stale cmdb_ci_docker_container rows on {{ sn_docker_host.cmdb_host_name }}
+      ({{ sn_docker_running_id_set | length }} running containers).
+  when: sn_docker_stale_cis | default([]) | length == 0
+
+- name: Retire stale Docker container CI
+  when: sn_docker_stale_cis | default([]) | length > 0
+  block:
+    - name: Delete relationships for stale Docker container CI
+      ansible.builtin.include_tasks: "{{ sn_csdm_tasks_dir }}/delete_cmdb_relationships_for_ci.yml"
+      vars:
+        sn_csdm_ci_sys_id: "{{ stale_ci.sys_id }}"
+      loop: "{{ sn_docker_stale_cis }}"
+      loop_control:
+        loop_var: stale_ci
+        label: "{{ stale_ci.name | default(stale_ci.sys_id) }}"
+
+    - name: Delete stale Docker container CI
+      ansible.builtin.include_tasks: "{{ sn_csdm_tasks_dir }}/delete_cmdb_record.yml"
+      vars:
+        sn_csdm_table: cmdb_ci_docker_container
+        sn_csdm_ci_sys_id: "{{ stale_ci.sys_id }}"
+        sn_csdm_lookup_name: "{{ stale_ci.name | default(stale_ci.sys_id) }}"
+      loop: "{{ sn_docker_stale_cis }}"
+      loop_control:
+        loop_var: stale_ci
+        label: "{{ stale_ci.name | default(stale_ci.sys_id) }}"
+
+    - name: Stale Docker container cleanup summary
+      ansible.builtin.debug:
+        msg: >-
+          Retired {{ sn_docker_stale_cis | length }} stale Docker container CI(s) on
+          {{ sn_docker_host.cmdb_host_name }}:
+          {{ sn_docker_stale_cis | map(attribute='name') | list | join(', ') }}.
