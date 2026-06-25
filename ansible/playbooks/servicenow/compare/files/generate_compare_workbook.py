@@ -11,7 +11,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def normalize_host(name: str) -> str:
+def field_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return str(value.get("display_value") or value.get("value") or "")
+    return str(value)
+
+
+def normalize_host(name) -> str:
+    name = field_value(name)
     if not name:
         return ""
     base = name.split(".")[0]
@@ -23,39 +32,75 @@ def load_data(path: Path) -> dict:
         return json.load(handle)
 
 
-def flatten_dt_hosts(entities: dict) -> list[dict]:
+def iter_dt_entities(entities: dict, entity_type: str) -> list[dict]:
     rows: list[dict] = []
     for key, items in (entities or {}).items():
-        if not key.endswith("::HOST"):
+        if key != entity_type and not key.endswith(f"::{entity_type}"):
             continue
-        mz = key.split("::")[0]
         for ent in items or []:
-            rows.append(
-                {
-                    "management_zone": mz,
-                    "display_name": ent.get("displayName", ""),
-                    "entity_id": ent.get("entityId", ""),
-                    "discovered_name": ent.get("discoveredName", ""),
-                    "normalized_name": normalize_host(ent.get("displayName", "")),
-                }
-            )
+            rows.append(ent)
+    return rows
+
+
+def format_management_zones(ent: dict) -> str:
+    mzs = ent.get("managementZones") or ent.get("management_zones") or []
+    if not mzs:
+        return ""
+    if isinstance(mzs, str):
+        return mzs
+    if isinstance(mzs[0], dict):
+        return ", ".join(m.get("name", "") for m in mzs if m.get("name"))
+    return ", ".join(str(m) for m in mzs if m)
+
+
+def flatten_dt_hosts(entities: dict) -> list[dict]:
+    rows: list[dict] = []
+    for ent in iter_dt_entities(entities, "HOST"):
+        rows.append(
+            {
+                "management_zones": format_management_zones(ent),
+                "display_name": ent.get("displayName", ""),
+                "entity_id": ent.get("entityId", ""),
+                "discovered_name": ent.get("discoveredName", ""),
+                "normalized_name": normalize_host(ent.get("displayName", "")),
+            }
+        )
     return rows
 
 
 def flatten_dt_by_type(entities: dict, suffix: str) -> list[dict]:
     rows: list[dict] = []
-    for key, items in (entities or {}).items():
-        if not key.endswith(f"::{suffix}"):
-            continue
-        mz = key.split("::")[0]
-        for ent in items or []:
-            rows.append(
-                {
-                    "management_zone": mz,
-                    "display_name": ent.get("displayName", ""),
-                    "entity_id": ent.get("entityId", ""),
-                }
-            )
+    for ent in iter_dt_entities(entities, suffix):
+        rows.append(
+            {
+                "management_zones": format_management_zones(ent),
+                "display_name": ent.get("displayName", ""),
+                "entity_id": ent.get("entityId", ""),
+            }
+        )
+    return rows
+
+
+def sn_location(host: dict) -> str:
+    loc = host.get("location") or {}
+    if isinstance(loc, dict):
+        return str(loc.get("display_value") or loc.get("value") or "")
+    return str(loc) if loc else ""
+
+
+def sn_host_rows(hosts: list[dict]) -> list[dict]:
+    rows = []
+    for host in hosts or []:
+        rows.append(
+            {
+                "name": field_value(host.get("name")),
+                "host_name": field_value(host.get("host_name")),
+                "location": sn_location(host),
+                "sys_id": field_value(host.get("sys_id")),
+                "discovery_source": field_value(host.get("discovery_source")),
+                "operational_status": field_value(host.get("operational_status")),
+            }
+        )
     return rows
 
 
@@ -79,7 +124,7 @@ def tag_binding_counts(tag_bindings: list[dict]) -> tuple[dict[str, int], dict[s
 
 
 def build_host_diff(sn_hosts: list[dict], dt_hosts: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
-    sn_by_norm = {normalize_host(h.get("name", "")): h for h in sn_hosts or [] if h.get("name")}
+    sn_by_norm = {normalize_host(h.get("name", "")): h for h in sn_hosts or [] if field_value(h.get("name"))}
     dt_by_norm: dict[str, dict] = {}
     for row in dt_hosts:
         norm = row.get("normalized_name") or normalize_host(row.get("display_name", ""))
@@ -93,10 +138,12 @@ def build_host_diff(sn_hosts: list[dict], dt_hosts: list[dict]) -> tuple[list[di
             matched.append(
                 {
                     "normalized_name": norm,
-                    "servicenow_name": sn.get("name", ""),
+                    "servicenow_name": field_value(sn.get("name", "")),
                     "servicenow_sys_id": sn.get("sys_id", ""),
+                    "servicenow_location": sn_location(sn),
                     "dynatrace_display_name": dt.get("display_name", ""),
                     "dynatrace_entity_id": dt.get("entity_id", ""),
+                    "dynatrace_management_zones": dt.get("management_zones", ""),
                     "status": "matched",
                 }
             )
@@ -104,8 +151,9 @@ def build_host_diff(sn_hosts: list[dict], dt_hosts: list[dict]) -> tuple[list[di
             sn_only.append(
                 {
                     "normalized_name": norm,
-                    "servicenow_name": sn.get("name", ""),
+                    "servicenow_name": field_value(sn.get("name", "")),
                     "servicenow_sys_id": sn.get("sys_id", ""),
+                    "servicenow_location": sn_location(sn),
                     "status": "servicenow_only",
                 }
             )
@@ -117,6 +165,7 @@ def build_host_diff(sn_hosts: list[dict], dt_hosts: list[dict]) -> tuple[list[di
                     "normalized_name": norm,
                     "dynatrace_display_name": dt.get("display_name", ""),
                     "dynatrace_entity_id": dt.get("entity_id", ""),
+                    "dynatrace_management_zones": dt.get("management_zones", ""),
                     "status": "dynatrace_only",
                 }
             )
@@ -210,16 +259,23 @@ def write_workbook(data: dict, output: Path) -> None:
             canonical_counts,
             alternate_counts,
         )
+        dt_scope_mode = dt.get("scope_mode", "")
+        sn_hosts_mode = sn.get("hosts_scope_mode", "")
 
         all_scope_rows.append(
             {
                 "scope_unit_id": scope_id,
-                "cmdb_location": scope.get("cmdb_location", ""),
+                "cmdb_location_hint": scope.get("cmdb_location", ""),
                 "cmdb_environment": scope.get("cmdb_environment", ""),
-                "dynatrace_management_zones": ", ".join(scope.get("dynatrace_management_zones", [])),
+                "dynatrace_mz_hints": ", ".join(scope.get("dynatrace_management_zones", [])),
+                "sn_hosts_scope": sn_hosts_mode,
+                "dt_entities_scope": dt_scope_mode,
                 "intent_app_services": len(intent.get("application_services", [])),
                 "sn_hosts": len(sn.get("hosts", [])),
+                "sn_app_services_cmdb": len(sn.get("application_services_cmdb", [])),
                 "dt_hosts": len(dt_hosts),
+                "dt_process_groups": len(flatten_dt_by_type(dt.get("entities", {}), "PROCESS_GROUP")),
+                "dt_k8s_clusters": len(flatten_dt_by_type(dt.get("entities", {}), "KUBERNETES_CLUSTER")),
                 "hosts_matched": len(matched),
                 "hosts_sn_only": len(sn_only),
                 "hosts_dt_only": len(dt_only),
@@ -247,15 +303,28 @@ def write_workbook(data: dict, output: Path) -> None:
         )
 
         ws_sn_hosts = wb.create_sheet(f"SN_Hosts_{safe}"[:31])
-        sheet_from_rows(ws_sn_hosts, ["name", "host_name", "sys_id", "discovery_source", "operational_status"], sn.get("hosts", []))
+        sheet_from_rows(
+            ws_sn_hosts,
+            ["name", "host_name", "location", "sys_id", "discovery_source", "operational_status"],
+            sn_host_rows(sn.get("hosts", [])),
+        )
 
         ws_dt_hosts = wb.create_sheet(f"DT_Hosts_{safe}"[:31])
-        sheet_from_rows(ws_dt_hosts, ["management_zone", "display_name", "entity_id", "normalized_name"], dt_hosts)
+        sheet_from_rows(ws_dt_hosts, ["management_zones", "display_name", "entity_id", "normalized_name"], dt_hosts)
 
         ws_host_diff = wb.create_sheet(f"HostDiff_{safe}"[:31])
         sheet_from_rows(
             ws_host_diff,
-            ["status", "normalized_name", "servicenow_name", "servicenow_sys_id", "dynatrace_display_name", "dynatrace_entity_id"],
+            [
+                "status",
+                "normalized_name",
+                "servicenow_name",
+                "servicenow_location",
+                "servicenow_sys_id",
+                "dynatrace_display_name",
+                "dynatrace_management_zones",
+                "dynatrace_entity_id",
+            ],
             matched + sn_only + dt_only,
         )
 
@@ -269,18 +338,48 @@ def write_workbook(data: dict, output: Path) -> None:
         ws_tags = wb.create_sheet(f"SN_Tags_{safe}"[:31])
         sheet_from_rows(ws_tags, ["key", "value", "sys_id"], sn.get("tag_bindings", []))
 
+        ws_sn_apps = wb.create_sheet(f"SN_Apps_{safe}"[:31])
+        sheet_from_rows(
+            ws_sn_apps,
+            ["name", "sys_id", "operational_status", "process_status", "service_status"],
+            [
+                {
+                    "name": field_value(row.get("name")),
+                    "sys_id": field_value(row.get("sys_id")),
+                    "operational_status": field_value(row.get("operational_status")),
+                    "process_status": field_value(row.get("process_status")),
+                    "service_status": field_value(row.get("service_status")),
+                }
+                for row in sn.get("application_services_cmdb", [])
+            ],
+        )
+
         ws_pg = wb.create_sheet(f"DT_PG_{safe}"[:31])
         sheet_from_rows(
             ws_pg,
-            ["management_zone", "display_name", "entity_id"],
+            ["management_zones", "display_name", "entity_id"],
             flatten_dt_by_type(dt.get("entities", {}), "PROCESS_GROUP"),
+        )
+
+        ws_svc = wb.create_sheet(f"DT_Svc_{safe}"[:31])
+        sheet_from_rows(
+            ws_svc,
+            ["management_zones", "display_name", "entity_id"],
+            flatten_dt_by_type(dt.get("entities", {}), "SERVICE"),
         )
 
         ws_k8s = wb.create_sheet(f"DT_K8s_{safe}"[:31])
         sheet_from_rows(
             ws_k8s,
-            ["management_zone", "display_name", "entity_id"],
+            ["management_zones", "display_name", "entity_id"],
             flatten_dt_by_type(dt.get("entities", {}), "KUBERNETES_CLUSTER"),
+        )
+
+        ws_k8s_node = wb.create_sheet(f"DT_K8sNode_{safe}"[:31])
+        sheet_from_rows(
+            ws_k8s_node,
+            ["management_zones", "display_name", "entity_id"],
+            flatten_dt_by_type(dt.get("entities", {}), "KUBERNETES_NODE"),
         )
 
     sheet_from_rows(

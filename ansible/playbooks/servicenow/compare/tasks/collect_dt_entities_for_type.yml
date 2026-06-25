@@ -1,0 +1,23 @@
+---
+# Fetch all Dynatrace entities for one type (tenant-wide by default; optional MZ filter).
+# Input: sn_compare_entity_type
+
+- name: Initialize Dynatrace entity pagination for type
+  ansible.builtin.set_fact:
+    sn_compare_dt_next_page_key: ""
+    sn_compare_dt_type_entities: []
+
+- name: Paginate Dynatrace entity query for type
+  ansible.builtin.include_tasks: fetch_dt_entity_page.yml
+  loop: "{{ range(1, (sn_compare_dt_max_pages | default(20) | int) + 1) | list }}"
+  loop_control:
+    loop_var: sn_compare_dt_page_index
+    label: "{{ sn_compare_entity_type }} page {{ sn_compare_dt_page_index }}"
+  when: sn_compare_dt_page_index == 1 or (sn_compare_dt_next_page_key | default('') | length > 0)
+
+- name: Record entities for type
+  ansible.builtin.set_fact:
+    sn_compare_dt_entities: >-
+      {{ sn_compare_dt_entities | combine({
+           sn_compare_entity_type: sn_compare_dt_type_entities | default([])
+         }, recursive=True) }}

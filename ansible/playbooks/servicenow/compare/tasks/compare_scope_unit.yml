@@ -22,13 +22,16 @@
 - name: Collect ServiceNow CMDB hosts
   ansible.builtin.include_tasks: collect_sn_hosts.yml
 
-- name: Collect ServiceNow application services
+- name: Collect ServiceNow application services (intent correlation)
   ansible.builtin.include_tasks: collect_sn_application_services.yml
+
+- name: Collect ServiceNow application services (full CMDB inventory)
+  ansible.builtin.include_tasks: collect_sn_cmdb_application_services.yml
 
 - name: Collect ServiceNow tag key values
   ansible.builtin.include_tasks: collect_sn_tag_bindings.yml
 
-- name: Collect Dynatrace entities for scope management zones
+- name: Collect Dynatrace entities (full tenant by default)
   ansible.builtin.include_tasks: collect_dt_entities.yml
 
 - name: Build host and application service diffs

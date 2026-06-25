@@ -404,9 +404,19 @@ ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml \
 **What it does (per scope unit):**
 
 1. Loads **CSDM intent** from `csdm.yaml` files listed in `compare/common/vars.yml` (`sn_compare_scope_units`).
-2. Exports **ServiceNow** Linux servers (by CMDB location), application services (by intent name), and `cmdb_key_value` rows for `servicenow.io/application-service-identifier`.
-3. Exports **Dynatrace** entities (`HOST`, `PROCESS_GROUP`, `SERVICE`, `KUBERNETES_CLUSTER`) filtered by each registry management zone.
-4. Writes **`tmp/compare/<timestamp>/compare_data.json`** and a multi-tab **`DT_SN_Compare.xlsx`** workbook (Summary, scope metadata, intent, SN/DT hosts, host diff, application-service diff, tag bindings, process groups, K8s clusters).
+2. Exports **ServiceNow** Linux servers (all CMDB by default; location captured as an attribute), all application services from CMDB, intent-correlated application service status, and `cmdb_key_value` tag rows (canonical + alternate keys).
+3. Exports **Dynatrace** entities (`HOST`, `PROCESS_GROUP`, `SERVICE`, `KUBERNETES_CLUSTER`, `KUBERNETES_NODE`) for the **full tenant by default**, with **management zone membership on each row**.
+4. Writes **`tmp/compare/<timestamp>/compare_data.json`** and a multi-tab **`DT_SN_Compare.xlsx`** workbook (Summary, scope metadata, intent, SN/DT hosts, host diff, application-service diff, SN tags, SN app inventory, DT process groups/services/K8s).
+
+**Default scope is full inventory** on both platforms so compare surfaces model inconsistencies whether the root cause is correlation logic, ServiceNow setup, or Dynatrace partitioning. Scope-unit fields (`cmdb_location`, `dynatrace_management_zones`) are **correlation hints** for diagnostics, not filters unless you opt in:
+
+```bash
+# Limit repair/export to one CMDB location
+ansible-playbook ... -e sn_compare_filter_by_cmdb_location=true
+
+# Limit Dynatrace export to scope-unit management zones
+ansible-playbook ... -e sn_compare_filter_by_dynatrace_mz=true
+```
 
 **Outputs** land under **`tmp/compare/`** at the repository root (gitignored). Override the base path with `-e sn_compare_output_base=/path/to/dir`.
 
@@ -426,3 +436,4 @@ This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; 
 |------|--------|
 | 2026-06-21 | Initial generic process; multi–management-zone registry pattern; platform layers for Docker, K8s, cloud, on-prem |
 | 2026-06-21 | Added `compare.yml` automation; moved document to `playbooks/servicenow/docs/` |
+| 2026-06-24 | Compare default scope loosened to full SN/DT inventory; MZ and location captured as attributes; optional filters for repair |

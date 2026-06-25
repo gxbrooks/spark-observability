@@ -4,6 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml -e @../vars/secrets.yaml
 #   ansible-playbook ... -e sn_compare_scope_unit_id=brooks-lab-onprem
+#
+# Optional repair scope (default exports full SN + DT inventories):
+#   ansible-playbook ... -e sn_compare_filter_by_cmdb_location=true
+#   ansible-playbook ... -e sn_compare_filter_by_dynatrace_mz=true
 
 - name: Compare ServiceNow and Dynatrace models
   hosts: localhost

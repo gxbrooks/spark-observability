@@ -18,8 +18,17 @@ sn_repo_root: "{{ sn_servicenow_playbooks_dir | dirname | dirname | dirname }}"
 
 # sn_compare_run_id and sn_compare_output_dir are set at runtime in compare/run.yml
 
-# Scope correlation registry — one row per comparison boundary (see docs/DT_CN_Comparison_Process.md).
-# Override with -e sn_compare_scope_units='[...]' or filter with sn_compare_scope_unit_id.
+# Default: export full ServiceNow and Dynatrace inventories; capture location/MZ as attributes.
+# Enable optional repair scope with -e sn_compare_filter_by_cmdb_location=true and/or
+# -e sn_compare_filter_by_dynatrace_mz=true (uses correlation hints on the scope unit).
+sn_compare_filter_by_cmdb_location: false
+sn_compare_filter_by_dynatrace_mz: false
+sn_compare_dt_page_size: 500
+sn_compare_dt_max_pages: 20
+
+# Scope correlation registry — correlation hints for diffs and optional filters
+# (see docs/DT_CN_Comparison_Process.md). Override with -e sn_compare_scope_units='[...]'
+# or filter with sn_compare_scope_unit_id.
 sn_compare_scope_units:
   - scope_unit_id: "{{ SN_LAB_LOCATION_NAME }}-onprem"
     cmdb_location: "{{ SN_LAB_LOCATION_NAME }}"
@@ -41,5 +50,6 @@ sn_compare_dt_entity_types:
   - PROCESS_GROUP
   - SERVICE
   - KUBERNETES_CLUSTER
+  - KUBERNETES_NODE
 
 sn_compare_data: {}

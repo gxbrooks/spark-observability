@@ -1,11 +1,20 @@
 ---
-# Collect Dynatrace entities for each management zone on the scope unit.
+# Collect Dynatrace entities. Default: full tenant inventory with managementZones on each row.
+# Optional: sn_compare_filter_by_dynatrace_mz=true scopes to scope-unit management zones.
 
 - name: Initialize Dynatrace entity accumulator
   ansible.builtin.set_fact:
     sn_compare_dt_entities: {}
 
-- name: Collect entities per management zone and type
+- name: Collect full-tenant Dynatrace entities by type
+  ansible.builtin.include_tasks: collect_dt_entities_for_type.yml
+  loop: "{{ sn_compare_dt_entity_types }}"
+  loop_control:
+    loop_var: sn_compare_entity_type
+    label: "{{ sn_compare_entity_type }}"
+  when: not sn_compare_filter_by_dynatrace_mz | default(false) | bool
+
+- name: Collect Dynatrace entities filtered by scope management zones
   ansible.builtin.include_tasks: collect_dt_entities_for_mz_type.yml
   loop: "{{ sn_compare_scope_unit.dynatrace_management_zones | default([]) | product(sn_compare_dt_entity_types) | list }}"
   loop_control:
@@ -13,12 +22,16 @@
   vars:
     sn_compare_mz_name: "{{ item.0 }}"
     sn_compare_entity_type: "{{ item.1 }}"
+  when: sn_compare_filter_by_dynatrace_mz | default(false) | bool
 
 - name: Store Dynatrace entities on scope unit result
   ansible.builtin.set_fact:
     sn_compare_unit_result: >-
       {{ sn_compare_unit_result | combine({
            'dynatrace': {
+             'scope_mode': 'management_zone_filtered'
+               if sn_compare_filter_by_dynatrace_mz | default(false) | bool
+               else 'full_tenant',
              'management_zones': sn_compare_scope_unit.dynatrace_management_zones | default([]),
              'entities': sn_compare_dt_entities
            }
