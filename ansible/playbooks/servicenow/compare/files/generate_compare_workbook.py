@@ -173,6 +173,182 @@ def build_host_diff(sn_hosts: list[dict], dt_hosts: list[dict]) -> tuple[list[di
     return matched, sn_only, dt_only
 
 
+def mz_list(ent: dict) -> list[str]:
+    raw = format_management_zones(ent)
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def build_diagnostics(
+    unit: dict,
+    intent_apps: list[dict],
+    sn_hosts: list[dict],
+    dt_entities: dict,
+    app_diff: list[dict],
+) -> list[dict]:
+    correlation = unit.get("dynatrace_correlation", {})
+    scope = unit.get("scope_unit", {})
+    partitioning = correlation.get("partitioning", {})
+    expected_mz = partitioning.get("management_zone", "")
+    expected_location = scope.get("cmdb_location", "")
+    project_hosts = {normalize_host(h) for h in correlation.get("project_host_names", []) if h}
+    expected_clusters = {
+        c.get("dynatrace_name", ""): c for c in correlation.get("kubernetes_clusters", []) if c.get("dynatrace_name")
+    }
+    recs = correlation.get("recommendations", {})
+    rows: list[dict] = []
+
+    def add_row(**kwargs) -> None:
+        rows.append(kwargs)
+
+    # Kubernetes cluster partitioning
+    for cluster_name, cluster_meta in sorted(expected_clusters.items()):
+        match = next(
+            (ent for ent in iter_dt_entities(dt_entities, "KUBERNETES_CLUSTER") if ent.get("displayName") == cluster_name),
+            None,
+        )
+        if not match:
+            add_row(
+                category="dynatrace_partitioning",
+                status="missing_entity",
+                entity_type="KUBERNETES_CLUSTER",
+                entity_name=cluster_name,
+                entity_id="",
+                issue="cluster_not_in_tenant",
+                detail=f"Expected cluster '{cluster_name}' (SN: {cluster_meta.get('servicenow_name', '')}) not found in Dynatrace export",
+                recommendation="Verify DynaKube automatic Kubernetes API monitoring and cluster display name",
+            )
+            continue
+        mzs = mz_list(match)
+        if expected_mz and expected_mz not in mzs:
+            add_row(
+                category="dynatrace_partitioning",
+                status="action_required",
+                entity_type="KUBERNETES_CLUSTER",
+                entity_name=cluster_name,
+                entity_id=match.get("entityId", ""),
+                issue="missing_management_zone",
+                detail=f"Cluster has management zones [{', '.join(mzs) or '(none)'}]; expected '{expected_mz}'",
+                recommendation=recs.get("missing_cluster_management_zone", recs.get("missing_management_zone", "")),
+            )
+        else:
+            add_row(
+                category="dynatrace_partitioning",
+                status="ok",
+                entity_type="KUBERNETES_CLUSTER",
+                entity_name=cluster_name,
+                entity_id=match.get("entityId", ""),
+                issue="",
+                detail=f"Management zone '{expected_mz}' present" if expected_mz else "Cluster present",
+                recommendation="",
+            )
+
+    # Project host partitioning
+    dt_hosts_by_norm = {normalize_host(ent.get("displayName", "")): ent for ent in iter_dt_entities(dt_entities, "HOST")}
+    for norm in sorted(project_hosts):
+        ent = dt_hosts_by_norm.get(norm)
+        if not ent:
+            add_row(
+                category="dynatrace_partitioning",
+                status="missing_entity",
+                entity_type="HOST",
+                entity_name=norm,
+                entity_id="",
+                issue="project_host_not_in_dynatrace",
+                detail=f"Project host '{norm}' not found in Dynatrace HOST export",
+                recommendation="Verify OneAgent deployment and host group assignment",
+            )
+            continue
+        mzs = mz_list(ent)
+        if expected_mz and expected_mz not in mzs:
+            add_row(
+                category="dynatrace_partitioning",
+                status="action_required",
+                entity_type="HOST",
+                entity_name=ent.get("displayName", norm),
+                entity_id=ent.get("entityId", ""),
+                issue="missing_management_zone",
+                detail=f"Host has management zones [{', '.join(mzs) or '(none)'}]; expected '{expected_mz}'",
+                recommendation=recs.get("missing_management_zone", ""),
+            )
+        else:
+            add_row(
+                category="dynatrace_partitioning",
+                status="ok",
+                entity_type="HOST",
+                entity_name=ent.get("displayName", norm),
+                entity_id=ent.get("entityId", ""),
+                issue="",
+                detail=f"Management zone '{expected_mz}' present" if expected_mz else "Host present",
+                recommendation="",
+            )
+
+    # Process group propagation summary
+    if expected_mz and project_hosts:
+        project_host_mz_ok = sum(
+            1 for norm in project_hosts if expected_mz in mz_list(dt_hosts_by_norm.get(norm, {}))
+        )
+        pg_in_mz = sum(1 for ent in iter_dt_entities(dt_entities, "PROCESS_GROUP") if expected_mz in mz_list(ent))
+        pg_total = len(iter_dt_entities(dt_entities, "PROCESS_GROUP"))
+        if project_host_mz_ok > 0 and pg_in_mz == 0:
+            add_row(
+                category="dynatrace_partitioning",
+                status="action_required",
+                entity_type="PROCESS_GROUP",
+                entity_name="(tenant summary)",
+                entity_id="",
+                issue="missing_process_group_management_zone",
+                detail=f"0/{pg_total} process groups in '{expected_mz}' while {project_host_mz_ok}/{len(project_hosts)} project hosts are in that zone",
+                recommendation=recs.get("missing_process_group_management_zone", ""),
+            )
+
+    # ServiceNow location vs scope hint
+    if expected_location:
+        for host in sn_hosts or []:
+            name = field_value(host.get("name"))
+            loc = sn_location(host)
+            norm = normalize_host(name)
+            if norm not in project_hosts:
+                continue
+            if loc and loc.lower() != expected_location.lower():
+                add_row(
+                    category="servicenow_placement",
+                    status="action_required",
+                    entity_type="cmdb_ci_linux_server",
+                    entity_name=name,
+                    entity_id=field_value(host.get("sys_id")),
+                    issue="location_mismatch",
+                    detail=f"CMDB location '{loc}' != scope hint '{expected_location}'",
+                    recommendation=recs.get("sn_location_mismatch", ""),
+                )
+
+    # Tag-based application services from intent
+    for app in app_diff:
+        if app.get("status") == "missing_tag_binding":
+            add_row(
+                category="servicenow_tags",
+                status="action_required",
+                entity_type="application_service",
+                entity_name=app.get("name", ""),
+                entity_id=app.get("identifier", ""),
+                issue="missing_canonical_tag",
+                detail="No cmdb_key_value rows for servicenow.io/application-service-identifier",
+                recommendation=recs.get("missing_canonical_tag", ""),
+            )
+        elif app.get("status") == "ok_alternate_tag_only":
+            add_row(
+                category="servicenow_tags",
+                status="warning",
+                entity_type="application_service",
+                entity_name=app.get("name", ""),
+                entity_id=app.get("identifier", ""),
+                issue="alternate_tag_only",
+                detail="Only app.kubernetes.io/name or app tag bindings found; canonical servicenow.io key missing",
+                recommendation=recs.get("missing_canonical_tag", ""),
+            )
+
+    return rows
+
+
 def build_app_service_diff(
     intent_apps: list[dict],
     sn_apps: list[dict],
@@ -380,6 +556,14 @@ def write_workbook(data: dict, output: Path) -> None:
             ws_k8s_node,
             ["management_zones", "display_name", "entity_id"],
             flatten_dt_by_type(dt.get("entities", {}), "KUBERNETES_NODE"),
+        )
+
+        diagnostics = build_diagnostics(unit, intent.get("application_services", []), sn.get("hosts", []), dt.get("entities", {}), app_diff)
+        ws_diag = wb.create_sheet(f"Diagnostics_{safe}"[:31])
+        sheet_from_rows(
+            ws_diag,
+            ["status", "category", "entity_type", "entity_name", "entity_id", "issue", "detail", "recommendation"],
+            diagnostics,
         )
 
     sheet_from_rows(

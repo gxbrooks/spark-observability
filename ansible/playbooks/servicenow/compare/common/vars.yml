@@ -38,6 +38,7 @@ sn_compare_scope_units:
     kubernetes_clusters:
       - servicenow_name: brooks-lab
         dynatrace_name: spark-observability-k8s
+    dynatrace_correlation_file: dynatrace-correlation.yaml
     csdm_spec_files:
       - observability/servicenow/csdm.yaml
       - observability/dynatrace/servicenow/csdm.yaml

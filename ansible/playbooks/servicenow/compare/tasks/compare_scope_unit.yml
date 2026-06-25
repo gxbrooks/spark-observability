@@ -19,6 +19,9 @@
 - name: Collect CSDM intent from specification files
   ansible.builtin.include_tasks: collect_csdm_intent.yml
 
+- name: Load Dynatrace correlation spec for diagnostics
+  ansible.builtin.include_tasks: load_dynatrace_correlation.yml
+
 - name: Collect ServiceNow CMDB hosts
   ansible.builtin.include_tasks: collect_sn_hosts.yml
 

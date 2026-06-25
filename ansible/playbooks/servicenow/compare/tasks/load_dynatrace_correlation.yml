@@ -1,0 +1,49 @@
+---
+# Load dynatrace-correlation.yaml and merge scope-unit / context overrides.
+# Output: sn_compare_unit_result.dynatrace_correlation
+
+- name: Resolve Dynatrace correlation spec path
+  ansible.builtin.set_fact:
+    sn_compare_dt_correlation_path: >-
+      {{ (
+           sn_compare_scope_unit.dynatrace_correlation_file
+           | default(sn_compare_dynatrace_correlation_file | default('dynatrace-correlation.yaml'))
+         ) if (
+           sn_compare_scope_unit.dynatrace_correlation_file | default(
+             sn_compare_dynatrace_correlation_file | default('dynatrace-correlation.yaml')
+           ) is match('^/')
+         ) else (
+           sn_compare_dir ~ '/' ~ (
+             sn_compare_scope_unit.dynatrace_correlation_file
+             | default(sn_compare_dynatrace_correlation_file | default('dynatrace-correlation.yaml'))
+           )
+         ) }}
+
+- name: Load Dynatrace correlation spec from file
+  ansible.builtin.set_fact:
+    sn_compare_dt_correlation_raw: "{{ lookup('file', sn_compare_dt_correlation_path) | from_yaml }}"
+
+- name: Merge Dynatrace correlation with ansible context and scope unit
+  ansible.builtin.set_fact:
+    sn_compare_unit_result: >-
+      {{ sn_compare_unit_result | combine({
+           'dynatrace_correlation': {
+             'spec_file': sn_compare_dt_correlation_path | basename,
+             'partitioning': {
+               'management_zone': (
+                 sn_compare_scope_unit.dynatrace_management_zones | default([]) | first
+                 | default(sn_compare_dt_correlation_raw.partitioning.management_zone | default(DT_MANAGEMENT_ZONE | default('')))
+               ),
+               'host_group': sn_compare_dt_correlation_raw.partitioning.host_group | default(DT_HOST_GROUP | default('')),
+               'environment': sn_compare_dt_correlation_raw.partitioning.environment | default(DT_ENVIRONMENT | default('')),
+               'owned_by': sn_compare_dt_correlation_raw.partitioning.owned_by | default(DT_OWNED_BY | default(''))
+             },
+             'kubernetes_clusters': sn_compare_scope_unit.kubernetes_clusters | default(
+               sn_compare_dt_correlation_raw.kubernetes_clusters | default([])
+             ),
+             'auto_tags': sn_compare_dt_correlation_raw.auto_tags | default([]),
+             'management_zone_expected_for': sn_compare_dt_correlation_raw.management_zone_expected_for | default([]),
+             'project_host_names': sn_compare_dt_correlation_raw.project_host_names | default([]),
+             'recommendations': sn_compare_dt_correlation_raw.recommendations | default({})
+           }
+         }, recursive=True) }}

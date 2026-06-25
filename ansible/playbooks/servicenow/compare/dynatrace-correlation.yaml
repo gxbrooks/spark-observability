@@ -1,0 +1,67 @@
+---
+# Dynatrace partitioning correlation for compare diagnostics.
+#
+# Declares expected observability boundaries — not a catalog of Dynatrace entities
+# (those are dynamically discovered). Values align with:
+#   - vars/variables.yaml (dynatrace-ansible context: DT_*)
+#   - observability/dynatrace/management-zone/spark-observability-zone.json
+#   - observability/dynatrace/automatic-tags/spark-observability-tags.json.j2
+#
+# Applied on tenant by:
+#   ansible/playbooks/observability/dynatrace/tasks/apply_management_zone.yml
+#   ansible/playbooks/observability/dynatrace/tasks/apply_auto_tags.yml
+#
+# Compare loads this file per scope unit (override path with dynatrace_correlation_file
+# on the scope unit or sn_compare_dynatrace_correlation_file) and merges runtime
+# context from DT_MANAGEMENT_ZONE, DT_HOST_GROUP, etc.
+
+partitioning:
+  management_zone: Spark Observability
+  host_group: spark-observability
+  environment: lab
+  owned_by: gbrooks
+
+kubernetes_clusters:
+  - dynatrace_name: spark-observability-k8s
+    servicenow_name: brooks-lab
+    cmdb_location: brooks-lab
+
+auto_tags:
+  - key: Project
+    value: spark-observability
+  - key: Environment
+    value: lab
+  - key: OwnedBy
+    value: gbrooks
+
+# Entity types expected to carry partitioning.management_zone when in project scope
+management_zone_expected_for:
+  - HOST
+  - PROCESS_GROUP
+  - SERVICE
+  - KUBERNETES_CLUSTER
+  - KUBERNETES_NODE
+
+# Normalized host names (short hostname) for project-scoped partitioning checks
+project_host_names:
+  - lab1
+  - lab2
+  - lab3
+
+recommendations:
+  missing_management_zone: >-
+    Re-apply management zone rules: cd ansible && ansible-playbook -i inventory.yml
+    playbooks/observability/dynatrace/deploy.yml --tags partitioning
+  missing_cluster_management_zone: >-
+    Verify KUBERNETES_CLUSTER_NAME in
+    observability/dynatrace/management-zone/spark-observability-zone.json matches
+    kubernetes_clusters[].dynatrace_name; re-run apply_management_zone.yml
+  missing_process_group_management_zone: >-
+    Project hosts are in the expected management zone but process groups are not —
+    verify hostToPGPropagation on the HOST rule in spark-observability-zone.json and
+    that OneAgent assigns host group spark-observability
+  sn_location_mismatch: >-
+    CMDB host location does not match scope unit cmdb_location hint — update cmn_location
+    on the CI or adjust the scope correlation registry
+  missing_canonical_tag: >-
+    Run discovery/docker/discover.yml and fix cmdb_key_value ACLs (docs/install.md §6.1)
