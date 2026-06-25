@@ -1,0 +1,20 @@
+---
+# Dynatrace tenant descriptor — pdt20158 (Optimiz lab tenant).
+# Settings payloads live under management-zones/{slug}/; playbooks resolve paths from here.
+
+tenant_id: pdt20158
+display_name: pdt20158
+
+management_zones:
+  - slug: spark-observability
+    name: Spark Observability
+    settings:
+      management_zone: management-zone.json
+      auto_tags: auto-tags.json.j2
+
+paths:
+  dashboards: dashboards
+  dynakube: dynakube
+  integrations: integrations
+  sampler: sampler
+  docs: docs

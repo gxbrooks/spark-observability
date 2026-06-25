@@ -4,13 +4,16 @@
 #
 # Token: DT_PLATFORM_TOKEN (document:write). Metrics in tiles use Grail DQL.
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"
+
 - name: Resolve Dynatrace token values for New Dashboards
   ansible.builtin.set_fact:
     dt_platform_token_resolved: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN | default('') }}"
     dt_tenant_url_resolved: >-
       {{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL)
           else DT_TENANT_URL) | default('') }}
-    dt_dql_dashboards_dir: "{{ playbook_dir }}/../../../../observability/dynatrace/dashboards"
+    dt_dql_dashboards_dir: "{{ dt_dashboards_dir }}"
   delegate_to: localhost
   run_once: true
 

@@ -1,0 +1,26 @@
+---
+# Management region descriptor — cross-platform registry for brooks-lab (Optimiz lab).
+# Consumed by compare.yml, csdm/deploy.yml, and other automation via servicenow/regions/ scan.
+
+region_id: brooks-lab
+scope_unit_id: brooks-lab-onprem
+cmdb_location: brooks-lab
+cmdb_environment: on-prem
+
+dynatrace:
+  tenant_id: pdt20158
+  management_zone: spark-observability
+  management_zone_name: Spark Observability
+
+kubernetes_clusters:
+  - servicenow_name: brooks-lab
+    dynatrace_name: spark-observability-k8s
+
+csdm_specs:
+  - observability-platform.csdm.yaml
+  - spark.csdm.yaml
+  - elastic-agent.csdm.yaml
+  - dynatrace-monitoring.csdm.yaml
+
+compare:
+  dynatrace_correlation_file: dynatrace-correlation.yaml

@@ -16,7 +16,7 @@
         SGO-Dynatrace imports leave location empty on infrastructure CIs; inherit from
         the related host CI when that host already has location (e.g. from Discovery).
         Does not map Dynatrace management zones to location.
-      script: "{{ lookup('file', sn_sgc_dir + '/files/sgc_inherit_location_from_host.br.js') }}"
+      script: "{{ lookup('file', sn_integrations_dir + '/sgc/sgc_inherit_location_from_host.br.js') }}"
 
 - name: Look up SGC location inheritance business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"

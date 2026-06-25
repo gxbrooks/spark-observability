@@ -22,6 +22,9 @@ sn_sgc_dir: "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}"
 sn_servicenow_playbooks_dir: "{{ sn_sgc_dir | dirname }}"
 sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
 sn_dynatrace_source_dir: "{{ sn_sgc_dir }}/sources/dynatrace"
+sn_repo_root: "{{ sn_servicenow_playbooks_dir | dirname | dirname }}"
+sn_specs_root: "{{ sn_specs_root_override | default(sn_repo_root ~ '/servicenow') }}"
+sn_integrations_dir: "{{ sn_specs_root }}/integrations"
 
 # Required Store applications and plugins: common/store_apps.yml (sn_store_apps),
 # loaded via vars_files by install.yml and diagnose.yml.

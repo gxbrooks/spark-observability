@@ -1,0 +1,101 @@
+---
+# Resolve Dynatrace tenant and management-zone specification paths (controller-local specs).
+# Input (optional): dt_tenant_id, dt_management_zone_slug — default from DT_MANAGEMENT_ZONE + tenant.yaml scan
+# Output: dt_tenant_dir, dt_mz_dir, dt_mz_settings_file, dt_auto_tags_file, dt_dashboards_dir, dt_dynakube_dir, dt_integrations_dir, dt_sampler_dir
+
+- name: Resolve repository and Dynatrace specification roots
+  ansible.builtin.set_fact:
+    sn_repo_root: "{{ (playbook_dir | regex_replace('/playbooks/.*', '')) | dirname }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Set Dynatrace specification directory variables
+  ansible.builtin.set_fact:
+    dt_specs_root: "{{ dt_specs_root_override | default(sn_repo_root ~ '/observability/dynatrace') }}"
+    dt_tenants_dir: "{{ dt_specs_root_override | default(sn_repo_root ~ '/observability/dynatrace') }}/tenants"
+  delegate_to: localhost
+  run_once: true
+
+- name: Find Dynatrace tenant descriptors
+  ansible.builtin.find:
+    paths: "{{ dt_tenants_dir }}"
+    patterns: tenant.yaml
+    recurse: true
+  register: dt_tenant_descriptor_find
+  delegate_to: localhost
+  run_once: true
+
+- name: Initialize tenant descriptor list
+  ansible.builtin.set_fact:
+    dt_tenant_descriptors: []
+  delegate_to: localhost
+  run_once: true
+
+- name: Load tenant descriptors
+  ansible.builtin.set_fact:
+    dt_tenant_descriptors: >-
+      {{ dt_tenant_descriptors + [
+           (lookup('file', item.path) | from_yaml) | combine({
+             '_tenant_dir': item.path | dirname
+           }, recursive=True)
+         ] }}
+  loop: "{{ dt_tenant_descriptor_find.files | default([]) | sort(attribute='path') }}"
+  loop_control:
+    label: "{{ item.path }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Select Dynatrace tenant descriptor
+  ansible.builtin.set_fact:
+    dt_tenant_descriptor: >-
+      {{ (dt_tenant_descriptors | selectattr('tenant_id', 'equalto', dt_tenant_id_resolved) | list | first)
+         | default(dt_tenant_descriptors | first) }}
+  vars:
+    dt_tenant_id_resolved: >-
+      {{ dt_tenant_id | default(DT_TENANT_ID | default('')) | trim }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert Dynatrace tenant descriptor exists
+  ansible.builtin.assert:
+    that:
+      - dt_tenant_descriptor is defined
+      - dt_tenant_descriptor._tenant_dir is defined
+    fail_msg: >-
+      No tenant.yaml under {{ dt_tenants_dir }}.
+      Set dt_specs_root_override if Dynatrace specifications are outside the repository.
+  delegate_to: localhost
+  run_once: true
+
+- name: Resolve management zone slug from name when not provided
+  ansible.builtin.set_fact:
+    dt_mz_slug_resolved: >-
+      {{ dt_management_zone_slug | default('') | trim if (dt_management_zone_slug | default('') | trim) | length > 0
+         else (
+           (dt_tenant_descriptor.management_zones | default([])
+            | selectattr('name', 'equalto', dt_management_zone_resolved) | map(attribute='slug') | list | first)
+           | default(
+             (dt_tenant_descriptor.management_zones | default([]) | map(attribute='slug') | list | first),
+             true
+           )
+         ) }}
+  vars:
+    dt_management_zone_resolved: "{{ DT_MANAGEMENT_ZONE | default('') }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Resolve Dynatrace specification directory paths
+  ansible.builtin.set_fact:
+    dt_tenant_dir: "{{ dt_tenant_descriptor._tenant_dir }}"
+    dt_mz_dir: "{{ dt_tenant_descriptor._tenant_dir }}/management-zones/{{ dt_mz_slug_resolved }}"
+    dt_mz_settings_file: >-
+      {{ dt_tenant_descriptor._tenant_dir }}/management-zones/{{ dt_mz_slug_resolved }}/management-zone.json
+    dt_auto_tags_file: >-
+      {{ dt_tenant_descriptor._tenant_dir }}/management-zones/{{ dt_mz_slug_resolved }}/auto-tags.json.j2
+    dt_dashboards_dir: "{{ dt_tenant_descriptor._tenant_dir }}/{{ dt_tenant_descriptor.paths.dashboards | default('dashboards') }}"
+    dt_dynakube_dir: "{{ dt_tenant_descriptor._tenant_dir }}/{{ dt_tenant_descriptor.paths.dynakube | default('dynakube') }}"
+    dt_integrations_dir: "{{ dt_tenant_descriptor._tenant_dir }}/{{ dt_tenant_descriptor.paths.integrations | default('integrations') }}"
+    dt_sampler_dir: "{{ dt_tenant_descriptor._tenant_dir }}/{{ dt_tenant_descriptor.paths.sampler | default('sampler') }}"
+    dt_docs_dir: "{{ dt_tenant_descriptor._tenant_dir }}/{{ dt_tenant_descriptor.paths.docs | default('docs') }}"
+  delegate_to: localhost
+  run_once: true

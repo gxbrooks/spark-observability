@@ -1,0 +1,37 @@
+---
+# Compare scope units built from servicenow/regions/*/region.yaml unless overridden.
+
+- name: Include specification root variables
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../common/spec_roots.yml"
+
+- name: Discover management regions
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../common/discover_regions.yml"
+
+- name: Build compare scope units from region descriptors
+  ansible.builtin.set_fact:
+    sn_compare_scope_units_discovered: >-
+      {{ sn_compare_scope_units_discovered | default([]) + [{
+           'scope_unit_id': region.scope_unit_id,
+           'region_id': region.region_id,
+           'cmdb_location': region.cmdb_location,
+           'cmdb_environment': region.cmdb_environment | default(''),
+           'dynatrace_management_zones': [region.dynatrace.management_zone_name | default(DT_MANAGEMENT_ZONE | default(''))],
+           'dynatrace': region.dynatrace | default({}),
+           'kubernetes_clusters': region.kubernetes_clusters | default([]),
+           'csdm_spec_paths': (
+             region.csdm_specs | default([]) | map('regex_replace', '^', sn_regions_dir ~ '/' ~ region.region_id ~ '/') | list
+           ),
+           'csdm_spec_files': region.csdm_specs | default([]),
+           'dynatrace_correlation_file': region.compare.dynatrace_correlation_file | default('dynatrace-correlation.yaml')
+         }] }}
+  loop: "{{ sn_region_descriptors | default([]) }}"
+  loop_control:
+    loop_var: region
+    label: "{{ region.region_id }}"
+
+- name: Apply optional compare scope unit filter
+  ansible.builtin.set_fact:
+    sn_compare_scope_units_discovered: >-
+      {{ sn_compare_scope_units_discovered | selectattr('scope_unit_id', 'equalto', sn_compare_scope_unit_id) | list }}
+  when: sn_compare_scope_unit_id | default('') | length > 0

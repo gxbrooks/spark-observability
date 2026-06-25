@@ -4,8 +4,8 @@
 # Declares expected observability boundaries — not a catalog of Dynatrace entities
 # (those are dynamically discovered). Values align with:
 #   - vars/variables.yaml (dynatrace-ansible context: DT_*)
-#   - observability/dynatrace/management-zone/spark-observability-zone.json
-#   - observability/dynatrace/automatic-tags/spark-observability-tags.json.j2
+#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json
+#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/auto-tags.json.j2
 #
 # Applied on tenant by:
 #   ansible/playbooks/observability/dynatrace/tasks/apply_management_zone.yml
@@ -54,11 +54,11 @@ recommendations:
     playbooks/observability/dynatrace/deploy.yml --tags partitioning
   missing_cluster_management_zone: >-
     Verify KUBERNETES_CLUSTER_NAME in
-    observability/dynatrace/management-zone/spark-observability-zone.json matches
+    observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json matches
     kubernetes_clusters[].dynatrace_name; re-run apply_management_zone.yml
   missing_process_group_management_zone: >-
     Project hosts are in the expected management zone but process groups are not —
-    verify hostToPGPropagation on the HOST rule in spark-observability-zone.json and
+    verify hostToPGPropagation on the HOST rule in management-zone.json and
     that OneAgent assigns host group spark-observability
   sn_location_mismatch: >-
     CMDB host location does not match scope unit cmdb_location hint — update cmn_location

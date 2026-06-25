@@ -1,0 +1,26 @@
+---
+# Build absolute CSDM specification paths from region descriptors.
+# Requires: sn_region_descriptors (from discover_regions.yml)
+# Output: sn_csdm_spec_paths
+
+- name: Discover management regions
+  ansible.builtin.include_tasks: discover_regions.yml
+
+- name: Reset CSDM spec path accumulator
+  ansible.builtin.set_fact:
+    sn_csdm_spec_paths: []
+
+- name: Collect CSDM spec paths from each region
+  ansible.builtin.set_fact:
+    sn_csdm_spec_paths: >-
+      {{ sn_csdm_spec_paths + (
+           region.csdm_specs | default([]) | map('regex_replace', '^', sn_regions_dir ~ '/' ~ region.region_id ~ '/') | list
+         ) }}
+  loop: "{{ sn_region_descriptors | default([]) }}"
+  loop_control:
+    loop_var: region
+    label: "{{ region.region_id }}"
+
+- name: Deduplicate CSDM spec paths
+  ansible.builtin.set_fact:
+    sn_csdm_spec_paths: "{{ sn_csdm_spec_paths | unique | list }}"

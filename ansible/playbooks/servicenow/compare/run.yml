@@ -16,16 +16,26 @@
   vars_files:
     - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/../common/spec_roots.yml"
     - "{{ playbook_dir }}/common/vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   vars:
-    sn_compare_scope_units_effective: >-
-      {{ sn_compare_scope_units
-         | selectattr('scope_unit_id', 'equalto', sn_compare_scope_unit_id)
-         | list
-         if sn_compare_scope_unit_id | default('') | length > 0
-         else sn_compare_scope_units }}
+    sn_compare_scope_units_effective: "{{ sn_compare_scope_units | default([]) }}"
   tasks:
+    - name: Discover compare scope units from region descriptors
+      ansible.builtin.include_tasks: tasks/discover_compare_scope_units.yml
+      when: sn_compare_scope_units_effective | length == 0
+
+    - name: Use explicit compare scope unit override
+      ansible.builtin.set_fact:
+        sn_compare_scope_units_effective: "{{ sn_compare_scope_units }}"
+      when: sn_compare_scope_units | default([]) | length > 0
+
+    - name: Adopt discovered compare scope units
+      ansible.builtin.set_fact:
+        sn_compare_scope_units_effective: "{{ sn_compare_scope_units_discovered }}"
+      when: sn_compare_scope_units | default([]) | length == 0
+
     - name: Set compare run id
       ansible.builtin.set_fact:
         sn_compare_run_id: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
@@ -57,19 +67,19 @@
         loop_var: sn_compare_scope_unit
         label: "{{ sn_compare_scope_unit.scope_unit_id }}"
 
-    - name: Write aggregated compare JSON
+    - name: Write aggregated compare JSON (raw export)
       ansible.builtin.copy:
         content: "{{ sn_compare_data | to_nice_json }}"
         dest: "{{ sn_compare_output_dir }}/compare_data.json"
         mode: "0644"
 
-    - name: Generate Excel workbook from compare data
+    - name: Generate annotated compare report JSON
       ansible.builtin.command:
         cmd: >-
-          python3 {{ sn_compare_dir }}/files/generate_compare_workbook.py
+          python3 {{ sn_compare_dir }}/files/generate_compare_report.py
           {{ sn_compare_output_dir }}/compare_data.json
-          {{ sn_compare_output_dir }}/DT_SN_Compare.xlsx
-      register: sn_compare_workbook
+          {{ sn_compare_output_dir }}/compare_report.json
+      register: sn_compare_report
       changed_when: true
 
     - name: Report compare output locations
@@ -77,6 +87,7 @@
         msg: |
           Compare complete for {{ sn_compare_scope_units_effective | length }} scope unit(s).
           Output directory: {{ sn_compare_output_dir }}
-          Workbook: {{ sn_compare_output_dir }}/DT_SN_Compare.xlsx
-          JSON: {{ sn_compare_output_dir }}/compare_data.json
-          {{ sn_compare_workbook.stdout | default('') }}
+          Report: {{ sn_compare_output_dir }}/compare_report.json
+          Raw JSON: {{ sn_compare_output_dir }}/compare_data.json
+          Per-scope raw: {{ sn_compare_output_dir }}/<scope_unit_id>.json
+          {{ sn_compare_report.stdout | default('') }}

@@ -13,6 +13,7 @@
   vars_files:
     - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/spec_roots.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Initialize CSDM user reference cache
@@ -31,13 +32,8 @@
         state: directory
         mode: "0755"
 
-    - name: Resolve CSDM specification file paths
-      ansible.builtin.set_fact:
-        sn_csdm_spec_paths: >-
-          {{ sn_csdm_spec_paths | default([]) + [
-               (item if item is match('^/') else sn_playbooks_root ~ '/' ~ item)
-             ] }}
-      loop: "{{ sn_csdm_spec_files }}"
+    - name: Resolve CSDM specification paths from management regions
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../common/resolve_csdm_spec_paths.yml"
 
     - name: Deploy CSDM specifications
       ansible.builtin.include_tasks: tasks/deploy_csdm_spec.yml

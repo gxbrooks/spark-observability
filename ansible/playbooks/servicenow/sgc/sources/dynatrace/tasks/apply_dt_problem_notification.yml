@@ -54,7 +54,7 @@
 - name: Build SGC problem notification payload body
   ansible.builtin.set_fact:
     dt_problem_notification_payload_body: >-
-      {{ lookup('template', sn_dynatrace_source_dir + '/files/sgc-problem-notification-payload.json.j2') }}
+      {{ lookup('template', dt_integrations_dir + '/sgc-problem-notification-payload.json.j2') }}
   when: sn_sgc_scope_present | default(false) | bool
   run_once: true
 

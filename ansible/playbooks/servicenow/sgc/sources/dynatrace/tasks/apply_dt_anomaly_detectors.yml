@@ -2,9 +2,12 @@
 - name: Resolve Dynatrace API credentials
   ansible.builtin.include_tasks: resolve_dt_api.yml
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
+
 - name: Render CPU metric event payload
   ansible.builtin.template:
-    src: "{{ sn_dynatrace_source_dir }}/files/spark-cpu-metric-event.json.j2"
+    src: "{{ dt_integrations_dir }}/spark-cpu-metric-event.json.j2"
     dest: /tmp/spark-cpu-metric-event.json
     mode: "0644"
   delegate_to: localhost
@@ -12,7 +15,7 @@
 
 - name: Render Spark ERROR log event payload
   ansible.builtin.template:
-    src: "{{ sn_dynatrace_source_dir }}/files/spark-error-log-event.json.j2"
+    src: "{{ dt_integrations_dir }}/spark-error-log-event.json.j2"
     dest: /tmp/spark-error-log-event.json
     mode: "0644"
   delegate_to: localhost

@@ -1,0 +1,35 @@
+---
+# Scan servicenow/regions/*/region.yaml and build region descriptor list.
+# Optional filter: sn_region_filter (region_id)
+# Output: sn_region_descriptors, sn_region_descriptor_files
+
+- name: Find management region descriptors
+  ansible.builtin.find:
+    paths: "{{ sn_regions_dir }}"
+    patterns: region.yaml
+    recurse: true
+  register: sn_region_descriptor_find
+
+- name: Load each region descriptor
+  ansible.builtin.set_fact:
+    sn_region_descriptors: >-
+      {{ sn_region_descriptors | default([]) + [
+           (lookup('file', item.path) | from_yaml) | combine({'_path': item.path}, recursive=True)
+         ] }}
+  loop: "{{ sn_region_descriptor_find.files | default([]) | sort(attribute='path') }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+
+- name: Apply optional region filter
+  ansible.builtin.set_fact:
+    sn_region_descriptors: >-
+      {{ sn_region_descriptors | selectattr('region_id', 'equalto', sn_region_filter) | list }}
+  when: sn_region_filter | default('') | length > 0
+
+- name: Assert at least one region descriptor was found
+  ansible.builtin.assert:
+    that:
+      - sn_region_descriptors | default([]) | length > 0
+    fail_msg: >-
+      No region.yaml found under {{ sn_regions_dir }}.
+      Set sn_specs_root_override if specifications are outside the repository.

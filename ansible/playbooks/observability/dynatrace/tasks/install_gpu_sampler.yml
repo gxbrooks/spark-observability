@@ -3,9 +3,12 @@
 # Target hosts: kubernetes_workers (Lab1, Lab2).
 # Prerequisite: install_oneagent_host.yml must have run so dynatrace_ingest exists.
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"
+
 - name: Resolve sampler source root and credentials
   ansible.builtin.set_fact:
-    gpu_sampler_src: "{{ playbook_dir }}/../../../../observability/dynatrace/sampler/gpu"
+    gpu_sampler_src: "{{ dt_sampler_dir }}/gpu"
     # Host-owned location: must NOT live under the OneAgent-managed tree
     # (/opt/dynatrace/oneagent/...), which is provisioned/removed by the DynaKube
     # CSI driver and disappears on OneAgent reinstall, taking the script with it.

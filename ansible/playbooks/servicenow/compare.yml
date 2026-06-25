@@ -16,7 +16,7 @@
       ansible.builtin.debug:
         msg: |
           ServiceNow ↔ Dynatrace compare:
-            compare/run.yml — full SN/DT inventory by default, JSON + Excel under tmp/compare/
+            compare/run.yml — raw export (compare_data.json) + annotated report (compare_report.json) under tmp/compare/
             Optional: -e sn_compare_filter_by_cmdb_location=true -e sn_compare_filter_by_dynatrace_mz=true
 
 - import_playbook: compare/run.yml

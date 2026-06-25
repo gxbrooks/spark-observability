@@ -1,6 +1,9 @@
 - name: Resolve platform variables
   ansible.builtin.include_tasks: resolve_k8s_cluster.yml
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"
+
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
@@ -11,9 +14,9 @@
   delegate_to: localhost
   run_once: true
 
-- name: Render automatic tags payload (Git source)
+- name: Render automatic tags payload from specification
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../../../../observability/dynatrace/automatic-tags/spark-observability-tags.json.j2"
+    src: "{{ dt_auto_tags_file }}"
     dest: /tmp/spark-observability-tags.json
     mode: "0644"
   vars:

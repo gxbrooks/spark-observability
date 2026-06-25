@@ -1,6 +1,9 @@
 - name: Resolve platform variables
   ansible.builtin.include_tasks: resolve_k8s_cluster.yml
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"
+
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
@@ -10,9 +13,9 @@
   delegate_to: localhost
   run_once: true
 
-- name: Render management zone payload (Git source)
+- name: Render management zone payload from specification
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../../../../observability/dynatrace/management-zone/spark-observability-zone.json"
+    src: "{{ dt_mz_settings_file }}"
     dest: /tmp/spark-observability-zone.json
     mode: "0644"
   vars:

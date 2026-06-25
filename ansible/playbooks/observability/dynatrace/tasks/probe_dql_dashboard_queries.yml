@@ -21,6 +21,9 @@
 # Usage:
 #   ansible-playbook deploy.yml -i ansible/inventory.yml -e @vars/secrets.yaml --tags probe_dql
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"
+
 - name: Resolve tokens for DQL probe
   ansible.builtin.set_fact:
     dql_grail_token: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN_GRAIL | default('') }}"
@@ -33,7 +36,7 @@
 # ── Stage 1: Static JSON validation ──────────────────────────────────────────
 - name: Stage dashboard JSON files for static DQL validation
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../../../observability/dynatrace/dashboards/"
+    src: "{{ dt_dashboards_dir }}/"
     dest: /tmp/dt_dql_dashboards/
     mode: "0644"
   delegate_to: localhost

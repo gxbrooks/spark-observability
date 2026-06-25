@@ -32,14 +32,6 @@ sn_sm_rest_api_name: Service Mapping Operations API
 sn_sm_rest_discover_path: /discover
 sn_sm_poll_discovery: false
 
-# Explicit list of CSDM specification files to deploy (application playbook dirs).
-# Each path is relative to ansible/playbooks/ unless absolute.
-sn_csdm_spec_files:
-  - observability/servicenow/csdm.yaml
-  - observability/dynatrace/servicenow/csdm.yaml
-  - elastic-agent/servicenow/csdm.yaml
-  - spark/servicenow/csdm.yaml
-
 sn_csdm_registry: {}
 sn_csdm_app_svc_queue: []
 sn_sm_discover_service_names: []

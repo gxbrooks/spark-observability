@@ -1,0 +1,10 @@
+---
+# Repository roots for ServiceNow and Dynatrace specifications (outside ansible/).
+# Override with -e sn_specs_root_override=... or -e dt_specs_root_override=... when specs live outside Git.
+
+sn_repo_root: "{{ (playbook_dir | regex_replace('/playbooks/.*', '')) | dirname }}"
+sn_specs_root: "{{ sn_specs_root_override | default(sn_repo_root ~ '/servicenow') }}"
+sn_regions_dir: "{{ sn_specs_root }}/regions"
+sn_integrations_dir: "{{ sn_specs_root }}/integrations"
+dt_specs_root: "{{ dt_specs_root_override | default(sn_repo_root ~ '/observability/dynatrace') }}"
+dt_tenants_dir: "{{ dt_specs_root }}/tenants"

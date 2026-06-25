@@ -2,6 +2,9 @@
 - name: Resolve Dynatrace API credentials
   ansible.builtin.include_tasks: resolve_dt_api.yml
 
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
+
 - name: List management zones
   ansible.builtin.uri:
     url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:management-zones&fields=objectId,value&pageSize=100"
@@ -36,7 +39,7 @@
 
 - name: Render Spark lab alerting profile payload
   ansible.builtin.template:
-    src: "{{ sn_dynatrace_source_dir }}/files/spark-snow-alerting-profile.json.j2"
+    src: "{{ dt_integrations_dir }}/spark-snow-alerting-profile.json.j2"
     dest: /tmp/spark-snow-alerting-profile.json
     mode: "0644"
   delegate_to: localhost
