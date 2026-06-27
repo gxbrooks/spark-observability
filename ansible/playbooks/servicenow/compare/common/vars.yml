@@ -1,5 +1,5 @@
 ---
-# ServiceNow ↔ Dynatrace compare (see servicenow/docs/DT_CN_Comparison_Process.md).
+# ServiceNow ↔ Dynatrace compare (see servicenow/docs/DT_SN_Comparison_Process.md).
 
 sn_url: "{{ SN_URL | trim }}"
 sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
@@ -15,7 +15,11 @@ sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
 sn_csdm_dir: "{{ sn_servicenow_playbooks_dir }}/csdm"
 sn_playbooks_root: "{{ sn_servicenow_playbooks_dir | dirname }}"
 
-# Default: export full ServiceNow and Dynatrace inventories; capture location/MZ as attributes.
+# Default: export full ServiceNow and Dynatrace models (scope mode "all" on each side).
+# Optional scope filters — set independently per platform:
+#   sn_compare_filter_by_cmdb_location=true   → ServiceNow: Linux servers at scope unit cmdb_location
+#   sn_compare_filter_by_dynatrace_mz=true    → Dynatrace: entities in scope unit management zone(s)
+# Future scope dimensions may add additional flags; see DT_SN_Comparison_Process.md.
 sn_compare_filter_by_cmdb_location: false
 sn_compare_filter_by_dynatrace_mz: false
 sn_compare_dt_page_size: 500
@@ -33,3 +37,6 @@ sn_compare_dt_entity_types:
   - KUBERNETES_NODE
 
 sn_compare_data: {}
+sn_compare_comparisons: []
+sn_compare_export_filename: DT_SN_Model_Comparison.json
+sn_compare_report_filename: DT_SN_Model_Comparison_Report.json

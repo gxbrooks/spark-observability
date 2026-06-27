@@ -1,0 +1,37 @@
+---
+# Sync CSDM host-platform servicenow.io tags onto linux_server CIs (Elastic Agent, OneAgent, etc.).
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/sync_tags.yml -e @../vars/secrets.yaml
+
+- name: Sync host CSDM tags to cmdb_key_value
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../../common/spec_roots.yml"
+  vars:
+    sn_region_id: brooks-lab
+    sn_host_csdm_spec_files:
+      - elastic-agent.csdm.yaml
+  tasks:
+    - name: Load host CSDM specifications
+      ansible.builtin.include_tasks: tasks/load_host_csdm_spec.yml
+      loop: "{{ sn_host_csdm_spec_files }}"
+      loop_control:
+        loop_var: sn_host_csdm_spec_file
+
+    - name: Sync tags for each host application service instance
+      ansible.builtin.include_tasks: tasks/sync_one_host_csdm_tags.yml
+      loop: "{{ sn_host_csdm_queue | default([]) }}"
+      loop_control:
+        loop_var: sn_host_csdm_entry
+        label: "{{ sn_host_csdm_entry.spec.identifier | default(sn_host_csdm_entry.spec.name) }} @ {{ sn_host_csdm_entry.host | default('static') }}"
+
+    - name: Host tag sync summary
+      ansible.builtin.debug:
+        msg: >-
+          Synced servicenow.io labels for {{ sn_host_csdm_queue | default([]) | length }}
+          host application service instance(s).

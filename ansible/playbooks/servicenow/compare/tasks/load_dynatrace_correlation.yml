@@ -43,7 +43,9 @@
              ),
              'auto_tags': sn_compare_dt_correlation_raw.auto_tags | default([]),
              'management_zone_expected_for': sn_compare_dt_correlation_raw.management_zone_expected_for | default([]),
-             'project_host_names': sn_compare_dt_correlation_raw.project_host_names | default([]),
+             'reference_host_names': sn_compare_dt_correlation_raw.reference_host_names | default(
+               sn_compare_dt_correlation_raw.project_host_names | default([])
+             ),
              'recommendations': sn_compare_dt_correlation_raw.recommendations | default({})
            }
          }, recursive=True) }}

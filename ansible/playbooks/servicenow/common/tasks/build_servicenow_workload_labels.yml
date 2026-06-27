@@ -1,0 +1,28 @@
+---
+# Build servicenow.io label map from explicit application service specification fields.
+# Input: sn_as_spec, sn_as_host (optional, for expand placeholders)
+# Output: sn_as_identifier, sn_servicenow_workload_labels
+
+- name: Resolve application service identifier
+  ansible.builtin.set_fact:
+    sn_as_identifier: >-
+      {{ sn_as_spec.identifier
+         | replace('{host}', sn_as_host | default(''))
+         | replace('{host_lower}', (sn_as_host | default('')) | lower) }}
+
+- name: Build servicenow.io workload labels from explicit specification
+  ansible.builtin.set_fact:
+    sn_servicenow_workload_labels: >-
+      {{ {
+           'servicenow.io/application-service-identifier': sn_as_identifier,
+           'servicenow.io/environment': sn_as_spec.environment,
+           'servicenow.io/location': sn_as_spec.location
+         }
+         | combine(
+             {'servicenow.io/service-tier': sn_as_spec.service_tier}
+             if sn_as_spec.service_tier is defined and (sn_as_spec.service_tier | string | length) > 0 else {},
+             {'servicenow.io/cluster': sn_as_spec.cluster}
+             if sn_as_spec.cluster is defined and (sn_as_spec.cluster | string | length) > 0 else {},
+             {'servicenow.io/namespace': sn_as_spec.namespace}
+             if sn_as_spec.namespace is defined and (sn_as_spec.namespace | string | length) > 0 else {},
+             recursive=True) }}

@@ -1,6 +1,6 @@
 ---
 # Collect and diff one scope unit. Input: sn_compare_scope_unit
-# Appends to sn_compare_data[scope_unit_id]
+# Appends to sn_compare_comparisons (flattened into DT_SN_Model_Comparison.json after all units run).
 
 - name: Reset per-scope specification path accumulator
   ansible.builtin.set_fact:
@@ -9,8 +9,28 @@
 - name: Initialize scope unit result
   ansible.builtin.set_fact:
     sn_compare_unit_result:
-      scope_unit: "{{ sn_compare_scope_unit }}"
+      registry:
+        scope_unit_id: "{{ sn_compare_scope_unit.scope_unit_id | default('') }}"
+        region_id: "{{ sn_compare_scope_unit.region_id | default('') }}"
+        cmdb_location: "{{ sn_compare_scope_unit.cmdb_location | default('') }}"
+        cmdb_environment: "{{ sn_compare_scope_unit.cmdb_environment | default('') }}"
+        csdm_spec_files: "{{ sn_compare_scope_unit.csdm_spec_files | default([]) }}"
       generated_at: "{{ lookup('pipe', 'date -Iseconds') }}"
+      scope_applied:
+        servicenow:
+          mode: "{{ 'location_filtered' if sn_compare_filter_by_cmdb_location | default(false) | bool else 'all' }}"
+          location: "{{ sn_compare_scope_unit.cmdb_location | default('') if sn_compare_filter_by_cmdb_location | default(false) | bool else '' }}"
+        dynatrace:
+          mode: "{{ 'management_zone_filtered' if sn_compare_filter_by_dynatrace_mz | default(false) | bool else 'all' }}"
+          management_zones: "{{ sn_compare_scope_unit.dynatrace_management_zones | default([]) if sn_compare_filter_by_dynatrace_mz | default(false) | bool else [] }}"
+      instance:
+        servicenow_url: "{{ SN_URL | trim }}"
+        dynatrace_tenant_url: >-
+          {{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL)
+              else DT_TENANT_URL) | default('') | trim }}
+        dynatrace_ui_url: >-
+          {{ ((DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL)
+               else DT_API_URL) | default('') | trim | regex_replace('/api/?$', '')) }}
       intent: {}
       servicenow: {}
       dynatrace: {}
@@ -40,13 +60,6 @@
 - name: Build host and application service diffs
   ansible.builtin.include_tasks: build_diffs.yml
 
-- name: Record scope unit compare result
+- name: Append scope unit compare result
   ansible.builtin.set_fact:
-    sn_compare_data: >-
-      {{ sn_compare_data | combine({sn_compare_scope_unit.scope_unit_id: sn_compare_unit_result}, recursive=True) }}
-
-- name: Write scope unit JSON snapshot
-  ansible.builtin.copy:
-    content: "{{ sn_compare_unit_result | to_nice_json }}"
-    dest: "{{ sn_compare_output_dir }}/{{ sn_compare_scope_unit.scope_unit_id }}.json"
-    mode: "0644"
+    sn_compare_comparisons: "{{ sn_compare_comparisons | default([]) + [sn_compare_unit_result] }}"

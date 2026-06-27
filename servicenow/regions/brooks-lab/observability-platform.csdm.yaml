@@ -1,17 +1,6 @@
 ---
 # Observability stack — CSDM specification
-# See servicenow/docs/CSDM_Specifications.md
-# Docker Compose services use tag-based Service Mapping (servicenow.io/* labels on compose services).
-
-tag_defaults:
-  environment: on-prem
-  location: "{{ SN_LAB_LOCATION_NAME }}"
-
-csdm_defaults:
-  business_owner: gbrooks
-  it_application_owner: gbrooks
-  owned_by: gbrooks
-  busines_criticality: "4 - not critical"
+# Runtime labels: observability/docker-compose.yml (single source of truth)
 
 business_applications:
   - name: Observability Platform
@@ -19,6 +8,8 @@ business_applications:
     short_description: Monitoring, logging, metrics, and tracing
     operational_status: "1"
     active: "true"
+    business_owner: gbrooks
+    it_application_owner: gbrooks
 
 business_services:
   - name: Elasticsearch
@@ -26,42 +17,56 @@ business_services:
     short_description: Primary metrics, logs, and trace storage (Elastic Stack)
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
   - name: Kibana
     identifier: kibana
     short_description: Elastic Stack UI and index management
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
   - name: Grafana
     identifier: grafana
     short_description: Dashboards and visualization
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
   - name: Prometheus
     identifier: prometheus
     short_description: Kubernetes and infrastructure metrics collection
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
   - name: Grafana Tempo
     identifier: grafana-tempo
     short_description: Distributed trace storage and query
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
   - name: OpenTelemetry Collector
     identifier: opentelemetry-collector
     short_description: OTLP ingest, Prometheus remote write, and export
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
   - name: Logstash
     identifier: logstash
     short_description: Event and metrics pipeline into Elasticsearch
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
 application_services:
   - name: Elasticsearch
@@ -73,13 +78,13 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: data
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: es01
 
   - name: Kibana
     identifier: kibana
@@ -90,14 +95,14 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: web
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: kibana
 
   - name: Grafana
     identifier: grafana
@@ -108,16 +113,16 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: web
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - Prometheus
       - Grafana Tempo
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: grafana
 
   - name: Prometheus
     identifier: prometheus
@@ -128,15 +133,15 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: data
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Elasticsearch
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: prometheus
 
   - name: Grafana Tempo
     identifier: grafana-tempo
@@ -147,15 +152,15 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: data
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Elasticsearch
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: tempo
 
   - name: OpenTelemetry Collector
     identifier: opentelemetry-collector
@@ -166,15 +171,15 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: ingest
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - Dynatrace Tenant
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: otel-collector
 
   - name: Logstash
     identifier: logstash
@@ -185,11 +190,11 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: ingest
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - name: lab3
         type: linux_server
-    tags:
-      docker:
-        com.docker.compose.project: observability
-        com.docker.compose.service: logstash01

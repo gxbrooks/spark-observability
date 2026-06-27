@@ -18,12 +18,29 @@
       - sn_csdm_app_svc_item.spec.platform in ['kubernetes', 'docker', 'host', 'saas']
       - sn_csdm_app_svc_item.spec.service_mapping is defined
       - sn_csdm_app_svc_item.spec.service_mapping in ['tags', 'vertical', 'manual']
-      - sn_csdm_app_svc_item.spec.environment is defined or sn_csdm_spec.tag_defaults.environment is defined
-      - sn_csdm_app_svc_item.spec.location is defined or sn_csdm_spec.tag_defaults.location is defined
+      - sn_csdm_app_svc_item.spec.owned_by is defined
+      - sn_csdm_app_svc_item.spec.owned_by | length > 0
+      - sn_csdm_app_svc_item.spec.busines_criticality is defined
+      - sn_csdm_app_svc_item.spec.busines_criticality | length > 0
     fail_msg: >-
       Application service '{{ sn_csdm_app_svc_name }}' missing required attributes
-      (identifier, platform, service_mapping, environment, location).
+      (identifier, platform, service_mapping, owned_by, busines_criticality).
       See CSDM_Specifications.md.
+
+- name: Validate tag-based application service environment and location
+  ansible.builtin.assert:
+    that:
+      - sn_csdm_app_svc_item.spec.environment is defined
+      - sn_csdm_app_svc_item.spec.environment | length > 0
+      - sn_csdm_app_svc_item.spec.location is defined
+      - sn_csdm_app_svc_item.spec.location | length > 0
+    fail_msg: >-
+      Application service '{{ sn_csdm_app_svc_name }}' missing required attributes
+      (environment, location).
+      See CSDM_Specifications.md.
+  when:
+    - sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+    - sn_csdm_app_svc_item.spec.platform != 'saas'
 
 - name: Validate Kubernetes application service rules
   ansible.builtin.assert:
@@ -44,16 +61,6 @@
       SaaS application service '{{ sn_csdm_app_svc_name }}' must use
       service_mapping: manual and discover: false.
   when: sn_csdm_app_svc_item.spec.platform == 'saas'
-
-- name: Validate tag-based application service has tags
-  ansible.builtin.assert:
-    that:
-      - sn_csdm_app_svc_item.spec.tags is defined
-      - (sn_csdm_app_svc_item.spec.tags | length) > 0
-    fail_msg: >-
-      Application service '{{ sn_csdm_app_svc_name }}' with service_mapping: tags
-      must declare a tags map.
-  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
 
 - name: Validate tag-based application service must not enable discover
   ansible.builtin.assert:

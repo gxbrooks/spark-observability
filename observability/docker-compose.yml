@@ -61,8 +61,6 @@ services:
       role: Elasticsearch
       com.docker.compose.project: observability
       com.docker.compose.service: es01
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: elasticsearch
       servicenow.io/application-service-identifier: elasticsearch
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
@@ -190,8 +188,6 @@ services:
       role: "Kibana"
       com.docker.compose.project: observability
       com.docker.compose.service: kibana
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: kibana
       servicenow.io/application-service-identifier: kibana
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
@@ -237,8 +233,6 @@ services:
       role: "Grafana"
       com.docker.compose.project: observability
       com.docker.compose.service: grafana
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: grafana
       servicenow.io/application-service-identifier: grafana
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
@@ -329,8 +323,6 @@ services:
       role: "OpenTelemetry Collector"
       com.docker.compose.project: observability
       com.docker.compose.service: otel-collector
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: opentelemetry-collector
       servicenow.io/application-service-identifier: opentelemetry-collector
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
@@ -425,8 +417,6 @@ services:
       role: "Prometheus"
       com.docker.compose.project: observability
       com.docker.compose.service: prometheus
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: prometheus
       servicenow.io/application-service-identifier: prometheus
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
@@ -481,8 +471,6 @@ services:
       role: "Grafana Tempo"
       com.docker.compose.project: observability
       com.docker.compose.service: tempo
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: grafana-tempo
       servicenow.io/application-service-identifier: grafana-tempo
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
@@ -527,8 +515,6 @@ services:
       role: "Logstash"
       com.docker.compose.project: observability
       com.docker.compose.service: logstash01
-      servicenow.io/application-identifier: observability-platform
-      servicenow.io/business-service-identifier: logstash
       servicenow.io/application-service-identifier: logstash
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab

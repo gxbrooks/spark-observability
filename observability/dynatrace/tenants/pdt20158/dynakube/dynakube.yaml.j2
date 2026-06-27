@@ -17,6 +17,12 @@ spec:
         - "--set-host-property=Project=spark-observability"
         - "--set-host-property=Environment={{ DT_ENVIRONMENT }}"
         - "--set-host-property=OwnedBy={{ DT_OWNED_BY }}"
+      labels:
+        servicenow.io/environment: on-prem
+        servicenow.io/location: brooks-lab
+        servicenow.io/service-tier: ingest
+        servicenow.io/cluster: brooks-lab
+        servicenow.io/namespace: dynatrace
   activeGate:
     capabilities:
       - routing

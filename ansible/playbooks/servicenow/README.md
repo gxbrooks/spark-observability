@@ -58,7 +58,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e @../vars/sec
 ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml -e @../vars/secrets.yaml
 
-# CSDM deploy and compare process: playbooks/servicenow/docs/DT_CN_Comparison_Process.md
+# CSDM deploy and compare process: playbooks/servicenow/docs/DT_SN_Comparison_Process.md
 
 # Phase 1 — Discovery only
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml

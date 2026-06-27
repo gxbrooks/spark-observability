@@ -42,8 +42,8 @@ management_zone_expected_for:
   - KUBERNETES_CLUSTER
   - KUBERNETES_NODE
 
-# Normalized host names (short hostname) for project-scoped partitioning checks
-project_host_names:
+# Normalized host names for correlation-spec partitioning checks (optional).
+reference_host_names:
   - lab1
   - lab2
   - lab3
@@ -64,4 +64,4 @@ recommendations:
     CMDB host location does not match scope unit cmdb_location hint — update cmn_location
     on the CI or adjust the scope correlation registry
   missing_canonical_tag: >-
-    Run discovery/docker/discover.yml and fix cmdb_key_value ACLs (docs/install.md §6.1)
+    Run discovery/docker/discover.yml and fix cmdb_key_value ACLs (docs/install.md §6.3)

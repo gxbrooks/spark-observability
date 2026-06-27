@@ -1,0 +1,13 @@
+---
+# Apply per-node servicenow.io/application-service-identifier to OneAgent pods.
+- name: Label OneAgent pods
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Label OneAgent pod on each node
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../observability/dynatrace/tasks/label_oneagent_servicenow.yml"
+      loop: "{{ groups['k8s_nodes'] | default([]) }}"
+      loop_control:
+        loop_var: oneagent_node
+        label: "{{ oneagent_node }}"

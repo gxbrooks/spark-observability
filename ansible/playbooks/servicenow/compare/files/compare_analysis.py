@@ -222,11 +222,13 @@ def build_partitioning_diagnostics(
     dt_entities: dict,
 ) -> list[dict]:
     correlation = unit.get("dynatrace_correlation", {})
-    scope = unit.get("scope_unit", {})
     partitioning = correlation.get("partitioning", {})
     expected_mz = partitioning.get("management_zone", "")
-    expected_location = scope.get("cmdb_location", "")
-    project_hosts = {normalize_host(h) for h in correlation.get("project_host_names", []) if h}
+    reference_hosts = {
+        normalize_host(h)
+        for h in correlation.get("reference_host_names", correlation.get("project_host_names", []))
+        if h
+    }
     expected_clusters = {
         c.get("dynatrace_name", ""): c for c in correlation.get("kubernetes_clusters", []) if c.get("dynatrace_name")
     }
@@ -249,7 +251,7 @@ def build_partitioning_diagnostics(
                 entity_name=cluster_name,
                 entity_id="",
                 issue="cluster_not_in_tenant",
-                detail=f"Expected cluster '{cluster_name}' (SN: {cluster_meta.get('servicenow_name', '')}) not found in Dynatrace export",
+                detail=f"Expected cluster '{cluster_name}' (ServiceNow: {cluster_meta.get('servicenow_name', '')}) not found in Dynatrace export",
                 recommendation=recs.get("missing_cluster_management_zone", ""),
             )
             continue
@@ -262,23 +264,12 @@ def build_partitioning_diagnostics(
                 entity_name=cluster_name,
                 entity_id=match.get("entityId", ""),
                 issue="missing_management_zone",
-                detail=f"Cluster has management zones [{', '.join(mzs) or '(none)'}]; expected '{expected_mz}'",
+                detail=f"Cluster has management zones [{', '.join(mzs) or '(none)'}]; correlation spec expects '{expected_mz}'",
                 recommendation=recs.get("missing_cluster_management_zone", recs.get("missing_management_zone", "")),
-            )
-        else:
-            add_row(
-                category="dynatrace_partitioning",
-                status="ok",
-                entity_type="KUBERNETES_CLUSTER",
-                entity_name=cluster_name,
-                entity_id=match.get("entityId", ""),
-                issue="",
-                detail=f"Management zone '{expected_mz}' present" if expected_mz else "Cluster present",
-                recommendation="",
             )
 
     dt_hosts_by_norm = {normalize_host(ent.get("displayName", "")): ent for ent in iter_dt_entities(dt_entities, "HOST")}
-    for norm in sorted(project_hosts):
+    for norm in sorted(reference_hosts):
         ent = dt_hosts_by_norm.get(norm)
         if not ent:
             add_row(
@@ -287,8 +278,8 @@ def build_partitioning_diagnostics(
                 entity_type="HOST",
                 entity_name=norm,
                 entity_id="",
-                issue="project_host_not_in_dynatrace",
-                detail=f"Project host '{norm}' not found in Dynatrace HOST export",
+                issue="reference_host_not_in_dynatrace",
+                detail=f"Reference host '{norm}' from correlation spec not found in Dynatrace HOST export",
                 recommendation="Verify OneAgent deployment and host group assignment",
             )
             continue
@@ -301,28 +292,15 @@ def build_partitioning_diagnostics(
                 entity_name=ent.get("displayName", norm),
                 entity_id=ent.get("entityId", ""),
                 issue="missing_management_zone",
-                detail=f"Host has management zones [{', '.join(mzs) or '(none)'}]; expected '{expected_mz}'",
+                detail=f"Host has management zones [{', '.join(mzs) or '(none)'}]; correlation spec expects '{expected_mz}'",
                 recommendation=recs.get("missing_management_zone", ""),
             )
-        else:
-            add_row(
-                category="dynatrace_partitioning",
-                status="ok",
-                entity_type="HOST",
-                entity_name=ent.get("displayName", norm),
-                entity_id=ent.get("entityId", ""),
-                issue="",
-                detail=f"Management zone '{expected_mz}' present" if expected_mz else "Host present",
-                recommendation="",
-            )
 
-    if expected_mz and project_hosts:
-        project_host_mz_ok = sum(
-            1 for norm in project_hosts if expected_mz in mz_list(dt_hosts_by_norm.get(norm, {}))
-        )
+    if expected_mz:
+        hosts_in_mz = sum(1 for ent in iter_dt_entities(dt_entities, "HOST") if expected_mz in mz_list(ent))
         pg_in_mz = sum(1 for ent in iter_dt_entities(dt_entities, "PROCESS_GROUP") if expected_mz in mz_list(ent))
         pg_total = len(iter_dt_entities(dt_entities, "PROCESS_GROUP"))
-        if project_host_mz_ok > 0 and pg_in_mz == 0:
+        if hosts_in_mz > 0 and pg_in_mz == 0:
             add_row(
                 category="dynatrace_partitioning",
                 status="action_required",
@@ -330,27 +308,8 @@ def build_partitioning_diagnostics(
                 entity_name="(tenant summary)",
                 entity_id="",
                 issue="missing_process_group_management_zone",
-                detail=f"0/{pg_total} process groups in '{expected_mz}' while {project_host_mz_ok}/{len(project_hosts)} project hosts are in that zone",
+                detail=f"0/{pg_total} process groups assigned to management zone '{expected_mz}' while {hosts_in_mz} HOST entities are in that zone",
                 recommendation=recs.get("missing_process_group_management_zone", ""),
             )
-
-    if expected_location:
-        for host in sn_hosts or []:
-            name = field_value(host.get("name"))
-            loc = sn_location(host)
-            norm = normalize_host(name)
-            if norm not in project_hosts:
-                continue
-            if loc and loc.lower() != expected_location.lower():
-                add_row(
-                    category="servicenow_placement",
-                    status="action_required",
-                    entity_type="cmdb_ci_linux_server",
-                    entity_name=name,
-                    entity_id=field_value(host.get("sys_id")),
-                    issue="location_mismatch",
-                    detail=f"CMDB location '{loc}' != scope hint '{expected_location}'",
-                    recommendation=recs.get("sn_location_mismatch", ""),
-                )
 
     return rows

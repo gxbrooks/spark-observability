@@ -2,20 +2,14 @@
 # Elastic Agent — CSDM specification
 # Business Application Observability Platform is defined in observability-platform.csdm.yaml
 
-tag_defaults:
-  environment: on-prem
-  location: "{{ SN_LAB_LOCATION_NAME }}"
-
-csdm_defaults:
-  owned_by: gbrooks
-  busines_criticality: "4 - not critical"
-
 business_services:
   - name: Elastic Agent
     identifier: elastic-agent
     short_description: Host metrics and log shipping to Elasticsearch
     operational_status: "1"
     parent_business_application: Observability Platform
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
 
 application_services:
   - name: "Elastic Agent ({host})"
@@ -27,6 +21,10 @@ application_services:
     service_mapping: tags
     discover: false
     service_tier: ingest
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    busines_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - name: "{host_lower}"
@@ -35,6 +33,3 @@ application_services:
         type: nfs_server
     expand:
       inventory_group: k8s_nodes
-    tags:
-      docker:
-        com.docker.compose.service: elastic-agent

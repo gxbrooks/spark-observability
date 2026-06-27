@@ -1,12 +1,11 @@
 ---
-# Merge csdm_defaults, validate mandatory attributes, resolve user references, build CMDB POST/PATCH body.
+# Validate mandatory attributes, resolve user references, build CMDB POST/PATCH body.
 # Input: sn_csdm_object_kind (business_application|business_service|application_service), sn_csdm_source_spec, sn_csdm_spec
 # Output: sn_csdm_cmdb_body
 
-- name: Merge file-level csdm_defaults into object specification
+- name: Use explicit object specification for CMDB body
   ansible.builtin.set_fact:
-    sn_csdm_merged_spec: >-
-      {{ sn_csdm_spec.csdm_defaults | default({}) | combine(sn_csdm_source_spec, recursive=True) }}
+    sn_csdm_merged_spec: "{{ sn_csdm_source_spec }}"
 
 - name: Validate mandatory business application CMDB attributes
   ansible.builtin.assert:

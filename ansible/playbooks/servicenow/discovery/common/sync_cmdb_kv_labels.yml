@@ -1,0 +1,13 @@
+---
+# Upsert a dict of key/value labels on one CI (cmdb_key_value).
+# Inputs: sn_kv_ci_sys_id, sn_kv_labels (dict)
+
+- name: Upsert cmdb_key_value {{ label_item.key }}
+  ansible.builtin.include_tasks: ensure_cmdb_key_value.yml
+  vars:
+    sn_kv_key: "{{ label_item.key }}"
+    sn_kv_value: "{{ label_item.value | string }}"
+  loop: "{{ sn_kv_labels | dict2items }}"
+  loop_control:
+    loop_var: label_item
+    label: "{{ label_item.key }}"

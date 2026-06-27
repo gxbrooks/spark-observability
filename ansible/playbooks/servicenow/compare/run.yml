@@ -50,9 +50,9 @@
         state: directory
         mode: "0755"
 
-    - name: Initialize compare data aggregate
+    - name: Initialize compare comparisons accumulator
       ansible.builtin.set_fact:
-        sn_compare_data: {}
+        sn_compare_comparisons: []
 
     - name: Resolve Dynatrace API
       ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/sgc/sources/dynatrace/tasks/resolve_dt_api.yml"
@@ -67,27 +67,53 @@
         loop_var: sn_compare_scope_unit
         label: "{{ sn_compare_scope_unit.scope_unit_id }}"
 
-    - name: Write aggregated compare JSON (raw export)
-      ansible.builtin.copy:
-        content: "{{ sn_compare_data | to_nice_json }}"
-        dest: "{{ sn_compare_output_dir }}/compare_data.json"
-        mode: "0644"
+    - name: Build CSDM intent source list for export
+      ansible.builtin.set_fact:
+        sn_compare_intent_sources: >-
+          {{ sn_compare_intent_sources | default([]) + [{
+               'registry': item.registry,
+               'intent': item.intent
+             }] }}
+      loop: "{{ sn_compare_comparisons }}"
+      loop_control:
+        label: "{{ item.registry.scope_unit_id | default('') }}"
+      when: sn_compare_comparisons | length > 0
 
-    - name: Generate annotated compare report JSON
+    - name: Build flattened model comparison export from collected units
+      ansible.builtin.set_fact:
+        sn_compare_export:
+          export_version: "1.2"
+          generated_at: "{{ sn_compare_comparisons[-1].generated_at }}"
+          scope_applied: "{{ sn_compare_comparisons[-1].scope_applied }}"
+          instance: "{{ sn_compare_comparisons[-1].instance }}"
+          csdm_intent_sources: "{{ sn_compare_intent_sources | default([]) }}"
+          servicenow: "{{ sn_compare_comparisons[-1].servicenow }}"
+          dynatrace: "{{ sn_compare_comparisons[-1].dynatrace }}"
+          dynatrace_correlation: "{{ sn_compare_comparisons[-1].dynatrace_correlation | default({}) }}"
+      when: sn_compare_comparisons | length > 0
+
+    - name: Write model comparison export JSON
+      ansible.builtin.copy:
+        content: "{{ sn_compare_export | to_nice_json }}"
+        dest: "{{ sn_compare_output_dir }}/{{ sn_compare_export_filename }}"
+        mode: "0644"
+      when: sn_compare_comparisons | length > 0
+
+    - name: Generate annotated model comparison report JSON
       ansible.builtin.command:
         cmd: >-
           python3 {{ sn_compare_dir }}/files/generate_compare_report.py
-          {{ sn_compare_output_dir }}/compare_data.json
-          {{ sn_compare_output_dir }}/compare_report.json
+          {{ sn_compare_output_dir }}/{{ sn_compare_export_filename }}
+          {{ sn_compare_output_dir }}/{{ sn_compare_report_filename }}
       register: sn_compare_report
       changed_when: true
+      when: sn_compare_comparisons | length > 0
 
     - name: Report compare output locations
       ansible.builtin.debug:
         msg: |
-          Compare complete for {{ sn_compare_scope_units_effective | length }} scope unit(s).
+          Compare complete for {{ sn_compare_comparisons | length }} CSDM intent source(s).
           Output directory: {{ sn_compare_output_dir }}
-          Report: {{ sn_compare_output_dir }}/compare_report.json
-          Raw JSON: {{ sn_compare_output_dir }}/compare_data.json
-          Per-scope raw: {{ sn_compare_output_dir }}/<scope_unit_id>.json
+          Export: {{ sn_compare_output_dir }}/{{ sn_compare_export_filename }}
+          Report: {{ sn_compare_output_dir }}/{{ sn_compare_report_filename }}
           {{ sn_compare_report.stdout | default('') }}

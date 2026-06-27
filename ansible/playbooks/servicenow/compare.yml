@@ -4,7 +4,7 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml -e @../vars/secrets.yaml
 #
-# Process: playbooks/servicenow/docs/DT_CN_Comparison_Process.md
+# Process: playbooks/servicenow/docs/DT_SN_Comparison_Process.md
 
 - name: ServiceNow compare banner
   hosts: localhost
@@ -16,7 +16,7 @@
       ansible.builtin.debug:
         msg: |
           ServiceNow ↔ Dynatrace compare:
-            compare/run.yml — raw export (compare_data.json) + annotated report (compare_report.json) under tmp/compare/
+            compare/run.yml — DT_SN_Model_Comparison.json (export) + DT_SN_Model_Comparison_Report.json under tmp/compare/
             Optional: -e sn_compare_filter_by_cmdb_location=true -e sn_compare_filter_by_dynatrace_mz=true
 
 - import_playbook: compare/run.yml

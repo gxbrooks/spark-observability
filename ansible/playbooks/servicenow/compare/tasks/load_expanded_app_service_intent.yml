@@ -15,8 +15,12 @@
            'parent_business_service': sn_compare_app_entry.parent_business_service | default(''),
            'platform': sn_compare_app_entry.platform | default(''),
            'service_mapping': sn_compare_app_entry.service_mapping | default(''),
-           'csdm_op': sn_compare_app_entry.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')),
+           'csdm_op': sn_compare_app_entry.csdm_op | default('insert'),
            'spec_file': sn_compare_spec_path | basename,
+           'environment': sn_compare_app_entry.environment | default(''),
+           'location': sn_compare_app_entry.location | default(''),
+           'owned_by': sn_compare_app_entry.owned_by | default(''),
+           'busines_criticality': sn_compare_app_entry.busines_criticality | default(''),
            'expand': true,
            'host': expand_host
          }] }}

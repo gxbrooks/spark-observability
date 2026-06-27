@@ -35,5 +35,11 @@
       ansible.builtin.debug:
         msg: |
           KVA Informer restarted in {{ sn_k8s_informer_namespace }}.
-          Allow 3–10 minutes for CMDB sync, then run k8s/test.yml.
+          Allow 3–10 minutes for CMDB sync, then run k8s/sync_pod_labels.yml.
           CMDB filter: cmdb_ci_kubernetes* name STARTSWITH brooks-lab
+
+- name: Ensure OneAgent pods carry per-node application-service-identifier
+  ansible.builtin.import_playbook: label_oneagent_pods.yml
+
+- name: Sync servicenow.io pod labels to cmdb_key_value
+  ansible.builtin.import_playbook: sync_pod_labels.yml

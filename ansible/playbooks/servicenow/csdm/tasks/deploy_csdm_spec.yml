@@ -14,7 +14,6 @@
     sn_csdm_app_svc_queue: []
     sn_csdm_app_svc_delete_queue: []
     sn_sm_discover_service_names: "{{ sn_sm_discover_service_names | default([]) }}"
-    sn_csdm_runtime_tag_manifest: []
 
 - name: Initialize application service delete queue
   ansible.builtin.set_fact:
@@ -24,7 +23,7 @@
   loop_control:
     loop_var: app_svc_spec
     label: "{{ app_svc_spec.name | default('') }}"
-  when: app_svc_spec.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) == 'delete'
+  when: app_svc_spec.csdm_op | default('insert') == 'delete'
 
 - name: Use delete queue while expanding application services for delete
   ansible.builtin.set_fact:
@@ -36,7 +35,7 @@
   loop_control:
     loop_var: sn_csdm_app_svc_entry
     label: "{{ sn_csdm_app_svc_entry.name | default('') }}"
-  when: sn_csdm_app_svc_entry.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) == 'delete'
+  when: sn_csdm_app_svc_entry.csdm_op | default('insert') == 'delete'
 
 - name: Persist expanded application service delete queue
   ansible.builtin.set_fact:
@@ -56,7 +55,7 @@
   loop_control:
     loop_var: sn_csdm_bs_spec
     label: "{{ sn_csdm_bs_spec.name | default('') }}"
-  when: sn_csdm_bs_spec.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) == 'delete'
+  when: sn_csdm_bs_spec.csdm_op | default('insert') == 'delete'
 
 - name: Delete business applications
   ansible.builtin.include_tasks: delete_business_application.yml
@@ -64,7 +63,7 @@
   loop_control:
     loop_var: sn_csdm_ba_spec
     label: "{{ sn_csdm_ba_spec.name | default('') }}"
-  when: sn_csdm_ba_spec.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) == 'delete'
+  when: sn_csdm_ba_spec.csdm_op | default('insert') == 'delete'
 
 - name: Deploy business applications from specification
   ansible.builtin.include_tasks: deploy_business_application.yml
@@ -72,7 +71,7 @@
   loop_control:
     loop_var: sn_csdm_ba_spec
     label: "{{ sn_csdm_ba_spec.name | default('') }}"
-  when: sn_csdm_ba_spec.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: sn_csdm_ba_spec.csdm_op | default('insert') != 'delete'
 
 - name: Deploy business services from specification
   ansible.builtin.include_tasks: deploy_business_service.yml
@@ -80,7 +79,7 @@
   loop_control:
     loop_var: sn_csdm_bs_spec
     label: "{{ sn_csdm_bs_spec.name | default('') }}"
-  when: sn_csdm_bs_spec.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: sn_csdm_bs_spec.csdm_op | default('insert') != 'delete'
 
 - name: Queue static application services (no inventory expand)
   ansible.builtin.set_fact:
@@ -90,7 +89,7 @@
   loop_control:
     loop_var: app_svc_spec
     label: "{{ app_svc_spec.name | default('') }}"
-  when: app_svc_spec.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: app_svc_spec.csdm_op | default('insert') != 'delete'
 
 - name: Queue expanded application services (inventory group loop)
   ansible.builtin.include_tasks: queue_expanded_application_service.yml
@@ -98,7 +97,7 @@
   loop_control:
     loop_var: sn_csdm_app_svc_entry
     label: "{{ sn_csdm_app_svc_entry.name | default('') }}"
-  when: sn_csdm_app_svc_entry.csdm_op | default(sn_csdm_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: sn_csdm_app_svc_entry.csdm_op | default('insert') != 'delete'
 
 - name: Deploy application services from queue
   ansible.builtin.include_tasks: deploy_application_service.yml
@@ -114,10 +113,3 @@
       {{ sn_csdm_app_svc_delete_queue | default([]) | length }} application service delete(s),
       {{ sn_csdm_app_svc_queue | length }} application service insert(s),
       {{ sn_sm_discover_service_names | length }} vertical discovery trigger(s) queued.
-
-- name: Write runtime tag manifest for specification
-  ansible.builtin.copy:
-    content: "{{ {'spec_file': sn_csdm_spec_path | basename, 'services': sn_csdm_runtime_tag_manifest | default([])} | to_nice_yaml }}"
-    dest: "{{ sn_csdm_runtime_tag_output_dir }}/{{ sn_csdm_spec_path | basename | regex_replace('\\.ya?ml$', '') }}_tags.yml"
-    mode: "0644"
-  when: sn_csdm_runtime_tag_manifest | default([]) | length > 0

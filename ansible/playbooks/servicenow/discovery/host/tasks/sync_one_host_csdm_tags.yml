@@ -1,0 +1,32 @@
+---
+# Sync servicenow.io/* labels from CSDM host application services onto linux_server CIs.
+# Input: sn_host_csdm_entry { spec, host }, sn_host_csdm_spec (loaded yaml)
+
+- name: Build servicenow.io labels from explicit application service specification
+  ansible.builtin.include_tasks: ../../../common/tasks/build_servicenow_workload_labels.yml
+  vars:
+    sn_as_spec: "{{ sn_host_csdm_entry.spec }}"
+    sn_as_host: "{{ sn_host_csdm_entry.host | default('') }}"
+
+- name: Map inventory host {{ sn_host_csdm_entry.host }} to CMDB linux server name
+  ansible.builtin.set_fact:
+    sn_host_cmdb_name: "{{ sn_host_csdm_entry.host | lower }}"
+
+- name: Look up linux server CI for {{ sn_host_cmdb_name }}
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_linux_server
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_host_cmdb_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1
+
+- name: Skip host tag sync when linux server CI is missing
+  ansible.builtin.debug:
+    msg: "Linux server CI '{{ sn_host_cmdb_name }}' not found — skip host tag sync."
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Upsert host servicenow.io labels for {{ sn_as_identifier }}
+  ansible.builtin.include_tasks: ../../common/sync_cmdb_kv_labels.yml
+  vars:
+    sn_kv_ci_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_kv_labels: "{{ sn_servicenow_workload_labels }}"
+  when: sn_rest_json.result | default([]) | length > 0

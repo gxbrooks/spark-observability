@@ -6,16 +6,42 @@ title: Dynatrace and ServiceNow CMDB/CSDM Model Comparison Process
 
 ## Purpose
 
-Enterprises operate **two parallel models** of the same environment:
+Enterprises maintain **two parallel models** of the same IT environment:
 
-| System | Primary model |
-|--------|----------------|
-| **ServiceNow** | CSDM hierarchy (Business Application → Business Service → Application Service) backed by CMDB CIs, relationships, and Service Mapping |
-| **Dynatrace** | Entity graph (hosts, processes, services, Kubernetes objects, cloud resources) partitioned by **management zones**, tags, and Smartscape relationships |
+| System | Model |
+|--------|--------|
+| **ServiceNow** | CSDM hierarchy (Business Application → Business Service → Application Service) backed by CMDB CIs, relationships, tags, and Service Mapping |
+| **Dynatrace** | Entity graph (hosts, process groups, services, Kubernetes objects) with partitioning by management zones, tags, and Smartscape relationships |
 
-This document defines a **generic, repeatable process** to compare those models and detect drift. It applies to **on-premise**, **cloud**, **Docker**, **Kubernetes**, and **host/SaaS** workloads. It is written for platform engineers, CSDM modelers, and observability operators—not for a single lab or tenant.
+**Compare** answers three questions for a chosen scope:
 
-**Goal:** Confirm that infrastructure and application boundaries declared in ServiceNow align with what Dynatrace observes, so events, problems, and topology imports bind to the correct CMDB CIs and application services.
+1. **Inconsistencies** — Where do the models disagree on identity, placement, or attributes at defined correlation keys?
+2. **Presence gaps** — What exists in ServiceNow but not Dynatrace (and vice versa)?
+3. **Intra-model issues** — What is wrong *within* each model (missing CMDB objects, missing tag bindings, missing management zone assignment, hierarchy drift)?
+
+The process is **project- and repository-independent**. It applies to on-prem, cloud, Docker, Kubernetes, and SaaS workloads. A lab row in the scope correlation registry (for example `brooks-lab-onprem`) is one scope unit among many an enterprise would define—not a hard-coded “spark-observability project” boundary.
+
+### Default scope: full model (“All”)
+
+By default, compare exports the **entire ServiceNow CMDB slice** and **entire Dynatrace tenant** relevant to the run:
+
+- ServiceNow: all Linux servers and application services (unless `sn_compare_filter_by_cmdb_location=true`)
+- Dynatrace: all entity types in the tenant export (unless `sn_compare_filter_by_dynatrace_mz=true`)
+
+Management zone and CMDB location are captured as **attributes** on each row, not as implicit exclusions. Findings describe model gaps and inconsistencies—not “outside project scope.”
+
+### Optional scope filters (enterprise pattern)
+
+Modelers often need to **restrict** one or both sides to a matching boundary—for example, compare a Dynatrace management zone to the ServiceNow locations that comprise that zone. Scope is controlled by **independent flags per platform** (extensible over time):
+
+| Flag | Platform | Effect when `true` |
+|------|----------|-------------------|
+| `sn_compare_filter_by_cmdb_location` | ServiceNow | Linux servers at the scope unit `cmdb_location` only |
+| `sn_compare_filter_by_dynatrace_mz` | Dynatrace | Entities in the scope unit `dynatrace_management_zones` only |
+
+Additional scope dimensions (business application, cloud account, tag selector, etc.) may be added as new flags. The scope correlation registry (`servicenow/regions/*/region.yaml`) defines how each scope unit maps SN placement to Dynatrace partitioning when filters are enabled.
+
+**Goal:** Confirm that infrastructure and application boundaries align across ServiceNow and Dynatrace so events, problems, and topology imports bind to the correct CMDB CIs and application services.
 
 ---
 
@@ -34,15 +60,15 @@ This document defines a **generic, repeatable process** to compare those models 
 
 ServiceNow and Dynatrace use different ontologies. A Dynatrace **PROCESS_GROUP** is not a CSDM **Application Service**. Consistency means **aligned scope, identity, and dependencies** at defined join keys—not identical object counts or names.
 
-### 2. Separate “intent,” “CMDB actual,” and “Dynatrace actual”
+### 2. Separate “specified,” “CMDB actual,” and “Dynatrace actual”
 
 | Layer | Source | Role in comparison |
 |-------|--------|-------------------|
-| **Intent** | Version-controlled `csdm.yaml` (+ optional env registry) | Expected CSDM hierarchy, identifiers, `depends_on`, platform, Service Mapping method |
+| **Specified** | Version-controlled `*.csdm.yaml` (+ region registry) | Expected CSDM hierarchy, identifiers, `depends_on`, platform, Service Mapping method |
 | **ServiceNow actual** | CMDB after CSDM deploy, Discovery, KVA, SGC | What the instance holds today |
-| **Dynatrace actual** | Entities API / Smartscape in scoped management zone(s) | What observability sees today |
+| **Dynatrace actual** | Entities API / Smartscape in the export scope | What observability sees today |
 
-Drift is reported as **intent vs CMDB**, **CMDB vs Dynatrace**, or **intent vs Dynatrace** depending on the check.
+Drift is reported as **specified vs CMDB**, **CMDB vs Dynatrace**, or **specified vs Dynatrace** depending on the check.
 
 ### 3. Scope attributes are not interchangeable
 
@@ -379,12 +405,12 @@ flowchart TB
 
 | Artifact | Role |
 |----------|------|
-| `ansible/playbooks/servicenow/csdm/docs/CSDM_Specifications.md` | `csdm.yaml` format, platforms, tags, `csdm_op` |
-| `ansible/playbooks/servicenow/csdm/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and `servicenow.io/*` keys |
-| `ansible/playbooks/servicenow/compare.yml` | **Automated compare** — scope-unit export, JSON, and Excel workbook |
-| `ansible/playbooks/servicenow/compare/dynatrace-correlation.yaml` | Expected DT partitioning (MZ, host group, cluster map, auto-tags) for prescriptive diagnostics |
-| `ansible/playbooks/servicenow/compare/common/vars.yml` | Default scope correlation registry (`sn_compare_scope_units`) |
-| `observability/dynatrace/docs/Partitioning_and_Tagging.md` | Example MZ and auto-tag pattern (tenant-specific) |
+| `servicenow/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags, `csdm_op` |
+| `servicenow/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and `servicenow.io/*` keys |
+| `ansible/playbooks/servicenow/compare.yml` | **Automated compare** — raw export + annotated JSON report |
+| `ansible/playbooks/servicenow/compare/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |
+| `servicenow/regions/*/region.yaml` | Scope correlation registry (discovered by compare) |
+| `observability/dynatrace/tenants/*/docs/Partitioning_and_Tagging.md` | Example MZ and auto-tag pattern (tenant-specific) |
 
 ---
 
@@ -404,17 +430,19 @@ ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml \
 
 **What it does (per scope unit):**
 
-1. Loads **CSDM intent** from `csdm.yaml` files listed in `compare/common/vars.yml` (`sn_compare_scope_units`).
-2. Exports **ServiceNow** Linux servers (all CMDB by default; location captured as an attribute), all application services from CMDB, intent-correlated application service status, and `cmdb_key_value` tag rows (canonical + alternate keys).
-3. Exports **Dynatrace** entities (`HOST`, `PROCESS_GROUP`, `SERVICE`, `KUBERNETES_CLUSTER`, `KUBERNETES_NODE`) for the **full tenant by default**, with **management zone membership on each row**.
-4. Writes **`tmp/compare/<timestamp>/compare_data.json`** and a multi-tab **`DT_SN_Compare.xlsx`** workbook (Summary, scope metadata, intent, SN/DT hosts, host diff, application-service diff, SN tags, SN app inventory, DT process groups/services/K8s, **Diagnostics**).
+1. Loads **CSDM specifications** from `servicenow/regions/{region}/*.csdm.yaml` (via region discovery).
+2. Exports **ServiceNow** Linux servers, application services, intent-correlated status, and `cmdb_key_value` tag rows.
+3. Exports **Dynatrace** entities (`HOST`, `PROCESS_GROUP`, `SERVICE`, `KUBERNETES_CLUSTER`, `KUBERNETES_NODE`) for the tenant by default, with management zone on each row.
+4. Writes **`tmp/compare/<timestamp>/DT_SN_Model_Comparison.json`** (raw export) and **`DT_SN_Model_Comparison_Report.json`** (annotated findings with deep links).
 
-**Dynatrace correlation spec:** `compare/dynatrace-correlation.yaml` declares expected management zone, host group, Kubernetes cluster map, and auto-tag dimensions (aligned with `observability/dynatrace/` Settings 2.0). Compare loads it per scope unit and emits prescriptive **Diagnostics** rows (missing MZ on cluster/hosts, process-group propagation gaps, SN location mismatches, missing canonical tags).
+**Report output:** `DT_SN_Model_Comparison_Report.json` (v1.2) is a **platform-neutral** comparison of the full CMDB and Dynatrace tenant export against CSDM intent. The report root carries **`scope_applied`** (default: all/all) and **`csdm_intent_sources`** (which `*.csdm.yaml` files were loaded). Region registry ids (`scope_unit_id`, `region_id`, `cmdb_location`) appear only under **`csdm_intent_sources[].registry`** — they describe where intent came from, not an implicit export boundary unless scope filters are enabled.
 
-**Default scope is full inventory** on both platforms so compare surfaces model inconsistencies whether the root cause is correlation logic, ServiceNow setup, or Dynatrace partitioning. Scope-unit fields (`cmdb_location`, `dynatrace_management_zones`) are **correlation hints** for diagnostics, not filters unless you opt in:
+**Dynatrace correlation spec:** `compare/dynatrace-correlation.yaml` declares expected management zone, host group, Kubernetes cluster map, and reference hosts for partitioning diagnostics. It does not limit export scope unless `sn_compare_filter_by_dynatrace_mz=true`.
+
+**Default scope is the full model on both platforms.** Scope-unit fields (`cmdb_location`, `dynatrace_management_zones`) are **correlation registry metadata** for diagnostics and optional filters:
 
 ```bash
-# Limit repair/export to one CMDB location
+# Limit ServiceNow export to one CMDB location
 ansible-playbook ... -e sn_compare_filter_by_cmdb_location=true
 
 # Limit Dynatrace export to scope-unit management zones
@@ -423,13 +451,13 @@ ansible-playbook ... -e sn_compare_filter_by_dynatrace_mz=true
 
 **Outputs** land under **`tmp/compare/`** at the repository root (gitignored). Override the base path with `-e sn_compare_output_base=/path/to/dir`.
 
-**Registry:** Extend `sn_compare_scope_units` in `compare/common/vars.yml` for additional environments, business units, or management zones. Override the full list with `-e sn_compare_scope_units='[...]'` when needed.
+**Registry:** Add `servicenow/regions/{region-id}/region.yaml` for additional environments. Override discovery with `-e sn_compare_scope_units='[...]'` when needed.
 
-**Workbook tabs** are prefixed per scope unit when multiple units run in one invocation. Diff classification (`matched`, `servicenow_only`, `dynatrace_only`, `missing_in_cmdb`, `missing_tag_binding`, `ok_canonical_tag`, `ok_alternate_tag_only`) is computed by `compare/files/generate_compare_workbook.py`.
+**Diff classification** (`matched`, `servicenow_only`, `dynatrace_only`, `missing_in_cmdb`, `missing_tag_binding`, `ok_canonical_tag`, `ok_alternate_tag_only`) is computed by `compare/files/generate_compare_report.py`.
 
-**Tag binding notes:** Compare queries `cmdb_key_value` for the canonical key `servicenow.io/application-service-identifier` plus alternate keys `app.kubernetes.io/name` and `app` (common KVA paths). When canonical rows are absent but alternate rows match an intent `identifier`, the workbook marks **`ok_alternate_tag_only`** — a signal to run `discovery/docker/discover.yml` or fix table ACLs per `docs/install.md` §6.1 so Compose labels populate the canonical key.
+**Tag binding notes:** Compare queries `cmdb_key_value` for the canonical key `servicenow.io/application-service-identifier` plus alternate keys `app.kubernetes.io/name` and `app`. When canonical rows are absent but alternate rows match an intent `identifier`, the report marks **`alternate_tag_only`** — run `discovery/docker/discover.yml` or fix table ACLs per `servicenow/docs/install.md` §6.3.
 
-This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; run those for deep Service Mapping, SGC, and IRE diagnostics. Compare focuses on **cross-platform inventory and tag alignment** at correlation keys.
+This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; run those for deep Service Mapping, SGC, and IRE diagnostics. Compare focuses on **cross-platform inventory, tag alignment, and annotated drift** at correlation keys.
 
 ---
 
@@ -440,4 +468,5 @@ This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; 
 | 2026-06-21 | Initial generic process; multi–management-zone registry pattern; platform layers for Docker, K8s, cloud, on-prem |
 | 2026-06-21 | Added `compare.yml` automation; moved document to `playbooks/servicenow/docs/` |
 | 2026-06-24 | Compare default scope loosened to full SN/DT inventory; MZ and location captured as attributes; optional filters for repair |
-| 2026-06-24 | Added dynatrace-correlation.yaml and Diagnostics workbook tab for prescriptive partitioning/tag guidance |
+| 2026-06-25 | JSON compare report replaces Excel; entity deep links; project-independent findings; scope_applied metadata |
+| 2026-06-27 | Compare export/report renamed to DT_SN_Model_Comparison*.json; flat report v1.2 with scope_applied at root |

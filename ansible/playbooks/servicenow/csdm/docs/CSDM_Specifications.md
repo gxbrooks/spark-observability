@@ -504,7 +504,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 4.4 The discovery operator **must** run **`discovery/docker/discover.yml`** on Docker hosts where tag-based Service Mapping depends on **`cmdb_key_value`** rows from Compose labels; that playbook reads labels from `docker inspect` and upserts **`cmdb_key_value`** when the integration user has write ACLs.
 
-4.5 When **`cmdb_key_value`** REST insert returns HTTP 403, operators **must** extend table ACLs so **`cmdb_inst_admin`** appears in **Requires role** on the active **read**, **write**, **create**, and **delete** ACLs for table **`cmdb_key_value`** — see `docs/install.md` §6.1. KVA populates Kubernetes labels as user **`system`**, which is a separate internal path.
+4.5 When **`cmdb_key_value`** REST insert returns HTTP 403, operators **must** extend table ACLs so **`cmdb_inst_admin`** appears in **Requires role** on the active **create**, **write**, and **delete** ACLs for table **`cmdb_key_value`** — see `docs/install.md` §6.3. Read access is usually satisfied out of the box via **`cmdb_read`**. KVA populates Kubernetes labels as user **`system`**, which is a separate internal path.
 
 4.6 The discovery operator **should** ensure the MID Server is **Up** before triggering horizontal discovery (`discovery/discover.yml` or Discover Now in the UI).
 

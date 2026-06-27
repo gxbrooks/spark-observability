@@ -80,6 +80,9 @@ sn_k8s_cluster_location_map: "{{ K8S_CLUSTERS }}"
 sn_k8s_location_br_name: k8s-inherit-location-from-cluster
 sn_instance_short_name: "{{ SN_INSTANCE_SHORT_NAME | default('optimizincdemo1') }}"
 sn_k8s_informer_secret_name: "k8s-informer-cred-{{ sn_instance_short_name }}"
+sn_k8s_tag_sync_namespaces:
+  - spark
+  - dynatrace
 
 # Phase 3 — Docker discovery.
 # Capability flags per entry (absent = false):

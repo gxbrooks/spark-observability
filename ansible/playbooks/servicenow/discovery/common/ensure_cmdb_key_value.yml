@@ -1,44 +1,71 @@
 ---
 # Idempotent upsert of one cmdb_key_value row for a CI.
 # Inputs: sn_kv_ci_sys_id, sn_kv_key, sn_kv_value
+# Uses inline uri (not nested include_tasks) so label loops are not deduped by Ansible.
 
-- name: Look up existing cmdb_key_value row
-  ansible.builtin.include_tasks: sn_rest_get.yml
-  vars:
-    sn_rest_table: cmdb_key_value
-    sn_rest_query: >-
-      sysparm_query=configuration_item={{ sn_kv_ci_sys_id | urlencode }}^key={{ sn_kv_key | urlencode }}&sysparm_fields=sys_id,key,value&sysparm_limit=1
+- name: GET cmdb_key_value {{ sn_kv_key }}
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_key_value?sysparm_query=configuration_item={{ sn_kv_ci_sys_id | urlencode }}^key={{ sn_kv_key | urlencode }}&sysparm_fields=sys_id,key,value&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403, 404]
+    return_content: true
+  register: sn_kv_get
+  no_log: true
+  delegate_to: localhost
+  become: false
 
-- name: Create cmdb_key_value row
-  ansible.builtin.include_tasks: sn_rest_mutate.yml
-  vars:
-    sn_rest_method: post
-    sn_rest_table: cmdb_key_value
-    sn_rest_body:
+- name: POST cmdb_key_value {{ sn_kv_key }}
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/cmdb_key_value"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
       configuration_item: "{{ sn_kv_ci_sys_id }}"
       key: "{{ sn_kv_key }}"
       value: "{{ sn_kv_value }}"
-  when: sn_rest_json.result | default([]) | length == 0
+    status_code: [200, 201, 403, 405, 409]
+    return_content: true
+  register: sn_kv_post
+  no_log: true
+  delegate_to: localhost
+  become: false
+  when: sn_kv_get.json.result | default([]) | length == 0
 
-- name: Report cmdb_key_value insert ACL denial
+- name: Report cmdb_key_value insert denied for {{ sn_kv_key }}
   ansible.builtin.debug:
     msg: >-
-      WARNING: cmdb_key_value insert denied for key '{{ sn_kv_key }}' (HTTP 403).
-      cmdb_key_value is a table, not a role — cmdb_inst_admin may not include insert.
-      A security_admin must add the automation role to the read, write, create, and delete ACLs on cmdb_key_value,
-      or use an import path. See Tag_Based_Service_Mapping.md § cmdb_key_value and table ACLs.
+      WARNING: cmdb_key_value insert denied for key '{{ sn_kv_key }}' (HTTP {{ sn_kv_post.status | default('?') }}).
+      Extend cmdb_key_value ACLs for cmdb_inst_admin — see servicenow/docs/install.md §6.3.
   when:
-    - sn_rest_json.result | default([]) | length == 0
-    - sn_rest_status | default(0) | int == 403
+    - sn_kv_get.json.result | default([]) | length == 0
+    - sn_kv_post.status | default(0) | int == 403
 
-- name: Update cmdb_key_value row when value differs
-  ansible.builtin.include_tasks: sn_rest_mutate.yml
-  vars:
-    sn_rest_method: patch
-    sn_rest_table: cmdb_key_value
-    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
-    sn_rest_body:
+- name: PATCH cmdb_key_value {{ sn_kv_key }}
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/cmdb_key_value/{{ sn_kv_get.json.result[0].sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
       value: "{{ sn_kv_value }}"
+    status_code: [200, 403, 405, 409]
+    return_content: true
+  register: sn_kv_patch
+  no_log: true
+  delegate_to: localhost
+  become: false
   when:
-    - sn_rest_json.result | default([]) | length > 0
-    - sn_rest_json.result[0].value | default('') != sn_kv_value
+    - sn_kv_get.json.result | default([]) | length > 0
+    - sn_kv_get.json.result[0].value | default('') != sn_kv_value

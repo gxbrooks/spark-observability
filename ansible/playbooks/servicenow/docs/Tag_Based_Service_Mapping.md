@@ -9,10 +9,11 @@ Tag-based mapping matches discovered workload CIs to application services using 
 | Step | Playbook | Purpose |
 |------|----------|---------|
 | 1 | `csdm/deploy.yml` | Create BA / BS / application service CIs |
-| 2 | `discovery/docker/discover.yml` | Sync containers; attempt `cmdb_key_value` label write |
-| 3 | **Docker Pattern** horizontal discovery on Lab3 (`discovery/discover.yml`) | Enriches container/process relationships (vertical SM); does **not** populate custom label rows in **`cmdb_key_value`** |
-| 4 | KVA (Kubernetes) | Populates K8s labels → `cmdb_key_value` for Spark, etc. |
-| 5 | **Instance UI** (below) | Tag Categories + tag filter on each application service |
+| 2 | `discovery/docker/discover.yml` | Sync containers; upsert `servicenow.io/*` on container CIs |
+| 3 | **Docker Pattern** horizontal discovery on Lab3 (`discovery/discover.yml`) | Enriches container/process relationships (vertical SM) |
+| 4 | KVA + `discovery/k8s/sync_pod_labels.yml` | K8s pod CIs; KVA writes `app.kubernetes.io/*`; pod sync writes `servicenow.io/*` |
+| 5 | `discovery/host/sync_tags.yml` | Host agents — `servicenow.io/*` on `cmdb_ci_linux_server` |
+| 6 | **Instance UI** (below) | Tag Categories + tag filter on each application service |
 
 ### cmdb_key_value and table ACLs
 
@@ -82,9 +83,9 @@ For Kubernetes-only services, also map **`app.kubernetes.io/name`**, **`app.kube
 
 ## Which application services need tag-based mapping
 
-### Observability Docker Compose (`observability/servicenow/csdm.yaml`)
+### Observability Docker Compose (`servicenow/regions/brooks-lab/observability-platform.csdm.yaml`)
 
-All seven use `service_mapping: tags`. Each **`identifier`** must match **`servicenow.io/application-service-identifier`** on the container:
+All seven use `service_mapping: tags`. Each **`identifier`** must match **`servicenow.io/application-service-identifier`** on the container. See [DT_SN_Specification_Guide.md](DT_SN_Specification_Guide.md) for compose label examples.
 
 | Application Service | identifier (tag value) | Compose service |
 |--------------------|------------------------|-----------------|
@@ -96,22 +97,24 @@ All seven use `service_mapping: tags`. Each **`identifier`** must match **`servi
 | OpenTelemetry Collector | `opentelemetry-collector` | `otel-collector` |
 | Logstash | `logstash` | `logstash01` |
 
-### Spark Kubernetes (`spark/servicenow/csdm.yaml`)
+### Spark Kubernetes (`servicenow/regions/brooks-lab/spark.csdm.yaml`)
 
-| Application Service | identifier | K8s labels |
-|--------------------|------------|------------|
-| Spark Master | `spark-master` | `app.kubernetes.io/name=spark-master`, etc. |
+| Application Service | identifier | Runtime labels |
+|--------------------|------------|----------------|
+| Spark Master | `spark-master` | `servicenow.io/*` on pod + `app.kubernetes.io/*` (KVA) |
 | Spark History Server | `spark-history-server` | … |
 | Spark Worker (Lab1/Lab2) | `spark-worker-lab1`, `spark-worker-lab2` | expanded per node |
 
-KVA already writes **`app.kubernetes.io/*`** to `cmdb_key_value`. Spark services are **operational** — use as reference.
+Sync canonical tags: `discovery/k8s/sync_pod_labels.yml` (included in `discovery/k8s/discover.yml`).
 
 ### Host agents (tag-based, per node)
 
-| Spec file | Application Service pattern | Tag source |
-|-----------|----------------------------|------------|
-| `observability/dynatrace/servicenow/csdm.yaml` | `Dynatrace OneAgent (Lab1/Lab2/Lab3)` | `com.docker.compose.service=dynatrace-oneagent` on node |
-| `elastic-agent/servicenow/csdm.yaml` | `Elastic Agent (Lab1/Lab2/Lab3)` | `com.docker.compose.service=elastic-agent` on node |
+| Spec file | Application Service pattern | Tag target CI |
+|-----------|----------------------------|---------------|
+| `dynatrace-monitoring.csdm.yaml` | `dynatrace-oneagent-lab1` … | `cmdb_ci_linux_server` |
+| `elastic-agent.csdm.yaml` | `elastic-agent-lab1` … | `cmdb_ci_linux_server` |
+
+Run `discovery/host/sync_tags.yml` after CSDM deploy. Do **not** use fictitious `com.docker.compose.service` labels for systemd/DaemonSet agents.
 
 ### Excluded from tag-based SM
 
@@ -150,6 +153,14 @@ cd ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
   -e @../vars/secrets.yaml
 
+# Kubernetes pod servicenow.io labels (after KVA sync)
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/sync_pod_labels.yml \
+  -e @../vars/secrets.yaml
+
+# Host agent servicenow.io labels on linux_server CIs
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/sync_tags.yml \
+  -e @../vars/secrets.yaml
+
 # Diagnose
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
   -e @../vars/secrets.yaml
@@ -157,5 +168,6 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
 
 ## Related documents
 
+- [DT_SN_Specification_Guide.md](DT_SN_Specification_Guide.md) — **primary modeling guide** (CSDM + runtime labels + Dynatrace alignment)
 - [CSDM_Specifications.md](CSDM_Specifications.md) — normative `service_mapping: tags` rules
 - [ServiceNow Quick Start Guide for Service Mapping](https://www.servicenow.com/community/itom-articles/quick-start-guide-for-service-mapping/ta-p/3521583)

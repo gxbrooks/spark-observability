@@ -1,0 +1,57 @@
+---
+# Assert each CSDM entity declares required attributes explicitly (no file-level defaults).
+# Input: sn_compare_loaded_spec, sn_compare_spec_path
+
+- name: Validate business application attributes in {{ sn_compare_spec_path | basename }}
+  ansible.builtin.assert:
+    that:
+      - item.business_owner is defined
+      - item.business_owner | length > 0
+      - item.it_application_owner is defined
+      - item.it_application_owner | length > 0
+      - item.operational_status is defined
+      - item.active is defined
+    fail_msg: >-
+      Business application '{{ item.name | default('') }}' in {{ sn_compare_spec_path | basename }}
+      must declare business_owner, it_application_owner, operational_status, and active explicitly.
+  loop: "{{ sn_compare_loaded_spec.business_applications | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('') }}"
+
+- name: Validate business service attributes in {{ sn_compare_spec_path | basename }}
+  ansible.builtin.assert:
+    that:
+      - item.owned_by is defined
+      - item.owned_by | length > 0
+      - item.busines_criticality is defined
+      - item.busines_criticality | length > 0
+      - item.operational_status is defined
+      - item.parent_business_application is defined
+    fail_msg: >-
+      Business service '{{ item.name | default('') }}' in {{ sn_compare_spec_path | basename }}
+      must declare owned_by, busines_criticality, operational_status, and parent_business_application explicitly.
+  loop: "{{ sn_compare_loaded_spec.business_services | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('') }}"
+
+- name: Validate application service attributes in {{ sn_compare_spec_path | basename }}
+  ansible.builtin.assert:
+    that:
+      - item.owned_by is defined
+      - item.owned_by | length > 0
+      - item.busines_criticality is defined
+      - item.busines_criticality | length > 0
+      - item.operational_status is defined
+      - item.parent_business_service is defined
+      - item.environment is defined
+      - item.environment | length > 0
+      - item.location is defined
+      - item.location | length > 0
+    fail_msg: >-
+      Application service '{{ item.name | default('') }}' in {{ sn_compare_spec_path | basename }}
+      must declare owned_by, busines_criticality, operational_status, parent_business_service,
+      environment, and location explicitly.
+  loop: "{{ sn_compare_loaded_spec.application_services | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('') }}"
+  when: item.platform | default('') != 'saas'

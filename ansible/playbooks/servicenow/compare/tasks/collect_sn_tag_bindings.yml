@@ -17,7 +17,7 @@
     msg: >-
       WARNING: cmdb_key_value query for {{ sn_compare_identifier_tag_key }} returned HTTP
       {{ sn_compare_canonical_tag_query_status }}. Tag-based diff may show false
-      missing_tag_binding results until table ACLs allow read (see docs/install.md §6.1).
+      missing_tag_binding results until table ACLs allow read (see docs/install.md §6.3).
   when: sn_compare_canonical_tag_query_status | int != 200
 
 - name: Query alternate tag keys used by KVA and legacy workloads

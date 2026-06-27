@@ -1,0 +1,65 @@
+---
+# Sync servicenow.io/* pod labels from the cluster into cmdb_key_value on pod CIs.
+# Run after KVA has populated pod CIs (typically following k8s/discover.yml KVA restart).
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/sync_pod_labels.yml -e @../vars/secrets.yaml
+
+- name: Collect Kubernetes pods with servicenow.io labels
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: List pods in tag-sync namespaces
+      ansible.builtin.command:
+        cmd: >-
+          kubectl get pods -n {{ ns_item }}
+          -o json
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      loop: "{{ sn_k8s_tag_sync_namespaces | default(['spark']) }}"
+      loop_control:
+        loop_var: ns_item
+      register: sn_k8s_pod_list
+      changed_when: false
+      failed_when: false
+
+    - name: Initialize pod inventory accumulator
+      ansible.builtin.set_fact:
+        sn_k8s_pods_for_label_sync: []
+
+    - name: Build pod inventory for label sync
+      ansible.builtin.set_fact:
+        sn_k8s_pods_for_label_sync: "{{ sn_k8s_pods_for_label_sync | default([]) + (batch_pods | default([])) }}"
+      vars:
+        batch_pods: >-
+          {{ (item.stdout | default('') | from_json).get('items', [])
+             if item.rc | default(1) == 0 and (item.stdout | default('') | trim | length) > 0
+             else [] }}
+      loop: "{{ sn_k8s_pod_list.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item | default('') }}"
+
+- name: Upsert servicenow.io labels on CMDB pod CIs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+  tasks:
+    - name: Sync servicenow.io labels for each pod
+      ansible.builtin.include_tasks: tasks/sync_one_k8s_pod_labels.yml
+      loop: "{{ hostvars[groups['kubernetes_master'][0]].sn_k8s_pods_for_label_sync | default([]) }}"
+      loop_control:
+        loop_var: sn_k8s_pod
+        label: "{{ sn_k8s_pod.metadata.namespace }}/{{ sn_k8s_pod.metadata.name }}"
+
+    - name: Kubernetes pod label sync summary
+      ansible.builtin.debug:
+        msg: >-
+          Processed {{ hostvars[groups['kubernetes_master'][0]].sn_k8s_pods_for_label_sync | default([]) | length }}
+          pod(s) for servicenow.io label sync (cluster {{ sn_k8s_cluster_name }}).

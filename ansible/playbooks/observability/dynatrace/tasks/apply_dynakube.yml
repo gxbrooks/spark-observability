@@ -92,3 +92,10 @@
          if (dynakube_oneagent_rollout_retry is defined and not dynakube_oneagent_rollout_retry.skipped | default(false))
          else (dynakube_oneagent_rollout.stdout | default('')) }}.
       Run dynatrace/diagnose.yml and inspect dynakube-oneagent pod logs for host-agent conflicts.
+
+- name: Label OneAgent pods with per-node application-service-identifier
+  ansible.builtin.include_tasks: label_oneagent_servicenow.yml
+  loop: "{{ groups['k8s_nodes'] | default([]) }}"
+  loop_control:
+    loop_var: oneagent_node
+    label: "{{ oneagent_node }}"

@@ -1,0 +1,53 @@
+---
+# Load one host-platform CSDM spec and append application service instances to sn_host_csdm_queue.
+
+- name: Resolve host CSDM specification path
+  ansible.builtin.set_fact:
+    sn_csdm_spec_path: "{{ sn_regions_dir }}/{{ sn_region_id }}/{{ sn_host_csdm_spec_file }}"
+
+- name: Load host CSDM specification
+  ansible.builtin.include_tasks: ../../../csdm/tasks/load_csdm_spec.yml
+
+- name: Initialize per-file host application service queue
+  ansible.builtin.set_fact:
+    sn_host_csdm_file_queue: []
+
+- name: Queue static host application services from {{ sn_host_csdm_spec_file }}
+  ansible.builtin.set_fact:
+    sn_host_csdm_file_queue: >-
+      {{ sn_host_csdm_file_queue + [ {'spec': item, 'host': ''} ] }}
+  loop: >-
+    {{ sn_csdm_spec.application_services | default([])
+       | selectattr('platform', 'equalto', 'host')
+       | rejectattr('expand', 'defined')
+       | list }}
+
+- name: Queue expanded host application services from {{ sn_host_csdm_spec_file }}
+  ansible.builtin.include_tasks: ../../../csdm/tasks/queue_expanded_application_service.yml
+  vars:
+    sn_csdm_app_svc_entry: "{{ expand_entry }}"
+    sn_csdm_app_svc_queue: "{{ sn_host_csdm_file_queue }}"
+  loop: >-
+    {{ sn_csdm_spec.application_services | default([])
+       | selectattr('platform', 'equalto', 'host')
+       | selectattr('expand', 'defined')
+       | list }}
+  loop_control:
+    loop_var: expand_entry
+    label: "{{ expand_entry.name }}"
+
+- name: Capture expanded host application service queue
+  ansible.builtin.set_fact:
+    sn_host_csdm_file_queue: "{{ sn_csdm_app_svc_queue }}"
+  when: >-
+    sn_csdm_spec.application_services | default([])
+    | selectattr('platform', 'equalto', 'host')
+    | selectattr('expand', 'defined')
+    | list | length > 0
+
+- name: Append host application services from {{ sn_host_csdm_spec_file }}
+  ansible.builtin.set_fact:
+    sn_host_csdm_queue: >-
+      {{ sn_host_csdm_queue | default([]) + (
+           sn_host_csdm_file_queue | map('combine', {'csdm_spec': sn_csdm_spec}) | list
+         ) }}

@@ -5,17 +5,22 @@
   ansible.builtin.set_fact:
     sn_compare_loaded_spec: "{{ lookup('template', sn_compare_spec_path) | from_yaml }}"
 
+- name: Validate explicit attributes on all CSDM entities
+  ansible.builtin.include_tasks: validate_compare_csdm_spec.yml
+
 - name: Append business applications from specification
   ansible.builtin.set_fact:
     sn_compare_intent_bas: >-
       {{ sn_compare_intent_bas + [{
            'name': item.name,
            'identifier': item.identifier | default(''),
-           'csdm_op': item.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')),
-           'spec_file': sn_compare_spec_path | basename
+           'csdm_op': item.csdm_op | default('insert'),
+           'spec_file': sn_compare_spec_path | basename,
+           'business_owner': item.business_owner | default(''),
+           'it_application_owner': item.it_application_owner | default('')
          }] }}
   loop: "{{ sn_compare_loaded_spec.business_applications | default([]) }}"
-  when: item.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: item.csdm_op | default('insert') != 'delete'
 
 - name: Append business services from specification
   ansible.builtin.set_fact:
@@ -25,11 +30,13 @@
            'identifier': item.identifier | default(''),
            'parent_business_application': item.parent_business_application | default(''),
            'platform': '',
-           'csdm_op': item.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')),
-           'spec_file': sn_compare_spec_path | basename
+           'csdm_op': item.csdm_op | default('insert'),
+           'spec_file': sn_compare_spec_path | basename,
+           'owned_by': item.owned_by | default(''),
+           'busines_criticality': item.busines_criticality | default('')
          }] }}
   loop: "{{ sn_compare_loaded_spec.business_services | default([]) }}"
-  when: item.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: item.csdm_op | default('insert') != 'delete'
 
 - name: Append static application services from specification
   ansible.builtin.set_fact:
@@ -40,12 +47,16 @@
            'parent_business_service': item.parent_business_service | default(''),
            'platform': item.platform | default(''),
            'service_mapping': item.service_mapping | default(''),
-           'csdm_op': item.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')),
+           'csdm_op': item.csdm_op | default('insert'),
            'spec_file': sn_compare_spec_path | basename,
+           'environment': item.environment | default(''),
+           'location': item.location | default(''),
+           'owned_by': item.owned_by | default(''),
+           'busines_criticality': item.busines_criticality | default(''),
            'expand': false
          }] }}
   loop: "{{ sn_compare_loaded_spec.application_services | default([]) | rejectattr('expand', 'defined') | list }}"
-  when: item.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: item.csdm_op | default('insert') != 'delete'
 
 - name: Append expanded application service instances from specification
   ansible.builtin.include_tasks: load_expanded_app_service_intent.yml
@@ -53,4 +64,4 @@
   loop_control:
     loop_var: sn_compare_app_entry
     label: "{{ sn_compare_app_entry.name | default('') }}"
-  when: sn_compare_app_entry.csdm_op | default(sn_compare_loaded_spec.csdm_defaults.csdm_op | default('insert')) != 'delete'
+  when: sn_compare_app_entry.csdm_op | default('insert') != 'delete'

@@ -16,14 +16,6 @@
 - name: Validate application service specification
   ansible.builtin.include_tasks: validate_application_service.yml
 
-- name: Resolve merged runtime tags for application service
-  ansible.builtin.include_tasks: resolve_application_service_tags.yml
-  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
-
-- name: Record runtime tag manifest entry
-  ansible.builtin.include_tasks: write_runtime_tag_manifest.yml
-  when: sn_csdm_app_svc_item.spec.service_mapping == 'tags'
-
 - name: Resolve application service CMDB body
   ansible.builtin.include_tasks: resolve_csdm_cmdb_body.yml
   vars:

@@ -1,5 +1,5 @@
 ---
-# Export all application service CIs from CMDB (full inventory for compare workbook).
+# Export all application service CIs from CMDB (full inventory for compare report).
 
 - name: Query all ServiceNow application services
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"

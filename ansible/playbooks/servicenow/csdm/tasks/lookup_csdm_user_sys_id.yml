@@ -29,5 +29,5 @@
 - name: Fail when user is unknown
   ansible.builtin.fail:
     msg: >-
-      ServiceNow user '{{ sn_csdm_user_name }}' not found. Create the user or update csdm_defaults.
+      ServiceNow user '{{ sn_csdm_user_name }}' not found. Create the user or set owned_by on the CSDM entity.
   when: sn_csdm_user_sys_id | default('') | length == 0

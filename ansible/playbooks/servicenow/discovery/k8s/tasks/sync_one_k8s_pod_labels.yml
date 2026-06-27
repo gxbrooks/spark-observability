@@ -1,0 +1,36 @@
+---
+# Sync servicenow.io/* labels from one Kubernetes pod to cmdb_key_value.
+# Input: sn_k8s_pod (pod object from kubectl json), sn_k8s_cluster_name
+
+- name: Look up CMDB pod CI for {{ sn_k8s_pod.metadata.name }}
+  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  vars:
+    sn_rest_table: cmdb_ci_kubernetes_pod
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_k8s_pod.metadata.name | urlencode }}^namespace={{ sn_k8s_pod.metadata.namespace | urlencode }}^cluster.name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=sys_id,name,namespace&sysparm_limit=1
+  when: >-
+    sn_k8s_pod.metadata.labels | default({}) | dict2items
+    | selectattr('key', 'match', '^servicenow\\.io/')
+    | list | length > 0
+
+- name: Skip when CMDB pod CI is missing for {{ sn_k8s_pod.metadata.name }}
+  ansible.builtin.debug:
+    msg: >-
+      CMDB pod not found for {{ sn_k8s_pod.metadata.namespace }}/{{ sn_k8s_pod.metadata.name }} — skip label sync.
+  when:
+    - sn_k8s_pod.metadata.labels | default({}) | dict2items | selectattr('key', 'match', '^servicenow\\.io/') | list | length > 0
+    - sn_rest_json.result | default([]) | length == 0
+
+- name: Upsert servicenow.io label {{ label_item.key }} on pod {{ sn_k8s_pod.metadata.name }}
+  ansible.builtin.include_tasks: ../../common/ensure_cmdb_key_value.yml
+  vars:
+    sn_kv_ci_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_kv_key: "{{ label_item.key }}"
+    sn_kv_value: "{{ label_item.value | string }}"
+  loop: "{{ sn_k8s_pod.metadata.labels | default({}) | dict2items }}"
+  loop_control:
+    loop_var: label_item
+    label: "{{ label_item.key }}"
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - label_item.key is match('^servicenow\\.io/')
