@@ -3,7 +3,7 @@
 **Updated:** 2026-06-11  
 **Automation:** `ansible/playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml`
 
-This document describes how Dynatrace detects Spark lab conditions (host CPU and ERROR log lines), opens **problems**, and forwards them to ServiceNow **Event Management** as `em_event` rows via the brooks-lab webhook (`source=SGO-Dynatrace`).
+This document describes how Dynatrace detects Spark lab conditions (host CPU and ERROR/WARN log lines), opens **problems**, and forwards them to ServiceNow **Event Management** as `em_event` rows via the brooks-lab webhook (`source=SGO-Dynatrace`).
 
 ---
 
