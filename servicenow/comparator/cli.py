@@ -61,11 +61,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Export: {result['export_path']}")
     print(f"Report: {result['report_path']}")
     print(
-        f"  findings={summary.get('findings_total', 0)} "
+        f"  subclass_groups={summary.get('findings_subclass_groups', 0)} "
+        f"items={summary.get('finding_items_total', 0)} "
         f"(action_required={sev.get('action_required', 0)} warning={sev.get('warning', 0)} "
         f"informational={sev.get('informational', 0)}) "
         f"hosts matched={summary.get('hosts_matched', 0)} "
-        f"app_missing_tags={summary.get('app_missing_tags', 0)}"
+        f"app_missing_tags={summary.get('app_missing_tags', 0)} "
+        f"object_sources={summary.get('object_sources_sgo_dynatrace', 0)}"
     )
     return 0
 

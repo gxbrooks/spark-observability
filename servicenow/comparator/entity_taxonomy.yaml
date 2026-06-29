@@ -1,0 +1,52 @@
+---
+# Entity discoverability taxonomy for DT ↔ SN compare findings.
+# See servicenow/docs/DT_SN_Mapping.md for integration context.
+
+# Objects discoverable natively on both sides and correlatable (Discovery/KVA ↔ OneAgent/Smartscape).
+dual_discoverable:
+  - id: linux_host
+    subclass_prefix: host
+    cmdb_class: cmdb_ci_linux_server
+    smartscape_entity_type: HOST
+    correlation: normalized_hostname
+
+  - id: kubernetes_cluster
+    subclass_prefix: kubernetes_cluster
+    cmdb_class: cmdb_ci_kubernetes_cluster
+    smartscape_entity_type: KUBERNETES_CLUSTER
+    correlation: cluster_name_map
+
+  - id: kubernetes_node
+    subclass_prefix: kubernetes_node
+    cmdb_class: cmdb_ci_kubernetes_node
+    smartscape_entity_type: KUBERNETES_NODE
+    correlation: normalized_hostname
+
+# CMDB classes populated by SGC scheduled import from Dynatrace (not SN-native horizontal discovery).
+dynatrace_injected:
+  - id: process_group
+    subclass_prefix: process_group
+    cmdb_class: cmdb_ci_appl
+    smartscape_entity_type: PROCESS_GROUP
+    correlation: sys_object_source
+    object_source_id_prefixes:
+      - PROCESS_GROUP
+      - PROCESS_GROUP_INSTANCE
+
+  - id: smartscape_service
+    subclass_prefix: smartscape_service
+    cmdb_class: cmdb_ci_service_auto
+    smartscape_entity_type: SERVICE
+    correlation: sys_object_source
+    object_source_id_prefixes:
+      - SERVICE
+
+  - id: dynatrace_application
+    subclass_prefix: dynatrace_application
+    cmdb_class: cmdb_ci_appl
+    smartscape_entity_type: APPLICATION
+    correlation: sys_object_source
+    object_source_id_prefixes:
+      - APPLICATION
+
+sgc_object_source_name: SGO-Dynatrace

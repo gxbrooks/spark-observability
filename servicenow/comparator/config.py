@@ -109,7 +109,7 @@ def load_config(
         dt_environment=str(_unwrap(dt_vars.get("DT_ENVIRONMENT") or "")).strip(),
         dt_owned_by=str(_unwrap(dt_vars.get("DT_OWNED_BY") or "")).strip(),
         regions_dir=(regions_dir or root / "servicenow/regions").resolve(),
-        compare_dir=(compare_dir or root / "ansible/playbooks/servicenow/compare").resolve(),
+        compare_dir=(compare_dir or root / "servicenow/comparator").resolve(),
         inventory_path=(inventory_path or root / "ansible/inventory.yml").resolve(),
         filter_by_cmdb_location=filter_by_cmdb_location,
         filter_by_dynatrace_mz=filter_by_dynatrace_mz,

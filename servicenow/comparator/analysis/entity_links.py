@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from urllib.parse import urlencode
+
+
+@dataclass
+class LinkContext:
+    servicenow_url: str = ""
+    dynatrace_tenant_url: str = ""
 
 SN_ENTITY_TABLES = {
     "cmdb_ci_linux_server": "cmdb_ci_linux_server",

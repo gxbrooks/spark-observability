@@ -96,3 +96,40 @@ class ServiceNowClient:
                 "alternate_status": alternate_status,
             },
         }
+
+    def collect_object_sources(self, source_name: str = "SGO-Dynatrace") -> list[dict]:
+        query = (
+            f"sysparm_query=name={quote(source_name, safe='')}"
+            "&sysparm_fields=sys_id,name,id,target_sys_id,target_table,source_table"
+            "&sysparm_limit=5000"
+        )
+        _, rows = self._get("sys_object_source", query)
+        return rows
+
+    def collect_cmdb_by_class(self, table: str, discovery_source: str = "") -> list[dict]:
+        fields = "sys_id,name,host_name,discovery_source,sys_class_name,operational_status,location"
+        if discovery_source:
+            query = (
+                f"sysparm_query=discovery_sourceLIKE{quote(discovery_source, safe='')}"
+                f"&sysparm_fields={fields}&sysparm_display_value=all&sysparm_limit=2000"
+            )
+        else:
+            query = f"sysparm_fields={fields}&sysparm_display_value=all&sysparm_limit=2000"
+        _, rows = self._get(table, query)
+        return rows
+
+    def collect_kubernetes_clusters(self) -> list[dict]:
+        query = (
+            "sysparm_fields=sys_id,name,discovery_source,location"
+            "&sysparm_display_value=all&sysparm_limit=500"
+        )
+        _, rows = self._get("cmdb_ci_kubernetes_cluster", query)
+        return rows
+
+    def collect_kubernetes_nodes(self) -> list[dict]:
+        query = (
+            "sysparm_fields=sys_id,name,host_name,discovery_source,cluster"
+            "&sysparm_display_value=all&sysparm_limit=2000"
+        )
+        _, rows = self._get("cmdb_ci_kubernetes_node", query)
+        return rows

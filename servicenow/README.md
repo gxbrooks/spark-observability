@@ -47,13 +47,12 @@ Deploy and compare **sweep** `sn_regions_dir/*/region.yaml` to discover regions.
 
 | Path | Role |
 |------|------|
-| `ansible/playbooks/servicenow/` | Ansible playbooks (csdm, compare, discovery, sgc) |
-| `observability/dynatrace/` | Dynatrace tenant specifications (Settings payloads) |
-| `ansible/playbooks/servicenow/compare/dynatrace-correlation.yaml` | Compare diagnostics for expected DT partitioning (may move later) |
+| `ansible/playbooks/servicenow/` | Ansible playbooks (csdm, discovery, sgc) |
+| `servicenow/comparator/` | Python compare (export + report); specs: `entity_taxonomy.yaml`, `dynatrace-correlation.yaml` |
 
 ## Adding a management region
 
 1. Create `servicenow/regions/{region-id}/region.yaml` (copy from `brooks-lab`).
 2. Add one or more `{name}.csdm.yaml` specifications per `servicenow/docs/CSDM_Specifications.md`.
 3. Point `region.yaml` `dynatrace.tenant_id` and `dynatrace.management_zone` at the correct entry under `observability/dynatrace/tenants/`.
-4. Re-run `csdm/deploy.yml` and `compare.yml` (no registry edit required when using region discovery).
+4. Re-run `csdm/deploy.yml` and `python -m servicenow.comparator` (no registry edit required when using region discovery).

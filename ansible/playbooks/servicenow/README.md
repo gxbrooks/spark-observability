@@ -14,9 +14,11 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
 | *(future)* `incident/` | Incident integrations |
 
-Top-level orchestrators: `install.yml`, `deploy.yml`, `start.yml`, `diagnose.yml`, `compare.yml`
+Top-level orchestrators: `install.yml`, `deploy.yml`, `start.yml`, `diagnose.yml`
 (import child playbooks in order). Global playbooks import these with tag
 `servicenow` (use `--skip-tags servicenow` to omit).
+
+**Model compare** is implemented in Python: `servicenow/comparator/` (see README there).
 
 `sgc/sources/` is organized by **observability source** (one subdirectory per
 SGC/event source). Dynatrace is the only source today; additional sources get
@@ -56,9 +58,10 @@ ansible-playbook -i inventory.yml playbooks/servicenow/deploy.yml -e @../vars/se
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml -e @../vars/secrets.yaml
+# Model compare (Python — from repo root)
+# PYTHONPATH=. python -m servicenow.comparator
 
-# CSDM deploy and compare process: playbooks/servicenow/docs/DT_SN_Comparison_Process.md
+# CSDM deploy and compare process: servicenow/docs/DT_SN_Comparison_Process.md
 
 # Phase 1 — Discovery only
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml

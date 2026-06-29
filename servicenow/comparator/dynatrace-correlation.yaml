@@ -4,16 +4,9 @@
 # Declares expected observability boundaries — not a catalog of Dynatrace entities
 # (those are dynamically discovered). Values align with:
 #   - vars/variables.yaml (dynatrace-ansible context: DT_*)
-#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json
-#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/auto-tags.json.j2
+#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/
 #
-# Applied on tenant by:
-#   ansible/playbooks/observability/dynatrace/tasks/apply_management_zone.yml
-#   ansible/playbooks/observability/dynatrace/tasks/apply_auto_tags.yml
-#
-# Compare loads this file per scope unit (override path with dynatrace_correlation_file
-# on the scope unit or sn_compare_dynatrace_correlation_file) and merges runtime
-# context from DT_MANAGEMENT_ZONE, DT_HOST_GROUP, etc.
+# Applied on tenant by observability/dynatrace/deploy.yml (partitioning tags).
 
 partitioning:
   management_zone: Spark Observability
@@ -34,7 +27,6 @@ auto_tags:
   - key: OwnedBy
     value: gbrooks
 
-# Entity types expected to carry partitioning.management_zone when in project scope
 management_zone_expected_for:
   - HOST
   - PROCESS_GROUP
@@ -42,7 +34,6 @@ management_zone_expected_for:
   - KUBERNETES_CLUSTER
   - KUBERNETES_NODE
 
-# Normalized host names for correlation-spec partitioning checks (optional).
 reference_host_names:
   - lab1
   - lab2
@@ -53,8 +44,7 @@ recommendations:
     Re-apply management zone rules: cd ansible && ansible-playbook -i inventory.yml
     playbooks/observability/dynatrace/deploy.yml --tags partitioning
   missing_cluster_management_zone: >-
-    Verify KUBERNETES_CLUSTER_NAME in
-    observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json matches
+    Verify KUBERNETES_CLUSTER_NAME in management-zone.json matches
     kubernetes_clusters[].dynatrace_name; re-run apply_management_zone.yml
   missing_process_group_management_zone: >-
     Project hosts are in the expected management zone but process groups are not —
@@ -64,4 +54,4 @@ recommendations:
     CMDB host location does not match scope unit cmdb_location hint — update cmn_location
     on the CI or adjust the scope correlation registry
   missing_canonical_tag: >-
-    Run discovery/docker/discover.yml and fix cmdb_key_value ACLs (docs/install.md §6.3)
+    Run discovery playbooks and fix cmdb_key_value ACLs (servicenow/docs/install.md §6.3)

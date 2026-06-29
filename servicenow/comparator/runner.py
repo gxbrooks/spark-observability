@@ -63,6 +63,9 @@ def compare_scope_unit(
     app_services = [sn_client.lookup_intent_application_service(app) for app in intent_apps]
     cmdb_apps = sn_client.collect_application_services_cmdb()
     tag_data = sn_client.collect_tag_bindings()
+    object_sources = sn_client.collect_object_sources("SGO-Dynatrace")
+    k8s_clusters = sn_client.collect_kubernetes_clusters()
+    k8s_nodes = sn_client.collect_kubernetes_nodes()
 
     dt_client = DynatraceClient(config)
     dynatrace = dt_client.collect_block(scope_unit.get("dynatrace_management_zones"))
@@ -87,6 +90,9 @@ def compare_scope_unit(
             "hosts_scope_mode": hosts_scope_mode,
             "application_services": app_services,
             "application_services_cmdb": cmdb_apps,
+            "kubernetes_clusters": k8s_clusters,
+            "kubernetes_nodes": k8s_nodes,
+            "object_sources": object_sources,
             **tag_data,
         },
         "dynatrace": dynatrace,
@@ -135,7 +141,7 @@ def run_compare(
 
     comparisons = [compare_scope_unit(config, unit, inventory_groups) for unit in scope_units]
     export = build_export(comparisons)
-    report = build_report(export)
+    report = build_report(export, config.compare_dir)
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = (output_dir or config.repo_root / "tmp/compare" / run_id).resolve()

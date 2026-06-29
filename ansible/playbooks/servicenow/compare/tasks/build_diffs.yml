@@ -1,7 +1,0 @@
----
-# Diff and annotated findings are computed in generate_compare_report.py from collected raw data.
-
-- name: Mark analysis as deferred to report generator
-  ansible.builtin.set_fact:
-    sn_compare_unit_result: >-
-      {{ sn_compare_unit_result | combine({'diff': {'computed_by': 'generate_compare_report.py'}}, recursive=True) }}

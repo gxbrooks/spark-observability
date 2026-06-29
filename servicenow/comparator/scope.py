@@ -114,9 +114,18 @@ def discover_scope_units(
     return units
 
 
-def resolve_correlation_path(compare_dir: Path, scope_unit: dict) -> Path:
+def resolve_correlation_path(comparator_dir: Path, scope_unit: dict) -> Path:
     rel = scope_unit.get("dynatrace_correlation_file") or "dynatrace-correlation.yaml"
     path = Path(rel)
     if path.is_absolute():
         return path
-    return compare_dir / rel
+    return comparator_dir / rel
+
+
+def load_entity_taxonomy(comparator_dir: Path) -> dict:
+    path = comparator_dir / "entity_taxonomy.yaml"
+    with path.open(encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected mapping in {path}")
+    return data
