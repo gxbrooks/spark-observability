@@ -27,12 +27,12 @@
     that:
       - sn_csdm_merged_spec.owned_by is defined
       - sn_csdm_merged_spec.owned_by | length > 0
-      - sn_csdm_merged_spec.busines_criticality is defined
-      - sn_csdm_merged_spec.busines_criticality | length > 0
+      - sn_csdm_merged_spec.business_criticality is defined
+      - sn_csdm_merged_spec.business_criticality | length > 0
       - sn_csdm_merged_spec.operational_status is defined
     fail_msg: >-
       Business service '{{ sn_csdm_source_spec.name | default('') }}' missing mandatory CMDB attributes
-      (owned_by, busines_criticality, operational_status).
+      (owned_by, business_criticality, operational_status).
       See CSDM_Specifications.md.
   when: sn_csdm_object_kind == 'business_service'
 
@@ -41,12 +41,12 @@
     that:
       - sn_csdm_merged_spec.owned_by is defined
       - sn_csdm_merged_spec.owned_by | length > 0
-      - sn_csdm_merged_spec.busines_criticality is defined
-      - sn_csdm_merged_spec.busines_criticality | length > 0
+      - sn_csdm_merged_spec.business_criticality is defined
+      - sn_csdm_merged_spec.business_criticality | length > 0
       - sn_csdm_merged_spec.operational_status is defined
     fail_msg: >-
       Application service '{{ sn_csdm_source_spec.name | default('') }}' missing mandatory CMDB attributes
-      (owned_by, busines_criticality, operational_status).
+      (owned_by, business_criticality, operational_status).
       See CSDM_Specifications.md.
   when: sn_csdm_object_kind == 'application_service'
 
@@ -96,7 +96,7 @@
     sn_csdm_cmdb_body: >-
       {{ sn_csdm_cmdb_body | combine({
            'operational_status': sn_csdm_merged_spec.operational_status,
-           'busines_criticality': sn_csdm_merged_spec.busines_criticality
+           'busines_criticality': sn_csdm_merged_spec.business_criticality
          } if sn_csdm_object_kind in ['business_service', 'application_service'] else {}, recursive=True)
          | combine({
              'operational_status': sn_csdm_merged_spec.operational_status,

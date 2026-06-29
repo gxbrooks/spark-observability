@@ -150,7 +150,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Data and Analytic Services
     owned_by: example-owner
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 ```
 
 ### Application service — Docker platform
@@ -169,7 +169,7 @@ application_services:
     environment: on-prem
     location: my-region
     owned_by: example-owner
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - name: lab3
         type: linux_server
@@ -195,7 +195,7 @@ application_services:
     cluster: my-cluster
     namespace: spark
     owned_by: example-owner
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - name: lab3
         type: linux_server
@@ -219,7 +219,7 @@ application_services:
     environment: on-prem
     location: my-region
     owned_by: example-owner
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     expand:
       inventory_group: k8s_nodes
 ```
@@ -234,7 +234,7 @@ application_services:
     service_mapping: manual
     discover: false
     owned_by: example-owner
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 ```
 
 No runtime tags; map manually or through SGC import.

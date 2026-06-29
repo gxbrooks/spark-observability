@@ -355,7 +355,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 <tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key used in <code>servicenow.io/business-service-identifier</code>.</td></tr>
 <tr><td><code>parent_business_application</code></td><td>Authors <strong>must</strong> set the parent BA <code>name</code>.</td></tr>
 <tr><td><code>owned_by</code></td><td>Authors <strong>must</strong> set a ServiceNow <code>user_name</code>.</td></tr>
-<tr><td><code>busines_criticality</code></td><td>Authors <strong>must</strong> set a choice value from Statement 2.7.</td></tr>
+<tr><td><code>business_criticality</code></td><td>Authors <strong>must</strong> set a choice value from Statement 2.7.</td></tr>
 <tr><td><code>operational_status</code></td><td>Authors <strong>must</strong> set <code>"1"</code> for Operational.</td></tr>
 <tr><td><code>short_description</code></td><td>Authors <strong>should</strong> set a human-readable summary.</td></tr>
 </tbody>
@@ -378,7 +378,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 <tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key that <strong>must</strong> match <code>servicenow.io/application-service-identifier</code> when tag-based.</td></tr>
 <tr><td><code>parent_business_service</code></td><td>Authors <strong>must</strong> set the parent BS <code>name</code>.</td></tr>
 <tr><td><code>owned_by</code></td><td>Authors <strong>must</strong> set a ServiceNow <code>user_name</code>.</td></tr>
-<tr><td><code>busines_criticality</code></td><td>Authors <strong>must</strong> set a choice value from Statement 2.7.</td></tr>
+<tr><td><code>business_criticality</code></td><td>Authors <strong>must</strong> set a choice value from Statement 2.7.</td></tr>
 <tr><td><code>operational_status</code></td><td>Authors <strong>must</strong> set <code>"1"</code> for Operational.</td></tr>
 <tr><td><code>platform</code></td><td>Authors <strong>must</strong> set <code>kubernetes</code>, <code>docker</code>, <code>host</code>, or <code>saas</code>.</td></tr>
 <tr><td><code>environment</code></td><td>Authors <strong>must</strong> set a value or inherit from <code>tag_defaults</code>.</td></tr>
@@ -444,7 +444,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 #### 2.7 Allowed values
 
-2.7.1 **`busines_criticality`:** `1 - most critical`, `2 - somewhat critical`, `3 - less critical`, `4 - not critical`
+2.7.1 **`business_criticality`:** `1 - most critical`, `2 - somewhat critical`, `3 - less critical`, `4 - not critical`. The deploy processor writes this value to the ServiceNow CMDB column **`busines_criticality`** (platform spelling).
 
 2.7.2 **`environment`:** `on-prem`, `dev`, `stage`, `prod`, `lab`
 

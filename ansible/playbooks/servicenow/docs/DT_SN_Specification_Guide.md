@@ -190,7 +190,7 @@ tag_defaults:
 
 csdm_defaults:
   owned_by: gbrooks
-  busines_criticality: "4 - not critical"
+  business_criticality: "4 - not critical"
 ```
 
 Deploy automation merges `tag_defaults` with per-service overrides into runtime label maps.

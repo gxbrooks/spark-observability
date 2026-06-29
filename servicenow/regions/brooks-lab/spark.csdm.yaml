@@ -18,7 +18,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Data and Analytic Services
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
 application_services:
   - name: Spark Master
@@ -35,7 +35,7 @@ application_services:
     cluster: brooks-lab
     namespace: spark
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Logstash
@@ -59,7 +59,7 @@ application_services:
     cluster: brooks-lab
     namespace: spark
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Logstash
@@ -83,7 +83,7 @@ application_services:
     cluster: brooks-lab
     namespace: spark
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Logstash

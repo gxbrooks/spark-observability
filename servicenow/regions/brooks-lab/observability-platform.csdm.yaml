@@ -18,7 +18,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: Kibana
     identifier: kibana
@@ -26,7 +26,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: Grafana
     identifier: grafana
@@ -34,7 +34,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: Prometheus
     identifier: prometheus
@@ -42,7 +42,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: Grafana Tempo
     identifier: grafana-tempo
@@ -50,7 +50,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: OpenTelemetry Collector
     identifier: opentelemetry-collector
@@ -58,7 +58,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: Logstash
     identifier: logstash
@@ -66,7 +66,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
 application_services:
   - name: Elasticsearch
@@ -81,7 +81,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - name: lab3
         type: linux_server
@@ -98,7 +98,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - name: lab3
@@ -116,7 +116,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - Prometheus
@@ -136,7 +136,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Elasticsearch
@@ -155,7 +155,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
       - Elasticsearch
@@ -174,7 +174,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - Dynatrace Tenant
@@ -193,7 +193,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - name: lab3

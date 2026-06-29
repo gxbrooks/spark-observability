@@ -10,7 +10,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
 application_services:
   - name: Dynatrace Tenant
@@ -23,7 +23,7 @@ application_services:
     discover: false
     service_tier: data
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
   - name: "Dynatrace OneAgent ({host})"
     identifier: "dynatrace-oneagent-{host_lower}"
@@ -39,7 +39,7 @@ application_services:
     cluster: brooks-lab
     namespace: dynatrace
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - Dynatrace Tenant
       - name: "{host_lower}"

@@ -23,13 +23,13 @@
     that:
       - item.owned_by is defined
       - item.owned_by | length > 0
-      - item.busines_criticality is defined
-      - item.busines_criticality | length > 0
+      - item.business_criticality is defined
+      - item.business_criticality | length > 0
       - item.operational_status is defined
       - item.parent_business_application is defined
     fail_msg: >-
       Business service '{{ item.name | default('') }}' in {{ sn_compare_spec_path | basename }}
-      must declare owned_by, busines_criticality, operational_status, and parent_business_application explicitly.
+      must declare owned_by, business_criticality, operational_status, and parent_business_application explicitly.
   loop: "{{ sn_compare_loaded_spec.business_services | default([]) }}"
   loop_control:
     label: "{{ item.name | default('') }}"
@@ -39,8 +39,8 @@
     that:
       - item.owned_by is defined
       - item.owned_by | length > 0
-      - item.busines_criticality is defined
-      - item.busines_criticality | length > 0
+      - item.business_criticality is defined
+      - item.business_criticality | length > 0
       - item.operational_status is defined
       - item.parent_business_service is defined
       - item.environment is defined
@@ -49,7 +49,7 @@
       - item.location | length > 0
     fail_msg: >-
       Application service '{{ item.name | default('') }}' in {{ sn_compare_spec_path | basename }}
-      must declare owned_by, busines_criticality, operational_status, parent_business_service,
+      must declare owned_by, business_criticality, operational_status, parent_business_service,
       environment, and location explicitly.
   loop: "{{ sn_compare_loaded_spec.application_services | default([]) }}"
   loop_control:

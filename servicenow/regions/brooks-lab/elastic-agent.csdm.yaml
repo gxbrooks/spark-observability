@@ -9,7 +9,7 @@ business_services:
     operational_status: "1"
     parent_business_application: Observability Platform
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
 
 application_services:
   - name: "Elastic Agent ({host})"
@@ -24,7 +24,7 @@ application_services:
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
-    busines_criticality: "4 - not critical"
+    business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
       - name: "{host_lower}"

@@ -20,11 +20,11 @@
       - sn_csdm_app_svc_item.spec.service_mapping in ['tags', 'vertical', 'manual']
       - sn_csdm_app_svc_item.spec.owned_by is defined
       - sn_csdm_app_svc_item.spec.owned_by | length > 0
-      - sn_csdm_app_svc_item.spec.busines_criticality is defined
-      - sn_csdm_app_svc_item.spec.busines_criticality | length > 0
+      - sn_csdm_app_svc_item.spec.business_criticality is defined
+      - sn_csdm_app_svc_item.spec.business_criticality | length > 0
     fail_msg: >-
       Application service '{{ sn_csdm_app_svc_name }}' missing required attributes
-      (identifier, platform, service_mapping, owned_by, busines_criticality).
+      (identifier, platform, service_mapping, owned_by, business_criticality).
       See CSDM_Specifications.md.
 
 - name: Validate tag-based application service environment and location

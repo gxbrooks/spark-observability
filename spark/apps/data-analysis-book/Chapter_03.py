@@ -14,10 +14,24 @@ import pyspark.sql.functions as F
 _HDFS_BASE = os.environ.get("HDFS_DEFAULT_FS_CLIENT") or os.environ.get(
     "HDFS_DEFAULT_FS"
 )
-if not _HDFS_BASE:
-    raise SystemExit(
-        "HDFS_DEFAULT_FS_CLIENT or HDFS_DEFAULT_FS must be set from vars/contexts environment."
-    )
+
+
+def _write_csv_to_hdfs(df, rel_path):
+    """Write CSV to HDFS (Listings 3.3–3.5). Skip on failure — unlike reads from NFS, client-mode
+    drivers cannot overwrite /mnt/spark/data outputs owned by other users."""
+    if not _HDFS_BASE:
+        print(
+            f"Skipping CSV write ({rel_path}): "
+            "HDFS_DEFAULT_FS_CLIENT or HDFS_DEFAULT_FS not set."
+        )
+        return
+    target = f"{_HDFS_BASE}/spark/{rel_path}"
+    try:
+        df.write.csv(target, mode="overwrite")
+        print(f"Successfully wrote to Hadoop HDFS: {target}")
+    except Exception as e:
+        err = str(e).split("\n", 1)[0]
+        print(f"Skipping CSV write ({target}): {err}")
 
 # Driver host must match this machine for client mode (executors in K8s connect back).
 # spark_client_env.sh sets SPARK_DRIVER_HOST; override if you submit from a host other than Lab2.
@@ -90,36 +104,12 @@ results = results.repartition(10)
 
 # Listing 3.3 Writing results in multiple CSV files, one per partition
 print("\n=== Writing results to CSV ===")
-# Try Hadoop HDFS first, fallback to local filesystem
-try:
-    # Write to Hadoop HDFS
-    results.write.csv(f"{_HDFS_BASE}/spark/simple_count.csv", mode="overwrite")
-    print(f"Successfully wrote to Hadoop HDFS: {_HDFS_BASE}/spark/simple_count.csv")
-except Exception as e:
-    print(f"Hadoop write failed: {e}")
-    print("Falling back to local filesystem...")
-    # Fallback to local filesystem
-    results.write.csv("/mnt/spark/data/simple_count.csv", mode="overwrite")
-    print("Wrote to local filesystem: /mnt/spark/data/simple_count.csv")
+_write_csv_to_hdfs(results, "simple_count.csv")
 
 print(f"Number of partitions: {results.rdd.getNumPartitions()}")
 
-# Listing 3.4 Writing results under a single partition 
-try:
-    # Write to Hadoop HDFS
-    results.coalesce(1).write.csv(
-        f"{_HDFS_BASE}/spark/simple_count_single_partition.csv", mode="overwrite"
-    )
-    print(
-        "Successfully wrote single partition to Hadoop HDFS: "
-        f"{_HDFS_BASE}/spark/simple_count_single_partition.csv"
-    )
-except Exception as e:
-    print(f"Hadoop single partition write failed: {e}")
-    print("Falling back to local filesystem...")
-    # Fallback to local filesystem
-    results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
-    print("Wrote single partition to local filesystem: /mnt/spark/data/simple_count_single_partition.csv")
+# Listing 3.4 Writing results under a single partition
+_write_csv_to_hdfs(results.coalesce(1), "simple_count_single_partition.csv")
 
 # Listing 3.5 Our first PySpark program, dubbed "Counting Jane Austen"
 print("\n=== Listing 3.5: Complete word count analysis ===")
@@ -135,17 +125,7 @@ words_nonull = words_clean.where(F.col("word") != "")
 results = words_nonull.groupby(F.col("word")).count()
 
 results.orderBy("count", ascending=False).show(10)
-# Write to Hadoop HDFS
-try:
-    results.coalesce(1).write.csv(
-        f"{_HDFS_BASE}/spark/simple_count_single_partition.csv", mode="overwrite"
-    )
-    print(f"Successfully wrote to Hadoop HDFS: {_HDFS_BASE}/spark/simple_count_single_partition.csv")
-except Exception as e:
-    print(f"Hadoop write failed: {e}")
-    print("Falling back to local filesystem...")
-    results.coalesce(1).write.csv("/mnt/spark/data/simple_count_single_partition.csv", mode="overwrite")
-    print("Wrote to local filesystem: /mnt/spark/data/simple_count_single_partition.csv")
+_write_csv_to_hdfs(results.coalesce(1), "simple_count_single_partition.csv")
 
 # Listing 3.7 Chaining transformation methods
 print("\n=== Listing 3.7: Chained transformations ===")
