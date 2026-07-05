@@ -11,7 +11,7 @@ See **[servicenow/docs/CSDM_Specifications.md](../../../../servicenow/docs/CSDM_
 | **CSDM Modeler** | Authors `{stack}.csdm.yaml` under a management region |
 | **Deploy processor maintainer** | Generic automation in `csdm/tasks/` |
 | **Discovery operator** | Horizontal Discovery, KVA, Docker Pattern |
-| **Service Mapping operator** | Tag-based SM rules on the instance |
+| **Service Mapping operator** | Tag Categories on the instance (one-time); tag filters applied by deploy when `service_mapping: tags` |
 
 ## Quick start
 
@@ -27,7 +27,17 @@ When specs live outside Git: `-e sn_specs_root_override=/path/to/servicenow`.
 
 Vertical discovery is **triggered asynchronously** only when `service_mapping: vertical` and `discover: true`. Tag-based services do **not** trigger vertical discovery.
 
-**Tag-based Service Mapping (instance UI):** see **[servicenow/docs/Tag_Based_Service_Mapping.md](../../../../servicenow/docs/Tag_Based_Service_Mapping.md)**.
+**Tag-based Service Mapping:** for each Application Service with **`service_mapping: tags`** in a `*.csdm.yaml` file, deploy configures **`tag_list`** population via **`configure_tag_based_sm.yml`** (Service Mapping Operations REST **`/populate_tags`**). Skip with **`-e sn_csdm_configure_tag_sm=false`**. Tag Categories may still need one-time UI setup — see **[install.md §6.5](../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services)** and [Tag_Based_Service_Mapping.md](../../../../servicenow/docs/Tag_Based_Service_Mapping.md).
+
+Limit deploy to specific spec files:
+
+```bash
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+  -e @../vars/secrets.yaml \
+  -e '{"sn_csdm_spec_paths_override": ["/path/to/servicenow/regions/brooks-lab/observability-platform.csdm.yaml"]}'
+```
+
+**Observability reset** (delete seven Application Services, recreate): `observability-platform-delete.csdm.yaml` then `observability-platform.csdm.yaml` — commands in install.md §6.5.
 
 Check status:
 

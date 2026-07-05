@@ -18,7 +18,14 @@ from servicenow.comparator.analysis.compare_analysis import (
     sn_host_rows,
     tag_binding_counts,
 )
-from servicenow.comparator.analysis.entity_links import enrich_entity, enrich_row, LinkContext, resolve_dynatrace_link_base
+from servicenow.comparator.analysis.entity_links import (
+    enrich_entity,
+    enrich_object_source,
+    enrich_row,
+    enrich_tag_binding,
+    LinkContext,
+    resolve_dynatrace_link_base,
+)
 from servicenow.comparator.analysis.findings import (
     REPORT_VERSION,
     build_consolidated_findings,
@@ -226,25 +233,11 @@ def analyze_comparison(unit: dict, links: LinkContext, comparator_dir: Path) -> 
             },
             "servicenow_hosts": enriched_hosts,
             "servicenow_object_sources": [
-                enrich_entity(
-                    {
-                        "type": "sys_object_source",
-                        "table": "sys_object_source",
-                        "entity_id": field_value(r.get("id")),
-                        "target_sys_id": field_value(r.get("target_sys_id")),
-                        "target_table": field_value(r.get("target_table")),
-                    },
-                    links.servicenow_url,
-                    links.dynatrace_tenant_url,
-                )
+                enrich_object_source(r, links.servicenow_url, links.dynatrace_tenant_url)
                 for r in sn.get("object_sources", [])
             ],
             "servicenow_tag_bindings": [
-                enrich_entity(
-                    {**row, "type": "cmdb_key_value", "table": "cmdb_key_value"},
-                    links.servicenow_url,
-                    links.dynatrace_tenant_url,
-                )
+                enrich_tag_binding(row, links.servicenow_url, links.dynatrace_tenant_url)
                 for row in sn.get("tag_bindings", [])
             ],
             "servicenow_application_services_cmdb": [

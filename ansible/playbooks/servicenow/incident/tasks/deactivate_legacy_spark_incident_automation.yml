@@ -1,0 +1,48 @@
+---
+# Deactivate legacy Spark-prefixed incident automation superseded by K8s-prefixed names.
+
+- name: Legacy Spark incident automation names to retire
+  ansible.builtin.set_fact:
+    sn_incident_legacy_retire_names:
+      - SparkLogPodCiBind
+      - em-event-bind-spark-pod-ci
+      - em-alert-bind-spark-pod-ci
+      - em-alert-create-spark-log-incident
+
+- name: Look up legacy script include SparkLogPodCiBind
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_script_include
+    sn_rest_query: "sysparm_query=name=SparkLogPodCiBind^sys_scope=global&sysparm_fields=sys_id,name,active&sysparm_limit=1"
+
+- name: Deactivate legacy SparkLogPodCiBind script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script_include
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body:
+      active: "false"
+  when:
+    - sn_rest_status | default(0) == 200
+    - (sn_rest_json.result | default([]) | length) > 0
+    - sn_rest_json.result[0].active | default('') == 'true'
+
+- name: Look up legacy business rules
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=nameINem-event-bind-spark-pod-ci,em-alert-bind-spark-pod-ci,em-alert-create-spark-log-incident&sysparm_fields=sys_id,name,active&sysparm_limit=10"
+
+- name: Deactivate legacy Spark business rules
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      active: "false"
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  when:
+    - sn_rest_status | default(0) == 200
+    - item.active | default('') == 'true'

@@ -20,8 +20,20 @@
     - name: Apply brooks-lab alerting profile (Spark Observability management zone)
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_dt_alerting_profile.yml"
 
-    - name: Apply CPU and Spark ERROR anomaly detectors
+    - name: Register Spark log paths with Dynatrace OneAgent
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_log_custom_source.yml"
+
+    - name: Apply OpenPipeline Davis extraction for Spark ERROR/WARN logs
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_openpipeline_log_alerts.yml"
+
+    - name: Apply CPU metric detector (classic log event disabled — OpenPipeline is canonical)
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_dt_anomaly_detectors.yml"
 
     - name: Apply brooks-lab problem notification webhook to ServiceNow
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_dt_problem_notification.yml"
+
+    - name: Optionally disable Demo 1 problem notification (opt-in — avoids duplicate Dynatrace-source alerts on shared tenant)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/disable_demo1_problem_notification.yml"
+      when:
+        - sn_sgc_scope_present | default(false) | bool
+        - sn_disable_demo1_problem_notification | default(false) | bool

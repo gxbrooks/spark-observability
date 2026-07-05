@@ -1,0 +1,63 @@
+---
+# Request CI/CD App Repo install for every Store app in the manifest (install or
+# upgrade). Used when sn_sm_ensure_store_apps is true so a re-run attempts a
+# full Store refresh, not only missing scopes.
+#
+# Expects sn_store_app_status from check_store_apps.yml. Appends scopes to
+# sn_sm_store_ensure_warnings when download/reinstall fails but sys_scope still
+# shows the app installed (typical on shared demos with Store entitlement limits).
+
+- name: "Ensure Store app {{ sn_app.scope }} via CI/CD App Repo API"
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/sn_cicd/app_repo/install?scope={{ sn_app.scope }}{{
+      ('&version=' ~ sn_app.pinned_version)
+      if (sn_app.pinned_version | default('') | length > 0) else '' }}
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 202, 400, 403, 404]
+    return_content: true
+  register: sn_sm_ensure_install
+  no_log: true
+  delegate_to: localhost
+
+- name: "Wait for ensure install of {{ sn_app.scope }}"
+  ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/poll_cicd_progress.yml"
+  vars:
+    sn_cicd_progress_url: "{{ sn_sm_ensure_install.json.result.links.progress.url }}"
+    sn_cicd_progress_retries: "{{ sn_sm_ensure_progress_retries | default(30) }}"
+    sn_cicd_progress_delay: "{{ sn_sm_ensure_progress_delay | default(10) }}"
+  when:
+    - sn_sm_ensure_install.status in [200, 202]
+    - sn_sm_ensure_install.json.result.links.progress.url is defined
+
+- name: "Record ensure warning for {{ sn_app.scope }}"
+  ansible.builtin.set_fact:
+    sn_sm_store_ensure_warnings: >-
+      {{ (sn_sm_store_ensure_warnings | default([]))
+         + [{
+              'scope': sn_app.scope,
+              'reason': (
+                'HTTP ' ~ sn_sm_ensure_install.status|string
+                if sn_sm_ensure_install.status not in [200, 202]
+                else 'CI/CD ' ~ (sn_cicd_progress_state | default('failed'))
+                   ~ ': ' ~ (sn_cicd_progress_message | default(''))
+              ),
+              'installed_on_instance': sn_app.installed | default(false) | bool
+            }] }}
+  when: >-
+    sn_sm_ensure_install.status not in [200, 202]
+    or (sn_cicd_progress_state | default('successful') != 'successful')
+
+- name: "Report ensure outcome for {{ sn_app.scope }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_app.scope }}: {{
+      'ensure OK (CI/CD ' ~ sn_cicd_progress_state ~ ')'
+      if (sn_sm_ensure_install.status in [200, 202]
+          and sn_cicd_progress_state | default('') == 'successful')
+      else ('ensure skipped/warn — ' ~ (sn_sm_store_ensure_warnings | default([]) | selectattr('scope', 'equalto', sn_app.scope) | map(attribute='reason') | list | first | default('unknown'))
+            ~ ('; app remains INSTALLED v' ~ sn_app.installed_version if sn_app.installed else '')) }}

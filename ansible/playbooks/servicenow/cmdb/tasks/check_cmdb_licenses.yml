@@ -61,7 +61,7 @@
     msg: >-
       WARNING (non-fatal): {{ item.name }} ({{ item.id }}) — CI/CD plugin activation
       returned HTTP {{ item.http_status }}. {{ item.required_for }} may not function until
-      the ITOM Discovery entitlement is granted (docs/install.md §7).
+      the ITOM Discovery entitlement is granted (servicenow/docs/install.md §7).
   loop: "{{ sn_cmdb_license_status | rejectattr('satisfied') | list }}"
   loop_control:
     label: "{{ item.id }}"

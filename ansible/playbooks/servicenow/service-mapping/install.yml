@@ -1,0 +1,227 @@
+---
+# Service Mapping install — Store applications + classic plugin for tag-based SM.
+#
+# Idempotent: components already present (per sys_scope / plugin activation API)
+# are skipped or no-op'd. When sn_sm_ensure_store_apps is true (default), every
+# manifest Store app is (re)requested via CI/CD App Repo install so upgrades and
+# full-stack refresh are attempted on each run (download may fail on shared demos
+# when apps are already installed — warnings only).
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/install.yml \
+#     -e @../vars/secrets.yaml
+#
+# Extra variables:
+#   sn_sm_app_mode — install (default) | repair | reinstall
+#   sn_sm_ensure_store_apps — true (default) | false
+#   sn_sm_configure_tag_categories — true (default) | false
+#   sn_sm_maintain_scopes — scopes for repair/reinstall
+
+- name: Install ServiceNow Service Mapping Store apps and plugin
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    sn_sm_app_mode: install
+    sn_sm_ensure_store_apps: false
+    sn_sm_configure_tag_categories: true
+    sn_sm_maintain_scopes:
+      - sn_cmdb_ci_class
+      - sn_itom_pattern
+      - sn_service_mapping
+      - sn_itom_map_app
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - common/vars.yml
+    - common/store_apps.yml
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Validate sn_sm_app_mode
+      ansible.builtin.assert:
+        that:
+          - sn_sm_app_mode in ['install', 'repair', 'reinstall']
+        fail_msg: >-
+          sn_sm_app_mode must be install, repair, or reinstall (got {{ sn_sm_app_mode }}).
+
+    - name: Check current component state
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_store_apps.yml"
+
+    - name: Select scoped apps to repair or reinstall
+      ansible.builtin.set_fact:
+        sn_apps_to_maintain: >-
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+             | selectattr('scope', 'in', sn_sm_maintain_scopes)
+             | selectattr('installed') | list }}
+      when: sn_sm_app_mode in ['repair', 'reinstall']
+
+    - name: Report maintain mode start
+      ansible.builtin.debug:
+        msg: >-
+          Mode {{ sn_sm_app_mode }}: {{ item.scope }} v{{ item.installed_version }}
+      loop: "{{ sn_apps_to_maintain | default([]) }}"
+      loop_control:
+        label: "{{ item.scope }}"
+      when: sn_sm_app_mode in ['repair', 'reinstall']
+
+    - name: Repair or reinstall scoped Store apps via App Manager API
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/maintain_store_app.yml"
+      vars:
+        sn_sgc_app_mode: "{{ sn_sm_app_mode }}"
+      loop: "{{ sn_apps_to_maintain | default([]) }}"
+      loop_control:
+        loop_var: sn_app
+        label: "{{ sn_app.scope }}"
+      when: sn_sm_app_mode in ['repair', 'reinstall']
+
+    - name: Reset component status facts after maintain
+      ansible.builtin.set_fact:
+        sn_store_app_status: []
+        sn_store_rows_by_scope: {}
+      when: sn_sm_app_mode in ['repair', 'reinstall']
+
+    - name: Re-check component state after maintain
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_store_apps.yml"
+      when: sn_sm_app_mode in ['repair', 'reinstall']
+
+    - name: Assert maintain mode completed without failures
+      ansible.builtin.assert:
+        that:
+          - (sn_apps_failed | default([])) | length == 0
+        fail_msg: >-
+          {{ sn_sm_app_mode }} failed for: {{ sn_apps_failed | default([]) }}.
+          App Manager repair often requires sn_appclient.app_client_company_installer
+          or admin UI (System Applications → Repair).
+      when: sn_sm_app_mode in ['repair', 'reinstall']
+
+    - name: Install or ensure Store apps and plugin
+      when: sn_sm_app_mode == 'install'
+      block:
+        - name: Classify components needing action
+          ansible.builtin.set_fact:
+            sn_apps_missing: >-
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+                 | rejectattr('installed') | list }}
+            sn_store_apps_all: >-
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app') | list }}
+            sn_plugins_to_activate: >-
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'plugin')
+                 | rejectattr('installed') | list }}
+
+        - name: Check CI/CD bootstrap prerequisites
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_cicd_bootstrap.yml"
+          when: >-
+            (sn_apps_missing | length > 0)
+            or (sn_sm_ensure_store_apps | bool)
+            or (sn_plugins_to_activate | length > 0)
+
+        - name: Install missing Store apps via CI/CD App Repo API (manifest order)
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/install_store_app.yml"
+          loop: "{{ sn_apps_missing }}"
+          loop_control:
+            loop_var: sn_app
+            label: "{{ sn_app.scope }}"
+          when:
+            - not (sn_sm_ensure_store_apps | bool)
+            - sn_apps_missing | length > 0
+
+        - name: Ensure all manifest Store apps via CI/CD App Repo API
+          ansible.builtin.include_tasks: common/ensure_store_apps.yml
+          loop: "{{ sn_store_apps_all }}"
+          loop_control:
+            loop_var: sn_app
+            label: "{{ sn_app.scope }}"
+          when: sn_sm_ensure_store_apps | bool
+
+        - name: Summarize Store ensure warnings
+          ansible.builtin.debug:
+            msg: >-
+              Store ensure warnings (apps may still be installed on instance):
+              {{ sn_sm_store_ensure_warnings | map(attribute='scope') | list }}.
+              Typical on shared demos: Unable to download app package — request
+              Optimiz Store entitlement or install from System Applications UI.
+          when: sn_sm_store_ensure_warnings | default([]) | length > 0
+
+        - name: Notify that plugin activation is being (re)done
+          ansible.builtin.debug:
+            msg: >-
+              Plugin {{ item.scope }}: state {{
+              'is NOT ACTIVE' if item.status_known else
+              'cannot be verified via API (sys_plugins not readable)' }}
+              — requesting activation{{ ' again' if not item.status_known else '' }}.
+          loop: "{{ sn_plugins_to_activate }}"
+          loop_control:
+            label: "{{ item.scope }}"
+          when: sn_plugins_to_activate | length > 0
+
+        - name: Request Service Mapping plugin activation via CI/CD API
+          ansible.builtin.uri:
+            url: "{{ sn_url }}/api/sn_cicd/plugin/{{ item.scope }}/activate"
+            method: POST
+            user: "{{ sn_user }}"
+            password: "{{ sn_password }}"
+            force_basic_auth: true
+            headers: "{{ sn_api_headers }}"
+            status_code: [200, 202, 400, 403, 404]
+            return_content: true
+          register: sn_sm_plugin_activations
+          loop: "{{ sn_plugins_to_activate }}"
+          loop_control:
+            label: "{{ item.scope }}"
+          no_log: true
+          delegate_to: localhost
+
+        - name: Report plugin activation outcome
+          ansible.builtin.debug:
+            msg: >-
+              Plugin {{ item.item.scope }}: HTTP {{ item.status }}
+              {{ item.json.result.status_message | default('')
+                 if item.json.result is defined else
+                 (item.json.error.message | default('') if item.json.error is defined else '') }}
+          loop: "{{ sn_sm_plugin_activations.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item.scope }}"
+          when: sn_sm_plugin_activations.results is defined
+
+        - name: Wait for plugin activation to complete
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/poll_cicd_progress.yml"
+          vars:
+            sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
+          loop: "{{ sn_sm_plugin_activations.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item.scope }}"
+          when:
+            - item.status in [200, 202]
+            - item.json.result.links.progress.url is defined
+
+        - name: Reset component status facts before re-check
+          ansible.builtin.set_fact:
+            sn_store_app_status: []
+            sn_store_rows_by_scope: {}
+          when: >-
+            (sn_apps_missing | length > 0)
+            or (sn_sm_ensure_store_apps | bool)
+            or (sn_plugins_to_activate | length > 0)
+
+        - name: Re-check component state after installs
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_store_apps.yml"
+          when: >-
+            (sn_apps_missing | length > 0)
+            or (sn_sm_ensure_store_apps | bool)
+            or (sn_plugins_to_activate | length > 0)
+
+        - name: Assert all required Store applications are installed
+          ansible.builtin.assert:
+            that:
+              - sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+                | rejectattr('installed') | list | length == 0
+            fail_msg: >-
+              Store apps still missing:
+              {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+                 | rejectattr('installed') | map(attribute='scope') | list }}.
+              Install manually from System Applications or request Store entitlement.
+            success_msg: All required Service Mapping Store applications are installed.
+
+    - name: Verify Service Mapping admin roles exist
+      ansible.builtin.include_tasks: common/check_sm_roles.yml
+      when: sn_sm_app_mode == 'install'

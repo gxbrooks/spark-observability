@@ -1,0 +1,27 @@
+---
+# Log-to-Incident automation variables.
+
+sn_repo_root: "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}"
+sn_discovery_common_dir: "{{ sn_repo_root }}/ansible/playbooks/servicenow/discovery/common"
+sn_incident_integrations_dir: "{{ sn_repo_root }}/servicenow/integrations/incident"
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+sn_incident_si_name: ResolveApplicationService
+sn_incident_pod_bind_si_name: K8sLogPodCiBind
+sn_incident_em_event_br_name: em-event-bind-k8s-log-pod-ci
+sn_incident_em_event_br_order: "5000"
+sn_incident_em_event_propagate_br_name: em-event-propagate-k8s-log-pod-ci
+sn_incident_em_event_propagate_br_order: "5005"
+sn_incident_em_alert_bind_br_name: em-alert-bind-k8s-log-pod-ci
+sn_incident_em_alert_bind_br_order: "5010"
+sn_incident_em_alert_br_name: em-alert-create-k8s-log-incident
+sn_incident_em_alert_br_order: "5020"
+
+# Lab: create incidents for ERROR (2) and WARN (3).
+sn_incident_max_severity: "3"

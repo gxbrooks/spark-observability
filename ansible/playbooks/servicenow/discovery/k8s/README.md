@@ -13,7 +13,7 @@ All clusters on the shared ServiceNow instance are defined in `K8S_CLUSTERS`
 
 Every entry with a `location` is location-mapped in the CMDB regardless of flags.
 
-See `../docs/install.md` §5 for field reference.
+See [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §5 for field reference.
 
 ## Location (product-native)
 

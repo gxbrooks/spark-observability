@@ -1,0 +1,48 @@
+---
+# Re-run em-event-bind-k8s-log-pod-ci on recent log events (after-update BR).
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/reprocess_spark_log_events.yml -e @../vars/secrets.yaml
+
+- name: Reprocess K8s log em_event rows through pod CI binding BR
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
+  tasks:
+    - name: Query recent Spark log em_event rows
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_event
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEMaster:^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,node,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,resource,message_key,description&sysparm_limit=30"
+
+    - name: Touch em_event rows to trigger after-update business rule
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/em_event/{{ item.sys_id }}"
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          description: "{{ item.description }} "
+        status_code: [200]
+      loop: "{{ sn_rest_json.result | default([]) }}"
+      loop_control:
+        label: "{{ item.number | default(item.sys_id) }}"
+      when: sn_rest_status | default(0) == 200
+      no_log: true
+
+    - name: Re-query em_event after reprocess
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_event
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEMaster:^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=number,node,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,resource,message_key&sysparm_limit=30"
+
+    - name: Show reprocessed em_event CI bindings
+      ansible.builtin.debug:
+        var: sn_rest_json.result

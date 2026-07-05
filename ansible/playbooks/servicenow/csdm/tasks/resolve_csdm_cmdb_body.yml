@@ -105,4 +105,8 @@
          | combine(
              {'short_description': sn_csdm_merged_spec.short_description}
              if sn_csdm_merged_spec.short_description is defined else {},
+             recursive=True)
+         | combine(
+             {'identifier': sn_csdm_merged_spec.identifier}
+             if sn_csdm_object_kind == 'application_service' and sn_csdm_merged_spec.identifier is defined else {},
              recursive=True) }}

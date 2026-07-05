@@ -1,0 +1,47 @@
+---
+# Verify Service Mapping admin roles exist on the instance after install.
+# Sets sn_sm_roles_present (list of role names found).
+
+- name: Query Service Mapping admin role records
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_user_role?sysparm_query=nameIN{{
+      sn_sm_admin_role_candidates | join(',') }}&sysparm_fields=name,description&sysparm_limit=20
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sm_role_query
+  no_log: true
+  delegate_to: localhost
+
+- name: Record present Service Mapping admin roles
+  ansible.builtin.set_fact:
+    sn_sm_roles_present: "{{ sn_sm_role_query.json.result | default([]) | map(attribute='name') | list }}"
+
+- name: Report Service Mapping admin roles on instance
+  ansible.builtin.debug:
+    msg: >-
+      Service Mapping admin roles present: {{ sn_sm_roles_present | join(', ')
+         if sn_sm_roles_present | length > 0 else '(none found)' }}.
+      On Zurich, use service_mapping_admin (not sm_admin — that role is often absent).
+      Classic Tag Categories UI: Filter Navigator → svc_tag_categories.list or
+      {{ sn_url }}/{{ sn_sm_classic_tag_categories_url_suffix }}.
+      An empty list is normal on a greenfield instance — click New to create categories.
+      Workspace URL /now/svc-map/tag-categories requires sn_itom_map_app Store entitlement;
+      classic UI is sufficient for brooks-lab when the workspace route is unavailable.
+
+- name: Assert at least one Service Mapping admin role exists
+  ansible.builtin.assert:
+    that:
+      - sn_sm_roles_present | length > 0
+    fail_msg: >-
+      No Service Mapping admin roles found after install. Activate plugin
+      com.snc.service-mapping and install store apps sn_service_mapping /
+      sn_itom_map_app (see service-mapping/install.yml). On shared demos, request
+      Optimiz to enable ITOM Service Mapping entitlement if Store install is rejected.
+    success_msg: >-
+      Service Mapping admin role(s) available: {{ sn_sm_roles_present | join(', ') }}.

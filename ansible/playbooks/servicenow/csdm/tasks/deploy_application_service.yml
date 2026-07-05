@@ -51,6 +51,12 @@
     - sn_csdm_app_svc_item.spec.parent_business_service is defined
     - sn_csdm_registry.business_services[sn_csdm_app_svc_item.spec.parent_business_service] is defined
 
+- name: Configure tag-based Service Mapping from CSDM spec
+  ansible.builtin.include_tasks: configure_tag_based_sm.yml
+  when:
+    - sn_csdm_app_svc_item.spec.service_mapping == 'tags'
+    - sn_csdm_configure_tag_sm | default(true) | bool
+
 - name: Deploy entry points for vertical Service Mapping
   ansible.builtin.include_tasks: deploy_entry_point.yml
   loop: "{{ sn_csdm_app_svc_item.spec.entry_points | default([]) }}"

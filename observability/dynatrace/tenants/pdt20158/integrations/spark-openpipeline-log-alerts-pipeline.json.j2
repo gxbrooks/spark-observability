@@ -1,0 +1,91 @@
+{
+  "schemaId": "builtin:openpipeline.logs.pipelines",
+  "scope": "environment",
+  "value": {
+    "displayName": "{{ dt_sn_spark_openpipeline_pipeline_display_name }}",
+    "customId": "{{ dt_sn_spark_openpipeline_pipeline_custom_id }}",
+    "routing": "routable",
+    "groupRole": "memberPipeline",
+    "processing": {
+      "processors": [
+        {
+          "id": "extract-k8s-pod-from-enriched-path",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse pod name from k8s.log.path when custom log source enrichment is present",
+          "matcher": "isNull(k8s.pod_name) AND isNotNull(k8s.log.path)",
+          "dql": {
+            "script": "parse k8s.log.path, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | parse k8s.log.path, \"LD '/opt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\""
+          }
+        },
+        {
+          "id": "extract-k8s-pod-from-path",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse Kubernetes pod name from literal log.source path (fallback)",
+          "matcher": "isNull(k8s.pod_name) AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\"))",
+          "dql": {
+            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | parse log.source, \"LD '/opt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\""
+          }
+        },
+        {
+          "id": "drop-non-pod-log-paths",
+          "type": "drop",
+          "enabled": true,
+          "description": "Exclude client-mode chapter/client log directories (not discovered pod CIs)",
+          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(k8s.pod_name, \"*-client\")"
+        },
+        {
+          "id": "resolve-k8s-pod-entity",
+          "type": "fieldsAdd",
+          "enabled": false,
+          "description": "Optional pod entity for Smartscape (disabled: pod entities are outside Spark Observability MZ and block SGO webhook). Pod CI binding is done in ServiceNow K8sLogPodCiBind from log path.",
+          "matcher": "isNotNull(k8s.pod_name)",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "dt.source_entity",
+                "value": "lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "davis": {
+      "processors": [
+        {
+          "id": "k8s-warn-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Application ERROR/WARN log lines for ServiceNow events",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(k8s.pod_name, \"*-chapter\") AND NOT matchesValue(k8s.pod_name, \"*-client\")",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "event.name", "value": "Application log {loglevel} on {k8s.pod_name}" },
+              {
+                "key": "event.description",
+                "value": "Application {loglevel} on {k8s.log.path}: {content}"
+              },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        }
+      ]
+    },
+    "storage": {
+      "processors": [
+        {
+          "id": "default-storage",
+          "type": "bucketAssignment",
+          "enabled": true,
+          "description": "Store in default logs bucket",
+          "matcher": "true",
+          "bucketAssignment": { "bucketName": "default_logs" }
+        }
+      ]
+    }
+  }
+}

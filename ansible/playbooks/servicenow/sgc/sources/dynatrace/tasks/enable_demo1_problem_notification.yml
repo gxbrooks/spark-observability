@@ -1,0 +1,58 @@
+---
+# Re-enable the tenant-wide Demo 1 problem notification (reverses disable_demo1_problem_notification.yml).
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/tasks/enable_demo1_problem_notification.yml -e @../vars/secrets.yaml
+
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: List problem notifications
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:problem.notifications&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_problem_notifications
+  delegate_to: localhost
+  run_once: true
+
+- name: Select Demo 1 problem notification
+  ansible.builtin.set_fact:
+    dt_demo1_notification_object_id: "{{ item.objectId }}"
+    dt_demo1_notification_value: "{{ item.value }}"
+  loop: "{{ dt_problem_notifications.json['items'] | default([]) }}"
+  when: item.value.displayName | default('') == 'ServiceNow Demo 1 - Optimiz'
+  run_once: true
+
+- name: Default Demo 1 notification facts
+  ansible.builtin.set_fact:
+    dt_demo1_notification_object_id: "{{ dt_demo1_notification_object_id | default('') }}"
+    dt_demo1_notification_value: "{{ dt_demo1_notification_value | default({}) }}"
+  run_once: true
+
+- name: Re-enable Demo 1 problem notification
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_demo1_notification_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      schemaId: builtin:problem.notifications
+      scope: environment
+      value: "{{ dt_demo1_notification_value | combine({'enabled': true}, recursive=True) }}"
+    status_code: [200, 204]
+  when:
+    - dt_demo1_notification_object_id | length > 0
+    - not (dt_demo1_notification_value.enabled | default(false) | bool)
+  delegate_to: localhost
+  run_once: true
+
+- name: Demo 1 problem notification state
+  ansible.builtin.debug:
+    msg: >-
+      Demo 1 notification {{ 're-enabled' if (dt_demo1_notification_object_id | length > 0) else 'not found' }}.
+      Brooks-lab SGO-Dynatrace notification remains separate (MZ-scoped alerting profile).
+  run_once: true

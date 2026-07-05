@@ -1,0 +1,69 @@
+---
+# Idempotently create CI tag categories (svc_tag_categories + svc_tag_names) via
+# Service Mapping Operations REST API (scoped sn_service_mapping evaluator).
+# Table API POST is blocked by ACL for the automation user; scoped REST is not.
+
+- name: Load persisted Service Mapping REST URIs
+  ansible.builtin.set_fact:
+    sn_sm_rest_context_loaded: "{{ lookup('file', sn_csdm_context_file) | from_json }}"
+  vars:
+    sn_csdm_context_file: "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_sm_deploy.json"
+  failed_when: false
+
+- name: Apply persisted ensure_tag_categories REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_ensure_tag_categories_uri: "{{ sn_sm_rest_context_loaded.sm_rest_ensure_tag_categories_uri }}"
+  when:
+    - sn_sm_rest_context_loaded is mapping
+    - sn_sm_rest_context_loaded.sm_rest_ensure_tag_categories_uri | default('') | length > 0
+
+- name: Require Service Mapping ensure_tag_categories REST URI
+  ansible.builtin.assert:
+    that:
+      - sn_sm_rest_ensure_tag_categories_uri | default('') | length > 0
+    fail_msg: >-
+      Service Mapping ensure_tag_categories REST URI is unset. Run
+      service-mapping/deploy.yml or csdm/deploy.yml (deploy_sm_rest_api.yml) first.
+
+- name: Build default tag category payload
+  ansible.builtin.set_fact:
+    sn_sm_tag_category_payload: >-
+      {{ sn_sm_default_tag_categories | default([
+           {'name': 'Application Service', 'tag_key': sn_csdm_tag_key_application_service},
+           {'name': 'Environment', 'tag_key': sn_csdm_tag_key_environment},
+           {'name': 'Location', 'tag_key': sn_csdm_tag_key_location}
+         ]) }}
+
+- name: Ensure CI tag categories via Service Mapping REST API
+  ansible.builtin.uri:
+    url: "{{ sn_url }}{{ sn_sm_rest_ensure_tag_categories_uri }}"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      categories: "{{ sn_sm_tag_category_payload }}"
+    status_code: [200, 400, 500]
+    return_content: true
+  register: sn_sm_ensure_tag_categories_result
+  no_log: true
+
+- name: Report tag category ensure outcome
+  ansible.builtin.debug:
+    msg: >-
+      Tag categories: HTTP {{ sn_sm_ensure_tag_categories_result.status }}
+      {{ sn_sm_ensure_tag_categories_result.json.result
+         if sn_sm_ensure_tag_categories_result.json.result is defined
+         else sn_sm_ensure_tag_categories_result.json }}
+
+- name: Fail when tag category ensure rejected
+  ansible.builtin.fail:
+    msg: >-
+      Tag category ensure failed (HTTP {{ sn_sm_ensure_tag_categories_result.status }}):
+      {{ sn_sm_ensure_tag_categories_result.json.result.error
+         if (sn_sm_ensure_tag_categories_result.json.result is defined
+             and sn_sm_ensure_tag_categories_result.json.result.error is defined)
+         else sn_sm_ensure_tag_categories_result.json.error | default(sn_sm_ensure_tag_categories_result.json) }}
+  when: sn_sm_ensure_tag_categories_result.status != 200

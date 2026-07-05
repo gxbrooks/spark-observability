@@ -101,7 +101,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
   holds it, and fails fast naming the exact missing manual step. Perform the
   step and re-run — completed work is skipped. The role can only be granted
   once the CI/CD tooling exists; on a bare instance, activating
-  `com.snc.ci_cd` (manual) precedes the grant. See `../docs/install.md` §7
+  `com.snc.ci_cd` (manual) precedes the grant. See [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §7
   "Bootstrap sequence".
 - SGC topology configuration is split: `sources/dynatrace/deploy.yml`
   automates management-zone scoping and schedule activation;
@@ -115,6 +115,6 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 
 - `tmp/Dynatrace-ServiceNow SGC.md` — SGC architecture, object mapping, known issues
 - `tmp/Dynatrace-ServiceNow-events.md` — event path and validation
-- `../docs/install.md` §7 — prerequisites, manual install steps, Guided Setup
+- [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §7 — prerequisites, manual install steps, Guided Setup
 
 Phase 1–3 Discovery lives in `../discovery/`.

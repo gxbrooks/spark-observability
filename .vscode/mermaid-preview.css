@@ -26,6 +26,18 @@
   line-height: 1.3 !important;
 }
 
+/* Stacked HTML labels — secondary lines slightly smaller when htmlLabels render br */
+.mermaid .nodeLabel foreignObject div {
+  text-align: center;
+  line-height: 1.35;
+  overflow: visible;
+}
+
+.mermaid .nodeLabel tspan:nth-child(n+2) {
+  font-size: max(11pt, 0.82em) !important;
+  fill: #555 !important;
+}
+
 .mermaid .cluster-label,
 .mermaid .cluster-label .nodeLabel,
 .mermaid .cluster-label p,

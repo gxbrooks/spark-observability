@@ -1,0 +1,27 @@
+---
+# Deploy Service Mapping instance configuration (REST operations + tag categories).
+# Idempotent — safe to re-run before CSDM deploy.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.yml \
+#     -e @../vars/secrets.yaml
+
+- name: Deploy Service Mapping configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - common/vars.yml
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Regenerate service-now context when stale
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
+
+    - name: Deploy Service Mapping Operations REST API
+      ansible.builtin.include_tasks: "{{ sn_csdm_dir }}/tasks/deploy_sm_rest_api.yml"
+
+    - name: Ensure default CI tag categories
+      ansible.builtin.include_tasks: common/ensure_tag_categories.yml
+      when: sn_sm_configure_tag_categories | default(true) | bool

@@ -102,7 +102,7 @@
   ansible.builtin.fail:
     msg: >-
       Could not create or read Scripted REST API '{{ sn_discovery_rest_api_name }}'.
-      Grant web_service_admin to {{ sn_user }} (docs/install.md §7).
+      Grant web_service_admin to {{ sn_user }} (servicenow/docs/install.md §7).
   when: sn_discovery_rest_ws_sys_id | default('') | length == 0
 
 - name: Deploy Discovery REST API operations

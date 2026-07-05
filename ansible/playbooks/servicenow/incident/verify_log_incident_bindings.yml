@@ -1,0 +1,77 @@
+---
+# Verify Log-to-Incident CI bindings on recent em_event / em_alert / incident rows.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_log_incident_bindings.yml -e @../vars/secrets.yaml
+
+- name: Verify K8s log event and incident CI bindings
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
+  tasks:
+    - name: Detect SGC installation
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/sgc/sources/dynatrace/tasks/check_sgc_prerequisites.yml"
+
+    - name: Query recent SGO-Dynatrace em_event rows
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_event
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,description,resource,node,message,message_key,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,type,sys_created_on&sysparm_limit=10"
+
+    - name: Show recent em_event CI bindings
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+      when: sn_rest_status | default(0) == 200
+
+    - name: Save em_event results
+      ansible.builtin.set_fact:
+        spark_em_events: "{{ sn_rest_json.result | default([]) }}"
+      when: sn_rest_status | default(0) == 200
+
+    - name: Query recent K8s log em_alert rows
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEApplication%20log^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,description,resource,node,message_key,incident,incident.number,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,sys_created_on&sysparm_limit=10"
+
+    - name: Show recent em_alert CI bindings
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+      when: sn_rest_status | default(0) == 200
+
+    - name: Query recent Event Log incidents
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: incident
+        sn_rest_query: "sysparm_query=short_descriptionLIKEEvent%20Log^sys_created_on>javascript:gs.hoursAgo(24)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,active,sys_created_on&sysparm_limit=5"
+
+    - name: Show recent Event Log incidents
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+      when: sn_rest_status | default(0) == 200
+
+    - name: Assert em_event has pod CI and log path signal
+      ansible.builtin.assert:
+        that:
+          - spark_events | length > 0
+          - spark_events | selectattr('source', 'equalto', sn_sgc_event_source) | list | length > 0
+          - >-
+            spark_events | selectattr('source', 'equalto', sn_sgc_event_source)
+            | selectattr('cmdb_ci', 'defined') | rejectattr('cmdb_ci', 'equalto', '') | list | length > 0
+            or spark_events | selectattr('source', 'equalto', sn_sgc_event_source)
+            | map(attribute='description') | select('search', 'Application log|/mnt/spark/logs/|/logs/') | list | length > 0
+        fail_msg: >-
+          Recent {{ sn_sgc_event_source }} em_event rows lack pod cmdb_ci or log-path description.
+          Check management zone includes K8s pods, OpenPipeline entity lookup, and em-event-bind-k8s-log-pod-ci BR.
+        success_msg: >-
+          Found {{ spark_events | selectattr('source', 'equalto', sn_sgc_event_source) | list | length }}
+          {{ sn_sgc_event_source }} event(s) in the last 2 hours.
+      vars:
+        spark_events: "{{ spark_em_events | default([]) }}"
+      when:
+        - sn_rest_status | default(0) == 200
+        - spark_em_events is defined

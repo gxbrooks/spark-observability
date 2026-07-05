@@ -1,0 +1,45 @@
+---
+# Re-bind K8s log em_alert rows to pod CI and trigger incident BR (before-update).
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+    - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
+  tasks:
+    - include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEApplication%20log^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,description,cmdb_ci&sysparm_limit=30"
+
+    - name: Touch em_alert rows to trigger business rules
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/em_alert/{{ item.sys_id }}"
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          work_notes: "Reprocess K8s log bind {{ lookup('pipe', 'date -Iseconds') }}"
+        status_code: [200]
+      loop: "{{ sn_rest_json.result | default([]) }}"
+      when: sn_rest_status | default(0) == 200
+      no_log: true
+
+    - include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEApplication%20log^sys_created_on>javascript:gs.hoursAgo(4)^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,description,cmdb_ci&sysparm_limit=30"
+    - debug:
+        var: sn_rest_json.result
+
+    - include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: incident
+        sn_rest_query: "sysparm_query=short_descriptionLIKEEvent%20Log^sys_created_on>javascript:gs.hoursAgo(24)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,active&sysparm_limit=5"
+    - debug:
+        msg: "Incidents: {{ sn_rest_json.result | default([]) }}"

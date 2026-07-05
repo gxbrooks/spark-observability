@@ -7,7 +7,7 @@
 #   - When something needs installing, a bootstrap preflight
 #     (common/check_cicd_bootstrap.yml) verifies the CI/CD tooling exists and
 #     the automation user holds sn_cicd.sys_ci_automation, and fails fast with
-#     the exact missing manual step otherwise (docs/install.md §7 "Bootstrap
+#     the exact missing manual step otherwise (servicenow/docs/install.md §7 "Bootstrap
 #     sequence"). Re-run after each bootstrap step — completed work is skipped.
 #   - Missing Store apps are installed via the CI/CD App Repo Install API
 #     (by scope, in manifest order — no sys_store_app read required).
@@ -155,7 +155,7 @@
           Failed scopes: {{ sn_apps_failed | default([]) }}.
           RTE broken refs: {{ sn_sgc_rte_broken_field_refs | default('unknown') }}.
           Use manual Repair in System Applications (admin account) — see
-          docs/install.md §7 "Application maintain modes". Then Execute Now on
+          servicenow/docs/install.md §7 "Application maintain modes". Then Execute Now on
           SGO-Dynatrace Hosts and re-run diagnose.yml.
       when: sn_sgc_app_mode in ['repair', 'reinstall']
 
@@ -241,7 +241,7 @@
               {{ '— activation accepted/queued' if item.status in [200, 202]
                  else ('— already active or invalid request: ' ~ (item.json.error.message | default(''))
                        if item.status == 400
-                       else '— not authorized (grant sn_cicd.sys_ci_automation) or plugin id unknown; request manually: System Definition → Plugins (docs/install.md §7)') }}
+                       else '— not authorized (grant sn_cicd.sys_ci_automation) or plugin id unknown; request manually: System Definition → Plugins (servicenow/docs/install.md §7)') }}
           loop: "{{ sn_plugin_activations.results | default([]) }}"
           loop_control:
             label: "{{ item.item.scope }}"
@@ -276,7 +276,7 @@
               Store apps still missing:
               {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
                  | rejectattr('installed') | map(attribute='scope') | list }}.
-              Install manually per docs/install.md §7 "Manual Store install", then
+              Install manually per servicenow/docs/install.md §7 "Manual Store install", then
               re-run this playbook (already-installed apps are skipped).
             success_msg: "All required Store applications are installed."
 

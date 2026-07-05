@@ -25,6 +25,10 @@ spec:
         servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
+      securityContext:
+        fsGroup: 185
+        runAsUser: 185
+        runAsGroup: 185
       # Pin history server to the configured Kubernetes control-plane node.
       affinity:
         nodeAffinity:

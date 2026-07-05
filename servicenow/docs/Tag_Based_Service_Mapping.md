@@ -65,7 +65,7 @@ Direct list URLs (replace instance host):
 - Tag-Based Service Families: `https://<instance>/now/svc-map/tag-based-service-families`
 - Service Candidates: `https://<instance>/now/svc-map/service-candidates`
 
-Required role: **`sm_admin`** (Service Mapping Administrator).
+Required role: **`service_mapping_admin`** on Zurich ( **`sm_admin`** is often absent). Classic UI: Filter Navigator → **CI tag categories** (`svc_tag_categories_list.do`). Workspace `/now/svc-map/tag-categories` requires full **`sn_itom_map_app`** Store entitlement.
 
 ## Tag Categories to create
 

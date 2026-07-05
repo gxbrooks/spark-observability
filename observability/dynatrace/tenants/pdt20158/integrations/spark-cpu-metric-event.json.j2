@@ -9,7 +9,14 @@
       "metricKey": "builtin:host.cpu.usage",
       "aggregation": "AVG",
       "entityFilter": {
-        "conditions": []
+        "dimensionKey": "dt.entity.host",
+        "conditions": [
+          {
+            "type": "HOST_GROUP_NAME",
+            "operator": "EQUALS",
+            "value": "{{ dt_host_group_resolved }}"
+          }
+        ]
       },
       "dimensionFilter": []
     },
@@ -24,7 +31,7 @@
       "dealertingSamples": 3
     },
     "eventTemplate": {
-      "title": "Spark Lab host CPU above 80% ({dims:dt.entity.host})",
+      "title": "Host ({dims:dt.entity.host}) CPU above 80%",
       "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 80%.",
       "eventType": "CUSTOM_ALERT",
       "davisMerge": false,

@@ -1,0 +1,1870 @@
+= Problem to Incident
+:doctype: book
+:toc: left
+:toclevels: 2
+:sectnums:
+:icons: font
+:source-highlighter: highlight.js
+:experimental:
+:page-layout: article
+:description: Reference implementation for Log to Incident — application logs through Dynatrace to ServiceNow
+:kroki-server-url: https://kroki.io
+:kroki-http-method: post
+:kroki-default-format: png
+:docinfo:
+:pdf-theme: {docdir}/../styles/problem-to-incident-theme.yml
+:listing-font-size: 7
+
+== Purpose
+
+This document is a **prescriptive reference implementation** for the **Log to Incident** use case: when an application emits an **ERROR** or **WARN** log line, observability detects it, ServiceNow Event Management ingests an event, an alert is raised on the correct infrastructure CI, and an incident is opened on the correct CSDM Application Service.
+
+The flow is vendor-specific only where the platforms require it (Dynatrace OpenPipeline, Service Graph Connector, CSDM). Application names, host names, and tenant identifiers in examples are illustrative. Implementors may automate these steps with Ansible, Terraform, REST APIs, or manual configuration.
+
+Related background:
+
+* link:Dynatrace_Entity_Types_and_Relationships.md[Dynatrace entity types and ServiceNow mapping]
+* link:docker_model.md[CMDB model and incident correlation patterns]
+* link:../DT_SN_Mapping.md[Dynatrace ↔ ServiceNow object mapping]
+* link:../Tag_Based_Service_Mapping.md[Tag-based Service Mapping]
+* link:../CSDM_Specifications.md[CSDM specifications]
+* link:guidelines.md[Problem to Incident documentation guidelines]
+
+=== Terminology: SGC vs SGO-Dynatrace
+
+**SGC** (Service Graph Connector) is the ServiceNow connector product family. **SGO** is **Service Graph Observability** — the observability-specific variant delivered by the Store app **Service Graph Connector for Observability – Dynatrace** (`sn_dynatrace_integ`).
+
+**`SGO-Dynatrace`** is the **literal platform identifier**, not a typo for SGC. ServiceNow uses it as:
+
+* the **`source=`** query parameter on the Event Management inbound webhook URL;
+* **`sys_object_source.name`** and CMDB **`discovery_source`** for imported Dynatrace entities;
+* the filter value in business rules and EM rules (`source=SGO-Dynatrace`).
+
+Do **not** rename it to `SGC-Dynatrace` in configuration — the scoped app, existing CMDB rows, and webhook URLs expect the exact string **`SGO-Dynatrace`**.
+
+=== Naming conventions (ServiceNow and Dynatrace specifications)
+[[naming-conventions]]
+
+Prescriptive automation in this document **must** use technology- or pattern-specific names, not workload-specific names (for example **Spark**).
+
+[cols="35%,65%",options="header"]
+|===
+|Category |Rule
+
+|ServiceNow Script Includes
+|Name by **pattern**, not application: `K8sLogPodCiBind`, `ResolveApplicationService` — not `SparkLogPodCiBind`
+
+|ServiceNow business rules
+|Name by **table + pattern**: `em-event-bind-k8s-log-pod-ci`, `em-alert-create-k8s-log-incident`
+
+|Dynatrace OpenPipeline attributes
+|Use **`k8s.pod_name`**, **`k8s.log.path`** — not `spark.pod_name` (lab path *values* in matchers may still reflect deployment layout)
+
+|Davis `event.name`
+|Use **`Application log {loglevel} on {k8s.pod_name}`** — workload examples (Spark) belong in scenario prose only
+
+|ServiceNow `message_key` prefix
+|Use **`K8sLog-{pod}-`** for per-pod deduplication
+
+|Incident short description
+|Use **`Event Log WARN`** / **`Event Log ERROR`** — not `Spark Event Log …` or generic `Log Errors`
+
+|Lab examples
+|Host names, pod names, CSDM identifiers (`spark-master`), and log paths (`/mnt/spark/logs/…`) **may** appear in scenario tables and figures as **illustrative** values only
+|===
+
+Implementors deploying for a non-Kubernetes workload should substitute the appropriate pattern (for example Docker process group binding) while keeping the same separation: generic automation names, illustrative example values.
+
+== Log to Incident
+
+=== Use case
+
+When a workload emits an **ERROR** or **WARN** line to an application log file, the target outcome is:
+
+. The **full log line** (timestamp, level, logger, message) is visible in the ServiceNow **event**, **alert**, and **incident** descriptions.
+. Dynatrace opens a **problem** in the scoped management zone and POSTs a problem notification to ServiceNow Event Management (discovery source **SGO-Dynatrace**).
+. The **event** and **alert** bind to the **most specific infrastructure CI** available — preferably the Kubernetes pod or process group that emitted the log, not only the host that tails the file.
+. An **incident** is created whose **Configuration item** is the CSDM **Application Service** (`cmdb_ci_service_discovered`), resolved by **Pattern A** — traversing the Service Mapping **Contains::Contained by** relationship from the alert's **pod CI** to its parent Application Service.
+. In non-production environments, incidents may be created for both ERROR and WARN to simplify testing; in production, restrict automatic incidents to ERROR severity.
+
+==== Target log record (application layer)
+
+The application and platform must preserve these attributes end to end:
+
+[cols="30%,70%",options="header"]
+|===
+|Attribute |Requirement
+
+|Log file path
+|Encodes **workload identity** (for example pod name as a directory segment: /var/log/myapp/myapp-worker-7d4f9b-xk2lm/application.log)
+
+|content (Dynatrace) / message body
+|Full formatted log line including ERROR or WARN text
+
+|loglevel
+|WARN or ERROR (case as parsed by Dynatrace)
+
+|dt.source_entity (Dynatrace, after enrichment)
+|CLOUD_APPLICATION_INSTANCE (Kubernetes pod) or PROCESS_GROUP when pod resolution succeeds; HOST only as last resort
+
+|ImpactedEntities[].entityId (webhook)
+|Same entity type as dt.source_entity, resolvable via sys_object_source
+|===
+
+Example formatted line written by the application:
+
+[source]
+----
+2026-06-27 14:53:46 ERROR Worker:264 - All masters are unresponsive! Giving up.
+----
+
+Example log file path (pod identity in directory name):
+
+[source]
+----
+/var/log/myapp/myapp-worker-7d4f9b-xk2lm/application.log
+                      └─ Kubernetes pod name (metadata.name)
+----
+
+=== End-to-end flow
+
+.Log to Incident end-to-end data flow
+[graphviz, Log_to_Incident_end-to-end_data_flow]
+----
+digraph end_to_end_flow {
+  graph [rankdir=TB splines=line nodesep=0.25 ranksep=0.4 fontname="Noto Sans" fontsize=10]
+  node [shape=box style="rounded,filled" fillcolor="#eef6ff" fontname="Noto Sans" fontsize=9 width=2.0 fixedsize=true height=0.30]
+  edge [fontname="Noto Sans" fontsize=9 labelangle=-90 labeldistance=3.2 arrowsize=0.7]
+
+  App [label="Application JVM (pod)"]
+  Log [label="application.log on shared storage"]
+  OA [label="Dynatrace OneAgent"]
+  OP [label="OpenPipeline (log alerts)"]
+  Davis [label="Davis problem"]
+  WH [label="SGO-Dynatrace webhook"]
+  EV [label="em_event"]
+  AL [label="em_alert"]
+  INC [label="incident"]
+  AS [label="Application Service CI"]
+
+  App -> Log [label="— ERROR/WARN log line (pod-scoped path)"]
+  Log -> OA [label="— OneAgent tail (custom log source)"]
+  OA -> OP [label="— log record"]
+  OP -> Davis [label="— pod entity lookup + ERROR_EVENT"]
+  Davis -> WH [label="— problem + ImpactedEntities"]
+  WH -> EV [label="— inbound_event (SGO-Dynatrace)"]
+  EV -> AL [label="— alert rule (cmdb_ci copied)"]
+  AL -> INC [label="— create incident (severity policy)"]
+  INC -> AS [label="— Contains traverse (Application Service)"]
+}
+----
+
+[cols="10%,20%,70%",options="header"]
+|===
+|Step |Layer |Outcome
+
+|0
+|ServiceNow CMDB / SGC
+|Pod CIs, tags, sys_object_source, Application Service Contains edges
+
+|1
+|Application / Log4j
+|ERROR/WARN line on a path that encodes workload identity
+
+|2
+|Dynatrace detection
+|OpenPipeline matches WARN/ERROR and enriches pod entity
+
+|3
+|Dynatrace → ServiceNow
+|Webhook carries log line and pod-aware impacted entity
+
+|4
+|ServiceNow Event Management
+|em_event description populated; cmdb_ci on pod or process
+
+|5
+|ServiceNow ITSM
+|incident.cmdb_ci = Application Service
+|===
+
+---
+
+=== Step 0 — CMDB, CSDM, and SGC prerequisites
+
+Before log problems can bind to a **pod** (or container/process) and incidents to an **Application Service**, ServiceNow must contain workload CIs, CSDM tags, sys_object_source rows, and Service Mapping **Contains** edges.
+
+==== ServiceNow — CSDM Application Services
+
+Declare one Application Service per logical service boundary. Each workload that should roll up to that service carries a matching Kubernetes label (or Docker Compose label) synced to cmdb_key_value.
+
+[cols="25%,25%,50%",options="header"]
+|===
+|Application Service identifier |Workload role |Tag on pod (label key=value)
+
+|myapp-master
+|Control plane StatefulSet
+|servicenow.io/application-service-identifier=myapp-master
+
+|myapp-api
+|API Deployment
+|servicenow.io/application-service-identifier=myapp-api
+
+|myapp-worker-zone-a
+|Worker pool on zone A
+|servicenow.io/application-service-identifier=myapp-worker-zone-a
+
+|myapp-worker-zone-b
+|Worker pool on zone B
+|servicenow.io/application-service-identifier=myapp-worker-zone-b
+|===
+
+Reference CSDM fragment (YAML — adapt identifiers and depends_on to your environment):
+
+[source,yaml]
+----
+application_services:
+  - name: MyApp Worker (zone-a)
+    identifier: myapp-worker-zone-a
+    short_description: Application worker pool on Kubernetes zone A
+    operational_status: "1"
+    parent_business_service: My Application
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    service_tier: compute
+    environment: production
+    location: dc-east
+    cluster: prod-k8s-east
+    namespace: myapp
+    owned_by: platform-team
+----
+
+CSDM deployment must create:
+
+* cmdb_ci_service_discovered rows and Business Application → Business Service → Application Service **Contains** hierarchy
+* Declared **depends_on** edges (shared infrastructure the service depends on)
+* tag_list on each tag-based Application Service (Service Mapping Operations REST) so the mapping engine knows which cmdb_key_value labels qualify
+
+==== ServiceNow — Kubernetes pod CIs and tags
+
+|===
+|Activity |Produces
+
+|Kubernetes discovery / KVA resync
+|cmdb_ci_kubernetes_pod rows for running pods
+
+|Label sync to CMDB (REST upsert on pod CI)
+|cmdb_key_value rows for servicenow.io/* labels copied from pod metadata.labels
+|===
+
+Pod manifest labels (single source of truth — apply at deploy time):
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-worker-7d4f9b-xk2lm
+  labels:
+    servicenow.io/application-service-identifier: myapp-worker-zone-a
+    servicenow.io/environment: production
+    servicenow.io/location: dc-east
+    app.kubernetes.io/name: myapp-worker
+spec:
+  containers:
+    - name: app
+      env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+      volumeMounts:
+        - name: app-logs
+          mountPath: /var/log/myapp
+          subPathExpr: $(POD_NAME)
+  volumes:
+    - name: app-logs
+      persistentVolumeClaim:
+        claimName: myapp-logs-pvc
+----
+
+After tags exist on pod CIs, run **tag-based Service Mapping** (scheduled job or **Update map** in Service Mapping Workspace) to materialize:
+
+cmdb_ci_service_discovered → **Contains::Contained by** → cmdb_ci_kubernetes_pod
+
+See link:../Tag_Based_Service_Mapping.md[Tag-Based Service Mapping].
+
+==== CMDB and Application Service relationships
+
+.Spark Master log WARN — CMDB, CSDM, and Event Management (brooks-lab)
+[graphviz, Spark_Master_log_WARN_CMDB_CSDM_and_Event_Management_brooks-lab]
+----
+digraph spark_master_log_cmdb {
+  graph [rankdir=TB splines=polyline nodesep=0.5 ranksep=0.55 fontname="Helvetica" fontsize=10 compound=true]
+  node [shape=box fontname="Helvetica" fontsize=8 margin="0.08,0.05"]
+  edge [fontname="Helvetica" fontsize=7 arrowsize=0.5 labeldistance=0.6 labelangle=0]
+
+  subgraph cluster_em {
+    label="Event Management / ITSM"
+    labelloc=t
+    fontsize=9
+    style="rounded,dashed"
+    color="#cc6600"
+    penwidth=1.5
+    bgcolor="#fff8f0"
+    margin=16
+    node [style=filled fillcolor="#ffe8cc"]
+    INC [label="incident\ncmdb_ci → Application Service"]
+    EV  [label="em_event\ncmdb_ci → pod CI"]
+    AL  [label="em_alert\ncmdb_ci → pod CI"]
+    { rank=same; EV; AL }
+  }
+
+  subgraph cluster_sgc {
+    label="SGO-Dynatrace import"
+    labelloc=t
+    fontsize=9
+    style="rounded,dashed"
+    color="#660066"
+    penwidth=1.5
+    bgcolor="#faf0ff"
+    margin=16
+    node [style=filled fillcolor="#f3e8ff"]
+    CI_POD  [label="cmdb_ci_kubernetes_pod\n(from CLOUD_APPLICATION_INSTANCE)"]
+    CI_HOST [label="cmdb_ci_linux_server\n(from HOST)"]
+    CI_POD -> CI_HOST [style=invis]
+  }
+
+  subgraph cluster_k8s {
+    label="Kubernetes discovery / KVA + label sync"
+    labelloc=t
+    fontsize=9
+    style="rounded,dashed"
+    color="#003366"
+    penwidth=1.5
+    bgcolor="#eef6ff"
+    margin=16
+    node [style=filled fillcolor="#ddeeff"]
+    DEP      [label="spark-master\ncmdb_ci_kubernetes_deployment"]
+    POD      [label="spark-master-0\ncmdb_ci_kubernetes_pod"]
+    K8S_NODE [label="Lab3\ncmdb_ci_kubernetes_node"]
+    DEP -> POD [label="Contains"]
+    POD -> K8S_NODE [label="Runs on"]
+  }
+
+  subgraph cluster_csdm {
+    label="CSDM (region *.csdm.yaml deploy)"
+    labelloc=t
+    fontsize=9
+    style="rounded,dashed"
+    color="#006600"
+    penwidth=1.5
+    bgcolor="#f0fff4"
+    margin=16
+    node [style=filled fillcolor="#e8f8ec"]
+    BA [label="Data and Analytic Services\ncmdb_ci_business_app"]
+    BS [label="Apache Spark\ncmdb_ci_service"]
+    AS [label="Spark Master\ncmdb_ci_service_discovered"]
+    BA -> BS [label="Contains"]
+    BS -> AS [label="Contains"]
+  }
+
+  { rank=same; CI_POD; DEP; BA }
+  { rank=same; POD; BS }
+  { rank=same; CI_HOST; K8S_NODE }
+
+  CI_POD -> POD [style=dashed label="sys_object_source"]
+  CI_HOST -> K8S_NODE [style=dashed label="sys_object_source"]
+
+  INC -> AS [style=dashed label="cmdb_ci" color="#cc6600"]
+  EV -> POD [style=dashed label="cmdb_ci" color="#cc6600"]
+  AL -> POD [style=dashed label="cmdb_ci" color="#cc6600"]
+  AS -> POD [style=dashed label="Contains" color="#006600"]
+}
+----
+
+**Legend:** solid lines = **CMDB relationship**; dashed lines = **CI binding** (Event Management / ITSM to CMDB).
+
+NOTE: **Cursor preview** renders `[graphviz]` blocks via **Kroki** (remote Graphviz). **HTML and PDF export** use **local Graphviz** through `asciidoctor-diagram`. Layout and label placement can differ between preview and export. For WYSIWYG with the PDF, run `spark-observability/.vscode/bin/render-adoc.sh` on this file.
+
+==== Publication-quality diagrams (draw.io)
+
+AsciiDoc does **not** read native draw.io (`.drawio`) files. For fixed layout and readable CMDB figures:
+
+. Author `.drawio` sources beside this document (see `figures/spark-csdm-cmdb-model.drawio` and `Grafana ServiceNow Model.drawio`).
+. Export to SVG before HTML/PDF build:
++
+[source,bash]
+----
+spark-observability/.vscode/bin/export-drawio.sh servicenow/docs/Problem_to_Incident svg
+----
++
+(requires Docker image `rlespinasse/drawio-desktop-headless` or local `drawio` CLI)
+. Embed the exported asset:
++
+[source,asciidoc]
+----
+image::figures/spark-csdm-cmdb-model.svg[CMDB and CSDM correlation model,width=100%,align=center]
+----
+
+`render-adoc.sh` runs `export-drawio.sh` automatically when `.drawio` files exist in the document directory.
+
+Other ASCII-friendly tools (**PlantUML**, **D2**, **Mermaid**) support limited manual positioning; none match draw.io for multi-group CMDB layouts. Prefer draw.io when aesthetics dominate and Graphviz when auto-layout suffices.
+
+**Scenario:** WARN from `Master:` logger in `/mnt/spark/logs/spark-master-0/spark-app.log` (chapter or cluster activity). ServiceNow binds **`em_event.cmdb_ci`** / **`em_alert.cmdb_ci`** to **`cmdb_ci_kubernetes_pod`**. **`incident.cmdb_ci`** is **`cmdb_ci_service_discovered`** for Application Service **spark-master** (from `servicenow/regions/brooks-lab/spark.csdm.yaml`), via **Pattern A Contains** traversal from pod — not the Dynatrace problem object and not the pod CI.
+
+[cols="35%,65%",options="header"]
+|===
+|Object |Role in this scenario
+
+|cmdb_ci_business_app — Data and Analytic Services
+|CSDM parent; not an incident CI
+
+|cmdb_ci_service — Apache Spark
+|Business Service parent of Application Service
+
+|cmdb_ci_service_discovered — spark-master
+|**incident.cmdb_ci** (preferred)
+
+|cmdb_ci_kubernetes_pod — spark-master-0
+|**em_event.cmdb_ci**, **em_alert.cmdb_ci**; **`resource`** = `/mnt/spark/logs/spark-master-0/spark-app.log`
+
+|cmdb_ci_linux_server — Lab3
+|Fallback when pod entity lookup fails; **Runs on** target for pod
+
+|CLOUD_APPLICATION_INSTANCE → cmdb_ci_kubernetes_pod
+|Only Dynatrace entity in the happy path for master pod logs
+|===
+
+**Design note (message_key and application design):** Log to Incident correlation **starts with application log design**. Davis **`event.name`** must scope problems (lab: **`Application log {loglevel} on {k8s.pod_name}`**). ServiceNow **`message_key`** should include the **pod name** (`K8sLog-spark-master-0-…`) so unrelated pods are not clubbed into one bucket (for example `Log Errors_pdt20158`). See link:guidelines.md[documentation guidelines] §5.
+
+See link:Dynatrace_Entity_Types_and_Relationships.md[Dynatrace entity types and ServiceNow mapping] for the full SGC entity catalog.
+
+==== ServiceNow — SGC topology import and sys_object_source
+
+[cols="30%,25%,25%,20%",options="header"]
+|===
+|SGC scheduled import |Dynatrace entity type |CMDB class |Role in log incidents
+
+|Hosts
+|HOST
+|cmdb_ci_linux_server
+|Fallback when log tails on host and pod entity unavailable
+
+|Kubernetes Pod
+|CLOUD_APPLICATION_INSTANCE
+|cmdb_ci_kubernetes_pod
+|Preferred alert/event CI for pod-scoped logs
+
+|Process Groups
+|PROCESS_GROUP
+|cmdb_ci_appl
+|Alternative when Davis binds to JVM process
+
+|Application Relationships
+|Smartscape edges
+|cmdb_rel_ci
+|Optional topology context
+|===
+
+Each imported entity receives a **sys_object_source** row: name=SGO-Dynatrace, id=<Dynatrace entityId>, target_sys_id → CMDB CI sys_id.
+
+Configure on the ServiceNow instance:
+
+* Service Graph Connector for Observability – Dynatrace (scoped app sn_dynatrace_integ)
+* Inbound event listener: POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
+* Scheduled imports for hosts, Kubernetes pods, and process groups covering the cluster namespace
+
+==== Dynatrace — management zone
+
+Place hosts, Kubernetes cluster entities, and pods that run the application in a **management zone** dedicated to the integration (for example *Application Observability*). The **alerting profile** for ServiceNow problem notifications must scope to that management zone so only in-scope problems are forwarded.
+
+==== Step 0 completion criteria
+
+[cols="5%,95%",options="header"]
+|===
+|# |Criterion
+
+|1
+|Application Service CIs exist; tag_list configured for tag-based mapping
+
+|2
+|Pod labels synced to cmdb_key_value on cmdb_ci_kubernetes_pod
+
+|3
+|Service Mapping materialized Contains from Application Service to member pods
+
+|4
+|SGC imported Kubernetes pods; sys_object_source rows exist for CLOUD_APPLICATION_INSTANCE entity IDs
+
+|5
+|Event Management incident automation traverses **Contains::Contained by** from pod CI to Application Service (Step 5; Pattern A only)
+
+|6
+|Application workloads that emit ERROR/WARN logs run as **Kubernetes pods** with `metadata.name` equal to the log directory segment (Step 1) — client-mode host drivers are out of scope for this reference implementation
+|===
+
+---
+
+=== Step 1 — Application emits a log line with requisite metadata
+
+==== Required log content
+
+[cols="25%,25%,50%",options="header"]
+|===
+|Attribute |Source |Consumed by
+
+|Timestamp, level, logger, line number, message
+|Log4j PatternLayout (or equivalent)
+|Dynatrace content field; ServiceNow em_event.description
+
+|Workload directory in file path
+|Kubernetes subPathExpr: $(POD_NAME) on log volume
+|OpenPipeline path parser → pod name
+
+|Shared storage path
+|PVC or hostPath mount visible to OneAgent
+|Dynatrace custom log source pattern
+|===
+
+==== Log4j configuration (reference)
+
+Use a **RollingFile** appender only (no console appender in production pods). Set **APP_LOG_DIR** or **SPARK_LOG_DIR** to the pod-specific directory.
+
+**Key fields:** **`fileName`** and **`filePattern`** path prefixes **must** match the Dynatrace custom log source paths in <<spec-dt-log-source>> and the OpenPipeline **`log.source`** matchers in <<spec-dt-openpipeline>> (brooks-lab: `/mnt/spark/logs/<pod>/spark-app.log` and rotated `spark-app-*.log`).
+
+[[spec-2-4-2-1]]
+.Specification 2.4.2-1. Log4j RollingFile (Spark client / chapter reference)
+[source,properties]
+----
+# RollingFileAppender — file logging
+appender.rolling.type = RollingFile
+appender.rolling.name = RollingFile
+appender.rolling.fileName = ${env:SPARK_LOG_DIR:-/mnt/spark/logs/client}/spark-app.log
+appender.rolling.filePattern = ${env:SPARK_LOG_DIR:-/mnt/spark/logs/client}/spark-app-%d{yyyy-MM-dd}-%i.log
+appender.rolling.layout.type = PatternLayout
+appender.rolling.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%ex
+----
+
+Pass the configuration to the JVM:
+
+[source,bash]
+----
+-Dlog4j2.configurationFile=file:///opt/myapp/conf/log4j2.properties
+----
+
+Optional: add Mapped Diagnostic Context (MDC) for pod name in the log line itself (redundant when the path encodes pod identity, but useful if log.source is normalized to a wildcard pattern):
+
+[source,properties]
+----
+appender.rolling.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p [%X{podName}] %c{1}:%L - %m%n%ex
+----
+
+Set MDC at process startup from the POD_NAME environment variable.
+
+==== Kubernetes volume layout
+
+The init container or subPathExpr mount must ensure each pod writes to a unique directory whose name equals metadata.name:
+
+[source,yaml]
+----
+env:
+  - name: APP_LOG_DIR
+    value: /var/log/myapp/$(POD_NAME)
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+volumeMounts:
+  - name: app-logs
+    mountPath: /var/log/myapp
+    subPathExpr: $(POD_NAME)
+----
+
+Resulting path on the node (OneAgent tail source):
+
+[source]
+----
+/mnt/spark/logs/myapp-worker-7d4f9b-xk2lm/application.log
+                      └─ must equal cmdb_ci_kubernetes_pod.name
+----
+
+[[step-1-log-emission]]
+==== Where and how the application team emits logs
+
+Application teams **must** satisfy all of the following. There is **one** supported emission pattern for Log to Incident in this reference implementation.
+
+[cols="30%,70%",options="header"]
+|===
+|Requirement |Specification
+
+|Runtime |Workload runs as a **Kubernetes pod** (not a host-local client driver)
+
+|Pod identity |`metadata.name` is the directory name in the log file path
+
+|Log4j appender |**RollingFile** only in production pods; no console-only logging for incident-bound workloads
+
+|Log directory |`subPathExpr: $(POD_NAME)` on a volume mounted at a path OneAgent can tail on the **node** (brooks-lab: `/mnt/spark/logs/$(POD_NAME)/`)
+
+|Log file name |`application.log` or rotated `application-*.log` (brooks-lab Spark: `spark-app.log`, `spark-app-*.log`)
+
+|Pod label |`servicenow.io/application-service-identifier=<identifier>` matching a CSDM Application Service (Step 0)
+
+|Levels |Log4j emits **ERROR** and **WARN** for conditions that should open incidents per severity policy
+|===
+
+==== Log path and OneAgent tail (not NFS)
+
+Dynatrace **does not read logs from the NFS server**. OneAgent on each **Kubernetes node** tails log files on the **node's local filesystem**:
+
+. Inside the pod, Log4j writes to a pod-local mount (for example `/opt/spark/logs/$(POD_NAME)/spark-app.log`).
+. A **hostPath** (or equivalent node-visible mount) maps that directory to `/mnt/spark/logs/$(POD_NAME)/` on the node where the pod is scheduled.
+. OneAgent **custom log source** `LOG_PATH_PATTERN` matches `/mnt/spark/logs/*/…` on the **host** and tails those files into Grail.
+. NFS volumes used for shared Spark data (`/mnt/spark/events`, `/mnt/spark/data`, …) are **not** the Dynatrace log tail source.
+
+==== Dynatrace and ServiceNow (Step 1)
+
+No Dynatrace or ServiceNow configuration at log emission time. **Preconditions:** OneAgent can read the log path on the node; the path directory name equals `cmdb_ci_kubernetes_pod.name` after KVA discovery; pod carries `servicenow.io/application-service-identifier`; tag-based Service Mapping has materialized **Contains::Contained by** from Application Service to pod **before** the first qualifying log line (Step 0).
+
+---
+
+=== Step 2 — Dynatrace detects ERROR and WARN log lines
+[[step-2-dynatrace]]
+
+Logs ingested through **OpenPipeline** are evaluated by pipeline processors. Classic builtin:logmonitoring.log-events rules do **not** apply to logs routed through OpenPipeline.
+
+==== OpenPipeline processor flow
+
+.OpenPipeline log alerts processor chain
+[graphviz, OpenPipeline_log_alerts_processor_chain]
+----
+digraph openpipeline_flow {
+  graph [rankdir=LR splines=true nodesep=0.4 fontname="Noto Sans" fontsize=14]
+  node [shape=box style="rounded,filled" fillcolor="#eef6ff" fontname="Noto Sans" fontsize=12]
+  edge [fontname="Noto Sans" fontsize=11]
+
+  OA [label="OneAgent tail\nlog record"]
+  Route [label="Logs routing\nmatcher on log.source"]
+  Extract [label="Fields extract\nworkload.pod_name"]
+  Lookup [label="Entity lookup\ndt.source_entity"]
+  Davis [label="Davis processor\nWARN/ERROR to ERROR_EVENT"]
+  Grail [label="Bucket assignment\ndefault_logs"]
+
+  OA -> Route -> Extract -> Lookup -> Davis -> Grail
+}
+----
+
+==== Dynatrace objects to configure
+
+[cols="35%,35%,30%",options="header"]
+|===
+|Object |Settings schema |Purpose
+
+|Custom log source
+|builtin:logmonitoring.custom-log-source-settings
+|OneAgent tails application log paths on hosts or nodes
+
+|Logs routing
+|builtin:openpipeline.logs.routing
+|Route matched logs into the log-alerts pipeline
+
+|Log alerts pipeline
+|builtin:openpipeline.logs.pipelines
+|Extract pod name, set dt.source_entity, Davis processor
+
+|Alerting profile
+|builtin:alerting.profile
+|Forward in-scope problems to ServiceNow notification
+
+|Problem notification
+|builtin:problem.notifications
+|POST webhook on problem OPEN and RESOLVED
+|===
+
+==== Custom log source
+
+Register path patterns that cover per-workload directories and rotated files.
+
+**Key fields:** **`path`** patterns **must** align with Log4j **`fileName`** / **`filePattern`** (<<spec-2-4-2-1>>) and OpenPipeline **`log.source`** matchers (<<spec-dt-openpipeline>>). Only **pod** log directories (path segment = `cmdb_ci_kubernetes_pod.name`) are in scope; OpenPipeline **drops** `*-chapter` and `*-client` paths. **`enrichment`** attributes **`k8s.log.path`** (`${0}`) and **`k8s.pod_name`** (`${1}`) **must** be set on wildcard paths.
+
+.Specification 2.5.1-1. Custom log source (brooks-lab Spark)
+[[spec-dt-log-source]]
+[source,json]
+----
+{
+  "schemaId": "builtin:logmonitoring.custom-log-source-settings",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "config-item-title": "Spark Lab - application log files",
+    "custom-log-source": {
+      "type": "LOG_PATH_PATTERN",
+      "values-and-enrichment": [
+        {
+          "path": "/mnt/spark/logs/*/spark-app.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
+          ]
+        },
+        {
+          "path": "/mnt/spark/logs/*/spark-app-*.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
+          ]
+        },
+        { "path": "/opt/spark/logs/spark-app.log*" }
+      ]
+    }
+  }
+}
+----
+
+==== Logs routing
+
+Route OneAgent-sourced records whose log.source matches the application path into the alerts pipeline:
+
+[source,json]
+----
+{
+  "schemaId": "builtin:openpipeline.logs.routing",
+  "scope": "environment",
+  "value": {
+    "routing": [
+      {
+        "enabled": true,
+        "description": "Application ERROR/WARN log alerts",
+        "matcher": "matchesValue(log.source, \"/var/log/myapp/*\")",
+        "pipelines": ["application-log-alerts"]
+      }
+    ]
+  }
+}
+----
+
+==== Log alerts pipeline (complete reference)
+
+The pipeline has three processor stages before storage:
+
+. **Fields extract** — parse **`k8s.pod_name`** from **`log.source`** when the path is literal.
+. **Fields add / entity lookup** — set **`dt.source_entity`** via **`lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)`**.
+. **Davis processor** — match **WARN**/**ERROR**; set **`event.name`** to include pod name; emit **`event.description`** with full log line.
+. **Bucket assignment** — store in **default_logs** bucket.
+
+**Key fields:** DQL **`matcher`** on **`log.source`**; **`lookupEntity`**; Davis **`event.name`**, **`event.description`**, **`dt.source_entity`**.
+
+.Specification 2.5.4-1. OpenPipeline log alerts pipeline (brooks-lab Spark)
+[[spec-dt-openpipeline]]
+[source,json]
+----
+{
+  "schemaId": "builtin:openpipeline.logs.pipelines",
+  "scope": "environment",
+  "value": {
+    "displayName": "Spark Lab - log alerts",
+    "customId": "spark-lab-log-alerts",
+    "processing": {
+      "processors": [
+        {
+          "id": "extract-spark-pod-from-path",
+          "type": "dql",
+          "matcher": "matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")",
+          "dql": {
+            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\""
+          }
+        },
+        {
+          "id": "resolve-spark-pod-entity",
+          "type": "fieldsAdd",
+          "matcher": "isNotNull(k8s.pod_name)",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "dt.source_entity",
+                "value": "lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "davis": {
+      "processors": [
+        {
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\"))",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "event.name", "value": "Spark log {loglevel} on {k8s.pod_name}" },
+              { "key": "event.description", "value": "Spark {loglevel} on {log.source}: {content}" },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+NOTE: OpenPipeline **Add fields** (`fieldsAdd`) accepts `lookupEntity(CLOUD_APPLICATION_INSTANCE, <pod-name-field>)` in the API `value` property (Settings API uses `name`, not `field`, for the target attribute). DQL processors in the Processing stage do **not** enable `fetch` or `smartscapeNodes`; do not use Grail notebook lookup syntax there. When lookup misses, `dt.source_entity` remains the OneAgent HOST. The required outcome is `dt.source_entity = CLOUD_APPLICATION_INSTANCE-…` before the Davis processor runs.
+
+==== Davis processor properties
+
+[cols="30%,70%",options="header"]
+|===
+|Property |Value
+
+|Matcher
+|(loglevel == "WARN" OR loglevel == "ERROR") AND matchesValue(log.source, "/var/log/myapp/*")
+
+|event.type
+|ERROR_EVENT
+
+|event.name
+|Spark log {loglevel} on {k8s.pod_name}
+
+|event.description
+|Application {loglevel} on {log.source}: {content}
+
+|dt.source_entity
+|CLOUD_APPLICATION_INSTANCE entity when pod resolved; else pass-through process or host
+
+|dt.davis.event_timeout
+|15m (adjust to problem correlation needs)
+|===
+
+==== Example Grail log record at Davis input
+
+[cols="30%,70%",options="header"]
+|===
+|Attribute |Example
+
+|content
+|2026-06-27 14:53:46 ERROR Worker:264 - All masters are unresponsive! Giving up.
+
+|loglevel
+|ERROR
+
+|log.source
+|/var/log/myapp/myapp-worker-7d4f9b-xk2lm/application.log
+
+|workload.pod_name
+|myapp-worker-7d4f9b-xk2lm (after fields extract)
+
+|dt.source_entity
+|CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890
+
+|host.name
+|k8s-node-01 (tail host — not the alert CI when pod entity is set)
+|===
+
+==== Alerting profile
+
+Scope the profile to the integration management zone and include ERROR and CUSTOM_ALERT severity levels (Davis log events map to ERROR):
+
+[source,json]
+----
+{
+  "schemaId": "builtin:alerting.profile",
+  "scope": "environment",
+  "value": {
+    "name": "Application Observability - ServiceNow",
+    "severityRules": [
+      { "severityLevel": "AVAILABILITY", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "ERRORS", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "PERFORMANCE", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "RESOURCE_CONTENTION", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "CUSTOM_ALERT", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" }
+    ],
+    "eventFilters": [],
+    "managementZone": "<management-zone-object-id>"
+  }
+}
+----
+
+==== Host CPU metric event (optional companion path)
+
+Host CPU problems are **not Spark-specific** unless scoped. Use a **neutral event title** and an **entity filter** so the detector evaluates only hosts in the integration boundary (management zone or named hosts). Different business units may use different thresholds — create **separate metric events** per scope rather than one tenant-wide rule.
+
+[source,json]
+----
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "Spark Lab - Host CPU above 80%",
+    "queryDefinition": {
+      "type": "METRIC_KEY",
+      "metricKey": "builtin:host.cpu.usage",
+      "aggregation": "AVG",
+      "entityFilter": {
+        "conditions": [
+          {
+            "type": "HOST_GROUP_NAME",
+            "operator": "EQUALS",
+            "value": "<integration-host-group>"
+          }
+        ]
+      },
+      "dimensionFilter": []
+    },
+    "eventEntityDimensionKey": "dt.entity.host",
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 80.0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 1,
+      "samples": 3,
+      "dealertingSamples": 3
+    },
+    "eventTemplate": {
+      "title": "Host ({dims:dt.entity.host}) CPU above 80%",
+      "description": "Host CPU usage in management zone <name> exceeded 80%.",
+      "eventType": "CUSTOM_ALERT",
+      "davisMerge": false,
+      "metadata": []
+    }
+  }
+}
+----
+
+Scope the detector with an **entity filter**: **HOST_GROUP_NAME** (when OneAgent assigns a host group), **MANAGEMENT_ZONE** (numeric zone id), or individual **HOST_NAME** values. Multiple conditions in one filter use **AND** logic — use a single host group or zone rather than listing every host unless each host has its own metric event.
+
+When the integration uses a **management zone**, a **MANAGEMENT_ZONE** filter requires the zone’s **numeric id** (not the Settings API objectId). Template: `observability/dynatrace/tenants/<tenant>/integrations/spark-cpu-metric-event.json.j2`.
+
+==== ServiceNow (Step 2)
+
+No direct ServiceNow configuration. Ensure SGC scheduled imports cover CLOUD_APPLICATION_INSTANCE and PROCESS_GROUP entity types that Davis may select as dt.source_entity.
+
+---
+
+=== Step 3 — Dynatrace sends the problem to ServiceNow
+
+==== Webhook endpoint
+
+[source]
+----
+POST https://<instance>.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
+Authorization: Basic <base64(user:password)>
+Content-Type: application/json
+----
+
+Use **ProblemDetailsJSON** (v1) in the payload template for SGC — not ProblemDetailsJSONv2 (legacy templates may return HTTP 500 on some instances).
+
+==== Problem notification payload template
+
+[[spec-dt-webhook-payload]]
+The template in <<spec-dt-webhook-payload-json>> is substituted by Dynatrace at send time. **`ProblemDetailsJSON.rankedEvents[]`** carries the OpenPipeline Davis properties from <<spec-dt-openpipeline>> (`event.description`, entity ids, severity). Those ranked events are the **problem specification** that flows into ServiceNow **`em_event.description`** (via **`ProblemDetailsText`**) and into **`em_event.additional_info`**.
+
+.Specification 2.6.2-1. Problem notification payload (SGC)
+[[spec-dt-webhook-payload-json]]
+[source,json]
+----
+{
+  "ConnectionId": "<sgc-connection-sys-id>",
+  "ProblemID": "{ProblemID}",
+  "ProblemTitle": "{ProblemTitle}",
+  "ProblemSeverity": "{ProblemSeverity}",
+  "ProblemImpact": "{ProblemImpact}",
+  "ProblemDetailsJSON": {ProblemDetailsJSON},
+  "ProblemDetailsText": "{ProblemDetailsText}",
+  "ImpactedEntities": {ImpactedEntities},
+  "ImpactedEntity": "{ImpactedEntity}",
+  "ProblemURL": "{ProblemURL}",
+  "State": "{State}",
+  "Tags": "{Tags}",
+  "PID": "{PID}"
+}
+----
+
+Enable **notifyClosedProblems** so RESOLVED posts update the same em_event via message_key.
+
+==== Webhook field mapping
+
+[cols="25%,30%,45%",options="header"]
+|===
+|Webhook field |Dynatrace source |ServiceNow target
+
+|ProblemID
+|Stable problem identifier
+|em_event.message_key (OPEN and RESOLVED deduplication)
+
+|ProblemTitle
+|event.name / Davis title
+|em_event.message; contributes to description
+
+|ProblemSeverity
+|ERROR, CUSTOM_ALERT, etc.
+|em_event.severity (numeric mapping per SGC rules)
+
+|ImpactedEntities[].entityId
+|CLOUD_APPLICATION_INSTANCE-…, PROCESS_GROUP-…, HOST-…
+|sys_object_source lookup → em_event.cmdb_ci
+
+|ProblemDetailsJSON.rankedEvents[]
+|Ranked events with entityId, eventType
+|Fallback CI binding parse path
+
+|ProblemDetailsText
+|Davis narrative including event.description
+|em_event.description (primary operator-facing text)
+
+|Tags
+|Problem tags (Project, Environment, …)
+|em_event.additional_info; not CSDM join keys
+
+|State
+|OPEN or RESOLVED
+|Create vs close/update event
+
+|ProblemURL
+|Deep link to Dynatrace problem
+|em_event.additional_info
+|===
+
+==== Complete example webhook body
+
+After Dynatrace substitutes placeholders for an ERROR log problem:
+
+[source,json]
+----
+{
+  "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
+  "ProblemID": "-9876543210987654321",
+  "ProblemTitle": "Application log ERROR",
+  "ProblemSeverity": "ERROR",
+  "ProblemImpact": "INFRASTRUCTURE",
+  "ProblemDetailsJSON": {
+    "displayName": "Application log ERROR",
+    "problemId": "-9876543210987654321",
+    "rankedEvents": [
+      {
+        "entityId": "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890",
+        "entityName": "myapp-worker-7d4f9b-xk2lm",
+        "eventType": "ERROR_EVENT",
+        "severityLevel": "ERROR",
+        "title": "Application log ERROR",
+        "eventDescription": "Application ERROR on /var/log/myapp/myapp-worker-7d4f9b-xk2lm/application.log: 2026-06-27 14:53:46 ERROR Worker:264 - All masters are unresponsive! Giving up."
+      }
+    ],
+    "startTime": 1719502426000,
+    "endTime": -1
+  },
+  "ProblemDetailsText": "Application ERROR on /var/log/myapp/myapp-worker-7d4f9b-xk2lm/application.log:\n2026-06-27 14:53:46 ERROR Worker:264 - All masters are unresponsive! Giving up.\n\n1 impacted entity: myapp-worker-7d4f9b-xk2lm",
+  "ImpactedEntities": [
+    {
+      "entityId": "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890",
+      "name": "myapp-worker-7d4f9b-xk2lm",
+      "type": "CLOUD_APPLICATION_INSTANCE"
+    }
+  ],
+  "ImpactedEntity": "myapp-worker-7d4f9b-xk2lm",
+  "ProblemURL": "https://<tenant>.apps.dynatrace.com/ui/problems/<problem-id>",
+  "State": "OPEN",
+  "Tags": "Environment:production,Project:myapp",
+  "PID": "-9876543210987654321"
+}
+----
+
+==== Ensuring log fields reach ServiceNow
+
+[cols="30%,70%",options="header"]
+|===
+|Layer |Configuration
+
+|OpenPipeline Davis processor
+|Set **`event.description`** to include **`{content}`**, **`{loglevel}`**, and **`{log.source}`** (Step 2); set **`event.name`** to include **`{k8s.pod_name}`** for per-pod correlation (<<spec-dt-openpipeline>>)
+
+|Dynatrace problem notification
+|When OpenPipeline Davis properties are present, Dynatrace expands them into **`ProblemDetailsJSON.rankedEvents[]`** (each ranked event includes **`eventDescription`**, **`entityId`**, **`title`**). Dynatrace then assembles **`ProblemDetailsText`** from those ranked events (including **`event.description`** text) before the webhook is sent. See <<spec-dt-webhook-payload-json>>.
+
+|SGC field mapping (sa_event_field_mapping in sn_dynatrace_integ)
+|Map **`ProblemDetailsText`** → **`em_event.description`**; map **`ImpactedEntity`** or parsed pod name → **`em_event.resource`**
+
+|em_event business rule (Spark pod bind)
+|When path or **`node`** encodes pod name, set **`cmdb_ci`**, **`resource`**, **`message_key`** prefix **`K8sLog-{pod}-`**, and **`message`** **`Event Log WARN`** or **`Event Log ERROR`**
+
+|em_event.additional_info
+|Persist full **`ProblemDetailsJSON`** for Event Management rules and incident scripts
+
+|em_alert.description
+|Event Management alert rule copies **`em_event.description`**; **`cmdb_ci`** copied from event
+|===
+
+NOTE: Kubernetes labels (servicenow.io/application-service-identifier) are **not** in the webhook payload. They remain on CMDB pod CIs for Step 5 incident correlation.
+
+==== ServiceNow (Step 3)
+
+The **Observability engineer** (ServiceNow administrator with Event Management and SGC access) must verify the push connector — not the monitored application developer:
+
+. Confirm the Store app **Service Graph Connector for Observability – Dynatrace** (`sn_dynatrace_integ`) is installed and active.
+. In **Event Management → Integrations → Push Connectors** (or **Connections → Observability → Dynatrace** in newer releases), locate the connector whose inbound URL ends with:
++
+--
+`POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace`
+--
+. Verify **Basic authentication** credentials match the Dynatrace problem notification profile (brooks-lab: provisioned via Ansible `ensure_sn_dt_webhook_auth.yml`).
+. In the scoped app, open **Event field mappings** (`sa_event_field_mapping` / `$sa_event_map`) and confirm:
+**ProblemDetailsText** → **description**; **ProblemTitle** → **message**; **ProblemID** → **message_key**; severity mapping for ERROR and WARN.
+. Ensure EM **event rules** mark inbound SGO-Dynatrace events **Ready** when `cmdb_ci` is populated (see <<step-5-em-rules>>).
+. Ensure EM **alert rules** create alerts from Ready events and copy `cmdb_ci`, `description`, `resource`, and `node` from the event.
+
+No **ServiceNow** configuration is required on the monitored application itself. No **Dynatrace** changes are required at this step beyond the problem notification profile deployed in <<step-2-dynatrace>>.
+
+---
+
+=== Step 4 — ServiceNow receives the event and binds infrastructure CI
+
+==== Event listener
+
+[cols="30%,70%",options="header"]
+|===
+|Setting |Value
+
+|Source
+|SGO-Dynatrace (URL query parameter on inbound_event)
+
+|Scoped app
+|sn_dynatrace_integ
+
+|CI lookup
+|sys_object_source where name=SGO-Dynatrace and id=<entityId from ImpactedEntities>
+|===
+
+==== em_event field mapping
+
+[cols="25%,75%",options="header"]
+|===
+|em_event field |Population
+
+|source
+|SGO-Dynatrace (from URL)
+
+|message_key
+|ProblemID
+
+|description
+|ProblemDetailsText — must include full log line from OpenPipeline event.description
+
+|message
+|ProblemTitle
+
+|severity
+|Mapped from ProblemSeverity (ERROR → 2 Major typical; WARN → 3 Minor if applicable)
+
+|type
+|ERROR or derived from ProblemDetailsJSON ranked event type
+
+|node
+|ImpactedEntity display name (pod name when CLOUD_APPLICATION_INSTANCE)
+
+|resource
+|Log file path or workload.pod_name parsed from ProblemDetailsText or additional_info
+
+|cmdb_ci
+|sys_object_source.target_sys_id for entityId in ImpactedEntities
+
+|cmdb_ci_type
+|cmdb_ci_kubernetes_pod when entity is CLOUD_APPLICATION_INSTANCE; cmdb_ci_appl for PROCESS_GROUP; cmdb_ci_linux_server for HOST fallback
+
+|additional_info
+|JSON: ProblemURL, Tags, ImpactedEntities, full ProblemDetailsJSON, PID
+
+|time_of_event
+|Problem start time from ProblemDetailsJSON
+
+|correlation_id
+|PID when mapped
+|===
+
+==== CI binding procedure
+
+. Listener receives POST at inbound_event?source=SGO-Dynatrace.
+. Parser extracts entityId from ImpactedEntities[0] or ProblemDetailsJSON.rankedEvents[0].
+. Query sys_object_source: name=SGO-Dynatrace, id=<entityId>.
+. Set em_event.cmdb_ci and em_event.cmdb_ci_type from the matched row.
+
+==== Entity type to CMDB class
+
+[cols="35%,30%,35%",options="header"]
+|===
+|Dynatrace entityId prefix |CMDB class |When to expect
+
+|CLOUD_APPLICATION_INSTANCE
+|cmdb_ci_kubernetes_pod
+|OpenPipeline resolved pod entity (preferred for K8s log paths)
+
+|PROCESS_GROUP
+|cmdb_ci_appl
+|Log tied to JVM process when pod lookup unavailable
+
+|HOST
+|cmdb_ci_linux_server
+|Last resort — file tailed on node without pod enrichment
+|===
+
+Prerequisites for pod binding:
+
+* SGC Kubernetes Pod import includes pods in the application namespace.
+* Pod name in Dynatrace matches Kubernetes metadata.name.
+* IRE merge aligns KVA-discovered pod CIs with SGC-imported entities when both exist.
+* sys_object_source row exists before the webhook arrives (account for import schedule lag).
+
+==== Description and alert text
+
+[cols="25%,75%",options="header"]
+|===
+|Field |Required content
+
+|em_event.description
+|Line 1: log level and message body from content; Line 2: log.source path; optional ProblemURL appended
+
+|em_alert.description
+|Same as em_event.description (copied by alert rule or inherited on alert create)
+
+|em_alert.resource
+|Pod name or full log file path
+
+|em_alert.cmdb_ci
+|Same infrastructure CI as em_event.cmdb_ci
+|===
+
+==== SGC and Event Management configuration
+
+[cols="30%,70%",options="header"]
+|===
+|Component |Specification
+
+|sa_event_field_mapping
+|ProblemDetailsText → description; ProblemTitle → message; ProblemID → message_key; severity mapping for ERROR and WARN
+
+|EM event rule
+|Mark events Ready when severity and cmdb_ci are populated; optional script normalizes description from additional_info if connector mapping is insufficient
+
+|EM alert rule
+|Create alert from Ready events; copy cmdb_ci and description from event; require cmdb_ci for incident automation
+
+|ACL on cmdb_key_value
+|Roles that run incident scripts must read tags on pod CIs (see install documentation for tag ACL requirements)
+|===
+
+==== Application and Dynatrace (Step 4)
+[[step-4-sn-dynatrace]]
+
+At Step 4 the **Observability engineer** typically performs **verification**, not new Dynatrace or application configuration:
+
+. After a test problem fires, confirm **`em_event.source=SGO-Dynatrace`** and **`em_event.cmdb_ci`** is populated (pod CI when OpenPipeline entity lookup succeeded).
+. If **`cmdb_ci`** is a Linux server instead of a pod, return to <<step-2-dynatrace>> and verify **`k8s.pod_name`** extraction and **`lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)`** in the OpenPipeline pipeline (<<spec-dt-openpipeline>>).
+. Confirm **`sys_object_source`** contains a row with **`name=SGO-Dynatrace`** and **`id=<entityId>`** from the webhook **before** the event arrives (SGC scheduled import lag is a common root cause of empty CI).
+. Deploy or verify the **K8s log pod bind** business rules (<<step-5-br-k8s-pod>>) as a fallback when the webhook still reports a HOST entity but the log path encodes a pod name.
+
+**No ServiceNow-side changes** are required on the monitored **application** (the Java/Spark/Python workload). **No additional Dynatrace** configuration is required at Step 4 if Steps <<step-2-dynatrace>> and Step 3 are correct.
+
+ServiceNow cannot bind to **`cmdb_ci_kubernetes_pod`** unless <<step-2-dynatrace>> sets **`dt.source_entity`** to the pod entity and Step 0 imported that entity into **`sys_object_source`**.
+
+---
+
+=== Step 5 — Create incident bound to Application Service
+
+==== Severity policy
+
+[cols="40%,60%",options="header"]
+|===
+|Environment |Automatic incident when
+
+|Non-production / test
+|ERROR and WARN (simplifies validation when ERROR signals are hard to trigger)
+
+|Production
+|ERROR only; WARN remains at alert level or creates a lower-priority task per ITSM policy
+|===
+
+Incidents must set **incident.cmdb_ci** to **cmdb_ci_service_discovered** (Application Service), not the infrastructure CI on the alert.
+
+==== Layer model
+
+[cols="20%,25%,55%",options="header"]
+|===
+|Layer |Table |cmdb_ci class
+
+|Event
+|em_event
+|Infrastructure: cmdb_ci_kubernetes_pod, cmdb_ci_appl, or cmdb_ci_linux_server
+
+|Alert
+|em_alert
+|Same infrastructure CI as the source event
+
+|Incident
+|incident
+|cmdb_ci_service_discovered (Application Service)
+|===
+
+==== Incident correlation (Pattern A — Contains traversal)
+[[step-5-pattern-a]]
+
+There is **one** Application Service resolution pattern for K8s log incidents. **Pattern A** requires a materialized **Contains::Contained by** edge from `cmdb_ci_service_discovered` (parent) to `cmdb_ci_kubernetes_pod` (child).
+
+.Incident Application Service correlation (Pattern A)
+[graphviz, Incident_Application_Service_correlation_Pattern_A]
+----
+digraph incident_correlation {
+  graph [rankdir=LR splines=true nodesep=0.5 fontname="Noto Sans" fontsize=14]
+  node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=13]
+  edge [fontname="Noto Sans" fontsize=12]
+
+  ALERT [label="em_alert.cmdb_ci\n(cmdb_ci_kubernetes_pod)"]
+  REL [label="cmdb_rel_ci\nContains::Contained by"]
+  AS [label="cmdb_ci_service_discovered\nApplication Service"]
+  INC [label="incident.cmdb_ci"]
+
+  ALERT -> REL -> AS -> INC
+}
+----
+
+. `K8sLogPodCiBind` sets `em_event.cmdb_ci` and `em_alert.cmdb_ci` to the **pod CI** whose `name` matches the log path segment (Step 4).
+. Query `cmdb_rel_ci` where `child` = pod CI sys_id and `type` = **Contains::Contained by**.
+. Parent row **must** be `cmdb_ci_service_discovered`.
+. Set `incident.cmdb_ci` = parent Application Service sys_id.
+
+**Upstream requirements (Step 0):** pod labels include `servicenow.io/application-service-identifier`; KVA discovery populated `cmdb_ci_kubernetes_pod`; label sync wrote `cmdb_key_value`; tag-based Service Mapping created the **Contains** edge **before** the problem fires. If any precondition is missing, incident automation **must not** create an incident — fix Step 0 rather than adding alternate lookup paths.
+
+**Out of scope for this reference implementation:** host CI binding without pod rebind, process group CI, tag-only lookup without a Contains edge, and client-mode log directories that do not correspond to a discovered pod CI. Docker workloads are documented separately in link:docker_model.md[CMDB model and correlation patterns].
+
+==== ServiceNow incident automation specification
+
+[cols="30%,70%",options="header"]
+|===
+|Component |Specification
+
+|Script Include: `ResolveApplicationService`
+|Pattern A only: `cmdb_rel_ci` Contains::Contained by from pod CI to Application Service; returns Application Service sys_id or null
+
+|Script Include: `K8sLogPodCiBind`
+|Rebind `em_event` / `em_alert` from initial SGO HOST binding to `cmdb_ci_kubernetes_pod` when log path segment matches a discovered pod `name`; propagate binding to alerts sharing `message_key`
+
+|EM event rule
+|Mark Spark log events **Ready** when `source=SGO-Dynatrace`, severity matches policy, and `cmdb_ci` is set
+
+|EM alert rule
+|Create alert from Ready events; copy `cmdb_ci`, `description`, `resource`, `node` from event
+
+|Business rule: `em-event-bind-k8s-log-pod-ci`
+|**Before** insert/update on `em_event`; order **5000**; enriches `cmdb_ci`, `resource`, `message_key` via `K8sLogPodCiBind` (must run before EM Ready/alert rules persist the row)
+
+|Business rule: `em-event-propagate-k8s-log-pod-ci`
+|**After** insert/update on `em_event`; order **5005**; copies pod binding from event to related `em_alert` rows sharing `message_key` (runs after the event row is saved)
+
+|Business rule: `em-alert-bind-k8s-log-pod-ci`
+|**Before** insert/update on `em_alert`; order **5010**; same pod/path enrichment when alert is created or updated directly (covers SGC webhook path that skips a separate bind on the event)
+
+|Business rule: `em-alert-create-k8s-log-incident`
+|**Before** insert/update on `em_alert`; order **5020**; resolves Application Service, creates or correlates incident, sets **`em_alert.incident`** (runs after bind rules in the same save transaction)
+
+|Severity filter
+|Non-prod: `em_alert.severity <= 3` (ERROR and WARN); Production: `em_alert.severity = 2` (ERROR only)
+
+|Duplicate suppression
+|Correlate open incidents by Application Service + short description prefix `Event Log`; use `ProblemID` / `message_key` for event lifecycle
+|===
+
+==== Business rule order and rationale
+
+Business rules on `em_event` and `em_alert` run in **order** within the same **when** phase (`before` or `after`). Lower order runs first.
+
+[cols="10%,25%,65%",options="header"]
+|===
+|Order |Rule |Why this position
+
+|5000 |`em-event-bind-k8s-log-pod-ci` (before) |Parse log path and set `cmdb_ci` / `resource` / `message_key` **before** the row is written. EM event rules that mark the event Ready and copy fields to alerts depend on these values being present on insert.
+
+|5005 |`em-event-propagate-k8s-log-pod-ci` (after) |After the event is saved, push binding to sibling `em_alert` rows. Must be **after** (not before) because it updates **other** records.
+
+|5010 |`em-alert-bind-k8s-log-pod-ci` (before) |Same enrichment for alerts created or updated by the SGC webhook / EM alert rule without going through a separate event bind cycle.
+
+|5020 |`em-alert-create-k8s-log-incident` (before) |Needs enriched `resource` and log-path context from 5000/5010 in the **same** transaction. Creates the incident and sets `em_alert.incident` before the alert row is committed. Using **after** + `current.update()` was unreliable for REST-driven updates.
+|===
+
+==== Alert to incident linkage (`em_alert.incident`)
+
+On **optimizincdemo1**, Event Management links an alert to its incident through **`em_alert.incident`** (reference to the incident record). That field populates the incident **Alerts** tab. Some instances expose the same reference as `em_alert.task`; this build uses **`incident` only** — do not reference `task`.
+
+Creating an incident with `GlideRecord('incident').insert()` alone does **not** set this link — automation must assign `current.incident = <incident_sys_id>` on the alert in the **before** business rule.
+
+Incident short description format: **`Event Log WARN`** or **`Event Log ERROR`** (parsed from alert description).
+
+==== Problem and alert lifecycle (OPEN / RESOLVED)
+
+Spark/Log4j does **not** emit explicit “clear” or “recovery” log lines for this use case. Closure is driven by **Dynatrace problem lifecycle**, not application log content:
+
+. OneAgent tails application log files on the **host node** (see <<step-1-log-emission>>).
+. OpenPipeline Davis turns qualifying **ERROR** / **WARN** lines into Davis events; repeated lines merge into one **problem** (`dt.davis.event_timeout: 15m`).
+. When matching log activity stops, Dynatrace **auto-closes** the problem after the timeout.
+. The brooks-lab problem notification has **`notifyClosedProblems: true`**, so Dynatrace POSTs a **RESOLVED** webhook with the same **`ProblemID`** as the OPEN post.
+. SGO maps **`message_key` = `ProblemID`**, so ServiceNow **updates the same `em_event`** (does not create a duplicate).
+. Event Management then transitions the linked **alert** (and optionally the **incident**) according to configured EM rules when the event state/resolution changes.
+
+Verify RESOLVED handling: `em_event` where `source=SGO-Dynatrace` and `resolution_code` is set after problems clear; linked `em_alert.state` should move to **Closed** when EM auto-close rules are configured.
+
+
+==== OpenPipeline and custom-source attributes (generic Log4j pattern)
+
+Attributes added by automation (not Spark-specific semantics):
+
+|===
+|Attribute |Source |Purpose
+
+|`k8s.log.path` |Custom log source enrichment |Full file path of the log line
+
+|`k8s.pod_name` |Path segment after `/logs/` |Must equal `cmdb_ci_kubernetes_pod.name`
+
+|`event.name` |OpenPipeline Davis |`Application log {loglevel} on {k8s.pod_name}`
+
+|`event.description` |OpenPipeline Davis |`Application {loglevel} on {k8s.log.path}: {content}`
+|===
+
+Pod **Kubernetes labels** (`servicenow.io/application-service-identifier`, etc.) are the CMDB/service-mapping contract — not Dynatrace tags. See <<step-0-pod-labels>>.
+
+NOTE: **`resolve-k8s-pod-entity`** (OpenPipeline `lookupEntity` for pod Smartscape) is **disabled** so problems stay on **HOST** entities inside the Spark Observability management zone. ServiceNow **`K8sLogPodCiBind`** rebinds alerts to the **pod CI** from the log path; **`ResolveApplicationService`** traverses the **Contains::Contained by** edge to the Application Service (Pattern A only).
+
+==== Event Management rules (manual configuration)
+[[step-5-em-rules]]
+
+Configure under **Event Management → Rules**:
+
+[cols="25%,75%",options="header"]
+|===
+|Rule |Condition and action
+
+|Event rule (K8s application logs)
+|**When:** `em_event` insert/update; **Filter:** `source=SGO-Dynatrace^severity<=3^cmdb_ciISNOTEMPTY`; **Action:** set state to **Ready** (or use existing Ready rule scoped to SGO-Dynatrace)
+
+|Alert rule (K8s application logs)
+|**When:** Ready event; **Filter:** `source=SGO-Dynatrace`; **Action:** create/update alert; copy `cmdb_ci`, `description`, `resource`, `node`, `message_key` from event
+|===
+
+Scope Spark-specific business rules with **`source=SGO-Dynatrace`** so legacy **`source=Dynatrace`** events are unaffected during connector migration (see <<legacy-sgo-coexistence>>).
+
+==== Script Includes
+
+Deploy from `servicenow/integrations/incident/`. Global scope, **Active** = true.
+
+===== ResolveApplicationService
+
+[source,javascript]
+----
+var ResolveApplicationService = Class.create();
+ResolveApplicationService.prototype = {
+  initialize: function () {},
+
+  resolveFromInfrastructureCi: function (ciSysId) {
+    if (!ciSysId) {
+      return null;
+    }
+
+    var rel = new GlideRecord('cmdb_rel_ci');
+    rel.addQuery('child', ciSysId);
+    rel.addQuery('type', 'Contains::Contained by');
+    rel.addQuery('parent.sys_class_name', 'cmdb_ci_service_discovered');
+    rel.setLimit(1);
+    rel.query();
+    if (rel.next()) {
+      return rel.parent.sys_id.toString();
+    }
+
+    return null;
+  },
+
+  type: 'ResolveApplicationService',
+};
+----
+
+===== K8sLogPodCiBind
+
+[source,javascript]
+----
+var K8sLogPodCiBind = Class.create();
+K8sLogPodCiBind.prototype = {
+  initialize: function () {},
+
+  resolvePodName: function (description, resource, node) {
+    var text = description + ' ' + resource + ' ' + node;
+    var regex = /\/(?:mnt|opt|var)\/[^/]+\/logs\/([^/\s*]+)\//g;
+    var match;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (!match[1] || match[1].indexOf('*') !== -1) {
+        continue;
+      }
+      var podGr = new GlideRecord('cmdb_ci_kubernetes_pod');
+      podGr.addQuery('name', match[1]);
+      podGr.setLimit(1);
+      podGr.query();
+      if (podGr.next()) {
+        return match[1];
+      }
+    }
+
+    return '';
+  },
+
+  applyPodBinding: function (gr) {
+    if (gr.source.toString() !== 'SGO-Dynatrace') {
+      return false;
+    }
+
+    var podName = this.resolvePodName(
+      gr.description.toString(),
+      gr.resource.toString(),
+      gr.node.toString()
+    );
+    if (!podName) {
+      return false;
+    }
+
+    var podGr = new GlideRecord('cmdb_ci_kubernetes_pod');
+    podGr.addQuery('name', podName);
+    podGr.setLimit(1);
+    podGr.query();
+    if (!podGr.next()) {
+      return false;
+    }
+
+    var podSysId = podGr.sys_id.toString();
+    gr.cmdb_ci = podSysId;
+    gr.node = podName;
+
+    var text =
+      gr.description.toString() +
+      ' ' +
+      gr.resource.toString() +
+      ' ' +
+      gr.node.toString();
+    var podPathRe =
+      new RegExp(
+        '/(?:mnt|opt|var)/[^\\s]+/logs/' +
+          podName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+          '/[^\\s]+\\.log'
+      );
+    var logPath = text.match(podPathRe);
+    if (logPath) {
+      gr.resource = logPath[0];
+    } else if (gr.resource.toString().indexOf('/logs/') === -1) {
+      gr.resource = '/mnt/spark/logs/' + podName + '/spark-app.log';
+    }
+
+    var messageKey = gr.message_key.toString();
+    var podPrefix = 'K8sLog-' + podName + '-';
+    if (messageKey.indexOf(podName) === -1) {
+      gr.message_key = podPrefix + messageKey;
+    }
+
+    if (
+      gr.isValidField('message') &&
+      (gr.message.nil() ||
+        gr.message.toString().indexOf('Log Errors') !== -1 ||
+        gr.message.toString().indexOf('Event Log') === 0)
+    ) {
+      var levelMatch = gr.description.toString().match(/\b(ERROR|WARN)\b/);
+      var severity = parseInt(gr.severity, 10);
+      var logLevel = levelMatch
+        ? levelMatch[1]
+        : !isNaN(severity) && severity <= 2
+          ? 'ERROR'
+          : 'WARN';
+      gr.message = 'Event Log ' + logLevel;
+    }
+
+    return true;
+  },
+
+  propagateEventToAlerts: function (eventGr) {
+    if (eventGr.cmdb_ci.nil()) {
+      return;
+    }
+
+    var alert = new GlideRecord('em_alert');
+    alert.addQuery('source', 'SGO-Dynatrace');
+    alert.addQuery('message_key', eventGr.message_key);
+    alert.query();
+    while (alert.next()) {
+      if (alert.cmdb_ci.toString() === eventGr.cmdb_ci.toString()) {
+        continue;
+      }
+      alert.cmdb_ci = eventGr.cmdb_ci;
+      alert.node = eventGr.node;
+      alert.resource = eventGr.resource;
+      alert.update();
+    }
+  },
+
+  type: 'K8sLogPodCiBind',
+};
+----
+
+==== Business rules (prescriptive configuration)
+[[step-5-br-k8s-pod]]
+
+Create under **System Definition → Business Rules**. All three run **After** insert and update. Filter conditions must include **`source=SGO-Dynatrace`** so legacy connectors are not modified.
+
+[cols="20%,15%,15%,50%",options="header"]
+|===
+|Name |Table |Order |Filter condition
+
+|`em-event-bind-k8s-log-pod-ci` |`em_event` |5000 |`source=SGO-Dynatrace`
+
+|`em-alert-bind-k8s-log-pod-ci` |`em_alert` |5010 |`source=SGO-Dynatrace`
+
+|`em-alert-create-k8s-log-incident` |`em_alert` |5100 |`source=SGO-Dynatrace^severity<=3`
+|===
+
+===== em-event-bind-k8s-log-pod-ci
+
+[source,javascript]
+----
+(function executeRule(current, previous /*null on insert*/) {
+  var binder = new K8sLogPodCiBind();
+  if (!binder.applyPodBinding(current)) {
+    return;
+  }
+
+  current.update();
+  binder.propagateEventToAlerts(current);
+})(current, previous);
+----
+
+===== em-alert-bind-k8s-log-pod-ci
+
+[source,javascript]
+----
+(function executeRule(current, previous /*null on insert*/) {
+  var binder = new K8sLogPodCiBind();
+  if (!binder.applyPodBinding(current)) {
+    return;
+  }
+
+  current.update();
+})(current, previous);
+----
+
+===== em-alert-create-k8s-log-incident
+
+Creates or correlates an incident on the Application Service, then sets **`current.task`** so the alert appears on the incident **Alerts** tab.
+
+[source,javascript]
+----
+(function executeRule(current, previous /*null on insert*/) {
+  if (current.source.toString() !== 'SGO-Dynatrace') {
+    return;
+  }
+
+  if (!current.task.nil()) {
+    return;
+  }
+
+  var severity = parseInt(current.severity, 10);
+  if (isNaN(severity) || severity > 3) {
+    return;
+  }
+
+  var desc = current.description.toString();
+  if (
+    desc.indexOf('Spark ') === -1 &&
+    desc.indexOf('spark-app.log') === -1 &&
+    desc.indexOf('/mnt/spark/logs/') === -1
+  ) {
+    return;
+  }
+
+  if (current.cmdb_ci.nil()) {
+    return;
+  }
+
+  var resolver = new ResolveApplicationService();
+  var asSysId = resolver.resolveFromInfrastructureCi(current.cmdb_ci.toString());
+  if (!asSysId) {
+    return;
+  }
+
+  var levelMatch = desc.match(/\b(ERROR|WARN)\b/);
+  var logLevel = levelMatch
+    ? levelMatch[1]
+    : severity <= 2
+      ? 'ERROR'
+      : 'WARN';
+  var shortDesc = 'Event Log ' + logLevel;
+  var shortDescPrefix = 'Event Log';
+
+  function linkAlertToIncident(incSysId) {
+    var alertGr = new GlideRecord('em_alert');
+    if (!alertGr.get(current.sys_id)) {
+      return;
+    }
+    alertGr.task = incSysId;
+    alertGr.setWorkflow(false);
+    alertGr.update();
+  }
+
+  var backfillInc = new GlideRecord('incident');
+  backfillInc.addQuery('active', true);
+  backfillInc.addQuery('short_description', 'STARTSWITH', shortDescPrefix);
+  backfillInc.addEncodedQuery('cmdb_ciISEMPTY');
+  backfillInc.orderBy('sys_created_on');
+  backfillInc.setLimit(1);
+  backfillInc.query();
+  if (backfillInc.next()) {
+    backfillInc.cmdb_ci = asSysId;
+    backfillInc.short_description = shortDesc;
+    backfillInc.work_notes =
+      'Set Configuration item from alert ' +
+      current.number +
+      ' (Application Service resolved from pod CI).';
+    backfillInc.update();
+    linkAlertToIncident(backfillInc.sys_id);
+    return;
+  }
+
+  var openInc = new GlideRecord('incident');
+  openInc.addQuery('cmdb_ci', asSysId);
+  openInc.addQuery('active', true);
+  openInc.addQuery('short_description', 'STARTSWITH', shortDescPrefix);
+  openInc.setLimit(1);
+  openInc.query();
+  if (openInc.next()) {
+    openInc.work_notes =
+      'Correlated alert ' +
+      current.number +
+      ': ' +
+      current.description.toString().substring(0, 500);
+    openInc.update();
+    linkAlertToIncident(openInc.sys_id);
+    return;
+  }
+
+  var inc = new GlideRecord('incident');
+  inc.initialize();
+  inc.cmdb_ci = asSysId;
+  inc.short_description = shortDesc;
+  inc.description = current.description;
+  inc.severity = current.severity;
+  inc.impact = 2;
+  inc.urgency = 2;
+  inc.caller_id = gs.getUserID();
+  inc.comments = 'Auto-created from Event Management alert ' + current.number;
+  inc.work_notes = 'Source alert: ' + current.number;
+  var incSysId = inc.insert();
+  linkAlertToIncident(incSysId);
+})(current, previous);
+----
+
+==== Ansible deployment
+
+[source,bash]
+----
+cd ansible
+ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
+  -e @../vars/secrets.yaml
+----
+
+Playbook path: `ansible/playbooks/servicenow/incident/deploy.yml`. Source files: `servicenow/integrations/incident/*.js`.
+
+==== Example resolution (Kubernetes worker pod)
+
+[cols="25%,75%",options="header"]
+|===
+|Step |Record / relationship
+
+|Problem
+|Davis problem; impacted entity CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890
+
+|Event
+|em_event; cmdb_ci → cmdb_ci_kubernetes_pod myapp-worker-7d4f9b-xk2lm
+
+|Alert
+|em_alert; same pod CI; description contains full ERROR log line
+
+|Tag on pod CI
+|cmdb_key_value: servicenow.io/application-service-identifier=myapp-worker-zone-a
+
+|SM edge
+|Application Service myapp-worker-zone-a Contains pod CI
+
+|Incident
+|incident.cmdb_ci → Application Service myapp-worker-zone-a (via Pattern A Contains traversal)
+|===
+
+==== Application and Dynatrace (Step 5)
+
+No configuration on the application or Dynatrace side. Dynatrace problem tags (Project, Environment) do not replace CSDM tags on pod CIs for incident binding.
+
+---
+
+== Legacy and SGO-Dynatrace coexistence
+[[legacy-sgo-coexistence]]
+
+During migration from a legacy Event Management push connector (`source=Dynatrace` on the inbound URL) to Service Graph Connector (`source=SGO-Dynatrace`), **both paths may be active**. Use **`em_event.source`** and **`em_alert.source`** to scope automation — never assume a single connector.
+
+=== Separation by source
+
+[cols="30%,35%,35%",options="header"]
+|===
+|Layer |Legacy (`source=Dynatrace`) |SGC (`source=SGO-Dynatrace`)
+
+|Inbound URL
+|`/inbound_event?source=dynatrace&sys_id=<connector-sys-id>`
+|`/inbound_event?source=SGO-Dynatrace`
+
+|CI binding
+|Legacy connector field mapping + `sys_object_source` (may differ from SGC import)
+|SGC `ImpactedEntities` → `sys_object_source` (name **SGO-Dynatrace**)
+
+|Spark log business rules
+|**Must not run** — filter `source=SGO-Dynatrace` on every BR
+|Pod rebind, incident create, Application Service resolution
+
+|Problem notification
+|Pre-existing tenant profiles (for example Demo integrations)
+|Dedicated profile scoped to integration management zone
+|===
+
+=== Scoping rules and profiles
+
+* **Dynatrace alerting profiles:** Scope each profile to a **management zone** (or tag filter) so only in-scope problems forward to ServiceNow. A profile attached to a legacy webhook should not receive problems from hosts outside its intended boundary.
+* **ServiceNow EM rules:** Add **`source=SGO-Dynatrace`** (or **`source=Dynatrace`**) to event and alert rule filter conditions so each rule set applies only to its connector.
+* **Business rules:** All Spark log automation in this document filters **`source=SGO-Dynatrace`**. Legacy CPU or infrastructure alerts continue through legacy rules until that connector is retired.
+
+=== Host CPU alerts (not Spark-specific)
+
+Metric events on **`builtin:host.cpu.usage`** fire per **host**, not per application. Even on the SGC path, a CPU problem binds **`em_alert.cmdb_ci`** to the breaching **host CI** — that is correct behavior.
+
+To avoid misleading titles and out-of-scope hosts:
+
+. Use a **neutral title**: `Host ({dims:dt.entity.host}) CPU above 80%` (not application-branded text).
+. Add an **entity filter** on the metric event: **management zone** (preferred) or explicit **HOST_NAME** list for integration hosts.
+. Create **separate metric events** per organization or environment when thresholds differ (for example 80% in lab, 90% in production).
+
+Template: `observability/dynatrace/tenants/<tenant>/integrations/spark-cpu-metric-event.json.j2`. Deploy via `ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/apply_dt_anomaly_detectors.yml`.
+
+=== When to retire legacy connector
+
+After SGC cutover is verified (events arrive with `source=SGO-Dynatrace`, pod CI binding works, incidents link on **Alerts** tab):
+
+. Disable legacy Dynatrace problem notification profiles pointing at `source=dynatrace`.
+. Leave legacy EM rules in place until no new `source=Dynatrace` events arrive.
+. Remove legacy rules once the connector is decommissioned.
+
+---
+
+== Related documents
+
+* link:Dynatrace_Entity_Types_and_Relationships.md[Dynatrace entity types and ServiceNow mapping]
+* link:docker_model.md[CMDB model and incident correlation]
+* link:Grafana ServiceNow Model.drawio[Grafana Docker CMDB model (draw.io)]
+* link:../DT_SN_Mapping.md[Dynatrace ↔ ServiceNow mapping overview]
+* link:../Tag_Based_Service_Mapping.md[Tag-based Service Mapping]
+* link:../CSDM_Specifications.md[CSDM specifications]

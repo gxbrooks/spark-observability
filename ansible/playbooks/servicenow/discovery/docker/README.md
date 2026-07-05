@@ -37,4 +37,4 @@ Retire stale containers and deduplicate by name (same cleanup steps as `discover
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/cleanup.yml -e @../vars/secrets.yaml
 ```
 
-Tag-based SM instance configuration: `playbooks/servicenow/csdm/docs/Tag_Based_Service_Mapping.md`.
+Tag-based SM instance configuration: [servicenow/docs/Tag_Based_Service_Mapping.md](../../../../servicenow/docs/Tag_Based_Service_Mapping.md).

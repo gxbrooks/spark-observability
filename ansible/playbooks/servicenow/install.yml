@@ -13,10 +13,13 @@
     - name: Display ServiceNow install information
       ansible.builtin.debug:
         msg: |
-          ServiceNow install: discovery/install.yml → sgc/install.yml
+          ServiceNow install: discovery/install.yml → sgc/install.yml → service-mapping/install.yml
 
 - import_playbook: discovery/install.yml
   tags: [servicenow]
 
 - import_playbook: sgc/install.yml
+  tags: [servicenow]
+
+- import_playbook: service-mapping/install.yml
   tags: [servicenow]

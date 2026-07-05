@@ -65,6 +65,29 @@
   when: item.value.summary | default('') == dt_sn_spark_error_log_event_summary
   run_once: true
 
+- name: Collect legacy Spark ERROR-only log event object ids
+  ansible.builtin.set_fact:
+    dt_spark_error_log_event_legacy_ids: >-
+      {{ dt_log_events.json['items'] | default([])
+         | selectattr('value.summary', 'defined')
+         | selectattr('value.summary', 'equalto', dt_sn_spark_error_log_event_summary_legacy)
+         | map(attribute='objectId') | list }}
+  run_once: true
+
+- name: Delete legacy Spark ERROR-only log event
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ item }}"
+    method: DELETE
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [204, 404]
+  loop: "{{ dt_spark_error_log_event_legacy_ids | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
+  when: dt_spark_error_log_event_legacy_ids | default([]) | length > 0
+  delegate_to: localhost
+  run_once: true
+
 - name: Default anomaly detector facts when not found
   ansible.builtin.set_fact:
     dt_cpu_metric_event_object_id: "{{ dt_cpu_metric_event_object_id | default('') }}"

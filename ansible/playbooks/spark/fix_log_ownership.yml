@@ -1,0 +1,12 @@
+---
+# Remediate root-owned Spark log files on NFS export (one-time or after UID migration).
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/spark/fix_log_ownership.yml
+
+- name: Fix Spark log file ownership on NFS server
+  hosts: nfs_servers
+  become: true
+  tasks:
+    - name: Remediate root-owned Spark log files
+      ansible.builtin.include_tasks: tasks/fix_spark_log_ownership.yml

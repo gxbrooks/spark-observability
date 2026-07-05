@@ -111,14 +111,14 @@ def tag_binding_counts(tag_bindings: list[dict]) -> tuple[dict[str, int], dict[s
     canonical: dict[str, int] = defaultdict(int)
     alternate: dict[str, int] = defaultdict(int)
     for row in tag_bindings or []:
-        value = row.get("value") or row.get("val") or ""
-        key = row.get("key") or ""
+        value = field_value(row.get("value") or row.get("val"))
+        key = field_value(row.get("key"))
         if not value:
             continue
         if key == CANONICAL_TAG_KEY:
-            canonical[str(value)] += 1
+            canonical[value] += 1
         elif key in ALTERNATE_TAG_KEYS:
-            alternate[str(value)] += 1
+            alternate[value] += 1
     return dict(canonical), dict(alternate)
 
 

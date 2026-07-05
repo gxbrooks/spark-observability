@@ -119,6 +119,7 @@
   ansible.builtin.set_fact:
     dt_problem_notification_change_needed: >-
       {{ (dt_problem_notification_object_id | length) == 0
+         or (dt_problem_notification_existing_value.alertingProfile | default('')) != dt_alerting_profile_object_id
          or (dt_problem_notification_existing_value
              | combine(dt_problem_notification_doc.value, recursive=True)) != dt_problem_notification_existing_value }}
   run_once: true

@@ -1,0 +1,95 @@
+---
+# Diagnose Spark log-to-incident bindings, alert↔incident correlation, and integration sources.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/diagnose.yml -e @../vars/secrets.yaml
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/diagnose.yml -e @../vars/secrets.yaml -e spark_alert_number=Alert0014216
+
+- name: Diagnose Spark log-to-incident pipeline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    spark_alert_number_filter: "{{ spark_alert_number | default('') }}"
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+    - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
+  tasks:
+    - name: Detect SGC installation
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/sgc/sources/dynatrace/tasks/check_sgc_prerequisites.yml"
+
+    - name: Query open SGO-Dynatrace alerts
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^state=Open^ORDERBYDESCsys_created_on&sysparm_fields=number,state,severity,node,resource,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,task,task.number,sys_created_on&sysparm_limit=15"
+
+    - name: Open SGO-Dynatrace alerts
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+
+    - name: Query specific alert when spark_alert_number is set
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=number={{ spark_alert_number_filter }}&sysparm_fields=number,sys_id,source,state,severity,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,task,task.number,sys_created_on,message_key,description,node,resource&sysparm_limit=1"
+      when: spark_alert_number_filter | length > 0
+
+    - name: Show target alert
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+      when: spark_alert_number_filter | length > 0
+
+    - name: Find incidents referencing target alert
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: incident
+        sn_rest_query: "sysparm_query=commentsLIKE{{ spark_alert_number_filter }}^ORwork_notesLIKE{{ spark_alert_number_filter }}&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,state,active,sys_created_on,comments&sysparm_limit=5"
+      when: spark_alert_number_filter | length > 0
+
+    - name: Incidents linked to target alert (comments/work_notes)
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+      when: spark_alert_number_filter | length > 0
+
+    - name: Query Spark log incidents (48h)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: incident
+        sn_rest_query: "sysparm_query=short_descriptionSTARTSWITHSpark%20Event%20Log^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,state,active,sys_created_on&sysparm_limit=10"
+
+    - name: Recent Spark log incidents
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+
+    - name: Query legacy Dynatrace-sourced alerts (non-SGC)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source=Dynatrace^sys_created_on>javascript:gs.hoursAgo(168)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,description,sys_created_on&sysparm_limit=5"
+
+    - name: Legacy Dynatrace alerts (source=Dynatrace, not SGO-Dynatrace)
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+
+    - name: Query deployed Spark log business rules
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: sys_script
+        sn_rest_query: "sysparm_query=nameINem-event-bind-k8s-log-pod-ci,em-event-propagate-k8s-log-pod-ci,em-alert-bind-k8s-log-pod-ci,em-alert-create-k8s-log-incident&sysparm_fields=name,collection,when,order,action_insert,action_update,active&sysparm_limit=10"
+
+    - name: Spark log business rules
+      ansible.builtin.debug:
+        var: sn_rest_json.result
+
+    - name: Verify K8sLogPodCiBind Script Include
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: sys_script_include
+        sn_rest_query: "sysparm_query=name=K8sLogPodCiBind&sysparm_fields=name,active&sysparm_limit=1"
+
+    - name: K8sLogPodCiBind Script Include
+      ansible.builtin.debug:
+        var: sn_rest_json.result

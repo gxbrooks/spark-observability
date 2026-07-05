@@ -100,5 +100,5 @@
         System Applications → Applications → Service Graph Connector for
         Observability - Dynatrace → {{ sn_sgc_app_mode | capitalize }}.
       The App Manager API often requires elevated Store privileges beyond
-      sn_cicd.sys_ci_automation; see docs/install.md §7 "Application maintain modes".
+      sn_cicd.sys_ci_automation; see servicenow/docs/install.md §7 "Application maintain modes".
   when: sn_app.scope in (sn_apps_failed | default([]))

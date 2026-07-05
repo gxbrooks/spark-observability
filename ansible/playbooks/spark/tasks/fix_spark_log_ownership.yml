@@ -1,0 +1,24 @@
+---
+# Remediate root-owned Spark log files on NFS (pods previously ran as root).
+# Run on nfs_servers after applying pod securityContext runAsUser 185.
+
+- name: Find root-owned Spark log files
+  ansible.builtin.shell: >-
+    find /mnt/spark/logs -type f \( -name 'spark-app.log' -o -name 'spark-app-*.log' \) -user root 2>/dev/null
+  register: spark_root_owned_logs
+  changed_when: false
+
+- name: Set Spark log file ownership to spark group
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: spark
+    group: spark
+    mode: "0664"
+  loop: "{{ spark_root_owned_logs.stdout_lines | default([]) }}"
+  when: spark_root_owned_logs.stdout_lines | default([]) | length > 0
+
+- name: Report Spark log ownership remediation
+  ansible.builtin.debug:
+    msg: >-
+      Remediated {{ spark_root_owned_logs.stdout_lines | default([]) | length }} root-owned Spark log file(s)
+      under /mnt/spark/logs (owner=spark, group=spark, mode=0664).

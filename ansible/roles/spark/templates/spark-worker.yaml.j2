@@ -27,6 +27,10 @@ spec:
         servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
+      securityContext:
+        fsGroup: 185
+        runAsUser: 185
+        runAsGroup: 185
       # Add tolerations for control-plane taint
       tolerations:
         - key: node-role.kubernetes.io/control-plane
@@ -179,6 +183,10 @@ spec:
         servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
+      securityContext:
+        fsGroup: 185
+        runAsUser: 185
+        runAsGroup: 185
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

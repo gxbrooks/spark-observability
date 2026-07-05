@@ -1,0 +1,42 @@
+---
+# Ensure ResolveApplicationService Script Include (global scope).
+
+- name: Build ResolveApplicationService script include payload
+  ansible.builtin.set_fact:
+    sn_incident_si_body:
+      name: "{{ sn_incident_si_name }}"
+      active: "true"
+      access: public
+      client_callable: "false"
+      description: >-
+        Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
+        Resolve Application Service from pod CI via cmdb_rel_ci Contains::Contained by (Pattern A).
+      script: "{{ lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js') }}"
+
+- name: Look up ResolveApplicationService script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_script_include
+    sn_rest_query: "sysparm_query=name={{ sn_incident_si_name | urlencode }}^sys_scope=global&sysparm_limit=1"
+
+- name: Record ResolveApplicationService script include state
+  ansible.builtin.set_fact:
+    sn_incident_si_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_incident_si_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create ResolveApplicationService script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script_include
+    sn_rest_body: "{{ sn_incident_si_body }}"
+  when: not sn_incident_si_exists | bool
+
+- name: Update ResolveApplicationService script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script_include
+    sn_rest_sys_id: "{{ sn_incident_si_sys_id }}"
+    sn_rest_body: "{{ sn_incident_si_body }}"
+  when: sn_incident_si_exists | bool

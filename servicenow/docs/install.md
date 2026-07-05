@@ -454,7 +454,7 @@ ensure its fields match Table 6.3 — except do **not** change **Admin overrides
 existing ACL. Do **not** edit the active **read** ACL. Ignore inactive rows and
 **`cmdb_key_value_v2`** (a different table).
 
-Further context: `csdm/docs/Tag_Based_Service_Mapping.md`.
+Further context: [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md).
 
 #### 6.3.1 Elevate `security_admin` (prerequisite)
 
@@ -594,6 +594,125 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml
 ```
 
 See `discovery/docker/README.md` for playbook details.
+
+### 6.5 Tag-based Service Mapping — Observability Application Services
+
+**When:** After **§6.3** (`cmdb_key_value` ACLs), **§6.4** (`discovery/docker/discover.yml`), and **`csdm/deploy.yml`** for `observability-platform.csdm.yaml`.
+
+**Who:** The Ansible automation user (`admin_brooks_lab`) configures tag-based population during **`csdm/deploy.yml`**. Tag Categories (Step A below) require **`service_mapping_admin`** on your interactive user ( **`sm_admin`** is often absent on Zurich).
+
+**Why the CMDB map shows “add an entry point”:** CSDM creates **`cmdb_ci_service_discovered`** rows with **`service_mapping: tags`** and **`discover: false`**. The CMDB Service Map widget defaults to the **vertical** path until tag-based population runs. **`csdm/deploy.yml`** applies tag filters from each spec’s **`identifier`**, **`environment`**, and **`location`** via the Service Mapping Operations REST API. **Do not add entry points** for observability Docker services.
+
+#### What Ansible automates vs what stays manual
+
+| Step | Automated | Playbook / action |
+| ---- | --------- | ----------------- |
+| Delete + recreate Application Services | Yes | `observability-platform-delete.csdm.yaml` then `observability-platform.csdm.yaml` via `csdm/deploy.yml` (see below) |
+| BA → BS → AS hierarchy + `depends_on` | Yes | `csdm/deploy.yml` |
+| Container CIs + `servicenow.io/*` tags | Yes (after §6.3) | `discovery/docker/discover.yml` |
+| Tag filter per Application Service (`tag_list`) | Yes | `csdm/deploy.yml` → `configure_tag_based_sm.yml` (when `service_mapping: tags`) |
+| Tag Categories (instance-wide) | Yes | `service-mapping/deploy.yml` (via scoped REST; included in `csdm/deploy.yml`) |
+| **Contains** workload → Application Service | **ServiceNow** (after tags + filters exist) | Tag-based mapping scheduled job / **Update map** |
+
+For every Application Service with **`service_mapping: tags`** in a `*.csdm.yaml` file, the deploy processor POSTs a **`tag_list`** to **`/api/opti8/service_mapping_operations_api/populate_tags`**, using the same platform path as **`snc service-graph app-service populate`**. Disable with **`-e sn_csdm_configure_tag_sm=false`**.
+
+Once tag filters exist, ServiceNow re-evaluates maps when new containers match — no per-container rule is needed.
+
+#### Reset observability Application Services (test instance)
+
+```bash
+cd ansible
+OBS="/home/gxbrooks/repos/spark-observability/servicenow/regions/brooks-lab"
+
+# 1. Delete seven Application Services (BA/BS retained)
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+  -e @../vars/secrets.yaml \
+  -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform-delete.csdm.yaml\"]}"
+
+# 2. Recreate from CSDM spec (skip horizontal discovery trigger for faster run)
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+  -e @../vars/secrets.yaml \
+  -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform.csdm.yaml\"], \"sn_csdm_trigger_horizontal_discovery\": false}"
+
+# 3. Sync container tags (requires §6.3 ACLs)
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+  -e @../vars/secrets.yaml
+```
+
+Override variable **`sn_csdm_spec_paths_override`** limits `csdm/deploy.yml` to one or more spec files (see `ansible/playbooks/servicenow/common/resolve_csdm_spec_paths.yml`).
+
+#### Step A — Tag Categories (once per instance)
+
+**Role:** **`service_mapping_admin`** (from plugin `com.snc.service-mapping`). Do **not** search for **`sm_admin`** — that role record is often missing on Zurich even when Service Mapping is installed.
+
+**Install stack first:**
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/install.yml \
+  -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.yml \
+  -e @../vars/secrets.yaml
+```
+
+Tag categories are created automatically by **`service-mapping/deploy.yml`** (also run at the start of **`csdm/deploy.yml`**).
+
+**Manual fallback** (when deploy output shows tag category errors):
+
+1. Sign in as a user with **`service_mapping_admin`**.
+2. Filter Navigator → **CI tag categories** (table `svc_tag_categories`), or open  
+   [classic Tag Categories list](https://optimizincdemo1.service-now.com/now/nav/ui/classic/params/target/svc_tag_categories_list.do).
+3. An **empty list is normal** on a greenfield instance — click **New** and create:
+
+| Tag Category (name) | Label key (`tag_key`) |
+| ------------------- | --------------------- |
+| **Application Service** | `servicenow.io/application-service-identifier` |
+| **Environment** | `servicenow.io/environment` |
+| **Location** | `servicenow.io/location` |
+
+The Service Mapping Workspace URL (`/now/svc-map/tag-categories`) may be unavailable when the **`sn_itom_map_app`** Store package cannot be downloaded on a shared demo; classic **CI tag categories** is sufficient for brooks-lab. See [ServiceNow tag mapping doc](https://www.servicenow.com/docs/r/it-operations-management/service-mapping/map-service-tag.html) (role: **`service_mapping_admin`**).
+
+#### Step B — Tag population (automated by `csdm/deploy.yml`)
+
+When **`service_mapping: tags`** is set on an Application Service in a `*.csdm.yaml` file, **`csdm/deploy.yml`** configures tag-based population automatically after the CI is created or updated. Tags are derived from the spec:
+
+| CSDM field | Tag key |
+| ---------- | ------- |
+| **`identifier`** (with `{host}` / `{host_lower}` expansion) | `servicenow.io/application-service-identifier` |
+| **`environment`** (when present) | `servicenow.io/environment` |
+| **`location`** (when present) | `servicenow.io/location` |
+
+For observability-platform, values match `observability/docker-compose.yml` labels:
+
+| Application Service | `servicenow.io/application-service-identifier` | Optional scope |
+| ------------------- | ------------------------------------------------ | -------------- |
+| Elasticsearch | `elasticsearch` | environment=`on-prem`, location=`brooks-lab` |
+| Kibana | `kibana` | same |
+| Grafana | `grafana` | same |
+| Prometheus | `prometheus` | same |
+| Grafana Tempo | `grafana-tempo` | same |
+| OpenTelemetry Collector | `opentelemetry-collector` | same |
+| Logstash | `logstash` | same |
+
+Deploy output shows **`Tag SM <name>: HTTP 202`** for each service when population succeeds. **`service_status`** may remain **requirements** until workload tags exist and the tag-based mapping job runs.
+
+**Verify tags before blaming SM:** `cmdb_key_value.list` filtered on key `servicenow.io/application-service-identifier`. If rows are missing, complete [§6.3](#63-enable-automation-to-update-key-value-pairs) and re-run `discovery/docker/discover.yml`.
+
+**Verify relationships:** `cmdb_rel_ci.list` with parent = Application Service sys_id and type **Contains::Contained by**. Trigger **Update map** in Service Mapping Workspace if **Contains** edges are slow to appear.
+
+```bash
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml
+```
+
+#### Manual fallback (UI or CLI)
+
+Use these when automation is disabled (**`-e sn_csdm_configure_tag_sm=false`**) or for troubleshooting:
+
+- **Service Mapping Workspace** → per-service **Tags** filter (same keys/values as the table above).
+- **ServiceNow CLI** (`snc service-graph app-service populate` with `population_method.type: tag_list`) — see [Automating Application Service Registration](https://www.servicenow.com/community/cmdb-articles/automating-application-service-registration-with-best-practices/ta-p/3275122).
+- **CSDM UI flow:** [Populate application services using tags](https://www.servicenow.com/docs/r/it-operations-management/service-mapping/map-service-tag.html).
+
+Further context: [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md), [DT_Problems_to_SN_Event.md](../observability/dynatrace/tenants/pdt20158/docs/DT_Problems_to_SN_Event.md#observability-application-services--tag-based-map-bootstrap-brooks-lab), [csdm/README.md](../../ansible/playbooks/servicenow/csdm/README.md).
 
 ---
 
@@ -1019,9 +1138,13 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml \
 - [DT_SN_Specification_Guide.md](DT_SN_Specification_Guide.md) — **primary modeling guide** for CSDM, runtime labels, and Dynatrace alignment
 - [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md) — tag-based Service Mapping UI and `cmdb_key_value`
 - [CSDM_Specifications.md](CSDM_Specifications.md) — CSDM YAML schema and deploy processor rules
-- `ansible/playbooks/servicenow/README.md` — playbook layout
-- `../discovery/README.md` — playbook verbs
-- `docs/architecture-and-resources.md` — Lab3 MID memory budget
+- [DT_SN_Comparison_Process.md](DT_SN_Comparison_Process.md) — compare workflow (`servicenow/comparator/`)
+- [../../ansible/playbooks/servicenow/README.md](../../ansible/playbooks/servicenow/README.md) — Ansible playbook layout
+- [../../ansible/playbooks/servicenow/discovery/README.md](../../ansible/playbooks/servicenow/discovery/README.md) — discovery playbook verbs
+- [../../ansible/playbooks/servicenow/discovery/docker/README.md](../../ansible/playbooks/servicenow/discovery/docker/README.md) — Docker container sync and label upsert
+- [../../ansible/playbooks/servicenow/discovery/k8s/sync_pod_labels.yml](../../ansible/playbooks/servicenow/discovery/k8s/sync_pod_labels.yml) — Kubernetes pod label sync
+- [../../ansible/playbooks/servicenow/discovery/host/sync_tags.yml](../../ansible/playbooks/servicenow/discovery/host/sync_tags.yml) — host agent tags on linux_server CIs
+- [../../docs/architecture-and-resources.md](../../docs/architecture-and-resources.md) — Lab3 MID memory budget
 - `tmp/ServiceNow_Dynatrace_Integration.md` — CMDB / Dynatrace design
 - `tmp/Dynatrace-ServiceNow SGC.md` — SGC / IRE mapping
 - `tmp/Dynatrace-ServiceNow-events.md` — event paths, field mapping, webhook comparison

@@ -2,12 +2,12 @@
   "schemaId": "builtin:logmonitoring.log-events",
   "scope": "environment",
   "value": {
-    "enabled": true,
+    "enabled": false,
     "summary": "{{ dt_sn_spark_error_log_event_summary }}",
-    "query": "(loglevel == \"ERROR\" OR loglevel == \"WARN\") AND (matchesValue(log.source.path, \"/mnt/spark/logs/*\") OR matchesValue(log.source.path, \"/opt/spark/logs/*\") OR matchesValue(content, \"*TaskSetManager*\") OR matchesValue(content, \"*org.apache.spark*\"))",
+    "query": "(matchesValue(content, \"* ERROR *\") OR matchesValue(content, \"* WARN *\") OR loglevel == \"ERROR\" OR loglevel == \"WARN\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source.path, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\") OR matchesValue(log.source.path, \"/opt/spark/logs/*\"))",
     "eventTemplate": {
-      "title": "Spark log alert ({loglevel}) on {log.source}",
-      "description": "Spark application log line at ERROR or WARN level detected in brooks-lab ({log.source.path}).",
+      "title": "Spark log alert on {log.source}",
+      "description": "Spark application log line at ERROR or WARN level detected in brooks-lab ({log.source}).",
       "eventType": "ERROR",
       "davisMerge": false
     }

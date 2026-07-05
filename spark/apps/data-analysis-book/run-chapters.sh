@@ -31,6 +31,19 @@ if [ -z "${SPARK_MASTER_URL:-}" ] && [ -n "${SPARK_MASTER_HOST:-}" ] && [ -n "${
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi
 
+# Client-mode application logs: file under /mnt/spark/logs/<host>-chapter/ for Elastic Agent + Dynatrace.
+_chapter_host="$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo client)"
+export SPARK_LOG_DIR="${SPARK_LOG_DIR:-/mnt/spark/logs/${_chapter_host}-chapter}"
+if ! mkdir -p "${SPARK_LOG_DIR}" 2>/dev/null; then
+    echo "Warning: could not create SPARK_LOG_DIR=${SPARK_LOG_DIR}" >&2
+fi
+
+# PySpark driver must load log4j2-client (file + console); default driver config is console-only.
+if [[ "${PYSPARK_SUBMIT_ARGS:-}" != *"log4j2.configurationFile"* ]]; then
+    _log4j_cfg="file://${SPARK_CONF_DIR}/log4j2-client.properties"
+    export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraJavaOptions=-Dlog4j2.configurationFile=${_log4j_cfg} ${PYSPARK_SUBMIT_ARGS}"
+fi
+
 # Preserve existing submit args (e.g. spark.ui.enabled=false) and prepend cluster master.
 if [ -n "${SPARK_MASTER_URL:-}" ]; then
     if [[ "${PYSPARK_SUBMIT_ARGS:-}" == *"--master"* ]]; then

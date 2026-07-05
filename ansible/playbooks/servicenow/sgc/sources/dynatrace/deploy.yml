@@ -43,7 +43,7 @@
       ansible.builtin.fail:
         msg: |
           Service Graph Connector for Observability – Dynatrace is not installed on {{ sn_url }}.
-          Run playbooks/servicenow/sgc/install.yml first (manual fallback: docs/install.md §7),
+          Run playbooks/servicenow/sgc/install.yml first (manual fallback: servicenow/docs/install.md §7),
           then re-run this playbook.
       when: not sn_sgc_scope_present | bool
 

@@ -3,5 +3,14 @@
     ".vscode/mermaid-preview.css",
     "servicenow/docs/csdm-spec.css"
   ],
-  "markdown.preview.fontSize": 14
+  "markdown.preview.fontSize": 14,
+  "asciidoc.extensions.enableKroki": true,
+  "asciidoc.preview.asciidoctorAttributes": {
+    "kroki-server-url": "https://kroki.io",
+    "kroki-http-method": "post",
+    "kroki-default-format": "png"
+  },
+  "asciidoc.pdf.engine": "asciidoctor-pdf",
+  "asciidoc.pdf.asciidoctorPdfCommandPath": "${workspaceFolder}/.vscode/bin/asciidoctor-pdf-with-diagrams.sh",
+  "asciidoc.pdf.asciidoctorPdfCommandArgs": []
 }

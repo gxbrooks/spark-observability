@@ -1,0 +1,130 @@
+<mxfile host="app.diagrams.net" agent="spark-observability" version="24.7.17">
+  <diagram name="spark-csdm-cmdb-model" id="spark-csdm-cmdb-model">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Event Management / ITSM cluster -->
+        <mxCell id="cluster-em" value="Event Management / ITSM" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#CC6600;fillColor=#FFF8F0;fontStyle=1;fontSize=11;startSize=28;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="280" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="inc" value="&lt;b&gt;incident&lt;/b&gt;&lt;div&gt;cmdb_ci → Application Service&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;" vertex="1" parent="cluster-em">
+          <mxGeometry x="20" y="40" width="240" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ev" value="&lt;b&gt;em_event&lt;/b&gt;&lt;div&gt;cmdb_ci → pod CI (after bind BR)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;" vertex="1" parent="cluster-em">
+          <mxGeometry x="20" y="110" width="240" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="al" value="&lt;b&gt;em_alert&lt;/b&gt;&lt;div&gt;cmdb_ci → pod CI; incident → ITSM&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;" vertex="1" parent="cluster-em">
+          <mxGeometry x="20" y="180" width="240" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- SGO-Dynatrace import cluster -->
+        <mxCell id="cluster-sgo" value="SGO-Dynatrace import" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#660066;fillColor=#FAF0FF;fontStyle=1;fontSize=11;startSize=28;" vertex="1" parent="1">
+          <mxGeometry x="360" y="40" width="280" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="ci-pod-sgo" value="&lt;b&gt;cmdb_ci_kubernetes_pod&lt;/b&gt;&lt;div&gt;(from CLOUD_APPLICATION_INSTANCE)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;" vertex="1" parent="cluster-sgo">
+          <mxGeometry x="20" y="40" width="240" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ci-host-sgo" value="&lt;b&gt;cmdb_ci_linux_server&lt;/b&gt;&lt;div&gt;(from HOST — initial webhook bind)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;" vertex="1" parent="cluster-sgo">
+          <mxGeometry x="20" y="110" width="240" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Kubernetes discovery cluster -->
+        <mxCell id="cluster-k8s" value="Kubernetes discovery / KVA + label sync" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#003366;fillColor=#EEF6FF;fontStyle=1;fontSize=11;startSize=28;" vertex="1" parent="1">
+          <mxGeometry x="680" y="40" width="300" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="dep" value="&lt;b&gt;spark-master&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_deployment&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" vertex="1" parent="cluster-k8s">
+          <mxGeometry x="20" y="40" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="pod" value="&lt;b&gt;spark-master-0&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_pod&lt;/div&gt;&lt;div&gt;+ servicenow.io/application-service-identifier&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" vertex="1" parent="cluster-k8s">
+          <mxGeometry x="20" y="105" width="260" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="k8s-node" value="&lt;b&gt;Lab3&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_node&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" vertex="1" parent="cluster-k8s">
+          <mxGeometry x="20" y="185" width="260" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- CSDM cluster -->
+        <mxCell id="cluster-csdm" value="CSDM (region *.csdm.yaml deploy)" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="940" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ba" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" vertex="1" parent="cluster-csdm">
+          <mxGeometry x="30" y="45" width="220" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="bs" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" vertex="1" parent="cluster-csdm">
+          <mxGeometry x="300" y="45" width="220" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="as" value="&lt;b&gt;Spark Master&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" vertex="1" parent="cluster-csdm">
+          <mxGeometry x="570" y="45" width="220" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;div&gt;Solid = CMDB relationship&lt;/div&gt;&lt;div&gt;Dashed = CI binding (EM/ITSM → CMDB)&lt;/div&gt;&lt;div&gt;Adjust layout in draw.io for pixel-perfect export&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=10;" vertex="1" parent="cluster-csdm">
+          <mxGeometry x="30" y="120" width="400" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- CMDB relationships (solid) -->
+        <mxCell id="e-dep-pod" edge="1" parent="1" source="dep" target="pod" style="endArrow=classic;html=1;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dep-pod-label" value="Contains" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-dep-pod">
+          <mxGeometry relative="1" x="-0.1" y="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-pod-node" edge="1" parent="1" source="pod" target="k8s-node" style="endArrow=classic;html=1;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-pod-node-label" value="Runs on" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-pod-node">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-ba-bs" edge="1" parent="1" source="ba" target="bs" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ba-bs-label" value="Contains" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-ba-bs">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-bs-as" edge="1" parent="1" source="bs" target="as" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-bs-as-label" value="Contains" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-bs-as">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-as-pod" edge="1" parent="1" source="as" target="pod" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;dashed=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-as-pod-label" value="Contains (tag-based SM)" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-as-pod">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- CI bindings (dashed) -->
+        <mxCell id="e-inc-as" edge="1" parent="1" source="inc" target="as" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-inc-as-label" value="cmdb_ci" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-inc-as">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-ev-pod" edge="1" parent="1" source="ev" target="pod" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ev-pod-label" value="cmdb_ci" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-ev-pod">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-al-pod" edge="1" parent="1" source="al" target="pod" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-al-pod-label" value="cmdb_ci" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-al-pod">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-sgo-pod" edge="1" parent="1" source="ci-pod-sgo" target="pod" style="endArrow=classic;html=1;dashed=1;strokeColor=#660066;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sgo-pod-label" value="sys_object_source" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-sgo-pod">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+        <mxCell id="e-sgo-host" edge="1" parent="1" source="ci-host-sgo" target="k8s-node" style="endArrow=classic;html=1;dashed=1;strokeColor=#660066;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sgo-host-label" value="sys_object_source" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" vertex="1" connectable="0" parent="e-sgo-host">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

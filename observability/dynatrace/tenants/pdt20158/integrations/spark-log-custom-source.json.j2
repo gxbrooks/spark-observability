@@ -1,0 +1,39 @@
+{
+  "schemaId": "builtin:logmonitoring.custom-log-source-settings",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "config-item-title": "{{ dt_sn_spark_log_custom_source_name }}",
+    "custom-log-source": {
+      "type": "LOG_PATH_PATTERN",
+      "values-and-enrichment": [
+        {
+          "path": "/mnt/spark/logs/*/spark-app.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
+          ]
+        },
+        {
+          "path": "/mnt/spark/logs/*/spark-app-*.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
+          ]
+        },
+        {
+          "path": "/opt/spark/logs/spark-app.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" }
+          ]
+        },
+        {
+          "path": "/opt/spark/logs/spark-app-*.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" }
+          ]
+        }
+      ]
+    }
+  }
+}

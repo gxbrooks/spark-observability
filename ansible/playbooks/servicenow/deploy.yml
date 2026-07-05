@@ -16,6 +16,7 @@
           ServiceNow deploy:
             discovery/deploy → discovery/k8s/deploy → discovery/docker/deploy
             → cmdb/deploy → sgc/deploy → sgc/sources/dynatrace/deploy → events/deploy
+            → incident/deploy
 
 - import_playbook: discovery/deploy.yml
   tags: [servicenow]
@@ -36,4 +37,7 @@
   tags: [servicenow]
 
 - import_playbook: sgc/sources/dynatrace/events/deploy.yml
+  tags: [servicenow]
+
+- import_playbook: incident/deploy.yml
   tags: [servicenow]

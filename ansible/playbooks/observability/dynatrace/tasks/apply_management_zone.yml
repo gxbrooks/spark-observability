@@ -1,8 +1,8 @@
 - name: Resolve platform variables
-  ansible.builtin.include_tasks: resolve_k8s_cluster.yml
+  ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir | default(playbook_dir) }}/tasks/resolve_k8s_cluster.yml"
 
 - name: Resolve Dynatrace specification paths
-  ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"
+  ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir | default(playbook_dir) }}/common/resolve_dt_spec_paths.yml"
 
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:

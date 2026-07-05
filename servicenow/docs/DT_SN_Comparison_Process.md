@@ -407,25 +407,23 @@ flowchart TB
 |----------|------|
 | `servicenow/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags, `csdm_op` |
 | `servicenow/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and `servicenow.io/*` keys |
-| `ansible/playbooks/servicenow/compare.yml` | **Automated compare** — raw export + annotated JSON report |
-| `ansible/playbooks/servicenow/compare/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |
+| `servicenow/comparator/` | **Automated compare** (Python) — export + annotated JSON report |
+| `servicenow/comparator/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |
 | `servicenow/regions/*/region.yaml` | Scope correlation registry (discovered by compare) |
 | `observability/dynatrace/tenants/*/docs/Partitioning_and_Tagging.md` | Example MZ and auto-tag pattern (tenant-specific) |
 
 ---
 
-## Automated compare (`compare.yml`)
+## Automated compare (`servicenow/comparator`)
 
-The **`compare.yml`** playbook at `ansible/playbooks/servicenow/compare.yml` implements this process for registered **scope units**. It is a top-level ServiceNow verb alongside `deploy`, `diagnose`, and `install`.
+The Python package **`servicenow/comparator`** implements this process for registered **scope units** (see [comparator/README.md](../comparator/README.md)).
 
 ```bash
-cd ansible
-ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml -e @../vars/secrets.yaml
+cd spark-observability
+PYTHONPATH=. python -m servicenow.comparator
 
 # Single scope unit
-ansible-playbook -i inventory.yml playbooks/servicenow/compare.yml \
-  -e @../vars/secrets.yaml \
-  -e sn_compare_scope_unit_id=brooks-lab-onprem
+PYTHONPATH=. python -m servicenow.comparator --scope-unit-id brooks-lab-onprem
 ```
 
 **What it does (per scope unit):**
@@ -469,4 +467,4 @@ This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; 
 | 2026-06-21 | Added `compare.yml` automation; moved document to `playbooks/servicenow/docs/` |
 | 2026-06-24 | Compare default scope loosened to full SN/DT inventory; MZ and location captured as attributes; optional filters for repair |
 | 2026-06-25 | JSON compare report replaces Excel; entity deep links; project-independent findings; scope_applied metadata |
-| 2026-06-27 | Compare export/report renamed to DT_SN_Model_Comparison*.json; flat report v1.2 with scope_applied at root |
+| 2026-06-29 | Compare moved to Python `servicenow/comparator/`; report v1.3 discoverability taxonomy |

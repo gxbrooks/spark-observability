@@ -1,0 +1,76 @@
+---
+# Apply tag_list Service Mapping population from CSDM spec (service_mapping: tags).
+# Calls Service Mapping Operations REST API → CSDMAppServiceHelper.updateBuildMethod.
+# Input: sn_csdm_app_svc_item { spec, host }, sn_csdm_app_svc_sys_id, sn_csdm_app_svc_name
+
+- name: Resolve tag-based population identifier for instance
+  ansible.builtin.set_fact:
+    sn_csdm_tag_identifier: >-
+      {{ sn_csdm_app_svc_item.spec.identifier
+         | replace('{host}', sn_csdm_app_svc_item.host | default(''))
+         | replace('{host_lower}', sn_csdm_app_svc_item.host | default('') | lower) }}
+
+- name: Build tag_list population tags from CSDM spec
+  ansible.builtin.set_fact:
+    sn_csdm_tag_population_tags: >-
+      {{ [
+           {'key': sn_csdm_tag_key_application_service, 'value': sn_csdm_tag_identifier}
+         ]
+         + ([{'key': sn_csdm_tag_key_environment, 'value': sn_csdm_app_svc_item.spec.environment}]
+            if sn_csdm_app_svc_item.spec.environment is defined else [])
+         + ([{'key': sn_csdm_tag_key_location, 'value': sn_csdm_app_svc_item.spec.location}]
+            if sn_csdm_app_svc_item.spec.location is defined else []) }}
+
+- name: Load persisted Service Mapping REST URIs
+  ansible.builtin.set_fact:
+    sn_sm_rest_context_loaded: "{{ lookup('file', playbook_dir + '/../../../../vars/contexts/servicenow_sm_deploy.json') | from_json }}"
+  failed_when: false
+
+- name: Apply persisted populate_tags REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_populate_tags_uri: "{{ sn_sm_rest_context_loaded.sm_rest_populate_tags_uri }}"
+  when:
+    - sn_sm_rest_context_loaded is mapping
+    - sn_sm_rest_context_loaded.sm_rest_populate_tags_uri | default('') | length > 0
+
+- name: Require Service Mapping populate_tags REST URI
+  ansible.builtin.assert:
+    that:
+      - sn_sm_rest_populate_tags_uri | default('') | length > 0
+    fail_msg: >-
+      Service Mapping populate_tags REST URI is unset. Re-run csdm/deploy.yml
+      (deploy_sm_rest_api.yml) to install the populate_tags operation.
+
+- name: Configure tag-based Service Mapping for application service
+  ansible.builtin.uri:
+    url: "{{ sn_url }}{{ sn_sm_rest_populate_tags_uri }}"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      service_sys_id: "{{ sn_csdm_app_svc_sys_id }}"
+      service_name: "{{ sn_csdm_app_svc_name }}"
+      tags: "{{ sn_csdm_tag_population_tags }}"
+    status_code: [202, 400, 404, 500]
+    return_content: true
+  register: sn_sm_tag_populate_result
+  no_log: true
+
+- name: Report tag-based Service Mapping configuration
+  ansible.builtin.debug:
+    msg: >-
+      Tag SM {{ sn_csdm_app_svc_name }}: HTTP {{ sn_sm_tag_populate_result.status }}
+      identifier={{ sn_csdm_tag_identifier }}
+      {{ sn_sm_tag_populate_result.json.result
+         if sn_sm_tag_populate_result.json.result is defined
+         else sn_sm_tag_populate_result.json.error | default(sn_sm_tag_populate_result.json) }}
+
+- name: Fail when tag-based Service Mapping configuration rejected
+  ansible.builtin.fail:
+    msg: >-
+      Tag SM populate failed for {{ sn_csdm_app_svc_name }} (HTTP {{ sn_sm_tag_populate_result.status }}):
+      {{ sn_sm_tag_populate_result.json.error | default(sn_sm_tag_populate_result.json) }}
+  when: sn_sm_tag_populate_result.status != 202

@@ -1,0 +1,37 @@
+---
+# Shared Service Mapping install variables.
+# Context variables come from vars/contexts/servicenow_ansible_vars.yml; secrets
+# from vars/secrets.yaml.
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+sn_sm_dir: "{{ playbook_dir | regex_replace('^(.*/service-mapping)(/.*)?$', '\\1') }}"
+sn_sgc_dir: "{{ sn_sm_dir | dirname }}/sgc"
+sn_servicenow_playbooks_dir: "{{ sn_sm_dir | dirname }}"
+sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
+sn_csdm_dir: "{{ sn_servicenow_playbooks_dir }}/csdm"
+sn_csdm_files_dir: "{{ sn_csdm_dir }}/files"
+
+sn_sm_rest_api_name: Service Mapping Operations API
+sn_sm_rest_discover_path: /discover
+sn_sm_rest_populate_tags_path: /populate_tags
+sn_sm_rest_ensure_tag_categories_path: /ensure_tag_categories
+
+sn_csdm_tag_key_application_service: servicenow.io/application-service-identifier
+sn_csdm_tag_key_environment: servicenow.io/environment
+sn_csdm_tag_key_location: servicenow.io/location
+
+sn_sm_configure_tag_categories: true
+sn_sm_admin_role_candidates:
+  - service_mapping_admin
+  - itom_admin
+  - sm_admin
+
+# Default brooks-lab tag category keys (classic UI svc_tag_categories_list.do).
+sn_sm_classic_tag_categories_url_suffix: svc_tag_categories_list.do

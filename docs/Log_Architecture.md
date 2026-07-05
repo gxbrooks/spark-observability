@@ -121,6 +121,29 @@ Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab3)
 | **gxbrooks** | gxbrooks (1000) | spark (185), elastic-agent (984) | Administration |
 | **ansible** | ansible (1001) | elastic-agent (984) | Service management |
 
+### NFS mount and log file permissions
+
+**Mount points and exports** (`ansible/playbooks/nfs/install.yml`):
+
+* Owner **`spark:spark`**, mode **`2775`** (setgid) on `/srv/nfs/*` exports and `/mnt/spark/*` client mount points.
+* Setgid ensures new **directories** inherit group `spark`.
+
+**Per-pod log directories** (Kubernetes init container):
+
+* `mkdir -p /mnt/spark/logs/$(POD_NAME)` then **`chown 185:185`** before the Spark container starts.
+
+**Spark pod processes** (`ansible/roles/spark/templates/*.yaml.j2`):
+
+* Pod **`securityContext`**: `runAsUser: 185`, `runAsGroup: 185`, `fsGroup: 185`.
+* Init container alone runs as root (`runAsUser: 0`) only to create and chown the pod directory.
+* Log files must be **`spark:spark`** (mode **`664`**) so group members (Elastic Agent, operators) can read without root.
+
+**Chapter / client-mode drivers** (`run-chapters.sh`):
+
+* Write to `/mnt/spark/logs/<hostname>-chapter/`; developers need membership in group **`spark`**.
+
+**Remediation:** `ansible/playbooks/spark/tasks/fix_spark_log_ownership.yml` on **`nfs_servers`** after changing pod UID or when legacy root-owned `spark-app.log` files exist.
+
 ## Log Collection Strategy
 
 ### Elastic Agent Configuration

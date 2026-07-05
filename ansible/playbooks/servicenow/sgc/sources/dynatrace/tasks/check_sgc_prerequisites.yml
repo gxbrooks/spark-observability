@@ -43,7 +43,7 @@
       {% if not sn_sgc_scope_present | bool %}
       ACTION: Run playbooks/servicenow/sgc/install.yml (installs the
       sgc/common/store_apps.yml manifest in order; skips apps already installed). Manual fallback:
-      docs/install.md §7. Then complete Guided Setup under Dynatrace
+      servicenow/docs/install.md §7. Then complete Guided Setup under Dynatrace
       Observability → Setup.
       {% endif %}
   run_once: true

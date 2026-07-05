@@ -1,0 +1,10 @@
+@import "asciidoctor.css";
+
+/* De-emphasize specification listings (7pt net) relative to narrative body text. */
+.listingblock > .content > pre,
+.listingblock > .content > pre > code,
+.literalblock > pre,
+.literalblock > pre > code {
+  font-size: 7pt !important;
+  line-height: 1.2 !important;
+}

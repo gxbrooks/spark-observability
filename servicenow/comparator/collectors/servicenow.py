@@ -10,6 +10,14 @@ import requests
 from servicenow.comparator.config import CompareConfig
 
 
+def _field_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return str(value.get("display_value") or value.get("value") or "")
+    return str(value)
+
+
 class ServiceNowClient:
     def __init__(self, config: CompareConfig) -> None:
         self.config = config
@@ -76,15 +84,27 @@ class ServiceNowClient:
         canonical_key = self.config.identifier_tag_key
         canonical_query = (
             f"sysparm_query=key={quote(canonical_key, safe='')}"
-            "&sysparm_fields=sys_id,key,value,cmdb_ci,configuration_item&sysparm_limit=500"
+            "&sysparm_fields=sys_id,key,value,cmdb_ci,configuration_item,configuration_item.sys_class_name"
+            "&sysparm_display_value=all&sysparm_limit=500"
         )
         canonical_status, canonical = self._get("cmdb_key_value", canonical_query)
 
         alternate_query = (
             "sysparm_query=key=app.kubernetes.io/name^ORkey=app"
-            "&sysparm_fields=sys_id,key,value,cmdb_ci,configuration_item&sysparm_limit=500"
+            "&sysparm_fields=sys_id,key,value,cmdb_ci,configuration_item,configuration_item.sys_class_name"
+            "&sysparm_display_value=all&sysparm_limit=500"
         )
         alternate_status, alternate = self._get("cmdb_key_value", alternate_query)
+
+        def normalize_binding(row: dict) -> dict:
+            out = dict(row)
+            ci_class = row.get("configuration_item.sys_class_name")
+            if ci_class is not None:
+                out["configuration_item_class"] = _field_value(ci_class)
+            return out
+
+        canonical = [normalize_binding(r) for r in canonical]
+        alternate = [normalize_binding(r) for r in alternate]
 
         return {
             "tag_bindings": canonical + alternate,

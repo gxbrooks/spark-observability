@@ -26,6 +26,10 @@ spec:
         servicenow.io/namespace: spark
     spec:
       serviceAccountName: spark
+      securityContext:
+        fsGroup: 185
+        runAsUser: 185
+        runAsGroup: 185
       # Add pod hostname and subdomain for better DNS resolution
       hostname: spark-master
       subdomain: spark-master-headless

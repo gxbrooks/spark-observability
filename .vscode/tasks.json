@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "AsciiDoc: Render HTML + PDF (local Graphviz)",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/bin/render-adoc.sh \"${file}\"",
+      "options": {
+        "cwd": "${fileDirname}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

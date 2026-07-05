@@ -33,10 +33,10 @@
          if sn_app_repo_install.status in [200, 202]
          else ('— rejected: ' ~ (sn_app_repo_install.json.error.message | default('unknown'))
                ~ '. Likely not available in the app repository (Store entitlement /'
-               ~ ' first-time license click-through) — see docs/install.md §7'
+               ~ ' first-time license click-through) — see servicenow/docs/install.md §7'
                ~ ' "Manual Store install".'
                if sn_app_repo_install.status in [400, 404]
-               else '— not authorized: verify sn_cicd.sys_ci_automation (docs/install.md §7 roles table)') }}
+               else '— not authorized: verify sn_cicd.sys_ci_automation (servicenow/docs/install.md §7 roles table)') }}
 
 - name: "Wait for {{ sn_app.scope }} install to complete"
   ansible.builtin.include_tasks: poll_cicd_progress.yml

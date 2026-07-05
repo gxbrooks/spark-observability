@@ -1,0 +1,15 @@
+---
+# Re-enable ServiceNow Demo 1 - Optimiz problem notification.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/enable_demo1.yml -e @../vars/secrets.yaml
+
+- name: Re-enable Demo 1 Dynatrace problem notification
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/enable_demo1_problem_notification.yml"

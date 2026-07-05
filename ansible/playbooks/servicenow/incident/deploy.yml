@@ -1,0 +1,42 @@
+---
+# Log-to-Incident ServiceNow automation (Script Include + business rules).
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml
+
+- name: Deploy Log-to-Incident ServiceNow automation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Ensure K8sLogPodCiBind Script Include
+      ansible.builtin.include_tasks: tasks/ensure_k8s_log_pod_ci_bind_si.yml
+
+    - name: Ensure ResolveApplicationService Script Include
+      ansible.builtin.include_tasks: tasks/ensure_resolve_application_service_si.yml
+
+    - name: Ensure em_event pod CI binding business rule
+      ansible.builtin.include_tasks: tasks/ensure_em_event_bind_pod_br.yml
+
+    - name: Ensure em_event propagate pod binding business rule
+      ansible.builtin.include_tasks: tasks/ensure_em_event_propagate_pod_br.yml
+
+    - name: Ensure em_alert pod CI binding business rule
+      ansible.builtin.include_tasks: tasks/ensure_em_alert_bind_pod_br.yml
+
+    - name: Ensure em_alert create incident business rule
+      ansible.builtin.include_tasks: tasks/ensure_em_alert_create_incident_br.yml
+
+    - name: Deactivate legacy Spark-prefixed incident automation
+      ansible.builtin.include_tasks: tasks/deactivate_legacy_spark_incident_automation.yml
+
+    - name: Log-to-Incident automation summary
+      ansible.builtin.debug:
+        msg: >-
+          Deployed ResolveApplicationService script include and business rules
+          '{{ sn_incident_em_event_br_name }}', '{{ sn_incident_em_alert_bind_br_name }}',
+          '{{ sn_incident_em_alert_br_name }}'.

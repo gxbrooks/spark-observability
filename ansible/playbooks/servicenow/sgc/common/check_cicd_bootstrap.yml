@@ -71,7 +71,7 @@
            The CI/CD API cannot activate its own plugin.
         2. Grant sn_cicd.sys_ci_automation to {{ sn_user }}.
         3. Re-run this playbook.
-      See docs/install.md §7 "Bootstrap sequence".
+      See servicenow/docs/install.md §7 "Bootstrap sequence".
   when: sn_cicd_role_exists == 'no'
 
 - name: Stop when the automation user lacks the CI/CD role
@@ -83,7 +83,7 @@
         (or the user record → Roles related list → Edit…; slushbucket search is
         "starts with" — search "sn_cicd" or "*ci_automation")
       Then re-run this playbook — already-installed components are skipped.
-      See docs/install.md §7 "Bootstrap sequence".
+      See servicenow/docs/install.md §7 "Bootstrap sequence".
   when:
     - sn_cicd_role_exists == 'yes'
     - sn_cicd_role_granted == 'no'

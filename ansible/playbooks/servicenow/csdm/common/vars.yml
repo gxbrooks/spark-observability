@@ -30,9 +30,16 @@ docker_discovery_hosts: >-
 
 sn_sm_rest_api_name: Service Mapping Operations API
 sn_sm_rest_discover_path: /discover
+sn_sm_rest_populate_tags_path: /populate_tags
+sn_sm_rest_ensure_tag_categories_path: /ensure_tag_categories
+sn_csdm_configure_tag_sm: true
+sn_csdm_tag_key_application_service: servicenow.io/application-service-identifier
+sn_csdm_tag_key_environment: servicenow.io/environment
+sn_csdm_tag_key_location: servicenow.io/location
 sn_sm_poll_discovery: false
 
-sn_csdm_registry: {}
+sn_csdm_dir: "{{ playbook_dir }}"
+sn_csdm_files_dir: "{{ sn_csdm_dir }}/files"
 sn_csdm_app_svc_queue: []
 sn_sm_discover_service_names: []
 sn_csdm_depends_on_queue: []

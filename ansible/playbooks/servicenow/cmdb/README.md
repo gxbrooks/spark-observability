@@ -17,7 +17,7 @@ attribute when IRE merges updates from Discovery, SGC, KVA, and other sources.
   `sn_cicd.sys_ci_automation` (plugin activation API)
 - ITOM Discovery entitlement on the instance (`com.snc.itom.discovery.license`)
 
-See `../docs/install.md` §7 for roles and bootstrap.
+See [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §7 for roles and bootstrap.
 
 ## Usage
 

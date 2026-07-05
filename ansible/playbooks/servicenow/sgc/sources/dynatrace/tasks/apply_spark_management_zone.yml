@@ -1,0 +1,11 @@
+---
+# Apply Spark Observability management zone from SGC/events playbooks (playbook_dir-safe).
+
+- name: Set observability Dynatrace tasks directory anchor
+  ansible.builtin.set_fact:
+    dt_observability_tasks_dir: >-
+      {{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/ansible/playbooks/observability/dynatrace
+  run_once: true
+
+- name: Apply management zone specification
+  ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_management_zone.yml"

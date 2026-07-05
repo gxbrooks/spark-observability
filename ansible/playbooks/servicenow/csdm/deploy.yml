@@ -6,6 +6,8 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
 #     -e @../vars/secrets.yaml
 
+- import_playbook: ../service-mapping/deploy.yml
+
 - name: Deploy ServiceNow CSDM objects
   hosts: localhost
   connection: local
@@ -19,12 +21,6 @@
     - name: Initialize CSDM user reference cache
       ansible.builtin.set_fact:
         sn_csdm_user_cache: {}
-
-    - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
-
-    - name: Deploy Service Mapping Operations REST API
-      ansible.builtin.include_tasks: tasks/deploy_sm_rest_api.yml
 
     - name: Ensure runtime tag manifest output directory exists
       ansible.builtin.file:

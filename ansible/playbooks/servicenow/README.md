@@ -11,6 +11,7 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | --------- | ------- |
 | `discovery/` | Phases 1–3: MID Server, Discovery credentials, schedules, on-demand scans, K8s/Docker discovery |
 | `cmdb/` | CMDB 360 (Multisource CMDB): license check, sys_properties, diagnose |
+| `service-mapping/` | Tag-based Service Mapping: Store apps (`sn_service_mapping`, `sn_itom_map_app`) + classic plugin (`com.snc.service-mapping`) |
 | `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
 | *(future)* `incident/` | Incident integrations |
 
@@ -42,7 +43,7 @@ sibling directories.
 - `SN_USER`, `SN_PASSWORD` — API automation user (`admin_brooks_lab`)
 - `SN_MID_USER`, `SN_MID_PASSWORD` — MID Server user (`mid_brooks_lab`, **`mid_server` role only**)
 
-Full prerequisite checklist: **`docs/install.md`**
+Full prerequisite checklist: **[servicenow/docs/install.md](../../../servicenow/docs/install.md)**
 
 SSH discovery private key is generated on first `discovery/install.yml` run and
 stored at `vars/sn_discovery_id_ed25519` (gitignored).
@@ -78,7 +79,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../va
 | `admin_brooks_lab` | `SN_USER` | discovery_admin, cmdb_inst_admin, rest_service, … | Ansible `deploy.yml` / `discover.yml` |
 | `mid_brooks_lab` | `SN_MID_USER` | **mid_server** only | MID Server agent on Lab3 |
 
-The MID user **cannot** replace the admin user for Phase 1. See `docs/install.md`.
+The MID user **cannot** replace the admin user for Phase 1. See [servicenow/docs/install.md](../../../servicenow/docs/install.md).
 
 Run `discovery/diagnose.yml` for a live permission matrix.
 

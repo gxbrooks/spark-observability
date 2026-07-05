@@ -9,7 +9,7 @@ idempotently and on-needed.
 Run order for this source:
 
 1. `playbooks/servicenow/sgc/install.yml` — installs the scoped app
-   (`sn_dynatrace_integ`) and prerequisites. See `../../../docs/install.md`.
+   (`sn_dynatrace_integ`) and prerequisites. See [servicenow/docs/install.md](../../../../../../servicenow/docs/install.md).
 2. **Manual step 1 below** — grant `connection_admin` (one-time).
 3. `playbooks/servicenow/sgc/sources/dynatrace/deploy.yml` — automated
    topology configuration, credential, and connection Hostname.
@@ -154,7 +154,7 @@ If `scheduled_import_set` write is denied (HTTP 403):
 
 ## Related documents
 
-- `../../../docs/install.md` §7 — Store app and plugin installation, roles
+- [servicenow/docs/install.md](../../../../../../servicenow/docs/install.md) §7 — Store app and plugin installation, roles
   (including `connection_admin`), and the CI/CD bootstrap sequence.
 - `events/` — Dynatrace problem-notification (event) deployment for this
   source (`events/deploy.yml`).
