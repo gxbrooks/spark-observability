@@ -27,5 +27,25 @@ ResolveApplicationService.prototype = {
     return null;
   },
 
+  /**
+   * Spark client-mode logs: /mnt/spark/logs/spark-client/<instance>/spark-app*.log
+   * maps directly to Application Service identifier spark-client (no pod CI).
+   */
+  resolveFromSparkClientLogPath: function (text) {
+    if (!text || text.indexOf('/logs/spark-client/') === -1) {
+      return null;
+    }
+
+    var asGr = new GlideRecord('cmdb_ci_service_discovered');
+    asGr.addQuery('identifier', 'spark-client');
+    asGr.setLimit(1);
+    asGr.query();
+    if (asGr.next()) {
+      return asGr.sys_id.toString();
+    }
+
+    return null;
+  },
+
   type: 'ResolveApplicationService',
 };

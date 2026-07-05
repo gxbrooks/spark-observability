@@ -9,11 +9,33 @@
     "processing": {
       "processors": [
         {
+          "id": "extract-spark-client-from-enriched-path",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse spark-client driver instance from enriched log path",
+          "matcher": "isNull(spark.client.instance) AND matchesValue(k8s.log.path, \"/mnt/spark/logs/spark-client/*\")",
+          "dql": {
+            "script": "parse k8s.log.path, \"LD '/mnt/spark/logs/spark-client/' LD:spark.client.instance LD '/spark-app'\""
+          }
+        },
+        {
+          "id": "tag-spark-client-workload",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Mark Spark client-mode driver logs for ServiceNow path-based AS resolution",
+          "matcher": "isNotNull(spark.client.instance) OR matchesValue(k8s.log.path, \"/mnt/spark/logs/spark-client/*\") OR matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "fieldsAdd": {
+            "fields": [
+              { "name": "spark.client.as_identifier", "value": "spark-client" }
+            ]
+          }
+        },
+        {
           "id": "extract-k8s-pod-from-enriched-path",
           "type": "dql",
           "enabled": true,
           "description": "Parse pod name from k8s.log.path when custom log source enrichment is present",
-          "matcher": "isNull(k8s.pod_name) AND isNotNull(k8s.log.path)",
+          "matcher": "isNull(k8s.pod_name) AND isNotNull(k8s.log.path) AND NOT matchesValue(k8s.log.path, \"/mnt/spark/logs/spark-client/*\")",
           "dql": {
             "script": "parse k8s.log.path, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | parse k8s.log.path, \"LD '/opt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\""
           }
@@ -23,17 +45,17 @@
           "type": "dql",
           "enabled": true,
           "description": "Parse Kubernetes pod name from literal log.source path (fallback)",
-          "matcher": "isNull(k8s.pod_name) AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\"))",
+          "matcher": "isNull(k8s.pod_name) AND isNull(spark.client.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
           "dql": {
             "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | parse log.source, \"LD '/opt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\""
           }
         },
         {
-          "id": "drop-non-pod-log-paths",
+          "id": "drop-legacy-chapter-log-paths",
           "type": "drop",
           "enabled": true,
-          "description": "Exclude client-mode chapter/client log directories (not discovered pod CIs)",
-          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(k8s.pod_name, \"*-client\")"
+          "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/logs/spark-client/)",
+          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(k8s.log.path, \"/mnt/spark/logs/*-chapter/*\")"
         },
         {
           "id": "resolve-k8s-pod-entity",
@@ -55,11 +77,30 @@
     "davis": {
       "processors": [
         {
+          "id": "spark-client-warn-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Spark client-mode driver ERROR/WARN logs",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (matchesValue(k8s.log.path, \"/mnt/spark/logs/spark-client/*\") OR matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\"))",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "event.name", "value": "Application log {loglevel} on spark-client" },
+              {
+                "key": "event.description",
+                "value": "Application {loglevel} on {k8s.log.path}: {content}"
+              },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        },
+        {
           "id": "k8s-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Application ERROR/WARN log lines for ServiceNow events",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(k8s.pod_name, \"*-chapter\") AND NOT matchesValue(k8s.pod_name, \"*-client\")",
+          "description": "Kubernetes pod ERROR/WARN log lines for ServiceNow events",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\") AND NOT matchesValue(k8s.pod_name, \"*-chapter\")",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },

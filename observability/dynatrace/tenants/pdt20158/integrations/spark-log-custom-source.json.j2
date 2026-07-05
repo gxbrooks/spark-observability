@@ -8,6 +8,22 @@
       "type": "LOG_PATH_PATTERN",
       "values-and-enrichment": [
         {
+          "path": "/mnt/spark/logs/spark-client/*/spark-app.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "spark.client.as_identifier", "value": "spark-client" },
+            { "type": "attribute", "key": "spark.client.instance", "value": "${1}" }
+          ]
+        },
+        {
+          "path": "/mnt/spark/logs/spark-client/*/spark-app-*.log",
+          "enrichment": [
+            { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "spark.client.as_identifier", "value": "spark-client" },
+            { "type": "attribute", "key": "spark.client.instance", "value": "${1}" }
+          ]
+        },
+        {
           "path": "/mnt/spark/logs/*/spark-app.log",
           "enrichment": [
             { "type": "attribute", "key": "k8s.log.path", "value": "${0}" },

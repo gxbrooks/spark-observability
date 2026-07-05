@@ -14,7 +14,7 @@
       filter_condition: source=SGO-Dynatrace^severity<=3
       description: >-
         K8s log alerts (ERROR/WARN): create incident on Application Service via
-        ResolveApplicationService; set em_alert.task for Alerts tab linkage.
+        spark-client log path or Pattern A Contains from pod CI.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_k8s_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule

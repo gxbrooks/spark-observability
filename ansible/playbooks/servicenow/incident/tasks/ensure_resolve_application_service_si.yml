@@ -10,7 +10,8 @@
       client_callable: "false"
       description: >-
         Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
-        Resolve Application Service from pod CI via cmdb_rel_ci Contains::Contained by (Pattern A).
+        Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
+        (Pattern A pod) or from /logs/spark-client/ log path (Spark Client AS).
       script: "{{ lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js') }}"
 
 - name: Look up ResolveApplicationService script include

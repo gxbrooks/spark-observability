@@ -15,18 +15,28 @@
   var desc = current.description.toString();
   if (
     desc.indexOf('/logs/') === -1 &&
+    desc.indexOf('spark-app.log') === -1 &&
     desc.indexOf('application.log') === -1 &&
     !desc.match(/\b(ERROR|WARN)\b/)
   ) {
     return;
   }
 
-  if (current.cmdb_ci.nil()) {
-    return;
+  var resolver = new ResolveApplicationService();
+  var alertText =
+    desc +
+    ' ' +
+    current.resource.toString() +
+    ' ' +
+    current.node.toString();
+  var asSysId = resolver.resolveFromSparkClientLogPath(alertText);
+  var asSource = 'spark-client log path';
+
+  if (!asSysId && !current.cmdb_ci.nil()) {
+    asSysId = resolver.resolveFromInfrastructureCi(current.cmdb_ci.toString());
+    asSource = 'Contains traversal from pod CI';
   }
 
-  var resolver = new ResolveApplicationService();
-  var asSysId = resolver.resolveFromInfrastructureCi(current.cmdb_ci.toString());
   if (!asSysId) {
     return;
   }
@@ -72,7 +82,9 @@
     backfillInc.work_notes =
       'Set Configuration item from alert ' +
       current.number +
-      ' (Application Service resolved via Contains traversal from pod CI).';
+      ' (Application Service resolved via ' +
+      asSource +
+      ').';
     backfillInc.update();
     linkAlertToIncident(backfillInc.sys_id);
     return;
@@ -106,7 +118,8 @@
   inc.urgency = 2;
   inc.caller_id = defaultCallerId();
   inc.comments = 'Auto-created from Event Management alert ' + current.number;
-  inc.work_notes = 'Source alert: ' + current.number;
+  inc.work_notes =
+    'Source alert: ' + current.number + ' (Application Service via ' + asSource + ')';
   var incSysId = inc.insert();
   if (!incSysId) {
     gs.error(

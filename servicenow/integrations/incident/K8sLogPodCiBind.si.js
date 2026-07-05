@@ -8,7 +8,11 @@ K8sLogPodCiBind.prototype = {
     var match;
 
     while ((match = regex.exec(text)) !== null) {
-      if (!match[1] || match[1].indexOf('*') !== -1) {
+      if (
+        !match[1] ||
+        match[1].indexOf('*') !== -1 ||
+        match[1] === 'spark-client'
+      ) {
         continue;
       }
       var podGr = new GlideRecord('cmdb_ci_kubernetes_pod');

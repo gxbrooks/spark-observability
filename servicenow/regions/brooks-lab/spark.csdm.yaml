@@ -69,6 +69,26 @@ application_services:
       - name: lab3
         type: nfs_server
 
+  - name: Spark Client
+    identifier: spark-client
+    short_description: PySpark client-mode driver (chapter and ad-hoc jobs on lab hosts)
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    platform: host
+    service_mapping: tags
+    discover: false
+    service_tier: app
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+    depends_on:
+      - Spark Master
+      - name: lab3
+        type: linux_server
+      - name: lab3
+        type: nfs_server
+
   - name: "Spark Worker ({host})"
     identifier: "spark-worker-{host_lower}"
     short_description: "Spark worker on {host}"
