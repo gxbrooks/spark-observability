@@ -7,7 +7,7 @@
       name: "{{ sn_incident_em_alert_br_name }}"
       active: "true"
       collection: em_alert
-      when: before
+      when: after
       action_insert: "true"
       action_update: "true"
       order: "{{ sn_incident_em_alert_br_order }}"

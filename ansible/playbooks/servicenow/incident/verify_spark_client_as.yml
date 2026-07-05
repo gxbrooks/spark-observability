@@ -1,0 +1,44 @@
+---
+# Quick check: Spark Client AS and spark-client log alerts/incidents.
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
+  tasks:
+    - ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: cmdb_ci_service_discovered
+        sn_rest_query: "sysparm_query=name=Spark%20Client&sysparm_fields=sys_id,name,identifier,number&sysparm_limit=5"
+
+    - ansible.builtin.debug:
+        msg: "Spark Client AS (by name): {{ sn_rest_json.result | default([]) }}"
+
+    - ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: cmdb_ci_service_discovered
+        sn_rest_query: "sysparm_query=name=Spark%20Master&sysparm_fields=sys_id,name,identifier,number&sysparm_limit=1"
+
+    - ansible.builtin.debug:
+        msg: "Spark Master AS: {{ sn_rest_json.result | default([]) }}"
+
+    - ansible.builtin.debug:
+        msg: "Spark Client AS: {{ sn_rest_json.result | default([]) }}"
+
+    - ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEspark-client^ORDERBYDESCsys_created_on&sysparm_fields=number,description,cmdb_ci,cmdb_ci.name,incident,incident.number,severity&sysparm_limit=5"
+
+    - ansible.builtin.debug:
+        msg: "spark-client alerts: {{ sn_rest_json.result | default([]) }}"
+
+    - ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      vars:
+        sn_rest_table: em_alert
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEApplication%20log%20ERROR%20on%20spark-client^ORDERBYDESCsys_created_on&sysparm_fields=number,description,incident,cmdb_ci&sysparm_limit=5"
+
+    - ansible.builtin.debug:
+        msg: "spark-client Davis alerts: {{ sn_rest_json.result | default([]) }}"

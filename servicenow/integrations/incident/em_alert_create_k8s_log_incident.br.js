@@ -67,6 +67,7 @@
 
   function linkAlertToIncident(incSysId) {
     current.incident = incSysId;
+    current.update();
   }
 
   var backfillInc = new GlideRecord('incident');

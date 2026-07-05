@@ -55,7 +55,7 @@
           "type": "drop",
           "enabled": true,
           "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/logs/spark-client/)",
-          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(k8s.log.path, \"/mnt/spark/logs/*-chapter/*\")"
+          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\")"
         },
         {
           "id": "resolve-k8s-pod-entity",

@@ -44,6 +44,14 @@ ResolveApplicationService.prototype = {
       return asGr.sys_id.toString();
     }
 
+    var asByName = new GlideRecord('cmdb_ci_service_discovered');
+    asByName.addQuery('name', 'Spark Client');
+    asByName.setLimit(1);
+    asByName.query();
+    if (asByName.next()) {
+      return asByName.sys_id.toString();
+    }
+
     return null;
   },
 
