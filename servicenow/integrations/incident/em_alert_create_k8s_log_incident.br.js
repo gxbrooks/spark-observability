@@ -3,10 +3,6 @@
     return;
   }
 
-  if (!current.incident.nil()) {
-    return;
-  }
-
   var severity = parseInt(current.severity, 10);
   if (isNaN(severity) || severity > 3) {
     return;
@@ -67,7 +63,27 @@
 
   function linkAlertToIncident(incSysId) {
     current.incident = incSysId;
-    current.update();
+  }
+
+  // Bundled Davis problems may pre-link alerts to an incident on the wrong AS.
+  // When spark-client path resolves Spark Client AS, correct the linked incident CI.
+  if (!current.incident.nil()) {
+    var linkedInc = new GlideRecord('incident');
+    if (
+      linkedInc.get(current.incident.toString()) &&
+      linkedInc.cmdb_ci.toString() !== asSysId
+    ) {
+      linkedInc.cmdb_ci = asSysId;
+      linkedInc.short_description = shortDesc;
+      linkedInc.work_notes =
+        'Corrected Application Service from alert ' +
+        current.number +
+        ' (' +
+        asSource +
+        ').';
+      linkedInc.update();
+    }
+    return;
   }
 
   var backfillInc = new GlideRecord('incident');

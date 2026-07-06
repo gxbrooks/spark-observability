@@ -1,0 +1,35 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  vars:
+    sn_url: "{{ SN_URL | trim }}"
+    sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+    sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+    sn_api_headers:
+      Accept: application/json
+      Content-Type: application/json
+  tasks:
+    - uri:
+        url: "{{ sn_url }}/api/now/table/cmdb_ci_service_discovered/fce8e70f87bd03103507b886dabb35d2?sysparm_fields=name,number,tag_list,identifier"
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: spark_client
+    - uri:
+        url: "{{ sn_url }}/api/now/table/cmdb_ci_service_discovered?sysparm_query=name=Grafana&sysparm_fields=name,number,tag_list,identifier&sysparm_limit=1"
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        return_content: true
+      register: grafana
+    - debug:
+        msg:
+          spark_client: "{{ spark_client.json.result }}"
+          grafana: "{{ grafana.json.result }}"

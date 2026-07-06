@@ -110,3 +110,6 @@
              {'identifier': sn_csdm_merged_spec.identifier}
              if sn_csdm_object_kind == 'application_service' and sn_csdm_merged_spec.identifier is defined else {},
              recursive=True) }}
+# Note: identifier is the CSDM logical key; on some instances cmdb_ci_service_discovered
+# does not persist identifier via Table API. Tag-based SM uses populate_tags → tag_list instead.
+# See Problem_to_Incident.adoc § CSDM identifier vs CMDB Application Service lookup.

@@ -26,6 +26,8 @@ sequenceDiagram
   OA->>File: tail custom log source paths
   OA->>Route: log record (dt.openpipeline.source=oneagent)
   Route->>Pipe: matcher: /mnt/spark/logs/* or /opt/spark/logs/*
+  Note over Pipe: spark-client/* → Davis event.name\n"Application log {level} on spark-client"
+  Note over Pipe: pod paths → Davis event.name\n"Application log {level} on {pod}"
   Pipe->>Grail: bucketAssignment default_logs
   Pipe->>Davis: Davis processor (WARN/ERROR matcher)
   Davis->>AP: ERROR problem (Spark Observability MZ)
@@ -46,29 +48,32 @@ Spark JVMs (PySpark chapter **driver** on Lab3, **executors** in K8s pods, **mas
 
 | Writer | Config | Output path |
 |--------|--------|-------------|
-| Chapter driver | `run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/logs/<host>-chapter/spark-app.log` |
-| K8s Spark pods | Pod log4j / symlink layout | `/mnt/spark/logs/<pod-dir>/spark-app.log` (pattern seen in Grail as `/mnt/spark/logs/*/spark-app.log`) |
+| Chapter / client-mode driver | `run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/logs/spark-client/<hostname-pid>/spark-app.log` (one subdirectory per driver JVM) |
+| K8s Spark pods | Pod log4j / symlink layout | `/mnt/spark/logs/<pod-dir>/spark-app.log` |
 | Spark 4.x DiskLog (optional) | `/opt/spark/logs` when present | `/opt/spark/logs/spark-app.log` |
+| Legacy (retired) | prior `run-chapters.sh` | `/mnt/spark/logs/<host>-chapter/` — dropped by OpenPipeline |
+
+See [Problem to Incident — Spark client log path](Problem_to_Incident.adoc#step-5-spark-client-path) for client-mode incident correlation.
 
 ### Configurations
 
 | File / setting | Role |
 |----------------|------|
 | `spark/conf/log4j2-client.properties` | `RollingFile` appender → `${SPARK_LOG_DIR}/spark-app.log`; pattern `%d %-5p %c{1}:%L - %m%n` |
-| `spark/apps/data-analysis-book/run-chapters.sh` | Sets `SPARK_LOG_DIR=/mnt/spark/logs/<hostname>-chapter`; adds `-Dlog4j2.configurationFile=file://…/log4j2-client.properties` to driver JVM |
+| `spark/apps/data-analysis-book/run-chapters.sh` | Sets `SPARK_LOG_DIR=/mnt/spark/logs/spark-client/${hostname-pid}`; optional `SPARK_DRIVER_INSTANCE`; `DT_TAGS=servicenow.io/application-service-identifier=spark-client`; adds `-Dlog4j2.configurationFile=…/log4j2-client.properties` |
 | `docs/Log_Architecture.md` | NFS layout under `/mnt/spark/logs` on Lab1–Lab3 |
 | K8s / Spark deploy | Executor and master logs under per-pod directories on NFS |
 
 ### Example raw log lines (file on disk)
 
-Chapter driver (`/mnt/spark/logs/lab3-chapter/spark-app.log`):
+Client-mode driver (`/mnt/spark/logs/spark-client/lab3-par-a-557204/spark-app.log`):
 
 ```text
-2026-07-01 14:26:22 WARN  WindowExec:244 - No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
-2026-07-01 14:11:24 WARN  TaskSetManager:250 - Lost task 0.0 in stage 33.0 (TID 98) (10.244.1.64 executor 13): org.apache.spark.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file file:///mnt/spark/data/shows/shows-silicon-valley.json.
+2026-07-06 07:18:44 WARN  WindowExec:244 - No Partition Defined for Window operation! Moving all data to a single partition…
+2026-07-06 07:19:02 ERROR TaskSetManager:250 - Lost task 0.0 in stage 12.0 …
 ```
 
-K8s master (same path pattern, different directory):
+K8s master (pod path):
 
 ```text
 2026-07-01 14:26:26 WARN  Master:250 - Got status update for unknown executor app-20260701142425-0039
@@ -378,6 +383,47 @@ fetch logs, from:now()-2h
 ```
 
 ServiceNow: [em_event list — SGO-Dynatrace](https://optimizincdemo1.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on)
+
+---
+
+## Spark client-mode validation (brooks-lab)
+
+### Approach
+
+1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to separate directories under `/mnt/spark/logs/spark-client/`.
+2. **Ingest** — OneAgent custom log source paths `/mnt/spark/logs/spark-client/*/spark-app*.log` (restart OneAgent after deploy if paths were added recently).
+3. **Detect** — OpenPipeline `spark-client-warn-error-davis` processor; Davis **`event.name`** = `Application log {loglevel} on spark-client`; timeout **15m**.
+4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
+5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/logs/spark-client/` → Application Service **Spark Client** ([detail](Problem_to_Incident.adoc#step-5-spark-client-path)).
+
+### Parallel chapter load (two drivers)
+
+```bash
+cd spark/apps/data-analysis-book
+SPARK_DRIVER_INSTANCE="lab3-par-a-$$" ./run-chapters.sh 03 04 05 06 &
+SPARK_DRIVER_INSTANCE="lab3-par-b-$$" ./run-chapters.sh 07 08 09 10 &
+wait
+```
+
+Chapter **05** sets `spark.sparkContext.setLogLevel("WARN")` — useful for driver WARN lines in spark-client logs.
+
+### Verify spark-client alerts and incidents
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_client_as.yml \
+  -e @../vars/secrets.yaml
+```
+
+DQL filter for client paths only:
+
+```dql
+fetch logs, from:now()-2h
+| filter (loglevel == "WARN" OR loglevel == "ERROR")
+  AND matchesValue(log.source, "/mnt/spark/logs/spark-client/*")
+| sort timestamp desc
+| limit 50
+```
 
 ---
 
