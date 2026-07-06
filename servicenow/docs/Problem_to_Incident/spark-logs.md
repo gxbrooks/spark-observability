@@ -53,7 +53,7 @@ Spark JVMs (PySpark chapter **driver** on Lab3, **executors** in K8s pods, **mas
 | Spark 4.x DiskLog (optional) | `/opt/spark/logs` when present | `/opt/spark/logs/spark-app.log` |
 | Legacy (retired) | prior `run-chapters.sh` | `/mnt/spark/logs/<host>-chapter/` — dropped by OpenPipeline |
 
-See [Problem to Incident — Spark client log path](Problem_to_Incident.adoc#step-5-spark-client-path) for client-mode incident correlation.
+See [Problem to Incident — client-side incident mapping](Problem_to_Incident.adoc#step-5-client-side) and [service-side mapping](Problem_to_Incident.adoc#step-5-service-side) for incident correlation. Documentation policy: [Observability — Service Management Documentation.tpg.md](Observability%20-%20Service%20Management%20Documentation.tpg.md).
 
 ### Configurations
 
@@ -388,7 +388,16 @@ ServiceNow: [em_event list — SGO-Dynatrace](https://optimizincdemo1.service-no
 
 ## Spark client-mode validation (brooks-lab)
 
-### Approach
+See [Problem to Incident — client-side incident mapping](Problem_to_Incident.adoc#log-to-incident-client) for the enterprise client model and [service-side mapping](Problem_to_Incident.adoc#log-to-incident-service) for K8s pod logs (master/worker).
+
+### Approach — both use cases
+
+Parallel chapter runs exercise **client-side** driver logs and **service-side** cluster logs (master WARN from executor status updates):
+
+| Use case | Log path example | Davis `event.name` | Expected `incident.cmdb_ci` |
+|----------|------------------|--------------------|-----------------------------|
+| Client-side | `/mnt/spark/logs/spark-client/lab3-par-a-*/spark-app.log` | `Application log WARN on spark-client` | **Spark Client** AS (`service_mapping: manual`) |
+| Service-side | `/mnt/spark/logs/spark-master-0/spark-app.log` | `Application log WARN on spark-master-0` | **Spark Master** AS (Service-Side Contains traversal) |
 
 1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to separate directories under `/mnt/spark/logs/spark-client/`.
 2. **Ingest** — OneAgent custom log source paths `/mnt/spark/logs/spark-client/*/spark-app*.log` (restart OneAgent after deploy if paths were added recently).

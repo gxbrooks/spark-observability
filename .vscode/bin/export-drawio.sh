@@ -14,7 +14,7 @@ IMAGE="${DRAWIO_DOCKER_IMAGE:-rlespinasse/drawio-desktop-headless:minimal}"
 export_one() {
     local src="$1"
     local out_dir
-    out_dir="$(dirname "$src")/figures"
+    out_dir="$(dirname "$src")/images"
     mkdir -p "$out_dir"
     local base
     base="$(basename "$src" .drawio)"
@@ -28,7 +28,7 @@ export_one() {
             -v "$(dirname "$(readlink -f "$src")"):/data" \
             -w /data \
             "$IMAGE" \
-            -x -f "$FORMAT" -o "figures/${base}.${FORMAT}" "$(basename "$src")"
+            -x -f "$FORMAT" -o "images/${base}.${FORMAT}" "$(basename "$src")"
     else
         echo "Error   : install draw.io desktop (drawio CLI) or Docker image ${IMAGE}" >&2
         exit 1

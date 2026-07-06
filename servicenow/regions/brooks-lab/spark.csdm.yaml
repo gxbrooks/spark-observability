@@ -71,11 +71,11 @@ application_services:
 
   - name: Spark Client
     identifier: spark-client
-    short_description: PySpark client-mode driver (chapter and ad-hoc jobs on lab hosts)
+    short_description: PySpark client-mode driver — logical service across all client hosts (enterprise)
     operational_status: "1"
     parent_business_service: Apache Spark
     platform: host
-    service_mapping: tags
+    service_mapping: manual
     discover: false
     service_tier: app
     environment: on-prem
@@ -84,8 +84,6 @@ application_services:
     business_criticality: "4 - not critical"
     depends_on:
       - Spark Master
-      - name: lab3
-        type: linux_server
       - name: lab3
         type: nfs_server
 

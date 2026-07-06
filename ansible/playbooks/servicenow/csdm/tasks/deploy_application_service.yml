@@ -57,10 +57,10 @@
     - sn_csdm_app_svc_item.spec.service_mapping == 'tags'
     - sn_csdm_configure_tag_sm | default(true) | bool
 
-- name: Promote bodyless host Application Service for incident binding
+- name: Promote logical manual Application Service for incident binding
   ansible.builtin.include_tasks: ensure_host_as_operational.yml
   when:
-    - sn_csdm_app_svc_item.spec.platform | default('') == 'host'
+    - sn_csdm_app_svc_item.spec.service_mapping | default('') == 'manual'
     - not (sn_csdm_app_svc_item.spec.discover | default(false) | bool)
 
 - name: Deploy entry points for vertical Service Mapping

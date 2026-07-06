@@ -1,7 +1,7 @@
 ---
-# Bodyless host Application Services (e.g. Spark Client) have no tag-mapped CIs;
-# promote service_status to operational so incident.cmdb_ci can bind to the AS.
-- name: Promote bodyless host Application Service to operational
+# Logical / manual Application Services (e.g. Spark Client) have no Service Mapping body;
+# declare service_status operational so incident.cmdb_ci can bind to the AS.
+- name: Promote logical manual Application Service to operational
   ansible.builtin.uri:
     url: "{{ sn_url }}/api/now/table/cmdb_ci_service_discovered/{{ sn_csdm_app_svc_sys_id }}"
     method: PATCH
@@ -17,11 +17,11 @@
     return_content: true
   register: sn_csdm_host_as_operational
   when:
-    - sn_csdm_app_svc_item.spec.platform | default('') == 'host'
-    - sn_csdm_app_svc_item.spec.discover | default(false) | bool == false
+    - sn_csdm_app_svc_item.spec.service_mapping | default('') == 'manual'
+    - not (sn_csdm_app_svc_item.spec.discover | default(false) | bool)
   no_log: true
 
-- name: Report bodyless host Application Service operational promotion
+- name: Report logical manual Application Service operational promotion
   ansible.builtin.debug:
     msg: >-
       {{ sn_csdm_app_svc_name }} service_status={{ sn_csdm_host_as_operational.json.result.service_status | default('unchanged') }}
