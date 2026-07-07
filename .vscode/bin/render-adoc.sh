@@ -33,7 +33,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$dir"
 
 if [[ -x "${script_dir}/export-drawio.sh" ]]; then
-    "${script_dir}/export-drawio.sh" "$dir" svg || true
+    "${script_dir}/export-drawio.sh" "$dir" svg
 fi
 
 echo "Info    : HTML  → ${dir}/${base}.html"
@@ -56,7 +56,7 @@ fi
 echo "Info    : PDF   → ${dir}/${base}.pdf"
 _theme="${dir}/../styles/problem-to-incident-theme.yml"
 asciidoctor-pdf -r asciidoctor-diagram \
-  -a listing-font-size=7 \
+  -a listing-font-size=8 \
   -a "pdf-theme=${_theme}" \
   "$adoc" -o "${base}.pdf"
 

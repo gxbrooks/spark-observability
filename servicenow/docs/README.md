@@ -16,7 +16,7 @@ If preview still shows raw `digraph {` text, Kroki is not active — reload the 
 
 **Preview vs PDF layout:** side preview sends `[graphviz]` blocks to **Kroki** (remote). **HTML/PDF export** uses **local Graphviz** via `asciidoctor-diagram`. Diagram layout and label placement will differ. Use the CLI render below for WYSIWYG with exported PDF. To align preview with export, set `"asciidoc.extensions.enableKroki": false` (requires local `dot`).
 
-**Listing font size:** `:listing-font-size: 7` affects PDF only. HTML uses `Problem_to_Incident-docinfo.html` CSS. Re-export after changing either.
+**Listing and table font size:** `:listing-font-size: 8` and theme `table.font_size: 9` affect PDF; HTML and preview use `docinfo/docinfo.html` CSS (also wired via `asciidoc.preview.additionalStyles` in `.vscode/settings.json`). Re-export after changing either.
 
 ## Export PDF from Cursor
 
@@ -30,10 +30,12 @@ After changing settings: **reload window**, then export again. PDF must **not** 
 ## CLI render (any `.adoc` in this repo)
 
 ```bash
-spark-observability/.vscode/bin/render-adoc.sh path/to/document.adoc
+.vscode/bin/render-adoc.sh path/to/document.adoc
 ```
 
 Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with an `.adoc` file open.
+
+Paths are relative to the **spark-observability** repo root (not the parent `repos/` directory).
 
 Toolchain: `~/repos/myenv/assert_myenv.sh` (asciidoctor, asciidoctor-pdf, asciidoctor-diagram, graphviz).
 

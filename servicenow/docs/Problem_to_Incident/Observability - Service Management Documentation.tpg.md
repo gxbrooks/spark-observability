@@ -61,17 +61,17 @@ The **Implementor** must cite specification and figure numbers when opening defe
 
 ### 3. Diagram assets and layout
 
-3.1. **draw.io sources** (`.drawio`) **must** live as **peers** of the document `.adoc` file (same directory), not under nested `figures/` trees.
+3.1. **draw.io sources** (`.drawio`) **must** live as **peers** of the document `.adoc` file (same directory). The legacy `figures/` subtree is **deprecated** — do not add `.drawio` files there. `export-drawio.sh` exports only `*.drawio` in the document directory itself (`maxdepth 1`).
 
 3.2. Exported raster/vector assets (SVG, PNG from draw.io; PNG from Graphviz via asciidoctor-diagram) **must** live under an **`images/`** subdirectory beside the document. The **`images/`** directory **may** be gitignored when assets are reproducible from `.drawio` / Graphviz sources; authors **must** re-export before checking in HTML/PDF.
 
 3.3. **HTML and PDF** renderings (`Problem_to_Incident.html`, `Problem_to_Incident.pdf`, etc.) **must** be committed after substantive documentation changes so review does not require local Graphviz or draw.io.
 
-3.4. Export draw.io before HTML/PDF build:
+3.4. Export draw.io before HTML/PDF build (from repo root `spark-observability`):
 
 ```bash
-spark-observability/.vscode/bin/export-drawio.sh servicenow/docs/Problem_to_Incident svg
-spark-observability/.vscode/bin/render-adoc.sh servicenow/docs/Problem_to_Incident/Problem_to_Incident.adoc
+.vscode/bin/export-drawio.sh servicenow/docs/Problem_to_Incident svg
+.vscode/bin/render-adoc.sh servicenow/docs/Problem_to_Incident/Problem_to_Incident.adoc
 ```
 
 3.5. AsciiDoc does **not** read native draw.io files. Embed exports with `image::images/{name}.svg[...]`.
@@ -101,18 +101,17 @@ spark-observability/.vscode/bin/render-adoc.sh servicenow/docs/Problem_to_Incide
 
 ### 5. Tables and listings
 
-5.1. Configuration listing font size **must** be **7pt** net in all output formats:
+5.1. Configuration listing font size **must** be **8pt** net in all output formats (`:listing-font-size: 8`, theme `code.font_size: 8`, `docinfo` CSS).
 
-* **PDF:** `:listing-font-size: 7` plus `servicenow/docs/styles/problem-to-incident-theme.yml` (`code.font_size: 7`).
-* **HTML / preview:** `docinfo/docinfo.html` targets `.listingblock pre` at **7pt**. The `:listing-font-size:` attribute alone does **not** affect HTML.
+5.2. Table body and header font size **must** be **9pt** in HTML, PDF, and preview via `docinfo/docinfo.html` and theme `table.font_size: 9`.
 
-5.2. Table body and header font size **must** be **8pt** in HTML, PDF, and preview via `docinfo/docinfo.html` and theme `table.font_size: 8`.
+5.3. Cross-references **must** use explicit reftext: `<<anchor-id,Display text>>` so preview and PDF show readable link text even when the anchor is forward-referenced. Place block anchors on section titles: `==== Section title [#anchor-id]` or `[#anchor-id]` immediately above the heading.
 
-5.3. Tables **must** be indented **0.5 inches** from the narrative margin in HTML and PDF (`docinfo` CSS `margin-left: 0.5in` on `.tableblock`; PDF theme table margin).
+5.4. **Cursor / Kroki preview** may show **undefined** cross-reference links for forward references or when the preview engine is not full Asciidoctor; **PDF/HTML export via `render-adoc.sh`** is authoritative.
 
-5.4. Each specification **must** include a **Key fields** line naming match clauses, path patterns, and extracted attributes in **bold**.
+5.5. Each specification **must** include a **Key fields** line naming match clauses, path patterns, and extracted attributes in **bold**.
 
-5.5. Graphviz export filenames **must** use the diagram caption as the `[graphviz]` block `target` attribute, with spaces replaced by underscores.
+5.6. Graphviz export filenames **must** use the diagram caption as the `[graphviz]` block `target` attribute, with spaces replaced by underscores.
 
 ### 6. Application and correlation design
 
