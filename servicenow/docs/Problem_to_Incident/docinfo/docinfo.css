@@ -1,5 +1,4 @@
-<style>
-/* HTML export + preview: listings 8pt; tables 9pt. */
+/* Extracted from docinfo.html for asciidoc.preview.additionalStyles (<link> expects CSS). */
 .listingblock > .content > pre,
 .listingblock > .content > pre > code,
 .literalblock > pre,
@@ -17,20 +16,7 @@ table.tableblock td {
   font-size: 9pt !important;
 }
 
-/* Figure 1 — 0.5in indent */
 .imageblock.figure-indent,
 div.content div.imageblock.figure-indent {
   margin-left: 0.5in;
 }
-
-/*
- * Inline literals for standalone HTML (browser). Preview uses
- * .vscode/asciidoc-preview.css via asciidoc.preview.additionalStyles — not this file.
- */
-code {
-  color: inherit !important;
-}
-:not(pre):not([class^=L]) > code {
-  background: color-mix(in srgb, currentColor 14%, transparent) !important;
-}
-</style>

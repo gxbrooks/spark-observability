@@ -7,6 +7,9 @@
 #        ./run-chapters.sh -a        # Run all Chapter_*.py files in this directory
 #        ./run-chapters.sh -t 900 10 # Kill Chapter_10.py after 900s
 #        ./run-chapters.sh --no-timeout 10  # Run without timeout
+#
+# Parallel chapter batches on one host (sequential — shared hostname log dir).
+#   ./run-parallel-all.sh [LOG_DIR]
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,16 +34,16 @@ if [ -z "${SPARK_MASTER_URL:-}" ] && [ -n "${SPARK_MASTER_HOST:-}" ] && [ -n "${
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi
 
-# Client-mode logs: /mnt/spark/logs/spark-client/<instance>/spark-app.log
-# One subdirectory per driver JVM (hostname-pid) — concurrent drivers must not share
-# the same RollingFile target (log4j2 would interleave/truncate spark-app.log).
+# Client-mode logs: /mnt/spark/logs/spark-client/<hostname>/spark-app.log
+# Local bind mount on each host (not NFS) — only that host's OneAgent tails the file.
 _spark_client_root="/mnt/spark/logs/spark-client"
 _chapter_host="$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo client)"
-_driver_instance="${SPARK_DRIVER_INSTANCE:-${_chapter_host}-$$}"
-export SPARK_LOG_DIR="${SPARK_LOG_DIR:-${_spark_client_root}/${_driver_instance}}"
+export SPARK_LOG_DIR="${SPARK_LOG_DIR:-${_spark_client_root}/${_chapter_host}}"
 if ! mkdir -p "${SPARK_LOG_DIR}" 2>/dev/null; then
     echo "Warning: could not create SPARK_LOG_DIR=${SPARK_LOG_DIR}" >&2
 fi
+# OneAgent (dtuser) must traverse and read; pod logs use spark:spark 644.
+chmod 755 "${SPARK_LOG_DIR}" 2>/dev/null || true
 
 # Optional: tag driver process in Dynatrace when PROCESS_GROUP is in ImpactedEntities.
 export DT_TAGS="${DT_TAGS:-servicenow.io/application-service-identifier=spark-client}"

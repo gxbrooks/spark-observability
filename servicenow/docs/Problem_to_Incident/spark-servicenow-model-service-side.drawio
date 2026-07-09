@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="spark-observability">
   <diagram name="spark-csdm-cmdb-model" id="spark-csdm-cmdb-model">
-    <mxGraphModel dx="1097" dy="475" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+    <mxGraphModel dx="1036" dy="917" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -23,19 +23,16 @@
           <mxGeometry height="249" width="280" x="410" y="41" as="geometry" />
         </mxCell>
         <mxCell id="cluster-csdm" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;" value="CSDM (region )" vertex="1">
-          <mxGeometry height="129" width="940" x="40" y="321" as="geometry" />
+          <mxGeometry height="109" width="990" x="40" y="321" as="geometry" />
         </mxCell>
         <mxCell id="as" parent="cluster-csdm" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Spark Master&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="160" x="240" y="38" as="geometry" />
-        </mxCell>
-        <mxCell id="legend" parent="cluster-csdm" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=10;" value="&lt;b&gt;Legend&lt;/b&gt;&lt;div&gt;Solid = CMDB relationship&lt;/div&gt;&lt;div&gt;Dashed = CI binding (EM/ITSM → CMDB)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="200" x="10" y="38" as="geometry" />
+          <mxGeometry height="60" width="160" x="190" y="38" as="geometry" />
         </mxCell>
         <mxCell id="ba" parent="cluster-csdm" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="160" x="660" y="38" as="geometry" />
+          <mxGeometry height="60" width="160" x="731" y="38" as="geometry" />
         </mxCell>
         <mxCell id="bs" parent="cluster-csdm" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="470" y="38" as="geometry" />
+          <mxGeometry height="60" width="120" x="481" y="38" as="geometry" />
         </mxCell>
         <mxCell id="e-ba-bs" edge="1" parent="cluster-csdm" source="ba" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;" target="bs">
           <mxGeometry relative="1" as="geometry" />
@@ -55,11 +52,6 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <UserObject label="&lt;span style=&quot;color: rgb(0, 0, 0); font-family: Helvetica; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: nowrap; text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; background-color: rgb(255, 255, 255); display: inline !important;&quot;&gt;&lt;font&gt;Manually generate through UI or auto-generated from *.csdm.yaml specification&lt;/font&gt;&lt;/span&gt;" link="&lt;span style=&quot;color: rgb(0, 0, 0); font-family: Helvetica; font-size: 11px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 700; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: nowrap; background-color: rgb(236, 236, 236); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;&quot;&gt;*.csdm.yaml deploy&lt;/span&gt;" id="DNvUSIcVeQgUdOnBBrV1-6">
-          <mxCell parent="cluster-csdm" style="text;whiteSpace=wrap;html=1;fontSize=9;fontStyle=0;verticalAlign=middle;" vertex="1">
-            <mxGeometry height="9" width="337" x="301.5" y="109" as="geometry" />
-          </mxCell>
-        </UserObject>
         <mxCell id="e-dep-pod" edge="1" parent="1" source="dep" style="endArrow=classic;html=1;strokeWidth=1;" target="pod">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -79,7 +71,7 @@
         <mxCell id="e-as-pod" edge="1" parent="1" source="as" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;dashed=0;entryX=0.005;entryY=0.67;entryDx=0;entryDy=0;entryPerimeter=0;" target="pod">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-inc-as" edge="1" parent="1" source="inc" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="as">
+        <mxCell id="e-inc-as" edge="1" parent="1" source="inc" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="as">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-inc-as-label" connectable="0" parent="e-inc-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="cmdb_ci" vertex="1">
@@ -123,7 +115,7 @@
           <mxGeometry height="55" width="240" x="779" y="157" as="geometry" />
         </mxCell>
         <mxCell id="ci-host-sgo" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;" value="&lt;b&gt;cmdb_ci_linux_server&lt;/b&gt;&lt;div&gt;(from HOST — initial webhook bind)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="39" width="240" x="780" y="240" as="geometry" />
+          <mxGeometry height="49" width="240" x="780" y="230" as="geometry" />
         </mxCell>
         <mxCell id="dep" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" value="&lt;b&gt;spark-master&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_deployment&lt;/div&gt;" vertex="1">
           <mxGeometry height="50" width="260" x="419" y="81" as="geometry" />
@@ -133,6 +125,36 @@
         </mxCell>
         <mxCell id="k8s-node" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" value="&lt;b&gt;Lab3&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_node&lt;/div&gt;" vertex="1">
           <mxGeometry height="40" width="260" x="419" y="241" as="geometry" />
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Spark Master&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="280" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=10;" value="&lt;b&gt;Legend&lt;/b&gt;&lt;div&gt;Solid = CMDB relationship&lt;/div&gt;&lt;div&gt;Dashed = CI binding (EM/ITSM → CMDB)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="50" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="771" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="546" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-5" edge="1" parent="1" source="ildc02x5Hourvxu3ciK0-3" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;" target="ildc02x5Hourvxu3ciK0-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-6" connectable="0" parent="ildc02x5Hourvxu3ciK0-5" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-7" edge="1" parent="1" source="ildc02x5Hourvxu3ciK0-4" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#006600;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="ildc02x5Hourvxu3ciK0-1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="980" y="577.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ildc02x5Hourvxu3ciK0-8" connectable="0" parent="ildc02x5Hourvxu3ciK0-7" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

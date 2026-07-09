@@ -53,10 +53,13 @@ NFS_MOUNT_OPTS="nfsvers=4,defaults,_netdev"
 MOUNT_POINTS=(
   "/mnt/spark/events:/srv/nfs/spark/events"
   "/mnt/spark/data:/srv/nfs/spark/data"
-  "/mnt/spark/logs:/srv/nfs/spark/logs"
   "/mnt/spark/checkpoints:/srv/nfs/spark/checkpoints"
   "/mnt/spark/jupyter:/srv/nfs/jupyterhub"
 )
+
+# Application logs are node-local on Kubernetes nodes (see ansible/playbooks/nfs/install.yml).
+LOCAL_LOGS_ROOT="/var/local/spark/logs"
+LOCAL_LOGS_MOUNT="/mnt/spark/logs"
 
 EXPECTED_OWNER="spark"
 EXPECTED_GROUP="spark"
@@ -246,6 +249,40 @@ for spec in "${MOUNT_POINTS[@]}"; do
     exit 1
   fi
 done
+
+# Application logs: local bind (not NFS) — same contract as ansible/playbooks/nfs/install.yml
+if ! $CHECK; then
+  sudo mkdir -p "$LOCAL_LOGS_ROOT"
+fi
+if ! ensure_mode_contract "$LOCAL_LOGS_ROOT"; then
+  FAILURES=$((FAILURES + 1))
+fi
+if mountpoint -q "$LOCAL_LOGS_MOUNT" 2>/dev/null; then
+  logs_src="$(findmnt -n -T "$LOCAL_LOGS_MOUNT" -o SOURCE 2>/dev/null || true)"
+  case "$logs_src" in
+    *"$LOCAL_LOGS_ROOT"*) echo "Info    : Verified local logs bind: $LOCAL_LOGS_MOUNT" ;;
+    *)
+      if $CHECK; then
+        echo "Check   : $LOCAL_LOGS_MOUNT mounted from unexpected source ($logs_src)"
+        FAILURES=$((FAILURES + 1))
+      else
+        echo "Warning : Remounting $LOCAL_LOGS_MOUNT from local store"
+        sudo umount "$LOCAL_LOGS_MOUNT" 2>/dev/null || true
+        sudo mkdir -p "$LOCAL_LOGS_MOUNT"
+        sudo mount --bind "$LOCAL_LOGS_ROOT" "$LOCAL_LOGS_MOUNT"
+      fi
+      ;;
+  esac
+else
+  if $CHECK; then
+    echo "Check   : $LOCAL_LOGS_MOUNT is not bind-mounted from $LOCAL_LOGS_ROOT"
+    FAILURES=$((FAILURES + 1))
+  else
+    sudo mkdir -p "$LOCAL_LOGS_MOUNT"
+    sudo mount --bind "$LOCAL_LOGS_ROOT" "$LOCAL_LOGS_MOUNT"
+    echo "Info    : Bind-mounted $LOCAL_LOGS_MOUNT <- $LOCAL_LOGS_ROOT"
+  fi
+fi
 
 if [[ "$FAILURES" -gt 0 ]]; then
   echo "Result  : Spark mounts check failed with $FAILURES issue(s)"

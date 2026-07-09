@@ -28,7 +28,6 @@
     nfs_export_dirs:
       - "{{ nfs_export_root }}/events"
       - "{{ nfs_spark_data_export }}"
-      - "{{ nfs_export_root }}/logs"
       - "{{ nfs_export_root }}/checkpoints"
       - /srv/nfs/jupyterhub
       - /srv/nfs/jupyterhub-users
@@ -78,6 +77,16 @@
       command: exportfs -ra
       changed_when: false
 
+    - name: Remove legacy NFS export for application logs (local per-host only)
+      lineinfile:
+        path: /etc/exports
+        regexp: '^.*/srv/nfs/spark/logs '
+        state: absent
+
+    - name: Re-apply NFS exports after removing logs export
+      command: exportfs -ra
+      changed_when: false
+
     - name: Start and enable NFS server
       systemd:
         name: nfs-server
@@ -101,7 +110,6 @@
     bind_mounts:
       - { mount: "{{ spark_events_mount_resolved }}", src: "{{ nfs_export_root }}/events" }
       - { mount: "{{ spark_data_mount_resolved }}", src: "{{ nfs_spark_data_export }}" }
-      - { mount: "{{ spark_logs_mount_resolved }}", src: "{{ nfs_export_root }}/logs" }
       - { mount: "{{ spark_checkpoints_mount_resolved }}", src: "{{ nfs_export_root }}/checkpoints" }
       - { mount: "{{ spark_jupyter_mount_resolved }}", src: '/srv/nfs/jupyterhub' }
   tasks:
@@ -175,7 +183,6 @@
     nfs_mounts:
       - { src: "{{ nfs_export_root }}/events", dest: "{{ spark_events_mount_resolved }}" }
       - { src: "{{ nfs_spark_data_export }}", dest: "{{ spark_data_mount_resolved }}" }
-      - { src: "{{ nfs_export_root }}/logs", dest: "{{ spark_logs_mount_resolved }}" }
       - { src: "{{ nfs_export_root }}/checkpoints", dest: "{{ spark_checkpoints_mount_resolved }}" }
       - { src: '/srv/nfs/jupyterhub', dest: "{{ spark_jupyter_mount_resolved }}" }
   tasks:
@@ -235,3 +242,76 @@
         state: mounted
       loop: "{{ nfs_mounts }}"
       changed_when: false
+
+# Application logs under /mnt/spark/logs are LOCAL on each Kubernetes node (not NFS).
+# OneAgent on that host alone tails pod and client log files written there.
+- name: Local Spark application logs (bind over former NFS path)
+  hosts: kubernetes_master:kubernetes_workers
+  become: true
+  vars_files:
+    - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ playbook_dir }}/vars.yml"
+  vars:
+    spark_mount_base_resolved: "{{ spark_mount_base }}"
+    spark_logs_local_root: /var/local/spark/logs
+    spark_logs_mount_resolved: "{{ spark_mount_base_resolved }}/logs"
+  tasks:
+    - name: Fail if spark_mount_base is missing from generated nfs context
+      fail:
+        msg: "Required variable 'spark_mount_base' is missing from vars/variables.yaml nfs context."
+      when: spark_mount_base is not defined or (spark_mount_base | string | trim) == ''
+
+    - name: Unmount legacy nested spark-client bind if present
+      mount:
+        path: "{{ spark_logs_mount_resolved }}/spark-client"
+        state: unmounted
+      ignore_errors: true
+
+    - name: Lazy-unmount busy application logs mount (NFS or legacy bind)
+      command: umount -l {{ spark_logs_mount_resolved }}
+      register: logs_lazy_umount
+      failed_when: false
+      changed_when: logs_lazy_umount.rc == 0
+
+    - name: Unmount NFS application logs share if still mounted
+      mount:
+        path: "{{ spark_logs_mount_resolved }}"
+        state: unmounted
+      ignore_errors: true
+
+    - name: Remove stale fstab entry for NFS application logs
+      mount:
+        path: "{{ spark_logs_mount_resolved }}"
+        state: absent_from_fstab
+      ignore_errors: true
+
+    - name: Create local Spark application log store
+      file:
+        path: "{{ spark_logs_local_root }}"
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
+    - name: Ensure contract path exists for application logs
+      file:
+        path: "{{ spark_logs_mount_resolved }}"
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
+    - name: Bind local application logs at /mnt/spark/logs
+      mount:
+        path: "{{ spark_logs_mount_resolved }}"
+        src: "{{ spark_logs_local_root }}"
+        fstype: none
+        opts: bind
+        state: mounted
+
+    - name: Allow OneAgent (dtuser) to read application logs via spark group
+      ansible.builtin.user:
+        name: dtuser
+        groups: spark
+        append: true
+      ignore_errors: true

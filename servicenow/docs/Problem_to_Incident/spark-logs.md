@@ -26,7 +26,7 @@ sequenceDiagram
   OA->>File: tail custom log source paths
   OA->>Route: log record (dt.openpipeline.source=oneagent)
   Route->>Pipe: matcher: /mnt/spark/logs/* or /opt/spark/logs/*
-  Note over Pipe: spark-client/* → Davis event.name\n"Application log {level} on spark-client"
+  Note over Pipe: spark-client/* → Davis event.name\n"Application log {level} on spark-client-{instance}"
   Note over Pipe: pod paths → Davis event.name\n"Application log {level} on {pod}"
   Pipe->>Grail: bucketAssignment default_logs
   Pipe->>Davis: Davis processor (WARN/ERROR matcher)
@@ -409,10 +409,14 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 
 ```bash
 cd spark/apps/data-analysis-book
-SPARK_DRIVER_INSTANCE="lab3-par-a-$$" ./run-chapters.sh 03 04 05 06 &
-SPARK_DRIVER_INSTANCE="lab3-par-b-$$" ./run-chapters.sh 07 08 09 10 &
-wait
+LOG=/tmp/chapter-run-$$
+mkdir -p "$LOG"
+SPARK_DRIVER_INSTANCE="lab3-par-a-$$" ./run-chapters.sh 03 04 05 06 >"$LOG/par-a.log" 2>&1 & pid_a=$!
+SPARK_DRIVER_INSTANCE="lab3-par-b-$$" ./run-chapters.sh 07 08 09 10 >"$LOG/par-b.log" 2>&1 & pid_b=$!
+./wait-chapters.sh "$pid_a" "$pid_b"
 ```
+
+Do **not** poll with `ps … | rg run-chapters.sh` — the monitor shell's own argv contains that string and the loop never exits.
 
 Chapter **05** sets `spark.sparkContext.setLogLevel("WARN")` — useful for driver WARN lines in spark-client logs.
 

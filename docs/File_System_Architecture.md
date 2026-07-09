@@ -15,13 +15,15 @@ The file system architecture uses a layered approach:
 
 **Distribution Strategy**:
 - **Application Binaries (JARs, executables)**: Ansible distribution to local filesystem
-- **Runtime Data (logs, events, datasets)**: NFS for shared access
+- **Runtime Data (events, datasets)**: NFS for shared access
+- **Application logs**: **Local disk per Kubernetes node** (not NFS) — see [spark/docs/nfs-mounts.md](../spark/docs/nfs-mounts.md)
 - **Configuration Files**: Ansible with Jinja2 templates
 - **Docker Images**: Local registry
 
 **Key Principle**: Match distribution mechanism to access pattern
 - **Static, versioned, infrequent access**: Ansible
-- **Dynamic, continuous, shared access**: NFS
+- **Dynamic, continuous, shared access across nodes**: NFS (events, data, checkpoints)
+- **Application logs (OneAgent tail)**: **Node-local** `/mnt/spark/logs` only
 - **Container images**: Registry
 
 ---
@@ -142,9 +144,21 @@ The file system architecture uses a layered approach:
 
 OpenTelemetry collectors run in Kubernetes pods with configuration mounted from ConfigMaps or host paths.
 
-#### NFS Mounts in Kubernetes
+#### Shared vs local storage under `/mnt/spark`
 
-**Shared Storage**: NFS server at `/srv/nfs/spark` on the **NFS server host (target: Lab3)** mounted at `/mnt/spark` on all Kubernetes nodes (Lab1–Lab3). Subdirectories: `/mnt/spark/events` (Spark event logs, shared read/write), `/mnt/spark/data` (shared datasets, shared read), `/mnt/spark/checkpoints` (streaming checkpoints, shared read/write), `/mnt/spark/logs` (application and GC logs, per-host, symlinked to kubelet logs).
+**Primary reference:** [spark/docs/nfs-mounts.md](../spark/docs/nfs-mounts.md) (NFS view vs local view table, permissions, automation).
+
+| Contract path | Distribution | NFS export (Lab3 server) | Backing store on K8s node | Cross-node visible? |
+|---------------|--------------|--------------------------|---------------------------|---------------------|
+| `/mnt/spark/events` | NFS | `/srv/nfs/spark/events` | NFS mount (workers) / bind (Lab3) | Yes |
+| `/mnt/spark/data` | NFS | `/srv/nfs/spark/data` | NFS / bind | Yes |
+| `/mnt/spark/checkpoints` | NFS | `/srv/nfs/spark/checkpoints` | NFS / bind | Yes |
+| `/mnt/spark/jupyter` | NFS | `/srv/nfs/jupyterhub` | NFS / bind | Yes |
+| **`/mnt/spark/logs`** | **Local** | **Not exported** | **`/var/local/spark/logs` → bind at `/mnt/spark/logs`** | **No** |
+
+**OneAgent** (Dynatrace) tails ` /mnt/spark/logs/*/spark-app.log*` on **each host’s local filesystem**. Pod logs exist only on the node where the pod is scheduled; client-mode driver logs exist only on the host running the driver (`/mnt/spark/logs/spark-client/<hostname>/`). Putting application logs on NFS caused every cluster OneAgent to tail the same files and mis-attribute `dt.source_entity` — see Problem_to_Incident documentation.
+
+Legacy note: `/srv/nfs/spark/logs` on the NFS server may still contain old log trees; they are **not** mounted at `/mnt/spark/logs` after `ansible/playbooks/nfs/install.yml` runs the local logs play.
 
 ---
 
@@ -211,7 +225,9 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 
 **Configuration Files** are static, versioned files that define service behavior and node-specific settings. These files are templated from source variables and deployed to match each node's requirements. Examples include `spark-defaults.conf`, `docker-compose.yml`, and service configuration files. They are stored in `~/ansible/ops/[service]/` directories.
 
-**Runtime Data** consists of continuously generated files that require shared access across multiple nodes. These files are ephemeral and do not require version control. Examples include Spark event logs and application logs. They are stored on NFS at `/mnt/spark/events/` and `/mnt/spark/logs/`.
+**Runtime Data** consists of continuously generated files. **Spark event logs** and **datasets** require shared access and live on NFS. **Application and GC logs** are **node-local** under `/mnt/spark/logs` (bind-mounted from `/var/local/spark/logs`) so each host’s OneAgent tails only files written on that machine.
+
+Examples: event logs → `/mnt/spark/events/` (NFS); application logs → `/mnt/spark/logs/<pod-or-client>/` (local per node).
 
 **Datasets** are large input files used by Spark jobs that need to be accessible from multiple nodes for read operations. These files are typically static or updated infrequently. Examples include CSV files, Parquet files, and other data sources. They are stored on NFS at `/mnt/spark/data/`.
 
@@ -229,7 +245,8 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 |-----------|-----------------|---------------------|
 | Application Binaries | `~/ansible/ops/[service]/` | Ansible |
 | Configuration Files | `~/ansible/ops/[service]/` | Ansible |
-| Runtime Data | `/mnt/spark/events/`, `/mnt/spark/logs/` | NFS |
+| Runtime Data (events) | `/mnt/spark/events/` | NFS |
+| Runtime Data (application logs) | `/mnt/spark/logs/` | **Local per K8s node** (`/var/local/spark/logs`) |
 | Datasets | `/mnt/spark/data/` | NFS |
 | Spark Checkpoints | `/mnt/spark/checkpoints/` | NFS |
 | Python Packages | Container images | Ansible/Docker |

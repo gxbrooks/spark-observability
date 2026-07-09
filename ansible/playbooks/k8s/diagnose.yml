@@ -413,6 +413,10 @@
                       echo "ok:$p (bind:$fst opts=$opts src=$src)"
                       ok=$((ok+1))
                       ;;
+                    *'/var/local/spark/logs'*)
+                      echo "ok:$p (local-logs-bind:$fst src=$src)"
+                      ok=$((ok+1))
+                      ;;
                     *)
                       echo "warn:$p mounted but unexpected fstype=$fst opts=$opts src=$src"
                       ;;

@@ -1,0 +1,32 @@
+/*
+ * AsciiDoc preview overrides for Cursor/VS Code dark & high-contrast themes.
+ *
+ * The AsciiDoc extension loads this via <link> (asciidoc.preview.additionalStyles).
+ * Paths must be plain CSS — HTML/docinfo wrappers are not parsed as stylesheets.
+ *
+ * Cursor Dark High Contrast can leave --vscode-textPreformat-foreground unreadable
+ * (or unset in a way that falls through to near-black). Force inline literals to
+ * use editor foreground so backtick/`monospace` text stays readable.
+ */
+
+:not(pre):not([class^="L"]) > code,
+code:not(.hljs) {
+  color: var(--vscode-editor-foreground, var(--vscode-foreground, #f0f0f0)) !important;
+  background: color-mix(
+    in srgb,
+    var(--vscode-editor-foreground, #f0f0f0) 16%,
+    transparent
+  ) !important;
+}
+
+.vscode-dark :not(pre):not([class^="L"]) > code,
+.vscode-high-contrast :not(pre):not([class^="L"]) > code,
+.vscode-dark code:not(.hljs),
+.vscode-high-contrast code:not(.hljs) {
+  color: var(--vscode-editor-foreground, #f0f0f0) !important;
+  background: color-mix(
+    in srgb,
+    var(--vscode-editor-foreground, #f0f0f0) 16%,
+    transparent
+  ) !important;
+}
