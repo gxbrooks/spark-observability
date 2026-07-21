@@ -1,4 +1,4 @@
-# Dynatrace problems → ServiceNow events (brooks-lab)
+Dynatrace problems → ServiceNow events (brooks-lab)
 
 **Updated:** 2026-06-30  
 **Automation:** `ansible/playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml`
@@ -122,7 +122,7 @@ Template: `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipel
 | **Routing** | Prepended route: Spark log paths → this pipeline (before `Metric Route`). |
 | **Processing** | (1) DQL parse `spark.pod_name` from `log.source`; (2) **fieldsAdd** `lookupEntity(CLOUD_APPLICATION_INSTANCE, spark.pod_name)` → `dt.source_entity` (deployed 2026-07-02). |
 
-OpenPipeline DQL processors cannot use Grail `fetch` / `smartscapeNodes`; pod entity rebind uses the **Add fields** processor with `lookupEntity(...)`. Without step 2, problems keep **HOST** as impacted entity (file tail on NFS node). See `servicenow/docs/Problem_to_Incident/Problem_to_Incident.adoc` § Implementation status.
+OpenPipeline DQL processors cannot use Grail `fetch` / `smartscapeNodes`; pod entity rebind uses the **Add fields** processor with `lookupEntity(...)`. Without step 2, problems keep **HOST** as impacted entity (file tail on NFS node). See `servicenow/docs/Log_to_Incident/Log_to_Incident.adoc` § Implementation status.
 
 ### Classic log event (secondary / legacy)
 

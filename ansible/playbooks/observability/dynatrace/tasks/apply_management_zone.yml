@@ -22,6 +22,7 @@
     DT_MANAGEMENT_ZONE: "{{ dt_management_zone_resolved }}"
     DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
     K8S_DYNATRACE_CLUSTER: "{{ k8s_dynatrace_cluster_name }}"
+    dt_sn_spark_client_custom_device_display_name: "Spark Client"
   delegate_to: localhost
   run_once: true
 

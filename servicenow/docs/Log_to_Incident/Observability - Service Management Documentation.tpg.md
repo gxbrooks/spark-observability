@@ -4,7 +4,7 @@ Technical policy for authoring and maintaining observability and service-managem
 
 ## Summary
 
-This TPG governs a **class of documents** that describe how observability signals (logs, metrics, problems, events) flow into ServiceNow Event Management and ITSM, and how Configuration Items are chosen for alerts and incidents. Examples include `Problem_to_Incident.adoc`, `spark-logs.md`, and sibling specs under `servicenow/docs/`.
+This TPG governs a **class of documents** that describe how observability signals (logs, metrics, problems, events) flow into ServiceNow Event Management and ITSM, and how Configuration Items are chosen for alerts and incidents. Examples include `Log_to_Incident.adoc`, `spark-logs.md`, and sibling specs under `servicenow/docs/`.
 
 Authors **must** produce consistent, citable, prescriptive documentation so implementors can configure applications, Dynatrace, and ServiceNow without ambiguity. Rendered **HTML and PDF** outputs **must** be checked in beside the source `.adoc` after substantive edits so reviewers can diff narrative and layout without running local tooling.
 
@@ -65,13 +65,13 @@ The **Implementor** must cite specification and figure numbers when opening defe
 
 3.2. Exported raster/vector assets (SVG, PNG from draw.io; PNG from Graphviz via asciidoctor-diagram) **must** live under an **`images/`** subdirectory beside the document. The **`images/`** directory **may** be gitignored when assets are reproducible from `.drawio` / Graphviz sources; authors **must** re-export before checking in HTML/PDF.
 
-3.3. **HTML and PDF** renderings (`Problem_to_Incident.html`, `Problem_to_Incident.pdf`, etc.) **must** be committed after substantive documentation changes so review does not require local Graphviz or draw.io.
+3.3. **HTML and PDF** renderings (`Log_to_Incident.html`, `Log_to_Incident.pdf`, etc.) **must** be committed after substantive documentation changes so review does not require local Graphviz or draw.io.
 
 3.4. Export draw.io before HTML/PDF build (from repo root `spark-observability`):
 
 ```bash
-.vscode/bin/export-drawio.sh servicenow/docs/Problem_to_Incident svg
-.vscode/bin/render-adoc.sh servicenow/docs/Problem_to_Incident/Problem_to_Incident.adoc
+.vscode/bin/export-drawio.sh servicenow/docs/Log_to_Incident svg
+.vscode/bin/render-adoc.sh servicenow/docs/Log_to_Incident/Log_to_Incident.adoc
 ```
 
 3.5. AsciiDoc does **not** read native draw.io files. Embed exports with `image::images/{name}.svg[...]`.
@@ -145,6 +145,6 @@ Specification numbering enables precise review comments. Figure auto-numbering a
 
 ## References
 
-1. link:Problem_to_Incident.adoc[Problem to Incident reference implementation]
+1. link:Log_to_Incident.adoc[Log to Incident reference implementation]
 2. link:../../../meta-standards/tpgs-for-tpgs.md[TPGs for TPGs — meta-standard]
 3. link:../../../docs/Log_Architecture.md[Log architecture — NFS permissions]

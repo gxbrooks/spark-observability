@@ -12,10 +12,11 @@
       action_insert: "true"
       action_update: "true"
       order: "{{ sn_incident_em_alert_br_order }}"
-      filter_condition: source=SGO-Dynatrace^severity<=3
+      filter_condition: source=SGO-Dynatrace^ORsource=Dynatrace^severity<=3
       description: >-
         K8s log alerts (ERROR/WARN): create incident on Application Service via
-        spark-client log path or Pattern A Contains from pod CI.
+        spark-client log path / event name or Pattern A Contains from pod CI
+        (SGO-Dynatrace and Dynatrace client-mode alerts).
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_k8s_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule

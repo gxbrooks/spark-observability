@@ -25,7 +25,7 @@ Saved before **~1 week** lab hiatus. Resume here when bringing the environment b
 
 ### Documentation added
 
-- `servicenow/docs/Problem_to_Incident/Davis_Bundling_Issue.md` — worked example Alert0014495.
+- `servicenow/docs/Log_to_Incident/Davis_Bundling_Issue.md` — worked example Alert0014495.
 
 ## Open work when you return
 

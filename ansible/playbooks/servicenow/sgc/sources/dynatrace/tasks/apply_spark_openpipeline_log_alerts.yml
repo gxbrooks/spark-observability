@@ -9,6 +9,16 @@
 - name: Resolve Dynatrace specification paths
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
 
+- name: Require Spark Client CUSTOM_DEVICE entityId for OpenPipeline fieldsAdd
+  ansible.builtin.assert:
+    that:
+      - (dt_spark_client_custom_device_entity_id | default('')) is match('^CUSTOM_DEVICE-')
+    fail_msg: >-
+      dt_spark_client_custom_device_entity_id must be a CUSTOM_DEVICE-… id
+      (run apply_spark_client_custom_device.yml first, or set the fallback in sgc/common/vars.yml).
+      OpenPipeline fieldsAdd cannot evaluate lookupEntity(); it stores the expression as a literal.
+  run_once: true
+
 - name: Render Spark OpenPipeline log alerts payload
   ansible.builtin.template:
     src: "{{ dt_integrations_dir }}/spark-openpipeline-log-alerts-pipeline.json.j2"

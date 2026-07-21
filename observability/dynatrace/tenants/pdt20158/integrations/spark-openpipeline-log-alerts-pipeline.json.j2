@@ -31,6 +31,21 @@
           }
         },
         {
+          "id": "resolve-spark-client-entity",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Bind client-mode logs to CUSTOM_DEVICE Spark Client entity ID (fieldsAdd is static-only; lookupEntity expressions are stored literally and never resolve)",
+          "matcher": "isNotNull(spark.client.instance) OR matchesValue(k8s.log.path, \"/mnt/spark/logs/spark-client/*\") OR matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "dt.source_entity",
+                "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
+              }
+            ]
+          }
+        },
+        {
           "id": "extract-k8s-pod-from-enriched-path",
           "type": "dql",
           "enabled": true,

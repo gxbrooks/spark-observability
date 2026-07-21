@@ -1,0 +1,10 @@
+---
+# One-shot: ensure DT_API_TOKEN has required scopes (including entities.write).
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - ansible.builtin.include_tasks: tasks/ensure_api_token_scopes.yml

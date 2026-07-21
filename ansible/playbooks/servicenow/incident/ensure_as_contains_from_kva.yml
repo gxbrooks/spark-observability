@@ -1,0 +1,89 @@
+---
+# Materialize cmdb_rel_ci Contains::Contained by from Application Service →
+# cmdb_ci_kubernetes_pod using cmdb_key_value
+# servicenow.io/application-service-identifier (Log_to_Incident Step 0 / Step 5).
+#
+# Tag-based Service Mapping should create these edges; this playbook backfills
+# when SM has not (or not yet) materialized them so ResolveApplicationService
+# Pattern A can bind incident.cmdb_ci to the Application Service.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/ensure_as_contains_from_kva.yml \
+#     -e @../vars/secrets.yaml
+
+- name: Ensure Application Service Contains edges from KVA labels
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  vars:
+    sn_discovery_common_dir: "{{ playbook_dir | dirname }}/discovery/common"
+    # identifier (KVA value) → Application Service name on optimizincdemo1
+    sn_as_contains_name_by_identifier:
+      spark-master: Spark Master
+      spark-history-server: Spark History Server
+      spark-worker-lab1: Spark Worker (Lab1)
+      spark-worker-lab2: Spark Worker (Lab2)
+  tasks:
+    - name: Resolve Contains::Contained by relationship type
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      vars:
+        sn_rest_table: cmdb_rel_type
+        sn_rest_query: "sysparm_query=name=Contains%3A%3AContained%20by&sysparm_limit=1"
+
+    - name: Fail when Contains relationship type is missing
+      ansible.builtin.fail:
+        msg: "CMDB relationship type Contains::Contained by not found on {{ sn_url }}."
+      when: (sn_rest_json.result | default([]) | length) == 0
+
+    - name: Record Contains relationship type sys_id
+      ansible.builtin.set_fact:
+        sn_contains_rel_type_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+
+    - name: Look up Application Services by name
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      vars:
+        sn_rest_table: cmdb_ci_service_discovered
+        sn_rest_query: >-
+          sysparm_query=nameIN{{ sn_as_contains_name_by_identifier.values() | list | join(',') | urlencode }}
+          &sysparm_fields=sys_id,name&sysparm_limit=20
+
+    - name: Map Application Service name → sys_id
+      ansible.builtin.set_fact:
+        sn_as_sys_id_by_name: >-
+          {{
+            dict(
+              (sn_rest_json.result | default([]))
+              | map(attribute='name')
+              | zip((sn_rest_json.result | default([])) | map(attribute='sys_id'))
+            )
+          }}
+
+    - name: Load KVA rows for application-service-identifier
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      vars:
+        sn_rest_table: cmdb_key_value
+        sn_rest_query: >-
+          sysparm_query=key=servicenow.io/application-service-identifier
+          ^valueIN{{ sn_as_contains_name_by_identifier.keys() | list | join(',') | urlencode }}
+          &sysparm_fields=sys_id,value,configuration_item&sysparm_limit=200
+
+    - name: Record KVA rows for Contains backfill
+      ansible.builtin.set_fact:
+        sn_as_contains_kva_rows: "{{ sn_rest_json.result | default([]) }}"
+
+    - name: Ensure Contains edge for each tagged Kubernetes pod
+      ansible.builtin.include_tasks: tasks/ensure_one_as_contains_edge.yml
+      loop: "{{ sn_as_contains_kva_rows }}"
+      loop_control:
+        label: "{{ item.value }} → {{ item.configuration_item }}"
+      vars:
+        sn_kva_identifier: "{{ item.value }}"
+        sn_kva_ci_sys_id: "{{ item.configuration_item }}"
+      when:
+        - sn_kva_identifier in sn_as_contains_name_by_identifier
+        - sn_as_contains_name_by_identifier[sn_kva_identifier] in sn_as_sys_id_by_name

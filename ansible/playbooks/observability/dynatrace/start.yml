@@ -1,4 +1,16 @@
 ---
+# Restore Operator/webhook replicas (stop.yml scales them to zero) and renew
+# expired webhook TLS certs before status probes.
+- name: Dynatrace start (operator + webhook)
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Ensure Dynatrace Operator and webhook are running with valid certs
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ensure_operator_webhook.yml"
+
 - name: Dynatrace start/status (Kubernetes-managed OneAgent)
   hosts: kubernetes_master:kubernetes_workers:observability
   gather_facts: false

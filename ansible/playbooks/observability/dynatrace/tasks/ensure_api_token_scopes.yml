@@ -8,6 +8,7 @@
   ansible.builtin.set_fact:
     dt_api_required_scopes:
       - entities.read
+      - entities.write
       - settings.read
       - settings.write
       - metrics.read
@@ -74,6 +75,16 @@
   run_once: true
   no_log: true
 
+- name: Sync replacement API token into dynatrace-ansible context
+  ansible.builtin.lineinfile:
+    path: "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    regexp: '^DT_API_TOKEN:'
+    line: "DT_API_TOKEN: \"{{ dt_api_token_create.json.token }}\""
+  when: (dt_api_missing_scopes | length) > 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
 - name: Switch runtime API token to replacement token
   ansible.builtin.set_fact:
     dt_api_token_resolved: "{{ dt_api_token_create.json.token }}"
@@ -83,5 +94,6 @@
 - name: Report API token rotation result
   ansible.builtin.debug:
     msg: >-
-      Rotated DT_API_TOKEN due to missing scopes {{ dt_api_missing_scopes }} and updated vars/secrets.yaml.
+      Rotated DT_API_TOKEN due to missing scopes {{ dt_api_missing_scopes }} and updated
+      vars/secrets.yaml plus vars/contexts/dynatrace_ansible_vars.yml.
   when: (dt_api_missing_scopes | length) > 0

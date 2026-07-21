@@ -1,0 +1,104 @@
+---
+# Check Dynatrace Operator webhook pods and TLS certificate currency.
+#
+# Root cause pattern (lab): after long host downtime with operator scaled to 0,
+# secret dynatrace-webhook-certs expires (~7d). Webhook certificate-watcher then
+# loops on "certificate is outdated" → CrashLoopBackOff / exit 137.
+# Remediation: delete secret dynatrace-webhook-certs and restart
+# deployments dynatrace-operator + dynatrace-webhook (operator regenerates certs).
+#
+# Variables:
+#   dt_webhook_check_fail | default(false) — when true, assert Ready + unexpired cert
+
+- name: List Dynatrace webhook pods (readiness / CrashLoopBackOff)
+  ansible.builtin.command: >
+    kubectl -n dynatrace get pods -l app.kubernetes.io/component=webhook
+    -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[0].ready,WAITING:.status.containerStatuses[0].state.waiting.reason,RESTARTS:.status.containerStatuses[0].restartCount
+    --no-headers
+  register: dt_webhook_pods
+  changed_when: false
+  failed_when: false
+
+- name: Show Dynatrace webhook pod status
+  ansible.builtin.debug:
+    var: dt_webhook_pods.stdout_lines
+
+- name: Detect CrashLoopBackOff or not-Ready webhook pods
+  ansible.builtin.set_fact:
+    dt_webhook_unhealthy: >-
+      {{
+        (dt_webhook_pods.stdout_lines | default([]) | length) == 0
+        or (dt_webhook_pods.stdout_lines | select('search', 'CrashLoopBackOff|Error|false') | list | length) > 0
+      }}
+
+- name: Inspect dynatrace-webhook-certs TLS lifetime
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! kubectl -n dynatrace get secret dynatrace-webhook-certs >/dev/null 2>&1; then
+      echo "MISSING|0|0|0"
+      exit 0
+    fi
+    not_after="$(kubectl -n dynatrace get secret dynatrace-webhook-certs \
+      -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -enddate \
+      | sed 's/^notAfter=//')"
+    end_epoch="$(date -d "${not_after}" +%s)"
+    now_epoch="$(date +%s)"
+    remaining="$((end_epoch - now_epoch))"
+    if [ "${remaining}" -lt 0 ]; then
+      expired=1
+    else
+      expired=0
+    fi
+    if [ "${remaining}" -lt 172800 ]; then
+      soon=1
+    else
+      soon=0
+    fi
+    # fields: notAfter|end_epoch|expired|expiring_soon
+    echo "${not_after}|${end_epoch}|${expired}|${soon}"
+  args:
+    executable: /bin/bash
+  register: dt_webhook_cert_probe
+  changed_when: false
+  failed_when: false
+
+- name: Parse webhook certificate probe
+  ansible.builtin.set_fact:
+    dt_webhook_cert_fields: "{{ (dt_webhook_cert_probe.stdout | default('MISSING|0|0|0') | trim).split('|') }}"
+
+- name: Set webhook certificate facts
+  ansible.builtin.set_fact:
+    dt_webhook_cert_missing: "{{ dt_webhook_cert_fields[0] == 'MISSING' }}"
+    dt_webhook_cert_not_after: "{{ '' if dt_webhook_cert_fields[0] == 'MISSING' else dt_webhook_cert_fields[0] }}"
+    dt_webhook_cert_expired: "{{ dt_webhook_cert_fields[0] != 'MISSING' and (dt_webhook_cert_fields[2] | int) == 1 }}"
+    dt_webhook_cert_expiring_soon: "{{ dt_webhook_cert_fields[0] != 'MISSING' and (dt_webhook_cert_fields[3] | int) == 1 }}"
+
+- name: Show Dynatrace webhook certificate status
+  ansible.builtin.debug:
+    msg: >-
+      dynatrace-webhook-certs =>
+      {% if dt_webhook_cert_missing | bool %}MISSING
+      {% else %}notAfter={{ dt_webhook_cert_not_after }}
+      expired={{ dt_webhook_cert_expired }}
+      expiring_within_48h={{ dt_webhook_cert_expiring_soon }}
+      {% endif %}
+      Remediation if CrashLoopBackOff + expired/missing cert:
+      kubectl -n dynatrace delete secret dynatrace-webhook-certs;
+      kubectl -n dynatrace rollout restart deployment/dynatrace-operator deployment/dynatrace-webhook
+
+- name: Assert Dynatrace webhook pods are Ready (test mode)
+  ansible.builtin.assert:
+    that:
+      - not (dt_webhook_unhealthy | bool)
+      - not (dt_webhook_cert_missing | bool)
+      - not (dt_webhook_cert_expired | bool)
+    fail_msg: >-
+      Dynatrace webhook unhealthy.
+      pods={{ dt_webhook_pods.stdout_lines | default([]) }};
+      cert_missing={{ dt_webhook_cert_missing }};
+      cert_expired={{ dt_webhook_cert_expired }};
+      notAfter={{ dt_webhook_cert_not_after }}.
+      Delete secret dynatrace-webhook-certs and restart dynatrace-operator + dynatrace-webhook.
+    success_msg: >-
+      Dynatrace webhook pods Ready; TLS cert valid until {{ dt_webhook_cert_not_after }}
+  when: dt_webhook_check_fail | default(false) | bool

@@ -100,6 +100,15 @@
       ansible.builtin.debug:
         var: dynakube_oneagent_non_running.stdout_lines
 
+    - name: Check Dynatrace webhook pods and TLS certificate currency
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/check_webhook_health.yml"
+        apply:
+          tags: [webhook]
+      vars:
+        dt_webhook_check_fail: false
+      tags: [webhook]
+
     - name: Resolve Dynatrace API token for cluster visibility diagnostics
       ansible.builtin.set_fact:
         dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"

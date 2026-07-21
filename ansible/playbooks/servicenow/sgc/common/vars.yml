@@ -99,3 +99,11 @@ dt_sn_spark_error_log_event_summary_legacy: "Spark Lab - ERROR log lines"
 dt_sn_spark_openpipeline_pipeline_display_name: "Spark Lab - log alerts"
 dt_sn_spark_openpipeline_pipeline_custom_id: "spark-lab-log-alerts"
 dt_sn_spark_openpipeline_routing_description: "Spark Lab log alerts (ERROR/WARN)"
+# Logical Dynatrace CUSTOM_DEVICE for client-mode drivers (Davis entity ≠ OneAgent HOST)
+dt_sn_spark_client_custom_device_id: "spark-client"
+dt_sn_spark_client_custom_device_display_name: "Spark Client"
+dt_sn_spark_client_custom_device_type: "Spark Client"
+dt_sn_spark_client_custom_device_group: "spark-client"
+# Fallback entityId when upsert returns 204 with empty body (pdt20158). Prefer fact from
+# apply_spark_client_custom_device.yml; OpenPipeline fieldsAdd requires this static ID.
+dt_spark_client_custom_device_entity_id: "CUSTOM_DEVICE-BF87A767187C320F"

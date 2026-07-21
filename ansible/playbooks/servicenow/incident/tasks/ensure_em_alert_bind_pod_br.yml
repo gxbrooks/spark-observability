@@ -11,10 +11,11 @@
       action_insert: "true"
       action_update: "true"
       order: "{{ sn_incident_em_alert_bind_br_order }}"
-      filter_condition: source=SGO-Dynatrace
+      filter_condition: source=SGO-Dynatrace^ORsource=Dynatrace
       description: >-
         K8s log alerts: bind cmdb_ci to cmdb_ci_kubernetes_pod when description or
-        resource encodes pod name from log path.
+        resource encodes pod name from log path. Also binds Spark Client AS for
+        client-mode paths / Application log spark-client-* (incl. source=Dynatrace).
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_bind_k8s_log_pod_ci.br.js') }}"
 
 - name: Look up em_alert bind pod CI business rule

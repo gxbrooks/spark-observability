@@ -1,5 +1,6 @@
 (function executeRule(current, previous /*null on insert*/) {
-  if (current.source.toString() !== 'SGO-Dynatrace') {
+  var source = current.source.toString();
+  if (source !== 'SGO-Dynatrace' && source !== 'Dynatrace') {
     return;
   }
 
@@ -9,22 +10,34 @@
   }
 
   var desc = current.description.toString();
-  if (
-    desc.indexOf('/logs/') === -1 &&
-    desc.indexOf('spark-app.log') === -1 &&
-    desc.indexOf('application.log') === -1 &&
-    !desc.match(/\b(ERROR|WARN)\b/)
-  ) {
-    return;
-  }
-
-  var resolver = new ResolveApplicationService();
+  var shortDescField = current.short_description
+    ? current.short_description.toString()
+    : '';
   var alertText =
     desc +
     ' ' +
     current.resource.toString() +
     ' ' +
-    current.node.toString();
+    current.node.toString() +
+    ' ' +
+    shortDescField;
+
+  var resolver = new ResolveApplicationService();
+  // Client-side: bind from path or Davis event.name even when source is Dynatrace.
+  if (!resolver.isSparkClientLogText(alertText)) {
+    if (source !== 'SGO-Dynatrace') {
+      return;
+    }
+    if (
+      desc.indexOf('/logs/') === -1 &&
+      desc.indexOf('spark-app.log') === -1 &&
+      desc.indexOf('application.log') === -1 &&
+      !desc.match(/\b(ERROR|WARN)\b/)
+    ) {
+      return;
+    }
+  }
+
   var asSysId = resolver.resolveFromSparkClientLogPath(alertText);
   var asSource = 'spark-client log path';
 
@@ -33,8 +46,41 @@
     asSource = 'Contains traversal from pod CI';
   }
 
+  // Service-side fallback: alert may still be HOST; resolve pod from log path then Contains.
+  if (!asSysId) {
+    var binder = new K8sLogPodCiBind();
+    var podName = binder.resolvePodName(
+      desc,
+      current.resource.toString(),
+      current.node.toString()
+    );
+    if (podName) {
+      var podGr = new GlideRecord('cmdb_ci_kubernetes_pod');
+      podGr.addQuery('name', podName);
+      podGr.setLimit(1);
+      podGr.query();
+      if (podGr.next()) {
+        if (current.cmdb_ci.toString() !== podGr.sys_id.toString()) {
+          current.cmdb_ci = podGr.sys_id.toString();
+          current.node = podName;
+        }
+        asSysId = resolver.resolveFromInfrastructureCi(podGr.sys_id.toString());
+        asSource = 'Contains traversal from pod CI (path fallback)';
+      }
+    }
+  }
+
   if (!asSysId) {
     return;
+  }
+
+  // Client-side: alert CI may be HOST — align to Spark Client AS.
+  // Service-side: keep alert on pod CI; only the incident gets the Application Service.
+  if (asSource.indexOf('spark-client') !== -1) {
+    if (current.cmdb_ci.toString() !== asSysId) {
+      current.cmdb_ci = asSysId;
+      current.node = 'Spark Client';
+    }
   }
 
   var levelMatch = desc.match(/\b(ERROR|WARN)\b/);

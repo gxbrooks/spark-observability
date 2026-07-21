@@ -5,8 +5,8 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.20">
-<meta name="description" content="Reference implementation for Log to Incident — application logs through Dynatrace to ServiceNow">
-<title>Problem to Incident</title>
+<meta name="description" content="Log to Incident — business process and reference implementation (observability platforms to ITSM)">
+<title>Log to Incident</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
 /*! Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
@@ -474,103 +474,111 @@ code {
 </head>
 <body class="book toc2 toc-left">
 <div id="header">
-<h1>Problem to Incident</h1>
+<h1>Log to Incident</h1>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
 <li><a href="#_purpose">1. Purpose</a></li>
 <li><a href="#_log_to_incident">2. Log to Incident</a>
 <ul class="sectlevel2">
-<li><a href="#_end_to_end_flow">2.1. End-to-end flow</a>
-<ul class="sectlevel3">
-<li><a href="#_step_by_step_configuration">2.1.1. Step-by-step configuration</a></li>
-<li><a href="#_client_server_complications">2.1.2. Client-Server Complications</a></li>
+<li><a href="#_what_the_process_does">2.1. What the process does</a></li>
+<li><a href="#_what_must_be_agreed_up_front">2.2. What must be agreed up front</a></li>
+<li><a href="#_client_and_server_applications">2.3. Client and server applications</a></li>
+<li><a href="#_platform_implementations">2.4. Platform implementations</a></li>
 </ul>
 </li>
-<li><a href="#_step_0_servicenow_modeling">2.2. Step 0 — ServiceNow Modeling</a>
-<ul class="sectlevel3">
-<li><a href="#_servicenow_modeling">2.2.1. ServiceNow Modeling</a></li>
-<li><a href="#_snippets_from_the_csdm_cmdb_model">2.2.2. Snippets from the CSDM-CMDB model</a></li>
-<li><a href="#_servicenow_csdm_application_services">2.2.3. ServiceNow — CSDM Application Services</a></li>
-<li><a href="#step-0-pod-labels">2.2.4. ServiceNow — Kubernetes pod CIs and tags</a></li>
-<li><a href="#step-0-cmdb-model">2.2.5. CMDB model</a></li>
-<li><a href="#_servicenow_sgc_topology_import_and_sys_object_source">2.2.6. ServiceNow — SGC topology import and sys_object_source</a></li>
-<li><a href="#_dynatrace_management_zone">2.2.7. Dynatrace — management zone</a></li>
-<li><a href="#_step_0_completion_criteria">2.2.8. Step 0 completion criteria</a></li>
-</ul>
-</li>
-<li><a href="#_step_1_application_emits_a_log_line_with_requisite_metadata">2.3. Step 1 — Application emits a log line with requisite metadata</a>
-<ul class="sectlevel3">
-<li><a href="#_required_log_content">2.3.1. Required log content</a></li>
-<li><a href="#_log4j_configuration_reference">2.3.2. Log4j configuration (reference)</a></li>
-<li><a href="#step-1-log-emission">2.3.3. Log emission</a></li>
-<li><a href="#_log_path_and_oneagent_tail_not_nfs">2.3.4. Log path and OneAgent tail (not NFS)</a></li>
-<li><a href="#_dynatrace_and_servicenow_step_1">2.3.5. Dynatrace and ServiceNow (Step 1)</a></li>
-</ul>
-</li>
-<li><a href="#step-2-dynatrace">2.4. Step 2 — Dynatrace detects ERROR and WARN log lines</a>
-<ul class="sectlevel3">
-<li><a href="#_openpipeline_processor_flow">2.4.1. OpenPipeline processor flow</a></li>
-<li><a href="#_dynatrace_objects_to_configure">2.4.2. Dynatrace objects to configure</a></li>
-<li><a href="#_custom_log_source">2.4.3. Custom log source</a></li>
-<li><a href="#_logs_routing">2.4.4. Logs routing</a></li>
-<li><a href="#_log_alerts_pipeline_complete_reference">2.4.5. Log alerts pipeline (complete reference)</a></li>
-<li><a href="#_davis_processor_properties">2.4.6. Davis processor properties</a></li>
-<li><a href="#_example_grail_log_record_at_davis_input">2.4.7. Example Grail log record at Davis input</a></li>
-<li><a href="#_alerting_profile">2.4.8. Alerting profile</a></li>
-<li><a href="#_host_cpu_metric_event_optional_companion_path">2.4.9. Host CPU metric event (optional companion path)</a></li>
-<li><a href="#_servicenow_step_2">2.4.10. ServiceNow (Step 2)</a></li>
-</ul>
-</li>
-<li><a href="#_step_3_dynatrace_sends_the_problem_to_servicenow">2.5. Step 3 — Dynatrace sends the problem to ServiceNow</a>
-<ul class="sectlevel3">
-<li><a href="#_webhook_endpoint">2.5.1. Webhook endpoint</a></li>
-<li><a href="#spec-dt-webhook-payload">2.5.2. Problem notification payload template</a></li>
-<li><a href="#_webhook_field_mapping">2.5.3. Webhook field mapping</a></li>
-<li><a href="#_complete_example_webhook_body">2.5.4. Complete example webhook body</a></li>
-<li><a href="#_ensuring_log_fields_reach_servicenow">2.5.5. Ensuring log fields reach ServiceNow</a></li>
-<li><a href="#_servicenow_step_3">2.5.6. ServiceNow (Step 3)</a></li>
-</ul>
-</li>
-<li><a href="#_step_4_servicenow_receives_the_event_and_binds_infrastructure_ci">2.6. Step 4 — ServiceNow receives the event and binds infrastructure CI</a>
-<ul class="sectlevel3">
-<li><a href="#_event_listener">2.6.1. Event listener</a></li>
-<li><a href="#_em_event_field_mapping">2.6.2. em_event field mapping</a></li>
-<li><a href="#_ci_binding_procedure">2.6.3. CI binding procedure</a></li>
-<li><a href="#_entity_type_to_cmdb_class">2.6.4. Entity type to CMDB class</a></li>
-<li><a href="#_description_and_alert_text">2.6.5. Description and alert text</a></li>
-<li><a href="#_sgc_and_event_management_configuration">2.6.6. SGC and Event Management configuration</a></li>
-<li><a href="#step-4-sn-dynatrace">2.6.7. Application and Dynatrace (Step 4)</a></li>
-</ul>
-</li>
-<li><a href="#_step_5_create_incident_bound_to_application_service">2.7. Step 5 — Create incident bound to Application Service</a>
-<ul class="sectlevel3">
-<li><a href="#_severity_policy">2.7.1. Severity policy</a></li>
-<li><a href="#_layer_model">2.7.2. Layer model</a></li>
-<li><a href="#step-5-incident-correlation">2.7.3. Incident correlation</a></li>
-<li><a href="#csdm-identifier-field-mapping">2.7.4. CSDM identifier lookup</a></li>
-<li><a href="#known-limitation-davis-bundling">2.7.5. Known limitation — Davis problem bundling</a></li>
-<li><a href="#_servicenow_incident_automation_specification">2.7.6. ServiceNow incident automation specification</a></li>
-<li><a href="#_business_rule_order_and_rationale">2.7.7. Business rule order and rationale</a></li>
-<li><a href="#_alert_to_incident_linkage_em_alert_incident">2.7.8. Alert to incident linkage (<code>em_alert.incident</code>)</a></li>
-<li><a href="#_problem_and_alert_lifecycle_open_resolved">2.7.9. Problem and alert lifecycle (OPEN / RESOLVED)</a></li>
-<li><a href="#_openpipeline_and_custom_source_attributes_generic_log4j_pattern">2.7.10. OpenPipeline and custom-source attributes (generic Log4j pattern)</a></li>
-<li><a href="#step-5-em-rules">2.7.11. Event Management rules (manual configuration)</a></li>
-<li><a href="#_script_includes">2.7.12. Script Includes</a></li>
-<li><a href="#step-5-br-k8s-pod">2.7.13. Business rules (prescriptive configuration)</a></li>
-<li><a href="#_ansible_deployment">2.7.14. Ansible deployment</a></li>
-<li><a href="#_example_resolution_kubernetes_worker_pod">2.7.15. Example resolution (Kubernetes worker pod)</a></li>
-<li><a href="#_application_and_dynatrace_step_5">2.7.16. Application and Dynatrace (Step 5)</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#legacy-sgo-coexistence">3. Legacy and SGO-Dynatrace coexistence</a>
+<li><a href="#_using_servicenow_and_dynatrace">3. Using ServiceNow and Dynatrace</a>
 <ul class="sectlevel2">
-<li><a href="#_separation_by_source">3.1. Separation by source</a></li>
-<li><a href="#_scoping_rules_and_profiles">3.2. Scoping rules and profiles</a></li>
-<li><a href="#_host_cpu_alerts_not_spark_specific">3.3. Host CPU alerts (not Spark-specific)</a></li>
-<li><a href="#_when_to_retire_legacy_connector">3.4. When to retire legacy connector</a></li>
+<li><a href="#_end_to_end_flow">3.1. End-to-end flow</a>
+<ul class="sectlevel3">
+<li><a href="#_step_by_step_configuration">3.1.1. Step-by-step configuration</a></li>
+<li><a href="#_client_server_complications">3.1.2. Client-Server Complications</a></li>
+</ul>
+</li>
+<li><a href="#_step_0_servicenow_modeling">3.2. Step 0 — ServiceNow Modeling</a>
+<ul class="sectlevel3">
+<li><a href="#_servicenow_modeling">3.2.1. ServiceNow Modeling</a></li>
+<li><a href="#_snippets_from_the_csdm_cmdb_model">3.2.2. Snippets from the CSDM-CMDB model</a></li>
+<li><a href="#_servicenow_csdm_application_services">3.2.3. ServiceNow — CSDM Application Services</a></li>
+<li><a href="#step-0-pod-labels">3.2.4. ServiceNow — Kubernetes pod CIs and tags</a></li>
+<li><a href="#step-0-cmdb-model">3.2.5. CMDB model</a></li>
+<li><a href="#_servicenow_sgc_topology_import_and_sys_object_source">3.2.6. ServiceNow — SGC topology import and sys_object_source</a></li>
+<li><a href="#_dynatrace_management_zone">3.2.7. Dynatrace — management zone</a></li>
+<li><a href="#_step_0_completion_criteria">3.2.8. Step 0 completion criteria</a></li>
+</ul>
+</li>
+<li><a href="#_step_1_application_emits_a_log_line_with_requisite_metadata">3.3. Step 1 — Application emits a log line with requisite metadata</a>
+<ul class="sectlevel3">
+<li><a href="#_required_log_content">3.3.1. Required log content</a></li>
+<li><a href="#_log4j_configuration_reference">3.3.2. Log4j configuration (reference)</a></li>
+<li><a href="#step-1-log-emission">3.3.3. Log emission</a></li>
+<li><a href="#_log_path_and_oneagent_tail_not_nfs">3.3.4. Log path and OneAgent tail (not NFS)</a></li>
+<li><a href="#_dynatrace_and_servicenow_step_1">3.3.5. Dynatrace and ServiceNow (Step 1)</a></li>
+</ul>
+</li>
+<li><a href="#step-2-dynatrace">3.4. Step 2 — Dynatrace detects ERROR and WARN log lines</a>
+<ul class="sectlevel3">
+<li><a href="#_openpipeline_processor_flow">3.4.1. OpenPipeline processor flow</a></li>
+<li><a href="#_dynatrace_objects_to_configure">3.4.2. Dynatrace objects to configure</a></li>
+<li><a href="#_custom_log_source">3.4.3. Custom log source</a></li>
+<li><a href="#_logs_routing">3.4.4. Logs routing</a></li>
+<li><a href="#_log_alerts_pipeline_complete_reference">3.4.5. Log alerts pipeline (complete reference)</a></li>
+<li><a href="#_davis_processor_properties">3.4.6. Davis processor properties</a></li>
+<li><a href="#_example_grail_log_record_at_davis_input">3.4.7. Example Grail log record at Davis input</a></li>
+<li><a href="#_alerting_profile">3.4.8. Alerting profile</a></li>
+<li><a href="#_host_cpu_metric_event_optional_companion_path">3.4.9. Host CPU metric event (optional companion path)</a></li>
+<li><a href="#_servicenow_step_2">3.4.10. ServiceNow (Step 2)</a></li>
+</ul>
+</li>
+<li><a href="#_step_3_dynatrace_sends_the_problem_to_servicenow">3.5. Step 3 — Dynatrace sends the problem to ServiceNow</a>
+<ul class="sectlevel3">
+<li><a href="#_webhook_endpoint">3.5.1. Webhook endpoint</a></li>
+<li><a href="#spec-dt-webhook-payload">3.5.2. Problem notification payload template</a></li>
+<li><a href="#_webhook_field_mapping">3.5.3. Webhook field mapping</a></li>
+<li><a href="#_complete_example_webhook_body">3.5.4. Complete example webhook body</a></li>
+<li><a href="#_ensuring_log_fields_reach_servicenow">3.5.5. Ensuring log fields reach ServiceNow</a></li>
+<li><a href="#_servicenow_step_3">3.5.6. ServiceNow (Step 3)</a></li>
+</ul>
+</li>
+<li><a href="#_step_4_servicenow_receives_the_event_and_binds_infrastructure_ci">3.6. Step 4 — ServiceNow receives the event and binds infrastructure CI</a>
+<ul class="sectlevel3">
+<li><a href="#_event_listener">3.6.1. Event listener</a></li>
+<li><a href="#_em_event_field_mapping">3.6.2. em_event field mapping</a></li>
+<li><a href="#_ci_binding_procedure">3.6.3. CI binding procedure</a></li>
+<li><a href="#_entity_type_to_cmdb_class">3.6.4. Entity type to CMDB class</a></li>
+<li><a href="#_description_and_alert_text">3.6.5. Description and alert text</a></li>
+<li><a href="#_sgc_and_event_management_configuration">3.6.6. SGC and Event Management configuration</a></li>
+<li><a href="#step-4-sn-dynatrace">3.6.7. Application and Dynatrace (Step 4)</a></li>
+</ul>
+</li>
+<li><a href="#_step_5_create_incident_bound_to_application_service">3.7. Step 5 — Create incident bound to Application Service</a>
+<ul class="sectlevel3">
+<li><a href="#_severity_policy">3.7.1. Severity policy</a></li>
+<li><a href="#_layer_model">3.7.2. Layer model</a></li>
+<li><a href="#step-5-incident-correlation">3.7.3. Incident correlation</a></li>
+<li><a href="#csdm-identifier-field-mapping">3.7.4. CSDM identifier lookup</a></li>
+<li><a href="#known-limitation-davis-bundling">3.7.5. Known limitation — Davis problem bundling</a></li>
+<li><a href="#_servicenow_incident_automation_specification">3.7.6. ServiceNow incident automation specification</a></li>
+<li><a href="#_business_rule_order_and_rationale">3.7.7. Business rule order and rationale</a></li>
+<li><a href="#_alert_to_incident_linkage_em_alert_incident">3.7.8. Alert to incident linkage (<code>em_alert.incident</code>)</a></li>
+<li><a href="#_problem_and_alert_lifecycle_open_resolved">3.7.9. Problem and alert lifecycle (OPEN / RESOLVED)</a></li>
+<li><a href="#_openpipeline_and_custom_source_attributes_generic_log4j_pattern">3.7.10. OpenPipeline and custom-source attributes (generic Log4j pattern)</a></li>
+<li><a href="#step-5-em-rules">3.7.11. Event Management rules (manual configuration)</a></li>
+<li><a href="#_script_includes">3.7.12. Script Includes</a></li>
+<li><a href="#step-5-br-k8s-pod">3.7.13. Business rules (prescriptive configuration)</a></li>
+<li><a href="#_ansible_deployment">3.7.14. Ansible deployment</a></li>
+<li><a href="#_example_resolution_kubernetes_worker_pod">3.7.15. Example resolution (Kubernetes worker pod)</a></li>
+<li><a href="#_application_and_dynatrace_step_5">3.7.16. Application and Dynatrace (Step 5)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#legacy-sgo-coexistence">Appendix A: Legacy and SGO-Dynatrace coexistence</a>
+<ul class="sectlevel2">
+<li><a href="#_separation_by_source">A.1. Separation by source</a></li>
+<li><a href="#_scoping_rules_and_profiles">A.2. Scoping rules and profiles</a></li>
+<li><a href="#_host_cpu_alerts_not_spark_specific">A.3. Host CPU alerts (not Spark-specific)</a></li>
+<li><a href="#_when_to_retire_legacy_connector">A.4. When to retire legacy connector</a></li>
 </ul>
 </li>
 </ul>
@@ -581,13 +589,108 @@ code {
 <h2 id="_purpose">1. Purpose</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Large incident resolution times can impact business operations and customer satisfaction. One way to reduce resolution times for incidents is to bring those critical problems directly to attention of the appropriate application operations team in a timely manner. This requires seamlessly bridging observability processes to IT service management processes. This documents shows how to integrate observability to IT service management into a seamless process.</p>
+<p>Large incident resolution times hurt business operations and customer satisfaction. One way to shorten resolution is to bring critical application problems to the right operations team quickly and with enough context to act. That requires bridging <strong>observability</strong> (detecting and describing problems from runtime signals) with <strong>IT service management</strong> (tracking work as incidents, assignment, and closure).</p>
 </div>
 <div class="paragraph">
-<p>To illustrate this integration we use Apache Spark as the application of interest along with Dynatrace as the observability platform and ServiceNow as the IT service management platform. Spark is a popular open-source distributed computing system that is used for large-scale data processing and analytics. It is used in a wide range of industries, including finance, healthcare, and retail. Dynatrace is a popular observability platform that is used to monitor and troubleshoot applications. ServiceNow is the market leader in IT service management  that is used to manage IT services and incidents.</p>
+<p>This document defines that bridge as the <strong>Log to Incident</strong> process: selected application log messages become managed incidents for the application operations team. The process is named for the <strong>signal type</strong> and <strong>outcome</strong>, not for any particular vendor or tool. Implementations may use different observability and ITSM platforms; this document’s worked example uses Apache Spark as the application, with platform-specific sections for how those platforms are configured.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_log_to_incident">2. Log to Incident</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Log to Incident</strong> is the Observability process that detects and turns <strong>critical</strong> application log messages into <strong>tracked</strong> IT incidents so the application operations team can respond in time. It does this through a four phase process:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The application logs a message,</p>
+</li>
+<li>
+<p>The observability tooling detects the message as a being salient and creates an alert</p>
+</li>
+<li>
+<p>The alert is transmitted to the ITSM platform</p>
+</li>
+<li>
+<p>The ITSM platform determins which alerts are salient and then creates an incident for operators to track.</p>
+</li>
+</ol>
+</div>
+<div class="sect2">
+<h3 id="_what_the_process_does">2.1. What the process does</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>An application writes operational messages to its application log (errors, warnings, or other agreed severity).</p>
+</li>
+<li>
+<p>Observability tooling collects those messages and decides which ones are severe enough to treat as a <strong>problem</strong> (a detected issue worth escalating).</p>
+</li>
+<li>
+<p>The problem is handed to IT service management as an <strong>event</strong> or <strong>alert</strong> tied to the right infrastructure or application identity.</p>
+</li>
+<li>
+<p>Automation creates (or updates) an <strong>incident</strong> assigned to the application’s support organization, carrying enough log context for diagnosis.</p>
+</li>
+<li>
+<p>The operations team works and closes the incident through normal ITSM practice.</p>
+</li>
+</ol>
 </div>
 <div class="paragraph">
-<p>We call this class of observability-to-ITSM processes, which starts in Dynatace as a problem and ends in ServiceNow as a resolved incident, <strong>Problem to Incident</strong>.</p>
+<p>The process intentionally does <strong>not</strong> depend on a single observability product or a single ITSM product. What must stay stable is the <strong>contract</strong>: which log lines matter, how the application is identified for assignment, and what context travels with the incident.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_must_be_agreed_up_front">2.2. What must be agreed up front</h3>
+<div class="paragraph">
+<p>Not every log line should become an incident. Flooding operations with low-value tickets increases noise and lengthens real outages. Observability engineers <strong>must</strong> agree with application developers and operations on:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Which severities or message patterns are <strong>incident-worthy</strong>.</p>
+</li>
+<li>
+<p>How log lines are structured so the incident carries actionable context (what failed, where, which workload or component).</p>
+</li>
+<li>
+<p>Which <strong>application service</strong> (or equivalent business CI) owns the work when an incident is created.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_client_and_server_applications">2.3. Client and server applications</h3>
+<div class="paragraph">
+<p>Many systems have both <strong>service-side</strong> components (clustered services, pods, long-running servers) and <strong>client-side</strong> components (drivers, desktops, mobile apps, or other unmanaged endpoints). Log to Incident must still escalate both, even when the client is not a managed CI in the CMDB. That usually means:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Service-side: map from the running workload’s identity to the application service that operations supports.</p>
+</li>
+<li>
+<p>Client-side: map from a durable log-path or naming contract to a logical application service that represents the client population.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_platform_implementations">2.4. Platform implementations</h3>
+<div class="paragraph">
+<p>Later chapters describe how to realize Log to Incident on specific platforms. The first implementation in this document is <strong>Using ServiceNow and Dynatrace</strong>. Additional chapters (for example Elastic Stack and ServiceNow) <strong>may</strong> be added without renaming the process.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_using_servicenow_and_dynatrace">3. Using ServiceNow and Dynatrace</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This chapter is the reference implementation of Log to Incident using <strong>Dynatrace</strong> as the observability platform and <strong>ServiceNow</strong> as the ITSM / Event Management platform. Apache Spark is the sample application (WARN and ERROR log lines escalate in the lab; production agreements often limit escalation to ERROR after review with operations and development).</p>
 </div>
 <div class="paragraph">
 <p>External references (vendor documentation):</p>
@@ -608,28 +711,14 @@ code {
 </li>
 </ul>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_log_to_incident">2. Log to Incident</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The <strong>Log to Incident</strong> process is subclass of the Problem to Incident process that takes critical issues (problems) that are noted in an application log file and raise an incident in ServicNow. This alows for prompt attention to be brought to the problem by the application operations team.</p>
-</div>
-<div class="paragraph">
-<p>Not all log file entries are critical enough to justify an incident. Observabilty engineers should work with application developers to identify which log entries are critical and warrant an incident. Otherwise, operations teams could be flooded with incidents that are not critical and consume time to resolve and close. Observability engineers and application developers should also work to together on the structure and format of the log entries to ensure that key relevant information about the application is communicated to the application operations team to make it easier for the application team to resolve.</p>
-</div>
-<div class="paragraph">
-<p>For the purposes of this implementation, we designated Spark WARN and ERROR log messages as critical enough to justify an incident. In a real-world implementation, only ERROR log messages would be designated as critical enough to justify an incident. Even then critical log entries shoujd only be designated after discussion with the application operations and development teams.</p>
-</div>
 <div class="sect2">
-<h3 id="_end_to_end_flow">2.1. End-to-end flow</h3>
+<h3 id="_end_to_end_flow">3.1. End-to-end flow</h3>
 <div class="paragraph">
-<p>The figure below illustrates the end-to-end flow of the Log to Incident process starting with the application JVM writing to the application log file and ending with the incident being created in ServiceNow.</p>
+<p>The figure below illustrates the end-to-end flow of this implementation: the application JVM writes to the application log file; Dynatrace detects, correlates, and notifies; ServiceNow creates the event, alert, and incident.</p>
 </div>
 <div class="imageblock figure-indent">
 <div class="content">
-<img src="Log_to_Incident_end-to-end_data_flow.png" alt="Log to Incident end to end data flow" width="268" height="577">
+<img src="images/Log_to_Incident_end-to-end_data_flow.png" alt="Log to Incident end to end data flow" width="268" height="577">
 </div>
 <div class="title">Figure 1. Log to Incident end-to-end data flow</div>
 </div>
@@ -637,7 +726,7 @@ code {
 <p>Critical to the process is selecting the best configuration items (CIs) to assign to the alert and even more importantly the incident. CI selection is especially important for the incident as the incident will be directed to the support group of the CI. Care must be taken to make sure that the CI then represents the application and the support group on the application CI the application&#8217;s operations team.</p>
 </div>
 <div class="sect3">
-<h4 id="_step_by_step_configuration">2.1.1. Step-by-step configuration</h4>
+<h4 id="_step_by_step_configuration">3.1.1. Step-by-step configuration</h4>
 <div class="paragraph">
 <p>The end-to-end data flow in the figure above maps into six major areas of configuration required to implement the Log to Incident flow. The table below defines the the six majors steps required to configure the Log to Incident flow.</p>
 </div>
@@ -690,7 +779,7 @@ code {
 <hr>
 </div>
 <div class="sect3">
-<h4 id="_client_server_complications">2.1.2. Client-Server Complications</h4>
+<h4 id="_client_server_complications">3.1.2. Client-Server Complications</h4>
 <div class="paragraph">
 <p>You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability excersize as we have to address the client use case, which can occur in many other applicatons. For example, you can see the client in mobile apps where the client is not only a seperate application, but it is an applications that runs on a device that is not managed in ServiceNow&#8217;s CMDB.</p>
 </div>
@@ -730,17 +819,17 @@ In client mode, the client-side application is a standalone application that run
 </div>
 </div>
 <div class="sect2">
-<h3 id="_step_0_servicenow_modeling">2.2. Step 0 — ServiceNow Modeling</h3>
+<h3 id="_step_0_servicenow_modeling">3.2. Step 0 — ServiceNow Modeling</h3>
 <div class="paragraph">
 <p>Before log problems can bind to infrastructure CIs and incidents to an <strong>Application Service</strong>, we must model the application in ServiceNow. This involves definiing the CSDM hierarchy and disovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components.</p>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_modeling">2.2.1. ServiceNow Modeling</h4>
+<h4 id="_servicenow_modeling">3.2.1. ServiceNow Modeling</h4>
 <div class="paragraph">
 <p>The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components.</p>
 </div>
 <div class="sect4">
-<h5 id="_service_side">2.2.1.1. Service-side</h5>
+<h5 id="_service_side">3.2.1.1. Service-side</h5>
 <div class="paragraph">
 <p>The Service-side model shows logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped logs. Use it to verify <strong><code>em_alert.cmdb_ci</code></strong> → pod and <strong><code>incident.cmdb_ci</code></strong> → Application Service before enabling automation.</p>
 </div>
@@ -801,7 +890,7 @@ In client mode, the client-side application is a standalone application that run
 </div>
 </div>
 <div class="sect4">
-<h5 id="_client_side">2.2.1.2. Client-side</h5>
+<h5 id="_client_side">3.2.1.2. Client-side</h5>
 <div class="paragraph">
 <p>The Client-side model shows a <strong>host-independent</strong> logical Application Service for PySpark drivers that may run on workstations outside CMDB discovery scope. There is <strong>no required Contains edge</strong> from client hosts to the Application Service.</p>
 </div>
@@ -830,7 +919,7 @@ In client mode, the client-side application is a standalone application that run
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>incident.cmdb_ci</strong> (path-based lookup); <strong>no required Contains children</strong></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">cmdb_ci_linux_server — client host</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">cmdb_ci_linux_server <strong>—</strong> client host</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">May appear on <strong><code>em_alert.cmdb_ci</code></strong> when Davis binds to HOST; <strong>not</strong> used for incident CI</p></td>
 </tr>
 <tr>
@@ -860,7 +949,7 @@ In client mode, the client-side application is a standalone application that run
 </div>
 </div>
 <div class="sect3">
-<h4 id="_snippets_from_the_csdm_cmdb_model">2.2.2. Snippets from the CSDM-CMDB model</h4>
+<h4 id="_snippets_from_the_csdm_cmdb_model">3.2.2. Snippets from the CSDM-CMDB model</h4>
 <div class="paragraph">
 <p>The step table maps each layer to the section that configures it. Steps 2–4 are shared; Steps 0, 1, and 5 include parallel <strong>Service-side</strong> and <strong>Client-side</strong> subsections.</p>
 </div>
@@ -882,7 +971,7 @@ In client mode, the client-side application is a standalone application that run
 </div>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_csdm_application_services">2.2.3. ServiceNow — CSDM Application Services</h4>
+<h4 id="_servicenow_csdm_application_services">3.2.3. ServiceNow — CSDM Application Services</h4>
 <div class="paragraph">
 <p>Declare one Application Service per logical service boundary. Each Spark Kubernetes workload that should roll up to that service carries a matching pod label synced to <code>cmdb_key_value</code>.</p>
 </div>
@@ -973,7 +1062,7 @@ In client mode, the client-side application is a standalone application that run
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-0-pod-labels">2.2.4. ServiceNow — Kubernetes pod CIs and tags</h4>
+<h4 id="step-0-pod-labels">3.2.4. ServiceNow — Kubernetes pod CIs and tags</h4>
 <div class="paragraph">
 <p>Pod manifest labels are the single source of truth for tag-based Service Mapping on Spark workloads.</p>
 </div>
@@ -1039,13 +1128,13 @@ spec:
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-0-cmdb-model">2.2.5. CMDB model</h4>
+<h4 id="step-0-cmdb-model">3.2.5. CMDB model</h4>
 <div class="paragraph">
 <p>Alerts bind to <strong>infrastructure</strong> CIs; incidents bind to <strong>Application Services</strong>. Each Log to Incident pattern requires a different CMDB shape so operators assign the most informative CI at each layer. The subsections below define <strong>Service-side</strong> and <strong>Client-side</strong> models side by side.</p>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_sgc_topology_import_and_sys_object_source">2.2.6. ServiceNow — SGC topology import and sys_object_source</h4>
+<h4 id="_servicenow_sgc_topology_import_and_sys_object_source">3.2.6. ServiceNow — SGC topology import and sys_object_source</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -1109,13 +1198,13 @@ spec:
 </div>
 </div>
 <div class="sect3">
-<h4 id="_dynatrace_management_zone">2.2.7. Dynatrace — management zone</h4>
+<h4 id="_dynatrace_management_zone">3.2.7. Dynatrace — management zone</h4>
 <div class="paragraph">
 <p>Place hosts, Kubernetes cluster entities, and pods that run the application in a <strong>management zone</strong> dedicated to the integration (for example <strong>Application Observability</strong>). The <strong>alerting profile</strong> for ServiceNow problem notifications must scope to that management zone so only in-scope problems are forwarded.</p>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_step_0_completion_criteria">2.2.8. Step 0 completion criteria</h4>
+<h4 id="_step_0_completion_criteria">3.2.8. Step 0 completion criteria</h4>
 <div class="paragraph">
 <p>Complete the shared criteria first, then the pattern-specific rows for each Log to Incident pattern you deploy.</p>
 </div>
@@ -1150,7 +1239,7 @@ spec:
 </tbody>
 </table>
 <div class="sect4">
-<h5 id="_service_side_2">2.2.8.1. Service-side</h5>
+<h5 id="_service_side_2">3.2.8.1. Service-side</h5>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 5%;">
@@ -1183,7 +1272,7 @@ spec:
 </table>
 </div>
 <div class="sect4">
-<h5 id="_client_side_2">2.2.8.2. Client-side</h5>
+<h5 id="_client_side_2">3.2.8.2. Client-side</h5>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 5%;">
@@ -1219,9 +1308,9 @@ spec:
 </div>
 </div>
 <div class="sect2">
-<h3 id="_step_1_application_emits_a_log_line_with_requisite_metadata">2.3. Step 1 — Application emits a log line with requisite metadata</h3>
+<h3 id="_step_1_application_emits_a_log_line_with_requisite_metadata">3.3. Step 1 — Application emits a log line with requisite metadata</h3>
 <div class="sect3">
-<h4 id="_required_log_content">2.3.1. Required log content</h4>
+<h4 id="_required_log_content">3.3.1. Required log content</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 25%;">
@@ -1255,7 +1344,7 @@ spec:
 </table>
 </div>
 <div class="sect3">
-<h4 id="_log4j_configuration_reference">2.3.2. Log4j configuration (reference)</h4>
+<h4 id="_log4j_configuration_reference">3.3.2. Log4j configuration (reference)</h4>
 <div class="paragraph">
 <p>Use a <strong>RollingFile</strong> appender only (no console appender in production pods). Set <strong>APP_LOG_DIR</strong> or <strong>SPARK_LOG_DIR</strong> to the pod-specific directory.</p>
 </div>
@@ -1295,12 +1384,12 @@ appender.rolling.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%e
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-1-log-emission">2.3.3. Log emission</h4>
+<h4 id="step-1-log-emission">3.3.3. Log emission</h4>
 <div class="paragraph">
 <p>Log emission defines where application JVMs write ERROR/WARN lines so OneAgent can tail them and OpenPipeline can extract workload identity. Requirements diverge by pattern; configure <strong>Service-side</strong> and <strong>Client-side</strong> subsections as applicable.</p>
 </div>
 <div class="sect4">
-<h5 id="step-1-log-emission-service">2.3.3.1. Service-side</h5>
+<h5 id="step-1-log-emission-service">3.3.3.1. Service-side</h5>
 <div class="paragraph">
 <p>Service-side workloads <strong>must</strong> run as <strong>Kubernetes pods</strong> with pod-scoped log directories visible on the node. The requirement table lists each constraint and why it matters for path-based pod binding.</p>
 </div>
@@ -1375,7 +1464,7 @@ volumeMounts:
 </div>
 </div>
 <div class="sect4">
-<h5 id="step-1-log-emission-client">2.3.3.2. Client-side</h5>
+<h5 id="step-1-log-emission-client">3.3.3.2. Client-side</h5>
 <div class="paragraph">
 <p>The <strong>Spark Client-Side Log Pattern</strong> requires a fixed path segment (<code>spark-client</code>) and one subdirectory per driver JVM. The attribute table maps each path element to the consumer that resolves incidents.</p>
 </div>
@@ -1430,7 +1519,7 @@ volumeMounts:
 </div>
 </div>
 <div class="sect3">
-<h4 id="_log_path_and_oneagent_tail_not_nfs">2.3.4. Log path and OneAgent tail (not NFS)</h4>
+<h4 id="_log_path_and_oneagent_tail_not_nfs">3.3.4. Log path and OneAgent tail (not NFS)</h4>
 <div class="paragraph">
 <p>Dynatrace <strong>does not read logs from the NFS server</strong>. OneAgent on each <strong>Kubernetes node</strong> tails log files on the <strong>node&#8217;s local filesystem</strong>:</p>
 </div>
@@ -1452,7 +1541,7 @@ volumeMounts:
 </div>
 </div>
 <div class="sect3">
-<h4 id="_dynatrace_and_servicenow_step_1">2.3.5. Dynatrace and ServiceNow (Step 1)</h4>
+<h4 id="_dynatrace_and_servicenow_step_1">3.3.5. Dynatrace and ServiceNow (Step 1)</h4>
 <div class="paragraph">
 <p>No Dynatrace or ServiceNow configuration at log emission time. <strong>Preconditions:</strong> OneAgent can read the log path on the node; the path directory name equals <code>cmdb_ci_kubernetes_pod.name</code> after KVA discovery; pod carries <code>servicenow.io/application-service-identifier</code>; tag-based Service Mapping has materialized <strong>Contains::Contained by</strong> from Application Service to pod <strong>before</strong> the first qualifying log line (Step 0).</p>
 </div>
@@ -1460,21 +1549,21 @@ volumeMounts:
 </div>
 </div>
 <div class="sect2">
-<h3 id="step-2-dynatrace">2.4. Step 2 — Dynatrace detects ERROR and WARN log lines</h3>
+<h3 id="step-2-dynatrace">3.4. Step 2 — Dynatrace detects ERROR and WARN log lines</h3>
 <div class="paragraph">
 <p>Logs ingested through <strong>OpenPipeline</strong> are evaluated by pipeline processors. Classic builtin:logmonitoring.log-events rules do <strong>not</strong> apply to logs routed through OpenPipeline.</p>
 </div>
 <div class="sect3">
-<h4 id="_openpipeline_processor_flow">2.4.1. OpenPipeline processor flow</h4>
+<h4 id="_openpipeline_processor_flow">3.4.1. OpenPipeline processor flow</h4>
 <div class="imageblock">
 <div class="content">
-<img src="OpenPipeline_log_alerts_processor_chain.png" alt="OpenPipeline log alerts processor chain" width="1313" height="59">
+<img src="images/OpenPipeline_log_alerts_processor_chain.png" alt="OpenPipeline log alerts processor chain" width="1313" height="59">
 </div>
 <div class="title">Figure 2. OpenPipeline log alerts processor chain</div>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_dynatrace_objects_to_configure">2.4.2. Dynatrace objects to configure</h4>
+<h4 id="_dynatrace_objects_to_configure">3.4.2. Dynatrace objects to configure</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 35%;">
@@ -1518,7 +1607,7 @@ volumeMounts:
 </table>
 </div>
 <div class="sect3">
-<h4 id="_custom_log_source">2.4.3. Custom log source</h4>
+<h4 id="_custom_log_source">3.4.3. Custom log source</h4>
 <div class="paragraph">
 <p>Register path patterns that cover per-workload directories and rotated files.</p>
 </div>
@@ -1560,7 +1649,7 @@ volumeMounts:
 </div>
 </div>
 <div class="sect3">
-<h4 id="_logs_routing">2.4.4. Logs routing</h4>
+<h4 id="_logs_routing">3.4.4. Logs routing</h4>
 <div class="paragraph">
 <p>Route OneAgent-sourced records whose log.source matches the application path into the alerts pipeline:</p>
 </div>
@@ -1584,7 +1673,7 @@ volumeMounts:
 </div>
 </div>
 <div class="sect3">
-<h4 id="_log_alerts_pipeline_complete_reference">2.4.5. Log alerts pipeline (complete reference)</h4>
+<h4 id="_log_alerts_pipeline_complete_reference">3.4.5. Log alerts pipeline (complete reference)</h4>
 <div class="paragraph">
 <p>The pipeline has three processor stages before storage:</p>
 </div>
@@ -1674,7 +1763,7 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_davis_processor_properties">2.4.6. Davis processor properties</h4>
+<h4 id="_davis_processor_properties">3.4.6. Davis processor properties</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -1715,7 +1804,7 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 </table>
 </div>
 <div class="sect3">
-<h4 id="_example_grail_log_record_at_davis_input">2.4.7. Example Grail log record at Davis input</h4>
+<h4 id="_example_grail_log_record_at_davis_input">3.4.7. Example Grail log record at Davis input</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -1756,7 +1845,7 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 </table>
 </div>
 <div class="sect3">
-<h4 id="_alerting_profile">2.4.8. Alerting profile</h4>
+<h4 id="_alerting_profile">3.4.8. Alerting profile</h4>
 <div class="paragraph">
 <p>Scope the profile to the integration management zone and include ERROR and CUSTOM_ALERT severity levels (Davis log events map to ERROR):</p>
 </div>
@@ -1782,7 +1871,7 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_host_cpu_metric_event_optional_companion_path">2.4.9. Host CPU metric event (optional companion path)</h4>
+<h4 id="_host_cpu_metric_event_optional_companion_path">3.4.9. Host CPU metric event (optional companion path)</h4>
 <div class="paragraph">
 <p>Host CPU problems are <strong>not Spark-specific</strong> unless scoped. Use a <strong>neutral event title</strong> and an <strong>entity filter</strong> so the detector evaluates only hosts in the integration boundary (management zone or named hosts). Different business units may use different thresholds — create <strong>separate metric events</strong> per scope rather than one tenant-wide rule.</p>
 </div>
@@ -1838,7 +1927,7 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_step_2">2.4.10. ServiceNow (Step 2)</h4>
+<h4 id="_servicenow_step_2">3.4.10. ServiceNow (Step 2)</h4>
 <div class="paragraph">
 <p>No direct ServiceNow configuration. Ensure SGC scheduled imports cover CLOUD_APPLICATION_INSTANCE and PROCESS_GROUP entity types that Davis may select as dt.source_entity.</p>
 </div>
@@ -1846,9 +1935,9 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_step_3_dynatrace_sends_the_problem_to_servicenow">2.5. Step 3 — Dynatrace sends the problem to ServiceNow</h3>
+<h3 id="_step_3_dynatrace_sends_the_problem_to_servicenow">3.5. Step 3 — Dynatrace sends the problem to ServiceNow</h3>
 <div class="sect3">
-<h4 id="_webhook_endpoint">2.5.1. Webhook endpoint</h4>
+<h4 id="_webhook_endpoint">3.5.1. Webhook endpoint</h4>
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code>POST https://&lt;instance&gt;.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
@@ -1861,7 +1950,7 @@ Content-Type: application/json</code></pre>
 </div>
 </div>
 <div class="sect3">
-<h4 id="spec-dt-webhook-payload">2.5.2. Problem notification payload template</h4>
+<h4 id="spec-dt-webhook-payload">3.5.2. Problem notification payload template</h4>
 <div class="paragraph">
 <p>The template in <a href="#spec-dt-webhook-payload-json">Problem notification payload specification</a> is substituted by Dynatrace at send time. <strong><code>ProblemDetailsJSON.rankedEvents[]</code></strong> carries the OpenPipeline Davis properties from <a href="#spec-dt-openpipeline">OpenPipeline specification</a> (<code>event.description</code>, entity ids, severity). Those ranked events are the <strong>problem specification</strong> that flows into ServiceNow <strong><code>em_event.description</code></strong> (via <strong><code>ProblemDetailsText</code></strong>) and into <strong><code>em_event.additional_info</code></strong>.</p>
 </div>
@@ -1890,7 +1979,7 @@ Content-Type: application/json</code></pre>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_webhook_field_mapping">2.5.3. Webhook field mapping</h4>
+<h4 id="_webhook_field_mapping">3.5.3. Webhook field mapping</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 25%;">
@@ -1954,7 +2043,7 @@ Content-Type: application/json</code></pre>
 </table>
 </div>
 <div class="sect3">
-<h4 id="_complete_example_webhook_body">2.5.4. Complete example webhook body</h4>
+<h4 id="_complete_example_webhook_body">3.5.4. Complete example webhook body</h4>
 <div class="paragraph">
 <p>After Dynatrace substitutes placeholders for an ERROR log problem:</p>
 </div>
@@ -2000,7 +2089,7 @@ Content-Type: application/json</code></pre>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_ensuring_log_fields_reach_servicenow">2.5.5. Ensuring log fields reach ServiceNow</h4>
+<h4 id="_ensuring_log_fields_reach_servicenow">3.5.5. Ensuring log fields reach ServiceNow</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -2053,7 +2142,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_step_3">2.5.6. ServiceNow (Step 3)</h4>
+<h4 id="_servicenow_step_3">3.5.6. ServiceNow (Step 3)</h4>
 <div class="paragraph">
 <p>The <strong>Observability engineer</strong> (ServiceNow administrator with Event Management and SGC access) must verify the push connector — not the monitored application developer:</p>
 </div>
@@ -2094,9 +2183,9 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect2">
-<h3 id="_step_4_servicenow_receives_the_event_and_binds_infrastructure_ci">2.6. Step 4 — ServiceNow receives the event and binds infrastructure CI</h3>
+<h3 id="_step_4_servicenow_receives_the_event_and_binds_infrastructure_ci">3.6. Step 4 — ServiceNow receives the event and binds infrastructure CI</h3>
 <div class="sect3">
-<h4 id="_event_listener">2.6.1. Event listener</h4>
+<h4 id="_event_listener">3.6.1. Event listener</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -2125,7 +2214,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </table>
 </div>
 <div class="sect3">
-<h4 id="_em_event_field_mapping">2.6.2. em_event field mapping</h4>
+<h4 id="_em_event_field_mapping">3.6.2. em_event field mapping</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 25%;">
@@ -2194,7 +2283,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </table>
 </div>
 <div class="sect3">
-<h4 id="_ci_binding_procedure">2.6.3. CI binding procedure</h4>
+<h4 id="_ci_binding_procedure">3.6.3. CI binding procedure</h4>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
@@ -2213,7 +2302,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect3">
-<h4 id="_entity_type_to_cmdb_class">2.6.4. Entity type to CMDB class</h4>
+<h4 id="_entity_type_to_cmdb_class">3.6.4. Entity type to CMDB class</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 35%;">
@@ -2266,7 +2355,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect3">
-<h4 id="_description_and_alert_text">2.6.5. Description and alert text</h4>
+<h4 id="_description_and_alert_text">3.6.5. Description and alert text</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 25%;">
@@ -2299,7 +2388,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </table>
 </div>
 <div class="sect3">
-<h4 id="_sgc_and_event_management_configuration">2.6.6. SGC and Event Management configuration</h4>
+<h4 id="_sgc_and_event_management_configuration">3.6.6. SGC and Event Management configuration</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -2332,7 +2421,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </table>
 </div>
 <div class="sect3">
-<h4 id="step-4-sn-dynatrace">2.6.7. Application and Dynatrace (Step 4)</h4>
+<h4 id="step-4-sn-dynatrace">3.6.7. Application and Dynatrace (Step 4)</h4>
 <div class="paragraph">
 <p>At Step 4 the <strong>Observability engineer</strong> typically performs <strong>verification</strong>, not new Dynatrace or application configuration:</p>
 </div>
@@ -2362,9 +2451,9 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect2">
-<h3 id="_step_5_create_incident_bound_to_application_service">2.7. Step 5 — Create incident bound to Application Service</h3>
+<h3 id="_step_5_create_incident_bound_to_application_service">3.7. Step 5 — Create incident bound to Application Service</h3>
 <div class="sect3">
-<h4 id="_severity_policy">2.7.1. Severity policy</h4>
+<h4 id="_severity_policy">3.7.1. Severity policy</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 40%;">
@@ -2392,7 +2481,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect3">
-<h4 id="_layer_model">2.7.2. Layer model</h4>
+<h4 id="_layer_model">3.7.2. Layer model</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 20%;">
@@ -2426,7 +2515,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </table>
 </div>
 <div class="sect3">
-<h4 id="step-5-incident-correlation">2.7.3. Incident correlation</h4>
+<h4 id="step-5-incident-correlation">3.7.3. Incident correlation</h4>
 <div class="paragraph">
 <p>Incident correlation defines how enriched alerts map to <strong><code>incident.cmdb_ci</code></strong>. The business rule <strong><code>em-alert-create-k8s-log-incident</code></strong> tries the <strong>Client-side</strong> log path first, then the <strong>Service-side</strong> Contains traversal.</p>
 </div>
@@ -2460,13 +2549,13 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </tbody>
 </table>
 <div class="sect4">
-<h5 id="step-5-service-side">2.7.3.1. Service-side</h5>
+<h5 id="step-5-service-side">3.7.3.1. Service-side</h5>
 <div class="paragraph">
 <p>The <strong>Spark Service-Side Log Pattern</strong> resolves Application Services by traversing <strong>Contains::Contained by</strong> from the alert&#8217;s pod CI. A materialized edge from <code>cmdb_ci_service_discovered</code> (parent) to <code>cmdb_ci_kubernetes_pod</code> (child) <strong>must</strong> exist before the problem fires.</p>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="Incident_Application_Service_correlation_Service_Side.png" alt="Incident Application Service correlation Service Side" width="1011" height="59">
+<img src="images/Incident_Application_Service_correlation_Service_Side.png" alt="Incident Application Service correlation Service Side" width="1011" height="59">
 </div>
 <div class="title">Figure 3. Incident correlation — Spark Service-Side Log Pattern</div>
 </div>
@@ -2491,13 +2580,13 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect4">
-<h5 id="step-5-client-side">2.7.3.2. Client-side</h5>
+<h5 id="step-5-client-side">3.7.3.2. Client-side</h5>
 <div class="paragraph">
 <p>The <strong>Spark Client-Side Log Pattern</strong> maps log paths to a single logical Application Service. Client-mode driver logs <strong>do not</strong> correspond to a <code>cmdb_ci_kubernetes_pod</code>; incident automation <strong>must not</strong> depend on alert CI or Contains edges.</p>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="Incident_Application_Service_correlation_Client_Side.png" alt="Incident Application Service correlation Client Side" width="1545" height="59">
+<img src="images/Incident_Application_Service_correlation_Client_Side.png" alt="Incident Application Service correlation Client Side" width="1545" height="59">
 </div>
 <div class="title">Figure 4. Incident correlation — Spark Client-Side Log Pattern</div>
 </div>
@@ -2520,7 +2609,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 </div>
 </div>
 <div class="sect3">
-<h4 id="csdm-identifier-field-mapping">2.7.4. CSDM identifier lookup</h4>
+<h4 id="csdm-identifier-field-mapping">3.7.4. CSDM identifier lookup</h4>
 <div class="paragraph">
 <p>CSDM <strong><code>identifier</code></strong> in <code>*.csdm.yaml</code> is the logical machine key embedded in log paths and optional Dynatrace tags. The table below shows which CMDB fields are reliable for incident lookup on optimizincdemo1.</p>
 </div>
@@ -2567,14 +2656,14 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="known-limitation-davis-bundling">2.7.5. Known limitation — Davis problem bundling</h4>
+<h4 id="known-limitation-davis-bundling">3.7.5. Known limitation — Davis problem bundling</h4>
 <div class="paragraph">
-<p>Dynatrace Davis <strong>bundles</strong> multiple log-derived <code>ERROR_EVENT</code> rows that share a root-cause analysis into <strong>one problem</strong>. When client-mode and Service-side log lines fire within the same Davis correlation window, a <strong>single</strong> <code>em_alert.description</code> can contain <strong>both</strong>:</p>
+<p>Dynatrace Davis <strong>bundles</strong> multiple log-derived <code>ERROR_EVENT</code> rows that share a root-cause analysis into <strong>one problem</strong> when they share the same <strong><code>dt.source_entity</code></strong> (historically the OneAgent <strong>HOST</strong> for file-tailed logs). When client-mode and Service-side log lines fire within the same Davis correlation window on the same host, a <strong>single</strong> <code>em_alert.description</code> can contain <strong>both</strong>:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>Application log WARN on spark-client</code> with path <code>/mnt/spark/logs/spark-client/&#8230;&#8203;</code></p>
+<p><code>Application log WARN on spark-client-…</code> with path <code>/mnt/spark/logs/spark-client/&#8230;&#8203;</code></p>
 </li>
 <li>
 <p><code>Application log WARN on spark-master-0</code> with path <code>/mnt/spark/logs/spark-master-0/&#8230;&#8203;</code></p>
@@ -2582,33 +2671,24 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </ul>
 </div>
 <div class="paragraph">
-<p><strong>How this happens:</strong></p>
+<p><strong>Remediation (lab):</strong></p>
 </div>
-<div class="olist arabic">
-<ol class="arabic">
+<div class="ulist">
+<ul>
 <li>
-<p>OpenPipeline emits separate Davis events per log line with distinct <code>event.name</code> values (<code>… on spark-client</code> vs <code>… on spark-master-0</code>).</p>
+<p>OpenPipeline <strong><code>resolve-spark-client-entity</code></strong> sets client <code>dt.source_entity</code> via <strong><code>lookupEntity(CUSTOM_DEVICE, "Spark Client")</code></strong> (logical device, not HOST). See <code>Davis_Bundling_Issue.md</code>.</p>
 </li>
 <li>
-<p>Davis root-cause analysis treats concurrent chapter activity on the same host/cluster as <strong>one problem</strong> when errors correlate temporally.</p>
+<p>ServiceNow <strong><code>ResolveApplicationService.applySparkClientAlertBinding()</code></strong> binds alert/event CI to Application Service <strong>Spark Client</strong> when <code>/logs/spark-client/</code> is present and <strong>skips</strong> pod rebind.</p>
 </li>
-<li>
-<p>The ServiceNow webhook receives <strong>one</strong> problem payload whose description concatenates <strong>all</strong> bundled event summaries.</p>
-</li>
-<li>
-<p><code>em-alert-create-k8s-log-incident</code> scans for <code>/logs/spark-client/</code> <strong>first</strong>; if absent from the bundled text ordering, <strong>Service-side</strong> correlation may win and set <strong><code>incident.cmdb_ci</code></strong> to <strong>Spark Master</strong> even when the operator intended <strong>Spark Client</strong>.</p>
-</li>
-<li>
-<p>Event Management may also pre-link alerts to an existing open incident (<code>INC0013763</code>) before the business rule corrects Application Service assignment.</p>
-</li>
-</ol>
+</ul>
 </div>
 <div class="paragraph">
-<p><strong>Impact:</strong> Client-side and Service-side validation in the same test window can produce <strong>misleading incident CI</strong> on bundled alerts. Split test runs by path pattern or wait for Davis timeout (lab: <strong>15m</strong> <code>dt.davis.event_timeout</code>) between pattern tests until remediation is implemented.</p>
+<p><strong>Historical impact (pre-remediation):</strong> Client-side and Service-side validation in the same test window produced <strong>misleading alert CI</strong> (<code>spark-master-0</code>) and incidents on the host. Split test runs or wait for Davis timeout (lab: <strong>15m</strong> <code>dt.davis.event_timeout</code>) remain useful as isolation controls.</p>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_incident_automation_specification">2.7.6. ServiceNow incident automation specification</h4>
+<h4 id="_servicenow_incident_automation_specification">3.7.6. ServiceNow incident automation specification</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -2665,7 +2745,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </table>
 </div>
 <div class="sect3">
-<h4 id="_business_rule_order_and_rationale">2.7.7. Business rule order and rationale</h4>
+<h4 id="_business_rule_order_and_rationale">3.7.7. Business rule order and rationale</h4>
 <div class="paragraph">
 <p>Business rules on <code>em_event</code> and <code>em_alert</code> run in <strong>order</strong> within the same <strong>when</strong> phase (<code>before</code> or <code>after</code>). Lower order runs first.</p>
 </div>
@@ -2707,7 +2787,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </table>
 </div>
 <div class="sect3">
-<h4 id="_alert_to_incident_linkage_em_alert_incident">2.7.8. Alert to incident linkage (<code>em_alert.incident</code>)</h4>
+<h4 id="_alert_to_incident_linkage_em_alert_incident">3.7.8. Alert to incident linkage (<code>em_alert.incident</code>)</h4>
 <div class="paragraph">
 <p>On <strong>optimizincdemo1</strong>, Event Management links an alert to its incident through <strong><code>em_alert.incident</code></strong> (reference to the incident record). That field populates the incident <strong>Alerts</strong> tab. Some instances expose the same reference as <code>em_alert.task</code>; this build uses <strong><code>incident</code> only</strong> — do not reference <code>task</code>.</p>
 </div>
@@ -2719,7 +2799,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="_problem_and_alert_lifecycle_open_resolved">2.7.9. Problem and alert lifecycle (OPEN / RESOLVED)</h4>
+<h4 id="_problem_and_alert_lifecycle_open_resolved">3.7.9. Problem and alert lifecycle (OPEN / RESOLVED)</h4>
 <div class="paragraph">
 <p>Spark/Log4j does <strong>not</strong> emit explicit “clear” or “recovery” log lines for this use case. Closure is driven by <strong>Dynatrace problem lifecycle</strong>, not application log content:</p>
 </div>
@@ -2750,7 +2830,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="_openpipeline_and_custom_source_attributes_generic_log4j_pattern">2.7.10. OpenPipeline and custom-source attributes (generic Log4j pattern)</h4>
+<h4 id="_openpipeline_and_custom_source_attributes_generic_log4j_pattern">3.7.10. OpenPipeline and custom-source attributes (generic Log4j pattern)</h4>
 <div class="paragraph">
 <p>Attributes added by automation (not Spark-specific semantics):</p>
 </div>
@@ -2807,7 +2887,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-5-em-rules">2.7.11. Event Management rules (manual configuration)</h4>
+<h4 id="step-5-em-rules">3.7.11. Event Management rules (manual configuration)</h4>
 <div class="paragraph">
 <p>Configure under <strong>Event Management → Rules</strong>:</p>
 </div>
@@ -2838,7 +2918,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="_script_includes">2.7.12. Script Includes</h4>
+<h4 id="_script_includes">3.7.12. Script Includes</h4>
 <div class="paragraph">
 <p>Deploy from <code>servicenow/integrations/incident/</code>. Global scope, <strong>Active</strong> = true. Ansible: <code>ansible/playbooks/servicenow/incident/deploy.yml</code>.</p>
 </div>
@@ -2846,7 +2926,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 <p>Each Script Include below summarizes <strong>purpose</strong>, <strong>inputs</strong>, <strong>outputs / side effects</strong>, and how it fits the business rules. Source of truth is the <code>.si.js</code> file in the repository.</p>
 </div>
 <div class="sect4">
-<h5 id="_resolveapplicationservice">2.7.12.1. ResolveApplicationService</h5>
+<h5 id="_resolveapplicationservice">3.7.12.1. ResolveApplicationService</h5>
 <div class="paragraph">
 <p><strong>Purpose:</strong> Resolve <strong><code>cmdb_ci_service_discovered</code></strong> (Application Service) sys_id for incident binding.</p>
 </div>
@@ -2877,7 +2957,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect4">
-<h5 id="_k8slogpodcibind">2.7.12.2. K8sLogPodCiBind</h5>
+<h5 id="_k8slogpodcibind">3.7.12.2. K8sLogPodCiBind</h5>
 <div class="paragraph">
 <p><strong>Purpose:</strong> Rebind <strong><code>em_event</code></strong> and <strong><code>em_alert</code></strong> from HOST or empty CI to <strong><code>cmdb_ci_kubernetes_pod</code></strong> when the log path directory segment matches a discovered pod name (OpenPipeline often leaves problems on HOST).</p>
 </div>
@@ -2909,7 +2989,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-5-br-k8s-pod">2.7.13. Business rules (prescriptive configuration)</h4>
+<h4 id="step-5-br-k8s-pod">3.7.13. Business rules (prescriptive configuration)</h4>
 <div class="paragraph">
 <p>Create under <strong>System Definition → Business Rules</strong>. All three run <strong>After</strong> insert and update. Filter conditions must include <strong><code>source=SGO-Dynatrace</code></strong> so legacy connectors are not modified.</p>
 </div>
@@ -2950,7 +3030,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </tbody>
 </table>
 <div class="sect4">
-<h5 id="_em_event_bind_k8s_log_pod_ci">2.7.13.1. em-event-bind-k8s-log-pod-ci</h5>
+<h5 id="_em_event_bind_k8s_log_pod_ci">3.7.13.1. em-event-bind-k8s-log-pod-ci</h5>
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code class="language-javascript" data-lang="javascript">(function executeRule(current, previous /*null on insert*/) {
@@ -2966,7 +3046,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect4">
-<h5 id="_em_alert_bind_k8s_log_pod_ci">2.7.13.2. em-alert-bind-k8s-log-pod-ci</h5>
+<h5 id="_em_alert_bind_k8s_log_pod_ci">3.7.13.2. em-alert-bind-k8s-log-pod-ci</h5>
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code class="language-javascript" data-lang="javascript">(function executeRule(current, previous /*null on insert*/) {
@@ -2981,7 +3061,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect4">
-<h5 id="_em_alert_create_k8s_log_incident">2.7.13.3. em-alert-create-k8s-log-incident</h5>
+<h5 id="_em_alert_create_k8s_log_incident">3.7.13.3. em-alert-create-k8s-log-incident</h5>
 <div class="paragraph">
 <p>Creates or correlates an incident on the Application Service, then sets <strong><code>current.task</code></strong> so the alert appears on the incident <strong>Alerts</strong> tab.</p>
 </div>
@@ -3094,7 +3174,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 </div>
 </div>
 <div class="sect3">
-<h4 id="_ansible_deployment">2.7.14. Ansible deployment</h4>
+<h4 id="_ansible_deployment">3.7.14. Ansible deployment</h4>
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code class="language-bash" data-lang="bash">cd ansible
@@ -3107,7 +3187,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </div>
 </div>
 <div class="sect3">
-<h4 id="_example_resolution_kubernetes_worker_pod">2.7.15. Example resolution (Kubernetes worker pod)</h4>
+<h4 id="_example_resolution_kubernetes_worker_pod">3.7.15. Example resolution (Kubernetes worker pod)</h4>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 25%;">
@@ -3148,7 +3228,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </table>
 </div>
 <div class="sect3">
-<h4 id="_application_and_dynatrace_step_5">2.7.16. Application and Dynatrace (Step 5)</h4>
+<h4 id="_application_and_dynatrace_step_5">3.7.16. Application and Dynatrace (Step 5)</h4>
 <div class="paragraph">
 <p>No configuration on the application or Dynatrace side. Dynatrace problem tags (Project, Environment) do not replace CSDM tags on pod CIs for incident binding.</p>
 </div>
@@ -3158,13 +3238,13 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </div>
 </div>
 <div class="sect1">
-<h2 id="legacy-sgo-coexistence">3. Legacy and SGO-Dynatrace coexistence</h2>
+<h2 id="legacy-sgo-coexistence">Appendix A: Legacy and SGO-Dynatrace coexistence</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>During migration from a legacy Event Management push connector (<code>source=Dynatrace</code> on the inbound URL) to Service Graph Connector (<code>source=SGO-Dynatrace</code>), <strong>both paths may be active</strong>. Use <strong><code>em_event.source</code></strong> and <strong><code>em_alert.source</code></strong> to scope automation — never assume a single connector.</p>
 </div>
 <div class="sect2">
-<h3 id="_separation_by_source">3.1. Separation by source</h3>
+<h3 id="_separation_by_source">A.1. Separation by source</h3>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 30%;">
@@ -3203,7 +3283,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </table>
 </div>
 <div class="sect2">
-<h3 id="_scoping_rules_and_profiles">3.2. Scoping rules and profiles</h3>
+<h3 id="_scoping_rules_and_profiles">A.2. Scoping rules and profiles</h3>
 <div class="ulist">
 <ul>
 <li>
@@ -3219,7 +3299,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </div>
 </div>
 <div class="sect2">
-<h3 id="_host_cpu_alerts_not_spark_specific">3.3. Host CPU alerts (not Spark-specific)</h3>
+<h3 id="_host_cpu_alerts_not_spark_specific">A.3. Host CPU alerts (not Spark-specific)</h3>
 <div class="paragraph">
 <p>Metric events on <strong><code>builtin:host.cpu.usage</code></strong> fire per <strong>host</strong>, not per application. Even on the SGC path, a CPU problem binds <strong><code>em_alert.cmdb_ci</code></strong> to the breaching <strong>host CI</strong> — that is correct behavior.</p>
 </div>
@@ -3244,7 +3324,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </div>
 </div>
 <div class="sect2">
-<h3 id="_when_to_retire_legacy_connector">3.4. When to retire legacy connector</h3>
+<h3 id="_when_to_retire_legacy_connector">A.4. When to retire legacy connector</h3>
 <div class="paragraph">
 <p>After SGC cutover is verified (events arrive with <code>source=SGO-Dynatrace</code>, pod CI binding works, incidents link on <strong>Alerts</strong> tab):</p>
 </div>
@@ -3268,7 +3348,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-07-08 13:58:06 -0500
+Last updated 2026-07-20 15:25:42 -0500
 </div>
 </div>
 </body>

@@ -1,4 +1,4 @@
-= Problem to Incident
+= Log to Incident
 :doctype: book
 :toc: left
 :toclevels: 3
@@ -6,7 +6,7 @@
 :icons: font
 :source-highlighter: highlight.*js*
 :experimental:
-:description: Reference implementation for Log to Incident — application logs through Dynatrace to ServiceNow
+:description: Log to Incident — business process and reference implementation (observability platforms to ITSM)
 :kroki-server-url: https://kroki.io
 :kroki-http-method: post
 :kroki-default-format: png
@@ -15,13 +15,64 @@
 :listing-font-size: 8
 :sectnumlevels: 5
 :xrefstyle: short
+// draw.io SVG embeds + asciidoctor-diagram Graphviz PNGs share images/ (gitignored)
+:imagesdir: images
+:imagesoutdir: images
 
 == Purpose
-Large incident resolution times can impact business operations and customer satisfaction. One way to reduce resolution times for incidents is to bring those critical problems directly to attention of the appropriate application operations team in a timely manner. This requires seamlessly bridging observability processes to IT service management processes. This documents shows how to integrate observability to IT service management into a seamless process. 
 
-To illustrate this integration we use Apache Spark as the application of interest along with Dynatrace as the observability platform and ServiceNow as the IT service management platform. Spark is a popular open-source distributed computing system that is used for large-scale data processing and analytics. It is used in a wide range of industries, including finance, healthcare, and retail. Dynatrace is a popular observability platform that is used to monitor and troubleshoot applications. ServiceNow is the market leader in IT service management  that is used to manage IT services and incidents.
+Large incident resolution times hurt business operations and customer satisfaction. One way to shorten resolution is to bring critical application problems to the right operations team quickly and with enough context to act. That requires bridging **observability** (detecting and describing problems from runtime signals) with **IT service management** (tracking work as incidents, assignment, and closure).
 
-We call this class of observability-to-ITSM processes, which starts in Dynatace as a problem and ends in ServiceNow as a resolved incident, **Problem to Incident**. 
+This document defines that bridge as the **Log to Incident** process: selected application log messages become managed incidents for the application operations team. The process is named for the *signal type* and *outcome*, not for any particular vendor or tool. Implementations may use different observability and ITSM platforms; this document’s worked example uses Apache Spark as the application, with platform-specific sections for how those platforms are configured.
+
+== Log to Incident
+
+**Log to Incident** is the Observability process that detects and turns *critical* application log messages into *tracked* IT incidents so the application operations team can respond in time. It does this through a three broad phase process: 
+
+. The application logs a message
+. The observability tooling detects the message as a being salient and creates an alert and sends it to the ITSM platform 
+. The ITSM platform determins which alerts are salient and then creates an incident for operators to track.
+
+<<fig-log-to-incident-phases>> illustrates these phases in more detail.
+
+[.figure-indent]
+[[fig-log-to-incident-phases]]
+.Log to Incident process phases
+image::Log_to_Incident.svg[Log to Incident process phases,width=100%,align=center]
+
+
+=== What the process does
+
+. An application writes operational messages to its application log (errors, warnings, or other agreed severity).
+. Observability tooling collects those messages and decides which ones are severe enough to treat as a *problem* (a detected issue worth escalating).
+. The problem is handed to IT service management as an *event* or *alert* tied to the right infrastructure or application identity.
+. Automation creates (or updates) an *incident* assigned to the application’s support organization, carrying enough log context for diagnosis.
+. The operations team works and closes the incident through normal ITSM practice.
+
+The process intentionally does **not** depend on a single observability product or a single ITSM product. What must stay stable is the *contract*: which log lines matter, how the application is identified for assignment, and what context travels with the incident.
+
+=== What must be agreed up front
+
+Not every log line should become an incident. Flooding operations with low-value tickets increases noise and lengthens real outages. Observability engineers **must** agree with application developers and operations on:
+
+* Which severities or message patterns are *incident-worthy*.
+* How log lines are structured so the incident carries actionable context (what failed, where, which workload or component).
+* Which *application service* (or equivalent business CI) owns the work when an incident is created.
+
+=== Client and server applications
+
+Many systems have both *service-side* components (clustered services, pods, long-running servers) and *client-side* components (drivers, desktops, mobile apps, or other unmanaged endpoints). Log to Incident must still escalate both, even when the client is not a managed CI in the CMDB. That usually means:
+
+* Service-side: map from the running workload’s identity to the application service that operations supports.
+* Client-side: map from a durable log-path or naming contract to a logical application service that represents the client population.
+
+=== Platform implementations
+
+Later chapters describe how to realize Log to Incident on specific platforms. The first implementation in this document is **Using ServiceNow and Dynatrace**. Additional chapters (for example Elastic Stack and ServiceNow) **may** be added without renaming the process.
+
+== Using ServiceNow and Dynatrace
+
+This chapter is the reference implementation of Log to Incident using **Dynatrace** as the observability platform and **ServiceNow** as the ITSM / Event Management platform. Apache Spark is the sample application (WARN and ERROR log lines escalate in the lab; production agreements often limit escalation to ERROR after review with operations and development).
 
 External references (vendor documentation):
 
@@ -30,17 +81,8 @@ External references (vendor documentation):
 * https://www.servicenow.com/docs/bundle/zurich-it-operations-management/page/product/event-management/concept/event-management.html[ServiceNow — Event Management]
 * https://spark.apache.org/docs/latest/index.html[Apache Spark Documentation]
 
-
-== Log to Incident
-
-The *Log to Incident* process is subclass of the Problem to Incident process that takes critical issues (problems) that are noted in an application log file and raise an incident in ServicNow. This alows for prompt attention to be brought to the problem by the application operations team.
-
-Not all log file entries are critical enough to justify an incident. Observabilty engineers should work with application developers to identify which log entries are critical and warrant an incident. Otherwise, operations teams could be flooded with incidents that are not critical and consume time to resolve and close. Observability engineers and application developers should also work to together on the structure and format of the log entries to ensure that key relevant information about the application is communicated to the application operations team to make it easier for the application team to resolve. 
-
-For the purposes of this implementation, we designated Spark WARN and ERROR log messages as critical enough to justify an incident. In a real-world implementation, only ERROR log messages would be designated as critical enough to justify an incident. Even then critical log entries shoujd only be designated after discussion with the application operations and development teams. 
-
 === End-to-end flow
-The figure below illustrates the end-to-end flow of the Log to Incident process starting with the application JVM writing to the application log file and ending with the incident being created in ServiceNow.
+The figure below illustrates the end-to-end flow of this implementation: the application JVM writes to the application log file; Dynatrace detects, correlates, and notifies; ServiceNow creates the event, alert, and incident.
 
 [.figure-indent]
 .Log to Incident end-to-end data flow
@@ -118,7 +160,7 @@ The end-to-end flow in Figure XXX must handle both the **Service-side** and the 
 
 For those not famialr with Spark's client-server model, the figure below illustrates the different components of the Spark application.
 
-image::images/spark-architecture.svg[Spark client-server architecture — Master, Workers, client driver, and History Server,width=75%,align=center]
+image::spark-architecture.svg[Spark client-server architecture — Master, Workers, client driver, and History Server,width=75%,align=center]
 
 Spark can run in one of two modes: *Client Mode* or *Cluster Mode*.
 In client mode, the client-side application is a standalone application that runs on a workstation or host.The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application. 
@@ -148,7 +190,7 @@ The ServiceNow modeling is the data foundation of the Log to Incident process. I
 
 The Service-side model shows logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped logs. Use it to verify **`em_alert.cmdb_ci`** → pod and **`incident.cmdb_ci`** → Application Service before enabling automation.
 
-image::images/spark-servicenow-model-service-side.svg[Spark Service-Side model,width=100%,align=center]
+image::spark-servicenow-model-service-side.svg[Spark Service-Side model,width=100%,align=center]
 
 **Lab scenario:** WARN from `Master:` logger in `/mnt/spark/logs/spark-master-0/spark-app.log`. ServiceNow binds **`em_event.cmdb_ci`** / **`em_alert.cmdb_ci`** to **`cmdb_ci_kubernetes_pod`**. **`incident.cmdb_ci`** is **`cmdb_ci_service_discovered`** for Application Service **spark-master** (from `servicenow/regions/brooks-lab/spark.csdm.yaml`), via the **Spark Service-Side Log Pattern** — not the Dynatrace problem object and not the pod CI.
 
@@ -187,7 +229,7 @@ Tag-based Application Services (`service_mapping: tags`, `platform: kubernetes`)
 The Client-side model shows a **host-independent** logical Application Service for PySpark drivers that may run on workstations outside CMDB discovery scope. There is **no required Contains edge** from client hosts to the Application Service.
 
 
-image::images/spark.servicenow-model-client-side.svg[Spark Service-Side model,width=100%,align=center]
+image::spark.servicenow-model-client-side.svg[Spark Service-Side model,width=100%,align=center]
 
 Use the table below to see which objects participate in Client-side alerts and incidents.
 
@@ -198,7 +240,7 @@ Use the table below to see which objects participate in Client-side alerts and i
 |cmdb_ci_service_discovered — Spark Client
 |**incident.cmdb_ci** (path-based lookup); **no required Contains children**
 
-|cmdb_ci_linux_server — client host
+|cmdb_ci_linux_server *—* client host
 |May appear on **`em_alert.cmdb_ci`** when Davis binds to HOST; **not** used for incident CI
 
 |Per-driver `<instance>` segment
@@ -1402,20 +1444,17 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 [#known-limitation-davis-bundling]
 ==== Known limitation — Davis problem bundling
 
-Dynatrace Davis **bundles** multiple log-derived `ERROR_EVENT` rows that share a root-cause analysis into **one problem**. When client-mode and Service-side log lines fire within the same Davis correlation window, a **single** `em_alert.description` can contain **both**:
+Dynatrace Davis **bundles** multiple log-derived `ERROR_EVENT` rows that share a root-cause analysis into **one problem** when they share the same **`dt.source_entity`** (historically the OneAgent **HOST** for file-tailed logs). When client-mode and Service-side log lines fire within the same Davis correlation window on the same host, a **single** `em_alert.description` can contain **both**:
 
-* `Application log WARN on spark-client` with path `/mnt/spark/logs/spark-client/...`
+* `Application log WARN on spark-client-…` with path `/mnt/spark/logs/spark-client/...`
 * `Application log WARN on spark-master-0` with path `/mnt/spark/logs/spark-master-0/...`
 
-**How this happens:**
+**Remediation (lab):**
 
-. OpenPipeline emits separate Davis events per log line with distinct `event.name` values (`… on spark-client` vs `… on spark-master-0`).
-. Davis root-cause analysis treats concurrent chapter activity on the same host/cluster as **one problem** when errors correlate temporally.
-. The ServiceNow webhook receives **one** problem payload whose description concatenates **all** bundled event summaries.
-. `em-alert-create-k8s-log-incident` scans for `/logs/spark-client/` **first**; if absent from the bundled text ordering, **Service-side** correlation may win and set **`incident.cmdb_ci`** to **Spark Master** even when the operator intended **Spark Client**.
-. Event Management may also pre-link alerts to an existing open incident (`INC0013763`) before the business rule corrects Application Service assignment.
+* OpenPipeline **`resolve-spark-client-entity`** sets client `dt.source_entity` via **`lookupEntity(CUSTOM_DEVICE, "Spark Client")`** (logical device, not HOST). See `Davis_Bundling_Issue.md`.
+* ServiceNow **`ResolveApplicationService.applySparkClientAlertBinding()`** binds alert/event CI to Application Service **Spark Client** when `/logs/spark-client/` is present and **skips** pod rebind.
 
-**Impact:** Client-side and Service-side validation in the same test window can produce **misleading incident CI** on bundled alerts. Split test runs by path pattern or wait for Davis timeout (lab: **15m** `dt.davis.event_timeout`) between pattern tests until remediation is implemented.
+**Historical impact (pre-remediation):** Client-side and Service-side validation in the same test window produced **misleading alert CI** (`spark-master-0`) and incidents on the host. Split test runs or wait for Davis timeout (lab: **15m** `dt.davis.event_timeout`) remain useful as isolation controls.
 
 ==== ServiceNow incident automation specification
 
@@ -1767,6 +1806,7 @@ No configuration on the application or Dynatrace side. Dynatrace problem tags (P
 
 ---
 
+[appendix]
 [#legacy-sgo-coexistence]
 == Legacy and SGO-Dynatrace coexistence
 

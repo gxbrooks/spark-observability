@@ -1,0 +1,79 @@
+---
+# Restore Dynatrace Operator + webhook after stop.yml scaled them to zero,
+# and renew expired webhook TLS certs (secret dynatrace-webhook-certs, ~7d TTL).
+# Without this, webhook CrashLoopBackOff: "certificate is outdated".
+
+- name: Scale Dynatrace Operator deployment to one replica
+  ansible.builtin.command: kubectl -n dynatrace scale deployment dynatrace-operator --replicas=1
+  register: dt_operator_scale_up
+  changed_when: "'scaled' in (dt_operator_scale_up.stdout | default(''))"
+  failed_when: false
+
+- name: Scale Dynatrace webhook deployment to two replicas
+  ansible.builtin.command: kubectl -n dynatrace scale deployment dynatrace-webhook --replicas=2
+  register: dt_webhook_scale_up
+  changed_when: "'scaled' in (dt_webhook_scale_up.stdout | default(''))"
+  failed_when: false
+
+- name: Check whether webhook TLS certificate is missing or expired
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if ! kubectl -n dynatrace get secret dynatrace-webhook-certs >/dev/null 2>&1; then
+      echo "renew"
+      exit 0
+    fi
+    not_after="$(kubectl -n dynatrace get secret dynatrace-webhook-certs \
+      -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -enddate \
+      | sed 's/^notAfter=//')"
+    end_epoch="$(date -d "${not_after}" +%s)"
+    now_epoch="$(date +%s)"
+    if [ "${end_epoch}" -le "${now_epoch}" ]; then
+      echo "renew"
+    elif [ "$((end_epoch - now_epoch))" -le 43200 ]; then
+      # Renew within 12h of expiry (matches Dynatrace Operator renewalThreshold)
+      echo "renew"
+    else
+      echo "ok"
+    fi
+  args:
+    executable: /bin/bash
+  register: dt_webhook_cert_renew_needed
+  changed_when: false
+  failed_when: false
+
+- name: Delete expired or missing dynatrace-webhook-certs for operator regeneration
+  ansible.builtin.command: kubectl -n dynatrace delete secret dynatrace-webhook-certs --ignore-not-found
+  register: dt_webhook_cert_delete
+  changed_when: "'deleted' in (dt_webhook_cert_delete.stdout | default(''))"
+  when: (dt_webhook_cert_renew_needed.stdout | default('ok') | trim) == 'renew'
+
+- name: Restart Dynatrace Operator after webhook cert deletion
+  ansible.builtin.command: kubectl -n dynatrace rollout restart deployment/dynatrace-operator
+  when: (dt_webhook_cert_renew_needed.stdout | default('ok') | trim) == 'renew'
+  register: dt_operator_restart
+  changed_when: true
+
+- name: Wait for Dynatrace Operator rollout
+  ansible.builtin.command: kubectl -n dynatrace rollout status deployment/dynatrace-operator --timeout=180s
+  when: (dt_webhook_cert_renew_needed.stdout | default('ok') | trim) == 'renew'
+  changed_when: false
+
+- name: Restart Dynatrace webhook after cert regeneration
+  ansible.builtin.command: kubectl -n dynatrace rollout restart deployment/dynatrace-webhook
+  when: (dt_webhook_cert_renew_needed.stdout | default('ok') | trim) == 'renew'
+  register: dt_webhook_restart
+  changed_when: true
+
+- name: Wait for Dynatrace webhook rollout
+  ansible.builtin.command: kubectl -n dynatrace rollout status deployment/dynatrace-webhook --timeout=180s
+  register: dt_webhook_rollout
+  changed_when: false
+  failed_when: false
+
+- name: Show Dynatrace Operator/webhook restore result
+  ansible.builtin.debug:
+    msg: >-
+      dynatrace-operator scaled={{ dt_operator_scale_up.stdout | default('n/a') }};
+      dynatrace-webhook scaled={{ dt_webhook_scale_up.stdout | default('n/a') }};
+      cert_action={{ dt_webhook_cert_renew_needed.stdout | default('unknown') | trim }};
+      webhook_rollout={{ dt_webhook_rollout.stdout | default(dt_webhook_rollout.stderr) | default('n/a') }}

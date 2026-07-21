@@ -53,7 +53,7 @@ Spark JVMs (PySpark chapter **driver** on Lab3, **executors** in K8s pods, **mas
 | Spark 4.x DiskLog (optional) | `/opt/spark/logs` when present | `/opt/spark/logs/spark-app.log` |
 | Legacy (retired) | prior `run-chapters.sh` | `/mnt/spark/logs/<host>-chapter/` — dropped by OpenPipeline |
 
-See [Problem to Incident — client-side incident mapping](Problem_to_Incident.adoc#step-5-client-side) and [service-side mapping](Problem_to_Incident.adoc#step-5-service-side) for incident correlation. Documentation policy: [Observability — Service Management Documentation.tpg.md](Observability%20-%20Service%20Management%20Documentation.tpg.md).
+See [Log to Incident — client-side incident mapping](Log_to_Incident.adoc#step-5-client-side) and [service-side mapping](Log_to_Incident.adoc#step-5-service-side) for incident correlation. Documentation policy: [Observability — Service Management Documentation.tpg.md](Observability%20-%20Service%20Management%20Documentation.tpg.md).
 
 ### Configurations
 
@@ -388,7 +388,7 @@ ServiceNow: [em_event list — SGO-Dynatrace](https://optimizincdemo1.service-no
 
 ## Spark client-mode validation (brooks-lab)
 
-See [Problem to Incident — client-side incident mapping](Problem_to_Incident.adoc#log-to-incident-client) for the enterprise client model and [service-side mapping](Problem_to_Incident.adoc#log-to-incident-service) for K8s pod logs (master/worker).
+See [Log to Incident — client-side incident mapping](Log_to_Incident.adoc#log-to-incident-client) for the enterprise client model and [service-side mapping](Log_to_Incident.adoc#log-to-incident-service) for K8s pod logs (master/worker).
 
 ### Approach — both use cases
 
@@ -403,7 +403,7 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 2. **Ingest** — OneAgent custom log source paths `/mnt/spark/logs/spark-client/*/spark-app*.log` (restart OneAgent after deploy if paths were added recently).
 3. **Detect** — OpenPipeline `spark-client-warn-error-davis` processor; Davis **`event.name`** = `Application log {loglevel} on spark-client`; timeout **15m**.
 4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
-5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/logs/spark-client/` → Application Service **Spark Client** ([detail](Problem_to_Incident.adoc#step-5-spark-client-path)).
+5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/logs/spark-client/` → Application Service **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 
 ### Parallel chapter load (two drivers)
 

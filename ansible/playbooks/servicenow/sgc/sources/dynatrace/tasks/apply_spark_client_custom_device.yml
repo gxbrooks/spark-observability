@@ -1,0 +1,73 @@
+---
+# Ensure Dynatrace CUSTOM_DEVICE "Spark Client" for client-mode Davis events.
+# Prevents Davis bundling with HOST/pod problems when drivers share a lab node.
+# API: POST /api/v2/entities/custom?uiBased=true (requires DT_API_TOKEN scope entities.write)
+
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: Upsert Spark Client CUSTOM_DEVICE
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/entities/custom?uiBased=true"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      customDeviceId: "{{ dt_sn_spark_client_custom_device_id }}"
+      displayName: "{{ dt_sn_spark_client_custom_device_display_name }}"
+      type: "{{ dt_sn_spark_client_custom_device_type }}"
+      group: "{{ dt_sn_spark_client_custom_device_group }}"
+      properties:
+        servicenow.io/application-service-identifier: spark-client
+        purpose: "Logical entity for all Spark client-mode drivers (not a physical host)"
+    status_code: [200, 201, 204]
+  register: dt_spark_client_custom_device
+  delegate_to: localhost
+  run_once: true
+
+- name: Record Spark Client CUSTOM_DEVICE entityId
+  ansible.builtin.set_fact:
+    dt_spark_client_custom_device_entity_id: >-
+      {{ dt_spark_client_custom_device.json.entityId
+         | default(dt_spark_client_custom_device_entity_id | default('')) }}
+  when: dt_spark_client_custom_device.json is defined
+        and dt_spark_client_custom_device.json.entityId is defined
+  run_once: true
+
+- name: Lookup Spark Client CUSTOM_DEVICE if create returned no body
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_api_url_resolved }}/v2/entities?entitySelector={{
+        ('type(CUSTOM_DEVICE),entityName.equals("' ~ dt_sn_spark_client_custom_device_display_name ~ '")')
+        | urlencode
+      }}&fields=displayName&pageSize=5
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_spark_client_custom_device_lookup
+  when: (dt_spark_client_custom_device_entity_id | default('')) | length == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Set entityId from lookup
+  ansible.builtin.set_fact:
+    dt_spark_client_custom_device_entity_id: >-
+      {{ dt_spark_client_custom_device_lookup.json.entities[0].entityId | default('') }}
+  when:
+    - (dt_spark_client_custom_device_entity_id | default('')) | length == 0
+    - dt_spark_client_custom_device_lookup is defined
+    - not (dt_spark_client_custom_device_lookup.skipped | default(false))
+  run_once: true
+
+- name: Show Spark Client CUSTOM_DEVICE state
+  ansible.builtin.debug:
+    msg: >-
+      CUSTOM_DEVICE '{{ dt_sn_spark_client_custom_device_display_name }}'
+      (customDeviceId={{ dt_sn_spark_client_custom_device_id }})
+      => {{ dt_spark_client_custom_device_entity_id | default('(unknown)') }}.
+      If create failed with 403, add entities.write to DT_API_TOKEN
+      (observability/dynatrace ensure_api_token_scopes includes it).
+  run_once: true

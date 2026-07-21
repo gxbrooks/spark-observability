@@ -6,7 +6,7 @@ Deploy and validate K8s application log → Dynatrace → ServiceNow Event Manag
 
 | Playbook | Purpose |
 | -------- | ------- |
-| `deploy.yml` | Deploy `K8sLogPodCiBind`, `ResolveApplicationService`, and business rules |
+| `deploy.yml` | Deploy `K8sLogPodCiBind`, `ResolveApplicationService` (incl. Spark Client alert bind), and business rules |
 | `verify_log_incident_bindings.yml` | Assert recent SGO-Dynatrace events have pod CI and log path resource |
 | `diagnose.yml` | Open alerts, log incidents, business rules, legacy `source=Dynatrace` alerts; optional alert↔incident lookup |
 | `reprocess_spark_log_events.yml` | Re-run pod CI binding on existing `em_event` rows (after-update BR) |

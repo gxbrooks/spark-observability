@@ -49,6 +49,29 @@
           "azureToServicePropagation": false,
           "azureToPGPropagation": false
         }
+      },
+      {
+        "enabled": true,
+        "type": "ME",
+        "attributeRule": {
+          "entityType": "CUSTOM_DEVICE",
+          "conditions": [
+            {
+              "key": "CUSTOM_DEVICE_NAME",
+              "operator": "EQUALS",
+              "stringValue": "{{ dt_sn_spark_client_custom_device_display_name | default('Spark Client') }}",
+              "caseSensitive": false
+            }
+          ],
+          "serviceToHostPropagation": false,
+          "serviceToPGPropagation": false,
+          "pgToHostPropagation": false,
+          "pgToServicePropagation": false,
+          "hostToPGPropagation": false,
+          "customDeviceGroupToCustomDevicePropagation": false,
+          "azureToServicePropagation": false,
+          "azureToPGPropagation": false
+        }
       }
     ]
   }

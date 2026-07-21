@@ -24,4 +24,6 @@
         msg: >-
           Kubernetes OneAgent is managed by the Dynakube daemonset (not host systemd).
           This stop playbook only scales down the operator deployment.
+          start.yml restores operator/webhook replicas and renews expired
+          dynatrace-webhook-certs (webhook CrashLoopBackOff if certs expire while operator is down).
           To fully remove Dynakube/OneAgent resources, run dynatrace/uninstall.yml.

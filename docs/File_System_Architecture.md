@@ -156,7 +156,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 | `/mnt/spark/jupyter` | NFS | `/srv/nfs/jupyterhub` | NFS / bind | Yes |
 | **`/mnt/spark/logs`** | **Local** | **Not exported** | **`/var/local/spark/logs` → bind at `/mnt/spark/logs`** | **No** |
 
-**OneAgent** (Dynatrace) tails ` /mnt/spark/logs/*/spark-app.log*` on **each host’s local filesystem**. Pod logs exist only on the node where the pod is scheduled; client-mode driver logs exist only on the host running the driver (`/mnt/spark/logs/spark-client/<hostname>/`). Putting application logs on NFS caused every cluster OneAgent to tail the same files and mis-attribute `dt.source_entity` — see Problem_to_Incident documentation.
+**OneAgent** (Dynatrace) tails ` /mnt/spark/logs/*/spark-app.log*` on **each host’s local filesystem**. Pod logs exist only on the node where the pod is scheduled; client-mode driver logs exist only on the host running the driver (`/mnt/spark/logs/spark-client/<hostname>/`). Putting application logs on NFS caused every cluster OneAgent to tail the same files and mis-attribute `dt.source_entity` — see Log to Incident documentation.
 
 Legacy note: `/srv/nfs/spark/logs` on the NFS server may still contain old log trees; they are **not** mounted at `/mnt/spark/logs` after `ansible/playbooks/nfs/install.yml` runs the local logs play.
 

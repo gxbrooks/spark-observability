@@ -39,3 +39,12 @@
       ansible.builtin.command: kubectl -n dynatrace get dynakube dynakube -o name
       register: dynakube_name
       changed_when: false
+
+    - name: Assert Dynatrace webhook pods Ready and TLS cert not expired
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/check_webhook_health.yml"
+        apply:
+          tags: [webhook]
+      vars:
+        dt_webhook_check_fail: true
+      tags: [webhook]

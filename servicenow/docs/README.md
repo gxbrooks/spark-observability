@@ -41,6 +41,6 @@ Paths are relative to the **spark-observability** repo root (not the parent `rep
 
 Toolchain: `~/repos/myenv/assert_myenv.sh` (asciidoctor, asciidoctor-pdf, asciidoctor-diagram, graphviz).
 
-## Problem to Incident
+## Log to Incident
 
-See [Problem_to_Incident/Problem_to_Incident.adoc](Problem_to_Incident/Problem_to_Incident.adoc).
+See [Log_to_Incident/Log_to_Incident.adoc](Log_to_Incident/Log_to_Incident.adoc).

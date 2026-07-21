@@ -17,6 +17,12 @@
     - name: Detect SGC installation (controls webhook source= parameter)
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
 
+    - name: Ensure Spark Client CUSTOM_DEVICE (Davis entity for client-mode logs)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_client_custom_device.yml"
+
+    - name: Apply Spark Observability management zone (includes CUSTOM_DEVICE rule)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_management_zone.yml"
+
     - name: Apply brooks-lab alerting profile (Spark Observability management zone)
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_dt_alerting_profile.yml"
 

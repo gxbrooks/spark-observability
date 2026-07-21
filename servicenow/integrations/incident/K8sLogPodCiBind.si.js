@@ -31,9 +31,25 @@ K8sLogPodCiBind.prototype = {
    * Bind gr (em_event or em_alert) to cmdb_ci_kubernetes_pod when the log path
    * segment matches a discovered pod CI name.
    * Returns true when cmdb_ci was set to a pod CI.
+   * Does not run when the text encodes a spark-client path (Client-Side pattern
+   * — use ResolveApplicationService.applySparkClientAlertBinding instead).
    */
   applyPodBinding: function (gr) {
     if (gr.source.toString() !== 'SGO-Dynatrace') {
+      return false;
+    }
+
+    var combined =
+      gr.description.toString() +
+      ' ' +
+      gr.resource.toString() +
+      ' ' +
+      gr.node.toString();
+    if (
+      combined.indexOf('/logs/spark-client/') !== -1 ||
+      (combined.indexOf('Application log') !== -1 &&
+        combined.indexOf('spark-client-') !== -1)
+    ) {
       return false;
     }
 

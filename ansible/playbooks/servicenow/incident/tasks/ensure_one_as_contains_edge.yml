@@ -1,0 +1,57 @@
+---
+# Ensure one Contains::Contained by edge: Application Service → Kubernetes pod.
+# Inputs: sn_kva_identifier, sn_kva_ci_sys_id, sn_as_contains_name_by_identifier,
+#         sn_as_sys_id_by_name, sn_contains_rel_type_sys_id, sn_discovery_common_dir
+
+- name: Resolve Application Service for identifier {{ sn_kva_identifier }}
+  ansible.builtin.set_fact:
+    sn_as_contains_parent: >-
+      {{ sn_as_sys_id_by_name[sn_as_contains_name_by_identifier[sn_kva_identifier]] }}
+    sn_as_contains_as_name: "{{ sn_as_contains_name_by_identifier[sn_kva_identifier] }}"
+
+- name: Confirm CI is a Kubernetes pod
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_kubernetes_pod
+    sn_rest_query: "sysparm_query=sys_id={{ sn_kva_ci_sys_id }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+
+- name: Record pod lookup for Contains edge
+  ansible.builtin.set_fact:
+    sn_as_contains_is_pod: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_as_contains_pod_name: "{{ sn_rest_json.result[0].name | default('') }}"
+
+- name: Look up existing Contains relationship
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: >-
+      sysparm_query=parent={{ sn_as_contains_parent }}
+      ^child={{ sn_kva_ci_sys_id }}
+      ^type={{ sn_contains_rel_type_sys_id }}
+      &sysparm_limit=1
+  when: sn_as_contains_is_pod | bool
+
+- name: Record whether Contains edge already exists
+  ansible.builtin.set_fact:
+    sn_as_contains_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+  when: sn_as_contains_is_pod | bool
+
+- name: Create Contains relationship when missing
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_body:
+      parent: "{{ sn_as_contains_parent }}"
+      child: "{{ sn_kva_ci_sys_id }}"
+      type: "{{ sn_contains_rel_type_sys_id }}"
+  when:
+    - sn_as_contains_is_pod | bool
+    - not (sn_as_contains_exists | default(false) | bool)
+
+- name: Report Contains edge
+  ansible.builtin.debug:
+    msg: >-
+      {{ sn_as_contains_as_name }} Contains {{ sn_as_contains_pod_name }}
+      ({{ 'exists' if (sn_as_contains_exists | default(false) | bool) else 'created' }})
+  when: sn_as_contains_is_pod | bool
