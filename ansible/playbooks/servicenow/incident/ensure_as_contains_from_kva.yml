@@ -47,9 +47,7 @@
       ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
       vars:
         sn_rest_table: cmdb_ci_service_discovered
-        sn_rest_query: >-
-          sysparm_query=nameIN{{ sn_as_contains_name_by_identifier.values() | list | join(',') | urlencode }}
-          &sysparm_fields=sys_id,name&sysparm_limit=20
+        sn_rest_query: "sysparm_query=nameIN{{ sn_as_contains_name_by_identifier.values() | list | join(',') | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=20"
 
     - name: Map Application Service name → sys_id
       ansible.builtin.set_fact:
@@ -66,10 +64,7 @@
       ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
       vars:
         sn_rest_table: cmdb_key_value
-        sn_rest_query: >-
-          sysparm_query=key=servicenow.io/application-service-identifier
-          ^valueIN{{ sn_as_contains_name_by_identifier.keys() | list | join(',') | urlencode }}
-          &sysparm_fields=sys_id,value,configuration_item&sysparm_limit=200
+        sn_rest_query: "sysparm_query=key=servicenow.io/application-service-identifier^valueIN{{ sn_as_contains_name_by_identifier.keys() | list | join(',') | urlencode }}&sysparm_fields=sys_id,value,configuration_item&sysparm_limit=200"
 
     - name: Record KVA rows for Contains backfill
       ansible.builtin.set_fact:
@@ -79,10 +74,10 @@
       ansible.builtin.include_tasks: tasks/ensure_one_as_contains_edge.yml
       loop: "{{ sn_as_contains_kva_rows }}"
       loop_control:
-        label: "{{ item.value }} → {{ item.configuration_item }}"
+        label: "{{ item.value }} → {{ item.configuration_item.value | default(item.configuration_item) }}"
       vars:
         sn_kva_identifier: "{{ item.value }}"
-        sn_kva_ci_sys_id: "{{ item.configuration_item }}"
+        sn_kva_ci_sys_id: "{{ item.configuration_item.value | default(item.configuration_item) }}"
       when:
         - sn_kva_identifier in sn_as_contains_name_by_identifier
         - sn_as_contains_name_by_identifier[sn_kva_identifier] in sn_as_sys_id_by_name

@@ -24,11 +24,7 @@
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
   vars:
     sn_rest_table: cmdb_rel_ci
-    sn_rest_query: >-
-      sysparm_query=parent={{ sn_as_contains_parent }}
-      ^child={{ sn_kva_ci_sys_id }}
-      ^type={{ sn_contains_rel_type_sys_id }}
-      &sysparm_limit=1
+    sn_rest_query: "sysparm_query=parent={{ sn_as_contains_parent }}^child={{ sn_kva_ci_sys_id }}^type={{ sn_contains_rel_type_sys_id }}&sysparm_limit=1"
   when: sn_as_contains_is_pod | bool
 
 - name: Record whether Contains edge already exists
