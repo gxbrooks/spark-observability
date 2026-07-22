@@ -74,7 +74,8 @@ Authors **should** document `depends_on` entries using tier comments (not stored
 
 - CSDM **`name`** values **must not** embed **location** or **cluster** tokens (`brooks-lab`, `(Lab3)` as site).
 - **Location** **must** use the top-level **`location`** attribute (CMDB `cmn_location`) and matching runtime labels.
-- With **`expand`**, display **`name`** **may** include host instance suffix (`Spark Worker (Lab1)`); **`identifier`** **must** include the host token (`spark-worker-lab1`).
+- Authors **must not** use **`expand`** to create one Application Service per node for a horizontally scaled Kubernetes fleet (for example Spark Workers). Use **one** Application Service and the same `servicenow.io/application-service-identifier` on every pod; tag-based Service Mapping **Contains** all matching pods as they scale.
+- Authors **may** use **`expand`** for **host-scoped** agents where each host is a distinct operational Application Service (for example Elastic Agent or Dynatrace OneAgent per node). With **`expand`**, display **`name`** **may** include a host instance suffix (`Elastic Agent (Lab1)`); **`identifier`** **must** include the host token (`elastic-agent-lab1`).
 
 ### Location: CMDB column vs runtime label
 
@@ -160,6 +161,8 @@ The **Service Mapping operator** configures tag-based Service Mapping rules on t
 1.2.6 Tag-based Service Mapping adds **Contains** relationships from application services to discovered workload CIs when instance rules match labels. **`depends_on`** supplies cross-service and non-host infrastructure edges (for example `nfs_server`) the map does not infer automatically.
 
 1.2.7 Authors **must not** declare Application Service → `cmdb_ci_linux_server` relationships via `depends_on` with `type: linux_server` (or equivalent). When workloads are discovered, the Linux host **must** be reached through the workload CI (for example `cmdb_ci_kubernetes_pod` or `cmdb_ci_docker_container` **Runs on** the host). Hard-coded AS → host edges do not scale with rescheduling and multi-node placement and **must not** be used as a membership or placement model.
+
+1.2.8 Authors **must not** use `expand` to create one Application Service per Kubernetes node for a horizontally scaled fleet. Authors **must** declare a single Application Service and apply the same `servicenow.io/application-service-identifier` on every pod in the fleet so tag-based Service Mapping **Contains** all pods as replica count changes. Authors **may** use `expand` only for host-scoped agents where each host is itself a distinct Application Service (for example Elastic Agent or Dynatrace OneAgent).
 
 #### 1.3 Runtime tags — all platforms
 
@@ -393,7 +396,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 <tr><td><code>depends_on</code></td><td>Authors <strong>should</strong> declare tiered consumer → provider lists.</td></tr>
 <tr><td><code>tags</code></td><td>Authors <strong>must</strong> declare nested <code>kubernetes</code> and/or <code>docker</code> maps when <code>service_mapping: tags</code>.</td></tr>
 <tr><td><code>entry_points</code></td><td>Authors <strong>must</strong> declare when <code>service_mapping: vertical</code> and <code>discover: true</code> on Docker/host.</td></tr>
-<tr><td><code>expand</code></td><td>Authors <strong>may</strong> set <code>inventory_group</code> for per-host instances.</td></tr>
+<tr><td><code>expand</code></td><td>Authors <strong>may</strong> set <code>inventory_group</code> for per-host <em>agent</em> Application Services only (see Statement 1.2.8). Authors <strong>must not</strong> expand horizontally scaled Kubernetes fleets.</td></tr>
 <tr><td><code>short_description</code></td><td>Authors <strong>should</strong> set a human-readable summary.</td></tr>
 </tbody>
 </table>
@@ -545,6 +548,10 @@ Infrastructure targets and cross-file application services may not exist on firs
 ### Why Application Services must not Depends on linux_server
 
 Tag-based maps already place workloads under the Application Service (**Contains**). Discovery and SGC already place pods/containers on hosts (**Runs on**). Declaring AS → `cmdb_ci_linux_server` in `depends_on` duplicates placement as a static edge that drifts when pods reschedule. Prefer the discovered path: Application Service → Contains → pod → Runs on → host. Keep `depends_on` for cross-service and non-host infrastructure (for example NFS).
+
+### Why horizontally scaled fleets use one Application Service
+
+Creating one Application Service per node for Spark Workers (or similar Deployments) couples CSDM cardinality to inventory size and breaks when replica sets move or new nodes join. One Application Service with a shared `identifier` lets tag-based Service Mapping **Contains** every matching pod. Reserve `expand` for agents that are intentionally one Application Service per host.
 
 ## References
 

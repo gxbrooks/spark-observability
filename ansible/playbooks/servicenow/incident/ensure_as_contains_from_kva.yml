@@ -26,8 +26,7 @@
     sn_as_contains_name_by_identifier:
       spark-master: Spark Master
       spark-history-server: Spark History Server
-      spark-worker-lab1: Spark Worker (Lab1)
-      spark-worker-lab2: Spark Worker (Lab2)
+      spark-worker: Spark Worker
   tasks:
     - name: Resolve Contains::Contained by relationship type
       ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"

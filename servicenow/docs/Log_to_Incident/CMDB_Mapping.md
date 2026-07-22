@@ -104,7 +104,7 @@ Business Application: Data and Analytic Services
         ├── Application Service: Spark Client      (client-side)
         ├── Application Service: Spark Master      (service-side)
         ├── Application Service: Spark History Server
-        └── Application Service: Spark Worker (LabN)
+        └── Application Service: Spark Worker      (all worker pods)
 ```
 
 Source: `servicenow/regions/brooks-lab/spark.csdm.yaml`.

@@ -285,6 +285,8 @@ The table below lists each CMDB object in the Service-side scenario and which Ev
 
 The CSDM objects model how an application fits within the enterprise. It is a hierarchy of CIs that starts with the application service, which models the application instance. Associated with the application service at a lower  (concenpual) level are the CIs that represent the application's Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application. 
 
+For Spark there are three cluster mode application services: the Spark Master, the Spark Workers, and the Spark History Server. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. The Spark History Server is a built-in observability component that provides debugging and monitoring capabilities for Spark. 
+
 These components are the Spark Master, Spark Workers, and the Spark History Server. The components are represented by the CIs `cmdb_ci_service_discovered` and `cmdb_ci_kubernetes_pod`. Tag-based Service Mapping creates **Contains::Contained by** from each Application Service to its member pods. The Linux host is reached from the pod CI (**Runs on**), not from a hard-coded Application Service → `cmdb_ci_linux_server` edge.
 
 Tag-based Application Services (`service_mapping: tags`, `platform: kubernetes`) **must** materialize **Contains::Contained by** edges from Application Service to member pods **before** the first qualifying log line.
@@ -367,13 +369,9 @@ The table maps brooks-lab Spark Application Service identifiers to pod roles and
 |Spark history server
 |servicenow.io/application-service-identifier=spark-history-server
 
-|spark-worker-lab1
-|Spark worker on Lab1
-|servicenow.io/application-service-identifier=spark-worker-lab1
-
-|spark-worker-lab2
-|Spark worker on Lab2
-|servicenow.io/application-service-identifier=spark-worker-lab2
+|spark-worker
+|Spark worker Deployment fleet (all nodes)
+|servicenow.io/application-service-identifier=spark-worker
 |===
 
 Reference CSDM fragment from `servicenow/regions/brooks-lab/spark.csdm.yaml`:
@@ -396,9 +394,9 @@ application_services:
     namespace: spark
     owned_by: gbrooks
 
-  - name: Spark Worker (Lab1)
-    identifier: spark-worker-lab1
-    short_description: Spark worker on Lab1
+  - name: Spark Worker
+    identifier: spark-worker
+    short_description: Spark workers — horizontally scaled Kubernetes Deployment fleet
     platform: kubernetes
     service_mapping: tags
     discover: false
@@ -435,7 +433,7 @@ kind: Pod
 metadata:
   name: spark-worker-lab1-0
   labels:
-    servicenow.io/application-service-identifier: spark-worker-lab1
+    servicenow.io/application-service-identifier: spark-worker
     servicenow.io/environment: on-prem
     servicenow.io/location: brooks-lab
     app.kubernetes.io/name: spark-worker

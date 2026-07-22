@@ -103,7 +103,7 @@ All seven use `service_mapping: tags`. Each **`identifier`** must match **`servi
 |--------------------|------------|----------------|
 | Spark Master | `spark-master` | `servicenow.io/*` on pod + `app.kubernetes.io/*` (KVA) |
 | Spark History Server | `spark-history-server` | … |
-| Spark Worker (Lab1/Lab2) | `spark-worker-lab1`, `spark-worker-lab2` | expanded per node |
+| Spark Worker | `spark-worker` | same identifier on every worker pod (all nodes) |
 
 Sync canonical tags: `discovery/k8s/sync_pod_labels.yml` (included in `discovery/k8s/discover.yml`).
 

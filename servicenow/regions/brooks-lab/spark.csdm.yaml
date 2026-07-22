@@ -83,9 +83,9 @@ application_services:
       - name: lab3
         type: nfs_server
 
-  - name: "Spark Worker ({host})"
-    identifier: "spark-worker-{host_lower}"
-    short_description: "Spark worker on {host}"
+  - name: Spark Worker
+    identifier: spark-worker
+    short_description: Spark workers — Kubernetes Deployment fleet (horizontally scaled)
     operational_status: "1"
     parent_business_service: Apache Spark
     platform: kubernetes
@@ -104,5 +104,12 @@ application_services:
       - Elasticsearch
       - name: lab3
         type: nfs_server
-    expand:
-      inventory_group: kubernetes_workers
+
+  # Remove legacy per-node worker Application Services (replaced by single Spark Worker above).
+  - name: Spark Worker (Lab1)
+    identifier: spark-worker-lab1
+    csdm_op: delete
+
+  - name: Spark Worker (Lab2)
+    identifier: spark-worker-lab2
+    csdm_op: delete
