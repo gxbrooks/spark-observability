@@ -1,0 +1,85 @@
+<mxfile host="Electron" agent="spark-observability">
+  <diagram name="spark-csdm-cmdb-model-client" id="spark-csdm-cmdb-model-client">
+    <mxGraphModel dx="1165" dy="785" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cluster-em" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#CC6600;fillColor=#FFF8F0;fontStyle=1;fontSize=11;startSize=28;container=0;" value="ITSM &amp; Event Management Records" vertex="1">
+          <mxGeometry height="260" width="280" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cluster-sgo" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#660066;fillColor=#FAF0FF;fontStyle=1;fontSize=11;startSize=28;container=0;" value="SGO-Dynatrace / Dynatrace entities" vertex="1">
+          <mxGeometry height="110" width="260" x="769" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cluster-csdm" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;container=0;" value="CSDM (region )" vertex="1">
+          <mxGeometry height="109" width="990" x="40" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="inc" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="&lt;b&gt;incident&lt;/b&gt;&lt;div&gt;cmdb_ci → Application Service&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="60" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="ev" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="&lt;b&gt;em_event&lt;/b&gt;&lt;div&gt;cmdb_ci → Spark Client AS&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="60" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="al" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="&lt;b&gt;em_alert&lt;/b&gt;&lt;div&gt;cmdb_ci → Spark Client AS; incident → ITSM&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="60" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="ci-custom-device" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="&lt;div&gt;&lt;b&gt;CUSTOM_DEVICE-BF87A767187C320F&lt;/b&gt;&lt;/div&gt;&lt;div&gt;CUSTOM_DEVICE&lt;/div&gt;&lt;div&gt;Spark Client&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="779" y="80.66791164658633" as="geometry" />
+        </mxCell>
+        <mxCell id="as" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Spark Client&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="231" y="373" as="geometry" />
+        </mxCell>
+        <mxCell id="ba" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="771" y="373" as="geometry" />
+        </mxCell>
+        <mxCell id="bs" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="521" y="373" as="geometry" />
+        </mxCell>
+        <mxCell id="e-inc-as" edge="1" parent="1" source="inc" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;entryX=0.204;entryY=0.017;entryDx=0;entryDy=0;entryPerimeter=0;" target="as">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-inc-as-label" connectable="0" parent="e-inc-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="cmdb_ci" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-38" y="-11" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-al-as" edge="1" parent="1" source="al" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.501;entryY=0.01;entryDx=0;entryDy=0;entryPerimeter=0;" target="as">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="311" y="188" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-al-as-label" connectable="0" parent="e-al-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="cmdb_ci" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint y="42" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-cd-as" edge="1" parent="1" source="ci-custom-device" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#660066;dashed=0;edgeStyle=orthogonalEdgeStyle;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.835;entryY=-0.039;entryDx=0;entryDy=0;entryPerimeter=0;" target="as">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="365" y="108" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-ba-bs" edge="1" parent="1" source="ba" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;" target="bs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ba-bs-label" connectable="0" parent="e-ba-bs" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-bs-as" edge="1" parent="1" source="bs" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="as">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="980" y="480.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-bs-as-label" connectable="0" parent="e-bs-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

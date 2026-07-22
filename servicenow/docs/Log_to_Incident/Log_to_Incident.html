@@ -481,23 +481,28 @@ code {
 <li><a href="#_purpose">1. Purpose</a></li>
 <li><a href="#_log_to_incident">2. Log to Incident</a>
 <ul class="sectlevel2">
-<li><a href="#_what_the_process_does">2.1. What the process does</a></li>
-<li><a href="#_what_must_be_agreed_up_front">2.2. What must be agreed up front</a></li>
-<li><a href="#_client_and_server_applications">2.3. Client and server applications</a></li>
+<li><a href="#_the_process">2.1. The Process</a>
+<ul class="sectlevel3">
+<li><a href="#_phase_1_application_logging">2.1.1. Phase 1: Application Logging</a></li>
+<li><a href="#_phase_2_observability_tooling">2.1.2. Phase 2: Observability Tooling</a></li>
+<li><a href="#_phase_3_itsm_platform">2.1.3. Phase 3: ITSM Platform</a></li>
+</ul>
+</li>
+<li><a href="#_client_and_server_applications">2.2. Client and server applications</a></li>
+<li><a href="#_design_considerations">2.3. Design considerations</a></li>
 <li><a href="#_platform_implementations">2.4. Platform implementations</a></li>
 </ul>
 </li>
-<li><a href="#_using_servicenow_and_dynatrace">3. Using ServiceNow and Dynatrace</a>
+<li><a href="#_dynatrace_and_servicenow">3. Dynatrace and ServiceNow</a>
 <ul class="sectlevel2">
 <li><a href="#_end_to_end_flow">3.1. End-to-end flow</a>
 <ul class="sectlevel3">
 <li><a href="#_step_by_step_configuration">3.1.1. Step-by-step configuration</a></li>
-<li><a href="#_client_server_complications">3.1.2. Client-Server Complications</a></li>
 </ul>
 </li>
 <li><a href="#_step_0_servicenow_modeling">3.2. Step 0 — ServiceNow Modeling</a>
 <ul class="sectlevel3">
-<li><a href="#_servicenow_modeling">3.2.1. ServiceNow Modeling</a></li>
+<li><a href="#_client_server_complications">3.2.1. Client-Server Complications</a></li>
 <li><a href="#_snippets_from_the_csdm_cmdb_model">3.2.2. Snippets from the CSDM-CMDB model</a></li>
 <li><a href="#_servicenow_csdm_application_services">3.2.3. ServiceNow — CSDM Application Services</a></li>
 <li><a href="#step-0-pod-labels">3.2.4. ServiceNow — Kubernetes pod CIs and tags</a></li>
@@ -600,80 +605,129 @@ code {
 <h2 id="_log_to_incident">2. Log to Incident</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>Log to Incident</strong> is the Observability process that detects and turns <strong>critical</strong> application log messages into <strong>tracked</strong> IT incidents so the application operations team can respond in time. It does this through a four phase process:</p>
+<p><strong>Log to Incident</strong> is the Observability process that detects and turns <strong>critical</strong> application log messages into <strong>tracked</strong> IT incidents so the application operations team can respond in time.</p>
+</div>
+<div class="sect2">
+<h3 id="_the_process">2.1. The Process</h3>
+<div class="paragraph">
+<p>The Log to Incident process takes one or more log messages and generates an incident in the ITSM platform through a three phase process:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>The application logs a message,</p>
+<p>The application logs a message</p>
 </li>
 <li>
-<p>The observability tooling detects the message as a being salient and creates an alert</p>
-</li>
-<li>
-<p>The alert is transmitted to the ITSM platform</p>
+<p>The observability tooling detects the message as a being salient and creates an alert and sends it to the ITSM platform</p>
 </li>
 <li>
 <p>The ITSM platform determins which alerts are salient and then creates an incident for operators to track.</p>
 </li>
 </ol>
 </div>
-<div class="sect2">
-<h3 id="_what_the_process_does">2.1. What the process does</h3>
+<div class="paragraph">
+<p><a href="#fig-log-to-incident-phases">Figure 1</a> illustrates these phases in more detail.</p>
+</div>
+<div id="fig-log-to-incident-phases" class="imageblock text-center figure-indent">
+<div class="content">
+<img src="images/Log_to_Incident.svg" alt="Log to Incident process phases" width="100%">
+</div>
+<div class="title">Figure 1. Log to Incident process phases</div>
+</div>
+<div class="sect3">
+<h4 id="_phase_1_application_logging">2.1.1. Phase 1: Application Logging</h4>
+<div class="paragraph">
+<p>To various degrees applications are written to generate log messages to a file or other storage medium or APIs. The log messages can indicate forward progress in the application or problems that have occurred. The problems can range from minor inconsistencies to major failures that require immediate attention.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_phase_2_observability_tooling">2.1.2. Phase 2: Observability Tooling</h4>
+<div class="paragraph">
+<p>The observability platform ingests the log messages either through an agent reading the log files or via an API that the application calls. Either way, the observability platform processes each log message in four addition steps.</p>
+</div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>An application writes operational messages to its application log (errors, warnings, or other agreed severity).</p>
+<p><strong>Enrichment</strong>: The observability platform adds additional information to the log message. This information comes from the context of the log file (e.g. name of the log file) as well as by parsing information within the log file. This information can include can include the application name, the environment, the host name, the process id, the thread id, the timestamp, the log level, the log message, and the log message id.</p>
 </li>
 <li>
-<p>Observability tooling collects those messages and decides which ones are severe enough to treat as a <strong>problem</strong> (a detected issue worth escalating).</p>
+<p><strong>Storage</strong>: The observability platform takes the enriched log message and stores it in a database for fast retrieval and futher processing.</p>
 </li>
 <li>
-<p>The problem is handed to IT service management as an <strong>event</strong> or <strong>alert</strong> tied to the right infrastructure or application identity.</p>
+<p><strong>Correlation</strong>: The observability platform correlates the log message with other log messages or events to group related log messages into a single message to increase the signal to noise ration and to identify patterns and relationships with other log messages or events.</p>
 </li>
 <li>
-<p>Automation creates (or updates) an <strong>incident</strong> assigned to the application’s support organization, carrying enough log context for diagnosis.</p>
-</li>
-<li>
-<p>The operations team works and closes the incident through normal ITSM practice.</p>
+<p><strong>Notification</strong>: The observability platform then takes selected messages or message groups and`` sends the enriched log message to the ITSM platform as an event.</p>
 </li>
 </ol>
 </div>
 <div class="paragraph">
-<p>The process intentionally does <strong>not</strong> depend on a single observability product or a single ITSM product. What must stay stable is the <strong>contract</strong>: which log lines matter, how the application is identified for assignment, and what context travels with the incident.</p>
+<p>Coordination between the application developers and the observability platform engineers. Ideally, this collaboration would begin in the application design phase to ensure that the log messages are structured in a way that that simplifies the enrichment process and identification of crticical log messages.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_phase_3_itsm_platform">2.1.3. Phase 3: ITSM Platform</h4>
+<div class="paragraph">
+<p>The ITSM platform accepts events from the observability platform and determines which events (aka log messages in this cae) are salient and then creates an incident for operators to track. This happens in a three stage process with a fourth follow on stage to handle multiple incidents that are related to the same underlying problem.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>Event Management</strong>: Event management accepts an incoming event (log message) from the observability platform. Events may be clear events that indicate a past issue has been resolved. Or they may be events that indicate a new issue has been detected. Salient events are then forwarded to Alert Management.</p>
+</li>
+<li>
+<p><strong>Alert Management</strong>: Alert Management receives the salient events from Event Management and creates an alert record in the Alert Management platform. Alerts are bound (mapped) to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an alert to a CI requires designing the CMdb model and the information in the event so that Alert Management can use the information sent in the event(s) to map the alert to the correct CI. Multiple events may be mapped to a single alert depending on a message key or other criteria. Alert management will take a clear event will close out an existing, an alert with the same message key. Salient alerts are then forwarded to Incident Management.</p>
+</li>
+<li>
+<p><strong>Incident Management</strong>: Incident Management is where operations teams interact with incidents to resolve the root causes of the incident. When incident management receives a salient alert, it will either bind the alert to an existing incident or create a new incident. The incident will also be bound to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an incident to a CI requires designing the CMdb model and the information in the alert so that Incident Management can use the information sent in the alert to map the incident to the correct CI.</p>
+<div class="paragraph">
+<p>Incident Management will also assign (or determine) the support organization that will be responsible for resolving the incident. The incident will be assigned to the application&#8217;s support organization and will carry enough log context for diagnosis.</p>
+</div>
+</li>
+<li>
+<p><strong>Problem Management</strong>: Problem Management focuses on the root cause analysis of recurring incidents (once service has been restored). A problem will typically map onto several closed incidents. This process is outside the scope of this document.</p>
+</li>
+</ol>
+</div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_what_must_be_agreed_up_front">2.2. What must be agreed up front</h3>
+<h3 id="_client_and_server_applications">2.2. Client and server applications</h3>
 <div class="paragraph">
-<p>Not every log line should become an incident. Flooding operations with low-value tickets increases noise and lengthens real outages. Observability engineers <strong>must</strong> agree with application developers and operations on:</p>
+<p>Many systems have both <strong>service-side</strong> components (clustered services, pods, long-running servers) and <strong>client-side</strong> components (drivers, desktops, mobile apps, or other unmanaged endpoints). Clients complicate modeling the application in a CMdb as the client-side components are not managed by the CMdb.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Which severities or message patterns are <strong>incident-worthy</strong>.</p>
+<p><strong>Service-side</strong>: map from the running workload&#8217;s identity to the application service that operations supports.</p>
 </li>
 <li>
-<p>How log lines are structured so the incident carries actionable context (what failed, where, which workload or component).</p>
-</li>
-<li>
-<p>Which <strong>application service</strong> (or equivalent business CI) owns the work when an incident is created.</p>
+<p><strong>Client-side</strong>: map from a durable log-path or naming contract to a logical application service that represents the client population.</p>
 </li>
 </ul>
 </div>
+<div class="paragraph">
+<p>Log to Incident must still hand both scenarios, even when the client is not a managed CI in the CMDB.</p>
+</div>
 </div>
 <div class="sect2">
-<h3 id="_client_and_server_applications">2.3. Client and server applications</h3>
+<h3 id="_design_considerations">2.3. Design considerations</h3>
 <div class="paragraph">
-<p>Many systems have both <strong>service-side</strong> components (clustered services, pods, long-running servers) and <strong>client-side</strong> components (drivers, desktops, mobile apps, or other unmanaged endpoints). Log to Incident must still escalate both, even when the client is not a managed CI in the CMDB. That usually means:</p>
+<p>Specific observability platforms (e.g. Dynatrace or Elastic Stack) and specific ITSM platforms (e.g. ServiceNow or Remedy) will have specific requirements for implementing the Log to Incident observability process. However, there are the several design considerations that span the different platforms. These include:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Service-side: map from the running workload’s identity to the application service that operations supports.</p>
+<p>Which log messages are considered salient and should be turned into an incident?</p>
 </li>
 <li>
-<p>Client-side: map from a durable log-path or naming contract to a logical application service that represents the client population.</p>
+<p>How to model the (service-side) application in the CMdb?</p>
+</li>
+<li>
+<p>How to model clients in the CMdb?</p>
+</li>
+<li>
+<p>What information must an event, whether from a client or a service, include to determine the CI to map to an incident?</p>
 </li>
 </ul>
 </div>
@@ -681,19 +735,22 @@ code {
 <div class="sect2">
 <h3 id="_platform_implementations">2.4. Platform implementations</h3>
 <div class="paragraph">
-<p>Later chapters describe how to realize Log to Incident on specific platforms. The first implementation in this document is <strong>Using ServiceNow and Dynatrace</strong>. Additional chapters (for example Elastic Stack and ServiceNow) <strong>may</strong> be added without renaming the process.</p>
+<p>Subsequent chapters describe how to implement the Log to Incident process on specific observability and service management platforms. To design and configure such systems, we need to have a specific application in mind that we will use to illustrate the process. For historical reasons, we will use Apache Spark as the application. Apache Spark is a sophisticated data and analytics platform that runs on Kubernetes and has both client and and service use cases. Mnformation on Apache Spark is available at <a href="https://spark.apache.org/docs/latest/index.html">Apache Spark Documentation</a>.</p>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_using_servicenow_and_dynatrace">3. Using ServiceNow and Dynatrace</h2>
+<h2 id="_dynatrace_and_servicenow">3. Dynatrace and ServiceNow</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This chapter is the reference implementation of Log to Incident using <strong>Dynatrace</strong> as the observability platform and <strong>ServiceNow</strong> as the ITSM / Event Management platform. Apache Spark is the sample application (WARN and ERROR log lines escalate in the lab; production agreements often limit escalation to ERROR after review with operations and development).</p>
+<p>This chapter documents a reference implementation of Log to Incident using <strong>Dynatrace</strong> as the observability platform and <strong>ServiceNow</strong> as the ITSM &amp; Event Management platform used to observe and manage an Apache Spark implementation.</p>
 </div>
 <div class="paragraph">
-<p>External references (vendor documentation):</p>
+<p>Apache Spark is the sample application (WARN and ERROR log lines escalate in the lab; production agreements often limit escalation to ERROR after review with operations and development).</p>
+</div>
+<div class="paragraph">
+<p>For more information on Dynatrace see:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -706,21 +763,18 @@ code {
 <li>
 <p><a href="https://www.servicenow.com/docs/bundle/zurich-it-operations-management/page/product/event-management/concept/event-management.html">ServiceNow — Event Management</a></p>
 </li>
-<li>
-<p><a href="https://spark.apache.org/docs/latest/index.html">Apache Spark Documentation</a></p>
-</li>
 </ul>
 </div>
 <div class="sect2">
 <h3 id="_end_to_end_flow">3.1. End-to-end flow</h3>
 <div class="paragraph">
-<p>The figure below illustrates the end-to-end flow of this implementation: the application JVM writes to the application log file; Dynatrace detects, correlates, and notifies; ServiceNow creates the event, alert, and incident.</p>
+<p>The <a href="#fig-log-to-incident-end-to-end-data-flow">Figure 2</a>, below, illustrates the end-to-end flow of this implementation across Dynatrace and ServiceNow. The application JVM writes to the application log file; Dynatrace detects, correlates, and notifies; ServiceNow creates an event, alert, and incident.</p>
 </div>
-<div class="imageblock figure-indent">
+<div id="fig-log-to-incident-end-to-end-data-flow" class="imageblock figure-indent">
 <div class="content">
 <img src="images/Log_to_Incident_end-to-end_data_flow.png" alt="Log to Incident end to end data flow" width="268" height="577">
 </div>
-<div class="title">Figure 1. Log to Incident end-to-end data flow</div>
+<div class="title">Figure 2. Log to Incident end-to-end data flow</div>
 </div>
 <div class="paragraph">
 <p>Critical to the process is selecting the best configuration items (CIs) to assign to the alert and even more importantly the incident. CI selection is especially important for the incident as the incident will be directed to the support group of the CI. Care must be taken to make sure that the CI then represents the application and the support group on the application CI the application&#8217;s operations team.</p>
@@ -778,28 +832,47 @@ code {
 </table>
 <hr>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_step_0_servicenow_modeling">3.2. Step 0 — ServiceNow Modeling</h3>
+<div class="paragraph">
+<p>The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components.</p>
+</div>
+<div class="paragraph">
+<p>Before we can bind incidents in ServiceNow to a an appropriate CI, we must model the application in ServiceNow, including both the client-side and service-side use cases. Furthermore, we need to model the application in a manner that follows ServiceNow&#8217;s CSDM best practices.. This involves definiing the CSDM hierarchy and disovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components.</p>
+</div>
 <div class="sect3">
-<h4 id="_client_server_complications">3.1.2. Client-Server Complications</h4>
+<h4 id="_client_server_complications">3.2.1. Client-Server Complications</h4>
 <div class="paragraph">
 <p>You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability excersize as we have to address the client use case, which can occur in many other applicatons. For example, you can see the client in mobile apps where the client is not only a seperate application, but it is an applications that runs on a device that is not managed in ServiceNow&#8217;s CMDB.</p>
 </div>
 <div class="paragraph">
-<p>The end-to-end flow in Figure XXX must handle both the <strong>Service-side</strong> and the <strong>Client-side</strong> use cases. The CSDM model for the application will differ between a client and the appliation service. Where the log files reside will be different between a client application and the application service. Lastly, the way in which the right CI is mapped to an incident will differ, too. As such, Steps 0, 1, and 5 must handle both the Service-side and the Client-side use cases.</p>
+<p>The end-to-end flow in <a href="#fig-log-to-incident-end-to-end-data-flow">Figure 2</a> must handle both the <strong>Service-side</strong> and the <strong>Client-side</strong> use cases. The CSDM model for the application will differ between a client and the appliation service. Where the log files reside will be different between a client application and the application service. Lastly, the way in which the right CI is mapped to an incident will differ, too. As such, Steps 0, 1, and 5 must handle both the Service-side and the Client-side use cases.</p>
 </div>
 <div class="paragraph">
-<p>For those not famialr with Spark&#8217;s client-server model, the figure below illustrates the different components of the Spark application.</p>
+<p>For those not familiar with Spark&#8217;s client-server model, the <a href="#fig-client-server-architecture">Figure 3</a> illustrates the client archiecture showing the different components of the Spark application in client mode.</p>
 </div>
-<div class="imageblock text-center">
+<div id="fig-client-server-architecture" class="imageblock text-center figure-indent">
 <div class="content">
-<img src="images/spark-architecture.svg" alt="Spark client-server architecture — Master" width="75%" height="client driver">
+<img src="images/spark-client-mode-architecture.svg" alt="Spark Client Architecture" width="75%">
 </div>
+<div class="title">Figure 3. Spark Client Architecture</div>
 </div>
 <div class="paragraph">
 <p>Spark can run in one of two modes: <strong>Client Mode</strong> or <strong>Cluster Mode</strong>.
-In client mode, the client-side application is a standalone application that runs on a workstation or host.The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application.</p>
+In client mode, the client-side application is a standalone application that can run on a workstation or a mobile . In some cases, like this one, the "workstation" may also be a host. In all these cases, the client-side application is not managed by ServiceNow&#8217;s CMDB. In the case of a true workstation, the workstation is not managed in ServiceNow&#8217;s CMdb.</p>
+</div>
+<div class="paragraph">
+<p>The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application.</p>
 </div>
 <div class="paragraph">
 <p>In cluster mode, the Spark Driver runs on a Kubernetes pod and communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application.</p>
+</div>
+<div id="fig-cluster-mode-architecture" class="imageblock text-center figure-indent">
+<div class="content">
+<img src="images/spark-cluster-mode-architecture.svg" alt="Spark Cluster Mode Architecture" width="75%">
+</div>
+<div class="title">Figure 4. Spark Cluster Mode Architecture</div>
 </div>
 <div class="paragraph">
 <p>Clean up the sections below:</p>
@@ -815,18 +888,6 @@ In client mode, the client-side application is a standalone application that run
 </div>
 <div class="paragraph">
 <p>Steps 2–4 are shared; Steps 0, 1, and 5 include dual <strong>Service-side</strong> and <strong>Client-side</strong> subsections.</p>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_step_0_servicenow_modeling">3.2. Step 0 — ServiceNow Modeling</h3>
-<div class="paragraph">
-<p>Before log problems can bind to infrastructure CIs and incidents to an <strong>Application Service</strong>, we must model the application in ServiceNow. This involves definiing the CSDM hierarchy and disovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components.</p>
-</div>
-<div class="sect3">
-<h4 id="_servicenow_modeling">3.2.1. ServiceNow Modeling</h4>
-<div class="paragraph">
-<p>The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components.</p>
 </div>
 <div class="sect4">
 <h5 id="_service_side">3.2.1.1. Service-side</h5>
@@ -1559,7 +1620,7 @@ volumeMounts:
 <div class="content">
 <img src="images/OpenPipeline_log_alerts_processor_chain.png" alt="OpenPipeline log alerts processor chain" width="1313" height="59">
 </div>
-<div class="title">Figure 2. OpenPipeline log alerts processor chain</div>
+<div class="title">Figure 5. OpenPipeline log alerts processor chain</div>
 </div>
 </div>
 <div class="sect3">
@@ -2557,7 +2618,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 <div class="content">
 <img src="images/Incident_Application_Service_correlation_Service_Side.png" alt="Incident Application Service correlation Service Side" width="1011" height="59">
 </div>
-<div class="title">Figure 3. Incident correlation — Spark Service-Side Log Pattern</div>
+<div class="title">Figure 6. Incident correlation — Spark Service-Side Log Pattern</div>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
@@ -2588,7 +2649,7 @@ Kubernetes labels (servicenow.io/application-service-identifier) are <strong>not
 <div class="content">
 <img src="images/Incident_Application_Service_correlation_Client_Side.png" alt="Incident Application Service correlation Client Side" width="1545" height="59">
 </div>
-<div class="title">Figure 4. Incident correlation — Spark Client-Side Log Pattern</div>
+<div class="title">Figure 7. Incident correlation — Spark Client-Side Log Pattern</div>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
@@ -3348,7 +3409,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-07-20 15:25:42 -0500
+Last updated 2026-07-21 14:30:18 -0500
 </div>
 </div>
 </body>

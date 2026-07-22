@@ -1,61 +1,22 @@
 <mxfile host="Electron" agent="spark-observability">
   <diagram name="spark-csdm-cmdb-model" id="spark-csdm-cmdb-model">
-    <mxGraphModel dx="1231" dy="942" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="#ffffff" math="0" shadow="0">
+    <mxGraphModel dx="1553" dy="942" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="cluster-em" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#CC6600;fillColor=#FFF8F0;fontStyle=1;fontSize=11;startSize=28;" value="ITSM &amp; Event Management Records" vertex="1">
+        <mxCell id="cluster-em" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#CC6600;fillColor=#FFF8F0;fontStyle=1;fontSize=11;startSize=28;container=0;" value="ITSM &amp; Event Management Records" vertex="1">
           <mxGeometry height="260" width="280" x="40" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="inc" parent="cluster-em" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;" value="&lt;b&gt;incident&lt;/b&gt;&lt;div&gt;cmdb_ci → Application Service&lt;/div&gt;" vertex="1">
-          <mxGeometry height="55" width="240" x="20" y="190" as="geometry" />
-        </mxCell>
-        <mxCell id="ev" parent="cluster-em" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;" value="&lt;b&gt;em_event&lt;/b&gt;&lt;div&gt;cmdb_ci → pod CI (after bind BR)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="55" width="240" x="20" y="50" as="geometry" />
-        </mxCell>
-        <mxCell id="al" parent="cluster-em" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;" value="&lt;b&gt;em_alert&lt;/b&gt;&lt;div&gt;cmdb_ci → pod CI; incident → ITSM&lt;/div&gt;" vertex="1">
-          <mxGeometry height="55" width="240" x="20" y="120" as="geometry" />
-        </mxCell>
         <mxCell id="cluster-sgo" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#660066;fillColor=#FAF0FF;fontStyle=1;fontSize=11;startSize=28;container=0;" value="SGO-Dynatrace import" vertex="1">
-          <mxGeometry height="250" width="260" x="770" y="40" as="geometry" />
+          <mxGeometry height="440" width="260" x="769" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="cluster-csdm" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;" value="CSDM (region )" vertex="1">
-          <mxGeometry height="109" width="990" x="40" y="321" as="geometry" />
+        <mxCell id="cluster-csdm" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;container=0;" value="CSDM (region )" vertex="1">
+          <mxGeometry height="109" width="990" x="40" y="491" as="geometry" />
         </mxCell>
-        <mxCell id="as" parent="cluster-csdm" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Spark Master&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="160" x="190" y="38" as="geometry" />
-        </mxCell>
-        <mxCell id="ba" parent="cluster-csdm" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="160" x="731" y="38" as="geometry" />
-        </mxCell>
-        <mxCell id="bs" parent="cluster-csdm" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="481" y="38" as="geometry" />
-        </mxCell>
-        <mxCell id="e-ba-bs" edge="1" parent="cluster-csdm" source="ba" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;" target="bs">
+        <mxCell id="e-inc-as" edge="1" parent="1" source="inc" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;" target="as">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-ba-bs-label" connectable="0" parent="e-ba-bs" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Contains" vertex="1">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="e-bs-as" edge="1" parent="cluster-csdm" source="bs" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="as">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="940" y="145.5" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="e-bs-as-label" connectable="0" parent="e-bs-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Contains" vertex="1">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="e-as-pod" edge="1" parent="1" source="as" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;dashed=0;entryX=0.005;entryY=0.67;entryDx=0;entryDy=0;entryPerimeter=0;" target="pod">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-inc-as" edge="1" parent="1" source="inc" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="as">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-inc-as-label" connectable="0" parent="e-inc-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="cmdb_ci" vertex="1">
+        <mxCell id="e-inc-as-label" connectable="0" parent="e-inc-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="cmdb_ci" vertex="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
@@ -63,71 +24,192 @@
         <mxCell id="e-ev-pod" edge="1" parent="1" source="ev" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" target="pod">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-ev-pod-label" connectable="0" parent="e-ev-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Rescource Name" vertex="1">
+        <mxCell id="e-ev-pod-label" connectable="0" parent="e-ev-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Rescource Name" vertex="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-al-pod" edge="1" parent="1" source="al" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.999;exitY=0.431;exitDx=0;exitDy=0;exitPerimeter=0;" target="pod">
+        <mxCell id="e-al-pod" edge="1" parent="1" source="al" style="endArrow=classic;html=1;dashed=1;strokeColor=#CC6600;strokeWidth=2;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=1.007;exitY=0.192;exitDx=0;exitDy=0;exitPerimeter=0;" target="pod">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-al-pod-label" connectable="0" parent="e-al-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="cmdb_ci" vertex="1">
+        <mxCell id="e-al-pod-label" connectable="0" parent="e-al-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="cmdb_ci" vertex="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-sgo-pod" edge="1" parent="1" source="ci-pod-sgo" style="endArrow=classic;html=1;dashed=1;strokeColor=#660066;strokeWidth=2;" target="pod">
+        <mxCell id="e-sgo-pod" edge="1" parent="1" source="ci-pod-sgo" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;" target="pod">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-sgo-pod-label" connectable="0" parent="e-sgo-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="sys_object_source" vertex="1">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
+        <mxCell id="ci-pod-sgo" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION-DDA8B7F35B5223C8&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); background-color: transparent;&quot;&gt;&amp;nbsp;&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;CLOUD_APPLICATION_INSTANCE&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="240" x="779" y="150.47791164658634" as="geometry" />
         </mxCell>
-        <mxCell id="e-sgo-host" edge="1" parent="1" source="ci-host-sgo" style="endArrow=classic;html=1;dashed=1;strokeColor=#660066;strokeWidth=2;" target="k8s-node">
+        <mxCell id="ci-host-sgo" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="&lt;b&gt;KUBERNETES_NODE-9C8A3A5CAC777B96&lt;/b&gt;&lt;br&gt;KUBERNETES_NODE" vertex="1">
+          <mxGeometry height="40" width="240" x="779" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="cluster-k8s" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#003366;fillColor=#EEF6FF;fontStyle=1;fontSize=11;startSize=28;container=0;" value="Kubernetes discovery via KVA + label sync" vertex="1">
+          <mxGeometry height="229" width="300" x="400" y="41" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dep-pod" edge="1" parent="1" source="dep" style="endArrow=classic;html=1;strokeWidth=1;" target="pod">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-sgo-host-label" connectable="0" parent="e-sgo-host" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="sys_object_source" vertex="1">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="ci-pod-sgo" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;" value="&lt;b&gt;cmdb_ci_kubernetes_pod&lt;/b&gt;&lt;div&gt;(from CLOUD_APPLICATION_INSTANCE)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="55" width="240" x="780" y="160" as="geometry" />
-        </mxCell>
-        <mxCell id="ci-host-sgo" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;" value="&lt;b&gt;Lab3&lt;/b&gt;&lt;br&gt;cmdb_ci_linux_server&lt;div&gt;(from HOST — initial webhook bind)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="49" width="240" x="780" y="230" as="geometry" />
-        </mxCell>
-        <mxCell id="viawvoCnq9n1QMdD9n_u-2" connectable="0" parent="1" style="group" value="" vertex="1">
-          <mxGeometry height="249" width="280" x="400" y="41" as="geometry" />
-        </mxCell>
-        <mxCell id="cluster-k8s" parent="viawvoCnq9n1QMdD9n_u-2" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#003366;fillColor=#EEF6FF;fontStyle=1;fontSize=11;startSize=28;container=0;" value="Kubernetes discovery via KVA + label sync" vertex="1">
-          <mxGeometry height="249" width="280" as="geometry" />
-        </mxCell>
-        <mxCell id="e-dep-pod" edge="1" parent="viawvoCnq9n1QMdD9n_u-2" source="dep" style="endArrow=classic;html=1;strokeWidth=1;" target="pod">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-dep-pod-label" connectable="0" parent="e-dep-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Contains" vertex="1">
+        <mxCell id="e-dep-pod-label" connectable="0" parent="e-dep-pod" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
           <mxGeometry relative="1" x="-0.1" y="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-pod-node" edge="1" parent="viawvoCnq9n1QMdD9n_u-2" source="pod" style="endArrow=classic;html=1;strokeWidth=1;" target="k8s-node">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-pod-node" edge="1" parent="1" source="pod" style="endArrow=classic;html=1;strokeWidth=1;exitX=0.698;exitY=1.074;exitDx=0;exitDy=0;exitPerimeter=0;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="601" y="200" as="sourcePoint" />
+            <mxPoint x="602" y="221" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e-pod-node-label" connectable="0" parent="e-pod-node" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;" value="Runs on" vertex="1">
+        <mxCell id="e-pod-node-label" connectable="0" parent="e-pod-node" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Runs on" vertex="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="dep" parent="viawvoCnq9n1QMdD9n_u-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" value="&lt;b&gt;spark-master&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_deployment&lt;/div&gt;" vertex="1">
-          <mxGeometry height="50" width="260" x="9" y="40" as="geometry" />
+        <mxCell id="dep" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;&#xa;points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[0.25,1,0],[0.5,1,0],[0.75,1,0]];container=0;" value="&lt;b&gt;spark-master&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_statefulset&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="260" x="420" y="79.67068273092369" as="geometry" />
         </mxCell>
-        <mxCell id="pod" parent="viawvoCnq9n1QMdD9n_u-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" value="&lt;b&gt;spark-master-0&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_pod&lt;/div&gt;&lt;div&gt;+ servicenow.io/application-service-identifier&lt;/div&gt;" vertex="1">
-          <mxGeometry height="65" width="260" x="9" y="112" as="geometry" />
+        <mxCell id="pod" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;container=0;" value="&lt;b&gt;spark-master-0&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_pod&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="260" x="420" y="150.47791164658634" as="geometry" />
         </mxCell>
-        <mxCell id="k8s-node" parent="viawvoCnq9n1QMdD9n_u-2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;" value="&lt;b&gt;Lab3&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_node&lt;/div&gt;" vertex="1">
-          <mxGeometry height="40" width="260" x="9" y="200" as="geometry" />
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-4" edge="1" parent="1" source="pod" style="endArrow=classic;html=1;strokeWidth=1;entryX=0.483;entryY=0.023;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.221;exitY=1.014;exitDx=0;exitDy=0;exitPerimeter=0;" target="MwdMALm5PpJtrNQoYp7a-3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="670" y="227" as="sourcePoint" />
+            <mxPoint x="670" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-5" connectable="0" parent="MwdMALm5PpJtrNQoYp7a-4" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Runs on" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="&lt;div&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;b&gt;CLOUD_APPLICATION-DDA8B7F35B5223C8&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;CLOUD_APPLICATION&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="240" x="779" y="80.66791164658633" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-19" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;container=0;" value="&lt;div&gt;&lt;b&gt;Apache Spark 10.244.0.131 spark-master-*&lt;/b&gt;&lt;/div&gt;&lt;div&gt;cmdb_ci_appl&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="260" x="420" y="351" as="geometry" />
+        </mxCell>
+        <mxCell id="k8s-node" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;container=0;" value="&lt;b&gt;Lab3&lt;/b&gt;&lt;div&gt;cmdb_ci_kubernetes_node&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="159" x="521" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;container=0;" value="&lt;div&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;b&gt;Apache Spark 10.244.0.131 spark-master-*&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;cmdb_ci_group&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="260" x="420" y="431" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-21" edge="1" parent="1" source="MwdMALm5PpJtrNQoYp7a-17" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;exitX=0.002;exitY=0.504;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.004;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" target="MwdMALm5PpJtrNQoYp7a-18">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="838" y="176" as="sourcePoint" />
+            <mxPoint x="686" y="176" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-22" edge="1" parent="1" source="MwdMALm5PpJtrNQoYp7a-16" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;exitX=-0.004;exitY=0.525;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.004;entryY=0.52;entryDx=0;entryDy=0;entryPerimeter=0;" target="MwdMALm5PpJtrNQoYp7a-19">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="839" y="354" as="sourcePoint" />
+            <mxPoint x="687" y="346" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFf;container=0;" value="&lt;b&gt;lab3&lt;/b&gt;&lt;div&gt;cmdb_ci_linux_server&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="120" x="420" y="281" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;container=0;" value="&lt;b&gt;PROCESS_GROUP_INSTANCE-584826462CD6D4A1&lt;br&gt;&lt;/b&gt;PROCESS_GROUP_INSTANCE&lt;b&gt;&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="240" x="779" y="351" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-23" edge="1" parent="1" source="MwdMALm5PpJtrNQoYp7a-9" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;exitX=0.008;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.998;entryY=0.543;entryDx=0;entryDy=0;entryPerimeter=0;" target="dep">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="830" y="110" as="sourcePoint" />
+            <mxPoint x="680" y="140" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-28" edge="1" parent="1" source="ci-host-sgo" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;exitX=-0.001;exitY=0.429;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.996;entryY=0.443;entryDx=0;entryDy=0;entryPerimeter=0;" target="k8s-node">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="838" y="190" as="sourcePoint" />
+            <mxPoint x="680" y="261" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-29" edge="1" parent="1" source="MwdMALm5PpJtrNQoYp7a-8" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;exitX=-0.002;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.004;entryY=0.503;entryDx=0;entryDy=0;entryPerimeter=0;" target="MwdMALm5PpJtrNQoYp7a-3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="839" y="400" as="sourcePoint" />
+            <mxPoint x="687" y="391" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-32" edge="1" parent="1" source="MwdMALm5PpJtrNQoYp7a-19" style="endArrow=classic;html=1;strokeWidth=1;entryX=0.504;entryY=1.014;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.231;exitY=-0.02;exitDx=0;exitDy=0;exitPerimeter=0;" target="MwdMALm5PpJtrNQoYp7a-3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="476" y="351" as="sourcePoint" />
+            <mxPoint x="484" y="302" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-33" connectable="0" parent="MwdMALm5PpJtrNQoYp7a-32" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Runs on" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="inc" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="&lt;b&gt;incident&lt;/b&gt;&lt;div&gt;cmdb_ci → Application Service&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="60" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="ev" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="&lt;b&gt;em_event&lt;/b&gt;&lt;div&gt;cmdb_ci → pod CI (after bind BR)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="60" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="al" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="&lt;b&gt;em_alert&lt;/b&gt;&lt;div&gt;cmdb_ci → pod CI; incident → ITSM&lt;/div&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="60" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="&lt;b&gt;Lab3&lt;/b&gt;&lt;br&gt;&lt;div&gt;HOST&lt;/div&gt;&lt;div&gt;Initial webhook bind&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="240" x="779" y="281" as="geometry" />
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="&lt;b&gt;PROCESS_GROUP-6EB611A83EA5AF4B&lt;/b&gt;&lt;br&gt;PROCESS_GROUP" vertex="1">
+          <mxGeometry height="40" width="240" x="779" y="431" as="geometry" />
+        </mxCell>
+        <mxCell id="as" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Spark Master&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="231" y="529" as="geometry" />
+        </mxCell>
+        <mxCell id="ba" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="771" y="529" as="geometry" />
+        </mxCell>
+        <mxCell id="bs" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="521" y="529" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ba-bs" edge="1" parent="1" source="ba" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;" target="bs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ba-bs-label" connectable="0" parent="e-ba-bs" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-bs-as" edge="1" parent="1" source="bs" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="as">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="980" y="636.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-bs-as-label" connectable="0" parent="e-bs-as" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-34" edge="1" parent="1" source="MwdMALm5PpJtrNQoYp7a-18" style="endArrow=classic;html=1;strokeWidth=1;exitX=0.48;exitY=-0.003;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.479;entryY=1.04;entryDx=0;entryDy=0;entryPerimeter=0;" target="MwdMALm5PpJtrNQoYp7a-19">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="441" as="sourcePoint" />
+            <mxPoint x="486" y="332" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-35" connectable="0" parent="MwdMALm5PpJtrNQoYp7a-34" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Runs on" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-39" edge="1" parent="1" source="as" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;dashed=0;entryX=0.005;entryY=0.67;entryDx=0;entryDy=0;entryPerimeter=0;edgeStyle=orthogonalEdgeStyle;exitX=0.805;exitY=0.013;exitDx=0;exitDy=0;exitPerimeter=0;" target="pod">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="360" y="177" />
+            </Array>
+            <mxPoint x="324" y="552" as="sourcePoint" />
+            <mxPoint x="421" y="177" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MwdMALm5PpJtrNQoYp7a-40" connectable="0" parent="MwdMALm5PpJtrNQoYp7a-39" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Contains&lt;div&gt;via Tag&lt;/div&gt;" vertex="1">
+          <mxGeometry relative="1" x="-0.207" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

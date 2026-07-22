@@ -171,8 +171,9 @@ application_services:
     owned_by: example-owner
     business_criticality: "4 - not critical"
     depends_on:
-      - name: lab3
-        type: linux_server
+      - OpenTelemetry Collector
+      - Logstash
+      - Elasticsearch
 ```
 
 The **`identifier`** must appear on the running container as **`servicenow.io/application-service-identifier: elasticsearch`** in the Compose file.
@@ -197,9 +198,12 @@ application_services:
     owned_by: example-owner
     business_criticality: "4 - not critical"
     depends_on:
-      - name: lab3
-        type: linux_server
+      - OpenTelemetry Collector
+      - Logstash
+      - Elasticsearch
 ```
+
+Do **not** declare Application Service → `cmdb_ci_linux_server` `depends_on` edges. Host placement is reached through discovered workload CIs (for example pod **Runs on** host).
 
 Pod templates must carry **`servicenow.io/application-service-identifier: spark-master`**. When one pod template serves multiple Application Services (for example Dynatrace OneAgent per node), set the identifier explicitly per pod — not by inferring from pod name prefixes.
 

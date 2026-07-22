@@ -27,8 +27,6 @@ application_services:
     business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
-      - name: "{host_lower}"
-        type: linux_server
       - name: lab3
         type: nfs_server
     expand:

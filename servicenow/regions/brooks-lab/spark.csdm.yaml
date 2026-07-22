@@ -41,8 +41,6 @@ application_services:
       - Logstash
       - Elasticsearch
       - name: lab3
-        type: linux_server
-      - name: lab3
         type: nfs_server
 
   - name: Spark History Server
@@ -64,8 +62,6 @@ application_services:
       - OpenTelemetry Collector
       - Logstash
       - Elasticsearch
-      - name: lab3
-        type: linux_server
       - name: lab3
         type: nfs_server
 
@@ -106,8 +102,6 @@ application_services:
       - OpenTelemetry Collector
       - Logstash
       - Elasticsearch
-      - name: "{host_lower}"
-        type: linux_server
       - name: lab3
         type: nfs_server
     expand:

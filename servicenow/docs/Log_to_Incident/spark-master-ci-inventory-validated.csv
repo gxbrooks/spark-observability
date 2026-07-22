@@ -1,0 +1,10 @@
+SN CI Name,SN Class (table),Discovery,DT Display Name,DT Entity Type,DT Entity ID,Validation notes
+Data and Analytic Services,cmdb_ci_business_app (Business Application),— (CSDM),,,,"Validated in SN; no Dynatrace entity (CSDM-only)"
+Apache Spark,cmdb_ci_service (Service),— (CSDM),,,,"Validated in SN; no Dynatrace entity (CSDM-only)"
+Spark Master,cmdb_ci_service_discovered (Mapped Application Service),— (CSDM),,,,"Validated in SN; no Dynatrace entity (CSDM-only)"
+spark-master,cmdb_ci_kubernetes_statefulset (Kubernetes StatefulSet),K8s (KVA),spark-master,CLOUD_APPLICATION,CLOUD_APPLICATION-DDA8B7F35B5223C8,"SN discovery_source=ServiceNow (KVA). Not a Deployment. ANOMALY: no sys_object_source for CLOUD_APPLICATION-DDA8B7F35B5223C8"
+spark-master-0,cmdb_ci_kubernetes_pod (Kubernetes Pod),K8s (KVA),spark-master-0,CLOUD_APPLICATION_INSTANCE,CLOUD_APPLICATION_INSTANCE-4F2D46089A9D634B,"SN discovery_source=ServiceNow (KVA). ANOMALY: no sys_object_source for CLOUD_APPLICATION_INSTANCE-4F2D46089A9D634B"
+lab3,cmdb_ci_kubernetes_node (Kubernetes Node),K8s (KVA),lab3,KUBERNETES_NODE,KUBERNETES_NODE-9C8A3A5CAC777B96,"SN discovery_source=ServiceNow (KVA); SGO also has HOST/node sys_object_source"
+lab3,cmdb_ci_linux_server (Linux Server),Horizontal,Lab3,HOST,HOST-D8207A117616460E,"Horizontal Discovery (MID); SN discovery_source=ServiceNow; SGO binds HOST-D8207A117616460E"
+Apache Spark 10.244.0.131 spark-master-* - PROCESS_GROUP-6EB611A83EA5AF4B,cmdb_ci_group (Group),— (see DT columns),Apache Spark 10.244.0.131 spark-master-*,PROCESS_GROUP,PROCESS_GROUP-6EB611A83EA5AF4B,"SN discovery_source=SGO-Dynatrace (not K8s/Horizontal)"
+Apache Spark 10.244.0.131 spark-master-* spark-master-* spark-master@lab3,cmdb_ci_appl (Application),— (see DT columns),Apache Spark 10.244.0.131 spark-master-* (Master spark-master-0),PROCESS_GROUP_INSTANCE,PROCESS_GROUP_INSTANCE-584826462CD6D4A1,"SN discovery_source=SGO-Dynatrace (not K8s/Horizontal)"

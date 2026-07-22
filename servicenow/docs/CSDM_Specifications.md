@@ -64,7 +64,7 @@ Authors **should** document `depends_on` entries using tier comments (not stored
 </thead>
 <tbody>
 <tr><td>1</td><td>Data path</td><td>Other application services</td></tr>
-<tr><td>2</td><td>Host / runtime</td><td><code>linux_server</code> CIs</td></tr>
+<tr><td>2</td><td>Host / runtime</td><td>Not declared on the application service; reached via discovered workload CIs (for example pod or container <strong>Runs on</strong> host)</td></tr>
 <tr><td>3</td><td>Cross–business application</td><td>Application services in another BA</td></tr>
 <tr><td>4</td><td>Infrastructure enrichment</td><td><code>nfs_server</code>, storage, integrations</td></tr>
 </tbody>
@@ -157,7 +157,9 @@ The **Service Mapping operator** configures tag-based Service Mapping rules on t
 
 1.2.5 Authors **must** ensure horizontal discovery, KVA, and/or Docker inventory sync run so backing workload CIs exist in the CMDB before expecting tag-based maps to populate.
 
-1.2.6 Tag-based Service Mapping adds **Contains** relationships from application services to discovered workload CIs when instance rules match labels. **`depends_on`** supplies cross-service and infrastructure edges the map does not infer automatically.
+1.2.6 Tag-based Service Mapping adds **Contains** relationships from application services to discovered workload CIs when instance rules match labels. **`depends_on`** supplies cross-service and non-host infrastructure edges (for example `nfs_server`) the map does not infer automatically.
+
+1.2.7 Authors **must not** declare Application Service → `cmdb_ci_linux_server` relationships via `depends_on` with `type: linux_server` (or equivalent). When workloads are discovered, the Linux host **must** be reached through the workload CI (for example `cmdb_ci_kubernetes_pod` or `cmdb_ci_docker_container` **Runs on** the host). Hard-coded AS → host edges do not scale with rescheduling and multi-node placement and **must not** be used as a membership or placement model.
 
 #### 1.3 Runtime tags — all platforms
 
@@ -436,7 +438,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 2.6.1 The CSDM Modeler **must** use `depends_on` on application services for consumer → provider relationships.
 
-2.6.2 Each item **may** be a string (application service `name`) or a mapping with `name` and optional `type` (`linux_server`, `nfs_server`, `business_service`).
+2.6.2 Each item **may** be a string (application service `name`) or a mapping with `name` and optional `type` (`nfs_server`, `business_service`). Authors **must not** use `type: linux_server` (see Statement 1.2.7). The deploy processor **may** still resolve `linux_server` for legacy cleanup, but new specifications **must not** declare it.
 
 2.6.3 The CSDM Modeler **should** set `csdm_defaults` at file scope for shared owners and criticality.
 
@@ -539,6 +541,10 @@ Authors **should** prefer inline HTML tables with explicit `<colgroup>` percenta
 ### Deferred linking
 
 Infrastructure targets and cross-file application services may not exist on first deploy. The second-pass linker resolves registry → CMDB lookup → defer without duplicate relationships.
+
+### Why Application Services must not Depends on linux_server
+
+Tag-based maps already place workloads under the Application Service (**Contains**). Discovery and SGC already place pods/containers on hosts (**Runs on**). Declaring AS → `cmdb_ci_linux_server` in `depends_on` duplicates placement as a static edge that drifts when pods reschedule. Prefer the discovered path: Application Service → Contains → pod → Runs on → host. Keep `depends_on` for cross-service and non-host infrastructure (for example NFS).
 
 ## References
 

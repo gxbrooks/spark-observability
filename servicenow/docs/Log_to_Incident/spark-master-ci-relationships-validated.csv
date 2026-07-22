@@ -1,0 +1,15 @@
+Parent CI,Parent class,Relationship,Child CI,Child class,How added to CMDB,Validation notes
+Data and Analytic Services,cmdb_ci_business_app,Contains::Contained by,Apache Spark,cmdb_ci_service,CSDM deploy (spark.csdm.yaml parent_business_application),Validated in SN today
+Apache Spark,cmdb_ci_service,Contains::Contained by,Spark Master,cmdb_ci_service_discovered,CSDM deploy (parent_business_service),Validated in SN today
+Spark Master,cmdb_ci_service_discovered,Contains::Contained by,spark-master-0,cmdb_ci_kubernetes_pod,"Tag-based Service Mapping (pod label servicenow.io/application-service-identifier=spark-master)",Validated Contains edge present; pod has matching cmdb_key_value
+spark-master,cmdb_ci_kubernetes_statefulset,Instantiates::Instantiated by,spark-master-0,cmdb_ci_kubernetes_pod,KVA / Kubernetes discovery,Validated (StatefulSet instantiates pod). Not a Deployment Contains edge
+lab3,cmdb_ci_kubernetes_node,Contains::Contained by,spark-master-0,cmdb_ci_kubernetes_pod,KVA / Kubernetes discovery,Validated node Contains pod (not Runs on in this instance)
+Apache Spark 10.244.0.131 spark-master-* - PROCESS_GROUP-6EB611A83EA5AF4B,cmdb_ci_group,Contains::Contained by,Apache Spark 10.244.0.131 spark-master-* spark-master-* spark-master@lab3,cmdb_ci_appl,SGC Process Groups import,Validated
+Apache Spark 10.244.0.131 spark-master-* spark-master-* spark-master@lab3,cmdb_ci_appl,Runs on::Runs,lab3,cmdb_ci_linux_server,SGC Process Groups import,Validated PGI Runs on linux_server lab3
+Spark Master,cmdb_ci_service_discovered,Depends on::Used by,lab3,cmdb_ci_linux_server,CSDM deploy (depends_on type linux_server),Validated
+Spark Master,cmdb_ci_service_discovered,Depends on::Used by,OpenTelemetry Collector,cmdb_ci_service_discovered,CSDM deploy (depends_on),Validated
+Spark Master,cmdb_ci_service_discovered,Depends on::Used by,Elasticsearch,cmdb_ci_service_discovered,CSDM deploy (depends_on),Validated
+Spark Master,cmdb_ci_service_discovered,Depends on::Used by,Logstash,cmdb_ci_service_discovered,CSDM deploy (depends_on),Validated
+Spark Master,cmdb_ci_service_discovered,Depends on::Used by,Lab3.lan:31686,(endpoint CI),Likely vertical SM / entry-point leftover,ANOMALY: unexpected Depends on TCP endpoint (Spark master port)
+Spark Master,cmdb_ci_service_discovered,Depends on::Used by,Lab3.lan:32636,(endpoint CI),Likely vertical SM / entry-point leftover,ANOMALY: unexpected Depends on TCP endpoint (Spark UI NodePort)
+lab3,cmdb_ci_linux_server,Hosted on::Hosts,lab3,cmdb_ci_kubernetes_node,Discovery/KVA host-node linkage,Validated bidirectional Hosted on between linux_server and k8s node (same display name lab3)

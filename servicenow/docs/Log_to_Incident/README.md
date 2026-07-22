@@ -13,6 +13,12 @@ From the spark-observability repo root:
 .vscode/bin/render-adoc.sh servicenow/docs/Log_to_Incident/Log_to_Incident.adoc
 ```
 
+SVG exports default to an **opaque white** page background (a full-bleed `<rect>` is injected, because CSS `background` on `<svg>` is ignored by many viewers). Pass draw.io’s `-t` / `--transparent` to skip that and keep a transparent background:
+
+```bash
+.vscode/bin/export-drawio.sh -t servicenow/docs/Log_to_Incident svg
+```
+
 Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with `Log_to_Incident.adoc` open.
 
 ## Document structure

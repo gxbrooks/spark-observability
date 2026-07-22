@@ -82,9 +82,6 @@ application_services:
     location: brooks-lab
     owned_by: gbrooks
     business_criticality: "4 - not critical"
-    depends_on:
-      - name: lab3
-        type: linux_server
 
   - name: Kibana
     identifier: kibana
@@ -101,8 +98,6 @@ application_services:
     business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
-      - name: lab3
-        type: linux_server
 
   - name: Grafana
     identifier: grafana
@@ -121,8 +116,6 @@ application_services:
       - Elasticsearch
       - Prometheus
       - Grafana Tempo
-      - name: lab3
-        type: linux_server
 
   - name: Prometheus
     identifier: prometheus
@@ -140,8 +133,6 @@ application_services:
     depends_on:
       - OpenTelemetry Collector
       - Elasticsearch
-      - name: lab3
-        type: linux_server
 
   - name: Grafana Tempo
     identifier: grafana-tempo
@@ -159,8 +150,6 @@ application_services:
     depends_on:
       - OpenTelemetry Collector
       - Elasticsearch
-      - name: lab3
-        type: linux_server
 
   - name: OpenTelemetry Collector
     identifier: opentelemetry-collector
@@ -178,8 +167,6 @@ application_services:
     depends_on:
       - Elasticsearch
       - Dynatrace Tenant
-      - name: lab3
-        type: linux_server
 
   - name: Logstash
     identifier: logstash
@@ -196,5 +183,3 @@ application_services:
     business_criticality: "4 - not critical"
     depends_on:
       - Elasticsearch
-      - name: lab3
-        type: linux_server

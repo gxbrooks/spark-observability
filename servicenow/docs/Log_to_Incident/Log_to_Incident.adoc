@@ -18,6 +18,8 @@
 // draw.io SVG embeds + asciidoctor-diagram Graphviz PNGs share images/ (gitignored)
 :imagesdir: images
 :imagesoutdir: images
+:us: {zwsp}_
+:dash: {zwsp}-
 
 == Purpose
 
@@ -27,7 +29,10 @@ This document defines that bridge as the **Log to Incident** process: selected a
 
 == Log to Incident
 
-**Log to Incident** is the Observability process that detects and turns *critical* application log messages into *tracked* IT incidents so the application operations team can respond in time. It does this through a three broad phase process: 
+**Log to Incident** is the Observability process that detects and turns *critical* application log messages into *tracked* IT incidents so the application operations team can respond in time. 
+
+### The Process
+The Log to Incident process takes one or more log messages and generates an incident in the ITSM platform through a three phase process: 
 
 . The application logs a message
 . The observability tooling detects the message as a being salient and creates an alert and sends it to the ITSM platform 
@@ -40,51 +45,107 @@ This document defines that bridge as the **Log to Incident** process: selected a
 .Log to Incident process phases
 image::Log_to_Incident.svg[Log to Incident process phases,width=100%,align=center]
 
+==== Phase 1: Application Logging
 
-=== What the process does
+To various degrees applications are written to generate log messages to a file or other storage medium or APIs. The log messages can indicate forward progress in the application or problems that have occurred. The problems can range from minor inconsistencies to major failures that require immediate attention. 
 
-. An application writes operational messages to its application log (errors, warnings, or other agreed severity).
-. Observability tooling collects those messages and decides which ones are severe enough to treat as a *problem* (a detected issue worth escalating).
-. The problem is handed to IT service management as an *event* or *alert* tied to the right infrastructure or application identity.
-. Automation creates (or updates) an *incident* assigned to the application’s support organization, carrying enough log context for diagnosis.
-. The operations team works and closes the incident through normal ITSM practice.
+==== Phase 2: Observability Tooling
 
-The process intentionally does **not** depend on a single observability product or a single ITSM product. What must stay stable is the *contract*: which log lines matter, how the application is identified for assignment, and what context travels with the incident.
+The observability platform ingests the log messages either through an agent reading the log files or via an API that the application calls. Either way, the observability platform processes each log message in four addition steps. 
 
-=== What must be agreed up front
+. **Enrichment**: The observability platform adds additional information to the log message. This information comes from the context of the log file (e.g. name of the log file) as well as by parsing information within the log file. This information can include can include the application name, the environment, the host name, the process id, the thread id, the timestamp, the log level, the log message, and the log message id.
+. **Storage**: The observability platform takes the enriched log message and stores it in a database for fast retrieval and futher processing.
+. **Correlation**: The observability platform correlates the log message with other log messages or events to group related log messages into a single message to increase the signal to noise ration and to identify patterns and relationships with other log messages or events.
+. **Notification**: The observability platform then takes selected messages or message groups and`` sends the enriched log message to the ITSM platform as an event.
 
-Not every log line should become an incident. Flooding operations with low-value tickets increases noise and lengthens real outages. Observability engineers **must** agree with application developers and operations on:
+Coordination between the application developers and the observability platform engineers. Ideally, this collaboration would begin in the application design phase to ensure that the log messages are structured in a way that that simplifies the enrichment process and identification of crticical log messages.
 
-* Which severities or message patterns are *incident-worthy*.
-* How log lines are structured so the incident carries actionable context (what failed, where, which workload or component).
-* Which *application service* (or equivalent business CI) owns the work when an incident is created.
+==== Phase 3: ITSM Platform
+
+The ITSM platform accepts events from the observability platform and determines which events (aka log messages in this cae) are salient and then creates an incident for operators to track. This happens in a three stage process with a fourth follow on stage to handle multiple incidents that are related to the same underlying problem.
+
+. **Event Management**: Event management accepts an incoming event (log message) from the observability platform. Events may be clear events that indicate a past issue has been resolved. Or they may be events that indicate a new issue has been detected. Salient events are then forwarded to Alert Management. 
+. **Alert Management**: Alert Management receives the salient events from Event Management and creates an alert record in the Alert Management platform. Alerts are bound (mapped) to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an alert to a CI requires designing the CMdb model and the information in the event so that Alert Management can use the information sent in the event(s) to map the alert to the correct CI. Multiple events may be mapped to a single alert depending on a message key or other criteria. Alert management will take a clear event will close out an existing, an alert with the same message key. Salient alerts are then forwarded to Incident Management.
+. **Incident Management**: Incident Management is where operations teams interact with incidents to resolve the root causes of the incident. When incident management receives a salient alert, it will either bind the alert to an existing incident or create a new incident. The incident will also be bound to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an incident to a CI requires designing the CMdb model and the information in the alert so that Incident Management can use the information sent in the alert to map the incident to the correct CI.
++ 
+Incident Management will also assign (or determine) the support organization that will be responsible for resolving the incident. The incident will be assigned to the application's support organization and will carry enough log context for diagnosis.
+. **Problem Management**: Problem Management focuses on the root cause analysis of recurring incidents (once service has been restored). A problem will typically map onto several closed incidents. This process is outside the scope of this document.
 
 === Client and server applications
 
-Many systems have both *service-side* components (clustered services, pods, long-running servers) and *client-side* components (drivers, desktops, mobile apps, or other unmanaged endpoints). Log to Incident must still escalate both, even when the client is not a managed CI in the CMDB. That usually means:
+Many systems have both *service-side* components (clustered services, pods, long-running servers) and *client-side* components (drivers, desktops, mobile apps, or other unmanaged endpoints). Clients complicate modeling the application in a CMdb as the client-side components are not managed by the CMdb.
 
-* Service-side: map from the running workload’s identity to the application service that operations supports.
-* Client-side: map from a durable log-path or naming contract to a logical application service that represents the client population.
+* **Service-side**: map from the running workload's identity to the application service that operations supports.
+* **Client-side**: map from a durable log-path or naming contract to a logical application service that represents the client population.
+
+Log to Incident must still hand both scenarios, even when the client is not a managed CI in the CMDB. 
+
+=== Design considerations
+
+Specific observability platforms (e.g. Dynatrace or Elastic Stack) and specific ITSM platforms (e.g. ServiceNow or Remedy) will have specific requirements for implementing the Log to Incident observability process. However, there are the several design considerations that span the different platforms. These include: 
+
+* Which log messages are considered salient and should be turned into an incident?
+* How to model the (service-side) application in the CMdb?
+* How to model clients in the CMdb?
+* What information must an event, whether from a client or a service, include to determine the CI to map to an incident?
 
 === Platform implementations
 
-Later chapters describe how to realize Log to Incident on specific platforms. The first implementation in this document is **Using ServiceNow and Dynatrace**. Additional chapters (for example Elastic Stack and ServiceNow) **may** be added without renaming the process.
+Subsequent chapters describe how to implement the Log to Incident process on specific observability and service management platforms. To design and configure such systems, we need to have a specific application in mind that we will use to illustrate the process. For historical reasons, we will use Apache Spark as the application. Apache Spark is a sophisticated data and analytics platform that runs on Kubernetes and has both client and and service use cases. Mnformation on Apache Spark is available at https://spark.apache.org/docs/latest/index.html[Apache Spark Documentation].
 
-== Using ServiceNow and Dynatrace
+== Spark Archiecture
 
-This chapter is the reference implementation of Log to Incident using **Dynatrace** as the observability platform and **ServiceNow** as the ITSM / Event Management platform. Apache Spark is the sample application (WARN and ERROR log lines escalate in the lab; production agreements often limit escalation to ERROR after review with operations and development).
+Before we discuss how to observe and manage an application, we need to understand the architecture of the application. Spark is a Kuberenetes application. The Spark application consists of a Spark Master (Driver) and one or more Spark Workers. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. You can scale the Spark Workers horizontally or vertically depending on available resources. In addition, there is a Spark History Server that is used to store the history of the application. The History Server is a built-in observability components that provides debugging and monitoring capabilities for Spark. The executors on the workers run jobs and constitue the heart of the application. 
 
-External references (vendor documentation):
+Spark can run in one of two modes: *Client Mode* or *Cluster Mode*. In cluster mode all components run on the Kubernetescluster. In cluster mode, the Spark Driver runs on a Kubernetes pod and communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application. <<fig-cluster-mode-architecture>> illustrates the cluster mode architecture.
+
+[.figure-indent]
+[[fig-cluster-mode-architecture]]
+.Spark Cluster Mode Architecture
+image::spark-cluster-mode-architecture.svg[Spark Cluster Mode Architecture,width=75%,align=center]
+
+In cluster mode, the users interacts with Spark by submitting a PySpark program to the Spark Driver. This is essentially a batch submission. The Spark Driver then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application. 
+
+Client mode is a client-server architecture where the client-side application is a standalone driver that can run on a workstation. Client mode allows data scientists and engineers to work interatively and iteratively with Spark directly on their own laptops or workstations. client is shown in the <<fig-client-mode-architecture>>.
+
+
+[.figure-indent]
+[[fig-client-server-architecture]]
+.Spark Client Architecture
+image::spark-client-mode-architecture.svg[Spark Client Architecture,width=75%,align=center]
+
+In client mode, key parts of the Spark Driver run directly on the user's workstation. The user then interacts iteratively with the PySpark process to manipulate Spark data (dataframes and datasets) through PySpark programs and Spark SQL queries. The PySpark process then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. 
+
+Spark inherently supports both Client Mode (client-side) and Cluster Mode (server-side). We have chosen to support both modes within the reference implementation in part because Spark does, but also because, client-side applications occur within many desktop and mobile applications. Client-side applications provide additional challanges in modeling and managing applications. 
+
+You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability excersize as we have to address the client use case, which can occur in many other applicatons. For example, you can see the client in mobile apps where the client is not only a seperate application, but it is an applications that runs on a device that is not managed in ServiceNow's CMDB.
+
+For those not familiar with Spark's client-server model, the <<fig-client-server-architecture>> illustrates the client archiecture showing the different components of the Spark application in client mode.
+
+
+Spark can run in one of two modes: *Client Mode* or *Cluster Mode*.
+In client mode, the client-side application is a standalone application that can run on a workstation or a mobile . In some cases, like this one, the "workstation" may also be a host. In all these cases, the client-side application is not managed by ServiceNow's CMDB. In the case of a true workstation, the workstation is not managed in ServiceNow's CMdb. 
+
+The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application. 
+
+== Dynatrace and ServiceNow
+
+This chapter documents a reference implementation of Log to Incident using **Dynatrace** as the observability platform and **ServiceNow** as the ITSM & Event Management platform used to observe and manage an Apache Spark implementation. 
+
+Apache Spark is the sample application (WARN and ERROR log lines escalate in the lab; production agreements often limit escalation to ERROR after review with operations and development).
+
+For more information on Dynatrace see:
 
 * https://docs.dynatrace.com/docs/analyze-explore-automate/logs-and-events/laf[Dynatrace — Log Analytics and OpenPipeline]
 * https://docs.dynatrace.com/docs/deliver/assurance/problem-detection-and-analysis[Davis problem detection]
 * https://www.servicenow.com/docs/bundle/zurich-it-operations-management/page/product/event-management/concept/event-management.html[ServiceNow — Event Management]
-* https://spark.apache.org/docs/latest/index.html[Apache Spark Documentation]
+
 
 === End-to-end flow
-The figure below illustrates the end-to-end flow of this implementation: the application JVM writes to the application log file; Dynatrace detects, correlates, and notifies; ServiceNow creates the event, alert, and incident.
+The <<fig-log-to-incident-end-to-end-data-flow>>, below, illustrates the end-to-end flow of this implementation across Dynatrace and ServiceNow. The application JVM writes to the application log file; Dynatrace detects, correlates, and notifies; ServiceNow creates an event, alert, and incident.
 
 [.figure-indent]
+[[fig-log-to-incident-end-to-end-data-flow]]
 .Log to Incident end-to-end data flow
 [graphviz, Log_to_Incident_end-to-end_data_flow]
 ----
@@ -116,7 +177,7 @@ digraph end_to_end_flow {
 }
 ----
 
-Critical to the process is selecting the best configuration items (CIs) to assign to the alert and even more importantly the incident. CI selection is especially important for the incident as the incident will be directed to the support group of the CI. Care must be taken to make sure that the CI then represents the application and the support group on the application CI the application's operations team. 
+In ServiceNow, the support group of the CI assigned to an alert or incident is the group that will be responsible for resolving the issue. This makes assigning a CI to an alert or incident critical to the process. If the most appropriate support group is assigned to the incident (via the CI) the more quickly the issue can be resolved. CI selection is especially important for the incident as operating teams work issues at the incident level. Care must be taken to make sure that the CI then represents the application and the support group on the application CI the application's operations team. 
 
 ==== Step-by-step configuration
 The end-to-end data flow in the figure above maps into six major areas of configuration required to implement the Log to Incident flow. The table below defines the the six majors steps required to configure the Log to Incident flow.
@@ -125,99 +186,106 @@ The end-to-end data flow in the figure above maps into six major areas of config
 |===
 |Step |Layer | Description
 
-|0
+|1
 |ServiceNow Modeling
 |The CSDM-CMDB model provides the foundation that allows a data-driven approach to configure the Log to Incident flow independent of any particular application being observed. It consists of the ServiceNow service and application CIs used to represent the application, the CIs injected into the CMDB by Dynatrace the workload CIs, and those CIs discovered by the Kubernetes cluster used to run the Spark platform, `sys_object_source`; pattern-specific CMDB model (<<step-0-cmdb-model,CMDB model>>)
 
-|1
+|2
 |Application / Log4j
 |Spark utilized Log4j for logging. These log files must be configured to be emitted in a way compatible Dyntrace's expection of where and how to expect the logs. 
 
-|2
+|3
 |Dynatrace detection
 |Configuration of the OpenPipeline that matches only the WARN or ERROR log messages.
 
-|3
+|4
 |Dynatrace → ServiceNow
 |Configuration of the Webhook that carries the log line and impacted entity to ServiceNow as well as the layout of the event record. 
 
-|4
+|5
 |ServiceNow Event Management
 |Specificatiaon of the `em_event` / `em_alert` and how to bind the correct infrastructure CI to the alert.
 
-|5
+|6
 |ServiceNow ITSM
 |Configuration of ServiceNow to automatically create an incident for the alert and to determine the right CI to bind to the incident.
 |===
 
 ---
 
-==== Client-Server Complications
 
-You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability excersize as we have to address the client use case, which can occur in many other applicatons. For example, you can see the client in mobile apps where the client is not only a seperate application, but it is an applications that runs on a device that is not managed in ServiceNow's CMDB.
+The end-to-end flow in <<fig-log-to-incident-end-to-end-data-flow>> must handle both the **Service-side** and the **Client-side** use cases. The CSDM model for the application will differ between a client and the appliation service. Where the log files reside will be different between a client application and the application service. Lastly, the way in which the right CI is mapped to an incident will differ, too. As such, Steps 0, 1, and 5 must handle both the Service-side and the Client-side use cases. 
 
-The end-to-end flow in Figure XXX must handle both the **Service-side** and the **Client-side** use cases. The CSDM model for the application will differ between a client and the appliation service. Where the log files reside will be different between a client application and the application service. Lastly, the way in which the right CI is mapped to an incident will differ, too. As such, Steps 0, 1, and 5 must handle both the Service-side and the Client-side use cases. 
+=== Step 1 — ServiceNow Modeling
 
-For those not famialr with Spark's client-server model, the figure below illustrates the different components of the Spark application.
+The first step in the process is to model the application in ServiceNow. It needs to happen even before the application ever runs. The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components. 
 
-image::spark-architecture.svg[Spark client-server architecture — Master, Workers, client driver, and History Server,width=75%,align=center]
+Before we can bind incidents in ServiceNow to a an appropriate CI, we must model the application in ServiceNow, including both the client-side and service-side use cases. Furthermore, we need to model the application in a manner that follows ServiceNow's CSDM best practices.. This involves definiing the CSDM hierarchy and disovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side Spark use cases. 
 
-Spark can run in one of two modes: *Client Mode* or *Cluster Mode*.
-In client mode, the client-side application is a standalone application that runs on a workstation or host.The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application. 
-
-In cluster mode, the Spark Driver runs on a Kubernetes pod and communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service side. The executors on the workers run jobs and constitue the heart of the application. 
-
-
-Clean up the sections below:
-
-Typically, the client-side application is not managed by ServiceNow's CMDB. Also, it does not run on a Kubernetes pod. Therefore, the CI that is mapped to the incident will be a manual logical service that is defined in the CSDM model. The log file will be located in a fixed path segment on the host. The way in which the right CI is mapped to an incident will be done by the application developer by setting the `incident.cmdb_ci` field on the alert and incident records.
-
-Both patterns require the fully formatted log line in event, alert, and incident descriptions; Dynatrace **ERROR** or **WARN** detection; and **`incident.cmdb_ci`** = `cmdb_ci_service_discovered` (Application Service), not the infrastructure CI on the alert.
-
-Both patterns follow the same observability path from application log line to ServiceNow incident. Figure 1 is the navigation map; pattern-specific configuration is called out in Steps 0, 1, and 5.
-
-Steps 2–4 are shared; Steps 0, 1, and 5 include dual **Service-side** and **Client-side** subsections.
-
-=== Step 0 — ServiceNow Modeling
-
-Before log problems can bind to infrastructure CIs and incidents to an **Application Service**, we must model the application in ServiceNow. This involves definiing the CSDM hierarchy and disovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components. 
-
-==== ServiceNow Modeling
-
-The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components. 
+In these models some CIs (of components) are automatically discovered by ServiceNow and other, typically in the CSDM model, are manually defined to represent the application within an enterprise. Other CIs are imported from other systems, like Dynatrace. 
 
 ===== Service-side
 
-The Service-side model shows logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped logs. Use it to verify **`em_alert.cmdb_ci`** → pod and **`incident.cmdb_ci`** → Application Service before enabling automation.
+The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped logs. Use it to verify **`em_alert.cmdb_ci`** → pod and **`incident.cmdb_ci`** → Application Service before enabling automation.
 
 image::spark-servicenow-model-service-side.svg[Spark Service-Side model,width=100%,align=center]
 
-**Lab scenario:** WARN from `Master:` logger in `/mnt/spark/logs/spark-master-0/spark-app.log`. ServiceNow binds **`em_event.cmdb_ci`** / **`em_alert.cmdb_ci`** to **`cmdb_ci_kubernetes_pod`**. **`incident.cmdb_ci`** is **`cmdb_ci_service_discovered`** for Application Service **spark-master** (from `servicenow/regions/brooks-lab/spark.csdm.yaml`), via the **Spark Service-Side Log Pattern** — not the Dynatrace problem object and not the pod CI.
-
 The table below lists each CMDB object in the Service-side scenario and which Event Management / ITSM field it populates.
 
-[cols="35%,65%",options="header"]
+[cols="22%,22%,22%,34%",options="header"]
 |===
-|Object |Role in this scenario
+|CI Name|CI Class | DT Entity| Role in this scenario
 
-|cmdb_ci_business_app — Data and Analytic Services
+|Data and Analytic Services
+|cmdb{us}ci{us}business{us}app
+|
 |CSDM parent; not an incident CI
 
-|cmdb_ci_service — Apache Spark
+|Apache Spark
+|cmdb{us}ci{us}service
+|
 |Business Service parent of Application Service
 
-|cmdb_ci_service_discovered — spark-master
-|**incident.cmdb_ci** (preferred)
+|Spark Master
+|cmdb{us}ci{us}service{us}discovered
+|
+|**incident.cmdb{us}ci** (preferred)
 
-|cmdb_ci_kubernetes_pod — spark-master-0
-|**em_event.cmdb_ci**, **em_alert.cmdb_ci**; **`resource`** = `/mnt/spark/logs/spark-master-0/spark-app.log`
+|spark{dash}master
+|cmdb{us}ci{us}kubernetes{us}statefulset
+|CLOUD{us}APPLICATION
+|K8s workload; **Contains** pod `spark{dash}master{dash}0`
 
-|cmdb_ci_linux_server — Lab3
-|Fallback when pod entity lookup fails; **Runs on** target for pod
+|spark{dash}master{dash}0
+|cmdb{us}ci{us}kubernetes{us}pod
+|CLOUD{us}APPLICATION{us}INSTANCE
+|**em{us}event.cmdb{us}ci**, **em{us}alert.cmdb{us}ci**; **`resource`** = `/mnt/spark/logs/spark{dash}master{dash}0/spark{dash}app.log`
 
-|CLOUD_APPLICATION_INSTANCE → cmdb_ci_kubernetes_pod
-|Dynatrace entity merged via `sys_object_source`
+|lab3
+|cmdb{us}ci{us}kubernetes{us}node
+|KUBERNETES{us}NODE
+|**Runs on** target for pod `spark{dash}master{dash}0`
+
+|lab3
+|cmdb{us}ci{us}linux{us}server
+|HOST
+|Fallback when pod entity lookup fails; initial SGO webhook bind for file-tailed logs
+
+|Apache Spark 10.244.0.131 spark{dash}master{dash}* {dash} PROCESS{us}GROUP{dash}6EB611A83EA5AF4B
+|cmdb{us}ci{us}group
+|PROCESS{us}GROUP
+|SGC process-group CI for the Master JVM
+
+|Apache Spark 10.244.0.131 spark{dash}master{dash}* spark{dash}master{dash}* spark{dash}master@lab3
+|cmdb{us}ci{us}appl
+|PROCESS{us}GROUP{us}INSTANCE
+|SGC process-group instance (Master on `spark{dash}master{dash}0`)
+
 |===
+
+The CSDM objects model how an application fits within the enterprise. It is a hierarchy of CIs that starts with the application service, which models the application instance. Associated with the application service at a lower  (concenpual) level are the CIs that represent the application's Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application. 
+
+These components are the Spark Master, Spark Workers, and the Spark History Server. The components are represented by the CIs `cmdb_ci_service_discovered` and `cmdb_ci_kubernetes_pod`. Tag-based Service Mapping creates **Contains::Contained by** from each Application Service to its member pods. The Linux host is reached from the pod CI (**Runs on**), not from a hard-coded Application Service → `cmdb_ci_linux_server` edge.
 
 Tag-based Application Services (`service_mapping: tags`, `platform: kubernetes`) **must** materialize **Contains::Contained by** edges from Application Service to member pods **before** the first qualifying log line.
 
@@ -229,25 +297,29 @@ Tag-based Application Services (`service_mapping: tags`, `platform: kubernetes`)
 The Client-side model shows a **host-independent** logical Application Service for PySpark drivers that may run on workstations outside CMDB discovery scope. There is **no required Contains edge** from client hosts to the Application Service.
 
 
-image::spark.servicenow-model-client-side.svg[Spark Service-Side model,width=100%,align=center]
+image::spark-servicenow-model-client-side.svg[Spark Service-Side model,width=100%,align=center]
 
 Use the table below to see which objects participate in Client-side alerts and incidents.
 
-[cols="35%,65%",options="header"]
+[cols="22%,22%,22%,34%",options="header"]
 |===
-|Object |Role
+|CI Name|CI Class | DT Entity| Role in this scenario
 
-|cmdb_ci_service_discovered — Spark Client
-|**incident.cmdb_ci** (path-based lookup); **no required Contains children**
+|Data and Analytic Services
+|cmdb{us}ci{us}business{us}app
+|
+|CSDM parent; not an incident CI
 
-|cmdb_ci_linux_server *—* client host
-|May appear on **`em_alert.cmdb_ci`** when Davis binds to HOST; **not** used for incident CI
+|Apache Spark
+|cmdb{us}ci{us}service
+|
+|Business Service parent of Application Service
 
-|Per-driver `<instance>` segment
-|Disambiguates concurrent drivers; **not** used for AS lookup
+|Spark Client
+|cmdb{us}ci{us}service{us}discovered
+|CUSTOM{us}DEVICE
+|**em{us}event.cmdb{us}ci**, **em{us}alert.cmdb{us}ci**, and **incident.cmdb{us}ci**; logical AS (`service{us}mapping: manual`); **no** required Contains children; Davis entity `CUSTOM{us}DEVICE{dash}BF87A767187C320F` (display name Spark Client)
 
-|Optional `cmdb_ci_appl` on in-scope hosts
-|Optional enrichment when OneAgent + SGC import a tagged process; **not** required for incidents
 |===
 
 CSDM fragment (brooks-lab):

@@ -42,7 +42,5 @@ application_services:
     business_criticality: "4 - not critical"
     depends_on:
       - Dynatrace Tenant
-      - name: "{host_lower}"
-        type: linux_server
     expand:
       inventory_group: k8s_nodes
