@@ -1,6 +1,9 @@
 #!/bin/bash
 # Render any .adoc file to HTML + PDF with local Graphviz (asciidoctor-diagram).
 # Usage: render-adoc.sh path/to/document.adoc
+#
+# Source highlighting: Rouge (server-side) for both HTML and PDF. highlight.js is
+# only for the VS Code/Cursor preview (see asciidoc.preview.asciidoctorAttributes).
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
@@ -22,8 +25,9 @@ for cmd in asciidoctor asciidoctor-pdf dot; do
 done
 
 if ! gem list -i asciidoctor-diagram >/dev/null 2>&1 \
-    || ! gem list -i asciidoctor-pdf >/dev/null 2>&1; then
-    echo "Error   : gems asciidoctor-diagram and asciidoctor-pdf required. Run: ~/repos/myenv/assert_myenv.sh" >&2
+    || ! gem list -i asciidoctor-pdf >/dev/null 2>&1 \
+    || ! gem list -i rouge >/dev/null 2>&1; then
+    echo "Error   : gems asciidoctor-diagram, asciidoctor-pdf, and rouge required. Run: ~/repos/myenv/assert_myenv.sh" >&2
     exit 1
 fi
 
@@ -37,7 +41,9 @@ if [[ -x "${script_dir}/export-drawio.sh" ]]; then
 fi
 
 echo "Info    : HTML  → ${dir}/${base}.html"
-asciidoctor -r asciidoctor-diagram "$adoc" -o "${base}.html"
+asciidoctor -r asciidoctor-diagram \
+  -a source-highlighter=rouge \
+  "$adoc" -o "${base}.html"
 
 # asciidoctor-diagram HTML path does not always merge docinfo/docinfo.html; inject listing CSS explicitly.
 _docinfo_css="${dir}/docinfo/docinfo.html"
@@ -56,6 +62,7 @@ fi
 echo "Info    : PDF   → ${dir}/${base}.pdf"
 _theme="${dir}/../styles/problem-to-incident-theme.yml"
 asciidoctor-pdf -r asciidoctor-diagram \
+  -a source-highlighter=rouge \
   -a listing-font-size=8 \
   -a "pdf-theme=${_theme}" \
   "$adoc" -o "${base}.pdf"

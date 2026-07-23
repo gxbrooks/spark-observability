@@ -165,7 +165,6 @@ application_services:
     platform: docker
     service_mapping: tags
     discover: false
-    service_tier: data
     environment: on-prem
     location: my-region
     owned_by: example-owner
@@ -190,11 +189,8 @@ application_services:
     platform: kubernetes
     service_mapping: tags
     discover: false
-    service_tier: app
     environment: on-prem
     location: my-region
-    cluster: my-cluster
-    namespace: spark
     owned_by: example-owner
     business_criticality: "4 - not critical"
     depends_on:
@@ -219,7 +215,6 @@ application_services:
     platform: host
     service_mapping: tags
     discover: false
-    service_tier: ingest
     environment: on-prem
     location: my-region
     owned_by: example-owner
@@ -258,7 +253,6 @@ After you change labels, redeploy the workload so running objects match the spec
 | `servicenow.io/application-service-identifier` | **Yes** | Must match CSDM Application Service **`identifier`** |
 | `servicenow.io/environment` | Recommended | Should match explicit **`environment`** on the Application Service in CSDM |
 | `servicenow.io/location` | Recommended | Should match explicit **`location`** on the Application Service in CSDM |
-| `servicenow.io/service-tier`, `cluster`, `namespace` | Optional | Scope and reporting |
 
 Do **not** use **`servicenow.io/application-identifier`** or **`servicenow.io/business-service-identifier`**. BA and BS relationships belong only in CSDM.
 
@@ -274,7 +268,6 @@ services:
       servicenow.io/application-service-identifier: elasticsearch
       servicenow.io/environment: on-prem
       servicenow.io/location: my-region
-      servicenow.io/service-tier: data
 ```
 
 ### Kubernetes pod template example
@@ -287,9 +280,6 @@ metadata:
     servicenow.io/application-service-identifier: spark-master
     servicenow.io/environment: on-prem
     servicenow.io/location: my-region
-    servicenow.io/service-tier: app
-    servicenow.io/cluster: my-cluster
-    servicenow.io/namespace: spark
 ```
 
 ### Per-node Kubernetes workloads (Dynatrace OneAgent)

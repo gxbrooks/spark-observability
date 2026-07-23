@@ -64,7 +64,6 @@ services:
       servicenow.io/application-service-identifier: elasticsearch
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: data
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -191,7 +190,6 @@ services:
       servicenow.io/application-service-identifier: kibana
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: web
     ports:
       - ${KB_PORT}:5601
     environment:
@@ -236,7 +234,6 @@ services:
       servicenow.io/application-service-identifier: grafana
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: web
     container_name: grafana
     restart: unless-stopped
     ports:
@@ -326,7 +323,6 @@ services:
       servicenow.io/application-service-identifier: opentelemetry-collector
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: ingest
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
       - "4317:4317"   # OTLP gRPC receiver
@@ -420,7 +416,6 @@ services:
       servicenow.io/application-service-identifier: prometheus
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: data
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -474,7 +469,6 @@ services:
       servicenow.io/application-service-identifier: grafana-tempo
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: data
     command: ["-config.file=/etc/tempo/tempo.yml"]
     ports:
       - "3200:3200"   # HTTP server (Grafana queries)
@@ -518,7 +512,6 @@ services:
       servicenow.io/application-service-identifier: logstash
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: ingest
     # TODO: Logstash should not run as root, but it may need elevated permissions
     # for certain operations (depends on log directory permissions)
     user: root

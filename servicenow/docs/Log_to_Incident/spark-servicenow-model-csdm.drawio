@@ -1,0 +1,82 @@
+<mxfile host="Electron">
+  <diagram name="Page-1" id="crxtLmViyHG0VRWBy6Mp">
+    <mxGraphModel dx="1578" dy="1133" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-1" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;container=0;" value="CSDM (region )" vertex="1">
+          <mxGeometry height="340" width="840" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Apache Spark&lt;/b&gt;&lt;div&gt;cmdb_ci_service&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="380" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-7" edge="1" parent="1" source="C0ZHXpKSRMFBStvWaBRl-4" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="C0ZHXpKSRMFBStvWaBRl-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="895" y="205.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-8" connectable="0" parent="C0ZHXpKSRMFBStvWaBRl-7" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Data and Analytic Services&lt;/b&gt;&lt;div&gt;cmdb_ci_business_app&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="380" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-5" edge="1" parent="1" source="C0ZHXpKSRMFBStvWaBRl-3" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;" target="C0ZHXpKSRMFBStvWaBRl-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-6" connectable="0" parent="C0ZHXpKSRMFBStvWaBRl-5" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;div&gt;&lt;b&gt;Spark History&lt;/b&gt;&lt;/div&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="278" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Spark Master&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="80" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-12" edge="1" parent="1" source="C0ZHXpKSRMFBStvWaBRl-4" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="C0ZHXpKSRMFBStvWaBRl-9">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="254" as="sourcePoint" />
+            <mxPoint x="355" y="305" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-13" connectable="0" parent="C0ZHXpKSRMFBStvWaBRl-12" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-14" edge="1" parent="1" source="C0ZHXpKSRMFBStvWaBRl-4" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="C0ZHXpKSRMFBStvWaBRl-10">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="445" y="270" as="sourcePoint" />
+            <mxPoint x="355" y="315" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-15" connectable="0" parent="C0ZHXpKSRMFBStvWaBRl-14" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-16" edge="1" parent="1" source="C0ZHXpKSRMFBStvWaBRl-4" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#006600;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="C0ZHXpKSRMFBStvWaBRl-11">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="270" as="sourcePoint" />
+            <mxPoint x="565" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-17" connectable="0" parent="C0ZHXpKSRMFBStvWaBRl-16" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;container=0;" value="Contains" vertex="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Spark Worker&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="480" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="C0ZHXpKSRMFBStvWaBRl-11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="&lt;b&gt;Spark Client&lt;/b&gt;&lt;div&gt;cmdb_ci_service_discovered&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="680" y="320" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -308,7 +308,37 @@ Define and implement a **repeatable pattern** for storing observability scope on
 
 ---
 
-**Last Updated**: 2026-06-19
+### Review listing vs figure policy (illustrative config snippets)
+
+**Priority**: Medium  
+**Status**: Not Started  
+**Estimated Effort**: 0.5 day
+
+**Description**:  
+Review `servicenow/docs/Log_to_Incident/Observability - Service Management Documentation.tpg.md` §2 (Figures and specifications) and §5 (Tables and listings) against the Spark Master StatefulSet pod-template YAML near `Log_to_Incident.adoc` ~line 302.
+
+That snippet is illustrative configuration (not a Graphviz/draw.io diagram), but readers may want figure-like presentation: indent, numbered caption, cross-reference. Current TPG **must** use **`Specification {section}-{sequence}`** for configuration listings and reserves auto-numbered **Figure** captions for diagrams.
+
+**Review questions**:
+
+1. Should short, narrative-adjacent config excerpts (e.g. pod `metadata.labels`) use **Listing N** captions (`:listing-caption:`) with optional `[.figure-indent]`, instead of or in addition to Specification ids?
+2. Keep Specification ids only for “deployable” configs (Log4j, OpenPipeline, webhook JSON), and allow titled listings for illustrative excerpts?
+3. Caption placement: above (AsciiDoc default) vs below (figure-like) — document what HTML/PDF can actually support.
+4. Caption typography: listing/figure titles currently render larger/italic than body; set smaller caption font in `docinfo` CSS and `problem-to-incident-theme.yml` (`code.caption.font_size` / `caption.font_size`).
+
+**Example locus**: `servicenow/docs/Log_to_Incident/Log_to_Incident.adoc` (Service-side CMDB / pod template labels, ~line 302).
+
+**Deliverables**:
+
+1. Decision recorded in the TPG (update statements if policy changes).  
+2. If listings get figure-like treatment: extend `.figure-indent` CSS to `.listingblock`, set `:listing-caption:` (or keep Spec ids), and tune caption font size in theme + `docinfo`.  
+3. Apply the chosen pattern to the Spark Master pod-template example (and note any other similar excerpts).
+
+**Related**: AsciiDoc has no native indent on `[source,yaml]`; indent is via role + CSS. Listing numbers need `:listing-caption: Listing`. Caption-below for code is limited (PDF theme `code.caption.end: bottom` may work; HTML needs CSS reorder).
+
+---
+
+**Last Updated**: 2026-07-23
 
 ### Investigate Elasticsearch SSL Handshake Warnings
 **Priority**: Medium  

@@ -152,7 +152,7 @@ The **Service Mapping operator** configures tag-based Service Mapping rules on t
 
 1.2.2 Authors **must** declare **`depends_on`** tiers for failure propagation and Service Map context even when vertical discovery is disabled.
 
-1.2.3 Authors **must** set **`identifier`**, **`environment`**, **`location`**, and **`service_tier`** (recommended) on every application service.
+1.2.3 Authors **must** set **`identifier`**, **`environment`**, and **`location`** on every application service.
 
 1.2.4 Authors **must** apply runtime **servicenow.io/** labels on workloads (and platform-specific keys in Statements 1.3–1.5) when `service_mapping: tags`.
 
@@ -180,14 +180,6 @@ When `service_mapping: tags`, authors **must** apply the following **servicenow.
 </thead>
 <tbody>
 <tr>
-<td><code>servicenow.io/application-identifier</code></td>
-<td>Authors <strong>must</strong> set this label to the Business Application <code>identifier</code> declared in <code>csdm.yaml</code> (for example, <code>observability-platform</code>).</td>
-</tr>
-<tr>
-<td><code>servicenow.io/business-service-identifier</code></td>
-<td>Authors <strong>must</strong> set this label to the parent Business Service <code>identifier</code> (for example, <code>elasticsearch</code>).</td>
-</tr>
-<tr>
 <td><code>servicenow.io/application-service-identifier</code></td>
 <td>Authors <strong>must</strong> set this label to the Application Service <code>identifier</code>; this value <strong>must</strong> match the primary tag-based Service Mapping rule on the instance.</td>
 </tr>
@@ -200,16 +192,12 @@ When `service_mapping: tags`, authors **must** apply the following **servicenow.
 <td>Authors <strong>must</strong> set this label to the same location name as the top-level <code>location</code> attribute (for example, <code>brooks-lab</code>).</td>
 </tr>
 <tr>
-<td><code>servicenow.io/service-tier</code></td>
-<td>Authors <strong>should</strong> set this label to the application service <code>service_tier</code> (for example, <code>data</code>, <code>web</code>, <code>ingest</code>).</td>
+<td><code>servicenow.io/application-identifier</code></td>
+<td>Authors <strong>may</strong> set this label to the Business Application <code>identifier</code> as an optional secondary filter. It is <strong>not</strong> required for tag-based AS→workload <strong>Contains</strong>; the BA is already reachable via the CSDM AS → BS → BA hierarchy.</td>
 </tr>
 <tr>
-<td><code>servicenow.io/cluster</code></td>
-<td>Authors <strong>should</strong> set this label to the application service <code>cluster</code> when <code>platform: kubernetes</code>.</td>
-</tr>
-<tr>
-<td><code>servicenow.io/namespace</code></td>
-<td>Authors <strong>may</strong> set this label to the application service <code>namespace</code> when <code>platform: kubernetes</code>.</td>
+<td><code>servicenow.io/business-service-identifier</code></td>
+<td>Authors <strong>may</strong> set this label to the parent Business Service <code>identifier</code> as an optional secondary filter. It is <strong>not</strong> required for tag-based AS→workload <strong>Contains</strong>; the BS is already the parent of the Application Service.</td>
 </tr>
 </tbody>
 </table>
@@ -390,9 +378,6 @@ Authors **must not** set `discover: true` until all of the following are true fo
 <tr><td><code>location</code></td><td>Authors <strong>must</strong> set the CMDB location name; authors <strong>must</strong> match <code>servicenow.io/location</code> on workloads.</td></tr>
 <tr><td><code>service_mapping</code></td><td>Authors <strong>must</strong> set <code>tags</code>, <code>vertical</code>, or <code>manual</code> per Statements 1.1.1–1.1.6.</td></tr>
 <tr><td><code>discover</code></td><td>Authors <strong>must</strong> set <code>false</code> for Kubernetes, SaaS, and tag-based Docker/host; authors <strong>may</strong> set <code>true</code> only with <code>service_mapping: vertical</code> and Statement 1.6 satisfied.</td></tr>
-<tr><td><code>service_tier</code></td><td>Authors <strong>should</strong> set <code>web</code>, <code>app</code>, <code>data</code>, <code>ingest</code>, <code>control-plane</code>, or <code>compute</code>.</td></tr>
-<tr><td><code>cluster</code></td><td>Authors <strong>should</strong> set when <code>platform: kubernetes</code>.</td></tr>
-<tr><td><code>namespace</code></td><td>Authors <strong>may</strong> set when <code>platform: kubernetes</code>.</td></tr>
 <tr><td><code>depends_on</code></td><td>Authors <strong>should</strong> declare tiered consumer → provider lists.</td></tr>
 <tr><td><code>tags</code></td><td>Authors <strong>must</strong> declare nested <code>kubernetes</code> and/or <code>docker</code> maps when <code>service_mapping: tags</code>.</td></tr>
 <tr><td><code>entry_points</code></td><td>Authors <strong>must</strong> declare when <code>service_mapping: vertical</code> and <code>discover: true</code> on Docker/host.</td></tr>
@@ -525,7 +510,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 ### Why identifiers and tags overlap
 
-CSDM display **`name`** values are human-oriented. Tags and Service Mapping rules require stable machine keys. **`identifier`** is the single source of truth; top-level **`environment`**, **`location`**, and **`service_tier`** duplicate into **servicenow.io/** label keys so SM rules do not parse nested YAML.
+CSDM display **`name`** values are human-oriented. Tags and Service Mapping rules require stable machine keys. **`identifier`** is the single source of truth; top-level **`environment`** and **`location`** duplicate into **servicenow.io/** label keys so SM rules do not parse nested YAML.
 
 ### Why Docker Compose uses tag-based mapping in this lab
 

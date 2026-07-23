@@ -6,6 +6,8 @@ Kept as **AsciiDoc** (not Markdown) so Graphviz figures and the HTML/PDF export 
 
 ## Render HTML + PDF
 
+Source listings use **Rouge** (server-side) for HTML and PDF color. Cursor preview uses **highlight.js** via workspace `asciidoc.preview.asciidoctorAttributes`. Install Rouge with `~/repos/myenv/assert_myenv.sh` (or `assert/assert_gems.sh`) if missing.
+
 From the spark-observability repo root:
 
 ```bash

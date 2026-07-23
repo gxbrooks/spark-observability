@@ -5,12 +5,17 @@
  * Paths must be plain CSS — HTML/docinfo wrappers are not parsed as stylesheets.
  *
  * Cursor Dark High Contrast can leave --vscode-textPreformat-foreground unreadable
- * (or unset in a way that falls through to near-black). Force inline literals to
- * use editor foreground so backtick/`monospace` text stays readable.
+ * (or unset in a way that falls through to near-black). Force *inline* literals only
+ * to use editor foreground so backtick/`monospace` text stays readable.
+ *
+ * Do NOT target listing/source <pre><code> blocks here. A prior `code:not(.hljs)`
+ * rule painted whole source listings a single color whenever highlight.js had not
+ * attached the `hljs` class yet (or failed to load), which looked like "no
+ * highlighting" even with `:source-highlighter: highlight.js` set.
  */
 
-:not(pre):not([class^="L"]) > code,
-code:not(.hljs) {
+/* Inline literals only — never listingblock/literalblock pre > code */
+:not(pre) > code {
   color: var(--vscode-editor-foreground, var(--vscode-foreground, #f0f0f0)) !important;
   background: color-mix(
     in srgb,
@@ -19,14 +24,70 @@ code:not(.hljs) {
   ) !important;
 }
 
-.vscode-dark :not(pre):not([class^="L"]) > code,
-.vscode-high-contrast :not(pre):not([class^="L"]) > code,
-.vscode-dark code:not(.hljs),
-.vscode-high-contrast code:not(.hljs) {
+.vscode-dark :not(pre) > code,
+.vscode-high-contrast :not(pre) > code {
   color: var(--vscode-editor-foreground, #f0f0f0) !important;
   background: color-mix(
     in srgb,
     var(--vscode-editor-foreground, #f0f0f0) 16%,
     transparent
   ) !important;
+}
+
+/*
+ * High-contrast themes often flatten non-!important highlight.js token colors.
+ * Keep source listings colored even when the bundled github-dark theme loses.
+ */
+.vscode-dark .hljs-comment,
+.vscode-high-contrast .hljs-comment,
+.vscode-dark .hljs-quote,
+.vscode-high-contrast .hljs-quote {
+  color: #6a9955 !important;
+}
+
+.vscode-dark .hljs-keyword,
+.vscode-high-contrast .hljs-keyword,
+.vscode-dark .hljs-selector-tag,
+.vscode-high-contrast .hljs-selector-tag,
+.vscode-dark .hljs-literal,
+.vscode-high-contrast .hljs-literal {
+  color: #569cd6 !important;
+}
+
+.vscode-dark .hljs-string,
+.vscode-high-contrast .hljs-string,
+.vscode-dark .hljs-doctag,
+.vscode-high-contrast .hljs-doctag {
+  color: #ce9178 !important;
+}
+
+.vscode-dark .hljs-number,
+.vscode-high-contrast .hljs-number {
+  color: #b5cea8 !important;
+}
+
+.vscode-dark .hljs-attr,
+.vscode-high-contrast .hljs-attr,
+.vscode-dark .hljs-attribute,
+.vscode-high-contrast .hljs-attribute {
+  color: #9cdcfe !important;
+}
+
+.vscode-dark .hljs-built_in,
+.vscode-high-contrast .hljs-built_in,
+.vscode-dark .hljs-type,
+.vscode-high-contrast .hljs-type {
+  color: #4ec9b0 !important;
+}
+
+.vscode-dark .hljs-meta,
+.vscode-high-contrast .hljs-meta {
+  color: #9b9b9b !important;
+}
+
+.vscode-dark .hljs-bullet,
+.vscode-high-contrast .hljs-bullet,
+.vscode-dark .hljs-symbol,
+.vscode-high-contrast .hljs-symbol {
+  color: #dcdcaa !important;
 }

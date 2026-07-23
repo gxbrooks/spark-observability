@@ -25,7 +25,6 @@ application_services:
     service_mapping: tags
     environment: on-prem
     location: brooks-lab
-    service_tier: data
 
 # --- Docker Compose: observability/docker-compose.yml (es01) ---
 
@@ -38,7 +37,6 @@ services:
       servicenow.io/application-service-identifier: elasticsearch
       servicenow.io/environment: on-prem
       servicenow.io/location: brooks-lab
-      servicenow.io/service-tier: data
 ```
 
 **Join key:** Application Service `identifier` = `servicenow.io/application-service-identifier` on the running container.

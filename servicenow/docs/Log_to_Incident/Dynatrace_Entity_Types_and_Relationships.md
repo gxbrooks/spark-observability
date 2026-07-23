@@ -27,9 +27,6 @@ Storage: **`cmdb_key_value.configuration_item`** → tagged CI; **`key`** / **`v
 | `servicenow.io/business-service-identifier` | `cmdb_ci_service.identifier` |
 | `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
 | `servicenow.io/location` | `cmn_location.name` |
-| `servicenow.io/service-tier` | `cmdb_ci_service_discovered.service_tier` |
-| `servicenow.io/cluster` | `cmdb_ci_kubernetes_cluster.name` |
-| `servicenow.io/namespace` | `cmdb_ci_kubernetes_namespace.name` |
 
 1. Keys are written to **`cmdb_key_value`** on workload CIs: `cmdb_ci_docker_container`, `cmdb_ci_kubernetes_pod`, `cmdb_ci_linux_server`, and (via SGC) `cmdb_ci_appl` / `cmdb_ci_group`.
 2. The tag **value** must equal the target field on the CSDM CI (for example `cmdb_ci_service_discovered.identifier` from `*.csdm.yaml`).
@@ -415,8 +412,6 @@ Imported by **SGO-Dynatrace Kubernetes Pod** feed. Mapped to **`cmdb_ci_kubernet
 | `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
 | `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
 | `servicenow.io/location` | `cmn_location.name` |
-| `servicenow.io/cluster` | `cmdb_ci_kubernetes_cluster.name` |
-| `servicenow.io/namespace` | `cmdb_ci_kubernetes_namespace.name` |
 | `app.kubernetes.io/name` | Workload name (string) |
 | `app.kubernetes.io/component` | Component role (string) |
 | `app.kubernetes.io/part-of` | Product name (string) |

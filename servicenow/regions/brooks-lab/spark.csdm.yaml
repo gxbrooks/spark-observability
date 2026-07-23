@@ -29,11 +29,8 @@ application_services:
     platform: kubernetes
     service_mapping: tags
     discover: false
-    service_tier: app
     environment: on-prem
     location: brooks-lab
-    cluster: brooks-lab
-    namespace: spark
     owned_by: gbrooks
     business_criticality: "4 - not critical"
     depends_on:
@@ -51,11 +48,8 @@ application_services:
     platform: kubernetes
     service_mapping: tags
     discover: false
-    service_tier: web
     environment: on-prem
     location: brooks-lab
-    cluster: brooks-lab
-    namespace: spark
     owned_by: gbrooks
     business_criticality: "4 - not critical"
     depends_on:
@@ -73,7 +67,6 @@ application_services:
     platform: host
     service_mapping: manual
     discover: false
-    service_tier: app
     environment: on-prem
     location: brooks-lab
     owned_by: gbrooks
@@ -91,11 +84,8 @@ application_services:
     platform: kubernetes
     service_mapping: tags
     discover: false
-    service_tier: compute
     environment: on-prem
     location: brooks-lab
-    cluster: brooks-lab
-    namespace: spark
     owned_by: gbrooks
     business_criticality: "4 - not critical"
     depends_on:

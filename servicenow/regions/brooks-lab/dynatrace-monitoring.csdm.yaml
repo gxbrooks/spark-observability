@@ -21,7 +21,6 @@ application_services:
     platform: saas
     service_mapping: manual
     discover: false
-    service_tier: data
     owned_by: gbrooks
     business_criticality: "4 - not critical"
 
@@ -33,11 +32,8 @@ application_services:
     platform: kubernetes
     service_mapping: tags
     discover: false
-    service_tier: ingest
     environment: on-prem
     location: brooks-lab
-    cluster: brooks-lab
-    namespace: dynatrace
     owned_by: gbrooks
     business_criticality: "4 - not critical"
     depends_on:
