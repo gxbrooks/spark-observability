@@ -11,6 +11,10 @@
 #       For SVG, draw.io always emits a transparent page background; omitting
 #       this flag post-processes the SVG to a solid white background instead.
 #
+# SVG exports use --svg-theme light and post-processing so HTML browsers and
+# asciidoctor-pdf (prawn-svg / Okular) both render labels without the draw.io
+# "Text is not SVG - cannot display" Extensibility fallback.
+#
 # Prefers the local draw.io desktop CLI (drawio) over Docker when both exist.
 # Requires Docker (draw.io desktop headless) OR draw.io desktop CLI on PATH.
 set -euo pipefail
@@ -52,23 +56,133 @@ DRAWIO_EXTRA=()
 if [[ "$TRANSPARENT" -eq 1 ]]; then
     DRAWIO_EXTRA+=(-t)
 fi
+# Force light theme so adaptive light-dark() colors are not emitted (PDF-safe).
+if [[ "$FORMAT" == "svg" ]]; then
+    DRAWIO_EXTRA+=(--svg-theme light)
+fi
 
-# draw.io leaves SVG page backgrounds transparent even without -t. CSS background on
-# <svg> is ignored by many viewers (browser img, VS Code, PDF), so inject a full-bleed
-# white <rect> unless the caller requested --transparent.
-ensure_svg_opaque_background() {
+# Post-process SVG for HTML + asciidoctor-pdf/prawn-svg:
+# - opaque white page background (unless --transparent)
+# - brace-aware @supports / light-dark cleanup (naive [^}]* left orphan "}")
+# - fill="transparent" → fill="none" (prawn-svg paints transparent as black)
+# - strip draw.io's Extensibility footer ("Text is not SVG - cannot display");
+#   per-label <switch> PNG fallbacks remain for PDF text
+harden_svg_for_pdf() {
     local dest="$1"
     [[ "$FORMAT" == "svg" ]] || return 0
-    [[ "$TRANSPARENT" -eq 0 ]] || return 0
     [[ -f "$dest" ]] || return 0
 
-    python3 - "$dest" <<'PY'
+    python3 - "$dest" "$TRANSPARENT" <<'PY'
 import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+transparent = sys.argv[2] == "1"
 text = path.read_text(encoding="utf-8")
+
+
+def replace_light_dark(s: str) -> str:
+    """Replace CSS/SVG light-dark(light, dark) with the light value (PDF-safe)."""
+    out = []
+    i = 0
+    while True:
+        j = s.find("light-dark(", i)
+        if j < 0:
+            out.append(s[i:])
+            break
+        out.append(s[i:j])
+        start = j + len("light-dark(")
+        depth = 1
+        k = start
+        while k < len(s) and depth:
+            if s[k] == "(":
+                depth += 1
+            elif s[k] == ")":
+                depth -= 1
+            k += 1
+        inner = s[start : k - 1]
+        split_at = None
+        d = 0
+        for idx, ch in enumerate(inner):
+            if ch == "(":
+                d += 1
+            elif ch == ")":
+                d -= 1
+            elif ch == "," and d == 0:
+                split_at = idx
+                break
+        light = inner[:split_at].strip() if split_at is not None else inner.strip()
+        out.append(light)
+        i = k
+    return "".join(out)
+
+
+def remove_at_supports(s: str) -> str:
+    """Remove @supports { ... } blocks with nested-brace awareness."""
+    out = []
+    i = 0
+    while True:
+        j = s.find("@supports", i)
+        if j < 0:
+            out.append(s[i:])
+            break
+        out.append(s[i:j])
+        brace = s.find("{", j)
+        if brace < 0:
+            out.append(s[j:])
+            break
+        depth = 1
+        k = brace + 1
+        while k < len(s) and depth:
+            if s[k] == "{":
+                depth += 1
+            elif s[k] == "}":
+                depth -= 1
+            k += 1
+        i = k
+    return "".join(out)
+
+
+def strip_empty_style_blocks(s: str) -> str:
+    """Drop <style> blocks left empty after @supports / light-dark cleanup."""
+    return re.sub(
+        r"<style\b[^>]*>\s*</style>",
+        "",
+        s,
+        flags=re.IGNORECASE,
+    )
+
+
+def strip_drawio_extensibility_warning(s: str) -> str:
+    """Remove draw.io footer shown when foreignObject/Extensibility is unsupported."""
+    return re.sub(
+        r'<switch>\s*'
+        r'<g\s+requiredFeatures="http://www\.w3\.org/TR/SVG11/feature#Extensibility"\s*/>\s*'
+        r"<a\b[^>]*>\s*"
+        r"<text\b[^>]*>Text is not SVG - cannot display</text>\s*"
+        r"</a>\s*"
+        r"</switch>",
+        "",
+        s,
+        count=1,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+
+text = replace_light_dark(text)
+text = re.sub(r"\s*color-scheme:\s*light dark;?", "", text)
+text = remove_at_supports(text)
+text = strip_empty_style_blocks(text)
+text = strip_drawio_extensibility_warning(text)
+# prawn-svg treats fill="transparent" as opaque black; mxgraph.basic.rect
+# exports a full-size transparent overlay that blacks out header fills in PDF.
+text = text.replace('fill="transparent"', 'fill="none"')
+text = re.sub(r"fill:\s*transparent", "fill: none", text)
+
+if transparent:
+    path.write_text(text, encoding="utf-8")
+    sys.exit(0)
 
 # Prefer CSS opaque style when present (harmless; some renderers honor it).
 text, _ = re.subn(
@@ -86,6 +200,7 @@ if 'id="export-drawio-page-bg"' in text:
 m = re.search(r"<svg\b[^>]*>", text)
 if not m:
     print(f"Warning : no <svg> root in {path}", file=sys.stderr)
+    path.write_text(text, encoding="utf-8")
     sys.exit(0)
 
 svg_tag = m.group(0)
@@ -107,7 +222,6 @@ rect = (
     f'<rect id="export-drawio-page-bg" x="{x}" y="{y}" width="{w}" height="{h}" '
     f'fill="#ffffff" stroke="none"/>'
 )
-# Insert immediately after the opening <svg ...> tag.
 text = text[: m.end()] + rect + text[m.end() :]
 path.write_text(text, encoding="utf-8")
 PY
@@ -145,7 +259,7 @@ export_one() {
         exit 1
     fi
 
-    ensure_svg_opaque_background "$dest"
+    harden_svg_for_pdf "$dest"
 
     if [[ "$TRANSPARENT" -eq 1 ]]; then
         echo "Info    : background=transparent (-t)"

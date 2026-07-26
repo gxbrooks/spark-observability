@@ -59,10 +59,11 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 
 | Concern | Configuration |
 |---------|----------------|
-| **Path match** | `k8s.log.path` / `log.source` under `/mnt/spark/logs/spark-client/*` |
-| **Parse** | DQL extracts `spark.client.instance` from the path |
-| **Tag** | `spark.client.as_identifier = spark-client` |
-| **Entity bind** | Static `dt.source_entity = CUSTOM_DEVICE-BF87A767187C320F` (“Spark Client”). `fieldsAdd` is **static-only**; `lookupEntity(...)` expressions are **not** evaluated. |
+| **Path match** | `spark.application == "spark-client"` (from path enrichment) |
+| **Parse** | `spark.client.instance` from path; `spark.log.path` = literal file |
+| **Tag** | `spark.application = spark-client` |
+| **Entity bind** | Static `dt.source_entity = CUSTOM_DEVICE-…` (“Spark Client”). `fieldsAdd` is **static-only**. |
+| **Davis merge** | `dt.davis.is_merging_allowed=false`; `event.unique_identifier=spark-client-{instance}` |
 | **Davis processor** | `spark-client-warn-error-davis` |
 | **`event.name`** | `Application log {loglevel} on spark-client-{spark.client.instance}` |
 | **Management zone** | CUSTOM_DEVICE “Spark Client” is included in **Spark Observability** so SGO can forward the problem |
