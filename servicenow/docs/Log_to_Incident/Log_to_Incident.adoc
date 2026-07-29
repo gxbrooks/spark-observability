@@ -932,9 +932,7 @@ If any of these conditions are not met, each event will be assigned to a separat
 With the Spark application we were seeing events grouped into a single problem from 
 different pods and clients. While this may be a "good thing", errors across pods or pods and a client are not always related. For example, an error in the Spark Driver may be related to an error in the Spark Executor, but not related to an error in the Spark History Server. In this case, we would not want to group these events into a single problem. As such, we need to suppress this behavior
 
-While setting 'dt.davis.is_merging_allowed=false' prevents Davis from merging events across pods or pods and clients, it also prevents Davis from merging events within a single pod or client(driver). This is most unfortunate as a significant increase in signal to noise ratio is missed. We could leverage deduplication to group related log messages into a single problem, by suitably configuring event.unique_identifier to be identical for related (duplicative) log messages. 
-
-Leveraging event.unique_identifier would require a more thorough analysis of the Spark application log messages to determine if related log messages are duplicative. The question becomes how much effort should we put into analyzing equivalence classes of log messages for a particular application? for now we defer this question.
+While setting 'dt.davis.is_merging_allowed=false' prevents Davis from merging events across pods or clients, we still want related duplicate lines within one driver/pod to refresh the same problem. **`event.unique_identifier`** includes the Log4j short class and line (`{spark.log.class}:{spark.log.line}`) parsed from the log content, so distinct call sites open distinct problems without flooding on every identical repeating line.
 
 After the problems are created, Dynatrace will store the events in the default_logs bucket. The current implementation is shown below.
 
@@ -1371,8 +1369,8 @@ Dynatrace Davis **bundles** multiple log-derived `ERROR_EVENT` rows into **one p
 
 * Custom log source / OpenPipeline set **`spark.application`** (`spark-client` vs pod name) and **`spark.log.path`** (literal path — not `k8s.log.path`).
 * Client events bind **`dt.source_entity`** to CUSTOM_DEVICE **Spark Client** (keeps them off HOST).
-* Client Davis processor sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier=spark-client-{spark.client.instance}`** so concurrent drivers do **not** merge into one problem (ServiceNow still maps all client paths to Application Service **Spark Client**).
-* Service-side Davis processor likewise sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier={spark.application}`** so different pods do not merge into one problem.
+* Client Davis processor sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier={host.name}:{spark.driver.instance}|{spark.log.class}:{spark.log.line}`** so concurrent drivers stay separate and distinct Log4j class:line sites do not collapse into one problem (ServiceNow still maps all client paths to Application Service **Spark Client**).
+* Cluster Davis processor likewise sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier={spark.pod}|{spark.log.class}:{spark.log.line}`** so different pods and different class:line sites do not merge into one problem.
 * ServiceNow **`ResolveApplicationService.applySparkClientAlertBinding()`** binds alert CI to **Spark Client** when `/client-logs/` is present.
 
 Worker→multi-client cascading failures are a different topology case; this pipeline does not try to correlate those. It only stops direct client↔client and client↔HOST bundling from file-tail log events.

@@ -112,6 +112,16 @@
           }
         },
         {
+          "id": "extract-log4j-class-line",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse Log4j short class and line (Class:Line) for Davis event.unique_identifier",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (spark.mode == \"Client\" OR spark.mode == \"Cluster\")",
+          "dql": {
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') LD LD:spark.log.class ':' INT:spark.log.line LD\""
+          }
+        },
+        {
           "id": "drop-legacy-chapter-log-paths",
           "type": "drop",
           "enabled": true,
@@ -137,7 +147,7 @@
                 "value": "Client {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{host.name}:{spark.driver.instance}" },
+              { "key": "event.unique_identifier", "value": "{host.name}:{spark.driver.instance}|{spark.log.class}:{spark.log.line}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
@@ -158,7 +168,7 @@
                 "value": "Cluster {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{spark.pod}" },
+              { "key": "event.unique_identifier", "value": "{spark.pod}|{spark.log.class}:{spark.log.line}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]

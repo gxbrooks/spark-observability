@@ -63,7 +63,7 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | **Mode** | `spark.mode = Client` |
 | **Instance** | `spark.instance = <host.name>:<driver-instance>` |
 | **Device** | `spark.device` / `dt.source_entity` = CUSTOM_DEVICE “Spark Client” |
-| **Davis merge** | `dt.davis.is_merging_allowed=false`; `event.unique_identifier={spark.instance}` |
+| **Davis merge** | `dt.davis.is_merging_allowed=false`; `event.unique_identifier={host}:{driver}|{class}:{line}` |
 | **Davis processor** | `spark-client-warn-error-davis` |
 | **`event.name`** | `Client application log {loglevel} on {spark.instance}` |
 | **Management zone** | CUSTOM_DEVICE “Spark Client” is in **Spark Observability** so SGO can forward |
