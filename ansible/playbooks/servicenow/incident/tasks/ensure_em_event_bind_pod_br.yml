@@ -13,8 +13,8 @@
       order: "{{ sn_incident_em_event_br_order }}"
       filter_condition: source=SGO-Dynatrace
       description: >-
-        K8s log events: bind cmdb_ci to cmdb_ci_kubernetes_pod when description or
-        resource contains a pod segment in the log path.
+        K8s log events: bind cmdb_ci to Spark Client AS or cmdb_ci_kubernetes_pod
+        from log path; append before/after CI and class to processing_notes.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_bind_k8s_log_pod_ci.br.js') }}"
 
 - name: Look up em_event bind pod CI business rule

@@ -8,8 +8,13 @@
 #        ./run-chapters.sh -t 900 10 # Kill Chapter_10.py after 900s
 #        ./run-chapters.sh --no-timeout 10  # Run without timeout
 #
-# Parallel chapter batches on one host (sequential — shared hostname log dir).
+# Parallel chapter batches on one host (distinct SPARK_DRIVER_INSTANCE per batch).
 #   ./run-parallel-all.sh [LOG_DIR]
+#
+# Client log layout (node-local, not NFS):
+#   /mnt/spark/logs/spark-client/<instance>/spark-app.log
+#   <instance> = SPARK_DRIVER_INSTANCE if set, else this shell's PID ($$)
+# Override either SPARK_LOG_DIR (full path) or SPARK_DRIVER_INSTANCE (instance label).
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,16 +39,25 @@ if [ -z "${SPARK_MASTER_URL:-}" ] && [ -n "${SPARK_MASTER_HOST:-}" ] && [ -n "${
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi
 
-# Client-mode logs: /mnt/spark/logs/spark-client/<hostname>/spark-app.log
+# Client-mode logs: /mnt/spark/logs/spark-client/<instance>/
 # Local bind mount on each host (not NFS) — only that host's OneAgent tails the file.
 _spark_client_root="/mnt/spark/logs/spark-client"
-_chapter_host="$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo client)"
-export SPARK_LOG_DIR="${SPARK_LOG_DIR:-${_spark_client_root}/${_chapter_host}}"
+# Sanitize override label (path segment); default instance = wrapper PID.
+if [ -n "${SPARK_DRIVER_INSTANCE:-}" ]; then
+    _spark_driver_instance="$(printf '%s' "${SPARK_DRIVER_INSTANCE}" | tr -c 'A-Za-z0-9._-' '-' | sed 's/-\+/-/g;s/^-//;s/-$//')"
+    [ -n "${_spark_driver_instance}" ] || _spark_driver_instance="$$"
+else
+    _spark_driver_instance="$$"
+fi
+export SPARK_DRIVER_INSTANCE="${_spark_driver_instance}"
+export SPARK_LOG_DIR="${SPARK_LOG_DIR:-${_spark_client_root}/${_spark_driver_instance}}"
 if ! mkdir -p "${SPARK_LOG_DIR}" 2>/dev/null; then
     echo "Warning: could not create SPARK_LOG_DIR=${SPARK_LOG_DIR}" >&2
 fi
 # OneAgent (dtuser) must traverse and read; pod logs use spark:spark 644.
+chmod 755 "${_spark_client_root}" 2>/dev/null || true
 chmod 755 "${SPARK_LOG_DIR}" 2>/dev/null || true
+echo "SPARK_LOG_DIR=${SPARK_LOG_DIR} (instance=${_spark_driver_instance})"
 
 # Optional: tag driver process in Dynatrace when PROCESS_GROUP is in ImpactedEntities.
 export DT_TAGS="${DT_TAGS:-servicenow.io/application-service-identifier=spark-client}"

@@ -152,7 +152,8 @@ inputs:
       - id: spark-app-logs-stream
         paths:
           # Spark application logs from all components (mounted from Kubernetes pods to host)
-          - '/mnt/spark/logs/*/spark-app.log*'    # Application logs from all Spark components
+          - '/mnt/spark/logs/*/spark-app.log*'              # Service-side pods: /mnt/spark/logs/<pod>/…
+          - '/mnt/spark/logs/spark-client/*/spark-app.log*'  # Client: /mnt/spark/logs/spark-client/<instance>/…
         exclude_files: ['\.gz$']
         tags: ["spark-app-logs"]
         data_stream:
@@ -174,21 +175,38 @@ inputs:
               timeout: 5s
               flush_pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}'
         processors:
-          # Extract pod name from file path
+          # Client: …/spark-client/<instance>/spark-app.log* (incl. rollover)
           - dissect:
-              tokenizer: "/mnt/spark/logs/%{spark.pod_name}/spark-app.log"
+              tokenizer: "/mnt/spark/logs/spark-client/%{spark.client.instance}/%{?logfile}"
               field: log.file.path
               target_prefix: ""
               ignore_failure: true
-          # Detect component type from pod name
+          # Service-side pod: …/<pod>/spark-app.log*
+          - dissect:
+              tokenizer: "/mnt/spark/logs/%{spark.pod_name}/%{?logfile}"
+              field: log.file.path
+              target_prefix: ""
+              ignore_failure: true
+              if: 'ctx["spark.client.instance"] == null'
+          # Detect component type from pod name / client path
           - script:
               lang: javascript
               source: >
                 function process(event) {
+                  var inst = event.Get("spark.client.instance");
+                  if (inst && String(inst).indexOf("spark-") !== 0) {
+                    event.Put("spark.component", "client");
+                    if (!event.Get("spark.pod_name")) {
+                      event.Put("spark.pod_name", "spark-client-" + String(inst));
+                    }
+                    return event;
+                  }
                   var podName = event.Get("spark.pod_name");
                   if (podName) {
                     var podNameStr = String(podName);
-                    if (podNameStr.indexOf("spark-master") === 0) {
+                    if (podNameStr === "spark-client") {
+                      event.Put("spark.component", "client");
+                    } else if (podNameStr.indexOf("spark-master") === 0) {
                       event.Put("spark.component", "master");
                     } else if (podNameStr.indexOf("spark-worker") === 0) {
                       event.Put("spark.component", "worker");

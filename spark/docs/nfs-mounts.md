@@ -16,7 +16,7 @@ Kubernetes nodes expose a **single contract path** (`/mnt/spark/...`) to pods, O
 | `/mnt/spark/jupyter` | `/srv/nfs/jupyterhub` | NFS / bind | **Yes** — shared | No |
 | `/mnt/spark/jars` | *(none)* | Per-host `hostPath` | No | No |
 | **`/mnt/spark/logs`** | **Not exported** (legacy tree may remain at `/srv/nfs/spark/logs` on the server, unmounted) | **`/var/local/spark/logs` bind-mounted at `/mnt/spark/logs`** | **No** — **node-local only** | **Yes** — **only the host where the file was written** |
-| `/mnt/spark/logs/spark-client/<hostname>/` | *(under local logs root)* | Same local store as above | No | Yes — client driver on that host |
+| `/mnt/spark/logs/spark-client/<instance>/` | *(under local logs root)* | Same local store as above | No | Yes — client driver on that host |
 | `/mnt/spark/logs/<pod-name>/` | *(under local logs root)* | Same local store; pod `hostPath` on scheduling node | No | Yes — only on the node running the pod |
 
 **Design rule:** Dynatrace OneAgent and OpenPipeline must see **one physical file per log path**. Application logs therefore **must not** live on a shared NFS mount. Shared NFS remains for **events, datasets, and checkpoints** — data that executors and the History Server must read across nodes.
@@ -49,7 +49,7 @@ OneAgent runs as **`dtuser`**. Pod log files are written as **`spark:spark`**. C
 | `/var/local/spark/logs` | `spark` | `spark` | `2775` | Local store; bind-mounted at `/mnt/spark/logs` |
 | `/mnt/spark/logs/<pod>/` | `spark` | `spark` | `755` | Created by pod init / `chown 185:185` before Spark starts |
 | Pod `spark-app.log` | `spark` | `spark` | `664` | Log4j cluster config; world-readable |
-| `/mnt/spark/logs/spark-client/<hostname>/` | `spark` or driver user | `spark` | `755` | Directory must be traversable by `dtuser` |
+| `/mnt/spark/logs/spark-client/<instance>/` | `spark` or driver user | `spark` | `755` | Directory must be traversable by `dtuser` |
 | Client `spark-app.log` | driver user | `spark` | `644` | Set via Log4j `filePermissions = rw-r--r--` in `log4j2-client.properties` |
 
 **Group membership:** `ansible/playbooks/nfs/install.yml` adds **`dtuser`** to supplementary group **`spark`** on Kubernetes nodes so group-readable client logs (`664`) are tailed without opening other-writable permissions.
@@ -68,7 +68,7 @@ Centralized variables live in `vars/variables.yaml` and are emitted into context
 | `NFS_SERVER` | e.g. `Lab3.lan` | `spark-runtime`, `nfs`, `devops` | NFS server hostname for clients and env scripts |
 | `NFS_SPARK_DATA_EXPORT` | `/srv/nfs/spark/data` | `nfs` only | Server-side export path for data |
 
-Client log directory: **`/mnt/spark/logs/spark-client/$(hostname -s)/`** — set by `spark/apps/data-analysis-book/run-chapters.sh` (`SPARK_LOG_DIR`).
+Client log directory: **`/mnt/spark/logs/spark-client/<instance>/`** — set by `spark/apps/data-analysis-book/run-chapters.sh` (`SPARK_LOG_DIR`). `<instance>` is `SPARK_DRIVER_INSTANCE` or the wrapper PID.
 
 ## Kubernetes: mounts on the node vs “only in pods”
 
@@ -115,7 +115,7 @@ After changing the logs mount, **restart Spark pods** on affected nodes so `host
 | `ansible/playbooks/nfs/install.yml` | Exports, shared NFS mounts, **local application log bind**, `dtuser` → `spark` |
 | `ansible/playbooks/k8s/diagnose.yml` | Validates mount presence and `spark:spark` / `2775` contract |
 | `spark/conf/log4j2-client.properties` | Client log file permissions (`rw-r--r--`) |
-| `spark/apps/data-analysis-book/run-chapters.sh` | `SPARK_LOG_DIR=/mnt/spark/logs/spark-client/<hostname>/` |
+| `spark/apps/data-analysis-book/run-chapters.sh` | `SPARK_LOG_DIR=/mnt/spark/logs/spark-client/<instance>/` |
 
 ## Operational notes
 

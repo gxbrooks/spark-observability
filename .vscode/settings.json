@@ -18,5 +18,28 @@
   ],
   "asciidoc.pdf.engine": "asciidoctor-pdf",
   "asciidoc.pdf.asciidoctorPdfCommandPath": "${workspaceFolder}/.vscode/bin/asciidoctor-pdf-with-diagrams.sh",
-  "asciidoc.pdf.asciidoctorPdfCommandArgs": []
+  "asciidoc.pdf.asciidoctorPdfCommandArgs": [],
+  "cSpell.ignoreRegExpList": [
+    "/:[\\w.-]+:/g",
+    "/\\{[\\w.-]+\\}/g"
+  ],
+  "cSpell.ignorePaths": [
+    "**/*.yml",
+    "**/*.yaml",
+    "**/*.j2"
+  ],
+  "cSpell.patterns": [
+    {
+      "name": "asciidoc-listing-block",
+      "pattern": "/^----+\\s*$[\\s\\S]*?^----+\\s*$/gm"
+    }
+  ],
+  "cSpell.languageSettings": [
+    {
+      "languageId": "asciidoc,asciidoctor",
+      "ignoreRegExpList": [
+        "asciidoc-listing-block"
+      ]
+    }
+  ]
 }

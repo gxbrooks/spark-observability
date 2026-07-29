@@ -1,12 +1,16 @@
 = Log to Incident
+Gary Brooks <gxbrooks@gmail.com>
+2026-07-28
 :doctype: book
+:author: Gary Brooks
+:email: gxbrooks@gmail.com
 :toc: left
 :toclevels: 3
 :sectnums:
 :icons: font
 // Rouge: server-side colors for HTML export and asciidoctor-pdf.
 // Cursor/VS Code preview overrides this to highlight.js via
-// asciidoc.preview.asciidoctorAttributes (Asciidoctor.js cannot run Rouge).
+// asciidoc.preview.  (Asciidoctor.js cannot run Rouge).
 :source-highlighter: rouge
 :experimental:
 :description: Log to Incident — business process and reference implementation (observability platforms to ITSM)
@@ -39,7 +43,7 @@ The Log to Incident process takes one or more log messages and generates an inci
 
 . The application logs a message
 . The observability tooling detects the message as a being salient and creates an alert and sends it to the ITSM platform 
-. The ITSM platform determins which alerts are salient and then creates an incident for operators to track.
+. The ITSM platform determines which alerts are salient and then creates an incident for operators to track.
 
 <<fig-log-to-incident-phases>> illustrates these phases in more detail.
 
@@ -57,11 +61,11 @@ To various degrees applications are written to generate log messages to a file o
 The observability platform ingests the log messages either through an agent reading the log files or via an API that the application calls. Either way, the observability platform processes each log message in four addition steps. 
 
 . **Enrichment**: The observability platform adds additional information to the log message. This information comes from the context of the log file (e.g. name of the log file) as well as by parsing information within the log file. This information can include can include the application name, the environment, the host name, the process id, the thread id, the timestamp, the log level, the log message, and the log message id.
-. **Storage**: The observability platform takes the enriched log message and stores it in a database for fast retrieval and futher processing.
+. **Storage**: The observability platform takes the enriched log message and stores it in a database for fast retrieval and further processing.
 . **Correlation**: The observability platform correlates the log message with other log messages or events to group related log messages into a single message to increase the signal to noise ration and to identify patterns and relationships with other log messages or events.
 . **Notification**: The observability platform then takes selected messages or message groups and`` sends the enriched log message to the ITSM platform as an event.
 
-Coordination between the application developers and the observability platform engineers. Ideally, this collaboration would begin in the application design phase to ensure that the log messages are structured in a way that that simplifies the enrichment process and identification of crticical log messages.
+Coordination between the application developers and the observability platform engineers. Ideally, this collaboration would begin in the application design phase to ensure that the log messages are structured in a way that that simplifies the enrichment process and identification of critical log messages.
 
 ==== Phase 3: ITSM Platform
 
@@ -94,22 +98,22 @@ Specific observability platforms (e.g. Dynatrace or Elastic Stack) and specific 
 
 === Platform implementations
 
-Subsequent chapters describe how to implement the Log to Incident process on specific observability and service management platforms. To design and configure such systems, we need to have a specific application in mind that we will use to illustrate the process. For historical reasons, we will use Apache Spark as the application. Apache Spark is a sophisticated data and analytics platform that runs on Kubernetes and has both client and and service use cases. Mnformation on Apache Spark is available at https://spark.apache.org/docs/latest/index.html[Apache Spark Documentation].
+Subsequent chapters describe how to implement the Log to Incident process on specific observability and service management platforms. To design and configure such systems, we need to have a specific application in mind that we will use to illustrate the process. For historical reasons, we will use Apache Spark as the application. Apache Spark is a sophisticated data and analytics platform that runs on Kubernetes and has both client and and service use cases. Information on Apache Spark is available at https://spark.apache.org/docs/latest/index.html[Apache Spark Documentation].
 
-== Spark Archiecture
+== Spark Architecture
 
-Before we discuss how to observe and manage an application, we need to understand the architecture of the application. Spark is a Kuberenetes application. The Spark application consists of a Spark Master (Driver) and one or more Spark Workers. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. You can scale the Spark Workers horizontally or vertically depending on available resources. In addition, there is a Spark History Server that is used to store the history of the application. The History Server is a built-in observability components that provides debugging and monitoring capabilities for Spark. The executors on the workers run jobs and constitue the heart of the application. 
+Before we discuss how to observe and manage an application, we need to understand the architecture of the application. Spark is a Kuberenetes application. The Spark application consists of a Spark Master (Driver) and one or more Spark Workers. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. You can scale the Spark Workers horizontally or vertically depending on available resources. In addition, there is a Spark History Server that is used to store the history of the application. The History Server is a built-in observability components that provides debugging and monitoring capabilities for Spark. The executors on the workers run jobs and constitutes the heart of the application. 
 
-Spark can run in one of two modes: *Client Mode* or *Cluster Mode*. In cluster mode all components run on the Kubernetescluster. In cluster mode, the Spark Driver runs on a Kubernetes pod and communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitue the heart of the application. <<fig-cluster-mode-architecture>> illustrates the cluster mode architecture.
+Spark can run in one of two modes: *Client Mode* or *Cluster Mode*. In cluster mode all components run on the Kubernetes cluster. In cluster mode, the Spark Driver runs on a Kubernetes pod and communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. <<fig-cluster-mode-architecture>> illustrates the cluster mode architecture.
 
 [.figure-indent]
 [[fig-cluster-mode-architecture]]
 .Spark Cluster Mode Architecture
 image::spark-cluster-mode-architecture.svg[Spark Cluster Mode Architecture,width=75%,align=center]
 
-In cluster mode, the users interacts with Spark by submitting a PySpark program to the Spark Driver. This is essentially a batch submission. The Spark Driver then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitue the heart of the application. 
+In cluster mode, the users interacts with Spark by submitting a PySpark program to the Spark Driver. This is essentially a batch submission. The Spark Driver then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitutes the heart of the application. 
 
-Client mode is a client-server architecture where the client-side application is a standalone driver that can run on a workstation. Client mode allows data scientists and engineers to work interatively and iteratively with Spark directly on their own laptops or workstations. client is shown in the <<fig-client-mode-architecture>>.
+Client mode is a client-server architecture where the client-side application is a standalone driver that can run on a workstation. Client mode allows data scientists and engineers to work interactively and iteratively with Spark directly on their own laptops or workstations. client is shown in the <<fig-client-mode-architecture>>.
 
 
 [.figure-indent]
@@ -117,32 +121,32 @@ Client mode is a client-server architecture where the client-side application is
 .Spark Client Architecture
 image::spark-client-mode-architecture.svg[Spark Client Architecture,width=75%,align=center]
 
-In client mode, key parts of the Spark Driver run directly on the user's workstation. The user then interacts iteratively with the PySpark process to manipulate Spark data (dataframes and datasets) through PySpark programs and Spark SQL queries. The PySpark process then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. 
+In client mode, key parts of the Spark Driver run directly on the user's workstation. The user then interacts iteratively with the PySpark process to manipulate Spark data (DataFrames and Datasets) through PySpark programs and Spark SQL queries. The PySpark process then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. 
 
-Spark inherently supports both Client Mode (client-side) and Cluster Mode (server-side). We have chosen to support both modes within the reference implementation in part because Spark does, but also because, client-side applications occur within many desktop and mobile applications. Client-side applications provide additional challanges in modeling and managing applications. 
+Spark inherently supports both Client Mode (client-side) and Cluster Mode (server-side). We have chosen to support both modes within the reference implementation in part because Spark does, but also because, client-side applications occur within many desktop and mobile applications. Client-side applications provide additional challenges in modeling and managing applications. 
 
-You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability excersize as we have to address the client use case, which can occur in many other applicatons. For example, you can see the client in mobile apps where the client is not only a seperate application, but it is an applications that runs on a device that is not managed in ServiceNow's CMDB.
+You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability exercise as we have to address the client use case, which can occur in many other applications. For example, you can see the client in mobile apps where the client is not only a separate application, but it is an applications that runs on a device that is not managed in ServiceNow's CMDB.
 
-For those not familiar with Spark's client-server model, the <<fig-client-server-architecture>> illustrates the client archiecture showing the different components of the Spark application in client mode.
+For those not familiar with Spark's client-server model, the <<fig-client-server-architecture>> illustrates the client architecture showing the different components of the Spark application in client mode.
 
 
 Spark can run in one of two modes: *Client Mode* or *Cluster Mode*.
 In client mode, the client-side application is a standalone application that can run on a workstation or a mobile . In some cases, like this one, the "workstation" may also be a host. In all these cases, the client-side application is not managed by ServiceNow's CMDB. In the case of a true workstation, the workstation is not managed in ServiceNow's CMdb. 
 
-The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitue the heart of the application. 
+The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitute the heart of the application. 
 
 == Dynatrace and ServiceNow
 
 This chapter documents a reference implementation of Log to Incident using **Dynatrace** as the observability platform and **ServiceNow** as the ITSM & Event Management platform used to observe and manage an Apache Spark implementation. 
-The <<fig-log-to-incident-dataflow>>, below, illustrates the end-to-end flow log messages from the Spark applicatin through Dynatrace to ServiceNow. This is a for phase process that starts with Spark writing to an application log file; Dynatrace then ingests and processes a log line, deciding which ones are critical issues (Problems) and then notifies ServiceNow of critical issue. ServiceNow ingest the issue (event) and creates an alert and incident mapping bot to appropariate CIs. ServiceNow then notifies the support team of the CI assigned to the incident.
+The <<fig-log-to-incident-dataflow>>, below, illustrates the end-to-end flow log messages from the Spark application through Dynatrace to ServiceNow. This is a for phase process that starts with Spark writing to an application log file; Dynatrace then ingests and processes a log line, deciding which ones are critical issues (Problems) and then notifies ServiceNow of critical issue. ServiceNow ingest the issue (event) and creates an alert and incident mapping bot to appropriate CIs. ServiceNow then notifies the support team of the CI assigned to the incident.
 
 [.figure-indent]
 [[fig-log-to-incident-dataflow]]
 .Log to Incident data flow
-image::log-to-incident-dataflow.svg[Log to Incident data flow,width=50%,align=center]
+image::log-to-incident-dataflow.svg[Log to Incident data flow,width=33%,align=center]
 
 
-In ServiceNow, operational issues are managed at the incident level The support group of the CI assigned to an alert or incident is the group that will be notified when an issues arises. If the wrong CI (with an inappropriate support group) is assigned to the incident it will take a longer time to notify the right support team.  This makes assigning a CI to an incident critical to the process. For application log messages, the assigned CI should be the application service of the application instance emitting the log message. Finding the right CI at runtime to assign to a log message does not happin automatically. It needs to be designed into the CMdb model of the application.
+In ServiceNow, operational issues are managed at the incident level The support group of the CI assigned to an alert or incident is the group that will be notified when an issues arises. If the wrong CI (with an inappropriate support group) is assigned to the incident it will take a longer time to notify the right support team.  This makes assigning a CI to an incident critical to the process. For application log messages, the assigned CI should be the application service of the application instance emitting the log message. Finding the right CI at runtime to assign to a log message does not happen automatically. It needs to be designed into the CMdb model of the application.
 
 Designing the CMdb model for the application is another phase in the process. It needs to be done before the application ever runs. The table below enumerates all the major steps required to configure the Log to Incident flow and the touches on some of the key design issues for the step.
 
@@ -152,17 +156,17 @@ Designing the CMdb model for the application is another phase in the process. It
 
 |Phase 1
 |ServiceNow Modeling
-a|- We need to understand the relationships in the CMdb model and how they relate to runtime dcomponents so that at the time a log message (event) is ingested by ServiceNow, we can eventually assign the correct CI to the incident. This in turns understanding the runtime CIs define by Dynatrace and how they relat to the rest of tghe CMdb model.
+a|- We need to understand the relationships in the CMdb model and how they relate to runtime components so that at the time a log message (event) is ingested by ServiceNow, we can eventually assign the correct CI to the incident. This in turns understanding the runtime CIs define by Dynatrace and how they relate to the rest of the CMdb model.
 
 |Phase 2
 |Spark Application
 a|
-* *Logfile generation:* Where and how does Spark generate the log files and how does Dynatrace's OneAgent extract usefull metadata from them to send to Dynatrace proper?
+* *Log file generation:* Where and how does Spark generate the log files and how does Dynatrace's OneAgent extract useful metadata from them to send to Dynatrace proper?
 
 |Phase 3
 |OneAgent
 a|
-* *Log file ingestion:* How does OneAgent ingest the log data and extract usefull metadata from the log files and context  and send them to Dynatrace? 
+* *Log file ingestion:* How does OneAgent ingest the log data and extract useful metadata from the log files and context  and send them to Dynatrace? 
 
 |Phase 4
 |Dynatrace
@@ -187,7 +191,7 @@ a|
 
 The first Phase in the process is to model the application in ServiceNow. It needs to happen even before the application ever runs. The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components. 
 
-Before we can bind incidents in ServiceNow to a an appropriate CI, we must model the application in ServiceNow, including both the client-side and service-side use cases. Furthermore, we need to model the application in a manner that follows ServiceNow's CSDM best practices. This involves definiing the CSDM hierarchy and disovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side Spark use cases. 
+Before we can bind incidents in ServiceNow to a an appropriate CI, we must model the application in ServiceNow, including both the client-side and service-side use cases. Furthermore, we need to model the application in a manner that follows ServiceNow's CSDM best practices. This involves defining the CSDM hierarchy and discovering pattern-specific CMDB components. We need to do this for the Service-side and the Client-side Spark use cases. 
 
 In these models, some CIs (of components) are automatically discovered by ServiceNow and other, typically in the CSDM model, are manually defined to represent the application within an enterprise. Other CIs are imported from other systems, like Dynatrace. 
 
@@ -196,7 +200,7 @@ In the client-side scenario we have both a client and service-side application. 
 
 ==== Common CSDM Model
 
-The CSDM is part of the overall ServiceNow model for an application. It models how an application fits within the enterprise. It is a hierarchy of CIs that starts with the application service, which models the application instance. Associated with the application service at a lower  (concenpual) level are the CIs that represent the application's Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application.
+The CSDM is part of the overall ServiceNow model for an application. It models how an application fits within the enterprise. It is a hierarchy of CIs that starts with the application service, which models the application instance. Associated with the application service at a lower  (conceptual) level are the CIs that represent the application's Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application.
 
 <<fig-spark-csdm-model>> illustrates the common CSDM model for the Spark application.
 [.figure-indent]
@@ -255,7 +259,7 @@ application_services:
 
 ==== Service-Side Model
 
-The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped (server side)logs. One of the main outcomes of this model is to be able to map service-side alerts to a reasonable CI and incidents to an application service CI for more timely comunnication to the appropriate support team.
+The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped (server side)logs. One of the main outcomes of this model is to be able to map service-side alerts to a reasonable CI and incidents to an application service CI for more timely communication to the appropriate support team.
 
 <<fig-spark-servicenow-model-service-side>> illustrates the Service-side model of the Spark Master. The other Spark services, e.g. Spark Workers and the Spark History Server, would have avery similar CMdb models.
 
@@ -264,7 +268,7 @@ The Service-side model used in Spark cluster mode, shows the logical relationshi
 .Spark Service-Side Model
 image::spark-servicenow-model-service-side.svg[Spark Service-Side Model,width=100%,align=center]
 
-The table below enumerates the different CMDB objects in the Service-side scenario. For those CIs that Dynatrace can generate or that you can correlate to a CI, the corresponding Dynatrace entity type is shown. The last column summarizes how Service Graph Connector (SGC / **SGO{dash}Dynatrace**) correlates the Dynatrace entity to the CMDB CI. Key in this process is what the Identity and Reconcilliation Engine (IRE) does to merge the Dynatrace entity with the CMDB CI.
+The table below enumerates the different CMDB objects in the Service-side scenario. For those CIs that Dynatrace can generate or that you can correlate to a CI, the corresponding Dynatrace entity type is shown. The last column summarizes how Service Graph Connector (SGC / **SGO{dash}Dynatrace**) correlates the Dynatrace entity to the CMDB CI. Key in this process is what the Identity and Reconciliation Engine (IRE) does to merge the Dynatrace entity with the CMDB CI.
 
 [cols="22%,22%,18%,38%",options="header"]
 |===
@@ -331,7 +335,7 @@ The `servicenow.io/application-service-identifier` attribute is used to correlat
 
 The client-side scenario is of interest on its own as there are so many workstation and mobile client applications. In the client-side scenario the log message occurs on workstation or mobile device that is not managed in the CMdb. As ServiceNow does not manage the client device in the CMdb, there are no CIs to attach to any log alert or incident. One way to address this is to create a synthetic CI that represents the application running on any client device. For this we choose the Application Service class(cmdb_ci_service_discovered) to instantiate a CI for the Spark Client. This CI will not have any infrastructure CIs associated with it as the client device is not managed in the CMdb.
 
-<<fig-spark-servicenow-model-client-side>> illustrates the Client-side model of the Spark Client. It shows a device (and host) independent model consistting of a single Application Service CI that represents the Spark Client.
+<<fig-spark-servicenow-model-client-side>> illustrates the Client-side model of the Spark Client. It shows a device (and host) independent model consisting of a single Application Service CI that represents the Spark Client.
 
 [.figure-indent]
 [[fig-spark-servicenow-model-client-side]]
@@ -354,7 +358,7 @@ The application service YAML specification for the Spark Client is shown below.
       - Spark Master
 ----
 
-Now, given the Spark Client application service how do we map a log message on the client device to the Spark Client application service? This is done by creating a custom device entity in Dynatrace that represents the Spark Client. This custome device entity must then be included in any log problems sent as events to ServiceNow from Dynatrace's OneClient agent on the device to Dynatrace's OpenPipeline.
+Now, given the Spark Client application service how do we map a log message on the client device to the Spark Client application service? This is done by creating a custom device entity in Dynatrace that represents the Spark Client. This custom device entity must then be included in any log problems sent as events to ServiceNow from Dynatrace's OneClient agent on the device to Dynatrace's OpenPipeline.
 
 [#step-0-pod-labels]
 ==== Kubernetes Pod CIs
@@ -445,7 +449,7 @@ Each imported entity receives a **sys_object_source** row: name=SGO-Dynatrace, i
 
 Configure on the ServiceNow instance:
 
-* Service Graph Connector for Observability – Dynatrace (scoped app sn_dynatrace_integ)
+* Service Graph Connector for Observability – Dynatrace (scoped app 'sn_dynatrace_integ')
 * Inbound event listener: POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
 * Scheduled imports for hosts, Kubernetes pods, and process groups covering the cluster namespace
 
@@ -472,7 +476,7 @@ dated.
 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job
 ----
 
-As typical with many applications, there is not a lot of structure to the log files. There is the ever present time stamp, an error level, the file and line number of the log message, and the message itself. Of particular importance is the log level. Instead of matching a long list of critical log message patterns, we can use it to decide if the log message should be considered a critical issue. For the reference implementation we choose to use both the WARN and ERROR levels. We use warnings for convience as they are easier to generate. 
+As typical with many applications, there is not a lot of structure to the log files. There is the ever present time stamp, an error level, the file and line number of the log message, and the message itself. Of particular importance is the log level. Instead of matching a long list of critical log message patterns, we can use it to decide if the log message should be considered a critical issue. For the reference implementation we choose to use both the WARN and ERROR levels. We use warnings for convenience as they are easier to generate. 
 
 
 There are several key questions we need to answer:
@@ -483,7 +487,7 @@ There are several key questions we need to answer:
 
 ==== Log File Directory Structure
 
-The best practice is to have Dynatrace access the log files directly from the Kubernetes pod. This is the preferred method as it is the most direct and efficient way to get the log files to Dynatrace. However, for legacy reasons, we use a directory-based approach inherited from an Elastic Stack based approach. This is the next best approach as it uses OneAgent to tail the per pod log files from each Kubernetes host. 
+The best practice for processing application logs is to have the application write logs directly to stdout and have kubernetes manage the log files, and then read the log files from the Kubernetes' host from the pod's log file directory. However, for legacy reasons, we use a directory-based approach inherited from an Elastic Stack based approach. In this approach Spark manages and writes the log files on the pod. The files are then read on the host. This is the next best approach as it still uses a single log file reader (OneAgent) to tail the per pod log files on each Kubernetes host. In the future, we will move to the best practice Kubernetes stdout approach.
 
 <<list-k8s-node-spark-log-tree>> shows the **current** layout on a Kubernetes **node** (hostPath `/mnt/spark/logs`, backed by node-local disk — not NFS). Each directory name equals the pod `metadata.name`.<<list-k8s-node-spark-log-tree>> is not a real directory tree as it mixes pod directories from different hosts. For example, the Spark Master and History Server do not share a host with any worker nodes. 
 
@@ -500,7 +504,9 @@ The best practice is to have Dynatrace access the log files directly from the Ku
 └── spark-worker-lab2-5c8a1e2f3b-m7h2k/
 ----
 
-For Client Mode logs, where the Spark driver is not run in a Kubernetes pod, we use a synthetic path segment `spark-client` under `/mnt/spark/logs/` so client directories are never confused with service-side pod names. Under that segment, **instance** (`SPARK_DRIVER_INSTANCE` or the wrapper PID) separates concurrent drivers on the same host. Logs are node-local, so hostname is not needed in the path. <<list-spark-client-log-tree>> illustrates the log directory structure for client-mode logs.
+For Client Mode logs, we want to differential between Client Mode and Cluster Mode and differentiate between the different client instances. For Cluster Mode, we continue to use the pod name as the sub-directory name, for backward compatibility. For Client mode, we use a synthetic path segment `spark-client` under `/mnt/spark/logs/` to differentiate client directories. After the client mode directory, we add a subdirectory to capture the logs for each client instance. THe form of a client mode log directory is `/mnt/spark/logs/spark-client/<instance>/`. The **instance** path element defaults to the wrapper PID of the Spark Driver (client). If we invoke multiple drivers on the same host in parallel, the process that invokes the driver is responsible for setting the **instance** path element (SPARK_DRIVER_INSTANCE) to a unique value.
+
+<<list-spark-client-log-tree>> illustrates the log directory structure for client-mode logs.
 
 [.figure-indent]
 [[list-spark-client-log-tree]]
@@ -514,13 +520,7 @@ For Client Mode logs, where the Spark driver is not run in a Kubernetes pod, we 
     └── par-a                            # Overridden PID for parallel run
 ----
 
-
-==== Log Metadata
-
-The log metadata is the key metadata fields that we need to extract from the log files or the log file context. This depends on what fields are required, the available log file context, the available fields in a log line, Dynatrace's abillity to parse the log file context, and the OpenPipeline's abillity to parse the log file context. 
-
-The key requirements are that we extact the log level and a pod identifier. The log level is used to decide if the log message should be considered a critical issue. The pod identifier is used to correlate the log message to the appropriate pod and then in turn to the appropriate application service.
-
+There are several deficiencies with this approach. For one, you cannot ever have a Cluster Mode pod named `spark-client` as it will collide with Client Mode. Second, it should not be the responsibility of the caller of the Spark Driver to set the **instance** path element. The Spark Driver should be able to write logs to the correct directory without having to know the details of the log directory structure. We will look to remediate these deficiencies in the future.
 
 ==== Log4j configuration
 
@@ -574,119 +574,22 @@ appender.rolling.strategy.max = 10
 [#step-2-dynatrace]
 === Phase 2 — OneAgent
 
-OneAgent is the agent that collects the log data from the Spark application and sends it to Dynatrace. It is responsible for extracting the requisite metadata from the log files and sending them to Dynatrace.
+OneAgent is Dynatrace's single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. In the Log to Incident observability process it tails log files processing the log entries and sending each entry and a nominal amount of contextual metadata to Dynatrace.  
 
-==== OneAgent configuration
+We need to tell OneAgent where to find the log files and what contextual metadata to include with each log entry.
 
-OneAgent configuration is responsible for configuring OneAgent to collect the log data from the Spark application and send it to Dynatrace.
+==== Log Metadata
 
+The log metadata is the key metadata fields that we need to extract from the log files or the log file context. This depends on what fields are required, the available log file context, the available fields in a log line, Dynatrace's ability to parse the log file context, and the OpenPipeline's ability to parse the log file context. 
 
-[#step-1-log-emission]
-==== Log emission Summary
+The key requirements are that:
+- We need to know the log level in order to determine which issues are critical or not. 
+- We and differentiate between a Cluster Mode or Client Mode log file, and if a Client Mode log file.
+-- If it is a Client Mode log file, we need to know what the instance differentiator. 
+-- If it is a Cluster Mode log file, we need to know the pod name. 
 
-Every tailed Spark log line arrives in Dynatrace as a Grail log record. OneAgent supplies severity and path context; custom log source enrichment (and OpenPipeline fallbacks) add the **`spark.*`** workload fields used for Davis matching and ServiceNow correlation.
+OneAgent provides a limited set of default metadata fields. These are the raw log line itself, the log level, and the log source file path. Only the log level is directly useful. We will need to derive the pod name and instance differentiator from the log source file path. This is done via the following custom log source configuration template.
 
-[cols="24%,36%,40%",options="header"]
-|===
-|Attribute |How it is set |Value
-
-|`content`
-|OneAgent (raw line)
-|Full Log4j line
-
-|`loglevel`
-|OneAgent (severity from line text)
-|`WARN`, `ERROR`, `INFO`, …
-
-|`status`
-|OneAgent (from `loglevel`)
-|Coarse bucket (`WARN`, `ERROR`, …)
-
-|`log.source`
-|OneAgent
-|Registered path or path pattern
-
-|`spark.log.path`
-|Custom log source `${0}`
-|Literal file path on the node
-
-|`spark.application`
-|Custom log source / OpenPipeline
-|`spark-client` **or** pod name (e.g. `spark-master-0`)
-
-|`spark.client.instance`
-|Custom log source `${1}` (client paths only)
-|Driver instance directory (`par-a`, PID, …); unset for pods
-
-|`k8s.pod_name`
-|Custom log source `${1}` (service paths only)
-|Same as `spark.application` for pods; kept for CMDB pod-name matching
-|===
-
-=== Phase 3 — Dynatrace
-
-Logs ingested through **OpenPipeline** are evaluated by pipeline processors. Classic builtin:logmonitoring.log-events rules do **not** apply to logs routed through OpenPipeline.
-
-==== OpenPipeline processor flow
-
-.OpenPipeline log alerts processor chain
-[graphviz, OpenPipeline_log_alerts_processor_chain]
-----
-digraph openpipeline_flow {
-  graph [rankdir=LR splines=true nodesep=0.4 fontname="Noto Sans" fontsize=14]
-  node [shape=box style="rounded,filled" fillcolor="#eef6ff" fontname="Noto Sans" fontsize=12]
-  edge [fontname="Noto Sans" fontsize=11]
-
-  OA [label="OneAgent tail\nlog record"]
-  Route [label="Logs routing\nmatcher on log.source"]
-  Extract [label="Fields extract\nworkload.pod_name"]
-  Lookup [label="Entity lookup\ndt.source_entity"]
-  Davis [label="Davis processor\nWARN/ERROR to ERROR_EVENT"]
-  Grail [label="Bucket assignment\ndefault_logs"]
-
-  OA -> Route -> Extract -> Lookup -> Davis -> Grail
-}
-----
-
-==== Dynatrace objects to configure
-
-[cols="35%,35%,30%",options="header"]
-|===
-|Object |Settings schema |Purpose
-
-|Custom log source
-|builtin:logmonitoring.custom-log-source-settings
-|OneAgent tails application log paths on hosts or nodes
-
-|Logs routing
-|builtin:openpipeline.logs.routing
-|Route matched logs into the log-alerts pipeline
-
-|Log alerts pipeline
-|builtin:openpipeline.logs.pipelines
-|Extract pod name, set dt.source_entity, Davis processor
-
-|Alerting profile
-|builtin:alerting.profile
-|Forward in-scope problems to ServiceNow notification
-
-|Problem notification
-|builtin:problem.notifications
-|POST webhook on problem OPEN and RESOLVED
-|===
-
-==== Custom log source
-
-Register path patterns that cover per-workload directories and rotated files.
-
-**Key fields:** **`path`** patterns **must** align with Log4j **`fileName`** / **`filePattern`** (<<lst-log4j-service-rolling,Log4j RollingFile — service-side>>; <<lst-log4j-client-rolling,client-side>>) and OpenPipeline **`log.source`** matchers (<<spec-dt-openpipeline,OpenPipeline specification>>). List **more specific** patterns (`spark-client/*/`) **before** generic `/mnt/spark/logs/*/`. Enrichment **must** set:
-
-* **`spark.log.path`** (`${0}`) — literal file path (do **not** reuse `k8s.*` names for non-Kubernetes paths)
-* **`spark.application`** — `spark-client` for client-mode, or the pod directory name for service-side
-* **`spark.client.instance`** (`${1}`) on client paths; **`k8s.pod_name`** (`${1}`) on service-side paths (equals `cmdb_ci_kubernetes_pod.name`)
-
-.Custom log source (brooks-lab Spark)
-[#spec-dt-log-source]
 [source,json]
 ----
 {
@@ -694,7 +597,7 @@ Register path patterns that cover per-workload directories and rotated files.
   "scope": "environment",
   "value": {
     "enabled": true,
-    "config-item-title": "Spark Lab - application log files",
+    "config-item-title": "{{ dt_sn_spark_log_custom_source_name }}",
     "custom-log-source": {
       "type": "LOG_PATH_PATTERN",
       "values-and-enrichment": [
@@ -721,25 +624,55 @@ Register path patterns that cover per-workload directories and rotated files.
             { "type": "attribute", "key": "spark.application", "value": "${1}" },
             { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
           ]
-        },
-        {
-          "path": "/mnt/spark/logs/*/spark-app-*.log",
-          "enrichment": [
-            { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "${1}" },
-            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
-          ]
-        },
-        { "path": "/opt/spark/logs/spark-app.log*" }
+        }
       ]
     }
   }
 }
 ----
 
-==== Logs routing
+Given the above template, OneAgent will extract the following metadata fields and send them to Dynatrace.
 
-Route OneAgent-sourced records whose log.source matches the application path into the alerts pipeline:
+[cols="24%,36%,40%",options="header"]
+|===
+|Attribute |How it is set |Value
+
+|`content`
+|OneAgent (raw line)
+|Full Log4j line
+
+|`loglevel`
+|OneAgent (severity from line text)
+|`WARN`, `ERROR`, `INFO`, …
+
+|`log.source`
+|OneAgent
+|Registered path or path pattern
+
+|`spark.log.path`
+|Custom log source `${0}`
+|Literal file path on the node
+
+|`spark.application`
+|Custom log source / OpenPipeline
+|`spark-client` **or** pod name (e.g. `spark-master-0`)
+
+|`spark.client.instance`
+|Custom log source `${1}` (client paths only)
+|Driver instance directory (`par-a`, PID, …); unset for pods
+
+|`k8s.pod_name`
+|Custom log source `${1}` (service paths only)
+|Same as `spark.application` for pods; kept for CMDB pod-name matching
+|===
+
+=== Phase 3 — Dynatrace
+
+Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow.
+
+==== Log Routing
+
+To route the logs to the designated OpenPipeline to process Spark log entries. , we need to configure the Logs Routing object. This object is used to route the logs to the appropriate OpenPipeline.
 
 [source,json]
 ----
@@ -747,52 +680,164 @@ Route OneAgent-sourced records whose log.source matches the application path int
   "schemaId": "builtin:openpipeline.logs.routing",
   "scope": "environment",
   "value": {
-    "routing": [
+    "routingEntries": [
       {
         "enabled": true,
-        "description": "Application ERROR/WARN log alerts",
-        "matcher": "matchesValue(log.source, \"/var/log/myapp/*\")",
-        "pipelines": ["application-log-alerts"]
+        "pipelineType": "custom",
+        "pipelineId": "vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t",
+        "matcher": "matchesValue(log.source, \"/mnt/spark/logs/*\")",
+        "description": "Spark Lab log alerts (ERROR/WARN)"
       }
     ]
   }
 }
 ----
 
-==== Log alerts pipeline (complete reference)
+Where:
 
-The pipeline has three processor stages before storage:
+- `pipelineId` is the ID of the Spark log processing OpenPipeline
 
-. **Fields extract** — parse **`k8s.pod_name`** from **`log.source`** when the path is literal.
-. **Fields add / entity lookup** — set **`dt.source_entity`** via **`lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)`**.
-. **Davis processor** — match **WARN**/**ERROR**; set **`event.name`** to include pod name; emit **`event.description`** with full log line.
-. **Bucket assignment** — store in **default_logs** bucket.
+Basically, we just route all '/mnt/spark/logs/*' paths to the Spark log processing OpenPipeline.
 
-**Key fields:** DQL **`matcher`** on **`log.source`**; **`lookupEntity`**; Davis **`event.name`**, **`event.description`**, **`dt.source_entity`**.
+==== OpenPipeline processing
 
-.Specification 2.5.4-1. OpenPipeline log alerts pipeline (brooks-lab Spark)
-[#spec-dt-openpipeline]
-[source,json]
+An OpenPipeline has three stages of processing:
+
+. **Processors** - where the log entries are processed and the metadata fields are extracted and/or defined
+. **Davis** - where the log entries are matched to a Davis processor to generate a Davis event
+. **Grail** - where the Davis events are stored in the Grail bucket.
+
+The template for this pipeline is shown below. Notice the last three stages are empty. We will define them as we touch on each processing stage
+
+[source,json] 
 ----
+
 {
   "schemaId": "builtin:openpipeline.logs.pipelines",
   "scope": "environment",
   "value": {
     "displayName": "Spark Lab - log alerts",
     "customId": "spark-lab-log-alerts",
+    "routing": "routable",
+    "groupRole": "memberPipeline",
+    "processing": {},
+    "davis": {},
+    "storage": {}
+  }
+}
+
+----
+
+===== Processors
+In this example, the goal of the processing is to extract the Spark application and instance from the log path and set the spark.application and spark.client.instance fields. As you can see, the legacy requirement to retain the pod-name paths and layer in Client Mode complicates the logic. Such is the cost of overloading client mode into the same path structure as Cluster Mode. In the future, we will revisit this to simplify the logic. 
+
+On of the goals of the processors section is to define the fields that will be needed downstream for problem creation and data storage. In this case it is to define the following fields: spark,application, spark.client.instance, and dt.source_entity. These fields are key fields that will be incorporated in to a problem. The table below shows the values for these fields for Cluster Mode and Client Mode.
+
+[cols="16%,42%,42%",options="header"]
+|===
+|Field Name|Cluster Mode|Client Mode
+
+|spark.application
+|pod name
+|'spark-client'
+
+|spark.client.instance
+|NULL
+|driver instance
+
+|dt.source_entity
+|A cloud application instance represent the pod, such as`CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890`
+|A custom device representing the client, such as`CUSTOM_DEVICE-A1B2C3D4E5F67890`
+|===
+
+The current implementation is shown below. 
+
+
+[source,json] 
+----
+{
+  
     "processing": {
       "processors": [
         {
-          "id": "extract-spark-pod-from-path",
+          "id": "extract-spark-client-from-path",
           "type": "dql",
-          "matcher": "matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")",
+          "enabled": true,
+          "description": "Parse spark-client instance from spark.log.path when enrichment missed it",
+          "matcher": "isNull(spark.client.instance) AND matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\")",
           "dql": {
-            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\""
+            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/spark-client/' LD:spark.client.instance LD '/spark-app'\" | fieldsAdd spark.application = \"spark-client\""
           }
         },
         {
-          "id": "resolve-spark-pod-entity",
+          "id": "ensure-spark-application-client",
           "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Client-mode logical application id for Davis matchers and SN path resolution",
+          "matcher": "isNotNull(spark.client.instance) OR matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\") OR matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "fieldsAdd": {
+            "fields": [
+              { "name": "spark.application", "value": "spark-client" }
+            ]
+          }
+        },
+        {
+          "id": "resolve-spark-client-entity",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Bind client-mode logs to CUSTOM_DEVICE Spark Client (fieldsAdd is static-only; keeps clients off HOST so they do not bundle with service-side)",
+          "matcher": "spark.application == \"spark-client\" OR isNotNull(spark.client.instance)",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "dt.source_entity",
+                "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
+              }
+            ]
+          }
+        },
+        {
+          "id": "extract-k8s-pod-from-enriched-path",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse pod name from spark.log.path for service-side when k8s.pod_name missing",
+          "matcher": "isNull(k8s.pod_name) AND isNotNull(spark.log.path) AND spark.application != \"spark-client\" AND NOT matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\")",
+          "dql": {
+            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | fieldsAdd spark.application = k8s.pod_name"
+          }
+        },
+        {
+          "id": "extract-k8s-pod-from-log-source",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse pod name from literal log.source (fallback when spark.log.path absent)",
+          "matcher": "isNull(k8s.pod_name) AND spark.application != \"spark-client\" AND isNull(spark.client.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "dql": {
+            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | fieldsAdd spark.application = k8s.pod_name"
+          }
+        },
+        {
+          "id": "ensure-spark-application-from-pod",
+          "type": "dql",
+          "enabled": true,
+          "description": "Service-side: spark.application mirrors k8s.pod_name when still unset",
+          "matcher": "isNull(spark.application) AND isNotNull(k8s.pod_name)",
+          "dql": {
+            "script": "fieldsAdd spark.application = k8s.pod_name"
+          }
+        },
+        {
+          "id": "drop-legacy-chapter-log-paths",
+          "type": "drop",
+          "enabled": true,
+          "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/logs/spark-client/)",
+          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(spark.application, \"*-chapter\")"
+        },
+        {
+          "id": "resolve-k8s-pod-entity",
+          "type": "fieldsAdd",
+          "enabled": false,
+          "description": "Optional pod entity for Smartscape (disabled: pod entities are outside Spark Observability MZ and block SGO webhook). Pod CI binding is done in ServiceNow K8sLogPodCiBind from log path.",
           "matcher": "isNotNull(k8s.pod_name)",
           "fieldsAdd": {
             "fields": [
@@ -804,81 +849,115 @@ The pipeline has three processor stages before storage:
           }
         }
       ]
-    },
+    }
+}
+----
+
+===== Davis
+
+Once the metadata fields are defined in the processors, we are ready to create Dynatrace problems for those log entries with a log level of WARN or ERROR. There is one pattern for Client Mode log entries and another for Cluster Mode log entries. We intentionally do not allow Davis to merge DT events from client logs and service-side logs into a common problem between. Similarly, we don't allow DT events from ``````````Client Mode and Cluster Mode log entries or across pods in cluster mode. The current implementation is shown below.
+
+
+[source,json] 
+----
+{
     "davis": {
       "processors": [
         {
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\"))",
+          "id": "spark-client-warn-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Spark client-mode driver ERROR/WARN logs (no Davis merge across drivers)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.application == \"spark-client\"",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Spark log {loglevel} on {k8s.pod_name}" },
-              { "key": "event.description", "value": "Spark {loglevel} on {log.source}: {content}" },
-              { "key": "dt.source_entity", "value": "{dt.source_entity}" }
+              { "key": "event.name", "value": "Application log {loglevel} on spark-client-{spark.client.instance}" },
+              {
+                "key": "event.description",
+                "value": "Application {loglevel} on {spark.log.path}: {content}"
+              },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
+              { "key": "event.unique_identifier", "value": "spark-client-{spark.client.instance}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        },
+        {
+          "id": "k8s-warn-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Kubernetes pod ERROR/WARN logs (no Davis merge across spark.application / pods)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(spark.application) AND spark.application != \"spark-client\" AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\") OR matchesValue(spark.log.path, \"/mnt/spark/logs/*\") OR matchesValue(spark.log.path, \"/opt/spark/logs/*\"))",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "event.name", "value": "Application log {loglevel} on {spark.application}" },
+              {
+                "key": "event.description",
+                "value": "Application {loglevel} on {spark.log.path}: {content}"
+              },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
+              { "key": "event.unique_identifier", "value": "{spark.application}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
         }
       ]
     }
-  }
+}
+
+----
+
+In processing events, Davis will merge similar events into a single problem to increase the signal to noise ratio. To merge events, the following conditions must be met:
+For two distinct Davis events (from two log hits) to end up in one problem via merge/correlation, these all need to hold:
+
+
+. Both events raise Davis problems — each log line matches via a matcher rule a Davis processor (in this case a WARN or ERROR log level)
+. Merge is allowed (is_merging_allowed=true) on the existing problem 
+. Time overlap — both events occur within the same `dt.davis.event_timeout` time window, which is typically 15 minutes
+. Related topology — Both events are bound to entities that are the same or causally related dt.source_entity / Smartscape neighborhood (Davis root-cause grouping).
+
+If any of these conditions are not met, each event will be assigned to a separate problem.
+
+With the Spark application we were seeing events grouped into a single problem from 
+different pods and clients. While this may be a "good thing", errors across pods or pods and a client are not always related. For example, an error in the Spark Driver may be related to an error in the Spark Executor, but not related to an error in the Spark History Server. In this case, we would not want to group these events into a single problem. As such, we need to suppress this behavior
+
+While setting 'dt.davis.is_merging_allowed=false' prevents Davis from merging events across pods or pods and clients, it also prevents Davis from merging events within a single pod or client(driver). This is most unfortunate as a significant increase in signal to noise ratio is missed. We could leverage deduplication to group related log messages into a single problem, by suitably configuring event.unique_identifier to be identical for related (duplicative) log messages. 
+
+Leveraging event.unique_identifier would require a more thorough analysis of the Spark application log messages to determine if related log messages are duplicative. The question becomes how much effort should we put into analyzing equivalence classes of log messages for a particular application? for now we defer this question.
+
+After the problems are created, Dynatrace will store the events in the default_logs bucket. The current implementation is shown below.
+
+
+[source,json] 
+----
+{
+    "storage": {
+      "processors": [
+        {
+          "id": "default-storage",
+          "type": "bucketAssignment",
+          "enabled": true,
+          "description": "Store in default logs bucket",
+          "matcher": "true",
+          "bucketAssignment": { "bucketName": "default_logs" }
+        }
+      ]
+    }
 }
 ----
 
-NOTE: OpenPipeline **Add fields** (`fieldsAdd`) accepts `lookupEntity(CLOUD_APPLICATION_INSTANCE, <pod-name-field>)` in the API `value` property (Settings API uses `name`, not `field`, for the target attribute). DQL processors in the Processing stage do **not** enable `fetch` or `smartscapeNodes`; do not use Grail notebook lookup syntax there. When lookup misses, `dt.source_entity` remains the OneAgent HOST. The required outcome is `dt.source_entity = CLOUD_APPLICATION_INSTANCE-…` before the Davis processor runs.
+==== Alerting
 
-==== Davis processor properties
+To emit a problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format. 
 
-[cols="30%,70%",options="header"]
-|===
-|Property |Value
+ For log message problems, the severity level to match is 'ERROR'. We 
 
-|Matcher
-|(loglevel == "WARN" OR loglevel == "ERROR") AND matchesValue(log.source, "/var/log/myapp/*")
-
-|event.type
-|ERROR_EVENT
-
-|event.name
-|Spark log {loglevel} on {k8s.pod_name}
-
-|event.description
-|Application {loglevel} on {log.source}: {content}
-
-|dt.source_entity
-|CLOUD_APPLICATION_INSTANCE entity when pod resolved; else pass-through process or host
-
-|dt.davis.event_timeout
-|15m (adjust to problem correlation needs)
-|===
-
-==== Example Grail log record at Davis input
-
-[cols="30%,70%",options="header"]
-|===
-|Attribute |Example
-
-|content
-|2026-06-27 14:53:46 ERROR Worker:264 - All masters are unresponsive! Giving up.
-
-|loglevel
-|ERROR
-
-|log.source
-|/var/log/myapp/myapp-worker-7d4f9b-xk2lm/application.log
-
-|workload.pod_name
-|myapp-worker-7d4f9b-xk2lm (after fields extract)
-
-|dt.source_entity
-|CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890
-
-|host.name
-|k8s-node-01 (tail host — not the alert CI when pod entity is set)
-|===
-
-==== Alerting profile
-
-Scope the profile to the integration management zone and include ERROR and CUSTOM_ALERT severity levels (Davis log events map to ERROR):
+===== Alerting Profile
+The alerting profile couples a management zone to a set of severity level and event filters on the problems. Matching problems will be emitted to ServiceNow. THe full alerting profile template is shown below.
 
 [source,json]
 ----
@@ -895,77 +974,27 @@ Scope the profile to the integration management zone and include ERROR and CUSTO
       { "severityLevel": "CUSTOM_ALERT", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" }
     ],
     "eventFilters": [],
-    "managementZone": "<management-zone-object-id>"
+    "managementZone": "<Spark Observability - MANAGMENT ZONE OBJECT-ID>"
   }
 }
 ----
 
-==== Host CPU metric event (optional companion path)
+Note that alerting profiles management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have impacted entities in the Spark Observability management zone. This means that the impacted entities - hosts or custom devices - must be in the Spark Observability management zone, too.
 
-Host CPU problems are **not Spark-specific** unless scoped. Use a **neutral event title** and an **entity filter** so the detector evaluates only hosts in the integration boundary (management zone or named hosts). Different business units may use different thresholds — create **separate metric events** per scope rather than one tenant-wide rule.
+===== Webhook Endpoint
+The webhook endpoint template couples the alerting profile to the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. The full webhook endpoint template is shown below.
 
-[source,json]
+[source,yaml]
 ----
-{
-  "schemaId": "builtin:anomaly-detection.metric-events",
-  "scope": "environment",
-  "value": {
-    "enabled": true,
-    "summary": "Spark Lab - Host CPU above 80%",
-    "queryDefinition": {
-      "type": "METRIC_KEY",
-      "metricKey": "builtin:host.cpu.usage",
-      "aggregation": "AVG",
-      "entityFilter": {
-        "conditions": [
-          {
-            "type": "HOST_GROUP_NAME",
-            "operator": "EQUALS",
-            "value": "<integration-host-group>"
-          }
-        ]
-      },
-      "dimensionFilter": []
-    },
-    "eventEntityDimensionKey": "dt.entity.host",
-    "modelProperties": {
-      "type": "STATIC_THRESHOLD",
-      "threshold": 80.0,
-      "alertOnNoData": false,
-      "alertCondition": "ABOVE",
-      "violatingSamples": 1,
-      "samples": 3,
-      "dealertingSamples": 3
-    },
-    "eventTemplate": {
-      "title": "Host ({dims:dt.entity.host}) CPU above 80%",
-      "description": "Host CPU usage in management zone <name> exceeded 80%.",
-      "eventType": "CUSTOM_ALERT",
-      "davisMerge": false,
-      "metadata": []
-    }
-  }
-}
+enabled: true
+type: WEBHOOK
+displayName: "ServiceNow brooks-lab - Spark Observability"
+alertingProfile: "<Application Observability - ServiceNow OBJECT-ID"
+webHookNotification:
+  url: "https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
+"
 ----
 
-Scope the detector with an **entity filter**: **HOST_GROUP_NAME** (when OneAgent assigns a host group), **MANAGEMENT_ZONE** (numeric zone id), or individual **HOST_NAME** values. Multiple conditions in one filter use **AND** logic — use a single host group or zone rather than listing every host unless each host has its own metric event.
-
-When the integration uses a **management zone**, a **MANAGEMENT_ZONE** filter requires the zone’s **numeric id** (not the Settings API objectId). Template: `observability/dynatrace/tenants/<tenant>/integrations/spark-cpu-metric-event.json.j2`.
-
-==== Dynatrace sends the problem to ServiceNow
-
-==== Webhook endpoint
-
-[source]
-----
-POST https://<instance>.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
-Authorization: Basic <base64(user:password)>
-Content-Type: application/json
-----
-
-Use **ProblemDetailsJSON** (v1) in the payload template for SGC — not ProblemDetailsJSONv2 (legacy templates may return HTTP 500 on some instances).
-
-[#spec-dt-webhook-payload]
 ==== Problem notification payload template
 The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. **`ProblemDetailsJSON.rankedEvents[]`** carries the OpenPipeline Davis properties from <<spec-dt-openpipeline,OpenPipeline specification>> (`event.description`, entity ids, severity). Those ranked events are the **problem specification** that flows into ServiceNow **`em_event.description`** (via **`ProblemDetailsText`**) and into **`em_event.additional_info`**.
 
@@ -990,54 +1019,7 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
 }
 ----
 
-Enable **notifyClosedProblems** so RESOLVED posts update the same em_event via message_key.
-
-==== Webhook field mapping
-
-[cols="25%,30%,45%",options="header"]
-|===
-|Webhook field |Dynatrace source |ServiceNow target
-
-|ProblemID
-|Stable problem identifier
-|em_event.message_key (OPEN and RESOLVED deduplication)
-
-|ProblemTitle
-|event.name / Davis title
-|em_event.message; contributes to description
-
-|ProblemSeverity
-|ERROR, CUSTOM_ALERT, etc.
-|em_event.severity (numeric mapping per SGC rules)
-
-|ImpactedEntities[].entityId
-|CLOUD_APPLICATION_INSTANCE-…, PROCESS_GROUP-…, HOST-…
-|sys_object_source lookup → em_event.cmdb_ci
-
-|ProblemDetailsJSON.rankedEvents[]
-|Ranked events with entityId, eventType
-|Fallback CI binding parse path
-
-|ProblemDetailsText
-|Davis narrative including event.description
-|em_event.description (primary operator-facing text)
-
-|Tags
-|Problem tags (Project, Environment, …)
-|em_event.additional_info; not CSDM join keys
-
-|State
-|OPEN or RESOLVED
-|Create vs close/update event
-
-|ProblemURL
-|Deep link to Dynatrace problem
-|em_event.additional_info
-|===
-
-==== Complete example webhook body
-
-After Dynatrace substitutes placeholders for an ERROR log problem:
+A complete example of the problem notification payload is shown below.
 
 [source,json]
 ----
@@ -1079,72 +1061,15 @@ After Dynatrace substitutes placeholders for an ERROR log problem:
 }
 ----
 
-==== Ensuring log fields reach ServiceNow
-
-[cols="30%,70%",options="header"]
-|===
-|Layer |Configuration
-
-|OpenPipeline Davis processor
-|Set **`event.description`** to include **`{content}`**, **`{loglevel}`**, and **`{log.source}`** (Phase 2); set **`event.name`** to include **`{k8s.pod_name}`** for per-pod correlation (<<spec-dt-openpipeline,OpenPipeline specification>>)
-
-|Dynatrace problem notification
-|When OpenPipeline Davis properties are present, Dynatrace expands them into **`ProblemDetailsJSON.rankedEvents[]`** (each ranked event includes **`eventDescription`**, **`entityId`**, **`title`**). Dynatrace then assembles **`ProblemDetailsText`** from those ranked events (including **`event.description`** text) before the webhook is sent. See <<spec-dt-webhook-payload-json,Problem notification payload specification>>.
-
-|SGC field mapping (sa_event_field_mapping in sn_dynatrace_integ)
-|Map **`ProblemDetailsText`** → **`em_event.description`**; map **`ImpactedEntity`** or parsed pod name → **`em_event.resource`**
-
-|em_event business rule (Spark pod bind)
-|When path or **`node`** encodes pod name, set **`cmdb_ci`**, **`resource`**, **`message_key`** prefix **`K8sLog-{pod}-`**, and **`message`** **`Event Log WARN`** or **`Event Log ERROR`**
-
-|em_event.additional_info
-|Persist full **`ProblemDetailsJSON`** for Event Management rules and incident scripts
-
-|em_alert.description
-|Event Management alert rule copies **`em_event.description`**; **`cmdb_ci`** copied from event
-|===
-
-NOTE: Kubernetes labels (servicenow.io/application-service-identifier) are **not** in the webhook payload. They remain on CMDB pod CIs for Phase 5 incident correlation.
-
-==== ServiceNow (Phase 4)
-
-The **Observability engineer** (ServiceNow administrator with Event Management and SGC access) must verify the push connector — not the monitored application developer:
-
-. Confirm the Store app **Service Graph Connector for Observability – Dynatrace** (`sn_dynatrace_integ`) is installed and active.
-. In **Event Management → Integrations → Push Connectors** (or **Connections → Observability → Dynatrace** in newer releases), locate the connector whose inbound URL ends with:
-+
---
-`POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace`
---
-. Verify **Basic authentication** credentials match the Dynatrace problem notification profile (brooks-lab: provisioned via Ansible `ensure_sn_dt_webhook_auth.yml`).
-. In the scoped app, open **Event field mappings** (`sa_event_field_mapping` / `$sa_event_map`) and confirm:
-**ProblemDetailsText** → **description**; **ProblemTitle** → **message**; **ProblemID** → **message_key**; severity mapping for ERROR and WARN.
-. Ensure EM **event rules** mark inbound SGO-Dynatrace events **Ready** when `cmdb_ci` is populated (see <<step-5-em-rules,Event Management rules>>).
-. Ensure EM **alert rules** create alerts from Ready events and copy `cmdb_ci`, `description`, `resource`, and `node` from the event.
-
-No **ServiceNow** configuration is required on the monitored application itself. No **Dynatrace** changes are required at this Phase beyond the problem notification profile deployed in <<step-2-dynatrace,Phase 2 — Dynatrace>>.
-
----
-
 === Phase 4 — ServiceNow
 
-==== Event listener
+ServiceNow Event Management is a three stage process. First, event data is received from external sources, like Dynatrace and an event is created. If it is a duplicate event, it will get combined with the earlier duplicate. Then, an event is either promoted to an alert or grouped into an existing alert. Alerts then optionally be promoted to an incident or grouped with an existing incident. Once an incident is created a support team is notified. 
 
-[cols="30%,70%",options="header"]
-|===
-|Setting |Value
+At each step in the process there is an opportunity to increase the signal to noise ratio. For example, in the first step, we can deduplicate events from the same source and time window. In the second step, we can group related events into a single alert. In the third step, we can group related alerts into a single incident.
 
-|Source
-|SGO-Dynatrace (URL query parameter on inbound_event)
+==== Event Management
 
-|Scoped app
-|sn_dynatrace_integ
-
-|CI lookup
-|sys_object_source where name=SGO-Dynatrace and id=<entityId from ImpactedEntities>
-|===
-
-==== em_event field mapping
+Once an event payload is received, the first step is to create an event object in ServiceNow. The table below shows how the webhook fields map to the event object fields.
 
 [cols="25%,75%",options="header"]
 |===
@@ -1190,6 +1115,9 @@ No **ServiceNow** configuration is required on the monitored application itself.
 |PID when mapped
 |===
 
+By design, the SGC seeds the CI of the event from Dynatrace entityId. For our critical log entries Dynatrace set the dt.source_entity to a cloud application instance or the custom device for Spark clients. For example, "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890". Then a application oriented (e.g. Spark) Business Rule (BR) overrides the  to Spark Client AS (client logs) or pod CI (service logs), else leaves the HOST/empty bind.
+
+After that a 
 ==== CI binding procedure
 
 . Listener receives POST at inbound_event?source=SGO-Dynatrace.
@@ -1222,6 +1150,11 @@ Prerequisites for pod binding:
 * Pod name in Dynatrace matches Kubernetes metadata.name.
 * IRE merge aligns KVA-discovered pod CIs with SGC-imported entities when both exist.
 * sys_object_source row exists before the webhook arrives (account for import schedule lag).
+
+==== Alert Management
+
+see if there is an existing event with the same message key. If there was no message key, ServiceNow generates a message key from the Source, Node, Type, Resource, and Metric Name fields. The message key (Problem ID) should always be populated by Dynatrace. If the event is a duplicate, it will get grouped into the alert of the existing event. If the duplicate 
+
 
 ==== Description and alert text
 
@@ -1788,63 +1721,6 @@ Playbook path: `ansible/playbooks/servicenow/incident/deploy.yml`. Source files:
 ==== Application and Dynatrace (Phase 5)
 
 No configuration on the application or Dynatrace side. Dynatrace problem tags (Project, Environment) do not replace CSDM tags on pod CIs for incident binding.
-
----
-
-[appendix]
-[#legacy-sgo-coexistence]
-== Legacy and SGO-Dynatrace coexistence
-
-During migration from a legacy Event Management push connector (`source=Dynatrace` on the inbound URL) to Service Graph Connector (`source=SGO-Dynatrace`), **both paths may be active**. Use **`em_event.source`** and **`em_alert.source`** to scope automation — never assume a single connector.
-
-=== Separation by source
-
-[cols="30%,35%,35%",options="header"]
-|===
-|Layer |Legacy (`source=Dynatrace`) |SGC (`source=SGO-Dynatrace`)
-
-|Inbound URL
-|`/inbound_event?source=dynatrace&sys_id=<connector-sys-id>`
-|`/inbound_event?source=SGO-Dynatrace`
-
-|CI binding
-|Legacy connector field mapping + `sys_object_source` (may differ from SGC import)
-|SGC `ImpactedEntities` → `sys_object_source` (name **SGO-Dynatrace**)
-
-|Spark log business rules
-|**Must not run** — filter `source=SGO-Dynatrace` on every BR
-|Pod rebind, incident create, Application Service resolution
-
-|Problem notification
-|Pre-existing tenant profiles (for example Demo integrations)
-|Dedicated profile scoped to integration management zone
-|===
-
-=== Scoping rules and profiles
-
-* **Dynatrace alerting profiles:** Scope each profile to a **management zone** (or tag filter) so only in-scope problems forward to ServiceNow. A profile attached to a legacy webhook should not receive problems from hosts outside its intended boundary.
-* **ServiceNow EM rules:** Add **`source=SGO-Dynatrace`** (or **`source=Dynatrace`**) to event and alert rule filter conditions so each rule set applies only to its connector.
-* **Business rules:** All Spark log automation in this document filters **`source=SGO-Dynatrace`**. Legacy CPU or infrastructure alerts continue through legacy rules until that connector is retired.
-
-=== Host CPU alerts (not Spark-specific)
-
-Metric events on **`builtin:host.cpu.usage`** fire per **host**, not per application. Even on the SGC path, a CPU problem binds **`em_alert.cmdb_ci`** to the breaching **host CI** — that is correct behavior.
-
-To avoid misleading titles and out-of-scope hosts:
-
-. Use a **neutral title**: `Host ({dims:dt.entity.host}) CPU above 80%` (not application-branded text).
-. Add an **entity filter** on the metric event: **management zone** (preferred) or explicit **HOST_NAME** list for integration hosts.
-. Create **separate metric events** per organization or environment when thresholds differ (for example 80% in lab, 90% in production).
-
-Template: `observability/dynatrace/tenants/<tenant>/integrations/spark-cpu-metric-event.json.j2`. Deploy via `ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/apply_dt_anomaly_detectors.yml`.
-
-=== When to retire legacy connector
-
-After SGC cutover is verified (events arrive with `source=SGO-Dynatrace`, pod CI binding works, incidents link on **Alerts** tab):
-
-. Disable legacy Dynatrace problem notification profiles pointing at `source=dynatrace`.
-. Leave legacy EM rules in place until no new `source=Dynatrace` events arrive.
-. Remove legacy rules once the connector is decommissioned.
 
 ---
 
