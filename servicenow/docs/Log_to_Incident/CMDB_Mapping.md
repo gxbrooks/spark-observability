@@ -55,43 +55,43 @@ Both patterns use the Spark OpenPipeline log-alerts pipeline
 (`observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`)
 and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **processing**, **Davis matcher**, and **impacted entity**.
 
-### Client-side (Dynatrace)
+### Client mode (Dynatrace)
 
 | Concern | Configuration |
 |---------|----------------|
-| **Path match** | `spark.application == "spark-client"` (from path enrichment) |
-| **Parse** | `spark.client.instance` from path; `spark.log.path` = literal file |
-| **Tag** | `spark.application = spark-client` |
-| **Entity bind** | Static `dt.source_entity = CUSTOM_DEVICE-…` (“Spark Client”). `fieldsAdd` is **static-only**. |
-| **Davis merge** | `dt.davis.is_merging_allowed=false`; `event.unique_identifier=spark-client-{instance}` |
+| **Path** | `/mnt/spark/client-logs/<driver-instance>/` |
+| **Mode** | `spark.mode = Client` |
+| **Instance** | `spark.instance = <host.name>:<driver-instance>` |
+| **Device** | `spark.device` / `dt.source_entity` = CUSTOM_DEVICE “Spark Client” |
+| **Davis merge** | `dt.davis.is_merging_allowed=false`; `event.unique_identifier={spark.instance}` |
 | **Davis processor** | `spark-client-warn-error-davis` |
-| **`event.name`** | `Application log {loglevel} on spark-client-{spark.client.instance}` |
-| **Management zone** | CUSTOM_DEVICE “Spark Client” is included in **Spark Observability** so SGO can forward the problem |
-| **Optional host process tag** | `DT_TAGS=servicenow.io/application-service-identifier=spark-client` on the driver (process enrichment only; **not** required for log-path incidents) |
+| **`event.name`** | `Client application log {loglevel} on {spark.instance}` |
+| **Management zone** | CUSTOM_DEVICE “Spark Client” is in **Spark Observability** so SGO can forward |
 
-**Why CUSTOM_DEVICE:** Client drivers are not Kubernetes pods. Binding Davis events to a stable logical device (instead of the OneAgent **HOST**) keeps client problems from bundling with Service-side HOST problems on the same node.
+**Why CUSTOM_DEVICE:** Client drivers are not Kubernetes pods. Binding Davis events to a stable logical device (instead of the OneAgent **HOST**) keeps Client problems from bundling with Cluster HOST problems on the same node.
 
-### Service-side (Dynatrace)
+### Cluster mode (Dynatrace)
 
 | Concern | Configuration |
 |---------|----------------|
-| **Path match** | `/mnt/spark/logs/*` or `/opt/spark/logs/*`, **excluding** `spark-client` and legacy `*-chapter` dirs |
-| **Parse** | DQL extracts `k8s.pod_name` from the path (e.g. `spark-master-0`) |
-| **Entity bind** | Processor `resolve-k8s-pod-entity` (`lookupEntity(CLOUD_APPLICATION_INSTANCE, …)`) is **disabled**. Pod Smartscape entities sit outside the Spark Observability MZ and would block SGO webhook delivery. |
-| **Davis processor** | `k8s-warn-error-davis` |
-| **`event.name`** | `Application log {loglevel} on {k8s.pod_name}` |
-| **Typical impacted entity** | **HOST** (file-tailed log on the node). Pod identity for CMDB is recovered later in ServiceNow from the path / `event.name`. |
+| **Path** | `/mnt/spark/logs/<pod>/` (not under `client-logs`) |
+| **Mode** | `spark.mode = Cluster` |
+| **Pod** | `spark.pod` (and `k8s.pod_name`) from path enrichment |
+| **Entity bind** | Leave OneAgent **HOST** as `dt.source_entity` (in MZ). Pod CI rebind is in ServiceNow. |
+| **Davis processor** | `spark-cluster-warn-error-davis` |
+| **`event.name`** | `Cluster application log {loglevel} on {spark.pod}` |
+| **Typical impacted entity** | **HOST**. Pod identity for CMDB is recovered later in ServiceNow from the path / `event.name`. |
 
-**Design split:** Dynatrace carries the **pod name in the event title/description**; ServiceNow owns **pod CI binding** (`K8sLogPodCiBind`). Dynatrace does **not** need to be the system of record for the CMDB pod sys_id.
+**Design split:** Dynatrace carries **`spark.mode`** plus either **`spark.instance`** (Client) or **`spark.pod`** (Cluster). ServiceNow owns Application Service / pod CI binding (`ResolveApplicationService` / `K8sLogPodCiBind`).
 
 ### Side-by-side (Dynatrace)
 
-| | Client-side | Service-side |
-|--|-------------|--------------|
-| OpenPipeline branch | Client extract + tag + CUSTOM_DEVICE `dt.source_entity` | Pod name extract; pod `lookupEntity` **off** |
-| Davis `event.name` | `… on spark-client-<instance>` | `… on <pod-name>` |
+| | Client | Cluster |
+|--|--------|---------|
+| OpenPipeline branch | `spark.mode=Client`; compose `spark.instance`; set `spark.device` | `spark.mode=Cluster`; set `spark.pod` |
+| Davis `event.name` | `Client application log … on <host>:<instance>` | `Cluster application log … on <pod>` |
 | Problem impacted entity | CUSTOM_DEVICE Spark Client | HOST (usually) |
-| SN connector often seen | Classic **Dynatrace** and/or **SGO-Dynatrace** | Prefer **SGO-Dynatrace** for pod rebind path |
+| SN path detector | `/client-logs/` | `/mnt/spark/logs/<pod>/` |
 
 ---
 

@@ -133,7 +133,9 @@
       pipelineType: custom
       pipelineId: "{{ dt_spark_openpipeline_pipeline_object_id }}"
       matcher: >-
-        matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source, "/opt/spark/logs/*")
+        matchesValue(log.source, "/mnt/spark/logs/*")
+        OR matchesValue(log.source, "/mnt/spark/client-logs/*")
+        OR matchesValue(log.source, "/opt/spark/logs/*")
       description: "{{ dt_sn_spark_openpipeline_routing_description }}"
   run_once: true
 
@@ -148,6 +150,12 @@
             | list
           )
       }}
+    dt_openpipeline_routing_existing_spark: >-
+      {{
+        dt_openpipeline_logs_routing_existing.routingEntries | default([])
+        | selectattr('description', 'equalto', dt_sn_spark_openpipeline_routing_description)
+        | list | first | default({})
+      }}
     dt_openpipeline_routing_change_needed: >-
       {{
         (dt_openpipeline_logs_routing_existing.routingEntries | default([]) | length == 0)
@@ -159,6 +167,10 @@
           (dt_openpipeline_logs_routing_existing.routingEntries | default([])
            | selectattr('description', 'equalto', dt_sn_spark_openpipeline_routing_description)
            | list | length) == 0
+        )
+        or (
+          (dt_openpipeline_routing_existing_spark.matcher | default('') | replace(' ', '') | replace('\n', ''))
+          != (dt_spark_openpipeline_routing_entry.matcher | replace(' ', '') | replace('\n', ''))
         )
       }}
   run_once: true

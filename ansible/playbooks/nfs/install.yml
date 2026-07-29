@@ -244,7 +244,8 @@
       changed_when: false
 
 # Application logs under /mnt/spark/logs are LOCAL on each Kubernetes node (not NFS).
-# OneAgent on that host alone tails pod and client log files written there.
+# Client driver logs under /mnt/spark/client-logs are also LOCAL (separate tree from Cluster pods).
+# OneAgent on that host alone tails files written there.
 - name: Local Spark application logs (bind over former NFS path)
   hosts: kubernetes_master:kubernetes_workers
   become: true
@@ -255,6 +256,8 @@
     spark_mount_base_resolved: "{{ spark_mount_base }}"
     spark_logs_local_root: /var/local/spark/logs
     spark_logs_mount_resolved: "{{ spark_mount_base_resolved }}/logs"
+    spark_client_logs_local_root: /var/local/spark/client-logs
+    spark_client_logs_mount_resolved: "{{ spark_mount_base_resolved }}/client-logs"
   tasks:
     - name: Fail if spark_mount_base is missing from generated nfs context
       fail:
@@ -305,6 +308,30 @@
       mount:
         path: "{{ spark_logs_mount_resolved }}"
         src: "{{ spark_logs_local_root }}"
+        fstype: none
+        opts: bind
+        state: mounted
+
+    - name: Create local Spark client log store
+      file:
+        path: "{{ spark_client_logs_local_root }}"
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
+    - name: Ensure contract path exists for client logs
+      file:
+        path: "{{ spark_client_logs_mount_resolved }}"
+        state: directory
+        mode: '2775'
+        owner: spark
+        group: spark
+
+    - name: Bind local client logs at /mnt/spark/client-logs
+      mount:
+        path: "{{ spark_client_logs_mount_resolved }}"
+        src: "{{ spark_client_logs_local_root }}"
         fstype: none
         opts: bind
         state: mounted

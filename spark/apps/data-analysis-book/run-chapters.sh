@@ -11,9 +11,10 @@
 # Parallel chapter batches on one host (distinct SPARK_DRIVER_INSTANCE per batch).
 #   ./run-parallel-all.sh [LOG_DIR]
 #
-# Client log layout (node-local, not NFS):
-#   /mnt/spark/logs/spark-client/<instance>/spark-app.log
+# Client log layout (node-local, not NFS; separate from Cluster /mnt/spark/logs/<pod>/):
+#   /mnt/spark/client-logs/<instance>/spark-app.log
 #   <instance> = SPARK_DRIVER_INSTANCE if set, else this shell's PID ($$)
+# OpenPipeline sets spark.instance = <host.name>:<instance>.
 # Override either SPARK_LOG_DIR (full path) or SPARK_DRIVER_INSTANCE (instance label).
 
 # Get the directory where this script is located
@@ -39,9 +40,9 @@ if [ -z "${SPARK_MASTER_URL:-}" ] && [ -n "${SPARK_MASTER_HOST:-}" ] && [ -n "${
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 fi
 
-# Client-mode logs: /mnt/spark/logs/spark-client/<instance>/
+# Client-mode logs: /mnt/spark/client-logs/<instance>/
 # Local bind mount on each host (not NFS) — only that host's OneAgent tails the file.
-_spark_client_root="/mnt/spark/logs/spark-client"
+_spark_client_root="/mnt/spark/client-logs"
 # Sanitize override label (path segment); default instance = wrapper PID.
 if [ -n "${SPARK_DRIVER_INSTANCE:-}" ]; then
     _spark_driver_instance="$(printf '%s' "${SPARK_DRIVER_INSTANCE}" | tr -c 'A-Za-z0-9._-' '-' | sed 's/-\+/-/g;s/^-//;s/-$//')"

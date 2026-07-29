@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run full chapter suite in two parallel batches with distinct client log instance dirs.
-# Layout: /mnt/spark/logs/spark-client/<SPARK_DRIVER_INSTANCE>/
+# Layout: /mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

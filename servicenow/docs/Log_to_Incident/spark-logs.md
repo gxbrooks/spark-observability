@@ -48,7 +48,7 @@ Spark JVMs (PySpark chapter **driver** on Lab3, **executors** in K8s pods, **mas
 
 | Writer | Config | Output path |
 |--------|--------|-------------|
-| Chapter / client-mode driver | `run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/logs/spark-client/<instance>/spark-app.log` (rollover: `spark-app-*.log` in same dir) |
+| Chapter / client-mode driver | `run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/client-logs/<instance>/spark-app.log` (rollover: `spark-app-*.log` in same dir) |
 | K8s Spark pods | Pod log4j / symlink layout | `/mnt/spark/logs/<pod-dir>/spark-app.log` |
 | Spark 4.x DiskLog (optional) | `/opt/spark/logs` when present | `/opt/spark/logs/spark-app.log` |
 | Legacy (retired) | prior `run-chapters.sh` | `/mnt/spark/logs/<host>-chapter/` — dropped by OpenPipeline |
@@ -60,13 +60,13 @@ See [Log to Incident — client-side incident mapping](Log_to_Incident.adoc#step
 | File / setting | Role |
 |----------------|------|
 | `spark/conf/log4j2-client.properties` | Console + RollingFile → `${SPARK_LOG_DIR}/spark-app.log`; 20 MB + daily rollover; keep 10 / delete 30d |
-| `spark/apps/data-analysis-book/run-chapters.sh` | Sets `SPARK_LOG_DIR=/mnt/spark/logs/spark-client/<instance>/`; optional `SPARK_DRIVER_INSTANCE`; `DT_TAGS=…spark-client`; adds `-Dlog4j2.configurationFile=…/log4j2-client.properties` |
+| `spark/apps/data-analysis-book/run-chapters.sh` | Sets `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/`; optional `SPARK_DRIVER_INSTANCE`; `DT_TAGS=…spark-client`; adds `-Dlog4j2.configurationFile=…/log4j2-client.properties` |
 | `docs/Log_Architecture.md` | NFS layout under `/mnt/spark/logs` on Lab1–Lab3 |
 | K8s / Spark deploy | Executor and master logs under per-pod directories on NFS |
 
 ### Example raw log lines (file on disk)
 
-Client-mode driver (`/mnt/spark/logs/spark-client/par-a/spark-app.log`):
+Client-mode driver (`/mnt/spark/client-logs/par-a/spark-app.log`):
 
 ```text
 2026-07-06 07:18:44 WARN  WindowExec:244 - No Partition Defined for Window operation! Moving all data to a single partition…
@@ -396,14 +396,14 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 
 | Use case | Log path example | Davis `event.name` | Expected `incident.cmdb_ci` |
 |----------|------------------|--------------------|-----------------------------|
-| Client-side | `/mnt/spark/logs/spark-client/par-a/spark-app.log` | `Application log WARN on spark-client-par-a` | **Spark Client** AS (`service_mapping: manual`) |
+| Client-side | `/mnt/spark/client-logs/par-a/spark-app.log` | `Application log WARN on spark-client-par-a` | **Spark Client** AS (`service_mapping: manual`) |
 | Service-side | `/mnt/spark/logs/spark-master-0/spark-app.log` | `Application log WARN on spark-master-0` | **Spark Master** AS (Service-Side Contains traversal) |
 
-1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to `/mnt/spark/logs/spark-client/<instance>/`.
-2. **Ingest** — OneAgent custom log source paths `/mnt/spark/logs/spark-client/*/spark-app*.log`; restart OneAgent after deploy if paths were added recently.
+1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to `/mnt/spark/client-logs/<instance>/`.
+2. **Ingest** — OneAgent custom log source paths `/mnt/spark/client-logs/*/spark-app*.log`; restart OneAgent after deploy if paths were added recently.
 3. **Detect** — OpenPipeline `spark-client-warn-error-davis` processor; Davis **`event.name`** = `Application log {loglevel} on spark-client-{instance}`; timeout **15m**.
 4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
-5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/logs/spark-client/` → Application Service **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
+5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → Application Service **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 
 ### Parallel chapter load (two drivers)
 
@@ -433,7 +433,7 @@ DQL filter for client paths only:
 ```dql
 fetch logs, from:now()-2h
 | filter (loglevel == "WARN" OR loglevel == "ERROR")
-  AND matchesValue(log.source, "/mnt/spark/logs/spark-client/*")
+  AND matchesValue(log.source, "/mnt/spark/client-logs/*")
 | sort timestamp desc
 | limit 50
 ```

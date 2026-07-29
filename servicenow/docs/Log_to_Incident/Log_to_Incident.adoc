@@ -504,23 +504,24 @@ The best practice for processing application logs is to have the application wri
 └── spark-worker-lab2-5c8a1e2f3b-m7h2k/
 ----
 
-For Client Mode logs, we want to differential between Client Mode and Cluster Mode and differentiate between the different client instances. For Cluster Mode, we continue to use the pod name as the sub-directory name, for backward compatibility. For Client mode, we use a synthetic path segment `spark-client` under `/mnt/spark/logs/` to differentiate client directories. After the client mode directory, we add a subdirectory to capture the logs for each client instance. THe form of a client mode log directory is `/mnt/spark/logs/spark-client/<instance>/`. The **instance** path element defaults to the wrapper PID of the Spark Driver (client). If we invoke multiple drivers on the same host in parallel, the process that invokes the driver is responsible for setting the **instance** path element (SPARK_DRIVER_INSTANCE) to a unique value.
+Client Mode logs use a **separate tree** from Cluster Mode: `/mnt/spark/client-logs/<instance>/` versus `/mnt/spark/logs/<pod>/`. A short path-prefix comparison differentiates the modes. The **instance** path element defaults to the wrapper PID of the Spark Driver; parallel drivers on one host set **SPARK_DRIVER_INSTANCE**. OpenPipeline sets **`spark.mode=Client`** and **`spark.instance=<host.name>:<instance>`**.
 
-<<list-spark-client-log-tree>> illustrates the log directory structure for client-mode logs.
+<<list-spark-client-log-tree>> illustrates the client-mode log directories.
 
 [.figure-indent]
 [[list-spark-client-log-tree]]
 .Spark client-mode log directories
 [source,text]
 ----
-/mnt/spark/logs/                         # node-local hostPath (Lab1–Lab3)
-├── spark-client/                        # synthetic pod name
-    ├── 12345                            # Regular run uses default PID
-    ├── par-a                            # Overridden PID for parallel run
-    └── par-a                            # Overridden PID for parallel run
+/mnt/spark/
+├── client-logs/                         # Client mode (node-local)
+│   ├── 12345/                           # default: wrapper PID
+│   ├── par-a/                           # SPARK_DRIVER_INSTANCE override
+│   └── par-b/
+└── logs/                                # Cluster mode pods only
+    ├── spark-master-0/
+    └── spark-worker-…
 ----
-
-There are several deficiencies with this approach. For one, you cannot ever have a Cluster Mode pod named `spark-client` as it will collide with Client Mode. Second, it should not be the responsibility of the caller of the Spark Driver to set the **instance** path element. The Spark Driver should be able to write logs to the correct directory without having to know the details of the log directory structure. We will look to remediate these deficiencies in the future.
 
 ==== Log4j configuration
 
@@ -547,7 +548,7 @@ appender.rolling.strategy.type = DefaultRolloverStrategy
 appender.rolling.strategy.max = 10
 ----
 
-Client-side (`spark/conf/log4j2-client.properties`): console + RollingFile. `run-chapters.sh` sets `SPARK_LOG_DIR=/mnt/spark/logs/spark-client/<instance>/` and `-Dlog4j2.configurationFile=…/log4j2-client.properties`.
+Client-side (`spark/conf/log4j2-client.properties`): console + RollingFile. `run-chapters.sh` sets `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/` and `-Dlog4j2.configurationFile=…/log4j2-client.properties`.
 
 [[lst-log4j-client-rolling]]
 .Log4j RollingFile — client-side
@@ -555,8 +556,8 @@ Client-side (`spark/conf/log4j2-client.properties`): console + RollingFile. `run
 ----
 appender.rolling.type = RollingFile
 appender.rolling.name = RollingFile
-appender.rolling.fileName = ${env:SPARK_LOG_DIR:-/mnt/spark/logs/spark-client/default}/spark-app.log
-appender.rolling.filePattern = ${env:SPARK_LOG_DIR:-/mnt/spark/logs/spark-client/default}/spark-app-%d{yyyy-MM-dd}-%i.log
+appender.rolling.fileName = ${env:SPARK_LOG_DIR:-/mnt/spark/client-logs/default}/spark-app.log
+appender.rolling.filePattern = ${env:SPARK_LOG_DIR:-/mnt/spark/client-logs/default}/spark-app-%d{yyyy-MM-dd}-%i.log
 appender.rolling.filePermissions = rw-r--r--
 appender.rolling.layout.type = PatternLayout
 appender.rolling.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%ex
@@ -602,7 +603,7 @@ OneAgent provides a limited set of default metadata fields. These are the raw lo
       "type": "LOG_PATH_PATTERN",
       "values-and-enrichment": [
         {
-          "path": "/mnt/spark/logs/spark-client/*/spark-app.log",
+          "path": "/mnt/spark/client-logs/*/spark-app.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
             { "type": "attribute", "key": "spark.application", "value": "spark-client" },
@@ -610,7 +611,7 @@ OneAgent provides a limited set of default metadata fields. These are the raw lo
           ]
         },
         {
-          "path": "/mnt/spark/logs/spark-client/*/spark-app-*.log",
+          "path": "/mnt/spark/client-logs/*/spark-app-*.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
             { "type": "attribute", "key": "spark.application", "value": "spark-client" },
@@ -729,25 +730,31 @@ The template for this pipeline is shown below. Notice the last three stages are 
 ----
 
 ===== Processors
-In this example, the goal of the processing is to extract the Spark application and instance from the log path and set the spark.application and spark.client.instance fields. As you can see, the legacy requirement to retain the pod-name paths and layer in Client Mode complicates the logic. Such is the cost of overloading client mode into the same path structure as Cluster Mode. In the future, we will revisit this to simplify the logic. 
-
-On of the goals of the processors section is to define the fields that will be needed downstream for problem creation and data storage. In this case it is to define the following fields: spark,application, spark.client.instance, and dt.source_entity. These fields are key fields that will be incorporated in to a problem. The table below shows the values for these fields for Cluster Mode and Client Mode.
+Processing sets **`spark.mode`** (`Cluster` or `Client`) from the log path prefix, then mode-specific fields. Canonical specification: `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`.
 
 [cols="16%,42%,42%",options="header"]
 |===
 |Field Name|Cluster Mode|Client Mode
 
-|spark.application
-|pod name
-|'spark-client'
+|spark.mode
+|`Cluster`
+|`Client`
 
-|spark.client.instance
-|NULL
-|driver instance
+|spark.pod
+|pod name (e.g. `spark-master-0`)
+|unset
+
+|spark.instance
+|unset
+|`<host.name>:<driver-instance>`
+
+|spark.device
+|unset
+|CUSTOM_DEVICE id for Spark Client
 
 |dt.source_entity
-|A cloud application instance represent the pod, such as`CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890`
-|A custom device representing the client, such as`CUSTOM_DEVICE-A1B2C3D4E5F67890`
+|HOST (in Spark Observability MZ; pod rebind in ServiceNow)
+|same CUSTOM_DEVICE as `spark.device`
 |===
 
 The current implementation is shown below. 
@@ -764,9 +771,9 @@ The current implementation is shown below.
           "type": "dql",
           "enabled": true,
           "description": "Parse spark-client instance from spark.log.path when enrichment missed it",
-          "matcher": "isNull(spark.client.instance) AND matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\")",
+          "matcher": "isNull(spark.client.instance) AND matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
           "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/spark-client/' LD:spark.client.instance LD '/spark-app'\" | fieldsAdd spark.application = \"spark-client\""
+            "script": "parse spark.log.path, \"LD '/mnt/spark/client-logs/' LD:spark.client.instance LD '/spark-app'\" | fieldsAdd spark.application = \"spark-client\""
           }
         },
         {
@@ -774,7 +781,7 @@ The current implementation is shown below.
           "type": "fieldsAdd",
           "enabled": true,
           "description": "Client-mode logical application id for Davis matchers and SN path resolution",
-          "matcher": "isNotNull(spark.client.instance) OR matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\") OR matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "matcher": "isNotNull(spark.client.instance) OR matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
           "fieldsAdd": {
             "fields": [
               { "name": "spark.application", "value": "spark-client" }
@@ -801,7 +808,7 @@ The current implementation is shown below.
           "type": "dql",
           "enabled": true,
           "description": "Parse pod name from spark.log.path for service-side when k8s.pod_name missing",
-          "matcher": "isNull(k8s.pod_name) AND isNotNull(spark.log.path) AND spark.application != \"spark-client\" AND NOT matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\")",
+          "matcher": "isNull(k8s.pod_name) AND isNotNull(spark.log.path) AND spark.application != \"spark-client\" AND NOT matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
           "dql": {
             "script": "parse spark.log.path, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | fieldsAdd spark.application = k8s.pod_name"
           }
@@ -811,7 +818,7 @@ The current implementation is shown below.
           "type": "dql",
           "enabled": true,
           "description": "Parse pod name from literal log.source (fallback when spark.log.path absent)",
-          "matcher": "isNull(k8s.pod_name) AND spark.application != \"spark-client\" AND isNull(spark.client.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "matcher": "isNull(k8s.pod_name) AND spark.application != \"spark-client\" AND isNull(spark.client.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
           "dql": {
             "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | fieldsAdd spark.application = k8s.pod_name"
           }
@@ -830,7 +837,7 @@ The current implementation is shown below.
           "id": "drop-legacy-chapter-log-paths",
           "type": "drop",
           "enabled": true,
-          "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/logs/spark-client/)",
+          "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/client-logs/)",
           "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(spark.application, \"*-chapter\")"
         },
         {
@@ -1263,7 +1270,7 @@ The comparison table summarizes alert CI versus incident CI for each pattern. Fu
 
 |Client-side
 |HOST or empty (acceptable)
-|<<step-5-client-side,Spark Client-Side Log Pattern>> — `/logs/spark-client/` → Spark Client AS
+|<<step-5-client-side,Spark Client-Side Log Pattern>> — `/client-logs/` → Spark Client AS
 |===
 
 [#step-5-service-side]
@@ -1308,7 +1315,7 @@ digraph spark_client_incident {
   node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=13]
   edge [fontname="Noto Sans" fontsize=12]
 
-  LOG [label="/mnt/spark/logs/spark-client/\n<instance>/spark-app.log"]
+  LOG [label="/mnt/spark/client-logs/\n<instance>/spark-app.log"]
   ALERT [label="em_alert\n(cmdb_ci may be HOST)"]
   RES [label="ResolveApplicationService\nresolveFromSparkClientLogPath()"]
   AS [label="cmdb_ci_service_discovered\nSpark Client"]
@@ -1319,7 +1326,7 @@ digraph spark_client_incident {
 }
 ----
 
-. Scan `em_alert.description`, `resource`, and `node` for the substring `/logs/spark-client/`.
+. Scan `em_alert.description`, `resource`, and `node` for the substring `/client-logs/`.
 . Look up Application Service **`Spark Client`** by **`name`** (see <<csdm-identifier-field-mapping,CSDM identifier lookup>>).
 . Set **`incident.cmdb_ci`** to that Application Service sys_id.
 . **`K8sLogPodCiBind`** skips path segment `spark-client` when parsing pod names.
@@ -1366,7 +1373,7 @@ Dynatrace Davis **bundles** multiple log-derived `ERROR_EVENT` rows into **one p
 * Client events bind **`dt.source_entity`** to CUSTOM_DEVICE **Spark Client** (keeps them off HOST).
 * Client Davis processor sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier=spark-client-{spark.client.instance}`** so concurrent drivers do **not** merge into one problem (ServiceNow still maps all client paths to Application Service **Spark Client**).
 * Service-side Davis processor likewise sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier={spark.application}`** so different pods do not merge into one problem.
-* ServiceNow **`ResolveApplicationService.applySparkClientAlertBinding()`** binds alert CI to **Spark Client** when `/logs/spark-client/` is present.
+* ServiceNow **`ResolveApplicationService.applySparkClientAlertBinding()`** binds alert CI to **Spark Client** when `/client-logs/` is present.
 
 Worker→multi-client cascading failures are a different topology case; this pipeline does not try to correlate those. It only stops direct client↔client and client↔HOST bundling from file-tail log events.
 
@@ -1377,7 +1384,7 @@ Worker→multi-client cascading failures are a different topology case; this pip
 |Component |Specification
 
 |Script Include: `ResolveApplicationService`
-|Service-Side: `cmdb_rel_ci` Contains::Contained by from pod CI to Application Service. Spark client: `resolveFromSparkClientLogPath()` when alert text contains `/logs/spark-client/` → Application Service **Spark Client**
+|Service-Side: `cmdb_rel_ci` Contains::Contained by from pod CI to Application Service. Spark client: `resolveFromSparkClientLogPath()` when alert text contains `/client-logs/` → Application Service **Spark Client**
 
 |Script Include: `K8sLogPodCiBind`
 |Rebind `em_event` / `em_alert` from initial SGO HOST binding to `cmdb_ci_kubernetes_pod` when log path segment matches a discovered pod `name`; **skip** segment `spark-client`; propagate binding to alerts sharing `message_key`
@@ -1455,20 +1462,22 @@ Attributes added by automation (not Spark-specific semantics):
 
 |`spark.log.path` |Custom log source enrichment (`${0}`) |Literal file path of the log line
 
-|`spark.application` |Custom log source / OpenPipeline |`spark-client` or pod name (`cmdb_ci_kubernetes_pod.name`)
+|`spark.mode` |Custom log source / OpenPipeline |`Client` or `Cluster`
 
-|`spark.client.instance` |Client path segment |Per-driver directory under `spark-client/`
+|`spark.pod` |Cluster path segment |Must equal `cmdb_ci_kubernetes_pod.name`
 
-|`k8s.pod_name` |Service-side path segment |Must equal `cmdb_ci_kubernetes_pod.name`
+|`spark.instance` |Client OpenPipeline |`<host.name>:<driver-instance>` under `/mnt/spark/client-logs/`
 
-|`event.name` |OpenPipeline Davis |`Application log {loglevel} on spark-client-{instance}` or `… on {spark.application}`
+|`spark.device` |Client OpenPipeline |CUSTOM_DEVICE Spark Client entity id
 
-|`event.description` |OpenPipeline Davis |`Application {loglevel} on {spark.log.path}: {content}`
+|`event.name` |OpenPipeline Davis |`Client application log … on {spark.instance}` or `Cluster application log … on {spark.pod}`
+
+|`event.description` |OpenPipeline Davis |`Client|Cluster {loglevel} on {spark.log.path}: {content}`
 |===
 
 Pod **Kubernetes labels** (`servicenow.io/application-service-identifier`, etc.) are the CMDB/service-mapping contract — not Dynatrace tags. See <<step-0-pod-labels,pod labels>>.
 
-NOTE: **`resolve-k8s-pod-entity`** (OpenPipeline `lookupEntity` for pod Smartscape) is **disabled** so problems stay on **HOST** entities inside the Spark Observability management zone. ServiceNow **`K8sLogPodCiBind`** rebinds alerts to the **pod CI** from the log path; **`ResolveApplicationService`** traverses the **Contains::Contained by** edge to the Application Service (Service-Side pattern only).
+NOTE: Cluster problems stay on **HOST** entities inside the Spark Observability management zone (pods are not in the MZ). ServiceNow **`K8sLogPodCiBind`** rebinds Cluster alerts to the **pod CI** from the log path; **`ResolveApplicationService`** binds Client alerts via `/client-logs/` (or Davis `Client application log`) to Application Service **Spark Client**.
 
 [#step-5-em-rules]
 ==== Event Management rules (manual configuration)
@@ -1501,7 +1510,7 @@ Each Script Include below summarizes **purpose**, **inputs**, **outputs / side e
 **Methods:**
 
 * `resolveFromInfrastructureCi(ciSysId)` — **Spark Service-Side Log Pattern.** Queries `cmdb_rel_ci` for **Contains::Contained by** where `child` = pod CI and `parent` is an Application Service. Returns parent sys_id or `null`.
-* `resolveFromSparkClientLogPath(text)` — **Spark Client-Side Log Pattern.** When `text` contains `/logs/spark-client/`, looks up Application Service **Spark Client** by `identifier=spark-client`, then fallback **`name=Spark Client`**.
+* `resolveFromSparkClientLogPath(text)` — **Spark Client-Side Log Pattern.** When `text` contains `/client-logs/`, looks up Application Service **Spark Client** by `identifier=spark-client`, then fallback **`name=Spark Client`**.
 
 **Inputs:** Workload CI sys_id (Service-side) or alert description/resource text (Client-side).
 

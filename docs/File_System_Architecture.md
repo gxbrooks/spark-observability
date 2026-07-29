@@ -156,7 +156,7 @@ OpenTelemetry collectors run in Kubernetes pods with configuration mounted from 
 | `/mnt/spark/jupyter` | NFS | `/srv/nfs/jupyterhub` | NFS / bind | Yes |
 | **`/mnt/spark/logs`** | **Local** | **Not exported** | **`/var/local/spark/logs` → bind at `/mnt/spark/logs`** | **No** |
 
-**OneAgent** (Dynatrace) tails `/mnt/spark/logs/*/spark-app.log*` on **each host’s local filesystem**. Pod logs exist only on the node where the pod is scheduled; client-mode driver logs exist only on the host running the driver (`/mnt/spark/logs/spark-client/<instance>/`). Putting application logs on NFS caused every cluster OneAgent to tail the same files and mis-attribute `dt.source_entity` — see Log to Incident documentation.
+**OneAgent** (Dynatrace) tails Cluster logs at `/mnt/spark/logs/*/spark-app.log*` and Client logs at `/mnt/spark/client-logs/*/spark-app.log*` on **each host’s local filesystem**. Pod logs exist only on the node where the pod is scheduled; client-mode driver logs exist only on the host running the driver (`/mnt/spark/client-logs/<instance>/`). Putting application logs on NFS caused every cluster OneAgent to tail the same files and mis-attribute `dt.source_entity` — see Log to Incident documentation.
 
 Legacy note: `/srv/nfs/spark/logs` on the NFS server may still contain old log trees; they are **not** mounted at `/mnt/spark/logs` after `ansible/playbooks/nfs/install.yml` runs the local logs play.
 
@@ -227,7 +227,7 @@ Legacy note: `/srv/nfs/spark/logs` on the NFS server may still contain old log t
 
 **Runtime Data** consists of continuously generated files. **Spark event logs** and **datasets** require shared access and live on NFS. **Application and GC logs** are **node-local** under `/mnt/spark/logs` (bind-mounted from `/var/local/spark/logs`) so each host’s OneAgent tails only files written on that machine.
 
-Examples: event logs → `/mnt/spark/events/` (NFS); application logs → `/mnt/spark/logs/<pod-or-client>/` (local per node).
+Examples: event logs → `/mnt/spark/events/` (NFS); Cluster application logs → `/mnt/spark/logs/<pod>/` (local per node); Client application logs → `/mnt/spark/client-logs/<instance>/` (local per node).
 
 **Datasets** are large input files used by Spark jobs that need to be accessible from multiple nodes for read operations. These files are typically static or updated infrequently. Examples include CSV files, Parquet files, and other data sources. They are stored on NFS at `/mnt/spark/data/`.
 

@@ -36,9 +36,9 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Spark client-mode logs: /mnt/spark/logs/spark-client/<instance>/spark-app*.log
+   * Spark client-mode logs: /mnt/spark/client-logs/<instance>/spark-app*.log
    * maps directly to Application Service Spark Client (no pod CI).
-   * Also accepts Davis event.name "Application log … on spark-client-<instance>"
+   * Also accepts Davis event.name "Client application log … on <host>:<instance>"
    * when the problem payload omits the filesystem path.
    *
    * Lookup order: name (authoritative on optimizincdemo1), then identifier when
@@ -78,15 +78,23 @@ ResolveApplicationService.prototype = {
     return null;
   },
 
-  /** True when alert/event text encodes the Spark Client-Side Log Pattern. */
+  /** True when alert/event text encodes the Spark Client log path or Davis Client event. */
   isSparkClientLogText: function (text) {
     if (!text) {
       return false;
     }
+    if (text.indexOf('/client-logs/') !== -1) {
+      return true;
+    }
+    // Legacy path (pre client-logs split)
     if (text.indexOf('/logs/spark-client/') !== -1) {
       return true;
     }
-    // OpenPipeline Davis event.name: Application log WARN|ERROR on spark-client-<instance>
+    // OpenPipeline Davis event.name: Client application log WARN|ERROR on <host>:<instance>
+    if (text.indexOf('Client application log') !== -1) {
+      return true;
+    }
+    // Legacy Davis event.name
     if (
       text.indexOf('Application log') !== -1 &&
       text.indexOf('spark-client-') !== -1
@@ -105,7 +113,7 @@ ResolveApplicationService.prototype = {
   applySparkClientAlertBinding: function (gr) {
     var source = gr.source.toString();
     // SGO-Dynatrace is preferred; Demo1 classic connector uses source=Dynatrace
-    // for CUSTOM_DEVICE problems that still carry Application log spark-client-* text.
+    // for CUSTOM_DEVICE problems that still carry Client application log text.
     if (source !== 'SGO-Dynatrace' && source !== 'Dynatrace') {
       return false;
     }
@@ -131,12 +139,20 @@ ResolveApplicationService.prototype = {
     gr.node = 'Spark Client';
 
     var pathMatch = text.match(
-      /\/(?:mnt|opt|var)\/[^\s]+\/logs\/spark-client\/[^\s/]+\/[^\s]+\.log/
+      /\/(?:mnt|opt|var)\/[^\s]+\/client-logs\/[^\s/]+\/[^\s]+\.log/
     );
+    if (!pathMatch) {
+      pathMatch = text.match(
+        /\/(?:mnt|opt|var)\/[^\s]+\/logs\/spark-client\/[^\s/]+\/[^\s]+\.log/
+      );
+    }
     if (pathMatch) {
       gr.resource = pathMatch[0];
-    } else if (gr.resource.toString().indexOf('/logs/spark-client/') === -1) {
-      gr.resource = '/mnt/spark/logs/spark-client/spark-app.log';
+    } else if (
+      gr.resource.toString().indexOf('/client-logs/') === -1 &&
+      gr.resource.toString().indexOf('/logs/spark-client/') === -1
+    ) {
+      gr.resource = '/mnt/spark/client-logs/spark-app.log';
     }
 
     var messageKey = gr.message_key.toString();

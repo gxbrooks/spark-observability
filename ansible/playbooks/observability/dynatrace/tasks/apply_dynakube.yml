@@ -7,7 +7,6 @@
 - name: Resolve Dynakube template variables
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
-    dt_host_group_resolved: "{{ (DT_HOST_GROUP.value if (DT_HOST_GROUP is mapping and 'value' in DT_HOST_GROUP) else DT_HOST_GROUP) | default('spark-observability') }}"
     dt_environment_resolved: "{{ (DT_ENVIRONMENT.value if (DT_ENVIRONMENT is mapping and 'value' in DT_ENVIRONMENT) else DT_ENVIRONMENT) | default('lab') }}"
     dt_owned_by_resolved: "{{ (DT_OWNED_BY.value if (DT_OWNED_BY is mapping and 'value' in DT_OWNED_BY) else DT_OWNED_BY) | default('gbrooks') }}"
 
@@ -18,7 +17,6 @@
     mode: "0644"
   vars:
     DT_API_URL: "{{ dt_api_url_resolved }}"
-    DT_HOST_GROUP: "{{ dt_host_group_resolved }}"
     DT_ENVIRONMENT: "{{ dt_environment_resolved }}"
     DT_OWNED_BY: "{{ dt_owned_by_resolved }}"
     K8S_DYNATRACE_CLUSTER: "{{ k8s_dynatrace_cluster_name }}"

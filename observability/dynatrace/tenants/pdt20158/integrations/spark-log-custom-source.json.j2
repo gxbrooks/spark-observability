@@ -8,26 +8,27 @@
       "type": "LOG_PATH_PATTERN",
       "values-and-enrichment": [
         {
-          "path": "/mnt/spark/logs/spark-client/*/spark-app.log",
+          "path": "/mnt/spark/client-logs/*/spark-app.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "spark-client" },
-            { "type": "attribute", "key": "spark.client.instance", "value": "${1}" }
+            { "type": "attribute", "key": "spark.mode", "value": "Client" },
+            { "type": "attribute", "key": "spark.driver.instance", "value": "${1}" }
           ]
         },
         {
-          "path": "/mnt/spark/logs/spark-client/*/spark-app-*.log",
+          "path": "/mnt/spark/client-logs/*/spark-app-*.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "spark-client" },
-            { "type": "attribute", "key": "spark.client.instance", "value": "${1}" }
+            { "type": "attribute", "key": "spark.mode", "value": "Client" },
+            { "type": "attribute", "key": "spark.driver.instance", "value": "${1}" }
           ]
         },
         {
           "path": "/mnt/spark/logs/*/spark-app.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "${1}" },
+            { "type": "attribute", "key": "spark.mode", "value": "Cluster" },
+            { "type": "attribute", "key": "spark.pod", "value": "${1}" },
             { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
           ]
         },
@@ -35,7 +36,8 @@
           "path": "/mnt/spark/logs/*/spark-app-*.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "${1}" },
+            { "type": "attribute", "key": "spark.mode", "value": "Cluster" },
+            { "type": "attribute", "key": "spark.pod", "value": "${1}" },
             { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
           ]
         },

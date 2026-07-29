@@ -9,35 +9,59 @@
     "processing": {
       "processors": [
         {
-          "id": "extract-spark-client-from-path",
+          "id": "extract-client-from-log-source",
           "type": "dql",
           "enabled": true,
-          "description": "Parse spark-client instance from spark.log.path when enrichment missed it",
-          "matcher": "isNull(spark.client.instance) AND matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\")",
+          "description": "Client mode: parse driver instance from log.source when spark.log.path absent",
+          "matcher": "isNull(spark.driver.instance) AND matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
           "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/spark-client/' LD:spark.client.instance LD '/spark-app'\" | fieldsAdd spark.application = \"spark-client\""
+            "script": "parse log.source, \"LD '/mnt/spark/client-logs/' LD:spark.driver.instance LD '/spark-app'\" | fieldsAdd spark.mode = \"Client\""
           }
         },
         {
-          "id": "ensure-spark-application-client",
+          "id": "extract-client-from-path",
+          "type": "dql",
+          "enabled": true,
+          "description": "Client mode: parse driver instance from /mnt/spark/client-logs/<instance>/ when enrichment missed it",
+          "matcher": "isNull(spark.driver.instance) AND matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
+          "dql": {
+            "script": "parse spark.log.path, \"LD '/mnt/spark/client-logs/' LD:spark.driver.instance LD '/spark-app'\" | fieldsAdd spark.mode = \"Client\""
+          }
+        },
+        {
+          "id": "ensure-client-mode",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Client-mode logical application id for Davis matchers and SN path resolution",
-          "matcher": "isNotNull(spark.client.instance) OR matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\") OR matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "description": "Client mode: set spark.mode from client-logs path",
+          "matcher": "matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR isNotNull(spark.driver.instance)",
           "fieldsAdd": {
             "fields": [
-              { "name": "spark.application", "value": "spark-client" }
+              { "name": "spark.mode", "value": "Client" }
             ]
           }
         },
         {
-          "id": "resolve-spark-client-entity",
+          "id": "compose-client-instance",
+          "type": "dql",
+          "enabled": true,
+          "description": "Client mode: spark.instance = <host.name>:<spark.driver.instance>",
+          "matcher": "spark.mode == \"Client\" AND isNotNull(spark.driver.instance)",
+          "dql": {
+            "script": "fieldsAdd spark.instance = concat(toString(coalesce(host.name, \"unknown\")), \":\", toString(spark.driver.instance))"
+          }
+        },
+        {
+          "id": "resolve-client-device",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Bind client-mode logs to CUSTOM_DEVICE Spark Client (fieldsAdd is static-only; keeps clients off HOST so they do not bundle with service-side)",
-          "matcher": "spark.application == \"spark-client\" OR isNotNull(spark.client.instance)",
+          "description": "Client mode: bind to CUSTOM_DEVICE (spark.device + dt.source_entity); keeps clients off HOST so they do not bundle with Cluster",
+          "matcher": "spark.mode == \"Client\"",
           "fieldsAdd": {
             "fields": [
+              {
+                "name": "spark.device",
+                "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
+              },
               {
                 "name": "dt.source_entity",
                 "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
@@ -46,41 +70,53 @@
           }
         },
         {
-          "id": "extract-k8s-pod-from-enriched-path",
+          "id": "extract-cluster-pod-from-path",
           "type": "dql",
           "enabled": true,
-          "description": "Parse pod name from spark.log.path for service-side when k8s.pod_name missing",
-          "matcher": "isNull(k8s.pod_name) AND isNotNull(spark.log.path) AND spark.application != \"spark-client\" AND NOT matchesValue(spark.log.path, \"/mnt/spark/logs/spark-client/*\")",
+          "description": "Cluster mode: parse spark.pod from /mnt/spark/logs/<pod>/ when missing",
+          "matcher": "spark.mode != \"Client\" AND isNull(spark.pod) AND isNotNull(spark.log.path) AND matchesValue(spark.log.path, \"/mnt/spark/logs/*\") AND NOT matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
           "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | parse spark.log.path, \"LD '/opt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | fieldsAdd spark.application = k8s.pod_name"
+            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/' LD:spark.pod LD '/spark-app'\" | parse spark.log.path, \"LD '/opt/spark/logs/' LD:spark.pod LD '/spark-app'\" | fieldsAdd spark.mode = \"Cluster\" | fieldsAdd k8s.pod_name = spark.pod"
           }
         },
         {
-          "id": "extract-k8s-pod-from-log-source",
+          "id": "extract-cluster-pod-from-log-source",
           "type": "dql",
           "enabled": true,
-          "description": "Parse pod name from literal log.source (fallback when spark.log.path absent)",
-          "matcher": "isNull(k8s.pod_name) AND spark.application != \"spark-client\" AND isNull(spark.client.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/logs/spark-client/*\")",
+          "description": "Cluster mode: parse spark.pod from log.source when spark.log.path absent",
+          "matcher": "spark.mode != \"Client\" AND isNull(spark.pod) AND isNull(spark.driver.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
           "dql": {
-            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | parse log.source, \"LD '/opt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | fieldsAdd spark.application = k8s.pod_name"
+            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:spark.pod LD '/spark-app.log'\" | parse log.source, \"LD '/opt/spark/logs/' LD:spark.pod LD '/spark-app.log'\" | fieldsAdd spark.mode = \"Cluster\" | fieldsAdd k8s.pod_name = spark.pod"
           }
         },
         {
-          "id": "ensure-spark-application-from-pod",
+          "id": "ensure-cluster-mode",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Cluster mode: set spark.mode when spark.pod (or k8s.pod_name) is present",
+          "matcher": "spark.mode != \"Client\" AND (isNotNull(spark.pod) OR isNotNull(k8s.pod_name))",
+          "fieldsAdd": {
+            "fields": [
+              { "name": "spark.mode", "value": "Cluster" }
+            ]
+          }
+        },
+        {
+          "id": "ensure-cluster-pod-from-k8s",
           "type": "dql",
           "enabled": true,
-          "description": "Service-side: spark.application mirrors k8s.pod_name when still unset",
-          "matcher": "isNull(spark.application) AND isNotNull(k8s.pod_name)",
+          "description": "Cluster mode: spark.pod mirrors k8s.pod_name when still unset",
+          "matcher": "spark.mode == \"Cluster\" AND isNull(spark.pod) AND isNotNull(k8s.pod_name)",
           "dql": {
-            "script": "fieldsAdd spark.application = k8s.pod_name"
+            "script": "fieldsAdd spark.pod = k8s.pod_name"
           }
         },
         {
           "id": "drop-legacy-chapter-log-paths",
           "type": "drop",
           "enabled": true,
-          "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/logs/spark-client/)",
-          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(spark.application, \"*-chapter\")"
+          "description": "Exclude legacy host-chapter log directories",
+          "matcher": "matchesValue(spark.pod, \"*-chapter\") OR matchesValue(k8s.pod_name, \"*-chapter\")"
         }
       ]
     },
@@ -90,39 +126,39 @@
           "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Spark client-mode driver ERROR/WARN logs (no Davis merge across drivers)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.application == \"spark-client\"",
+          "description": "Client mode ERROR/WARN (no Davis merge across drivers)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (spark.mode == \"Client\" OR matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\"))",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Application log {loglevel} on spark-client-{spark.client.instance}" },
+              { "key": "event.name", "value": "Client application log {loglevel} on {host.name}:{spark.driver.instance}" },
               {
                 "key": "event.description",
-                "value": "Application {loglevel} on {spark.log.path}: {content}"
+                "value": "Client {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "spark-client-{spark.client.instance}" },
+              { "key": "event.unique_identifier", "value": "{host.name}:{spark.driver.instance}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
         },
         {
-          "id": "k8s-warn-error-davis",
+          "id": "spark-cluster-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Kubernetes pod ERROR/WARN logs (no Davis merge across spark.application / pods)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(spark.application) AND spark.application != \"spark-client\" AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\") OR matchesValue(spark.log.path, \"/mnt/spark/logs/*\") OR matchesValue(spark.log.path, \"/opt/spark/logs/*\"))",
+          "description": "Cluster mode ERROR/WARN (no Davis merge across pods)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.pod)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Application log {loglevel} on {spark.application}" },
+              { "key": "event.name", "value": "Cluster application log {loglevel} on {spark.pod}" },
               {
                 "key": "event.description",
-                "value": "Application {loglevel} on {spark.log.path}: {content}"
+                "value": "Cluster {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{spark.application}" },
+              { "key": "event.unique_identifier", "value": "{spark.pod}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]

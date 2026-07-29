@@ -11,7 +11,7 @@
       description: >-
         Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
         Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
-        (Pattern A pod) or from /logs/spark-client/ log path (Spark Client AS).
+        (Pattern A pod) or from /client-logs/ log path (Spark Client AS).
       script: "{{ lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js') }}"
 
 - name: Look up ResolveApplicationService script include
