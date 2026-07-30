@@ -106,6 +106,7 @@ K8sLogPodCiBind.prototype = {
 
     var resolver = new ResolveApplicationService();
     resolver.appendClassLineToMessageKey(gr, null);
+    resolver.enrichSparkLogDescription(gr);
 
     if (
       gr.isValidField('message') &&

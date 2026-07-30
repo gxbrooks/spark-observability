@@ -10,9 +10,13 @@
   gather_facts: false
   vars_files:
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
+    - name: Ensure L2I Dynatrace Grail enrichment sys_properties
+      ansible.builtin.include_tasks: tasks/ensure_l2i_dt_sys_properties.yml
+
     - name: Ensure K8sLogPodCiBind Script Include
       ansible.builtin.include_tasks: tasks/ensure_k8s_log_pod_ci_bind_si.yml
 

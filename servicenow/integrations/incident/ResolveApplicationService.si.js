@@ -144,6 +144,293 @@ ResolveApplicationService.prototype = {
     return '';
   },
 
+  /** Dynatrace Apps base URL (sys_property override, else deploy-time default). */
+  dtAppsUrl: function () {
+    var apps = gs.getProperty('spark.l2i.dt_apps_url', '');
+    if (apps) {
+      return apps.replace(/\/$/, '');
+    }
+    return '@@DT_TENANT_URL@@'.replace(/\/$/, '');
+  },
+
+  /** Grail/platform bearer (sys_property override, else deploy-time default). */
+  dtPlatformToken: function () {
+    var token = gs.getProperty('spark.l2i.dt_platform_token', '');
+    if (token) {
+      return token;
+    }
+    var embedded = '@@DT_PLATFORM_TOKEN_GRAIL@@';
+    if (embedded.indexOf('@@') === 0) {
+      return '';
+    }
+    return embedded;
+  },
+
+  /**
+   * Parse spark.mode + Class:Line from Davis / log text.
+   * Returns { mode, className, line, classLine, uid } or null.
+   */
+  extractSparkLogIdentity: function (text) {
+    if (!text) {
+      return null;
+    }
+    var m = text.match(
+      /\b(Client|Cluster)\s+error\s+at\s+([A-Za-z_][\w$]*):(\d+)/
+    );
+    if (!m) {
+      m = text.match(
+        /event\.unique_identifier:\s*(Client|Cluster)\|([A-Za-z_][\w$]*):(\d+)/
+      );
+    }
+    if (!m) {
+      m = text.match(
+        /\b(Client|Cluster)\s+(?:WARN|ERROR)\s+at\s+([A-Za-z_][\w$]*):(\d+)/
+      );
+    }
+    if (!m) {
+      return null;
+    }
+    return {
+      mode: m[1],
+      className: m[2],
+      line: m[3],
+      classLine: m[2] + ':' + m[3],
+      uid: m[1] + '|' + m[2] + ':' + m[3],
+    };
+  },
+
+  /** ProblemURL from additional_info JSON when SGO stored it. */
+  extractProblemUrl: function (gr) {
+    var raw = '';
+    try {
+      if (gr.isValidField('additional_info') && !gr.additional_info.nil()) {
+        raw = gr.getValue('additional_info') || '';
+        if (!raw) {
+          raw = gr.additional_info.toString();
+        }
+      }
+    } catch (e1) {
+      raw = '';
+    }
+    if (raw) {
+      try {
+        var info = JSON.parse(raw);
+        if (info.ProblemURL) {
+          return String(info.ProblemURL);
+        }
+        if (info.problemURL) {
+          return String(info.problemURL);
+        }
+        if (info.PID) {
+          return (
+            'https://pdt20158.live.dynatrace.com/#problems/problemdetails;pid=' +
+            info.PID
+          );
+        }
+      } catch (e2) {
+        var m = raw.match(
+          /https:\/\/[^\s\"']+(?:problems|problemdetails)[^\s\"']*/i
+        );
+        if (m) {
+          return m[0];
+        }
+      }
+    }
+    // message_key: SparkClient-<pid>V2|Class:Line or K8sLog-<pod>-<pid>V2|…
+    var mk = gr.message_key ? gr.message_key.toString() : '';
+    var pm = mk.match(/(-?\d+_\d+V2)/);
+    if (pm) {
+      return (
+        'https://pdt20158.live.dynatrace.com/#problems/problemdetails;pid=' +
+        pm[1]
+      );
+    }
+    return '';
+  },
+
+  /**
+   * Dynatrace Logs app deep link (Apps URL + DQL for mode|class:line).
+   */
+  buildSparkLogsDeepLink: function (identity) {
+    if (!identity) {
+      return '';
+    }
+    var apps = this.dtAppsUrl();
+    if (!apps || apps.indexOf('@@') === 0) {
+      return '';
+    }
+    // Keep the link short and robust in Rhino (avoid fragile intent JSON encoding).
+    return (
+      apps +
+      '/ui/apps/dynatrace.logs/#gtf=-2h&gf=all&sortDirection=desc' +
+      '&spark.mode=' +
+      identity.mode +
+      '&spark.log.class=' +
+      identity.className +
+      '&spark.log.line=' +
+      identity.line
+    );
+  },
+
+  /**
+   * Fetch recent matching Grail log contents for mode|class:line.
+   * Requires spark.l2i.dt_apps_url + spark.l2i.dt_platform_token sys_properties.
+   */
+  fetchMatchingSparkLogLines: function (identity, maxLines) {
+    var out = [];
+    if (!identity) {
+      return out;
+    }
+    var apps = this.dtAppsUrl();
+    var token = this.dtPlatformToken();
+    if (!apps || !token || apps.indexOf('@@') === 0) {
+      return out;
+    }
+    maxLines = maxLines || 25;
+    var dql =
+      'fetch logs, from:now()-2h\n' +
+      '| filter spark.mode == "' +
+      identity.mode +
+      '"\n' +
+      '| filter spark.log.class == "' +
+      identity.className +
+      '" and spark.log.line == ' +
+      identity.line +
+      '\n' +
+      '| fields timestamp, content, spark.driver.instance, spark.pod_name, loglevel\n' +
+      '| sort timestamp desc\n' +
+      '| limit ' +
+      maxLines;
+    try {
+      var rm = new sn_ws.RESTMessageV2();
+      rm.setHttpMethod('POST');
+      rm.setEndpoint(
+        apps + '/platform/storage/query/v1/query:execute'
+      );
+      rm.setRequestHeader('Authorization', 'Bearer ' + token);
+      rm.setRequestHeader('Content-Type', 'application/json');
+      rm.setRequestHeader('Accept', 'application/json');
+      rm.setRequestBody(
+        JSON.stringify({
+          query: dql,
+          requestTimeoutMilliseconds: 30000,
+          maxResultRecords: maxLines,
+          maxResultBytes: 2000000,
+        })
+      );
+      var resp = rm.execute();
+      var code = resp.getStatusCode();
+      var body = resp.getBody();
+      if (code < 200 || code >= 300) {
+        gs.warn(
+          'ResolveApplicationService.fetchMatchingSparkLogLines HTTP ' +
+            code +
+            ': ' +
+            body.substring(0, 300)
+        );
+        return out;
+      }
+      var data = JSON.parse(body);
+      var records = [];
+      if (data.result && data.result.records) {
+        records = data.result.records;
+      } else if (data.requestToken) {
+        // Async poll once (lab); skip long waits in BR path.
+        var poll = new sn_ws.RESTMessageV2();
+        poll.setHttpMethod('GET');
+        poll.setEndpoint(
+          apps +
+            '/platform/storage/query/v1/query:poll?request-token=' +
+            encodeURIComponent(data.requestToken) +
+            '&request-timeout-milliseconds=30000'
+        );
+        poll.setRequestHeader('Authorization', 'Bearer ' + token);
+        poll.setRequestHeader('Accept', 'application/json');
+        // brief wait
+        gs.sleep(1500);
+        var presp = poll.execute();
+        if (presp.getStatusCode() >= 200 && presp.getStatusCode() < 300) {
+          var pdata = JSON.parse(presp.getBody());
+          if (pdata.result && pdata.result.records) {
+            records = pdata.result.records;
+          }
+        }
+      }
+      for (var i = 0; i < records.length; i++) {
+        var c = records[i].content;
+        if (c) {
+          out.push(String(c).replace(/\r?\n/g, ' '));
+        }
+      }
+    } catch (e) {
+      gs.warn(
+        'ResolveApplicationService.fetchMatchingSparkLogLines: ' + e
+      );
+    }
+    return out;
+  },
+
+  /**
+   * Append matching log-line bundle + Problem/Logs deep links to description.
+   * Idempotent (skips when marker already present).
+   */
+  enrichSparkLogDescription: function (gr) {
+    var marker = '--- Matching Spark log lines ---';
+    var desc = gr.description ? gr.description.toString() : '';
+    if (desc.indexOf(marker) !== -1) {
+      return false;
+    }
+    var text =
+      desc +
+      ' ' +
+      (gr.resource ? gr.resource.toString() : '') +
+      ' ' +
+      (gr.node ? gr.node.toString() : '');
+    var identity = this.extractSparkLogIdentity(text);
+    if (!identity) {
+      return false;
+    }
+
+    var lines = this.fetchMatchingSparkLogLines(identity, 25);
+
+    var links = [];
+    var problemUrl = this.extractProblemUrl(gr);
+    if (problemUrl) {
+      links.push('Problem: ' + problemUrl);
+    }
+    var logsUrl = this.buildSparkLogsDeepLink(identity);
+    if (logsUrl) {
+      links.push('Logs: ' + logsUrl);
+    }
+
+    // Links first so a 4k description truncate does not drop deep links.
+    var block = '';
+    if (links.length) {
+      block += links.join('\n') + '\n\n';
+    }
+    block += marker + '\n';
+    if (lines.length) {
+      block += lines.join('\n');
+    } else {
+      block +=
+        '(Grail fetch unavailable or empty; open Logs deep link above)\n' +
+        'DQL filter: spark.mode=="' +
+        identity.mode +
+        '" AND ' +
+        identity.className +
+        ':' +
+        identity.line;
+    }
+
+    var combined = desc + '\n\n' + block;
+    var maxLen = 4000;
+    if (combined.length > maxLen) {
+      combined = combined.substring(0, maxLen - 18) + '\n...[truncated]';
+    }
+    gr.description = combined;
+    return true;
+  },
+
   /**
    * Ensure optional prefix, then append |Class:Line for EM correlation granularity.
    * Keeps Dynatrace ProblemID (SGO message_key) so OPEN/RESOLVED still match.
@@ -214,6 +501,7 @@ ResolveApplicationService.prototype = {
     }
 
     this.appendClassLineToMessageKey(gr, 'SparkClient-');
+    this.enrichSparkLogDescription(gr);
 
     if (
       gr.isValidField('message') &&

@@ -59,7 +59,7 @@
               { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Client {loglevel} on {spark.log.path}: {content}"
+                "value": "{spark.mode} {loglevel} at {spark.log.class}:{spark.log.line} on {spark.log.path}\n{content}\nevent.unique_identifier: {spark.mode}|{spark.log.class}:{spark.log.line}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
               { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
@@ -80,7 +80,7 @@
               { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Cluster {loglevel} on {spark.log.path}: {content}"
+                "value": "{spark.mode} {loglevel} at {spark.log.class}:{spark.log.line} on {spark.log.path}\n{content}\nevent.unique_identifier: {spark.mode}|{spark.log.class}:{spark.log.line}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
               { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },

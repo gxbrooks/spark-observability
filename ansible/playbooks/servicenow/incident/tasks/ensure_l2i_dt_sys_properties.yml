@@ -1,0 +1,44 @@
+---
+# Sys properties for Spark Log-to-Incident Grail enrichment + Logs deep links.
+# spark.l2i.dt_apps_url: https://…apps.dynatrace.com
+# spark.l2i.dt_platform_token: Grail/platform bearer (storage:logs:read)
+
+- name: Resolve Log-to-Incident Dynatrace Apps URL and Grail token
+  ansible.builtin.set_fact:
+    sn_l2i_dt_apps_url: >-
+      {{ DT_TENANT_URL
+         | default(dynatrace.DT_TENANT_URL | default(''))
+         | trim
+         | regex_replace('/$', '') }}
+    sn_l2i_dt_platform_token: >-
+      {{ dynatrace.DT_PLATFORM_TOKEN_GRAIL
+         | default(dynatrace.DT_PLATFORM_TOKEN | default('')) }}
+
+- name: Apply spark.l2i.dt_apps_url sys_property
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: spark.l2i.dt_apps_url
+      value: "{{ sn_l2i_dt_apps_url }}"
+      description: Dynatrace Apps URL for Spark L2I Logs deep links and Grail query
+  when: sn_l2i_dt_apps_url | length > 0
+
+- name: Apply spark.l2i.dt_platform_token sys_property
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: spark.l2i.dt_platform_token
+      value: "{{ sn_l2i_dt_platform_token }}"
+      description: Dynatrace platform/Grail bearer for Spark L2I log-line bundle enrichment
+  when: sn_l2i_dt_platform_token | length > 0
+
+- name: Warn when L2I Dynatrace enrichment properties are incomplete
+  ansible.builtin.debug:
+    msg: >-
+      Skipping L2I Grail enrichment sys_properties
+      (apps_url={{ sn_l2i_dt_apps_url | length > 0 }},
+      token={{ sn_l2i_dt_platform_token | length > 0 }}).
+      Set DT_TENANT_URL and dynatrace.DT_PLATFORM_TOKEN_GRAIL in secrets.
+  when: >-
+    (sn_l2i_dt_apps_url | length == 0)
+    or (sn_l2i_dt_platform_token | length == 0)

@@ -10,9 +10,15 @@
       client_callable: "false"
       description: >-
         Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
-        Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
         (Pattern A pod) or from /client-logs/ log path (Spark Client AS).
-      script: "{{ lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js') }}"
+        Also enriches Spark log alert descriptions with Grail log-line bundles
+        and Problem/Logs deep links.
+      script: >-
+        {{
+          lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js')
+          | replace('@@DT_TENANT_URL@@', (DT_TENANT_URL | default(dynatrace.DT_TENANT_URL | default('https://pdt20158.apps.dynatrace.com')) | trim | regex_replace('/$', '')))
+          | replace('@@DT_PLATFORM_TOKEN_GRAIL@@', (dynatrace.DT_PLATFORM_TOKEN_GRAIL | default(dynatrace.DT_PLATFORM_TOKEN | default(''))))
+        }}
 
 - name: Look up ResolveApplicationService script include
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
