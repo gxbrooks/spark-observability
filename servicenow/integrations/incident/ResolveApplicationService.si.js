@@ -236,6 +236,14 @@ ResolveApplicationService.prototype = {
         }
       }
     }
+    // SGO often embeds the problem URL in description before additional_info is set.
+    var desc = gr.description ? gr.description.toString() : '';
+    var dm = desc.match(
+      /https:\/\/[^\s\"']+#problems\/problemdetails;pid=[^\s\"']+/i
+    );
+    if (dm) {
+      return dm[0];
+    }
     // message_key: SparkClient-<pid>V2|Class:Line or K8sLog-<pod>-<pid>V2|…
     var mk = gr.message_key ? gr.message_key.toString() : '';
     var pm = mk.match(/(-?\d+_\d+V2)/);
@@ -248,8 +256,42 @@ ResolveApplicationService.prototype = {
     return '';
   },
 
+  /** Percent-encode for Rhino (encodeURIComponent may be missing). */
+  percentEncode: function (s) {
+    s = String(s == null ? '' : s);
+    try {
+      if (typeof encodeURIComponent === 'function') {
+        return encodeURIComponent(s);
+      }
+    } catch (e0) {
+      /* fall through */
+    }
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charAt(i);
+      var code = s.charCodeAt(i);
+      if (
+        (code >= 0x30 && code <= 0x39) ||
+        (code >= 0x41 && code <= 0x5a) ||
+        (code >= 0x61 && code <= 0x7a) ||
+        '.-_~'.indexOf(c) !== -1
+      ) {
+        out += c;
+      } else if (c === ' ') {
+        out += '%20';
+      } else {
+        var hex = code.toString(16).toUpperCase();
+        if (hex.length < 2) {
+          hex = '0' + hex;
+        }
+        out += '%' + hex;
+      }
+    }
+    return out;
+  },
+
   /**
-   * Dynatrace Logs app deep link (Apps URL + DQL for mode|class:line).
+   * Dynatrace Logs app deep link with DQL intent for mode|class:line.
    */
   buildSparkLogsDeepLink: function (identity) {
     if (!identity) {
@@ -259,16 +301,51 @@ ResolveApplicationService.prototype = {
     if (!apps || apps.indexOf('@@') === 0) {
       return '';
     }
-    // Keep the link short and robust in Rhino (avoid fragile intent JSON encoding).
+    var dql =
+      'fetch logs, from:now()-2h\n' +
+      '| filter spark.mode == "' +
+      identity.mode +
+      '"\n' +
+      '| filter spark.log.class == "' +
+      identity.className +
+      '" and spark.log.line == ' +
+      identity.line +
+      '\n' +
+      '| sort timestamp desc\n' +
+      '| limit 100';
+    var intent = {
+      version: 0,
+      data: {
+        queryConfig: {
+          query: dql,
+          timeframe: { from: 'now()-2h', to: 'now()' },
+          filter: {
+            version: '12.2.4',
+            subQueries: [
+              { id: 'A', isEnabled: true, datatype: 'logs', filter: '' },
+            ],
+            globalCommands: {
+              sort: { field: 'timestamp', direction: 'desc' },
+            },
+          },
+          segments: [],
+          showDqlEditor: true,
+        },
+        tableConfig: {
+          visibleColumns: ['timestamp', 'status', 'content'],
+          columnAttributes: {
+            columnWidths: {},
+            lineWraps: {},
+            tableLineWrap: true,
+          },
+          columnOrder: ['timestamp', 'status', 'content'],
+        },
+      },
+    };
     return (
       apps +
-      '/ui/apps/dynatrace.logs/#gtf=-2h&gf=all&sortDirection=desc' +
-      '&spark.mode=' +
-      identity.mode +
-      '&spark.log.class=' +
-      identity.className +
-      '&spark.log.line=' +
-      identity.line
+      '/ui/apps/dynatrace.logs/#' +
+      this.percentEncode(JSON.stringify(intent))
     );
   },
 
@@ -341,7 +418,7 @@ ResolveApplicationService.prototype = {
         poll.setEndpoint(
           apps +
             '/platform/storage/query/v1/query:poll?request-token=' +
-            encodeURIComponent(data.requestToken) +
+            this.percentEncode(data.requestToken) +
             '&request-timeout-milliseconds=30000'
         );
         poll.setRequestHeader('Authorization', 'Bearer ' + token);
@@ -371,15 +448,45 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Append matching log-line bundle + Problem/Logs deep links to description.
-   * Idempotent (skips when marker already present).
+   * Prepend matching log-line bundle + Problem/Logs deep links to description.
+   * Replaces any prior enrichment block so late-arriving additional_info can
+   * fill ProblemURL on a subsequent BR update.
    */
   enrichSparkLogDescription: function (gr) {
     var marker = '--- Matching Spark log lines ---';
     var desc = gr.description ? gr.description.toString() : '';
-    if (desc.indexOf(marker) !== -1) {
-      return false;
+    // Strip prior enrichment (links/DQL/lines) whether prepended or appended.
+    var stripFrom = -1;
+    var markers = [
+      '--- L2I enrichment ---',
+      'Problem: https://',
+      'Logs: https://',
+      '\nDQL:\n',
+      marker,
+    ];
+    for (var si = 0; si < markers.length; si++) {
+      var ix = desc.indexOf(markers[si]);
+      if (ix !== -1 && (stripFrom === -1 || ix < stripFrom)) {
+        stripFrom = ix;
+      }
     }
+    if (stripFrom > 0) {
+      desc = desc.substring(0, stripFrom).replace(/\s+$/, '');
+    } else if (stripFrom === 0) {
+      // enrichment was prepended; recover original after a blank line if present
+      var orig = desc.indexOf('\n\n--- Original alert ---\n');
+      if (orig !== -1) {
+        desc = desc.substring(orig + '\n\n--- Original alert ---\n'.length);
+      } else {
+        // fall back: drop enrichment through end of log bundle by keeping
+        // everything after the first "OPEN Problem" (SGO body).
+        var openIdx = desc.indexOf('OPEN Problem');
+        if (openIdx > 0) {
+          desc = desc.substring(openIdx);
+        }
+      }
+    }
+
     var text =
       desc +
       ' ' +
@@ -403,29 +510,47 @@ ResolveApplicationService.prototype = {
       links.push('Logs: ' + logsUrl);
     }
 
-    // Links first so a 4k description truncate does not drop deep links.
-    var block = '';
+    // Prepend enrichment so a 4k truncate keeps deep links + log lines.
+    var block = '--- L2I enrichment ---\n';
     if (links.length) {
       block += links.join('\n') + '\n\n';
     }
+    block +=
+      'DQL:\n' +
+      'fetch logs, from:now()-2h\n' +
+      '| filter spark.mode == "' +
+      identity.mode +
+      '"\n' +
+      '| filter spark.log.class == "' +
+      identity.className +
+      '" and spark.log.line == ' +
+      identity.line +
+      '\n' +
+      '| sort timestamp desc\n' +
+      '| limit 100\n\n';
     block += marker + '\n';
     if (lines.length) {
       block += lines.join('\n');
     } else {
       block +=
-        '(Grail fetch unavailable or empty; open Logs deep link above)\n' +
-        'DQL filter: spark.mode=="' +
-        identity.mode +
-        '" AND ' +
-        identity.className +
-        ':' +
-        identity.line;
+        '(Grail fetch unavailable or empty; use Problem/Logs links or DQL above)';
     }
 
-    var combined = desc + '\n\n' + block;
+    var combined =
+      block + '\n\n--- Original alert ---\n' + desc;
     var maxLen = 4000;
     if (combined.length > maxLen) {
-      combined = combined.substring(0, maxLen - 18) + '\n...[truncated]';
+      // Prefer keeping enrichment; trim original alert body.
+      var keep = maxLen - 18;
+      if (block.length + 30 < keep) {
+        combined =
+          block +
+          '\n\n--- Original alert ---\n' +
+          desc.substring(0, keep - block.length - 30) +
+          '\n...[truncated]';
+      } else {
+        combined = combined.substring(0, keep) + '\n...[truncated]';
+      }
     }
     gr.description = combined;
     return true;
