@@ -28,8 +28,7 @@
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
             { "type": "attribute", "key": "spark.mode", "value": "Cluster" },
-            { "type": "attribute", "key": "spark.pod", "value": "${1}" },
-            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
+            { "type": "attribute", "key": "spark.pod_name", "value": "${1}" }
           ]
         },
         {
@@ -37,20 +36,7 @@
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
             { "type": "attribute", "key": "spark.mode", "value": "Cluster" },
-            { "type": "attribute", "key": "spark.pod", "value": "${1}" },
-            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
-          ]
-        },
-        {
-          "path": "/opt/spark/logs/spark-app.log",
-          "enrichment": [
-            { "type": "attribute", "key": "spark.log.path", "value": "${0}" }
-          ]
-        },
-        {
-          "path": "/opt/spark/logs/spark-app-*.log",
-          "enrichment": [
-            { "type": "attribute", "key": "spark.log.path", "value": "${0}" }
+            { "type": "attribute", "key": "spark.pod_name", "value": "${1}" }
           ]
         }
       ]

@@ -25,9 +25,9 @@ sequenceDiagram
   Ch->>File: log4j2 RollingFile + console
   OA->>File: tail custom log source paths
   OA->>Route: log record (dt.openpipeline.source=oneagent)
-  Route->>Pipe: matcher: /mnt/spark/logs/* or /opt/spark/logs/*
-  Note over Pipe: spark-client/* → Davis event.name\n"Application log {level} on spark-client-{instance}"
-  Note over Pipe: pod paths → Davis event.name\n"Application log {level} on {pod}"
+  Route->>Pipe: matcher: /mnt/spark/logs/* or /mnt/spark/client-logs/*
+  Note over Pipe: Davis event.name\n"{spark.mode} error at {class}:{line}"
+  Note over Pipe: unique_identifier\n"{spark.mode}|{class}:{line}"; merge off
   Pipe->>Grail: bucketAssignment default_logs
   Pipe->>Davis: Davis processor (WARN/ERROR matcher)
   Davis->>AP: ERROR problem (Spark Observability MZ)
@@ -50,7 +50,6 @@ Spark JVMs (PySpark chapter **driver** on Lab3, **executors** in K8s pods, **mas
 |--------|--------|-------------|
 | Chapter / client-mode driver | `run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/client-logs/<instance>/spark-app.log` (rollover: `spark-app-*.log` in same dir) |
 | K8s Spark pods | Pod log4j / symlink layout | `/mnt/spark/logs/<pod-dir>/spark-app.log` |
-| Spark 4.x DiskLog (optional) | `/opt/spark/logs` when present | `/opt/spark/logs/spark-app.log` |
 | Legacy (retired) | prior `run-chapters.sh` | `/mnt/spark/logs/<host>-chapter/` — dropped by OpenPipeline |
 
 See [Log to Incident — client-side incident mapping](Log_to_Incident.adoc#step-5-client-side) and [service-side mapping](Log_to_Incident.adoc#step-5-service-side) for incident correlation. Documentation policy: [Observability — Service Management Documentation.tpg.md](Observability%20-%20Service%20Management%20Documentation.tpg.md).
@@ -104,7 +103,7 @@ Log4j does not attach Dynatrace fields. The line carries only timestamp, level, 
 
 | Object | Schema / location | Name | Value |
 |--------|-------------------|------|-------|
-| Custom log source | `builtin:logmonitoring.custom-log-source-settings` | `Spark Lab - application log files` | Paths: `/mnt/spark/logs/*/spark-app.log`, `/mnt/spark/logs/*/spark-app-*.log`, `/opt/spark/logs/spark-app.log*` |
+| Custom log source | `builtin:logmonitoring.custom-log-source-settings` | `Spark Lab - application log files` | Paths: `/mnt/spark/client-logs/*/spark-app.log*`, `/mnt/spark/logs/*/spark-app.log*` |
 | Template | `observability/dynatrace/tenants/pdt20158/integrations/spark-log-custom-source.json.j2` | | |
 | Ansible task | `apply_spark_log_custom_source.yml` | | Runs in `events/deploy.yml` |
 | Management zone | `builtin:management-zones` | `Spark Observability` | Hosts/pods tagged for brooks-lab partition |
@@ -148,7 +147,7 @@ Classic **`builtin:logmonitoring.log-events`** (`Spark Lab - ERROR and WARN log 
 
 | Object | Schema | Name / description |
 |--------|--------|-------------------|
-| Logs routing | `builtin:openpipeline.logs.routing` | Route **`Spark Lab log alerts (ERROR/WARN)`** — matcher: `matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source, "/opt/spark/logs/*")` → pipeline **`Spark Lab - log alerts`** |
+| Logs routing | `builtin:openpipeline.logs.routing` | Route **`Spark Lab log alerts (ERROR/WARN)`** — matcher: `matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source, "/mnt/spark/client-logs/*")` → pipeline **`Spark Lab - log alerts`** |
 | Logs routing (catch-all) | same | **`Metric Route`** — matcher: `true` → metric extraction pipeline (all other logs) |
 | Log alerts pipeline | `builtin:openpipeline.logs.pipelines` | **`Spark Lab - log alerts`** (`customId: spark-lab-log-alerts`) |
 | Template | `spark-openpipeline-log-alerts-pipeline.json.j2` | |
@@ -175,11 +174,14 @@ The **Davis processor** in the Spark log alerts pipeline matches **WARN** or **E
 
 | Property | Value |
 |----------|-------|
-| **Matcher (DQL subset)** | `(loglevel == "WARN" OR loglevel == "ERROR") AND (matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source, "/opt/spark/logs/*"))` |
+| **Client matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Client"` |
+| **Cluster matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Cluster"` |
 | `event.type` | `ERROR_EVENT` |
-| `event.name` | `Spark log alert` |
-| `event.description` | `Spark application log line at ERROR or WARN level in brooks-lab ({log.source}).` |
-| `dt.source_entity` | `{dt.source_entity}` (pass-through from log record) |
+| `event.name` | `{spark.mode} error at {spark.log.class}:{spark.log.line}` |
+| `event.unique_identifier` | `{spark.mode}|{spark.log.class}:{spark.log.line}` |
+| `dt.davis.is_merging_allowed` | `false` (same class:line still shares one event via `event.name`) |
+| `event.unique_identifier` | Client: `Client:{host}:{driver}|{class}:{line}`; Cluster: `Cluster:{pod_name}|{class}:{line}` |
+| `dt.source_entity` | Client: CUSTOM_DEVICE Spark Client; Cluster: HOST (pod rebind in ServiceNow) |
 | `dt.davis.event_timeout` | `15m` |
 
 Legacy (inactive for routed logs): `spark-error-log-event.json.j2` → `builtin:logmonitoring.log-events` summary **`Spark Lab - ERROR and WARN log lines`**.

@@ -9,42 +9,10 @@
     "processing": {
       "processors": [
         {
-          "id": "extract-client-from-log-source",
-          "type": "dql",
-          "enabled": true,
-          "description": "Client mode: parse driver instance from log.source when spark.log.path absent",
-          "matcher": "isNull(spark.driver.instance) AND matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
-          "dql": {
-            "script": "parse log.source, \"LD '/mnt/spark/client-logs/' LD:spark.driver.instance LD '/spark-app'\" | fieldsAdd spark.mode = \"Client\""
-          }
-        },
-        {
-          "id": "extract-client-from-path",
-          "type": "dql",
-          "enabled": true,
-          "description": "Client mode: parse driver instance from /mnt/spark/client-logs/<instance>/ when enrichment missed it",
-          "matcher": "isNull(spark.driver.instance) AND matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
-          "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/client-logs/' LD:spark.driver.instance LD '/spark-app'\" | fieldsAdd spark.mode = \"Client\""
-          }
-        },
-        {
-          "id": "ensure-client-mode",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Client mode: set spark.mode from client-logs path",
-          "matcher": "matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR isNotNull(spark.driver.instance)",
-          "fieldsAdd": {
-            "fields": [
-              { "name": "spark.mode", "value": "Client" }
-            ]
-          }
-        },
-        {
           "id": "compose-client-instance",
           "type": "dql",
           "enabled": true,
-          "description": "Client mode: spark.instance = <host.name>:<spark.driver.instance>",
+          "description": "Client: compose spark.instance from host.name + spark.driver.instance (both already on the record)",
           "matcher": "spark.mode == \"Client\" AND isNotNull(spark.driver.instance)",
           "dql": {
             "script": "fieldsAdd spark.instance = concat(toString(coalesce(host.name, \"unknown\")), \":\", toString(spark.driver.instance))"
@@ -54,79 +22,26 @@
           "id": "resolve-client-device",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Client mode: bind to CUSTOM_DEVICE (spark.device + dt.source_entity); keeps clients off HOST so they do not bundle with Cluster",
+          "description": "Client: set spark.device (CUSTOM_DEVICE id) for ServiceNow AS resolution; leave OneAgent HOST as dt.source_entity",
           "matcher": "spark.mode == \"Client\"",
           "fieldsAdd": {
             "fields": [
               {
                 "name": "spark.device",
                 "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
-              },
-              {
-                "name": "dt.source_entity",
-                "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
               }
             ]
-          }
-        },
-        {
-          "id": "extract-cluster-pod-from-path",
-          "type": "dql",
-          "enabled": true,
-          "description": "Cluster mode: parse spark.pod from /mnt/spark/logs/<pod>/ when missing",
-          "matcher": "spark.mode != \"Client\" AND isNull(spark.pod) AND isNotNull(spark.log.path) AND matchesValue(spark.log.path, \"/mnt/spark/logs/*\") AND NOT matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
-          "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/' LD:spark.pod LD '/spark-app'\" | parse spark.log.path, \"LD '/opt/spark/logs/' LD:spark.pod LD '/spark-app'\" | fieldsAdd spark.mode = \"Cluster\" | fieldsAdd k8s.pod_name = spark.pod"
-          }
-        },
-        {
-          "id": "extract-cluster-pod-from-log-source",
-          "type": "dql",
-          "enabled": true,
-          "description": "Cluster mode: parse spark.pod from log.source when spark.log.path absent",
-          "matcher": "spark.mode != \"Client\" AND isNull(spark.pod) AND isNull(spark.driver.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
-          "dql": {
-            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:spark.pod LD '/spark-app.log'\" | parse log.source, \"LD '/opt/spark/logs/' LD:spark.pod LD '/spark-app.log'\" | fieldsAdd spark.mode = \"Cluster\" | fieldsAdd k8s.pod_name = spark.pod"
-          }
-        },
-        {
-          "id": "ensure-cluster-mode",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Cluster mode: set spark.mode when spark.pod (or k8s.pod_name) is present",
-          "matcher": "spark.mode != \"Client\" AND (isNotNull(spark.pod) OR isNotNull(k8s.pod_name))",
-          "fieldsAdd": {
-            "fields": [
-              { "name": "spark.mode", "value": "Cluster" }
-            ]
-          }
-        },
-        {
-          "id": "ensure-cluster-pod-from-k8s",
-          "type": "dql",
-          "enabled": true,
-          "description": "Cluster mode: spark.pod mirrors k8s.pod_name when still unset",
-          "matcher": "spark.mode == \"Cluster\" AND isNull(spark.pod) AND isNotNull(k8s.pod_name)",
-          "dql": {
-            "script": "fieldsAdd spark.pod = k8s.pod_name"
           }
         },
         {
           "id": "extract-log4j-class-line",
           "type": "dql",
           "enabled": true,
-          "description": "Parse Log4j short class and line (Class:Line) for Davis event.unique_identifier",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (spark.mode == \"Client\" OR spark.mode == \"Cluster\")",
+          "description": "Parse Log4j short class and line (Class:Line) on all Spark lines for Grail and Davis unique_identifier",
+          "matcher": "true",
           "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') LD LD:spark.log.class ':' INT:spark.log.line LD\""
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD\""
           }
-        },
-        {
-          "id": "drop-legacy-chapter-log-paths",
-          "type": "drop",
-          "enabled": true,
-          "description": "Exclude legacy host-chapter log directories",
-          "matcher": "matchesValue(spark.pod, \"*-chapter\") OR matchesValue(k8s.pod_name, \"*-chapter\")"
         }
       ]
     },
@@ -136,18 +51,18 @@
           "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Client mode ERROR/WARN (no Davis merge across drivers)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND (spark.mode == \"Client\" OR matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\"))",
+          "description": "Client ERROR/WARN: one Davis event/problem per mode|class:line (cross-driver via shared event.name; merge off)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Client application log {loglevel} on {host.name}:{spark.driver.instance}" },
+              { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
                 "value": "Client {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{host.name}:{spark.driver.instance}|{spark.log.class}:{spark.log.line}" },
+              { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
@@ -157,18 +72,39 @@
           "id": "spark-cluster-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Cluster mode ERROR/WARN (no Davis merge across pods)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.pod)",
+          "description": "Cluster ERROR/WARN: one Davis event/problem per mode|class:line (cross-pod via shared event.name; merge off)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Cluster application log {loglevel} on {spark.pod}" },
+              { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
                 "value": "Cluster {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{spark.pod}|{spark.log.class}:{spark.log.line}" },
+              { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        },
+        {
+          "id": "spark-enrichment-missing-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Fail-visible: WARN/ERROR reached this pipeline without OneAgent spark.mode enrichment",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
+              {
+                "key": "event.description",
+                "value": "Custom log source enrichment did not set spark.mode for {log.source}: {content}"
+              },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
+              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]

@@ -28,10 +28,13 @@ K8sLogPodCiBind.prototype = {
   },
 
   /**
-   * Bind gr (em_event or em_alert) to cmdb_ci_kubernetes_pod when the log path
-   * segment matches a discovered pod CI name.
-   * Returns true when cmdb_ci was set to a pod CI.
-   * Does not run when the text encodes a Client-mode path (use
+   * Bind gr (em_event or em_alert) to the Application Service that Contains the
+   * pod named in the log path. Prefers early AS binding (cmdb_ci =
+   * cmdb_ci_service_discovered) so event → alert → incident can propagate the
+   * same CI. Keeps node/resource as the pod path for diagnostics.
+   * Falls back to the pod CI when no Contains edge exists yet.
+   * Returns true when cmdb_ci was set.
+   * Does not run for Client-mode text (use
    * ResolveApplicationService.applySparkClientAlertBinding instead).
    */
   applyPodBinding: function (gr) {
@@ -48,6 +51,7 @@ K8sLogPodCiBind.prototype = {
     if (
       combined.indexOf('/client-logs/') !== -1 ||
       combined.indexOf('/logs/spark-client/') !== -1 ||
+      combined.indexOf('Client error at') !== -1 ||
       combined.indexOf('Client application log') !== -1 ||
       (combined.indexOf('Application log') !== -1 &&
         combined.indexOf('spark-client-') !== -1)
@@ -73,7 +77,6 @@ K8sLogPodCiBind.prototype = {
     }
 
     var podSysId = podGr.sys_id.toString();
-    gr.cmdb_ci = podSysId;
     gr.node = podName;
 
     var text =
@@ -101,6 +104,9 @@ K8sLogPodCiBind.prototype = {
       gr.message_key = podPrefix + messageKey;
     }
 
+    var resolver = new ResolveApplicationService();
+    resolver.appendClassLineToMessageKey(gr, null);
+
     if (
       gr.isValidField('message') &&
       (gr.message.nil() ||
@@ -116,6 +122,10 @@ K8sLogPodCiBind.prototype = {
           : 'WARN';
       gr.message = 'Event Log ' + logLevel;
     }
+
+    // Early Application Service bind (preferred). Fall back to pod CI.
+    var asSysId = resolver.resolveFromInfrastructureCi(podSysId);
+    gr.cmdb_ci = asSysId || podSysId;
 
     return true;
   },

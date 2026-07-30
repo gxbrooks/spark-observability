@@ -74,11 +74,11 @@
     return;
   }
 
-  // Client-side: alert CI may be HOST — align to Spark Client AS.
-  // Service-side: keep alert on pod CI; only the incident gets the Application Service.
-  if (asSource.indexOf('spark-client') !== -1) {
-    if (current.cmdb_ci.toString() !== asSysId) {
-      current.cmdb_ci = asSysId;
+  // Early Application Service bind on the alert for both Client and Cluster;
+  // incident then propagates the same cmdb_ci.
+  if (current.cmdb_ci.toString() !== asSysId) {
+    current.cmdb_ci = asSysId;
+    if (asSource.indexOf('spark-client') !== -1) {
       current.node = 'Spark Client';
     }
   }

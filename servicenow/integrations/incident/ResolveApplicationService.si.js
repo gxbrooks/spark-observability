@@ -38,8 +38,8 @@ ResolveApplicationService.prototype = {
   /**
    * Spark client-mode logs: /mnt/spark/client-logs/<instance>/spark-app*.log
    * maps directly to Application Service Spark Client (no pod CI).
-   * Also accepts Davis event.name "Client application log … on <host>:<instance>"
-   * when the problem payload omits the filesystem path.
+   * Also accepts Davis event.name "Client error at Class:Line" (and legacy
+   * "Client application log …") when the problem payload omits the filesystem path.
    *
    * Lookup order: name (authoritative on optimizincdemo1), then identifier when
    * populated, then tag_list. Do NOT query identifier alone — on this instance
@@ -90,7 +90,11 @@ ResolveApplicationService.prototype = {
     if (text.indexOf('/logs/spark-client/') !== -1) {
       return true;
     }
-    // OpenPipeline Davis event.name: Client application log WARN|ERROR on <host>:<instance>
+    // OpenPipeline Davis event.name: "{spark.mode} error at {class}:{line}"
+    if (text.indexOf('Client error at') !== -1) {
+      return true;
+    }
+    // Legacy OpenPipeline Davis event.name
     if (text.indexOf('Client application log') !== -1) {
       return true;
     }
@@ -102,6 +106,60 @@ ResolveApplicationService.prototype = {
       return true;
     }
     return false;
+  },
+
+  /**
+   * Log4j Class:Line from problem text. Prefer event.unique_identifier suffix;
+   * fall back to the WARN/ERROR body (… ERROR SparkContext:99 - …).
+   */
+  extractLog4jClassLine: function (text) {
+    if (!text) {
+      return '';
+    }
+    // Current: event.unique_identifier Client|Class:Line or Cluster|Class:Line
+    var uidMode = text.match(
+      /event\.unique_identifier:\s*(?:Client|Cluster)\|([A-Za-z_][\w$]*):(\d+)/
+    );
+    if (uidMode) {
+      return uidMode[1] + ':' + uidMode[2];
+    }
+    // Legacy: Client:host:driver|Class:Line (optional ERROR/WARN eaten into class)
+    var uidLegacy = text.match(
+      /event\.unique_identifier:\s*[^\s|]+\|((?:ERROR|WARN)\s+)?([A-Za-z_][\w$]*):(\d+)/
+    );
+    if (uidLegacy) {
+      return uidLegacy[2] + ':' + uidLegacy[3];
+    }
+    // event.name: Client|Cluster error at Class:Line
+    var ename = text.match(
+      /\b(?:Client|Cluster) error at ([A-Za-z_][\w$]*):(\d+)/
+    );
+    if (ename) {
+      return ename[1] + ':' + ename[2];
+    }
+    var body = text.match(/\b(?:ERROR|WARN)\s+([A-Za-z_][\w$]*):(\d+)\s+-/);
+    if (body) {
+      return body[1] + ':' + body[2];
+    }
+    return '';
+  },
+
+  /**
+   * Ensure optional prefix, then append |Class:Line for EM correlation granularity.
+   * Keeps Dynatrace ProblemID (SGO message_key) so OPEN/RESOLVED still match.
+   */
+  appendClassLineToMessageKey: function (gr, prefix) {
+    var mk = gr.message_key.toString();
+    if (prefix && mk.indexOf(prefix) === -1) {
+      mk = prefix + mk;
+    }
+    var classLine = this.extractLog4jClassLine(
+      gr.description.toString() + ' ' + gr.resource.toString()
+    );
+    if (classLine && mk.indexOf('|' + classLine) === -1) {
+      mk = mk + '|' + classLine;
+    }
+    gr.message_key = mk;
   },
 
   /**
@@ -155,11 +213,7 @@ ResolveApplicationService.prototype = {
       gr.resource = '/mnt/spark/client-logs/spark-app.log';
     }
 
-    var messageKey = gr.message_key.toString();
-    var clientPrefix = 'SparkClient-';
-    if (messageKey.indexOf(clientPrefix) === -1) {
-      gr.message_key = clientPrefix + messageKey;
-    }
+    this.appendClassLineToMessageKey(gr, 'SparkClient-');
 
     if (
       gr.isValidField('message') &&

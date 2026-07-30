@@ -183,12 +183,12 @@ inputs:
               ignore_failure: true
           # Cluster pod: …/logs/<pod>/spark-app.log*
           - dissect:
-              tokenizer: "/mnt/spark/logs/%{spark.pod}/%{?logfile}"
+              tokenizer: "/mnt/spark/logs/%{spark.pod_name}/%{?logfile}"
               field: log.file.path
               target_prefix: ""
               ignore_failure: true
               if: 'ctx["spark.driver.instance"] == null'
-          # Detect component type from pod name / client path
+          # Detect component type from driver instance / pod directory name
           - script:
               lang: javascript
               source: >
@@ -199,13 +199,9 @@ inputs:
                     event.Put("spark.component", "client");
                     return event;
                   }
-                  var podName = event.Get("spark.pod");
-                  if (!podName) {
-                    podName = event.Get("spark.pod_name");
-                  }
+                  var podName = event.Get("spark.pod_name");
                   if (podName) {
                     event.Put("spark.mode", "Cluster");
-                    event.Put("spark.pod", String(podName));
                     var podNameStr = String(podName);
                     if (podNameStr.indexOf("spark-master") === 0) {
                       event.Put("spark.component", "master");

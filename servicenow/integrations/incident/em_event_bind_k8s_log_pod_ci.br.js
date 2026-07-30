@@ -41,7 +41,7 @@
     var binder = new K8sLogPodCiBind();
     if (binder.applyPodBinding(current)) {
       bound = true;
-      path = 'kubernetes pod';
+      path = 'Application Service via kubernetes pod (or pod fallback)';
     }
   }
 

@@ -99,5 +99,5 @@
     msg: >-
       Custom log source '{{ dt_sn_spark_log_custom_source_name }}' => {{ dt_spark_log_source_object_id }}
       ({{ 'created/updated' if dt_spark_log_source_change_needed | bool else 'already up to date' }})
-      Paths: /mnt/spark/logs/*/spark-app.log*, /opt/spark/logs/spark-app.log*
+      Paths: /mnt/spark/client-logs/*/spark-app.log*, /mnt/spark/logs/*/spark-app.log*
   run_once: true

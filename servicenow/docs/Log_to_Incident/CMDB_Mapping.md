@@ -11,11 +11,11 @@ Canonical process narrative, diagrams, and step-by-step automation live in [Log_
 | | **Client-side** | **Service-side** |
 |--|-----------------|------------------|
 | **Who emits the log** | PySpark client-mode driver on a host | Spark workload in Kubernetes (master, worker, history, …) |
-| **Log path contract** | `/mnt/spark/logs/spark-client/<instance>/spark-app*.log` | `/mnt/spark/logs/<pod-name>/spark-app*.log` (or `/opt/spark/logs/…`) |
-| **Dynatrace problem entity** | Logical **CUSTOM_DEVICE** “Spark Client” | Typically **HOST** (OneAgent file tail); pod entity lookup is **disabled** |
-| **ServiceNow alert CI** | Application Service **Spark Client** | **Kubernetes pod** CI |
-| **ServiceNow incident CI** | Same Application Service **Spark Client** | Parent **Application Service** via **Contains::Contained by** |
-| **CMDB bridge used for incident** | Text → AS **by name** (no Contains) | Alert pod → **Contains** → AS |
+| **Log path contract** | `/mnt/spark/client-logs/<driver-instance>/spark-app*.log` | `/mnt/spark/logs/<pod-name>/spark-app*.log` |
+| **Dynatrace problem entity** | **HOST** (OneAgent file tail); `spark.device` = CUSTOM_DEVICE id for SN | **HOST** (OneAgent file tail); pod entity lookup disabled |
+| **ServiceNow event/alert CI** | Application Service **Spark Client** (early bind) | Application Service via pod **Contains** (early bind; pod name in `node`) |
+| **ServiceNow incident CI** | Same Application Service **Spark Client** (propagate) | Same parent **Application Service** (propagate) |
+| **CMDB bridge used for incident** | Text → AS **by name** (no Contains) | Path → pod → **Contains** → AS (done at event bind) |
 
 Shared path: OpenPipeline Davis `ERROR_EVENT` → Dynatrace Problem → ServiceNow Event Management (`em_event` / `em_alert`) → business rules → `incident`.
 
@@ -62,13 +62,13 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | **Path** | `/mnt/spark/client-logs/<driver-instance>/` |
 | **Mode** | `spark.mode = Client` |
 | **Instance** | `spark.instance = <host.name>:<driver-instance>` |
-| **Device** | `spark.device` / `dt.source_entity` = CUSTOM_DEVICE “Spark Client” |
-| **Davis merge** | `dt.davis.is_merging_allowed=false`; `event.unique_identifier={host}:{driver}|{class}:{line}` |
+| **Device** | `spark.device` = CUSTOM_DEVICE “Spark Client” (Grail/SN hint); **`dt.source_entity` remains HOST** |
+| **Davis merge** | `dt.davis.is_merging_allowed=false`; identity via `event.name` / `event.unique_identifier` = mode\|class:line |
 | **Davis processor** | `spark-client-warn-error-davis` |
-| **`event.name`** | `Client application log {loglevel} on {spark.instance}` |
+| **`event.name`** | `{spark.mode} error at {spark.log.class}:{spark.log.line}` |
 | **Management zone** | CUSTOM_DEVICE “Spark Client” is in **Spark Observability** so SGO can forward |
 
-**Why CUSTOM_DEVICE:** Client drivers are not Kubernetes pods. Binding Davis events to a stable logical device (instead of the OneAgent **HOST**) keeps Client problems from bundling with Cluster HOST problems on the same node.
+**Why leave HOST:** OneAgent file tails always attach the node HOST. Client/Cluster separation uses `spark.mode` and class:line in `event.name` (event report identity). Merge stays off so different class:lines are not HOST-bundled; same class:line across drivers still shares one event. ServiceNow binds Application Service early from path / `spark.device` / pod Contains.
 
 ### Cluster mode (Dynatrace)
 
@@ -76,21 +76,21 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 |---------|----------------|
 | **Path** | `/mnt/spark/logs/<pod>/` (not under `client-logs`) |
 | **Mode** | `spark.mode = Cluster` |
-| **Pod** | `spark.pod` (and `k8s.pod_name`) from path enrichment |
+| **Pod** | `spark.pod_name` from path enrichment |
 | **Entity bind** | Leave OneAgent **HOST** as `dt.source_entity` (in MZ). Pod CI rebind is in ServiceNow. |
 | **Davis processor** | `spark-cluster-warn-error-davis` |
-| **`event.name`** | `Cluster application log {loglevel} on {spark.pod}` |
+| **`event.name`** | `{spark.mode} error at {spark.log.class}:{spark.log.line}` |
 | **Typical impacted entity** | **HOST**. Pod identity for CMDB is recovered later in ServiceNow from the path / `event.name`. |
 
-**Design split:** Dynatrace carries **`spark.mode`** plus either **`spark.instance`** (Client) or **`spark.pod`** (Cluster). ServiceNow owns Application Service / pod CI binding (`ResolveApplicationService` / `K8sLogPodCiBind`).
+**Design split:** Dynatrace carries **`spark.mode`** plus either **`spark.instance`** (Client) or **`spark.pod_name`** (Cluster). ServiceNow owns Application Service / pod CI binding (`ResolveApplicationService` / `K8sLogPodCiBind`).
 
 ### Side-by-side (Dynatrace)
 
 | | Client | Cluster |
 |--|--------|---------|
-| OpenPipeline branch | `spark.mode=Client`; compose `spark.instance`; set `spark.device` | `spark.mode=Cluster`; set `spark.pod` |
-| Davis `event.name` | `Client application log … on <host>:<instance>` | `Cluster application log … on <pod>` |
-| Problem impacted entity | CUSTOM_DEVICE Spark Client | HOST (usually) |
+| OpenPipeline branch | `spark.mode=Client`; compose `spark.instance`; set `spark.device` | `spark.mode=Cluster`; use `spark.pod_name` |
+| Davis `event.name` | `Client error at <class>:<line>` | `Cluster error at <class>:<line>` |
+| Problem impacted entity | HOST (+ `spark.device` attribute) | HOST (usually) |
 | SN path detector | `/client-logs/` | `/mnt/spark/logs/<pod>/` |
 
 ---

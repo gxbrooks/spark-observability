@@ -606,24 +606,32 @@ OneAgent provides a limited set of default metadata fields. These are the raw lo
           "path": "/mnt/spark/client-logs/*/spark-app.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "spark-client" },
-            { "type": "attribute", "key": "spark.client.instance", "value": "${1}" }
+            { "type": "attribute", "key": "spark.mode", "value": "Client" },
+            { "type": "attribute", "key": "spark.driver.instance", "value": "${1}" }
           ]
         },
         {
           "path": "/mnt/spark/client-logs/*/spark-app-*.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "spark-client" },
-            { "type": "attribute", "key": "spark.client.instance", "value": "${1}" }
+            { "type": "attribute", "key": "spark.mode", "value": "Client" },
+            { "type": "attribute", "key": "spark.driver.instance", "value": "${1}" }
           ]
         },
         {
           "path": "/mnt/spark/logs/*/spark-app.log",
           "enrichment": [
             { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.application", "value": "${1}" },
-            { "type": "attribute", "key": "k8s.pod_name", "value": "${1}" }
+            { "type": "attribute", "key": "spark.mode", "value": "Cluster" },
+            { "type": "attribute", "key": "spark.pod_name", "value": "${1}" }
+          ]
+        },
+        {
+          "path": "/mnt/spark/logs/*/spark-app-*.log",
+          "enrichment": [
+            { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
+            { "type": "attribute", "key": "spark.mode", "value": "Cluster" },
+            { "type": "attribute", "key": "spark.pod_name", "value": "${1}" }
           ]
         }
       ]
@@ -654,17 +662,17 @@ Given the above template, OneAgent will extract the following metadata fields an
 |Custom log source `${0}`
 |Literal file path on the node
 
-|`spark.application`
-|Custom log source / OpenPipeline
-|`spark-client` **or** pod name (e.g. `spark-master-0`)
+|`spark.mode`
+|Custom log source
+|`Client` or `Cluster`
 
-|`spark.client.instance`
-|Custom log source `${1}` (client paths only)
-|Driver instance directory (`par-a`, PID, …); unset for pods
+|`spark.driver.instance`
+|Custom log source `${1}` (Client paths only)
+|Driver directory under `/mnt/spark/client-logs/` (`par-a`, PID, …)
 
-|`k8s.pod_name`
-|Custom log source `${1}` (service paths only)
-|Same as `spark.application` for pods; kept for CMDB pod-name matching
+|`spark.pod_name`
+|Custom log source `${1}` (Cluster paths only)
+|Pod directory under `/mnt/spark/logs/` (e.g. `spark-master-0`); not a Dynatrace entity id
 |===
 
 === Phase 3 — Dynatrace
@@ -686,7 +694,7 @@ To route the logs to the designated OpenPipeline to process Spark log entries. ,
         "enabled": true,
         "pipelineType": "custom",
         "pipelineId": "vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t",
-        "matcher": "matchesValue(log.source, \"/mnt/spark/logs/*\")",
+        "matcher": "matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
         "description": "Spark Lab log alerts (ERROR/WARN)"
       }
     ]
@@ -698,7 +706,7 @@ Where:
 
 - `pipelineId` is the ID of the Spark log processing OpenPipeline
 
-Basically, we just route all '/mnt/spark/logs/*' paths to the Spark log processing OpenPipeline.
+Route both Cluster (`/mnt/spark/logs/*`) and Client (`/mnt/spark/client-logs/*`) paths to the Spark log processing OpenPipeline.
 
 ==== OpenPipeline processing
 
@@ -730,129 +738,72 @@ The template for this pipeline is shown below. Notice the last three stages are 
 ----
 
 ===== Processors
-Processing sets **`spark.mode`** (`Cluster` or `Client`) from the log path prefix, then mode-specific fields. Canonical specification: `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`.
+OneAgent custom log source already sets `spark.*` variables prior to entry of the pipeline. In addition to the standard Dynatrace fields for `content`, `loglevel`, and `log.source`, the available fields on entry to the pipeline processors are: 
 
 [cols="16%,42%,42%",options="header"]
 |===
 |Field Name|Cluster Mode|Client Mode
 
 |spark.mode
-|`Cluster`
-|`Client`
+|`Cluster` (from custom source)
+|`Client` (from custom source)
 
-|spark.pod
-|pod name (e.g. `spark-master-0`)
+|spark.pod_name
+|directory name under `/mnt/spark/logs/` (e.g. `spark-master-0`)
 |unset
 
 |spark.instance
 |unset
-|`<host.name>:<driver-instance>`
+|`<host.name>:<driver-instance>` (composed in pipeline)
 
 |spark.device
 |unset
 |CUSTOM_DEVICE id for Spark Client
 
 |dt.source_entity
-|HOST (in Spark Observability MZ; pod rebind in ServiceNow)
-|same CUSTOM_DEVICE as `spark.device`
+|HOST (OneAgent file tail; in Spark Observability MZ)
+|HOST (OneAgent file tail; in MZ). `spark.device` carries CUSTOM_DEVICE id for SN
 |===
 
 The current implementation is shown below. 
 
+The pipeline only derives fields that cannot be set at ingest (compose `spark.instance`, bind Client CUSTOM_DEVICE, parse Log4j class:line from `content`). Canonical specification: `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`.
 
 [source,json] 
 ----
 {
-  
     "processing": {
       "processors": [
         {
-          "id": "extract-spark-client-from-path",
+          "id": "compose-client-instance",
           "type": "dql",
           "enabled": true,
-          "description": "Parse spark-client instance from spark.log.path when enrichment missed it",
-          "matcher": "isNull(spark.client.instance) AND matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
+          "description": "Client: compose spark.instance from host.name + spark.driver.instance",
+          "matcher": "spark.mode == \"Client\" AND isNotNull(spark.driver.instance)",
           "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/client-logs/' LD:spark.client.instance LD '/spark-app'\" | fieldsAdd spark.application = \"spark-client\""
+            "script": "fieldsAdd spark.instance = concat(toString(coalesce(host.name, \"unknown\")), \":\", toString(spark.driver.instance))"
           }
         },
         {
-          "id": "ensure-spark-application-client",
+          "id": "resolve-client-device",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Client-mode logical application id for Davis matchers and SN path resolution",
-          "matcher": "isNotNull(spark.client.instance) OR matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
+          "description": "Client: set spark.device (CUSTOM_DEVICE id) for ServiceNow; leave OneAgent HOST as dt.source_entity",
+          "matcher": "spark.mode == \"Client\"",
           "fieldsAdd": {
             "fields": [
-              { "name": "spark.application", "value": "spark-client" }
+              { "name": "spark.device", "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}" }
             ]
           }
         },
         {
-          "id": "resolve-spark-client-entity",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Bind client-mode logs to CUSTOM_DEVICE Spark Client (fieldsAdd is static-only; keeps clients off HOST so they do not bundle with service-side)",
-          "matcher": "spark.application == \"spark-client\" OR isNotNull(spark.client.instance)",
-          "fieldsAdd": {
-            "fields": [
-              {
-                "name": "dt.source_entity",
-                "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
-              }
-            ]
-          }
-        },
-        {
-          "id": "extract-k8s-pod-from-enriched-path",
+          "id": "extract-log4j-class-line",
           "type": "dql",
           "enabled": true,
-          "description": "Parse pod name from spark.log.path for service-side when k8s.pod_name missing",
-          "matcher": "isNull(k8s.pod_name) AND isNotNull(spark.log.path) AND spark.application != \"spark-client\" AND NOT matchesValue(spark.log.path, \"/mnt/spark/client-logs/*\")",
+          "description": "Parse Log4j short class and line (Class:Line) on all Spark lines for Grail and Davis unique_identifier",
+          "matcher": "true",
           "dql": {
-            "script": "parse spark.log.path, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app'\" | fieldsAdd spark.application = k8s.pod_name"
-          }
-        },
-        {
-          "id": "extract-k8s-pod-from-log-source",
-          "type": "dql",
-          "enabled": true,
-          "description": "Parse pod name from literal log.source (fallback when spark.log.path absent)",
-          "matcher": "isNull(k8s.pod_name) AND spark.application != \"spark-client\" AND isNull(spark.client.instance) AND (matchesValue(log.source, \"/mnt/spark/logs/*\")) AND NOT matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
-          "dql": {
-            "script": "parse log.source, \"LD '/mnt/spark/logs/' LD:k8s.pod_name LD '/spark-app.log'\" | fieldsAdd spark.application = k8s.pod_name"
-          }
-        },
-        {
-          "id": "ensure-spark-application-from-pod",
-          "type": "dql",
-          "enabled": true,
-          "description": "Service-side: spark.application mirrors k8s.pod_name when still unset",
-          "matcher": "isNull(spark.application) AND isNotNull(k8s.pod_name)",
-          "dql": {
-            "script": "fieldsAdd spark.application = k8s.pod_name"
-          }
-        },
-        {
-          "id": "drop-legacy-chapter-log-paths",
-          "type": "drop",
-          "enabled": true,
-          "description": "Exclude legacy host-chapter log directories (replaced by /mnt/spark/client-logs/)",
-          "matcher": "matchesValue(k8s.pod_name, \"*-chapter\") OR matchesValue(spark.application, \"*-chapter\")"
-        },
-        {
-          "id": "resolve-k8s-pod-entity",
-          "type": "fieldsAdd",
-          "enabled": false,
-          "description": "Optional pod entity for Smartscape (disabled: pod entities are outside Spark Observability MZ and block SGO webhook). Pod CI binding is done in ServiceNow K8sLogPodCiBind from log path.",
-          "matcher": "isNotNull(k8s.pod_name)",
-          "fieldsAdd": {
-            "fields": [
-              {
-                "name": "dt.source_entity",
-                "value": "lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)"
-              }
-            ]
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD\""
           }
         }
       ]
@@ -862,7 +813,7 @@ The current implementation is shown below.
 
 ===== Davis
 
-Once the metadata fields are defined in the processors, we are ready to create Dynatrace problems for those log entries with a log level of WARN or ERROR. There is one pattern for Client Mode log entries and another for Cluster Mode log entries. We intentionally do not allow Davis to merge DT events from client logs and service-side logs into a common problem between. Similarly, we don't allow DT events from ``````````Client Mode and Cluster Mode log entries or across pods in cluster mode. The current implementation is shown below.
+Once the metadata fields are defined in the processors, we are ready to create Dynatrace problems for those log entries with a log level of WARN or ERROR. There is one Client matcher and one Cluster matcher; both use the same **`event.name`** / **`event.unique_identifier`** shape keyed by **`{spark.mode}|{spark.log.class}:{spark.log.line}`**. **`spark.mode`** is definitive — Davis matchers do not re-check path patterns. Lines without a parsed class:line are skipped (no Davis event). Missing **`spark.mode`** enrichment surfaces as a separate fail-visible Davis event. The current implementation is shown below.
 
 
 [source,json] 
@@ -874,39 +825,60 @@ Once the metadata fields are defined in the processors, we are ready to create D
           "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Spark client-mode driver ERROR/WARN logs (no Davis merge across drivers)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.application == \"spark-client\"",
+          "description": "Client ERROR/WARN: one Davis event/problem per mode|class:line (cross-driver via shared event.name; merge off)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Application log {loglevel} on spark-client-{spark.client.instance}" },
+              { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Application {loglevel} on {spark.log.path}: {content}"
+                "value": "Client {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "spark-client-{spark.client.instance}" },
+              { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
         },
         {
-          "id": "k8s-warn-error-davis",
+          "id": "spark-cluster-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Kubernetes pod ERROR/WARN logs (no Davis merge across spark.application / pods)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(spark.application) AND spark.application != \"spark-client\" AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/opt/spark/logs/*\") OR matchesValue(spark.log.path, \"/mnt/spark/logs/*\") OR matchesValue(spark.log.path, \"/opt/spark/logs/*\"))",
+          "description": "Cluster ERROR/WARN: one Davis event/problem per mode|class:line (cross-pod via shared event.name; merge off)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "Application log {loglevel} on {spark.application}" },
+              { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Application {loglevel} on {spark.log.path}: {content}"
+                "value": "Cluster {loglevel} on {spark.log.path}: {content}"
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{spark.application}" },
+              { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        },
+        {
+          "id": "spark-enrichment-missing-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Fail-visible: WARN/ERROR without spark.mode enrichment",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
+              {
+                "key": "event.description",
+                "value": "Custom log source enrichment did not set spark.mode for {log.source}: {content}"
+              },
+              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
+              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
@@ -918,23 +890,25 @@ Once the metadata fields are defined in the processors, we are ready to create D
 
 ----
 
-In processing events, Davis will merge similar events into a single problem to increase the signal to noise ratio. To merge events, the following conditions must be met:
-For two distinct Davis events (from two log hits) to end up in one problem via merge/correlation, these all need to hold:
+===== How Dynatrace groups and refreshes log-derived problems
 
+Two different mechanisms are easy to conflate:
 
-. Both events raise Davis problems — each log line matches via a matcher rule a Davis processor (in this case a WARN or ERROR log level)
-. Merge is allowed (is_merging_allowed=true) on the existing problem 
-. Time overlap — both events occur within the same `dt.davis.event_timeout` time window, which is typically 15 minutes
-. Related topology — Both events are bound to entities that are the same or causally related dt.source_entity / Smartscape neighborhood (Davis root-cause grouping).
+**1. Event report identity (create vs refresh an event)** — Dynatrace links OpenPipeline Davis *reports* using **`event.name` + `event.type` + `dt.source_entity`**. Matching reports **refresh** the same Davis event (and keep it open for `dt.davis.event_timeout`, default 15m). A non-matching triple **opens a new** event. This is *dedup / refresh*, not problem merge.
 
-If any of these conditions are not met, each event will be assigned to a separate problem.
+**2. Problem merge (bundle distinct events into one problem)** — Separate Davis events may still be **merged into one problem** when merge is allowed, their active windows overlap, and they share the same (or closely related) source entity / Smartscape neighborhood. **`dt.davis.is_merging_allowed`** controls that second step only.
 
-With the Spark application we were seeing events grouped into a single problem from 
-different pods and clients. While this may be a "good thing", errors across pods or pods and a client are not always related. For example, an error in the Spark Driver may be related to an error in the Spark Executor, but not related to an error in the Spark History Server. In this case, we would not want to group these events into a single problem. As such, we need to suppress this behavior
+**`event.unique_identifier`** is a property carried on the event (and useful for ServiceNow class:line extraction and for Classic log-event split recipes). For OpenPipeline Davis reports it does **not** replace the `event.name` + `event.type` + `dt.source_entity` identity key. Putting class:line only in `event.unique_identifier` while leaving `event.name` as “Client application log WARN on lab3:par-a” caused every WARN on that driver/host to refresh **one** event — so DQL joins keyed by class:line looked like “most lines have no Problem.”
 
-While setting 'dt.davis.is_merging_allowed=false' prevents Davis from merging events across pods or clients, we still want related duplicate lines within one driver/pod to refresh the same problem. **`event.unique_identifier`** includes the Log4j short class and line (`{spark.log.class}:{spark.log.line}`) parsed from the log content, so distinct call sites open distinct problems without flooding on every identical repeating line.
+Lab design now:
 
-After the problems are created, Dynatrace will store the events in the default_logs bucket. The current implementation is shown below.
+* **`event.name`** = `{spark.mode} error at {spark.log.class}:{spark.log.line}` so each mode|class:line is its own event identity (on a given source entity). Same class:line from `par-a` and `par-b` therefore **shares one event** (true cross-driver grouping) without needing problem merge.
+* **`event.unique_identifier`** = `{spark.mode}|{spark.log.class}:{spark.log.line}` (aligned with that grouping).
+* **`dt.davis.is_merging_allowed=false`** so *different* class:line events (and Client vs Cluster) are **not** bundled into one problem on the shared HOST. Stress testing with merge enabled immediately recreated false Client↔Cluster / multi-class:line bundles (e.g. `Master:250` with `TaskSchedulerImpl:244`).
+
+Repeating the same WARN/ERROR at the same class:line within the timeout **refreshes** one event/problem rather than opening a new problem per line.
+
+After the problems are created, Dynatrace stores the *log records* in the default_logs bucket (storage processors below). Davis events/problems live in Grail event/problem stores.
 
 
 [source,json] 
@@ -1204,14 +1178,14 @@ see if there is an existing event with the same message key. If there was no mes
 
 At Phase 5 the **Observability engineer** typically performs **verification**, not new Dynatrace or application configuration:
 
-. After a test problem fires, confirm **`em_event.source=SGO-Dynatrace`** and **`em_event.cmdb_ci`** is populated (pod CI when OpenPipeline entity lookup succeeded).
-. If **`cmdb_ci`** is a Linux server instead of a pod, return to <<step-2-dynatrace,Phase 3 — Dynatrace>> and verify **`k8s.pod_name`** extraction and **`lookupEntity(CLOUD_APPLICATION_INSTANCE, k8s.pod_name)`** in the OpenPipeline pipeline (<<spec-dt-openpipeline,OpenPipeline specification>>).
+. After a test problem fires, confirm **`em_event.source=SGO-Dynatrace`** and **`em_event.cmdb_ci`** is populated (pod CI for Cluster after `K8sLogPodCiBind`; Spark Client AS for Client).
+. If Cluster **`cmdb_ci`** remains a Linux server instead of a pod, return to <<step-2-dynatrace,Phase 3 — Dynatrace>> and verify **`spark.pod_name`** enrichment in the custom log source (<<spec-dt-openpipeline,OpenPipeline specification>>), then the **K8s log pod bind** rules.
 . Confirm **`sys_object_source`** contains a row with **`name=SGO-Dynatrace`** and **`id=<entityId>`** from the webhook **before** the event arrives (SGC scheduled import lag is a common root cause of empty CI).
-. Deploy or verify the **K8s log pod bind** business rules (<<step-5-br-k8s-pod,K8s log pod bind business rules>>) as a fallback when the webhook still reports a HOST entity but the log path encodes a pod name.
+. Deploy or verify the **K8s log pod bind** business rules (<<step-5-br-k8s-pod,K8s log pod bind business rules>>) when the webhook reports a HOST entity but the log path encodes a pod name under `/mnt/spark/logs/<pod>/`.
 
 **No ServiceNow-side changes** are required on the monitored **application** (the Java/Spark/Python workload). **No additional Dynatrace** configuration is required at Phase 5 if Steps <<step-3-dynatrace,Phase 3 — Dynatrace>> and Phase 3 are correct.
 
-ServiceNow cannot bind to **`cmdb_ci_kubernetes_pod`** unless <<step-3-dynatrace,Phase 3 — Dynatrace>> sets **`dt.source_entity`** to the pod entity and Phase 0 imported that entity into **`sys_object_source`**.
+Cluster problems intentionally keep **HOST** as Dynatrace **`dt.source_entity`** (in the Spark Observability MZ). ServiceNow **`K8sLogPodCiBind`** rebinds alert CI to **`cmdb_ci_kubernetes_pod`** from the path segment.
 
 ---
 
@@ -1361,19 +1335,18 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_cli
 ----
 
 [#known-limitation-davis-bundling]
-==== Known limitation — Davis problem bundling
+==== Davis event identity vs problem merge
 
-Dynatrace Davis **bundles** multiple log-derived `ERROR_EVENT` rows into **one problem** when they share the same **`dt.source_entity`** and merging is allowed. Historically both client-mode and Service-side file tails sat on the OneAgent **HOST**, so concurrent WARN/ERROR lines produced a **single** `em_alert.description` with both client and master paths.
+Dynatrace can appear to “bundle” unrelated log lines when **`event.name`** does not include the intended split key. Reports with the same **`event.name` + `event.type` + `dt.source_entity`** refresh one Davis event; **`event.unique_identifier` alone does not split that identity**.
 
-**Remediation (lab):**
+**Lab approach:**
 
-* Custom log source / OpenPipeline set **`spark.application`** (`spark-client` vs pod name) and **`spark.log.path`** (literal path — not `k8s.log.path`).
-* Client events bind **`dt.source_entity`** to CUSTOM_DEVICE **Spark Client** (keeps them off HOST).
-* Client Davis processor sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier={host.name}:{spark.driver.instance}|{spark.log.class}:{spark.log.line}`** so concurrent drivers stay separate and distinct Log4j class:line sites do not collapse into one problem (ServiceNow still maps all client paths to Application Service **Spark Client**).
-* Cluster Davis processor likewise sets **`dt.davis.is_merging_allowed=false`** and **`event.unique_identifier={spark.pod}|{spark.log.class}:{spark.log.line}`** so different pods and different class:line sites do not merge into one problem.
-* ServiceNow **`ResolveApplicationService.applySparkClientAlertBinding()`** binds alert CI to **Spark Client** when `/client-logs/` is present.
+* Custom log source sets **`spark.mode`**, **`spark.driver.instance`** or **`spark.pod_name`**, and **`spark.log.path`**. OpenPipeline parses **`spark.log.class` / `spark.log.line`**.
+* Davis **`event.name`** / **`event.unique_identifier`** use **`{spark.mode}` + class:line** so each call site is a distinct event on the OneAgent **HOST** `dt.source_entity`.
+* **`dt.davis.is_merging_allowed=false`** so different class:line events are not HOST-bundled; same class:line across drivers already shares one event via `event.name`.
+* ServiceNow binds Client alerts via `/client-logs/` or Davis **`Client error at …`** text to Application Service **Spark Client**; Cluster alerts use pod Contains.
 
-Worker→multi-client cascading failures are a different topology case; this pipeline does not try to correlate those. It only stops direct client↔client and client↔HOST bundling from file-tail log events.
+Worker→multi-client cascading failures remain a topology case; this pipeline does not force-correlate unrelated History Server vs Driver call sites beyond what Davis merge decides.
 
 ==== ServiceNow incident automation specification
 
@@ -1460,22 +1433,24 @@ Attributes added by automation (not Spark-specific semantics):
 
 |`spark.log.path` |Custom log source enrichment (`${0}`) |Literal file path of the log line
 
-|`spark.mode` |Custom log source / OpenPipeline |`Client` or `Cluster`
+|`spark.mode` |Custom log source |`Client` or `Cluster`
 
-|`spark.pod` |Cluster path segment |Must equal `cmdb_ci_kubernetes_pod.name`
+|`spark.pod_name` |Cluster path segment |Must equal `cmdb_ci_kubernetes_pod.name`
 
 |`spark.instance` |Client OpenPipeline |`<host.name>:<driver-instance>` under `/mnt/spark/client-logs/`
 
 |`spark.device` |Client OpenPipeline |CUSTOM_DEVICE Spark Client entity id
 
-|`event.name` |OpenPipeline Davis |`Client application log … on {spark.instance}` or `Cluster application log … on {spark.pod}`
+|`event.name` |OpenPipeline Davis |`{spark.mode} error at {spark.log.class}:{spark.log.line}`
+
+|`event.unique_identifier` |OpenPipeline Davis |`{spark.mode}|{spark.log.class}:{spark.log.line}`
 
 |`event.description` |OpenPipeline Davis |`Client|Cluster {loglevel} on {spark.log.path}: {content}`
 |===
 
 Pod **Kubernetes labels** (`servicenow.io/application-service-identifier`, etc.) are the CMDB/service-mapping contract — not Dynatrace tags. See <<step-0-pod-labels,pod labels>>.
 
-NOTE: Cluster problems stay on **HOST** entities inside the Spark Observability management zone (pods are not in the MZ). ServiceNow **`K8sLogPodCiBind`** rebinds Cluster alerts to the **pod CI** from the log path; **`ResolveApplicationService`** binds Client alerts via `/client-logs/` (or Davis `Client application log`) to Application Service **Spark Client**.
+NOTE: Cluster problems stay on **HOST** entities inside the Spark Observability management zone (pods are not in the MZ). ServiceNow **`K8sLogPodCiBind`** rebinds Cluster alerts to the **pod CI** from the log path; **`ResolveApplicationService`** binds Client alerts via `/client-logs/` (or Davis `Client error at …`) to Application Service **Spark Client**.
 
 [#step-5-em-rules]
 ==== Event Management rules (manual configuration)

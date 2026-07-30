@@ -116,13 +116,14 @@ Template: `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipel
 | Field | Value |
 | ----- | ----- |
 | **Pipeline name** | `Spark Lab - log alerts` |
-| **Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND (matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source, "/opt/spark/logs/*"))` |
+| **Client Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Client"` |
+| **Cluster Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Cluster"` |
 | **Event type** | `ERROR_EVENT` |
-| **Event name** | `Spark log alert` |
-| **Routing** | Prepended route: Spark log paths → this pipeline (before `Metric Route`). |
-| **Processing** | (1) DQL parse `spark.pod_name` from `log.source`; (2) **fieldsAdd** `lookupEntity(CLOUD_APPLICATION_INSTANCE, spark.pod_name)` → `dt.source_entity` (deployed 2026-07-02). |
+| **Event name** | Client: `Client application log {loglevel} on {host}:{driver}`; Cluster: `Cluster application log {loglevel} on {spark.pod_name}` |
+| **Routing** | Prepended route: `/mnt/spark/logs/*` OR `/mnt/spark/client-logs/*` → this pipeline (before `Metric Route`). |
+| **Processing** | Trust OneAgent enrichment (`spark.mode`, `spark.driver.instance` / `spark.pod_name`); compose Client `spark.instance`; bind Client CUSTOM_DEVICE; parse Log4j class:line. |
 
-OpenPipeline DQL processors cannot use Grail `fetch` / `smartscapeNodes`; pod entity rebind uses the **Add fields** processor with `lookupEntity(...)`. Without step 2, problems keep **HOST** as impacted entity (file tail on NFS node). See `servicenow/docs/Log_to_Incident/Log_to_Incident.adoc` § Implementation status.
+Canonical narrative: `servicenow/docs/Log_to_Incident/Log_to_Incident.adoc`.
 
 ### Classic log event (secondary / legacy)
 
@@ -131,19 +132,15 @@ Template: `observability/dynatrace/tenants/pdt20158/integrations/spark-error-log
 | Field | Value |
 | ----- | ----- |
 | **Summary** | `Spark Lab - ERROR and WARN log lines` |
-| **Enabled** | `true` |
-| **DQL matcher** | `(matchesValue(content, "* ERROR *") OR matchesValue(content, "* WARN *") OR loglevel == "ERROR" OR loglevel == "WARN") AND (matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source.path, "/mnt/spark/logs/*") OR …)` |
-| **Event title** | `Spark log alert on {log.source}` |
-| **Event description** | Spark application log line at ERROR or WARN level in brooks-lab (`{log.source}`). |
-| **Event type** | `ERROR` |
-| **Davis merge** | `false` |
+| **Enabled** | `false` (OpenPipeline Davis is the active path) |
+| **DQL matcher** | WARN/ERROR under `/mnt/spark/logs/*` or `/mnt/spark/client-logs/*` |
 
 ### Why these paths
 
 | Path | Typical writer |
 | ---- | -------------- |
-| `/mnt/spark/logs/*` | Spark driver/executor logs on Lab hosts (chapter client mode, NFS mount). |
-| `/opt/spark/logs/*` | Spark 4.x UI / DiskLog on workers when present. |
+| `/mnt/spark/client-logs/*` | Client-mode drivers (`run-chapters.sh`). |
+| `/mnt/spark/logs/*` | Cluster pods on NFS (`/mnt/spark/logs/<pod>/`). |
 
 The matcher uses Dynatrace **DQL** `matchesValue()` wildcards (not the deprecated `queryDefinition` / `triggeringThreshold` shape). Any single ERROR line in those paths triggers the log event.
 

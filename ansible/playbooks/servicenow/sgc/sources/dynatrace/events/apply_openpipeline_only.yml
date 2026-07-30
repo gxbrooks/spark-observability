@@ -1,0 +1,18 @@
+---
+# Apply only OpenPipeline Spark log alerts (no webhook / MZ / custom-source).
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/apply_openpipeline_only.yml -e @../vars/secrets.yaml
+- name: Apply Spark OpenPipeline log alerts only
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Ensure Spark Client CUSTOM_DEVICE (Davis entity for client-mode logs)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_client_custom_device.yml"
+    - name: Apply OpenPipeline Davis extraction for Spark ERROR/WARN logs
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_openpipeline_log_alerts.yml"
