@@ -17,7 +17,7 @@ This note captures product / configuration gaps found while implementing entity-
 
 | Layer | Behavior |
 | ----- | -------- |
-| **Event CI bind** | Prefer OpenPipeline stamps: `spark.as_identifier` → Application Service by `identifier` (fallback name `Spark Client` for `spark-client`); else `spark.pod_identifier` → pod CI by name → Contains AS. Else primary ImpactedEntity: `HOST` → host CI (CPU / `spark.event_kind=CPU_EVENT`); `CLOUD_APPLICATION_INSTANCE` → AS via pod Contains; `CUSTOM_DEVICE` kept as legacy fallback only. **No match → leave `cmdb_ci` empty.** |
+| **Event CI bind** | Prefer OpenPipeline stamps: `spark.as_identifier` → Application Service by **name** (`spark-client` → `Spark Client`; else name equals the identifier string), then optional `identifier` column only if the field is valid and the value matches; else `spark.pod_identifier` → pod CI by name → Contains AS. Else primary ImpactedEntity: `HOST` → host CI (CPU / `spark.event_kind=CPU_EVENT`); `CLOUD_APPLICATION_INSTANCE` → AS via pod Contains; `CUSTOM_DEVICE` kept as legacy fallback only. **No match → leave `cmdb_ci` empty.** |
 | **Alert CI bind** | If the alert already has `cmdb_ci`, **keep it**; otherwise run the same generic bind as events. |
 | **Incident create** | If the alert has `cmdb_ci`, **use it**; otherwise run the same generic bind. Skip create when still empty. |
 | **Propagate** | **Disabled.** CI must be correct on first insert (no event→alert copy safety net). |
@@ -41,7 +41,7 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 
 | Mode | Davis / SN bind | How it is set |
 | ---- | --------------- | ------------- |
-| Client | `event.type` = `ERROR_EVENT`; `spark.event_kind` = `CRITICAL_LOG_EVENT`; `dt.source_entity` remains OneAgent **HOST**; **SN ignores HOST** when `spark.as_identifier` is present | Custom log source / OpenPipeline stamp `spark.as_identifier=spark-client`; SN resolves AS by `identifier` |
+| Client | `event.type` = `ERROR_EVENT`; `spark.event_kind` = `CRITICAL_LOG_EVENT`; `dt.source_entity` remains OneAgent **HOST**; **SN ignores HOST** when `spark.as_identifier` is present | Custom log source / OpenPipeline stamp `spark.as_identifier=spark-client`; SN resolves AS by name (`Spark Client`) |
 | Cluster | Same `ERROR_EVENT` + `spark.event_kind=CRITICAL_LOG_EVENT`; HOST may remain on the problem; **SN ignores HOST** when `spark.pod_identifier` is present | Custom log source stamps `spark.pod_identifier` from path; SN binds AS via pod CI name → Contains |
 | Host CPU | `event.type` = `CUSTOM_ALERT`; `spark.event_kind` = `CPU_EVENT` (metric event template) | Primary ImpactedEntity **HOST** → host CI |
 
