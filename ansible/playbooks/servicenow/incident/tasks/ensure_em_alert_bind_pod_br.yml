@@ -15,7 +15,8 @@
       filter_condition: source=SGO-Dynatrace
       description: >-
         Artifact: if alert already has cmdb_ci keep it; else generic entity bind
-        (HOST / CUSTOM_DEVICE / CAI) via ResolveApplicationService.
+        (spark.as_identifier / spark.pod_identifier / HOST / CAI) via
+        ResolveApplicationService.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_bind_entity_ci.br.js') }}"
 
 - name: Look up em_alert bind entity CI business rule

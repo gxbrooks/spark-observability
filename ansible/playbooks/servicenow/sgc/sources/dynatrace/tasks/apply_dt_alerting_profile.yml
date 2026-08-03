@@ -39,15 +39,15 @@
 
 - name: Render Spark lab alerting profile payload
   ansible.builtin.template:
-    src: "{{ dt_integrations_dir }}/spark-snow-alerting-profile.json.j2"
-    dest: /tmp/spark-snow-alerting-profile.json
+    src: "{{ dt_integrations_dir }}/spark-alerting-profile.json.j2"
+    dest: /tmp/spark-alerting-profile.json
     mode: "0644"
   delegate_to: localhost
   run_once: true
 
 - name: Load alerting profile document
   ansible.builtin.set_fact:
-    dt_alerting_profile_doc: "{{ lookup('file', '/tmp/spark-snow-alerting-profile.json') | from_json }}"
+    dt_alerting_profile_doc: "{{ lookup('file', '/tmp/spark-alerting-profile.json') | from_json }}"
   run_once: true
 
 - name: List existing alerting profiles

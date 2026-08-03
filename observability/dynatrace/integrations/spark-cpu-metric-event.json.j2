@@ -35,7 +35,9 @@
       "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 80%.",
       "eventType": "CUSTOM_ALERT",
       "davisMerge": false,
-      "metadata": []
+      "metadata": [
+        { "metadataKey": "spark.event_kind", "metadataValue": "CPU_EVENT" }
+      ]
     }
   }
 }

@@ -3,25 +3,15 @@
 # Required on Grail tenants where logs are routed to a custom OpenPipeline (e.g. Metric Route):
 # classic builtin:logmonitoring.log-events no longer evaluate on those records.
 #
-# Cluster CAI ids are NOT baked into this pipeline: OpenPipeline Processing cannot look up
-# entities by pod name. Cluster Davis events stamp spark.sn_ci_lookup=pod_name + spark.pod_name
-# so ServiceNow ResolveApplicationService binds the Application Service by pod CI name.
+# Davis stamps CRITICAL_LOG_EVENT with spark.as_identifier (Client) or spark.pod_identifier
+# (Cluster). ServiceNow ResolveApplicationService binds Application Service from those fields
+# (dt.source_entity remains OneAgent HOST; SN ignores HOST when the spark.* stamps are present).
 
 - name: Resolve Dynatrace API credentials
   ansible.builtin.include_tasks: resolve_dt_api.yml
 
 - name: Resolve Dynatrace specification paths
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
-
-- name: Require Spark Client CUSTOM_DEVICE entityId for OpenPipeline fieldsAdd
-  ansible.builtin.assert:
-    that:
-      - (dt_spark_client_custom_device_entity_id | default('')) is match('^CUSTOM_DEVICE-')
-    fail_msg: >-
-      dt_spark_client_custom_device_entity_id must be a CUSTOM_DEVICE-… id
-      (run apply_spark_client_custom_device.yml first, or set the fallback in sgc/common/vars.yml).
-      OpenPipeline fieldsAdd cannot evaluate lookupEntity(); it stores the expression as a literal.
-  run_once: true
 
 - name: Render Spark OpenPipeline log alerts payload
   ansible.builtin.template:
@@ -203,6 +193,6 @@
       OpenPipeline log alerts pipeline '{{ dt_sn_spark_openpipeline_pipeline_display_name }}'
       => {{ dt_spark_openpipeline_pipeline_object_id }}
       ({{ 'created/updated' if dt_spark_openpipeline_pipeline_change_needed | bool else 'already up to date' }});
-      Cluster CAI bake-in removed — SN binds via spark.pod_name;
+      SN binds via spark.as_identifier / spark.pod_identifier;
       routing {{ 'updated' if dt_openpipeline_routing_change_needed | default(false) | bool else 'already includes Spark route' }}.
   run_once: true

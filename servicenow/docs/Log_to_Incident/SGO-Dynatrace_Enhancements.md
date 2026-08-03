@@ -17,7 +17,7 @@ This note captures product / configuration gaps found while implementing entity-
 
 | Layer | Behavior |
 | ----- | -------- |
-| **Event CI bind** | Look at the **primary** Dynatrace impacted entity. `HOST` → host CI; `CUSTOM_DEVICE` → Application Service with the **same display name**; `CLOUD_APPLICATION_INSTANCE` → Application Service mapped via pod Contains. **No match → leave `cmdb_ci` empty.** |
+| **Event CI bind** | Prefer OpenPipeline stamps: `spark.as_identifier` → Application Service by `identifier` (fallback name `Spark Client` for `spark-client`); else `spark.pod_identifier` → pod CI by name → Contains AS. Else primary ImpactedEntity: `HOST` → host CI (CPU / `spark.event_kind=CPU_EVENT`); `CLOUD_APPLICATION_INSTANCE` → AS via pod Contains; `CUSTOM_DEVICE` kept as legacy fallback only. **No match → leave `cmdb_ci` empty.** |
 | **Alert CI bind** | If the alert already has `cmdb_ci`, **keep it**; otherwise run the same generic bind as events. |
 | **Incident create** | If the alert has `cmdb_ci`, **use it**; otherwise run the same generic bind. Skip create when still empty. |
 | **Propagate** | **Disabled.** CI must be correct on first insert (no event→alert copy safety net). |
@@ -41,35 +41,35 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 
 | Mode | Davis / SN bind | How it is set |
 | ---- | --------------- | ------------- |
-| Client | `dt.source_entity` = `CUSTOM_DEVICE` Spark Client | OpenPipeline `spark.davis_entity` ← static CUSTOM_DEVICE id |
-| Cluster | Default HOST may remain on the problem; **SN ignores HOST** when `spark.sn_ci_lookup=pod_name` | OpenPipeline stamps `spark.sn_ci_lookup=pod_name` + `spark.pod_name`; SN binds AS via pod CI name |
+| Client | `event.type` = `ERROR_EVENT`; `spark.event_kind` = `CRITICAL_LOG_EVENT`; `dt.source_entity` remains OneAgent **HOST**; **SN ignores HOST** when `spark.as_identifier` is present | Custom log source / OpenPipeline stamp `spark.as_identifier=spark-client`; SN resolves AS by `identifier` |
+| Cluster | Same `ERROR_EVENT` + `spark.event_kind=CRITICAL_LOG_EVENT`; HOST may remain on the problem; **SN ignores HOST** when `spark.pod_identifier` is present | Custom log source stamps `spark.pod_identifier` from path; SN binds AS via pod CI name → Contains |
+| Host CPU | `event.type` = `CUSTOM_ALERT`; `spark.event_kind` = `CPU_EVENT` (metric event template) | Primary ImpactedEntity **HOST** → host CI |
 
-**Do we need both `spark.device` and `spark.davis_entity`?**  
-**No for Davis.** Use **`spark.davis_entity`** as the single Client field Davis reads for `dt.source_entity`. `spark.device` is an optional Client-only alias.
+Dynatrace Settings API constrains `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, etc.); lab semantic labels use custom property `spark.event_kind` (`CRITICAL_LOG_EVENT` | `CPU_EVENT`).
 
-Davis properties also stamp: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, `spark.client.as_identifier` (Client), `k8s.pod_name` / `spark.pod_name` (Cluster).
+Davis properties also stamp: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, `spark.event_kind`, `spark.as_identifier` (Client), `spark.pod_identifier` (Cluster). No `CUSTOM_DEVICE`, `spark.device`, `spark.davis_entity`, or `sn_ci_lookup`.
 
 ### Product gap: Cluster CAI mapping cannot happen in OpenPipeline Processing
 
 OpenPipeline **Processing cannot look up entities by name**. Lab **no longer** bakes pod→CAI `fieldsAdd` processors at apply time.
 
-**Workaround (current):** pass `spark.pod_name` (and `spark.sn_ci_lookup=pod_name`) through the Davis event description / properties to ServiceNow; `ResolveApplicationService` binds Application Service by pod CI name and **does not** use the HOST ImpactedEntity for that path.
+**Workaround (current):** pass `spark.pod_identifier` through the Davis event description / properties to ServiceNow; `ResolveApplicationService` binds Application Service by pod CI name and **does not** use the HOST ImpactedEntity for that path.
 
 **Still desirable from DT:** native OpenPipeline entity lookup, **or** container-context log collection so OneAgent attaches CAI automatically.
 
-Custom log source extracts the pod name from `/mnt/spark/logs/<pod>/…` into `spark.pod_name` and `k8s.pod_name`.
+Custom log source extracts the pod name from `/mnt/spark/logs/<pod>/…` into `spark.pod_identifier`.
 
 Specs live under `observability/dynatrace/` (flattened; tenant URL from `vars/variables.yaml`, not a `tenants/{id}/` directory).
 
-### Product gap: SGC drops CUSTOM_DEVICE problems unless unmatched-CI events are enabled
+### Product gap: SGC drops problems without topology CI match unless unmatched-CI events are enabled
 
-**Symptom:** Dynatrace fired brooks-lab webhooks for Client `CUSTOM_DEVICE` problems; Cluster CAI problems created SGO events; Client problems did not.
+**Symptom:** Dynatrace fired brooks-lab webhooks for log problems whose ImpactedEntity is HOST (or otherwise unmatched in SGC topology); some problems did not create SGO events.
 
-**Root cause:** `sn_dynatrace_integ.events_for_unmatched_ci.enabled=false` → syslog `SGO-Dynatrace: Skipping event creation on non matched CI`. There is **no Custom Devices topology feed**; CAI works because K8s pod import matches CIs.
+**Root cause:** `sn_dynatrace_integ.events_for_unmatched_ci.enabled=false` → syslog `SGO-Dynatrace: Skipping event creation on non matched CI`.
 
-**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind CUSTOM_DEVICE → Application Service by name / `cmdb_key_value`.
+**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `spark.as_identifier` / `spark.pod_identifier` (or HOST for CPU).
 
-**Ask SN:** document this property for SGO customers using CUSTOM_DEVICE as Davis primary entity, or ship a Custom Devices feed + SOS path.
+**Ask SN:** document this property for SGO customers whose Davis primary entity is not in an SGC topology feed.
 
 ### Validation snapshot (post-promote)
 
@@ -77,8 +77,8 @@ Specs live under `observability/dynatrace/` (flattened; tenant URL from `vars/va
 | ----- | ------ |
 | Promote | `2026-08-03T14:31:46Z` |
 | Stress `run-parallel-all.sh` | exit 0 |
-| First audit (all SGO since promote) | 13 events, **0 null `cmdb_ci`**; 12 HOST (CPU) + 1 CAI (`spark-master-0` → Spark Master AS) |
-| Client path after unmatched-CI fix | P-2608120 → Alert**0015327** → INC**0014479**, `cmdb_ci` = Application Service **Spark Client**, resource `CUSTOM_DEVICE-BF87A767187C320F` |
+| First audit (all SGO since promote) | 13 events, **0 null `cmdb_ci`**; 12 HOST (CPU / `CUSTOM_ALERT`, `spark.event_kind=CPU_EVENT`) + 1 Cluster log (`spark.pod_identifier` → Spark Master AS) |
+| Client path | bind via `spark.as_identifier:spark-client` → Application Service **Spark Client** (`resource` = `spark.as_identifier:spark-client`) |
 
 Filter Spark log rows with problem title / description containing `Spark critical` (or OpenPipeline provider) — do not judge L2I entity quality from all `source=SGO-Dynatrace` rows (CPU HOST noise).
 

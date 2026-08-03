@@ -314,12 +314,10 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Extract Cluster pod-name CI lookup request from SGO payload / description.
-   * OpenPipeline stamps spark.sn_ci_lookup=pod_name and spark.pod_name=… when DT
-   * cannot resolve CLOUD_APPLICATION_INSTANCE in the log path.
-   * Returns { podName: string } or null.
+   * Collect description / additional_info / resource / node text for Spark
+   * metadata field parsing (OpenPipeline stamps into Davis description + props).
    */
-  extractSparkPodNameLookup: function (gr) {
+  collectSparkLookupBlob: function (gr) {
     var blob = '';
     try {
       if (gr.isValidField('additional_info') && !gr.additional_info.nil()) {
@@ -342,38 +340,105 @@ ResolveApplicationService.prototype = {
     if (gr.node) {
       blob += ' ' + gr.node.toString();
     }
+    return blob;
+  },
 
-    var wantsPod =
-      /spark\.sn_ci_lookup\s*[=:]\s*pod_name/i.test(blob) ||
-      /["']spark\.sn_ci_lookup["']\s*:\s*["']pod_name["']/i.test(blob);
-    var podMatch = blob.match(/spark\.pod_name\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
-    if (!podMatch) {
-      podMatch = blob.match(
-        /["']spark\.pod_name["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+  /**
+   * Parse spark.as_identifier from description / additional_info JSON.
+   * Returns the identifier string or null.
+   */
+  extractSparkAsIdentifier: function (gr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var m = blob.match(/spark\.as_identifier\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
+    if (!m) {
+      m = blob.match(
+        /["']spark\.as_identifier["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
       );
     }
-    if (!podMatch) {
-      // Fallback: Cluster log path segment
-      podMatch = blob.match(/\/mnt\/spark\/logs\/([A-Za-z0-9][\w.-]*)\//);
-      if (podMatch) {
-        wantsPod = true;
-      }
+    return m ? m[1] : null;
+  },
+
+  /**
+   * Parse spark.pod_identifier from description / additional_info JSON.
+   * Returns the pod name string or null.
+   */
+  extractSparkPodIdentifier: function (gr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var m = blob.match(
+      /spark\.pod_identifier\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+    );
+    if (!m) {
+      m = blob.match(
+        /["']spark\.pod_identifier["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
     }
-    if (!wantsPod || !podMatch) {
+    if (!m) {
+      // Fallback: Cluster log path segment
+      m = blob.match(/\/mnt\/spark\/logs\/([A-Za-z0-9][\w.-]*)\//);
+    }
+    return m ? m[1] : null;
+  },
+
+  /**
+   * Application Service from spark.as_identifier.
+   * Prefer name match (lab CSDM AS rows have no reliable identifier column);
+   * only use Glide field identifier when isValidField and value equals.
+   * Returns { sysId, how } or null.
+   */
+  resolveFromAsIdentifier: function (asIdentifier) {
+    if (!asIdentifier) {
       return null;
     }
-    return { podName: podMatch[1] };
+
+    var preferredName =
+      asIdentifier === 'spark-client' ? 'Spark Client' : asIdentifier;
+
+    var asByName = new GlideRecord('cmdb_ci_service_discovered');
+    asByName.addQuery('name', preferredName);
+    asByName.setLimit(1);
+    asByName.query();
+    if (asByName.next()) {
+      return {
+        sysId: asByName.sys_id.toString(),
+        how:
+          preferredName === asIdentifier
+            ? 'Application Service name=' + preferredName
+            : 'Application Service name "' +
+              preferredName +
+              '" (spark.as_identifier=' +
+              asIdentifier +
+              ')',
+      };
+    }
+
+    var probe = new GlideRecord('cmdb_ci_service_discovered');
+    if (probe.isValidField('identifier')) {
+      var asById = new GlideRecord('cmdb_ci_service_discovered');
+      asById.addQuery('identifier', asIdentifier);
+      asById.setLimit(1);
+      asById.query();
+      if (
+        asById.next() &&
+        String(asById.getValue('identifier') || '') === String(asIdentifier)
+      ) {
+        return {
+          sysId: asById.sys_id.toString(),
+          how: 'Application Service identifier=' + asIdentifier,
+        };
+      }
+    }
+
+    return null;
   },
 
   /**
    * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
-   *   spark.sn_ci_lookup=pod_name → Application Service via pod name (ignore HOST)
-   *   HOST → host CI
-   *   CUSTOM_DEVICE → Application Service with same name
-   *   CLOUD_APPLICATION_INSTANCE → Application Service mapped via pod Contains
+   *   1. spark.as_identifier → Application Service by identifier (ignore HOST)
+   *   2. spark.pod_identifier → pod name → Contains AS (ignore HOST)
+   *   3. primary ImpactedEntity: HOST / CUSTOM_DEVICE / CAI
    *   else leave cmdb_ci empty and note failure
    *
-   * Stamps: resource = entityId; node = entity display name.
+   * Stamps: resource = spark.* key or entityId; node = display name.
    * Returns { bound: boolean, kind: string, note: string }.
    */
   applyEntityBinding: function (gr) {
@@ -385,22 +450,48 @@ ResolveApplicationService.prototype = {
       return result;
     }
 
-    // Prefer OpenPipeline name-based Cluster bind when DT could not resolve CAI.
-    var podLookup = this.extractSparkPodNameLookup(gr);
-    if (podLookup && podLookup.podName) {
-      var byName = this.resolveFromCloudApplicationInstance(
-        null,
-        podLookup.podName
-      );
+    // 1) Client log path: OpenPipeline stamps spark.as_identifier (ignore HOST).
+    var asIdentifier = this.extractSparkAsIdentifier(gr);
+    if (asIdentifier) {
+      var asBind = this.resolveFromAsIdentifier(asIdentifier);
+      if (asBind && asBind.sysId) {
+        gr.node = asIdentifier;
+        gr.resource = 'spark.as_identifier:' + asIdentifier;
+        gr.cmdb_ci = asBind.sysId;
+        result.bound = true;
+        result.kind = 'as_identifier';
+        result.note =
+          'em-entity-bind: spark.as_identifier=' +
+          asIdentifier +
+          ' → Application Service via ' +
+          asBind.how;
+        this.appendProcessingNote(gr, result.note);
+        this.appendClassLineToMessageKey(gr, 'AsId-');
+        this.enrichSparkLogDescription(gr, 'Client');
+        return result;
+      }
+      result.kind = 'as_identifier';
+      result.note =
+        'em-entity-bind: spark.as_identifier=' +
+        asIdentifier +
+        ' — no Application Service by identifier/name; cmdb_ci left empty (HOST ImpactedEntity ignored)';
+      this.appendProcessingNote(gr, result.note);
+      return result;
+    }
+
+    // 2) Cluster log path: OpenPipeline stamps spark.pod_identifier (ignore HOST).
+    var podIdentifier = this.extractSparkPodIdentifier(gr);
+    if (podIdentifier) {
+      var byName = this.resolveFromCloudApplicationInstance(null, podIdentifier);
       if (byName && byName.asSysId) {
-        gr.node = podLookup.podName;
-        gr.resource = 'spark.pod_name:' + podLookup.podName;
+        gr.node = podIdentifier;
+        gr.resource = 'spark.pod_identifier:' + podIdentifier;
         gr.cmdb_ci = byName.asSysId;
         result.bound = true;
-        result.kind = 'pod_name';
+        result.kind = 'pod_identifier';
         result.note =
-          'em-entity-bind: spark.sn_ci_lookup=pod_name → ' +
-          podLookup.podName +
+          'em-entity-bind: spark.pod_identifier=' +
+          podIdentifier +
           ' → Application Service via ' +
           byName.how;
         this.appendProcessingNote(gr, result.note);
@@ -408,11 +499,11 @@ ResolveApplicationService.prototype = {
         this.enrichSparkLogDescription(gr, 'Cluster');
         return result;
       }
-      result.kind = 'pod_name';
+      result.kind = 'pod_identifier';
       result.note =
-        'em-entity-bind: spark.sn_ci_lookup=pod_name (' +
-        podLookup.podName +
-        ') — ' +
+        'em-entity-bind: spark.pod_identifier=' +
+        podIdentifier +
+        ' — ' +
         (byName && byName.how
           ? byName.how
           : 'no cmdb_ci_kubernetes_pod by name') +
@@ -421,10 +512,11 @@ ResolveApplicationService.prototype = {
       return result;
     }
 
+    // 3) Primary ImpactedEntity (HOST for CPU; CUSTOM_DEVICE / CAI when present).
     var entity = this.parsePrimaryImpactedEntity(gr);
     if (!entity) {
       result.note =
-        'em-entity-bind: no primary impacted entity (HOST / CUSTOM_DEVICE / CLOUD_APPLICATION_INSTANCE)';
+        'em-entity-bind: no spark.as_identifier / spark.pod_identifier and no primary impacted entity (HOST / CUSTOM_DEVICE / CLOUD_APPLICATION_INSTANCE)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
