@@ -1,6 +1,6 @@
 # Dynatrace specifications (observability module)
 
-Dynatrace **configuration** for this repository lives under `observability/dynatrace/` — co-located with the observability stack (OpenTelemetry Collector dual-feed, shared lab context) but **outside** `ansible/`. Playbooks in `ansible/playbooks/observability/dynatrace/` apply these specifications to the tenant.
+Dynatrace **configuration** for this repository lives under `observability/dynatrace/` — co-located with the observability stack but **outside** `ansible/`. Playbooks in `ansible/playbooks/observability/dynatrace/` and ServiceNow SGC Dynatrace tasks apply these specifications to the tenant named by `DT_TENANT_URL` / `DT_API_URL` in `vars/variables.yaml`.
 
 ## Layout
 
@@ -8,26 +8,23 @@ Dynatrace **configuration** for this repository lives under `observability/dynat
 observability/dynatrace/
   README.md
   otel-exporter/                 # OTel → Dynatrace snippet (shared with ELK stack)
-  tenants/
-    {tenant-id}/
-      tenant.yaml                # Tenant descriptor and path index
-      management-zones/
-        {mz-slug}/               # One folder per management zone (DT admin sphere)
-          management-zone.json   # Settings 2.0: MZ rules (deploy payload)
-          auto-tags.json.j2      # Settings 2.0: auto-tag rules
-      dashboards/                # New Dashboards (DQL) JSON documents
-      dynakube/                  # Dynatrace Operator CR template
-      integrations/              # Alerting profiles, problem notifications, metric/log events
-      sampler/                   # GPU metrics sampler (runtime scripts + systemd units)
-      docs/                      # Tenant/partitioning documentation
+  management-zones/
+    {mz-slug}/                   # One folder per management zone (e.g. spark-observability)
+      management-zone.json
+      auto-tags.json.j2
+  dashboards/                    # New Dashboards (DQL) — same set for every DT instance
+  dynakube/                      # Dynatrace Operator CR template
+  integrations/                  # Alerting profiles, OpenPipeline, problem notifications, …
+  sampler/                       # GPU metrics sampler
+  docs/
 ```
 
-### Lab tenant (`tenants/pdt20158/`)
+There is **no** per-tenant directory (e.g. `tenants/pdt20158/`). Specs describe the Dynatrace **solution**; which instance receives them is a variable (`DT_TENANT_URL`, etc.). Object **ids** may differ per instance after apply; the **set of objects** is the same.
 
 | Path | Purpose |
 |------|---------|
-| `management-zones/spark-observability/` | MZ **Spark Observability** — host group + K8s cluster rules |
-| `integrations/` | SGC-related DT Settings (alerting profile, anomaly detectors, webhook payload templates) |
+| `management-zones/spark-observability/` | MZ **Spark Observability** — host group + K8s + CUSTOM_DEVICE rules |
+| `integrations/` | OpenPipeline, alerting profile, anomaly detectors, webhook payload templates |
 | `dashboards/` | Spark System Metrics and drilldown dashboards |
 | `dynakube/dynakube.yaml.j2` | cloudNativeFullStack Operator CR |
 
@@ -35,34 +32,21 @@ observability/dynatrace/
 
 | Kind | Specified here? | Notes |
 |------|-----------------|-------|
-| Management zones, auto-tags, alerting, dashboards | **Yes** | Settings 2.0 JSON/J2; applied by `dynatrace/deploy.yml` |
-| Hosts, process groups, services, K8s objects | **No** | Discovered by OneAgent / Operator; exported by `compare.yml` |
-| SN ↔ DT correlation keys | **ServiceNow** `region.yaml` + compare `dynatrace-correlation.yaml` | SN is system of reference for cross-platform compare |
+| Management zones, auto-tags, alerting, dashboards, OpenPipeline | **Yes** | Settings 2.0 / OpenPipeline JSON/J2 |
+| Hosts, process groups, services, K8s clusters/pods | **No** | Discovered by OneAgent / Operator (prefer discovery over admin-listed clusters) |
+| Cluster log → CI when DT cannot resolve CAI | **ServiceNow** | OpenPipeline stamps `spark.sn_ci_lookup=pod_name` + `spark.pod_name`; SN binds AS by pod name |
 
-## Variables (spec locations outside Git)
+## Variables
 
-| Variable | Default |
-|----------|---------|
-| `dt_specs_root` | `{repo}/observability/dynatrace` |
-| `dt_tenants_dir` | `{dt_specs_root}/tenants` |
-| `dt_specs_root_override` | `-e` override when specs live outside the clone |
+| Variable | Role |
+|----------|------|
+| `DT_TENANT_URL` / `DT_API_URL` | Which Dynatrace instance to call |
+| `DT_MANAGEMENT_ZONE` | MZ display name in Dynatrace |
+| `DT_MANAGEMENT_ZONE_SLUG` | Folder under `management-zones/` (default `spark-observability`) |
+| `DT_HOST_GROUP` | Host-group condition in MZ rules |
+| `dt_specs_root_override` | Optional `-e` when specs live outside the clone |
 
-Playbooks call `resolve_dt_spec_paths.yml`, which scans `tenants/*/tenant.yaml` and resolves paths for the active tenant and management zone (`DT_MANAGEMENT_ZONE` or `-e dt_management_zone_slug=`).
-
-## Multiple tenants and management zones
-
-Enterprises may add:
-
-```
-tenants/
-  pdt20158/
-    management-zones/spark-observability/
-    management-zones/analytics-production/
-  {other-tenant}/
-    management-zones/...
-```
-
-Each ServiceNow management region (`servicenow/regions/*/region.yaml`) references `dynatrace.tenant_id` and `dynatrace.management_zone` (slug under `management-zones/`).
+Playbooks call `ansible/playbooks/observability/dynatrace/common/resolve_dt_spec_paths.yml` to set `dt_integrations_dir`, `dt_mz_settings_file`, etc.
 
 ## Related automation
 
@@ -70,6 +54,9 @@ Each ServiceNow management region (`servicenow/regions/*/region.yaml`) reference
 cd ansible
 ansible-playbook -i inventory.yml playbooks/observability/dynatrace/deploy.yml \
   -e @../vars/secrets.yaml --tags partitioning
+
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
+  -e @../vars/secrets.yaml
 ```
 
-See `tenants/pdt20158/docs/Tenant_Setup.md` and `Partitioning_and_Tagging.md`.
+See `docs/Tenant_Setup.md` and `Partitioning_and_Tagging.md`.

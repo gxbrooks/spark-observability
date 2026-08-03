@@ -4,8 +4,8 @@
 # Declares expected observability boundaries — not a catalog of Dynatrace entities
 # (those are dynamically discovered). Values align with:
 #   - vars/variables.yaml (dynatrace-ansible context: DT_*)
-#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json
-#   - observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/auto-tags.json.j2
+#   - observability/dynatrace/management-zones/spark-observability/management-zone.json
+#   - observability/dynatrace/management-zones/spark-observability/auto-tags.json.j2
 #
 # Applied on tenant by:
 #   ansible/playbooks/observability/dynatrace/tasks/apply_management_zone.yml
@@ -54,7 +54,7 @@ recommendations:
     playbooks/observability/dynatrace/deploy.yml --tags partitioning
   missing_cluster_management_zone: >-
     Verify KUBERNETES_CLUSTER_NAME in
-    observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json matches
+    observability/dynatrace/management-zones/spark-observability/management-zone.json matches
     kubernetes_clusters[].dynatrace_name; re-run apply_management_zone.yml
   missing_process_group_management_zone: >-
     Project hosts are in the expected management zone but process groups are not —

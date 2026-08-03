@@ -111,7 +111,7 @@ Additional prerequisites (also deployed by `events/deploy.yml`):
 
 ### OpenPipeline configuration (primary path)
 
-Template: `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`
+Template: `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`
 
 | Field | Value |
 | ----- | ----- |
@@ -127,7 +127,7 @@ Canonical narrative: `servicenow/docs/Log_to_Incident/Log_to_Incident.adoc`.
 
 ### Classic log event (secondary / legacy)
 
-Template: `observability/dynatrace/tenants/pdt20158/integrations/spark-error-log-event.json.j2`
+Template: `observability/dynatrace/integrations/spark-error-log-event.json.j2`
 
 | Field | Value |
 | ----- | ----- |
@@ -498,7 +498,7 @@ Log event detector fires → Davis opens a **problem**. Impacted entities are Sm
 
 #### Step 1 — Problem notification webhook (Dynatrace → ServiceNow POST)
 
-Payload shape: `observability/dynatrace/tenants/pdt20158/integrations/sgc-problem-notification-payload.json.j2`.
+Payload shape: `observability/dynatrace/integrations/sgc-problem-notification-payload.json.j2`.
 
 | Webhook field | Example / content | Used for Application Service? |
 | ------------- | ----------------- | ------------------------------ |

@@ -37,7 +37,7 @@
           "id": "resolve-client-device",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Client: spark.davis_entity = CUSTOM_DEVICE (primary Davis entity). spark.device is an optional alias of the same id for Grail filters — not required by Davis.",
+          "description": "Client: spark.davis_entity = CUSTOM_DEVICE (Davis primary). spark.device optional alias.",
           "matcher": "spark.mode == \"Client\"",
           "fieldsAdd": {
             "fields": [
@@ -67,13 +67,18 @@
           }
         },
         {
-          "id": "compose-davis-source-entity-fallback",
-          "type": "dql",
+          "id": "mark-cluster-sn-ci-lookup",
+          "type": "fieldsAdd",
           "enabled": true,
-          "description": "Cluster: if apply playbook did not inject a CAI map hit, fall back to OneAgent HOST (leaves empty CI path visible in SN)",
-          "matcher": "spark.mode == \"Cluster\" AND isNull(spark.davis_entity)",
-          "dql": {
-            "script": "fieldsAdd spark.davis_entity = dt.source_entity"
+          "description": "Cluster: OpenPipeline cannot resolve CAI by pod name — flag SN to bind via spark.pod_name (ignore HOST dt.source_entity)",
+          "matcher": "spark.mode == \"Cluster\" AND isNotNull(spark.pod_name)",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "spark.sn_ci_lookup",
+                "value": "pod_name"
+              }
+            ]
           }
         },
         {
@@ -120,18 +125,18 @@
           "id": "spark-cluster-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Cluster ERROR/WARN: primary entity = CLOUD_APPLICATION_INSTANCE via spark.davis_entity (CAI injectors); remapping off",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
+          "description": "Cluster ERROR/WARN: do not bind CAI in DT (no live entity lookup). Stamp spark.sn_ci_lookup=pod_name + spark.pod_name for ServiceNow CI bind. Leave default HOST as Davis source entity.",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line) AND isNotNull(spark.pod_name)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
               { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path}: {content}"
+                "value": "Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.sn_ci_lookup=pod_name spark.pod_name={spark.pod_name}: {content}"
               },
-              { "key": "dt.source_entity", "value": "{spark.davis_entity}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "spark.sn_ci_lookup", "value": "pod_name" },
               { "key": "k8s.pod_name", "value": "{k8s.pod_name}" },
               { "key": "spark.pod_name", "value": "{spark.pod_name}" },
               { "key": "spark.mode", "value": "{spark.mode}" },

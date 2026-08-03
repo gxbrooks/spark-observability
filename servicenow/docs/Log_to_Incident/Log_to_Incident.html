@@ -2073,7 +2073,7 @@ OpenPipeline <strong>Add fields</strong> (<code>fieldsAdd</code>) accepts <code>
 <p>Scope the detector with an <strong>entity filter</strong>: <strong>HOST_GROUP_NAME</strong> (when OneAgent assigns a host group), <strong>MANAGEMENT_ZONE</strong> (numeric zone id), or individual <strong>HOST_NAME</strong> values. Multiple conditions in one filter use <strong>AND</strong> logic — use a single host group or zone rather than listing every host unless each host has its own metric event.</p>
 </div>
 <div class="paragraph">
-<p>When the integration uses a <strong>management zone</strong>, a <strong>MANAGEMENT_ZONE</strong> filter requires the zone’s <strong>numeric id</strong> (not the Settings API objectId). Template: <code>observability/dynatrace/tenants/&lt;tenant&gt;/integrations/spark-cpu-metric-event.json.j2</code>.</p>
+<p>When the integration uses a <strong>management zone</strong>, a <strong>MANAGEMENT_ZONE</strong> filter requires the zone’s <strong>numeric id</strong> (not the Settings API objectId). Template: <code>observability/dynatrace/integrations/spark-cpu-metric-event.json.j2</code>.</p>
 </div>
 </div>
 <div class="sect3">
@@ -3479,7 +3479,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </ol>
 </div>
 <div class="paragraph">
-<p>Template: <code>observability/dynatrace/tenants/&lt;tenant&gt;/integrations/spark-cpu-metric-event.json.j2</code>. Deploy via <code>ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/apply_dt_anomaly_detectors.yml</code>.</p>
+<p>Template: <code>observability/dynatrace/integrations/spark-cpu-metric-event.json.j2</code>. Deploy via <code>ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/apply_dt_anomaly_detectors.yml</code>.</p>
 </div>
 </div>
 <div class="sect2">

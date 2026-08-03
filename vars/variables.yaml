@@ -299,6 +299,12 @@ DT_MANAGEMENT_ZONE:
   value: Spark Observability
   contexts: [dynatrace-ansible, devops]
 
+# Folder name under observability/dynatrace/management-zones/ (not the DT display name).
+DT_MANAGEMENT_ZONE_SLUG:
+  section: Dynatrace partitioning
+  value: spark-observability
+  contexts: [dynatrace-ansible, devops]
+
 DT_ENVIRONMENT:
   section: Dynatrace partitioning
   value: lab

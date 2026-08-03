@@ -3,7 +3,7 @@
 End-to-end path for **Spark WARN/ERROR log lines** from chapter runs and K8s workloads on tenant **pdt20158**, through Dynatrace Grail and Davis, into ServiceNow Event Management as **`em_event`** rows with **`source=SGO-Dynatrace`**.
 
 **Automation:** `ansible/playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml`  
-**Reference:** `observability/dynatrace/tenants/pdt20158/docs/DT_Problems_to_SN_Event.md`
+**Reference:** `observability/dynatrace/docs/DT_Problems_to_SN_Event.md`
 
 ---
 
@@ -104,7 +104,7 @@ Log4j does not attach Dynatrace fields. The line carries only timestamp, level, 
 | Object | Schema / location | Name | Value |
 |--------|-------------------|------|-------|
 | Custom log source | `builtin:logmonitoring.custom-log-source-settings` | `Spark Lab - application log files` | Paths: `/mnt/spark/client-logs/*/spark-app.log*`, `/mnt/spark/logs/*/spark-app.log*` |
-| Template | `observability/dynatrace/tenants/pdt20158/integrations/spark-log-custom-source.json.j2` | | |
+| Template | `observability/dynatrace/integrations/spark-log-custom-source.json.j2` | | |
 | Ansible task | `apply_spark_log_custom_source.yml` | | Runs in `events/deploy.yml` |
 | Management zone | `builtin:management-zones` | `Spark Observability` | Hosts/pods tagged for brooks-lab partition |
 | Auto-tags (typical on ingested records) | Dynatrace tagging rules | | `Project:spark-observability`, `Environment:lab`, `OwnedBy:gbrooks` |

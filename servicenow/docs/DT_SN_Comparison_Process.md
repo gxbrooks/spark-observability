@@ -410,7 +410,7 @@ flowchart TB
 | `servicenow/comparator/` | **Automated compare** (Python) — export + annotated JSON report |
 | `servicenow/comparator/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |
 | `servicenow/regions/*/region.yaml` | Scope correlation registry (discovered by compare) |
-| `observability/dynatrace/tenants/*/docs/Partitioning_and_Tagging.md` | Example MZ and auto-tag pattern (tenant-specific) |
+| `observability/dynatrace/docs/Partitioning_and_Tagging.md` | Example MZ and auto-tag pattern |
 
 ---
 

@@ -39,25 +39,27 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 
 ### Dynatrace OpenPipeline entities
 
-| Mode | Primary Davis entity (`dt.source_entity`) | How it is set |
-| ---- | ---------------------------------------- | ------------- |
-| Client | `CUSTOM_DEVICE` Spark Client | OpenPipeline `spark.davis_entity` ← static CUSTOM_DEVICE id |
-| Cluster | `CLOUD_APPLICATION_INSTANCE` for the pod | OpenPipeline `spark.davis_entity` ← **lab bake-in** of pod-name→CAI id at apply time |
+| Mode | Davis / SN bind | How it is set |
+| ---- | --------------- | ------------- |
+| Client | `dt.source_entity` = `CUSTOM_DEVICE` Spark Client | OpenPipeline `spark.davis_entity` ← static CUSTOM_DEVICE id |
+| Cluster | Default HOST may remain on the problem; **SN ignores HOST** when `spark.sn_ci_lookup=pod_name` | OpenPipeline stamps `spark.sn_ci_lookup=pod_name` + `spark.pod_name`; SN binds AS via pod CI name |
 
 **Do we need both `spark.device` and `spark.davis_entity`?**  
-**No for Davis.** Use **`spark.davis_entity`** as the single field Davis reads for `dt.source_entity`. `spark.device` is an optional Client-only alias of the same id (handy for Grail filters); it is not required if `spark.davis_entity` is always set.
+**No for Davis.** Use **`spark.davis_entity`** as the single Client field Davis reads for `dt.source_entity`. `spark.device` is an optional Client-only alias.
 
 Davis properties also stamp: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, `spark.client.as_identifier` (Client), `k8s.pod_name` / `spark.pod_name` (Cluster).
 
-### Product gap: Cluster CAI mapping must happen in Dynatrace
+### Product gap: Cluster CAI mapping cannot happen in OpenPipeline Processing
 
-OpenPipeline **Processing cannot look up entities by name** (no external/entity enrichment in that stage; `lookupEntity()` in `fieldsAdd` is stored as a literal). `dt.entity.cloud_application_instance` is only available **after** Processing.
+OpenPipeline **Processing cannot look up entities by name**. Lab **no longer** bakes pod→CAI `fieldsAdd` processors at apply time.
 
-**Lab workaround:** `apply_spark_openpipeline_log_alerts.yml` queries live CAIs and injects per-pod `fieldsAdd` processors into the pipeline settings object (configuration lives in DT after apply).
+**Workaround (current):** pass `spark.pod_name` (and `spark.sn_ci_lookup=pod_name`) through the Davis event description / properties to ServiceNow; `ResolveApplicationService` binds Application Service by pod CI name and **does not** use the HOST ImpactedEntity for that path.
 
-**Production need (account team ask):** a Dynatrace-native OpenPipeline processor that resolves `k8s.pod_name` / `spark.pod_name` → `CLOUD_APPLICATION_INSTANCE` entity id **without** redeploying Ansible whenever pods recycle — **or** collect logs from container context so OneAgent attaches CAI automatically.
+**Still desirable from DT:** native OpenPipeline entity lookup, **or** container-context log collection so OneAgent attaches CAI automatically.
 
-Custom log source already extracts the pod name from `/mnt/spark/logs/<pod>/…` into `spark.pod_name` and `k8s.pod_name`.
+Custom log source extracts the pod name from `/mnt/spark/logs/<pod>/…` into `spark.pod_name` and `k8s.pod_name`.
+
+Specs live under `observability/dynatrace/` (flattened; tenant URL from `vars/variables.yaml`, not a `tenants/{id}/` directory).
 
 ### Product gap: SGC drops CUSTOM_DEVICE problems unless unmatched-CI events are enabled
 
@@ -263,7 +265,7 @@ Brooks-lab (new-school) notification:
 | customId         | `spark-lab-log-alerts`                                                                                 |
 | Schema           | `builtin:openpipeline.logs.pipelines`                                                                  |
 | Davis processors | `spark-client-warn-error-davis`, `spark-cluster-warn-error-davis`, `spark-enrichment-missing-davis`    |
-| Repo             | `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2` |
+| Repo             | `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2` |
 
 
 
@@ -450,7 +452,7 @@ Added MZ rule:
 - Entity type: `CLOUD_APPLICATION`  
 - Condition: name `BEGINS_WITH` `spark-`
 
-Repo file: `observability/dynatrace/tenants/pdt20158/management-zones/spark-observability/management-zone.json`.
+Repo file: `observability/dynatrace/management-zones/spark-observability/management-zone.json`.
 
 ### Impact
 

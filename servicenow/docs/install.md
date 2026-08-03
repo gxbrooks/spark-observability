@@ -712,7 +712,7 @@ Use these when automation is disabled (**`-e sn_csdm_configure_tag_sm=false`**) 
 - **ServiceNow CLI** (`snc service-graph app-service populate` with `population_method.type: tag_list`) — see [Automating Application Service Registration](https://www.servicenow.com/community/cmdb-articles/automating-application-service-registration-with-best-practices/ta-p/3275122).
 - **CSDM UI flow:** [Populate application services using tags](https://www.servicenow.com/docs/r/it-operations-management/service-mapping/map-service-tag.html).
 
-Further context: [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md), [DT_Problems_to_SN_Event.md](../observability/dynatrace/tenants/pdt20158/docs/DT_Problems_to_SN_Event.md#observability-application-services--tag-based-map-bootstrap-brooks-lab), [csdm/README.md](../../ansible/playbooks/servicenow/csdm/README.md).
+Further context: [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md), [DT_Problems_to_SN_Event.md](../../observability/dynatrace/docs/DT_Problems_to_SN_Event.md#observability-application-services--tag-based-map-bootstrap-brooks-lab), [csdm/README.md](../../ansible/playbooks/servicenow/csdm/README.md).
 
 ---
 

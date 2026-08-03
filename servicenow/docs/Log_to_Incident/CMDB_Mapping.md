@@ -52,7 +52,7 @@ flowchart TB
 ## Dynatrace configuration differences
 
 Both patterns use the Spark OpenPipeline log-alerts pipeline
-(`observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`)
+(`observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`)
 and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **processing**, **Davis matcher**, and **impacted entity**.
 
 ### Client mode (Dynatrace)
@@ -225,6 +225,6 @@ Business rules accept `source=SGO-Dynatrace` **or** `source=Dynatrace` so classi
 - [Log_to_Incident.adoc](Log_to_Incident.adoc) — Steps 0–5, Graphviz figures, automation spec
 - [README.md](README.md) — render / export for the AsciiDoc
 - `servicenow/regions/brooks-lab/spark.csdm.yaml` — Application Service declarations
-- `observability/dynatrace/tenants/pdt20158/integrations/spark-openpipeline-log-alerts-pipeline.json.j2` — OpenPipeline / Davis
-- `observability/dynatrace/tenants/pdt20158/docs/DT_Problems_to_SN_Event.md` — Problem → SN event path
+- `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2` — OpenPipeline / Davis
+- `observability/dynatrace/docs/DT_Problems_to_SN_Event.md` — Problem → SN event path
 - `ansible/playbooks/servicenow/incident/` — Script Includes, BRs, Contains backfill playbook

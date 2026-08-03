@@ -314,7 +314,60 @@ ResolveApplicationService.prototype = {
   },
 
   /**
+   * Extract Cluster pod-name CI lookup request from SGO payload / description.
+   * OpenPipeline stamps spark.sn_ci_lookup=pod_name and spark.pod_name=… when DT
+   * cannot resolve CLOUD_APPLICATION_INSTANCE in the log path.
+   * Returns { podName: string } or null.
+   */
+  extractSparkPodNameLookup: function (gr) {
+    var blob = '';
+    try {
+      if (gr.isValidField('additional_info') && !gr.additional_info.nil()) {
+        blob +=
+          ' ' +
+          (gr.getValue('additional_info') || gr.additional_info.toString());
+      }
+    } catch (e0) {
+      /* ignore */
+    }
+    if (gr.description) {
+      blob += ' ' + gr.description.toString();
+    }
+    if (gr.short_description) {
+      blob += ' ' + gr.short_description.toString();
+    }
+    if (gr.resource) {
+      blob += ' ' + gr.resource.toString();
+    }
+    if (gr.node) {
+      blob += ' ' + gr.node.toString();
+    }
+
+    var wantsPod =
+      /spark\.sn_ci_lookup\s*[=:]\s*pod_name/i.test(blob) ||
+      /["']spark\.sn_ci_lookup["']\s*:\s*["']pod_name["']/i.test(blob);
+    var podMatch = blob.match(/spark\.pod_name\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
+    if (!podMatch) {
+      podMatch = blob.match(
+        /["']spark\.pod_name["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
+    }
+    if (!podMatch) {
+      // Fallback: Cluster log path segment
+      podMatch = blob.match(/\/mnt\/spark\/logs\/([A-Za-z0-9][\w.-]*)\//);
+      if (podMatch) {
+        wantsPod = true;
+      }
+    }
+    if (!wantsPod || !podMatch) {
+      return null;
+    }
+    return { podName: podMatch[1] };
+  },
+
+  /**
    * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
+   *   spark.sn_ci_lookup=pod_name → Application Service via pod name (ignore HOST)
    *   HOST → host CI
    *   CUSTOM_DEVICE → Application Service with same name
    *   CLOUD_APPLICATION_INSTANCE → Application Service mapped via pod Contains
@@ -328,6 +381,42 @@ ResolveApplicationService.prototype = {
 
     if (!gr || gr.source.toString() !== 'SGO-Dynatrace') {
       result.note = 'applyEntityBinding: skipped (source is not SGO-Dynatrace)';
+      this.appendProcessingNote(gr, result.note);
+      return result;
+    }
+
+    // Prefer OpenPipeline name-based Cluster bind when DT could not resolve CAI.
+    var podLookup = this.extractSparkPodNameLookup(gr);
+    if (podLookup && podLookup.podName) {
+      var byName = this.resolveFromCloudApplicationInstance(
+        null,
+        podLookup.podName
+      );
+      if (byName && byName.asSysId) {
+        gr.node = podLookup.podName;
+        gr.resource = 'spark.pod_name:' + podLookup.podName;
+        gr.cmdb_ci = byName.asSysId;
+        result.bound = true;
+        result.kind = 'pod_name';
+        result.note =
+          'em-entity-bind: spark.sn_ci_lookup=pod_name → ' +
+          podLookup.podName +
+          ' → Application Service via ' +
+          byName.how;
+        this.appendProcessingNote(gr, result.note);
+        this.appendClassLineToMessageKey(gr, 'K8sPod-');
+        this.enrichSparkLogDescription(gr, 'Cluster');
+        return result;
+      }
+      result.kind = 'pod_name';
+      result.note =
+        'em-entity-bind: spark.sn_ci_lookup=pod_name (' +
+        podLookup.podName +
+        ') — ' +
+        (byName && byName.how
+          ? byName.how
+          : 'no cmdb_ci_kubernetes_pod by name') +
+        '; cmdb_ci left empty (HOST ImpactedEntity ignored)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
