@@ -1,5 +1,6 @@
 ---
-# Create ITSM incident from SGO-Dynatrace Spark log alerts bound to Application Service.
+# Upsert ServiceNow Business Rule: create/correlate Critical log event incidents.
+# Prefers alert cmdb_ci; else runs generic entity bind.
 
 - name: Build em_alert create incident business rule payload
   ansible.builtin.set_fact:
@@ -12,12 +13,11 @@
       action_insert: "true"
       action_update: "true"
       order: "{{ sn_incident_em_alert_br_order }}"
-      filter_condition: source=SGO-Dynatrace^ORsource=Dynatrace^severity<=3
+      filter_condition: source=SGO-Dynatrace^severity<=3
       description: >-
-        K8s log alerts (ERROR/WARN): create incident on Application Service via
-        Client /client-logs/ path / event name or Pattern A Contains from pod CI
-        (SGO-Dynatrace and Dynatrace client-mode alerts).
-      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_k8s_log_incident.br.js') }}"
+        Artifact: create/correlate Critical log event incidents using alert
+        cmdb_ci when set, else generic entity bind (HOST / CUSTOM_DEVICE / CAI).
+      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"

@@ -19,6 +19,55 @@
       OpenPipeline fieldsAdd cannot evaluate lookupEntity(); it stores the expression as a literal.
   run_once: true
 
+# Product gap: OpenPipeline Processing cannot look up entities by name
+# (no external/entity enrichment in that stage; lookupEntity in fieldsAdd is
+# stored as a literal). Lab workaround: bake pod-name → CAI id fieldsAdd
+# processors from the live Entities API at apply time. Production needs a
+# Dynatrace-native entity lookup in OpenPipeline (or container-context log
+# collection so OneAgent attaches CAI automatically).
+- name: List live Spark CLOUD_APPLICATION_INSTANCE entities for Cluster Davis binding
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_api_url_resolved }}/v2/entities?entitySelector={{
+        'type(CLOUD_APPLICATION_INSTANCE),entityName.startsWith("spark-")'
+        | urlencode
+      }}&from=now-2h&pageSize=100
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_spark_cai_entities
+  delegate_to: localhost
+  run_once: true
+
+- name: Reset Cluster CAI processor list
+  ansible.builtin.set_fact:
+    dt_spark_cai_processors: []
+  run_once: true
+
+- name: Build Cluster CAI fieldsAdd processors (pod name → CLOUD_APPLICATION_INSTANCE)
+  ansible.builtin.set_fact:
+    dt_spark_cai_processors: "{{ dt_spark_cai_processors + [dt_spark_cai_processor_one] }}"
+  vars:
+    dt_spark_cai_processor_one:
+      id: "resolve-cai-{{ item.displayName | regex_replace('[^A-Za-z0-9_-]', '-') }}"
+      type: fieldsAdd
+      enabled: true
+      description: >-
+        Lab bake-in: Cluster spark.pod_name/k8s.pod_name={{ item.displayName }}
+        → CAI {{ item.entityId }} (OpenPipeline cannot do live entity lookup)
+      matcher: >-
+        spark.mode == "Cluster" AND
+        (spark.pod_name == "{{ item.displayName }}" OR k8s.pod_name == "{{ item.displayName }}")
+      fieldsAdd:
+        fields:
+          - name: spark.davis_entity
+            value: "{{ item.entityId }}"
+  loop: "{{ dt_spark_cai_entities.json.entities | default([]) }}"
+  loop_control:
+    label: "{{ item.displayName | default(item.entityId) }}"
+  run_once: true
+
 - name: Render Spark OpenPipeline log alerts payload
   ansible.builtin.template:
     src: "{{ dt_integrations_dir }}/spark-openpipeline-log-alerts-pipeline.json.j2"
@@ -30,6 +79,32 @@
 - name: Load Spark OpenPipeline log alerts document
   ansible.builtin.set_fact:
     dt_spark_openpipeline_pipeline_doc: "{{ lookup('file', '/tmp/spark-openpipeline-log-alerts-pipeline.json') | from_json }}"
+  run_once: true
+
+- name: Inject Cluster CAI resolvers before HOST fallback processor
+  ansible.builtin.set_fact:
+    dt_spark_openpipeline_pipeline_doc: >-
+      {{
+        dt_spark_openpipeline_pipeline_doc
+        | combine({
+            'value': dt_spark_openpipeline_pipeline_doc.value
+              | combine({
+                  'processing': {
+                    'processors': (
+                      dt_spark_openpipeline_pipeline_doc.value.processing.processors
+                      | rejectattr('id', 'equalto', 'compose-davis-source-entity-fallback')
+                      | list
+                    )
+                    + dt_spark_cai_processors
+                    + (
+                      dt_spark_openpipeline_pipeline_doc.value.processing.processors
+                      | selectattr('id', 'equalto', 'compose-davis-source-entity-fallback')
+                      | list
+                    )
+                  }
+                }, recursive=True)
+          }, recursive=True)
+      }}
   run_once: true
 
 - name: List existing OpenPipeline logs pipelines
@@ -199,5 +274,6 @@
       OpenPipeline log alerts pipeline '{{ dt_sn_spark_openpipeline_pipeline_display_name }}'
       => {{ dt_spark_openpipeline_pipeline_object_id }}
       ({{ 'created/updated' if dt_spark_openpipeline_pipeline_change_needed | bool else 'already up to date' }});
+      Cluster CAI resolvers={{ dt_spark_cai_processors | default([]) | length }};
       routing {{ 'updated' if dt_openpipeline_routing_change_needed | default(false) | bool else 'already includes Spark route' }}.
   run_once: true

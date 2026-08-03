@@ -20,3 +20,9 @@ table.tableblock td {
 div.content div.imageblock.figure-indent {
   margin-left: 0.5in;
 }
+
+/* Inline [.text-center]#…# after a hard break (+) is a <span>; needs block width to center. */
+span.text-center {
+  display: block;
+  text-align: center;
+}

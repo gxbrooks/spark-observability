@@ -1,5 +1,7 @@
 ---
-# Ensure ResolveApplicationService Script Include (global scope).
+# Upsert ServiceNow Script Include artifact used by L2I BRs to bind Dynatrace
+# ImpactedEntities (CUSTOM_DEVICE / CLOUD_APPLICATION_INSTANCE) to Application
+# Service CIs and to append DQL text for matching log lines.
 
 - name: Build ResolveApplicationService script include payload
   ansible.builtin.set_fact:
@@ -9,10 +11,9 @@
       access: public
       client_callable: "false"
       description: >-
-        Resolve cmdb_ci_service_discovered from infrastructure CI via Contains
-        (Pattern A pod) or from /client-logs/ log path (Spark Client AS).
-        Also enriches Spark log alert descriptions with Grail log-line bundles
-        and Problem/Logs deep links.
+        Artifact: generic entity→CI bind for SGO-Dynatrace events/alerts
+        (HOST→host CI; CUSTOM_DEVICE→AS by name; CAI→AS via pod Contains;
+        else leave cmdb_ci empty). Appends DQL text only (no Grail fetch).
       script: >-
         {{
           lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js')

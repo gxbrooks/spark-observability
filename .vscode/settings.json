@@ -32,13 +32,18 @@
     {
       "name": "asciidoc-listing-block",
       "pattern": "/^----+\\s*$[\\s\\S]*?^----+\\s*$/gm"
+    },
+    {
+      "name": "asciidoc-anchor-definition",
+      "pattern": "/\\[\\[[\\w.-]+\\]\\]/g"
     }
   ],
   "cSpell.languageSettings": [
     {
       "languageId": "asciidoc,asciidoctor",
       "ignoreRegExpList": [
-        "asciidoc-listing-block"
+        "asciidoc-listing-block",
+        "asciidoc-anchor-definition"
       ]
     }
   ]

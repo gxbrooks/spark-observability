@@ -9,6 +9,21 @@
     "processing": {
       "processors": [
         {
+          "id": "tag-pipeline-custom-id",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Convention: stamp OpenPipeline customId on every log record for easy Grail filtering",
+          "matcher": "true",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "pipeline",
+                "value": "{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}"
+              }
+            ]
+          }
+        },
+        {
           "id": "compose-client-instance",
           "type": "dql",
           "enabled": true,
@@ -22,15 +37,43 @@
           "id": "resolve-client-device",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Client: set spark.device (CUSTOM_DEVICE id) for ServiceNow AS resolution; leave OneAgent HOST as dt.source_entity",
+          "description": "Client: spark.davis_entity = CUSTOM_DEVICE (primary Davis entity). spark.device is an optional alias of the same id for Grail filters — not required by Davis.",
           "matcher": "spark.mode == \"Client\"",
           "fieldsAdd": {
             "fields": [
               {
+                "name": "spark.davis_entity",
+                "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
+              },
+              {
                 "name": "spark.device",
                 "value": "{{ dt_spark_client_custom_device_entity_id | mandatory }}"
+              },
+              {
+                "name": "spark.client.as_identifier",
+                "value": "spark-client"
               }
             ]
+          }
+        },
+        {
+          "id": "alias-cluster-k8s-pod-name",
+          "type": "dql",
+          "enabled": true,
+          "description": "Cluster: ensure k8s.pod_name mirrors spark.pod_name when OneAgent enrichment only set one of them",
+          "matcher": "spark.mode == \"Cluster\" AND isNotNull(spark.pod_name) AND isNull(k8s.pod_name)",
+          "dql": {
+            "script": "fieldsAdd k8s.pod_name = spark.pod_name"
+          }
+        },
+        {
+          "id": "compose-davis-source-entity-fallback",
+          "type": "dql",
+          "enabled": true,
+          "description": "Cluster: if apply playbook did not inject a CAI map hit, fall back to OneAgent HOST (leaves empty CI path visible in SN)",
+          "matcher": "spark.mode == \"Cluster\" AND isNull(spark.davis_entity)",
+          "dql": {
+            "script": "fieldsAdd spark.davis_entity = dt.source_entity"
           }
         },
         {
@@ -51,19 +94,24 @@
           "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Client ERROR/WARN: one Davis event/problem per mode|class:line (cross-driver via shared event.name; merge off)",
+          "description": "Client ERROR/WARN: primary entity = CUSTOM_DEVICE via spark.davis_entity; remapping off",
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
+              { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "{spark.mode} {loglevel} at {spark.log.class}:{spark.log.line} on {spark.log.path}\n{content}\nevent.unique_identifier: {spark.mode}|{spark.log.class}:{spark.log.line}"
+                "value": "Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path}: {content}"
               },
-              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
+              { "key": "dt.source_entity", "value": "{spark.davis_entity}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "spark.client.as_identifier", "value": "{spark.client.as_identifier}" },
+              { "key": "spark.device", "value": "{spark.device}" },
+              { "key": "spark.mode", "value": "{spark.mode}" },
+              { "key": "event.unique_identifier", "value": "Spark {spark.mode} Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
@@ -72,19 +120,24 @@
           "id": "spark-cluster-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Cluster ERROR/WARN: one Davis event/problem per mode|class:line (cross-pod via shared event.name; merge off)",
+          "description": "Cluster ERROR/WARN: primary entity = CLOUD_APPLICATION_INSTANCE via spark.davis_entity (CAI injectors); remapping off",
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "event.name", "value": "{spark.mode} error at {spark.log.class}:{spark.log.line}" },
+              { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "{spark.mode} {loglevel} at {spark.log.class}:{spark.log.line} on {spark.log.path}\n{content}\nevent.unique_identifier: {spark.mode}|{spark.log.class}:{spark.log.line}"
+                "value": "Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path}: {content}"
               },
-              { "key": "dt.source_entity", "value": "{dt.source_entity}" },
-              { "key": "event.unique_identifier", "value": "{spark.mode}|{spark.log.class}:{spark.log.line}" },
+              { "key": "dt.source_entity", "value": "{spark.davis_entity}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "k8s.pod_name", "value": "{k8s.pod_name}" },
+              { "key": "spark.pod_name", "value": "{spark.pod_name}" },
+              { "key": "spark.mode", "value": "{spark.mode}" },
+              { "key": "event.unique_identifier", "value": "Spark {spark.mode} Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
@@ -105,6 +158,7 @@
               },
               { "key": "dt.source_entity", "value": "{dt.source_entity}" },
               { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
+              { "key": "pipeline", "value": "{pipeline}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]

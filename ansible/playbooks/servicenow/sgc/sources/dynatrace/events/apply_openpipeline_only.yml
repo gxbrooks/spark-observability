@@ -14,5 +14,7 @@
   tasks:
     - name: Ensure Spark Client CUSTOM_DEVICE (Davis entity for client-mode logs)
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_client_custom_device.yml"
+    - name: Ensure SGO entity→CI bindings (CUSTOM_DEVICE + CAI→pod)
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/ensure_spark_entity_cmdb_bindings.yml"
     - name: Apply OpenPipeline Davis extraction for Spark ERROR/WARN logs
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_openpipeline_log_alerts.yml"

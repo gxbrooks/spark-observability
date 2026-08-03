@@ -72,6 +72,29 @@
           "azureToServicePropagation": false,
           "azureToPGPropagation": false
         }
+      },
+      {
+        "enabled": true,
+        "type": "ME",
+        "attributeRule": {
+          "entityType": "CLOUD_APPLICATION",
+          "conditions": [
+            {
+              "key": "CLOUD_APPLICATION_NAME",
+              "operator": "BEGINS_WITH",
+              "stringValue": "spark-",
+              "caseSensitive": false
+            }
+          ],
+          "serviceToHostPropagation": false,
+          "serviceToPGPropagation": false,
+          "pgToHostPropagation": false,
+          "pgToServicePropagation": false,
+          "hostToPGPropagation": false,
+          "customDeviceGroupToCustomDevicePropagation": false,
+          "azureToServicePropagation": false,
+          "azureToPGPropagation": false
+        }
       }
     ]
   }

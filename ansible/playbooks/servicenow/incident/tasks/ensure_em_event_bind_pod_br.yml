@@ -1,7 +1,7 @@
 ---
-# Re-bind SGO-Dynatrace Spark log events from host CI to Kubernetes pod CI when path encodes pod name.
+# Upsert ServiceNow Business Rule: generic entity → CI bind on em_event.
 
-- name: Build em_event bind pod CI business rule payload
+- name: Build em_event bind entity CI business rule payload
   ansible.builtin.set_fact:
     sn_incident_em_event_br_body:
       name: "{{ sn_incident_em_event_br_name }}"
@@ -13,22 +13,23 @@
       order: "{{ sn_incident_em_event_br_order }}"
       filter_condition: source=SGO-Dynatrace
       description: >-
-        K8s log events: bind cmdb_ci to Spark Client AS or cmdb_ci_kubernetes_pod
-        from log path; append before/after CI and class to processing_notes.
-      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_bind_k8s_log_pod_ci.br.js') }}"
+        Artifact: generic bind for SGO-Dynatrace events — HOST→host CI,
+        CUSTOM_DEVICE→Application Service (same name), CAI→AS via pod Contains;
+        leaves cmdb_ci empty when no match; always writes processing_notes.
+      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_bind_entity_ci.br.js') }}"
 
-- name: Look up em_event bind pod CI business rule
+- name: Look up em_event bind entity CI business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
   vars:
     sn_rest_table: sys_script
     sn_rest_query: "sysparm_query=name={{ sn_incident_em_event_br_name | urlencode }}&sysparm_limit=1"
 
-- name: Record em_event bind pod CI business rule state
+- name: Record em_event bind entity CI business rule state
   ansible.builtin.set_fact:
     sn_incident_em_event_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
     sn_incident_em_event_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
-- name: Create em_event bind pod CI business rule
+- name: Create em_event bind entity CI business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
   vars:
     sn_rest_method: post
@@ -36,7 +37,7 @@
     sn_rest_body: "{{ sn_incident_em_event_br_body }}"
   when: not sn_incident_em_event_br_exists | bool
 
-- name: Update em_event bind pod CI business rule
+- name: Update em_event bind entity CI business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
   vars:
     sn_rest_method: patch

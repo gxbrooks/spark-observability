@@ -26,8 +26,8 @@ sequenceDiagram
   OA->>File: tail custom log source paths
   OA->>Route: log record (dt.openpipeline.source=oneagent)
   Route->>Pipe: matcher: /mnt/spark/logs/* or /mnt/spark/client-logs/*
-  Note over Pipe: Davis event.name\n"{spark.mode} error at {class}:{line}"
-  Note over Pipe: unique_identifier\n"{spark.mode}|{class}:{line}"; merge off
+  Note over Pipe: Davis event.name\n"Critical log.level error at {class}:{line}"
+  Note over Pipe: unique_identifier\n"{class}:{line}"; merge off
   Pipe->>Grail: bucketAssignment default_logs
   Pipe->>Davis: Davis processor (WARN/ERROR matcher)
   Davis->>AP: ERROR problem (Spark Observability MZ)
@@ -174,14 +174,16 @@ The **Davis processor** in the Spark log alerts pipeline matches **WARN** or **E
 
 | Property | Value |
 |----------|-------|
-| **Client matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Client"` |
-| **Cluster matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Cluster"` |
+| **Matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND (spark.mode == "Client" OR spark.mode == "Cluster") AND class/line present` |
+| **Davis processor** | `spark-warn-error-davis` |
 | `event.type` | `ERROR_EVENT` |
-| `event.name` | `{spark.mode} error at {spark.log.class}:{spark.log.line}` |
-| `event.unique_identifier` | `{spark.mode}|{spark.log.class}:{spark.log.line}` |
+| `event.name` | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
+| `event.description` | `Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path}: {content}` |
+| `event.unique_identifier` | `Spark Critical {loglevel} error {spark.log.class}:{spark.log.line}` |
+| `dt.source_entity` | Client: `spark.device` (CUSTOM_DEVICE); Cluster: OneAgent HOST (`coalesce(spark.device, dt.source_entity)`) |
+| `spark.device` | Client CUSTOM_DEVICE id (stamped on Davis event for SN) |
 | `dt.davis.is_merging_allowed` | `false` (same class:line still shares one event via `event.name`) |
-| `event.unique_identifier` | Client: `Client:{host}:{driver}|{class}:{line}`; Cluster: `Cluster:{pod_name}|{class}:{line}` |
-| `dt.source_entity` | Client: CUSTOM_DEVICE Spark Client; Cluster: HOST (pod rebind in ServiceNow) |
+| `dt.source_entity` | HOST (OneAgent file tail; Client also stamps `spark.device`; pod rebind in ServiceNow) |
 | `dt.davis.event_timeout` | `15m` |
 
 Legacy (inactive for routed logs): `spark-error-log-event.json.j2` → `builtin:logmonitoring.log-events` summary **`Spark Lab - ERROR and WARN log lines`**.
@@ -403,7 +405,7 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 
 1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to `/mnt/spark/client-logs/<instance>/`.
 2. **Ingest** — OneAgent custom log source paths `/mnt/spark/client-logs/*/spark-app*.log`; restart OneAgent after deploy if paths were added recently.
-3. **Detect** — OpenPipeline `spark-client-warn-error-davis` processor; Davis **`event.name`** = `Application log {loglevel} on spark-client-{instance}`; timeout **15m**.
+3. **Detect** — OpenPipeline `spark-warn-error-davis` processor; Davis **`event.name`** = `Critical log.level error at {class}:{line}`; timeout **15m**.
 4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
 5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → Application Service **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 

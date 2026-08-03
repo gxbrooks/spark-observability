@@ -62,6 +62,28 @@
     - not (dt_spark_client_custom_device_lookup.skipped | default(false))
   run_once: true
 
+- name: Ensure Project:spark-observability tag on Spark Client CUSTOM_DEVICE
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_api_url_resolved }}/v2/tags?entitySelector={{
+        ('entityId("' ~ (dt_spark_client_custom_device_entity_id | mandatory) ~ '")')
+        | urlencode
+      }}
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      tags:
+        - key: Project
+          value: spark-observability
+    status_code: [200]
+  when: (dt_spark_client_custom_device_entity_id | default('')) | length > 0
+  register: dt_spark_client_custom_device_tag
+  delegate_to: localhost
+  run_once: true
+
 - name: Show Spark Client CUSTOM_DEVICE state
   ansible.builtin.debug:
     msg: >-

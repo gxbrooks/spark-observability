@@ -1,11 +1,11 @@
 ---
-# Propagate em_event pod binding to related em_alert rows (after insert/update).
+# Keep propagate BR inactive — CI must bind correctly on first insert.
 
-- name: Build em_event propagate pod CI business rule payload
+- name: Build em_event propagate entity CI business rule payload (inactive)
   ansible.builtin.set_fact:
     sn_incident_em_event_propagate_br_body:
       name: "{{ sn_incident_em_event_propagate_br_name }}"
-      active: "true"
+      active: "{{ sn_incident_em_event_propagate_br_active | default('false') }}"
       collection: em_event
       when: after
       action_insert: "true"
@@ -13,22 +13,22 @@
       order: "{{ sn_incident_em_event_propagate_br_order }}"
       filter_condition: source=SGO-Dynatrace
       description: >-
-        After pod CI binding on em_event, copy cmdb_ci and resource to related
-        em_alert rows sharing message_key.
-      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_propagate_k8s_log_pod_ci.br.js') }}"
+        Artifact: DISABLED — former event→alert CI propagate safety net.
+        Generic entity bind on event/alert insert is the supported path.
+      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_propagate_entity_ci.br.js') }}"
 
-- name: Look up em_event propagate pod CI business rule
+- name: Look up em_event propagate entity CI business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
   vars:
     sn_rest_table: sys_script
     sn_rest_query: "sysparm_query=name={{ sn_incident_em_event_propagate_br_name | urlencode }}&sysparm_limit=1"
 
-- name: Record em_event propagate pod CI business rule state
+- name: Record em_event propagate entity CI business rule state
   ansible.builtin.set_fact:
     sn_incident_em_event_propagate_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
     sn_incident_em_event_propagate_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
-- name: Create em_event propagate pod CI business rule
+- name: Create em_event propagate entity CI business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
   vars:
     sn_rest_method: post
@@ -36,7 +36,7 @@
     sn_rest_body: "{{ sn_incident_em_event_propagate_br_body }}"
   when: not sn_incident_em_event_propagate_br_exists | bool
 
-- name: Update em_event propagate pod CI business rule
+- name: Update em_event propagate entity CI business rule
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
   vars:
     sn_rest_method: patch

@@ -32,7 +32,10 @@ Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with `Log_to_Incide
 | **Using ServiceNow and Dynatrace** | Reference implementation (Steps 0–5) |
 | **Appendix A — Legacy and SGO-Dynatrace coexistence** | Connector migration notes |
 
-Companion note (Markdown): [CMDB_Mapping.md](CMDB_Mapping.md) — client vs service Dynatrace + CMDB differences and how they map `incident.cmdb_ci`.
+Companion notes (Markdown):
+
+- [CMDB_Mapping.md](CMDB_Mapping.md) — client vs service Dynatrace + CMDB differences and how they map `incident.cmdb_ci`.
+- [SGO-Dynatrace_Enhancements.md](SGO-Dynatrace_Enhancements.md) — product/config gaps for DT/SN account teams (OOTB incident rule, dual webhooks, SOS, MZ, Table API).
 
 Future chapters **may** add other platform pairs (for example Elastic Stack and ServiceNow) without renaming the process.
 

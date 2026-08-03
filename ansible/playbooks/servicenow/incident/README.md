@@ -1,16 +1,29 @@
 # Log-to-Incident ServiceNow automation playbooks
 
-Deploy and validate K8s application log → Dynatrace → ServiceNow Event Management → ITSM incident automation.
+Deploy and validate Dynatrace (SGC / **SGO-Dynatrace**) → Event Management → ITSM incident automation using **generic entity → CI** binding.
+
+Playbooks under `tasks/ensure_*.yml` **upsert ServiceNow artifacts** (Script Includes, Business Rules). Those artifacts perform bind/create at runtime; the playbooks do not insert events, alerts, or incidents directly.
 
 ## Playbooks
 
 | Playbook | Purpose |
 | -------- | ------- |
-| `deploy.yml` | Deploy `K8sLogPodCiBind`, `ResolveApplicationService` (incl. Spark Client alert bind), and business rules |
-| `verify_log_incident_bindings.yml` | Assert recent SGO-Dynatrace events have pod CI and log path resource |
-| `diagnose.yml` | Open alerts, log incidents, business rules, legacy `source=Dynatrace` alerts; optional alert↔incident lookup |
-| `reprocess_spark_log_events.yml` | Re-run pod CI binding on existing `em_event` rows (after-update BR) |
-| `reprocess_spark_log_alerts.yml` | Re-run pod CI binding on existing `em_alert` rows |
+| `deploy.yml` | Upsert `ResolveApplicationService` and generic SGO-Dynatrace BRs; deactivate legacy K8s/Spark BRs + OOTB AMR |
+| `verify_log_incident_bindings.yml` | Assert recent SGO-Dynatrace events have Application Service / host CI |
+| `diagnose.yml` | Open SGO-Dynatrace alerts, log incidents, business rules; optional alert↔incident lookup |
+| `reprocess_spark_log_events.yml` | Touch existing `em_event` rows to re-run entity bind BR |
+| `reprocess_spark_log_alerts.yml` | Touch existing `em_alert` rows to re-run entity bind BR |
+
+## Active artifacts (after deploy)
+
+| Name | Role |
+| ---- | ---- |
+| `ResolveApplicationService` | Generic bind: HOST→host CI; CUSTOM_DEVICE→AS by name; CAI→AS via pod Contains; else leave `cmdb_ci` empty |
+| `em-event-bind-entity-ci` | Before insert/update on `em_event` (order 5000) |
+| `em-alert-bind-entity-ci` | Before insert/update on `em_alert` (order 5010); keeps existing `cmdb_ci` if set |
+| `em-alert-create-log-incident` | Before insert/update on `em_alert` (order 5020); prefers alert CI else rebinds |
+| `em-event-propagate-entity-ci` | **Inactive** (former event→alert propagate safety net) |
+| OOTB AMR `SGO-Dynatrace` | **Inactive** |
 
 ## Usage
 
@@ -35,6 +48,8 @@ ansible-playbook -i inventory.yml playbooks/servicenow/incident/reprocess_spark_
 ## Finding the incident for an alert
 
 ServiceNow links alerts to incidents through **`em_alert.incident`** on optimizincdemo1 (reference to the incident record). That populates the incident **Alerts** tab. Incidents created before the business rule set this field may only appear in **Comments** / **Work notes**. Search **Incidents** with:
-- **Short description** = `Event Log WARN` or `Event Log ERROR` with matching **Created** time.
+- **Short description** = `Critical log event` with matching **Created** time.
 
 Use `diagnose.yml` with `-e spark_alert_number=Alert00…` to query via the Table API.
+
+Incidents created by `em-alert-create-log-incident` use short description **Critical log event** and require a bound `cmdb_ci` on the alert first.

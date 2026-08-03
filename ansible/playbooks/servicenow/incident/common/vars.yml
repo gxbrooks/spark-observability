@@ -13,15 +13,19 @@ sn_api_headers:
   Content-Type: application/json
 
 sn_incident_si_name: ResolveApplicationService
-sn_incident_pod_bind_si_name: K8sLogPodCiBind
-sn_incident_em_event_br_name: em-event-bind-k8s-log-pod-ci
+sn_incident_em_event_br_name: em-event-bind-entity-ci
 sn_incident_em_event_br_order: "5000"
-sn_incident_em_event_propagate_br_name: em-event-propagate-k8s-log-pod-ci
+sn_incident_em_event_propagate_br_name: em-event-propagate-entity-ci
 sn_incident_em_event_propagate_br_order: "5005"
-sn_incident_em_alert_bind_br_name: em-alert-bind-k8s-log-pod-ci
+sn_incident_em_event_propagate_br_active: "false"
+sn_incident_em_alert_bind_br_name: em-alert-bind-entity-ci
 sn_incident_em_alert_bind_br_order: "5010"
-sn_incident_em_alert_br_name: em-alert-create-k8s-log-incident
+sn_incident_em_alert_br_name: em-alert-create-log-incident
 sn_incident_em_alert_br_order: "5020"
 
 # Lab: create incidents for ERROR (2) and WARN (3).
 sn_incident_max_severity: "3"
+
+# OOTB SGO-Dynatrace Alert Management Rule (must stay inactive for L2I).
+sn_sgo_ootb_amr_name: SGO-Dynatrace
+sn_sgo_ootb_amr_sys_id: 7f5e284e07032010b1306a77c4a93523

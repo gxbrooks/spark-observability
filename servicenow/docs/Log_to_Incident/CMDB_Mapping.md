@@ -62,13 +62,13 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | **Path** | `/mnt/spark/client-logs/<driver-instance>/` |
 | **Mode** | `spark.mode = Client` |
 | **Instance** | `spark.instance = <host.name>:<driver-instance>` |
-| **Device** | `spark.device` = CUSTOM_DEVICE “Spark Client” (Grail/SN hint); **`dt.source_entity` remains HOST** |
-| **Davis merge** | `dt.davis.is_merging_allowed=false`; identity via `event.name` / `event.unique_identifier` = mode\|class:line |
-| **Davis processor** | `spark-client-warn-error-davis` |
-| **`event.name`** | `{spark.mode} error at {spark.log.class}:{spark.log.line}` |
+| **Device** | `spark.device` = CUSTOM_DEVICE “Spark Client”; Davis **`dt.source_entity`** = that CUSTOM_DEVICE via `spark.davis_entity` |
+| **Davis merge** | `dt.davis.is_merging_allowed=false`; identity via `event.name` / `event.unique_identifier` (includes loglevel + class:line) |
+| **Davis processor** | `spark-warn-error-davis` (shared Client/Cluster) |
+| **`event.name`** | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
 | **Management zone** | CUSTOM_DEVICE “Spark Client” is in **Spark Observability** so SGO can forward |
 
-**Why leave HOST:** OneAgent file tails always attach the node HOST. Client/Cluster separation uses `spark.mode` and class:line in `event.name` (event report identity). Merge stays off so different class:lines are not HOST-bundled; same class:line across drivers still shares one event. ServiceNow binds Application Service early from path / `spark.device` / pod Contains.
+**Why leave HOST:** OneAgent file tails always attach the node HOST. Event-report identity uses class:line in `event.name` (mode is not part of the name). Merge stays off so different class:lines are not HOST-bundled; same class:line across drivers (and modes) still shares one event. ServiceNow binds Application Service early from path / `spark.device` / pod Contains.
 
 ### Cluster mode (Dynatrace)
 
@@ -78,9 +78,9 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | **Mode** | `spark.mode = Cluster` |
 | **Pod** | `spark.pod_name` from path enrichment |
 | **Entity bind** | Leave OneAgent **HOST** as `dt.source_entity` (in MZ). Pod CI rebind is in ServiceNow. |
-| **Davis processor** | `spark-cluster-warn-error-davis` |
-| **`event.name`** | `{spark.mode} error at {spark.log.class}:{spark.log.line}` |
-| **Typical impacted entity** | **HOST**. Pod identity for CMDB is recovered later in ServiceNow from the path / `event.name`. |
+| **Davis processor** | `spark-warn-error-davis` (shared Client/Cluster) |
+| **`event.name`** | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
+| **Typical impacted entity** | **HOST** (`spark.davis_entity` falls back to OneAgent HOST). Pod identity for CMDB is recovered later in ServiceNow from the path. |
 
 **Design split:** Dynatrace carries **`spark.mode`** plus either **`spark.instance`** (Client) or **`spark.pod_name`** (Cluster). ServiceNow owns Application Service / pod CI binding (`ResolveApplicationService` / `K8sLogPodCiBind`).
 
@@ -89,9 +89,10 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | | Client | Cluster |
 |--|--------|---------|
 | OpenPipeline branch | `spark.mode=Client`; compose `spark.instance`; set `spark.device` | `spark.mode=Cluster`; use `spark.pod_name` |
-| Davis `event.name` | `Client error at <class>:<line>` | `Cluster error at <class>:<line>` |
-| Problem impacted entity | HOST (+ `spark.device` attribute) | HOST (usually) |
-| SN path detector | `/client-logs/` | `/mnt/spark/logs/<pod>/` |
+| Davis `event.name` | `Spark critical <loglevel> error at <class>:<line>` | same |
+| Davis `event.description` | `Spark Client critical <loglevel> error at … in <path>: …` | `Spark Cluster critical … in <path>: …` |
+| Problem impacted entity | CUSTOM_DEVICE Spark Client | HOST (usually) |
+| SN path / mode detector | `/client-logs/` or `Spark Client critical` | `/mnt/spark/logs/<pod>/` → pod CI → Contains → AS |
 
 ---
 

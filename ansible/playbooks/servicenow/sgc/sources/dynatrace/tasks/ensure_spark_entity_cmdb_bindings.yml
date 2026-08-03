@@ -1,0 +1,206 @@
+---
+# Long-term B: ensure Dynatrace problem entities can bind to CMDB CIs.
+#
+# Constraints on this instance:
+# - Table ACL blocks POST/PUT on sys_object_source for automation users
+#   (including admin_brooks_lab). Bare-id SOS upsert is attempted then ignored.
+# - SGC has no Custom Devices feed; CUSTOM_DEVICE → AS is recorded via
+#   cmdb_key_value (Dynatrace Instance) plus Script Include entity resolution.
+# - CAI → pod relies on SGO-Dynatrace Kubernetes Pod scheduled import (compound
+#   SOS ids). This task queues Execute Now on that import.
+
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: Look up Spark Client Application Service
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_service_discovered?{{
+        {
+          'sysparm_query': 'name=Spark Client',
+          'sysparm_fields': 'sys_id,name',
+          'sysparm_limit': '1'
+        } | urlencode
+      }}
+    method: GET
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_spark_client_as
+  delegate_to: localhost
+  run_once: true
+
+- name: Require Spark Client Application Service
+  ansible.builtin.assert:
+    that:
+      - sn_spark_client_as.json.result | default([]) | length > 0
+    fail_msg: Application Service "Spark Client" not found in CMDB.
+  run_once: true
+
+- name: Set Spark Client AS sys_id
+  ansible.builtin.set_fact:
+    sn_spark_client_as_sys_id: "{{ sn_spark_client_as.json.result[0].sys_id }}"
+  run_once: true
+
+- name: Query cmdb_key_value Dynatrace Instance for Spark Client CUSTOM_DEVICE
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_key_value?{{
+        {
+          'sysparm_query': 'key=Dynatrace Instance^value=' ~ dt_spark_client_custom_device_entity_id
+            ~ '^configuration_item=' ~ sn_spark_client_as_sys_id,
+          'sysparm_fields': 'sys_id,key,value',
+          'sysparm_limit': '3'
+        } | urlencode
+      }}
+    method: GET
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_kv_client_device
+  delegate_to: localhost
+  run_once: true
+
+- name: Ensure cmdb_key_value Dynatrace Instance on Spark Client AS
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/cmdb_key_value"
+    method: POST
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      key: Dynatrace Instance
+      value: "{{ dt_spark_client_custom_device_entity_id }}"
+      configuration_item: "{{ sn_spark_client_as_sys_id }}"
+    status_code: [200, 201]
+  when: sn_kv_client_device.json.result | default([]) | length == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Attempt bare-id SOS upsert for CUSTOM_DEVICE (may be ACL-blocked)
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sys_object_source"
+    method: POST
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      name: "{{ sn_sgc_discovery_source }}"
+      id: "{{ dt_spark_client_custom_device_entity_id }}"
+      target_table: cmdb_ci_service_discovered
+      target_sys_id: "{{ sn_spark_client_as_sys_id }}"
+    status_code: [200, 201, 403]
+  register: sn_sos_client_upsert
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Report CUSTOM_DEVICE SOS upsert outcome
+  ansible.builtin.debug:
+    msg: >-
+      CUSTOM_DEVICE SOS upsert HTTP {{ sn_sos_client_upsert.status | default('n/a') }}.
+      {{ 'ACL blocked — relying on cmdb_key_value + Script Include entity resolution.'
+         if (sn_sos_client_upsert.status | default(0) | int) == 403
+         else 'SOS row present or created.' }}
+  run_once: true
+
+- name: Resolve SGO-Dynatrace Kubernetes Pod scheduled import
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?{{
+        {
+          'sysparm_query': 'name=SGO-Dynatrace Kubernetes Pod',
+          'sysparm_fields': 'sys_id,name,active,run_type,run_start',
+          'sysparm_limit': '1'
+        } | urlencode
+      }}
+    method: GET
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_k8s_pod_sched
+  delegate_to: localhost
+  run_once: true
+
+- name: Compute Kubernetes Pod import run_start (+30s)
+  ansible.builtin.set_fact:
+    sn_k8s_pod_run_start: "{{ lookup('pipe', 'date -u -d \"+30 seconds\" +%Y-%m-%d\\ %H:%M:%S') }}"
+  when: sn_k8s_pod_sched.json.result | default([]) | length > 0
+  run_once: true
+
+- name: Queue Execute Now on SGO-Dynatrace Kubernetes Pod import
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ sn_k8s_pod_sched.json.result[0].sys_id }}"
+    method: PUT
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      run_type: once
+      run_start: "{{ sn_k8s_pod_run_start }}"
+    status_code: [200]
+  when: sn_k8s_pod_sched.json.result | default([]) | length > 0
+  delegate_to: localhost
+  run_once: true
+
+# SGC drops inbound problem webhooks when ImpactedEntities have no topology CI
+# (no Custom Devices feed). CUSTOM_DEVICE → AS is handled by lab BRs after the
+# em_event exists; enable unmatched ingestion so Client problems are not skipped.
+- name: Look up SGC unmatched-CI events property
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_properties?{{
+        {
+          'sysparm_query': 'name=sn_dynatrace_integ.events_for_unmatched_ci.enabled',
+          'sysparm_fields': 'sys_id,name,value',
+          'sysparm_limit': '1'
+        } | urlencode
+      }}
+    method: GET
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_unmatched_ci_prop
+  delegate_to: localhost
+  run_once: true
+
+- name: Enable SGC events for unmatched CIs
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sys_properties/{{ sn_unmatched_ci_prop.json.result[0].sys_id }}"
+    method: PUT
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      value: "true"
+    status_code: [200]
+  when:
+    - sn_unmatched_ci_prop.json.result | default([]) | length > 0
+    - (sn_unmatched_ci_prop.json.result[0].value | default('false') | lower) != 'true'
+  delegate_to: localhost
+  run_once: true
+
+- name: Show unmatched-CI events property
+  ansible.builtin.debug:
+    msg: >-
+      sn_dynatrace_integ.events_for_unmatched_ci.enabled =>
+      {{ sn_unmatched_ci_prop.json.result[0].value | default('missing') }}
+      (set true so CUSTOM_DEVICE problems create em_events; lab BRs bind AS).
+  when: sn_unmatched_ci_prop.json.result | default([]) | length > 0
+  run_once: true

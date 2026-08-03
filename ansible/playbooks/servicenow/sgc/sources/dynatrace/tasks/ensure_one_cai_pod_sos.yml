@@ -1,0 +1,78 @@
+---
+# Per-CAI: resolve cmdb_ci_kubernetes_pod by displayName and upsert bare-id SOS.
+
+- name: Look up Kubernetes pod CI for {{ dt_cai.displayName }}
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/cmdb_ci_kubernetes_pod?{{
+        {
+          'sysparm_query': 'name=' ~ (dt_cai.displayName | default('')),
+          'sysparm_fields': 'sys_id,name',
+          'sysparm_limit': '1'
+        } | urlencode
+      }}
+    method: GET
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_pod_for_cai
+  delegate_to: localhost
+
+- name: Skip CAI when pod CI missing
+  ansible.builtin.debug:
+    msg: >-
+      No cmdb_ci_kubernetes_pod named '{{ dt_cai.displayName }}' for {{ dt_cai.entityId }};
+      skipping sys_object_source upsert.
+  when: sn_pod_for_cai.json.result | default([]) | length == 0
+
+- name: Query existing bare-id SOS for {{ dt_cai.entityId }}
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_object_source?{{
+        {
+          'sysparm_query': 'name=' ~ sn_sgc_discovery_source ~ '^id=' ~ dt_cai.entityId,
+          'sysparm_fields': 'sys_id,id,target_sys_id',
+          'sysparm_limit': '3'
+        } | urlencode
+      }}
+    method: GET
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_sos_cai
+  when: sn_pod_for_cai.json.result | default([]) | length > 0
+  delegate_to: localhost
+
+- name: Upsert bare-id SGO SOS CAI → pod
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_object_source{{
+        ('/' ~ sn_sos_cai.json.result[0].sys_id)
+        if (sn_sos_cai is defined and not (sn_sos_cai.skipped | default(false))
+            and (sn_sos_cai.json.result | default([]) | length > 0))
+        else ''
+      }}
+    method: >-
+      {{
+        'PUT'
+        if (sn_sos_cai is defined and not (sn_sos_cai.skipped | default(false))
+            and (sn_sos_cai.json.result | default([]) | length > 0))
+        else 'POST'
+      }}
+    url_username: "{{ sn_user }}"
+    url_password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      name: "{{ sn_sgc_discovery_source }}"
+      id: "{{ dt_cai.entityId }}"
+      target_table: cmdb_ci_kubernetes_pod
+      target_sys_id: "{{ sn_pod_for_cai.json.result[0].sys_id }}"
+    status_code: [200, 201]
+  when: sn_pod_for_cai.json.result | default([]) | length > 0
+  delegate_to: localhost
