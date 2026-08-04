@@ -263,7 +263,26 @@ ResolveApplicationService.prototype = {
   },
 
   /**
+   * Map spark-* pod names to lab Application Service display names when
+   * Contains::Contained by is missing (common for Deployment worker pods).
+   */
+  resolveSparkAsNameFromPodName: function (podName) {
+    var n = String(podName || '');
+    if (n.indexOf('spark-master') === 0) {
+      return 'Spark Master';
+    }
+    if (n.indexOf('spark-worker') === 0) {
+      return 'Spark Worker';
+    }
+    if (n.indexOf('spark-history') === 0) {
+      return 'Spark History Server';
+    }
+    return null;
+  },
+
+  /**
    * CLOUD_APPLICATION_INSTANCE → pod CI → Application Service via Contains.
+   * Fallback: spark-master/worker/history pod name → AS by display name.
    * Returns { asSysId, podSysId, podName, how } or null when nothing maps.
    */
   resolveFromCloudApplicationInstance: function (entityId, podName) {
@@ -283,20 +302,48 @@ ResolveApplicationService.prototype = {
       }
     }
 
-    if (!podSysId) {
-      return null;
-    }
-
-    var asSysId = this.resolveFromInfrastructureCi(podSysId);
     var name = podName;
-    if (!name) {
+    if (!name && podSysId) {
       var p = new GlideRecord('cmdb_ci_kubernetes_pod');
       if (p.get(podSysId)) {
         name = p.name.toString();
       }
     }
 
-    if (!asSysId) {
+    if (podSysId) {
+      var asSysId = this.resolveFromInfrastructureCi(podSysId);
+      if (asSysId) {
+        return {
+          podSysId: podSysId,
+          asSysId: asSysId,
+          podName: name || '',
+          how: 'CAI→pod→Contains Application Service',
+        };
+      }
+    }
+
+    var asName = this.resolveSparkAsNameFromPodName(name);
+    if (asName) {
+      var asByName = new GlideRecord('cmdb_ci_service_discovered');
+      asByName.addQuery('name', asName);
+      asByName.setLimit(1);
+      asByName.query();
+      if (asByName.next()) {
+        return {
+          podSysId: podSysId,
+          asSysId: asByName.sys_id.toString(),
+          podName: name || '',
+          how:
+            'pod name ' +
+            (name || '') +
+            ' → Application Service name "' +
+            asName +
+            '" (Contains edge missing)',
+        };
+      }
+    }
+
+    if (podSysId) {
       return {
         podSysId: podSysId,
         asSysId: null,
@@ -305,12 +352,7 @@ ResolveApplicationService.prototype = {
       };
     }
 
-    return {
-      podSysId: podSysId,
-      asSysId: asSysId,
-      podName: name || '',
-      how: 'CAI→pod→Contains Application Service',
-    };
+    return null;
   },
 
   /**
@@ -373,7 +415,13 @@ ResolveApplicationService.prototype = {
       );
     }
     if (!m) {
-      // Fallback: Cluster log path segment
+      // Container Output / PGI display: "(Worker spark-worker-lab1-…)" / "(Master spark-master-0)"
+      m = blob.match(
+        /\(\s*(?:Worker|Master|Driver|Executor)\s+(spark-[A-Za-z0-9][\w.-]*)\s*\)/i
+      );
+    }
+    if (!m) {
+      // Legacy Cluster file-tail path segment
       m = blob.match(/\/mnt\/spark\/logs\/([A-Za-z0-9][\w.-]*)\//);
     }
     return m ? m[1] : null;

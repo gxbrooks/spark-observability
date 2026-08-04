@@ -28,3 +28,6 @@ spec:
       - metrics-ingest
   metadataEnrichment:
     enabled: true
+  # OneAgent Log module: autodiscover container stdout/stderr (log.source=Container Output).
+  # Required for Cluster Mode Spark app logs after log4j2-cluster Console appender.
+  logMonitoring: {}

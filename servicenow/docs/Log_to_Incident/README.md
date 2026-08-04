@@ -29,13 +29,17 @@ Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with `Log_to_Incide
 |---------|------|
 | **Purpose** | Why the process exists |
 | **Log to Incident** | Technology-agnostic business process |
-| **Using ServiceNow and Dynatrace** | Reference implementation (Steps 0–5) |
-| **Appendix A — Legacy and SGO-Dynatrace coexistence** | Connector migration notes |
+| **Spark Architecture** | Client vs Cluster application context |
+| **Dynatrace and ServiceNow** | Reference implementation overview |
+| **Phase 1 — ServiceNow Modeling** | CSDM / CMDB foundation |
+| **Chapter 5 — Client Mode Use Case** | File-tail `/mnt/spark/client-logs` → OpenPipeline → Davis |
+| **Chapter 6 — Cluster Mode Use Case** | Stdout → Container Output → OpenPipeline → Davis |
+| **Phase 4 — ServiceNow** | Event / alert / incident automation |
 
 Companion notes (Markdown):
 
 - [CMDB_Mapping.md](CMDB_Mapping.md) — client vs service Dynatrace + CMDB differences and how they map `incident.cmdb_ci`.
-- [SGO-Dynatrace_Enhancements.md](SGO-Dynatrace_Enhancements.md) — product/config gaps for DT/SN account teams (OOTB incident rule, dual webhooks, SOS, MZ, Table API).
+- [SGO-Dynatrace_Enhancements.md](SGO-Dynatrace_Enhancements.md) — design of record + product/config gaps for DT/SN account teams (stdout Cluster, client file tail, generic bind, type remap, OOTB AMR, dual webhooks).
 
 Future chapters **may** add other platform pairs (for example Elastic Stack and ServiceNow) without renaming the process.
 

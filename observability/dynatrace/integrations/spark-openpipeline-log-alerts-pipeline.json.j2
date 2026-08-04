@@ -24,6 +24,16 @@
           }
         },
         {
+          "id": "enrich-cluster-from-k8s",
+          "type": "dql",
+          "enabled": true,
+          "description": "Cluster: Container Output → spark.mode + spark.pod_identifier from k8s.pod.name",
+          "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"spark\") AND isNotNull(k8s.pod.name) AND isNull(spark.mode)",
+          "dql": {
+            "script": "fieldsAdd spark.mode = \"Cluster\", spark.pod_identifier = toString(k8s.pod.name)"
+          }
+        },
+        {
           "id": "compose-client-instance",
           "type": "dql",
           "enabled": true,
@@ -63,7 +73,7 @@
           "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.as_identifier; leave HOST as dt.source_entity",
+          "description": "Client WARN/ERROR → ERROR_EVENT; spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.as_identifier; leave HOST as dt.source_entity",
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
@@ -87,7 +97,7 @@
           "id": "spark-cluster-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Cluster WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.pod_identifier; leave HOST as dt.source_entity",
+          "description": "Cluster WARN/ERROR from Container Output; prefer CAI as dt.source_entity; stamp spark.pod_identifier for SN",
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line) AND isNotNull(spark.pod_identifier)",
           "davis": {
             "properties": [
@@ -96,7 +106,7 @@
               { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Spark Cluster critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.pod_identifier={spark.pod_identifier}: {content}"
+                "value": "Spark Cluster critical {loglevel} error at {spark.log.class}:{spark.log.line} on {spark.pod_identifier} spark.event_kind=CRITICAL_LOG_EVENT spark.pod_identifier={spark.pod_identifier}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "spark.pod_identifier", "value": "{spark.pod_identifier}" },
@@ -111,8 +121,8 @@
           "id": "spark-enrichment-missing-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Fail-visible: WARN/ERROR without spark.mode enrichment",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode)",
+          "description": "Fail-visible: WARN/ERROR without spark.mode (not Client file nor Cluster Container Output enrichment)",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode) AND (matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"Container Output\"))",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
@@ -120,7 +130,7 @@
               { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
               {
                 "key": "event.description",
-                "value": "Custom log source enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
+                "value": "Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
               },
               { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
               { "key": "pipeline", "value": "{pipeline}" },

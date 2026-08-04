@@ -1,6 +1,7 @@
 ---
 # Register Spark application log paths with Dynatrace OneAgent (custom log sources).
-# Prerequisite for log events — without this, /mnt/spark/logs/* never reaches Grail.
+# Prerequisite for Client Mode log events — OneAgent tails /mnt/spark/client-logs/*.
+# Cluster Mode uses container stdout (DynaKube logMonitoring); not registered here.
 
 - name: Resolve Dynatrace API credentials
   ansible.builtin.include_tasks: resolve_dt_api.yml
@@ -99,5 +100,5 @@
     msg: >-
       Custom log source '{{ dt_sn_spark_log_custom_source_name }}' => {{ dt_spark_log_source_object_id }}
       ({{ 'created/updated' if dt_spark_log_source_change_needed | bool else 'already up to date' }})
-      Paths: /mnt/spark/client-logs/*/spark-app.log*, /mnt/spark/logs/*/spark-app.log*
+      Paths: /mnt/spark/client-logs/*/spark-app.log* (Client Mode only; Cluster uses Container Output)
   run_once: true

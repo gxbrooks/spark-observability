@@ -127,8 +127,9 @@
       pipelineType: custom
       pipelineId: "{{ dt_spark_openpipeline_pipeline_object_id }}"
       matcher: >-
-        matchesValue(log.source, "/mnt/spark/logs/*")
-        OR matchesValue(log.source, "/mnt/spark/client-logs/*")
+        matchesValue(log.source, "/mnt/spark/client-logs/*")
+        OR (matchesValue(log.source, "Container Output")
+            AND matchesValue(k8s.namespace.name, "spark"))
       description: "{{ dt_sn_spark_openpipeline_routing_description }}"
   run_once: true
 
