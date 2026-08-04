@@ -72,7 +72,7 @@
               { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.as_identifier={spark.as_identifier}: {content}"
+                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.as_identifier={spark.as_identifier}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "spark.as_identifier", "value": "{spark.as_identifier}" },
@@ -96,7 +96,7 @@
               { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Spark Cluster critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.pod_identifier={spark.pod_identifier}: {content}"
+                "value": "Spark Cluster critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.pod_identifier={spark.pod_identifier}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "spark.pod_identifier", "value": "{spark.pod_identifier}" },
@@ -120,7 +120,7 @@
               { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
               {
                 "key": "event.description",
-                "value": "Custom log source enrichment did not set spark.mode for {log.source}: {content}"
+                "value": "Custom log source enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
               },
               { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
               { "key": "pipeline", "value": "{pipeline}" },

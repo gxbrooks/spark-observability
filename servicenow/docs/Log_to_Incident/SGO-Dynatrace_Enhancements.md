@@ -45,7 +45,7 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 | Cluster | Same `ERROR_EVENT` + `spark.event_kind=CRITICAL_LOG_EVENT`; HOST may remain on the problem; **SN ignores HOST** when `spark.pod_identifier` is present | Custom log source stamps `spark.pod_identifier` from path; SN binds AS via pod CI name → Contains |
 | Host CPU | `event.type` = `CUSTOM_ALERT`; `spark.event_kind` = `CPU_EVENT` (metric event template) | Primary ImpactedEntity **HOST** → host CI |
 
-Dynatrace Settings API constrains `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, etc.); lab semantic labels use custom property `spark.event_kind` (`CRITICAL_LOG_EVENT` | `CPU_EVENT`).
+Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, etc.). Lab stamps `spark.event_kind` (`CRITICAL_LOG_EVENT` | `CPU_EVENT`) and **`ResolveApplicationService.applySparkEventTypeRename`** remaps ServiceNow `em_event.type` / `em_alert.type` to those names so the Event Management UI shows the requested Types. Built-in `CPU_SATURATED` is left unchanged.
 
 Davis properties also stamp: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, `spark.event_kind`, `spark.as_identifier` (Client), `spark.pod_identifier` (Cluster). No `CUSTOM_DEVICE`, `spark.device`, `spark.davis_entity`, or `sn_ci_lookup`.
 

@@ -1594,9 +1594,11 @@ Attributes added by automation (not Spark-specific semantics):
 
 |`spark.as_identifier` |Client custom source / OpenPipeline |Application Service `identifier` (`spark-client`) for SN bind
 
-|`event.type` |OpenPipeline Davis / metric event template |`ERROR_EVENT` (Spark log); `CUSTOM_ALERT` (host CPU metric)
+|`event.type` |OpenPipeline Davis / metric event template |`ERROR_EVENT` (Spark log); `CUSTOM_ALERT` (host CPU metric) — Dynatrace enum
 
 |`spark.event_kind` |OpenPipeline Davis / metric event template |`CRITICAL_LOG_EVENT` (Spark log); `CPU_EVENT` (host CPU metric)
+
+|`em_event.type` / `em_alert.type` |ServiceNow `ResolveApplicationService.applySparkEventTypeRename` |Remapped to `CRITICAL_LOG_EVENT` / `CPU_EVENT` from `spark.event_kind` (built-in `CPU_SATURATED` unchanged)
 
 |`event.name` |OpenPipeline Davis |`Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}`
 

@@ -432,6 +432,63 @@ ResolveApplicationService.prototype = {
   },
 
   /**
+   * Parse spark.event_kind from description / additional_info.
+   */
+  extractSparkEventKind: function (gr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var m = blob.match(/spark\.event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    if (!m) {
+      m = blob.match(
+        /["']spark\.event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
+      );
+    }
+    return m ? m[1] : null;
+  },
+
+  /**
+   * Dynatrace Settings API only allows enum event.type values (ERROR_EVENT,
+   * CUSTOM_ALERT, …). Lab stamps spark.event_kind and remaps em_event.type
+   * (and em_alert.type) so SN UI shows CRITICAL_LOG_EVENT / CPU_EVENT.
+   * Leaves CPU_SATURATED and other built-ins alone.
+   */
+  applySparkEventTypeRename: function (gr) {
+    if (!gr || !gr.isValidField('type')) {
+      return;
+    }
+    var current = gr.type.toString();
+    if (current === 'CPU_SATURATED') {
+      return;
+    }
+    var kind = this.extractSparkEventKind(gr);
+    var blob = this.collectSparkLookupBlob(gr);
+    var next = null;
+
+    if (kind === 'CRITICAL_LOG_EVENT') {
+      next = 'CRITICAL_LOG_EVENT';
+    } else if (kind === 'CPU_EVENT') {
+      next = 'CPU_EVENT';
+    } else if (
+      current === 'ERROR_EVENT' &&
+      (this.extractSparkAsIdentifier(gr) || this.extractSparkPodIdentifier(gr))
+    ) {
+      next = 'CRITICAL_LOG_EVENT';
+    } else if (
+      current === 'CUSTOM_ALERT' &&
+      /Host\s+.*CPU\s+above\s+80%|CPU usage in management zone/i.test(blob)
+    ) {
+      next = 'CPU_EVENT';
+    }
+
+    if (next && next !== current) {
+      gr.type = next;
+      this.appendProcessingNote(
+        gr,
+        'em-entity-bind: type ' + current + ' → ' + next + ' (spark.event_kind rename)'
+      );
+    }
+  },
+
+  /**
    * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
    *   1. spark.as_identifier → Application Service by identifier (ignore HOST)
    *   2. spark.pod_identifier → pod name → Contains AS (ignore HOST)
@@ -449,6 +506,8 @@ ResolveApplicationService.prototype = {
       this.appendProcessingNote(gr, result.note);
       return result;
     }
+
+    this.applySparkEventTypeRename(gr);
 
     // 1) Client log path: OpenPipeline stamps spark.as_identifier (ignore HOST).
     var asIdentifier = this.extractSparkAsIdentifier(gr);
