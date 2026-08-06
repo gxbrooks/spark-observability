@@ -10,6 +10,6 @@ Queried: ServiceNow `optimizincdemo1` and Dynatrace `pdt20158`.
 
 4. **Host naming** — DT HOST displayName=`Lab3` (`HOST-D8207A117616460E`); SN linux_server and k8s_node both named **`lab3`**.
 
-5. **AS Depends on unexpected endpoints** — `Lab3.lan:31686` and `Lab3.lan:32636` (likely leftover vertical entry points), in addition to intended CSDM depends_on (OTel, ES, Logstash, lab3 nfs_server). Application Service → `cmdb_ci_linux_server` depends_on edges are no longer declared in CSDM; remove any leftover **Depends on::Used by** edges to `lab3` (`cmdb_ci_linux_server`) from prior deploys.
+5. **AS Depends on unexpected endpoints** — `Lab3.lan:31686` and `Lab3.lan:32636` (likely leftover vertical entry points), in addition to intended CSDM depends_on (OTel, ES, Logstash, lab3 nfs_server). service instance → `cmdb_ci_linux_server` depends_on edges are no longer declared in CSDM; remove any leftover **Depends on::Used by** edges to `lab3` (`cmdb_ci_linux_server`) from prior deploys.
 
 6. **Pod placement relationship** — SN uses **Contains** from `lab3` (k8s node) → `spark-master-0`, not `Runs on` from pod → node.

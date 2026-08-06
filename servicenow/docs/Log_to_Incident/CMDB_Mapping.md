@@ -13,8 +13,8 @@ Canonical process narrative, diagrams, and step-by-step automation live in [Log_
 | **Who emits the log** | PySpark client-mode driver on a host | Spark workload in Kubernetes (master, worker, history, …) |
 | **Log path contract** | `/mnt/spark/client-logs/<driver-instance>/spark-app*.log` | `/mnt/spark/logs/<pod-name>/spark-app*.log` |
 | **Dynatrace problem entity** | **HOST** (OneAgent file tail); `spark.device` = CUSTOM_DEVICE id for SN | **HOST** (OneAgent file tail); pod entity lookup disabled |
-| **ServiceNow event/alert CI** | Application Service **Spark Client** (early bind) | Application Service via pod **`svc_ci_assoc`** membership (early bind; pod name in `node`) |
-| **ServiceNow incident CI** | Same Application Service **Spark Client** (propagate) | Same **Application Service** (propagate) |
+| **ServiceNow event/alert CI** | service instance **Spark Client** (early bind) | service instance via pod **`svc_ci_assoc`** membership (early bind; pod name in `node`) |
+| **ServiceNow incident CI** | Same service instance **Spark Client** (propagate) | Same **service instance** (propagate) |
 | **CMDB bridge used for incident** | Text → AS **by name** (no membership lookup) | Path → pod → **`svc_ci_assoc`** → AS (done at event bind) |
 
 Shared path: OpenPipeline Davis `ERROR_EVENT` → Dynatrace Problem → ServiceNow Event Management (`em_event` / `em_alert`) → business rules → `incident`.
@@ -41,8 +41,8 @@ flowchart TB
   SLOG[pod log path]
   SDT[Dynatrace HOST plus pod name in event]
   SPOD[em_alert CI kubernetes pod]
-  SAS[Application Service AS]
-  SINC[incident CI Application Service]
+  SAS[service instance AS]
+  SINC[incident CI service instance]
   SLOG --> SDT --> SPOD
   SPOD -->|svc_ci_assoc membership| SAS --> SINC
 ```
@@ -68,7 +68,7 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | **`event.name`** | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
 | **Management zone** | CUSTOM_DEVICE “Spark Client” is in **Spark Observability** so SGO can forward |
 
-**Why leave HOST:** OneAgent file tails always attach the node HOST. Event-report identity uses class:line in `event.name` (mode is not part of the name). Merge stays off so different class:lines are not HOST-bundled; same class:line across drivers (and modes) still shares one event. ServiceNow binds Application Service early from path / `spark.device` / pod Contains.
+**Why leave HOST:** OneAgent file tails always attach the node HOST. Event-report identity uses class:line in `event.name` (mode is not part of the name). Merge stays off so different class:lines are not HOST-bundled; same class:line across drivers (and modes) still shares one event. ServiceNow binds service instance early from path / `spark.device` / pod Contains.
 
 ### Cluster mode (Dynatrace)
 
@@ -82,7 +82,7 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | **`event.name`** | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
 | **Typical impacted entity** | **HOST** (`spark.davis_entity` falls back to OneAgent HOST). Pod identity for CMDB is recovered later in ServiceNow from the path. |
 
-**Design split:** Dynatrace carries **`spark.mode`** plus either **`spark.instance`** (Client) or **`spark.pod_name`** (Cluster). ServiceNow owns Application Service / pod CI binding (`ResolveApplicationService` / `K8sLogPodCiBind`).
+**Design split:** Dynatrace carries **`spark.mode`** plus either **`spark.instance`** (Client) or **`spark.pod_name`** (Cluster). ServiceNow owns service instance / pod CI binding (`ResolveApplicationService` / `K8sLogPodCiBind`).
 
 ### Side-by-side (Dynatrace)
 
@@ -124,17 +124,17 @@ Source: `servicenow/regions/brooks-lab/spark.csdm.yaml` (`service_instances:` �
 **Bind algorithm (`ResolveApplicationService`):**
 
 1. Detect client text: `/logs/spark-client/` **or** `Application log` + `spark-client-`.
-2. Look up Application Service by **`name = Spark Client`** (authoritative on optimizincdemo1; `identifier` is often empty).
+2. Look up service instance by **`name = Spark Client`** (authoritative on optimizincdemo1; `identifier` is often empty).
 3. Set `em_alert.cmdb_ci` and `incident.cmdb_ci` to that AS.
 
-`K8sLogPodCiBind` **skips** path segment `spark-client` so the driver directory is never treated as a pod name.
+`K8sLogPodCiBind` **skips** path segment `Spark-Client` so the driver directory is never treated as a pod name.
 
 ### Service-side (CMDB)
 
 | Object | Class | Role |
 |--------|-------|------|
 | **Pod** (e.g. `spark-master-0`) | `cmdb_ci_kubernetes_pod` | **`em_alert.cmdb_ci`** (preferred) |
-| **Application Service** (e.g. Spark Master) | `cmdb_ci_service_by_tags` | **`incident.cmdb_ci`** |
+| **service instance** (e.g. Spark Master) | `cmdb_ci_service_by_tags` | **`incident.cmdb_ci`** |
 | Pod label / KVA | `servicenow.com/service-instance=<sanitized display name>` | Correlates pod ↔ service instance `name` for tag-based SM |
 | **`svc_ci_assoc`** membership | Service → pod association maintained by tag-based SM | **Required** for incident AS resolution |
 | Depends on / Instantiates / namespace | `cmdb_rel_ci` edges (SGC / KVA) | Discovery / topology — **not** used for incident bind |
@@ -153,8 +153,8 @@ If the `svc_ci_assoc` membership row is missing, incident AS resolution fails ev
 
 | | Client-side | Service-side |
 |--|-------------|--------------|
-| Alert CI class | Application Service | Kubernetes pod |
-| Incident CI class | Application Service (same) | Application Service (service of pod) |
+| Alert CI class | service instance | Kubernetes pod |
+| Incident CI class | service instance (same) | service instance (service of pod) |
 | Membership required for incident | None | **`svc_ci_assoc`** service → pod |
 | Lookup key | AS **name** “Spark Client” | Pod **name** → `svc_ci_assoc` → AS |
 | KVA / pod label | Not used for bind | Feeds tag-based SM membership (precondition) |
@@ -180,20 +180,20 @@ sequenceDiagram
     DT->>DT: HOST entity with pod name in event
     DT->>SN: problem with pod event name
     SN->>SN: bind alert to kubernetes pod CI
-    SN->>SN: svc_ci_assoc lookup to Application Service
-    SN->>SN: set incident to Application Service
+    SN->>SN: svc_ci_assoc lookup to service instance
+    SN->>SN: set incident to service instance
   end
 ```
 
 ### Contract summary
 
 1. **Dynatrace** decides *which problem entity and event title* the log produces (CUSTOM_DEVICE + `spark-client-…` vs HOST + `<pod-name>`).
-2. **ServiceNow CMDB** holds the *authoritative Application Service* and (for Service-side) the *pod* and its *`svc_ci_assoc`* membership.
+2. **ServiceNow CMDB** holds the *authoritative service instance* and (for Service-side) the *pod* and its *`svc_ci_assoc`* membership.
 3. **ServiceNow scripts** map alert text / pod CI → **`incident.cmdb_ci`**:
    - Client: path / event name → AS by name.
    - Service: path → pod CI → `svc_ci_assoc` → AS.
 
-Neither platform alone completes the story: Dynatrace without `svc_ci_assoc` membership (or client path rules) cannot set the CSDM Application Service on the incident; CMDB without Davis `event.name` / path context cannot tell client from service or which pod fired.
+Neither platform alone completes the story: Dynatrace without `svc_ci_assoc` membership (or client path rules) cannot set the CSDM service instance on the incident; CMDB without Davis `event.name` / path context cannot tell client from service or which pod fired.
 
 ---
 
@@ -204,7 +204,7 @@ Neither platform alone completes the story: Dynatrace without `svc_ci_assoc` mem
 | `ResolveApplicationService.applySparkClientAlertBinding` | Sets event/alert CI to Spark Client AS | Skipped when text is not client |
 | `ResolveApplicationService.resolveFromSparkClientLogPath` | Incident AS | — |
 | `ResolveApplicationService.resolveFromInfrastructureCi` | — | Incident AS via `svc_ci_assoc` |
-| `K8sLogPodCiBind` | Skips `spark-client` segment | Binds alert to pod CI |
+| `K8sLogPodCiBind` | Skips `Spark-Client` segment | Binds alert to pod CI |
 | `em-alert-create-k8s-log-incident` | Client first; may align alert CI to AS | Keeps alert on pod; incident gets AS |
 
 Business rules accept `source=SGO-Dynatrace` **or** `source=Dynatrace` so classic connector client problems still bind.

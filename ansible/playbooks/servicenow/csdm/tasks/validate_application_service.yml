@@ -52,6 +52,23 @@
       service_mapping: tags and discover: false (vertical discovery must not apply).
   when: sn_csdm_app_svc_item.spec.platform == 'kubernetes'
 
+- name: Sanitize Kubernetes service-instance label from display name
+  ansible.builtin.set_fact:
+    sn_csdm_app_svc_k8s_label: >-
+      {{ sn_csdm_app_svc_name
+         | regex_replace('[^A-Za-z0-9._-]+', '-')
+         | regex_replace('^[-._]+|[-._]+$', '') }}
+  when: sn_csdm_app_svc_item.spec.platform == 'kubernetes'
+
+- name: Validate Kubernetes service-instance label value (CSDM injector)
+  ansible.builtin.include_tasks: ../../common/tasks/validate_k8s_label_value.yml
+  vars:
+    sn_k8s_label_value: "{{ sn_csdm_app_svc_k8s_label }}"
+    sn_k8s_label_context: >-
+      service instance display name '{{ sn_csdm_app_svc_name }}'
+      (servicenow.com/service-instance / spark.service_instance)
+  when: sn_csdm_app_svc_item.spec.platform == 'kubernetes'
+
 - name: Validate SaaS application service rules
   ansible.builtin.assert:
     that:

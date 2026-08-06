@@ -169,7 +169,7 @@ Imported via the **Processes / Process Groups** cascade. Mapped to **`cmdb_ci_ap
 #### 1.5 SERVICE — `dt.entity.service`
 A logical service discovered by Dynatrace based on the technology and entry point of a Process Group (e.g., a Java web service, a Node.js app, a .NET WCF service). Services track request rates, response times, and error rates.
 
-Imported by **SGO-Dynatrace Services** feed. Default target is **`cmdb_ci_service_calculated`** (Calculated Application Service). When Dynatrace `serviceType` is **`DATABASE_SERVICE`**, SGC maps to **`cmdb_ci_db_instance`** instead (onboarding guide).
+Imported by **SGO-Dynatrace Services** feed. Default target is **`cmdb_ci_service_calculated`** (Calculated service instance). When Dynatrace `serviceType` is **`DATABASE_SERVICE`**, SGC maps to **`cmdb_ci_db_instance`** instead (onboarding guide).
 
 | Dynatrace attribute | ServiceNow field |
 | --- | --- |
@@ -213,7 +213,7 @@ Entities related to frontend/user-facing monitoring.
 #### 2.1 APPLICATION — `dt.entity.application`
 A Real User Monitoring (RUM) web application. Represents the frontend experience monitored via injected JavaScript (OneAgent RUM). Tracks page load times, user actions, errors, and Apdex scores.
 
-Imported by **SGO-Dynatrace Applications** feed. Mapped to **`cmdb_ci_service_calculated`** — the same Calculated Application Service class used for Smartscape **SERVICE** entities (top-level RUM application becomes a calculated service node in the SGC service map).
+Imported by **SGO-Dynatrace Applications** feed. Mapped to **`cmdb_ci_service_calculated`** — the same Calculated service instance class used for Smartscape **SERVICE** entities (top-level RUM application becomes a calculated service node in the SGC service map).
 
 | Dynatrace attribute | ServiceNow field |
 | --- | --- |

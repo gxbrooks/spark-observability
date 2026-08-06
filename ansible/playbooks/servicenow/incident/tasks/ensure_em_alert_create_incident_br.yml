@@ -16,7 +16,7 @@
       filter_condition: source=SGO-Dynatrace^severity<=3
       description: >-
         Artifact: create/correlate Critical log event incidents using alert
-        cmdb_ci when set, else generic entity bind (spark.as_identifier /
+        cmdb_ci when set, else generic entity bind (spark.service_instance /
         spark.pod_identifier / HOST / CAI).
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 

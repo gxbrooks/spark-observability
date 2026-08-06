@@ -12,8 +12,8 @@ Authors **must** produce consistent, citable, prescriptive documentation so impl
 
 Implementors and standard authors share one vocabulary for:
 
-* **Spark Service-Side Log Pattern** — Kubernetes pod logs; incident CI via **Contains** traversal from pod to Application Service.
-* **Spark Client-Side Log Pattern** — host-independent PySpark drivers; incident CI via **log path contract** to a manual logical Application Service.
+* **Spark Service-Side Log Pattern** — Kubernetes pod logs; incident CI via **Contains** traversal from pod to service instance.
+* **Spark Client-Side Log Pattern** — host-independent PySpark drivers; incident CI via **log path contract** to a manual logical service instance.
 
 Older labels such as “Pattern A” / “Pattern B” **must not** be used in new Spark Log to Incident prose; Docker and legacy docs may retain Pattern A/B where already defined in `docker_model.md`.
 
@@ -125,7 +125,7 @@ The **Implementor** must cite specification and figure numbers when opening defe
 
 6.5. ServiceNow Script Includes and business rules **must not** use workload-specific names; use pattern names such as **`K8sLogPodCiBind`**.
 
-6.6. **`em_event.cmdb_ci`** / **`em_alert.cmdb_ci`** bind to infrastructure CIs (pod, HOST, process). **`incident.cmdb_ci`** **must** bind to **`cmdb_ci_service_discovered`** (Application Service).
+6.6. **`em_event.cmdb_ci`** / **`em_alert.cmdb_ci`** bind to infrastructure CIs (pod, HOST, process). **`incident.cmdb_ci`** **must** bind to **`cmdb_ci_service_discovered`** (service instance).
 
 6.7. Document **known limitations** explicitly (for example, Davis problem bundling) in a dedicated subsection with enough detail for later remediation.
 

@@ -17,8 +17,8 @@ This note is the **design of record** for the lab Log-to-Incident path, plus pro
 
 | Mode | Log emission | OneAgent ingest | OpenPipeline enrich | Davis / SN bind keys |
 | ---- | ------------ | --------------- | ------------------- | -------------------- |
-| **Client** | Log4j2 RollingFile under `/mnt/spark/client-logs/<instance>/` (`log4j2-client.properties`) | Custom log source path patterns only | `spark.mode=Client`, `spark.as_identifier=spark-client`, compose `spark.instance` | `spark.as_identifier` → Application Service by **name first** (`spark-client` → **Spark Client**); `dt.source_entity` stays OneAgent **HOST** (SN ignores HOST when AS identifier present) |
-| **Cluster** | Log4j2 **Console** → container stdout (`log4j2-cluster.properties`) | DynaKube `logMonitoring: {}` → `log.source=Container Output` (pod / CAI / PGI context from Log module). **No** custom log source on `/mnt/spark/logs` for app logs | `enrich-cluster-from-k8s`: `k8s.pod.name` → `spark.mode=Cluster` + `spark.pod_identifier` | `spark.pod_identifier` → pod CI by name → Contains Application Service; SN ignores HOST when pod identifier present |
+| **Client** | Log4j2 RollingFile under `/mnt/spark/client-logs/<instance>/` (`log4j2-client.properties`) | Custom log source path patterns only | `spark.mode=Client`, `spark.service_instance=Spark-Client`, compose `spark.instance` | `spark.service_instance` → service instance by **name first** (`Spark-Client` → **Spark Client**); `dt.source_entity` stays OneAgent **HOST** (SN ignores HOST when service instance stamp present) |
+| **Cluster** | Log4j2 **Console** → container stdout (`log4j2-cluster.properties`) | DynaKube `logMonitoring: {}` → `log.source=Container Output` (pod / CAI / PGI context from Log module). **No** custom log source on `/mnt/spark/logs` for app logs | `enrich-cluster-from-k8s`: `k8s.pod.name` → `spark.mode=Cluster` + `spark.pod_identifier` | `spark.pod_identifier` → pod CI by name → Contains service instance; SN ignores HOST when pod identifier present |
 | **Host CPU** | Metric event | Host OneAgent | `spark.event_kind=CPU_EVENT` on metric template | Primary ImpactedEntity **HOST** → host CI |
 
 Shared pipeline: **Spark Lab - log alerts** (`spark-lab-log-alerts`) in `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`. Custom source (Client only): `spark-log-custom-source.json.j2`. DynaKube: `observability/dynatrace/dynakube/dynakube.yaml.j2`.
@@ -27,13 +27,13 @@ Shared pipeline: **Spark Lab - log alerts** (`spark-lab-log-alerts`) in `observa
 
 Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). Lab stamps **`spark.event_kind`** (`CRITICAL_LOG_EVENT` | `CPU_EVENT`) on Davis properties / description. ServiceNow **`ResolveApplicationService.applySparkEventTypeRename`** remaps `em_event.type` / `em_alert.type` to those names for the Event Management UI. Built-in `CPU_SATURATED` is left unchanged.
 
-Davis also stamps: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, mode bind keys (`spark.as_identifier` or `spark.pod_identifier`). **No** `CUSTOM_DEVICE`, `spark.device`, `spark.davis_entity`, `sn_ci_lookup`, or OpenPipeline CAI bake-in.
+Davis also stamps: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, mode bind keys (`spark.service_instance` or `spark.pod_identifier`). **No** `CUSTOM_DEVICE`, `spark.device`, `spark.davis_entity`, `sn_ci_lookup`, or OpenPipeline CAI bake-in.
 
 ### ServiceNow generic entity CI-bind
 
 | Layer | Behavior |
 | ----- | -------- |
-| **Event CI bind** | (1) `spark.as_identifier` → AS by **name** first (`spark-client` → `Spark Client`; else name equals the identifier string), then optional `identifier` column only if the field is valid and matches; (2) else `spark.pod_identifier` (from OpenPipeline or parsed from Container Output / PGI display names such as `(Worker spark-worker-…)`) → pod CI by name → Contains AS; if Contains is missing, map `spark-master*` / `spark-worker*` / `spark-history*` pod names to Application Services **Spark Master** / **Spark Worker** / **Spark History Server**; (3) else primary ImpactedEntity: `HOST` (CPU / `CPU_EVENT`), `CLOUD_APPLICATION_INSTANCE` → AS via pod Contains, `CUSTOM_DEVICE` only as **legacy fallback** if still present. **No match → leave `cmdb_ci` empty.** |
+| **Event CI bind** | (1) `spark.service_instance` → SI by **name** first (`Spark-Client` → `Spark Client`; else name equals the identifier string), then optional `identifier` column only if the field is valid and matches; (2) else `spark.pod_identifier` (from OpenPipeline or parsed from Container Output / PGI display names such as `(Worker spark-worker-…)`) → pod CI by name → `svc_ci_assoc` SI; if Contains is missing, map `spark-master*` / `spark-worker*` / `spark-history*` pod names to service instances **Spark Master** / **Spark Worker** / **Spark History Server**; (3) else primary ImpactedEntity: `HOST` (CPU / `CPU_EVENT`), `CLOUD_APPLICATION_INSTANCE` → SI via pod `svc_ci_assoc`, `CUSTOM_DEVICE` only as **legacy fallback** if still present. **No match → leave `cmdb_ci` empty.** |
 | **Alert CI bind** | If the alert already has `cmdb_ci`, **keep it**; otherwise same generic bind. |
 | **Incident create** | If the alert has `cmdb_ci`, **use it**; otherwise same bind. Skip create when still empty. |
 | **Propagate** | **Disabled.** CI must be correct on first insert. |
@@ -56,7 +56,7 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 
 OpenPipeline **Processing cannot look up entities by name**. Lab **does not** bake pod→CAI `fieldsAdd` processors at apply time.
 
-**Current workaround:** stamp `spark.pod_identifier` (from `k8s.pod.name` on Container Output) into Davis description / properties; ServiceNow binds Application Service by pod CI name. Client bind uses `spark.as_identifier`, not a Dynatrace CUSTOM_DEVICE.
+**Current workaround:** stamp `spark.pod_identifier` (from `k8s.pod.name` on Container Output) into Davis description / properties; ServiceNow binds service instance by pod CI name. Client bind uses `spark.service_instance`, not a Dynatrace CUSTOM_DEVICE.
 
 **Still desirable from DT:** native OpenPipeline entity lookup. Cluster Mode **already** uses container-context log collection (stdout → Container Output) so OneAgent can attach CAI/PGI when the Log module associates the stream; SN still prefers the stamped pod identifier for durable CMDB Contains traversal.
 
@@ -66,7 +66,7 @@ OpenPipeline **Processing cannot look up entities by name**. Lab **does not** ba
 
 **Root cause:** `sn_dynatrace_integ.events_for_unmatched_ci.enabled=false` → syslog `SGO-Dynatrace: Skipping event creation on non matched CI`.
 
-**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `spark.as_identifier` / `spark.pod_identifier` (or HOST for CPU).
+**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `spark.service_instance` / `spark.pod_identifier` (or HOST for CPU).
 
 **Ask SN:** document this property for SGO customers whose Davis primary entity is not in an SGC topology feed (common for Client HOST file-tail and any residual HOST-primary Cluster problems).
 
@@ -77,7 +77,7 @@ OpenPipeline **Processing cannot look up entities by name**. Lab **does not** ba
 | Promote | `2026-08-03T14:31:46Z` |
 | Stress `run-parallel-all.sh` | exit 0 |
 | First audit (all SGO since promote) | 13 events, **0 null `cmdb_ci`**; 12 HOST (CPU / `CUSTOM_ALERT`, `spark.event_kind=CPU_EVENT`) + 1 Cluster log (`spark.pod_identifier` → Spark Master AS) |
-| Client path | bind via `spark.as_identifier:spark-client` → Application Service **Spark Client** (`resource` = `spark.as_identifier:spark-client`) |
+| Client path | bind via `spark.service_instance:Spark-Client` → service instance **Spark Client** (`resource` = `spark.service_instance:Spark-Client`) |
 
 Filter Spark log rows with problem title / description containing `Spark critical` (or OpenPipeline provider) — do not judge L2I entity quality from all `source=SGO-Dynatrace` rows (CPU HOST noise).
 
@@ -109,7 +109,7 @@ This is **not** a Business Rule (`sys_script`). It is an Event Management **Aler
 | Sys id               | `7f5e284e07032010b1306a77c4a93523`                                                                                                                                                                                                                     |                                                      |
 | Deep link            | [https://optimizincdemo1.service-now.com/nav_to.do?uri=em_alert_management_rule.do?sys_id=7f5e284e07032010b1306a77c4a93523](https://optimizincdemo1.service-now.com/nav_to.do?uri=em_alert_management_rule.do?sys_id=7f5e284e07032010b1306a77c4a93523) |                                                      |
 
-AMRs typically evaluate on a short delay after alert update (product default ~5s via `evt_mgmt.alert_rule_delay`). That delay is **not** a guaranteed “wait until Application Service bind finishes.”
+AMRs typically evaluate on a short delay after alert update (product default ~5s via `evt_mgmt.alert_rule_delay`). That delay is **not** a guaranteed “wait until service instance bind finishes.”
 
 Lab custom creator for comparison:
 
@@ -135,17 +135,17 @@ Lab custom creator for comparison:
 You do **not** register a BR inside an AMR. Options that *are* supported:
 
 1. **Keep OOTB AMR off** for lab; use bind BRs + `em-alert-create-log-incident` for log-to-incident (current).
-2. **Narrow OOTB AMR filter** so it only covers standard SGO classes you want OOTB to handle (e.g. host CPU), and **exclude** Spark log / `ERROR_EVENT` (or require `cmdb_ci` class Application Service).
-3. **Replace** OOTB create with a **custom AMR** whose filter requires `cmdb_ciISNOTEMPTY` (and ideally Application Service class) — optionally use `EvtMgmtCustomIncidentPopulator` for field mapping.
+2. **Narrow OOTB AMR filter** so it only covers standard SGO classes you want OOTB to handle (e.g. host CPU), and **exclude** Spark log / `ERROR_EVENT` (or require `cmdb_ci` class service instance).
+3. **Replace** OOTB create with a **custom AMR** whose filter requires `cmdb_ciISNOTEMPTY` (and ideally service instance class) — optionally use `EvtMgmtCustomIncidentPopulator` for field mapping.
 4. Do **not** run OOTB AMR **and** `em-alert-create-log-incident` together for the same alerts (dual creators).
 
 ### Does moving create into the AMR eliminate the CI race?
 
-**Partially, only if the AMR filter requires a bound Application Service CI** (and bind BRs run before the AMR evaluates). Simply “using the AMR instead of the BR” with today’s filter (`source=SGO-Dynatrace` only) does **not** fix the race — that is what created empty-CI incidents.
+**Partially, only if the AMR filter requires a bound service instance CI** (and bind BRs run before the AMR evaluates). Simply “using the AMR instead of the BR” with today’s filter (`source=SGO-Dynatrace` only) does **not** fix the race — that is what created empty-CI incidents.
 
 ### Issue
 
-OOTB rule creates an incident as soon as an SGO alert matches. It does **not** require Application Service `cmdb_ci`. Lab observed empty-CI incidents while the alert later received Spark Master / Spark Client.
+OOTB rule creates an incident as soon as an SGO alert matches. It does **not** require service instance `cmdb_ci`. Lab observed empty-CI incidents while the alert later received Spark Master / Spark Client.
 
 ### Lab creator behavior (desired)
 
@@ -170,12 +170,12 @@ inc.short_description = 'Critical log event';
 
 ### Impact
 
-Dual incident creators when OOTB is active. OOTB often wins with an empty CI. Operators see ITSM incidents that cannot be routed by Application Service. Manual Table API fixes to `incident.cmdb_ci` often do not stick (see §5).
+Dual incident creators when OOTB is active. OOTB often wins with an empty CI. Operators see ITSM incidents that cannot be routed by service instance. Manual Table API fixes to `incident.cmdb_ci` often do not stick (see §5).
 
 ### Recommendation
 
 1. Keep OOTB inactive **or** narrow it to non–log-to-incident SGO alerts (CPU / infra) with standard SGO processing.
-2. Log-to-incident stays on bind BRs + `em-alert-create-log-incident` (or a dedicated AMR that requires Application Service CI).
+2. Log-to-incident stays on bind BRs + `em-alert-create-log-incident` (or a dedicated AMR that requires service instance CI).
 3. Ask SN for a product pattern: “SGO incident AMR must not fire until CI bind complete.”
 
 ### Best practice: growing technology-dependent CI patterns (AMR vs BR)
@@ -298,7 +298,7 @@ While both were enabled with overlapping profiles, Spark log incidents were crea
 
 ## 3. Historical — CUSTOM_DEVICE / SOS / name-parity client bind
 
-> **Historical.** Current design does **not** use a Dynatrace CUSTOM_DEVICE for Client Mode. Client bind is `spark.as_identifier` → Application Service **name-first** (see §0). Kept because SOS / name-parity lessons still apply to other SGO entity classes, and CUSTOM_DEVICE remains a **legacy fallback** in `ResolveApplicationService` if an old problem still carries that entity.
+> **Historical.** Current design does **not** use a Dynatrace CUSTOM_DEVICE for Client Mode. Client bind is `spark.service_instance` → service instance **name-first** (see §0). Kept because SOS / name-parity lessons still apply to other SGO entity classes, and CUSTOM_DEVICE remains a **legacy fallback** in `ResolveApplicationService` if an old problem still carries that entity.
 
 ### What “SOS” means
 
@@ -312,15 +312,15 @@ For SGC / SGO-Dynatrace imports, rows typically look like:
 
 ### Historical lab issue (CUSTOM_DEVICE → Spark Client AS)
 
-Automation could not reliably **insert** a bare-id SOS row for a Spark Client `CUSTOM_DEVICE` pointing at Application Service **Spark Client** (ACL / SGC ownership). Lab fell back to name match and/or `cmdb_key_value`.
+Automation could not reliably **insert** a bare-id SOS row for a Spark Client `CUSTOM_DEVICE` pointing at service instance **Spark Client** (ACL / SGC ownership). Lab fell back to name match and/or `cmdb_key_value`.
 
-**Current Client contract:** OpenPipeline stamps `spark.as_identifier=spark-client`; SN resolves Application Service **Spark Client** by name (then optional `identifier` column). No CUSTOM_DEVICE, no `spark.device`, no `sn_ci_lookup`.
+**Current Client contract:** OpenPipeline stamps `spark.service_instance=Spark-Client`; SN resolves service instance **Spark Client** by name (then optional `identifier` column). No CUSTOM_DEVICE, no `spark.device`, no `sn_ci_lookup`.
 
 ### Recommendation (still valid for other entity types)
 
-- Product: allow SGC / automation to upsert entity → Application Service SOS when product ACLs allow it.
+- Product: allow SGC / automation to upsert entity → service instance SOS when product ACLs allow it.
 - Process: document name-parity conventions where display name is the durable key.
-- Lab Client path: prefer stamped `spark.as_identifier` over ImpactedEntity HOST / legacy CUSTOM_DEVICE.
+- Lab Client path: prefer stamped `spark.service_instance` over ImpactedEntity HOST / legacy CUSTOM_DEVICE.
 
 ---
 
@@ -389,7 +389,7 @@ Business Rule **`em-alert-create-log-incident`** sets `cmdb_ci` on insert throug
 
 ## 7. Historical — SGO `ERROR_EVENT` with `resource` = log file path
 
-> **Historical / pre–generic-bind.** Current bind overwrites `resource` with `spark.as_identifier:…` or `spark.pod_identifier:…` (or entity id on ImpactedEntity fallbacks). Path-valued `resource` indicates a pre-cutover or unbound row.
+> **Historical / pre–generic-bind.** Current bind overwrites `resource` with `spark.service_instance:…` or `spark.pod_identifier:…` (or entity id on ImpactedEntity fallbacks). Path-valued `resource` indicates a pre-cutover or unbound row.
 
 ### Symptom (historical)
 
@@ -401,7 +401,7 @@ i.e. **`em_alert.resource` = log path**, while `ImpactedEntities` was still **HO
 
 ### Recommendation
 
-Treat path-valued `resource` as a **legacy** signal. New Spark log problems should show bind keys in `resource` after `applyEntityBinding`. If new SGO alerts still get path `resource` with HOST-only ImpactedEntities and no `spark.as_identifier` / `spark.pod_identifier`, fix OpenPipeline stamps — not SN path matching.
+Treat path-valued `resource` as a **legacy** signal. New Spark log problems should show bind keys in `resource` after `applyEntityBinding`. If new SGO alerts still get path `resource` with HOST-only ImpactedEntities and no `spark.service_instance` / `spark.pod_identifier`, fix OpenPipeline stamps — not SN path matching.
 
 ---
 
@@ -414,7 +414,7 @@ Log-to-Incident BRs should **not** own host CPU. Standard SGO should.
 | Alert class         | Example signal                                      | CI bind                            | Incident create                                              |
 | ------------------- | --------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------ |
 | Infra / host        | `CPU_SATURATED`, host `CUSTOM_ALERT` / `CPU_EVENT`  | Generic bind → HOST CI             | Narrowed **infra AMR** (re-enable OOTB or clone) when ready  |
-| Spark / K8s app log | `ERROR_EVENT` + `spark.event_kind=CRITICAL_LOG_EVENT` | Generic bind → Application Service | `em-alert-create-log-incident` (or log AMR with CI required) |
+| Spark / K8s app log | `ERROR_EVENT` + `spark.event_kind=CRITICAL_LOG_EVENT` | Generic bind → service instance | `em-alert-create-log-incident` (or log AMR with CI required) |
 
 **Minimal way to narrow (lab):**
 

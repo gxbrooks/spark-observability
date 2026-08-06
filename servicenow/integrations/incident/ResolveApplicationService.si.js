@@ -387,12 +387,25 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse spark.as_identifier from description / additional_info JSON.
-   * Returns the identifier string or null.
+   * Parse spark.service_instance from description / additional_info JSON.
+   * Value is a K8s-sanitized service instance display name (e.g. Spark-Client).
+   * Also accepts legacy spark.as_identifier for in-flight problems.
+   * Returns the stamp string or null.
    */
-  extractSparkAsIdentifier: function (gr) {
+  extractSparkServiceInstance: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(/spark\.as_identifier\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
+    var m = blob.match(
+      /spark\.service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+    );
+    if (!m) {
+      m = blob.match(
+        /["']spark\.service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
+    }
+    // Legacy field name from pre-rename OpenPipeline stamps.
+    if (!m) {
+      m = blob.match(/spark\.as_identifier\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
+    }
     if (!m) {
       m = blob.match(
         /["']spark\.as_identifier["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
@@ -400,6 +413,12 @@ ResolveApplicationService.prototype = {
     }
     return m ? m[1] : null;
   },
+
+  /** @deprecated Use extractSparkServiceInstance */
+  extractSparkAsIdentifier: function (gr) {
+    return this.extractSparkServiceInstance(gr);
+  },
+
 
   /**
    * Parse spark.pod_identifier from description / additional_info JSON.
@@ -429,55 +448,110 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Application Service from spark.as_identifier.
-   * Prefer name match (lab CSDM AS rows have no reliable identifier column);
-   * only use Glide field identifier when isValidField and value equals.
+   * Sanitize a service instance display name the same way CSDM / K8s labels do:
+   * illegal chars → '-', strip leading/trailing -._
+   */
+  sanitizeServiceInstanceLabel: function (name) {
+    if (!name) {
+      return '';
+    }
+    var s = String(name).replace(/[^A-Za-z0-9._-]+/g, '-');
+    s = s.replace(/^[-._]+|[-._]+$/g, '');
+    return s;
+  },
+
+  /**
+   * Service instance from spark.service_instance (K8s-sanitized display name).
+   * Prefer name match; also match when CMDB name sanitizes to the stamp
+   * (Spark-Client ↔ Spark Client). Legacy stamp spark-client still maps to
+   * Spark Client. Optional identifier column only when isValidField.
    * Returns { sysId, how } or null.
    */
-  resolveFromAsIdentifier: function (asIdentifier) {
-    if (!asIdentifier) {
+  resolveFromServiceInstance: function (stamp) {
+    if (!stamp) {
       return null;
     }
 
-    var preferredName =
-      asIdentifier === 'spark-client' ? 'Spark Client' : asIdentifier;
+    var candidates = [stamp];
+    // Legacy OpenPipeline value before display-name alignment.
+    if (stamp === 'spark-client' || stamp === 'Spark-Client') {
+      candidates.push('Spark Client');
+    }
+    var spaced = String(stamp).replace(/-/g, ' ');
+    if (spaced !== stamp) {
+      candidates.push(spaced);
+    }
 
-    var asByName = new GlideRecord('cmdb_ci_service_discovered');
-    asByName.addQuery('name', preferredName);
-    asByName.setLimit(1);
-    asByName.query();
-    if (asByName.next()) {
-      return {
-        sysId: asByName.sys_id.toString(),
-        how:
-          preferredName === asIdentifier
-            ? 'Application Service name=' + preferredName
-            : 'Application Service name "' +
-              preferredName +
-              '" (spark.as_identifier=' +
-              asIdentifier +
-              ')',
-      };
+    var seen = {};
+    for (var i = 0; i < candidates.length; i++) {
+      var preferredName = candidates[i];
+      if (seen[preferredName]) {
+        continue;
+      }
+      seen[preferredName] = true;
+
+      var asByName = new GlideRecord('cmdb_ci_service_discovered');
+      asByName.addQuery('name', preferredName);
+      asByName.setLimit(1);
+      asByName.query();
+      if (asByName.next()) {
+        return {
+          sysId: asByName.sys_id.toString(),
+          how:
+            preferredName === stamp
+              ? 'service instance name=' + preferredName
+              : 'service instance name "' +
+                preferredName +
+                '" (spark.service_instance=' +
+                stamp +
+                ')',
+        };
+      }
+    }
+
+    // Fallback: scan recent service instances for sanitized-name match.
+    var scan = new GlideRecord('cmdb_ci_service_discovered');
+    scan.addQuery('name', 'STARTSWITH', 'Spark');
+    scan.setLimit(50);
+    scan.query();
+    while (scan.next()) {
+      var nm = scan.name.toString();
+      if (this.sanitizeServiceInstanceLabel(nm) === stamp) {
+        return {
+          sysId: scan.sys_id.toString(),
+          how:
+            'service instance name "' +
+            nm +
+            '" (sanitized match for spark.service_instance=' +
+            stamp +
+            ')',
+        };
+      }
     }
 
     var probe = new GlideRecord('cmdb_ci_service_discovered');
     if (probe.isValidField('identifier')) {
       var asById = new GlideRecord('cmdb_ci_service_discovered');
-      asById.addQuery('identifier', asIdentifier);
+      asById.addQuery('identifier', stamp);
       asById.setLimit(1);
       asById.query();
       if (
         asById.next() &&
-        String(asById.getValue('identifier') || '') === String(asIdentifier)
+        String(asById.getValue('identifier') || '') === String(stamp)
       ) {
         return {
           sysId: asById.sys_id.toString(),
-          how: 'Application Service identifier=' + asIdentifier,
+          how: 'service instance identifier=' + stamp,
         };
       }
     }
 
     return null;
+  },
+
+  /** @deprecated Use resolveFromServiceInstance */
+  resolveFromAsIdentifier: function (asIdentifier) {
+    return this.resolveFromServiceInstance(asIdentifier);
   },
 
   /**
@@ -518,7 +592,8 @@ ResolveApplicationService.prototype = {
       next = 'CPU_EVENT';
     } else if (
       current === 'ERROR_EVENT' &&
-      (this.extractSparkAsIdentifier(gr) || this.extractSparkPodIdentifier(gr))
+      (this.extractSparkServiceInstance(gr) ||
+        this.extractSparkPodIdentifier(gr))
     ) {
       next = 'CRITICAL_LOG_EVENT';
     } else if (
@@ -539,8 +614,8 @@ ResolveApplicationService.prototype = {
 
   /**
    * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
-   *   1. spark.as_identifier → Application Service by identifier (ignore HOST)
-   *   2. spark.pod_identifier → pod name → svc_ci_assoc AS (ignore HOST)
+   *   1. spark.service_instance → service instance by display name (ignore HOST)
+   *   2. spark.pod_identifier → pod name → svc_ci_assoc SI (ignore HOST)
    *   3. primary ImpactedEntity: HOST / CUSTOM_DEVICE / CAI
    *   else leave cmdb_ci empty and note failure
    *
@@ -558,31 +633,31 @@ ResolveApplicationService.prototype = {
 
     this.applySparkEventTypeRename(gr);
 
-    // 1) Client log path: OpenPipeline stamps spark.as_identifier (ignore HOST).
-    var asIdentifier = this.extractSparkAsIdentifier(gr);
-    if (asIdentifier) {
-      var asBind = this.resolveFromAsIdentifier(asIdentifier);
+    // 1) Client log path: OpenPipeline stamps spark.service_instance (ignore HOST).
+    var serviceInstance = this.extractSparkServiceInstance(gr);
+    if (serviceInstance) {
+      var asBind = this.resolveFromServiceInstance(serviceInstance);
       if (asBind && asBind.sysId) {
-        gr.node = asIdentifier;
-        gr.resource = 'spark.as_identifier:' + asIdentifier;
+        gr.node = serviceInstance;
+        gr.resource = 'spark.service_instance:' + serviceInstance;
         gr.cmdb_ci = asBind.sysId;
         result.bound = true;
-        result.kind = 'as_identifier';
+        result.kind = 'service_instance';
         result.note =
-          'em-entity-bind: spark.as_identifier=' +
-          asIdentifier +
-          ' → Application Service via ' +
+          'em-entity-bind: spark.service_instance=' +
+          serviceInstance +
+          ' → service instance via ' +
           asBind.how;
         this.appendProcessingNote(gr, result.note);
-        this.appendClassLineToMessageKey(gr, 'AsId-');
+        this.appendClassLineToMessageKey(gr, 'SvcInst-');
         this.enrichSparkLogDescription(gr, 'Client');
         return result;
       }
-      result.kind = 'as_identifier';
+      result.kind = 'service_instance';
       result.note =
-        'em-entity-bind: spark.as_identifier=' +
-        asIdentifier +
-        ' — no Application Service by identifier/name; cmdb_ci left empty (HOST ImpactedEntity ignored)';
+        'em-entity-bind: spark.service_instance=' +
+        serviceInstance +
+        ' — no service instance by name/identifier; cmdb_ci left empty (HOST ImpactedEntity ignored)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
@@ -624,7 +699,7 @@ ResolveApplicationService.prototype = {
     var entity = this.parsePrimaryImpactedEntity(gr);
     if (!entity) {
       result.note =
-        'em-entity-bind: no spark.as_identifier / spark.pod_identifier and no primary impacted entity (HOST / CUSTOM_DEVICE / CLOUD_APPLICATION_INSTANCE)';
+        'em-entity-bind: no spark.service_instance / spark.pod_identifier and no primary impacted entity (HOST / CUSTOM_DEVICE / CLOUD_APPLICATION_INSTANCE)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }

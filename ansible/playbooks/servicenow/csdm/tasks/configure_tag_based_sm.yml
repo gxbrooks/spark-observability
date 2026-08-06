@@ -16,6 +16,14 @@
          if sn_csdm_app_svc_item.spec.platform == 'kubernetes'
          else sn_csdm_app_svc_name }}
 
+- name: Validate kubernetes tag population value (CSDM injector)
+  ansible.builtin.include_tasks: ../../common/tasks/validate_k8s_label_value.yml
+  vars:
+    sn_k8s_label_value: "{{ sn_csdm_tag_value }}"
+    sn_k8s_label_context: >-
+      tag population for service instance '{{ sn_csdm_app_svc_name }}'
+  when: sn_csdm_app_svc_item.spec.platform == 'kubernetes'
+
 - name: Build tag_list population tags from CSDM spec
   ansible.builtin.set_fact:
     sn_csdm_tag_population_tags: >-

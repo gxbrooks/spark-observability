@@ -1,6 +1,6 @@
-# Docker Application Service — CMDB model (Grafana)
+# Docker service instance — CMDB model (Grafana)
 
-CMDB / CSDM service membership (**`svc_ci_assoc`**) and **`cmdb_rel_ci`** relationships from the **Application Service** downward for a tag-based Docker workload on Lab3. Example: **Grafana** (service instance display name `Grafana`; internal `identifier: grafana`).
+CMDB / CSDM service membership (**`svc_ci_assoc`**) and **`cmdb_rel_ci`** relationships from the **service instance** downward for a tag-based Docker workload on Lab3. Example: **Grafana** (service instance display name `Grafana`; internal `identifier: grafana`).
 
 ## Service map
 
@@ -47,9 +47,9 @@ Service → CI membership maintained by tag-based Service Mapping (no `cmdb_rel_
 
 ## Correlation attributes by CI class
 
-What each CMDB object exposes for joining to other CIs or to Dynatrace **`entityId`** values. Application Services are **not** Dynatrace entities; join is always indirect.
+What each CMDB object exposes for joining to other CIs or to Dynatrace **`entityId`** values. service instances are **not** Dynatrace entities; join is always indirect.
 
-### `cmdb_ci_service_by_tags` (Application Service — Grafana)
+### `cmdb_ci_service_by_tags` (service instance — Grafana)
 
 Service instances with `service_mapping: tags` are reclassed to `cmdb_ci_service_by_tags` (child class of `cmdb_ci_service_discovered`).
 
@@ -119,13 +119,13 @@ Service instances with `service_mapping: tags` are reclassed to `cmdb_ci_service
 
 ## Dynatrace: which entity types appear on a problem?
 
-Davis picks **impacted entities** for the problem and webhook **`ImpactedEntities`**. ServiceNow binds **`em_event.cmdb_ci`** via **`sys_object_source`** for that **`entityId`**. This is **not** the CSDM Application Service.
+Davis picks **impacted entities** for the problem and webhook **`ImpactedEntities`**. ServiceNow binds **`em_event.cmdb_ci`** via **`sys_object_source`** for that **`entityId`**. This is **not** the CSDM service instance.
 
 | Signal type | Typical Dynatrace entity | Brooks-lab / Docker notes |
 | ----------- | ------------------------ | ------------------------- |
 | **Log lines** (log events, DQL) | **HOST**, **PROCESS_GROUP**, or log-source process; K8s: **K8s pod/container** entities | Spark ERROR matcher often surfaces **host** or **process** tied to `log.source.path`. Containerized app logs may attach to **PROCESS_GROUP** for the process writing the log. |
 | **Application exceptions** (APM, coded errors) | **PROCESS_GROUP**, often **SERVICE** (server-side call) | PurePath / service flow ties to PG and Smartscape **SERVICE**. |
-| **HTTP / web requests** (server-side APM) | **SERVICE** (Smartscape), underlying **PROCESS_GROUP** | User-facing “service” in DT is **SERVICE**, not CSDM Application Service. |
+| **HTTP / web requests** (server-side APM) | **SERVICE** (Smartscape), underlying **PROCESS_GROUP** | User-facing “service” in DT is **SERVICE**, not CSDM service instance. |
 | **HTTP synthetic monitors** | **SYNTHETIC_TEST** / **HTTP_CHECK**; may relate to **SERVICE** | Synthetic problems may not map to brooks-lab CMDB unless SGC imports those entity types. |
 | **Infrastructure metrics** (host CPU, memory) | **HOST** | Chapter CPU path: **`HOST-…`** only in impacted list. |
 | **Process / JVM metrics** | **PROCESS_GROUP**, **PROCESS_GROUP_INSTANCE** | Common for process-scoped thresholds. |
@@ -135,7 +135,7 @@ Davis picks **impacted entities** for the problem and webhook **`ImpactedEntitie
 
 ---
 
-## Paths to Application Service
+## Paths to service instance
 
 Summary table — **when** each row applies (alert already has infrastructure **`cmdb_ci`** from Dynatrace or another source):
 
@@ -164,7 +164,7 @@ Summary table — **when** each row applies (alert already has infrastructure **
 | Step | Object | Result |
 | ---- | ------ | ------ |
 | 1 | `discovery/docker/discover.yml` | Container CI + **`cmdb_key_value`** tags |
-| 2 | `csdm/deploy.yml` | Application Service (reclassed **`cmdb_ci_service_by_tags`**) + tag population rule via **`/populate_tags`** |
+| 2 | `csdm/deploy.yml` | service instance (reclassed **`cmdb_ci_service_by_tags`**) + tag population rule via **`/populate_tags`** |
 | 3 | Tag-based SM (`SNC.ServicePopulatorRunner`) | **`svc_ci_assoc`** row (service → container) |
 | 4 | SGC import | **`sys_object_source`** for container **`entityId`** (if DT sends it) |
 
@@ -190,7 +190,7 @@ Summary table — **when** each row applies (alert already has infrastructure **
 1. Start: **`em_alert.cmdb_ci`** = container sys_id.
 2. Query **`cmdb_key_value`**: `configuration_item` = container, `key` = **`servicenow.com/service-instance`** → `value` = **`Grafana`**.
 3. Query **`cmdb_ci_service_discovered`** (hierarchy includes **`cmdb_ci_service_by_tags`**): **`name`** = **`Grafana`**.
-4. Set **`incident.cmdb_ci`** = Application Service sys_id.
+4. Set **`incident.cmdb_ci`** = service instance sys_id.
 
 **CIs / tags:** `cmdb_key_value` on container (from **`docker/discover.yml`**), AS **`name`** field. No **`svc_ci_assoc`** row required.
 
@@ -217,13 +217,13 @@ Summary table — **when** each row applies (alert already has infrastructure **
 1. Start: **`em_alert.cmdb_ci`** = process group sys_id.
 2. Query **`cmdb_key_value`** on **that CI**: `key` = **`servicenow.com/service-instance`** → **`Grafana`**.
 3. Query **`cmdb_ci_service_discovered`** (hierarchy includes **`cmdb_ci_service_by_tags`**): **`name`** = **`Grafana`**.
-4. Set **`incident.cmdb_ci`** = Application Service sys_id.
+4. Set **`incident.cmdb_ci`** = service instance sys_id.
 
 **Without DT_TAGS:** step 2 returns **no row** on the process group — use **Bridge** below.
 
 ---
 
-### Bridge — process group alert → container → Application Service
+### Bridge — process group alert → container → service instance
 
 **Context:** Alert on **process group**, PG has **no** servicenow.com tags, container **does** (current brooks-lab default).
 
@@ -232,7 +232,7 @@ Summary table — **when** each row applies (alert already has infrastructure **
 1. **`em_alert.cmdb_ci`** = process group sys_id.
 2. **`cmdb_rel_ci`**: PG **Runs on::Runs** → **`cmdb_ci_linux_server`** (lab3).
 3. Find **`cmdb_ci_docker_container`** where **`host`** = lab3 and **`cmdb_key_value`** has `servicenow.com/service-instance=Grafana` (or `com.docker.compose.service=grafana`).
-4. **Pattern A** or **Pattern B** from that container → Application Service.
+4. **Pattern A** or **Pattern B** from that container → service instance.
 
 **CIs / tags / relationships:** PG → **Runs on** → host; container **`cmdb_key_value`**; AS **`svc_ci_assoc`** membership or **`name`**.
 
@@ -249,6 +249,6 @@ Summary table — **when** each row applies (alert already has infrastructure **
 
 ## Excluded
 
-- Business Application / Business Service above the Application Service
-- Depends on edges to other application services
+- Business Application / Business Service above the service instance
+- Depends on edges to other service instances
 - Dynatrace problem objects (not CMDB CIs)

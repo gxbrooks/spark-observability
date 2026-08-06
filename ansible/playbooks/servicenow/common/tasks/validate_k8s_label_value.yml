@@ -1,0 +1,23 @@
+---
+# Assert a string is a valid Kubernetes label *value* (charset + length).
+# Kubernetes docs: Labels and Selectors → Syntax and character set.
+#   - max 63 characters
+#   - empty OR begin/end alphanumeric; middle may be [A-Za-z0-9._-]
+# Input: sn_k8s_label_value, sn_k8s_label_context (human-readable context for errors)
+
+- name: Validate Kubernetes label value charset and length
+  ansible.builtin.assert:
+    that:
+      - sn_k8s_label_value is defined
+      - sn_k8s_label_value | length > 0
+      - sn_k8s_label_value | length <= 63
+      - sn_k8s_label_value is match('^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$')
+    fail_msg: >-
+      Invalid Kubernetes label value for {{ sn_k8s_label_context | default('label') }}:
+      '{{ sn_k8s_label_value | default('') }}'
+      (length {{ sn_k8s_label_value | default('') | length }}; max 63;
+      must begin and end with [A-Za-z0-9] and contain only [A-Za-z0-9._-] in between).
+      Shorten or rename the service instance display name in the *.csdm.yaml spec.
+    success_msg: >-
+      Kubernetes label value OK for {{ sn_k8s_label_context | default('label') }}:
+      '{{ sn_k8s_label_value }}'

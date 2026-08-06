@@ -1,6 +1,6 @@
 # Davis problem bundling — worked example (Alert0014495)
 
-This document records a **real lab incident** from 2026-07-09 where Dynatrace Davis bundled client-side and service-side Spark log events into one problem, and ServiceNow alert CI assignment followed the **service-side pod path** instead of the host or Spark Client Application Service.
+This document records a **real lab incident** from 2026-07-09 where Dynatrace Davis bundled client-side and service-side Spark log events into one problem, and ServiceNow alert CI assignment followed the **service-side pod path** instead of the host or Spark Client service instance.
 
 Related normative discussion: [Log_to_Incident.adoc — Known limitation — Davis problem bundling](Log_to_Incident.adoc#known-limitation-davis-bundling).
 
@@ -61,7 +61,7 @@ event.type: ERROR_EVENT
 
 Dynatrace and the initial SGO webhook bound the problem to the **Lab3 host** via `HOST-D8207A117616460E` → `sys_object_source` → `cmdb_ci_linux_server` (lab3).
 
-ServiceNow then ran **`K8sLogPodCiBind.applyPodBinding()`**, which skipped `spark-client` and rebound to **`spark-master-0`**.
+ServiceNow then ran **`K8sLogPodCiBind.applyPodBinding()`**, which skipped `Spark-Client` and rebound to **`spark-master-0`**.
 
 ## Remediation (implemented 2026-07-20)
 
@@ -69,7 +69,7 @@ ServiceNow then ran **`K8sLogPodCiBind.applyPodBinding()`**, which skipped `spar
 
 | Change | Location |
 |--------|----------|
-| CUSTOM_DEVICE **Spark Client** (`customDeviceId=spark-client`, `uiBased=true`) | `apply_spark_client_custom_device.yml` |
+| CUSTOM_DEVICE **Spark Client** (`customDeviceId=Spark-Client`, `uiBased=true`) | `apply_spark_client_custom_device.yml` |
 | MZ rule: `CUSTOM_DEVICE` ENTITY_NAME = Spark Client | `management-zones/spark-observability/management-zone.json` |
 | OpenPipeline `resolve-spark-client-entity`: `lookupEntity(CUSTOM_DEVICE, "Spark Client")` | `spark-openpipeline-log-alerts-pipeline.json.j2` |
 
@@ -81,7 +81,7 @@ Deploy: `ansible/playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml` (
 
 | Change | Behavior |
 |--------|----------|
-| `ResolveApplicationService.applySparkClientAlertBinding()` | Sets `em_event` / `em_alert.cmdb_ci` to Application Service **Spark Client** when `/logs/spark-client/` is present; `message_key` prefix `SparkClient-` |
+| `ResolveApplicationService.applySparkClientAlertBinding()` | Sets `em_event` / `em_alert.cmdb_ci` to service instance **Spark Client** when `/logs/spark-client/` is present; `message_key` prefix `SparkClient-` |
 | Bind BRs (`em-event-bind-…`, `em-alert-bind-…`) | Call client bind **first**; only then `K8sLogPodCiBind` |
 | `K8sLogPodCiBind` | **No-op** when text contains `/logs/spark-client/` |
 | `em-alert-create-k8s-log-incident` | Aligns `em_alert.cmdb_ci` with resolved AS (Spark Client or Contains parent) |

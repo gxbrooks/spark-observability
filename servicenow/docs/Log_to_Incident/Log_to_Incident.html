@@ -781,7 +781,7 @@ code {
 <li><a href="#_description_and_alert_text">8.4. Description and alert text</a></li>
 <li><a href="#_sgc_and_event_management_configuration">8.5. SGC and Event Management configuration</a></li>
 <li><a href="#step-4-sn-dynatrace">8.6. Application and Dynatrace (???? 5)</a></li>
-<li><a href="#_create_incident_bound_to_application_service">8.7. Create incident bound to Application Service</a></li>
+<li><a href="#_create_incident_bound_to_service_instance">8.7. Create incident bound to service instance</a></li>
 <li><a href="#_severity_policy">8.8. Severity policy</a></li>
 <li><a href="#_layer_model">8.9. Layer model</a></li>
 <li><a href="#step-5-incident-correlation">8.10. Incident correlation</a></li>
@@ -913,10 +913,10 @@ code {
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Service-side</strong>: map from the running workload&#8217;s identity to the application service that operations supports.</p>
+<p><strong>Service-side</strong>: map from the running workload&#8217;s identity to the service instance that operations supports.</p>
 </li>
 <li>
-<p><strong>Client-side</strong>: map from a durable log-path or naming contract to a logical application service that represents the client population.</p>
+<p><strong>Client-side</strong>: map from a durable log-path or naming contract to a logical service instance that represents the client population.</p>
 </li>
 </ul>
 </div>
@@ -1016,7 +1016,7 @@ The <a href="#fig-log-to-incident-dataflow">Figure 4</a>, below, illustrates the
 <div class="title">Figure 4. Log to Incident data flow</div>
 </div>
 <div class="paragraph">
-<p>In ServiceNow, operational issues are managed at the incident level The support group of the CI assigned to an alert or incident is the group that will be notified when an issues arises. If the wrong CI (with an inappropriate support group) is assigned to the incident it will take a longer time to notify the right support team.  This makes assigning a CI to an incident critical to the process. For application log messages, the assigned CI should be the application service of the application instance emitting the log message. Finding the right CI at runtime to assign to a log message does not happen automatically. It needs to be designed into the CMdb model of the application.</p>
+<p>In ServiceNow, operational issues are managed at the incident level The support group of the CI assigned to an alert or incident is the group that will be notified when an issues arises. If the wrong CI (with an inappropriate support group) is assigned to the incident it will take a longer time to notify the right support team.  This makes assigning a CI to an incident critical to the process. For application log messages, the assigned CI should be the service instance of the application instance emitting the log message. Finding the right CI at runtime to assign to a log message does not happen automatically. It needs to be designed into the CMdb model of the application.</p>
 </div>
 <div class="paragraph">
 <p>Designing the CMdb model for the application is another phase in the process. It needs to be done before the application ever runs. The table below enumerates all the major steps required to configure the Log to Incident flow and the touches on some of the key design issues for the step.</p>
@@ -1130,7 +1130,7 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="sect3">
 <h4 id="_common_csdm_model">5.1. Common CSDM Model</h4>
 <div class="paragraph">
-<p>The CSDM is part of the overall ServiceNow model for an application. It models how an application fits within the enterprise. It is a hierarchy of CIs that starts with the application service, which models the application instance. Associated with the application service at a lower  (conceptual) level are the CIs that represent the application&#8217;s Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application.</p>
+<p>The CSDM is part of the overall ServiceNow model for an application. It models how an application fits within the enterprise. It is a hierarchy of CIs that starts with the service instance, which models the application instance. Associated with the service instance at a lower  (conceptual) level are the CIs that represent the application&#8217;s Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application.</p>
 </div>
 <div class="paragraph">
 <p><a href="#fig-spark-csdm-model">Figure 5</a> illustrates the common CSDM model for the Spark application.</p>
@@ -1142,7 +1142,7 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="title">Figure 5. Spark CSDM Model</div>
 </div>
 <div class="paragraph">
-<p>There is an application service each of the materialized Spark services: the Spark Master, the Spark Workers, and the Spark History Server. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. The Spark History Server is a built-in observability component that provides debugging and monitoring capabilities for Spark. The forth application service is a synthetic application service that represents all Spark clients that talk directly to a the Spark Workers without a using a Spark Master. We will discuss this further in the <a href="#fig-spark-servicenow-model-client-side">Figure 7</a> section.</p>
+<p>There is a service instance each of the materialized Spark services: the Spark Master, the Spark Workers, and the Spark History Server. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. The Spark History Server is a built-in observability component that provides debugging and monitoring capabilities for Spark. The forth service instance is a synthetic service instance that represents all Spark clients that talk directly to a the Spark Workers without a using a Spark Master. We will discuss this further in the <a href="#fig-spark-servicenow-model-client-side">Figure 7</a> section.</p>
 </div>
 <div class="paragraph">
 <p>You must manually create each one of the CSDM CIs in ServiceNow. To simplify the tedium of creating the CSDM CIs, we have used a tool to create the CIs based on a YAML specification. While the tool is beyond the scope of this document we share the YAML specification in <a href="#list-spark-csdm-model">Listing 1</a>, below. It illustrates most of the key CI attributes needed for the Spark application.</p>
@@ -1193,7 +1193,7 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="sect3">
 <h4 id="_service_side_model">5.2. Service-Side Model</h4>
 <div class="paragraph">
-<p>The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM Application Services, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped (server side)logs. One of the main outcomes of this model is to be able to map service-side alerts to a reasonable CI and incidents to an application service CI for more timely communication to the appropriate support team.</p>
+<p>The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM service instances, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped (server side)logs. One of the main outcomes of this model is to be able to map service-side alerts to a reasonable CI and incidents to a service instance CI for more timely communication to the appropriate support team.</p>
 </div>
 <div class="paragraph">
 <p><a href="#fig-spark-servicenow-model-service-side">Figure 6</a> illustrates the Service-side model of the Spark Master. The other Spark services, e.g. Spark Workers and the Spark History Server, would have avery similar CMdb models.</p>
@@ -1263,7 +1263,7 @@ In the client-side scenario we have both a client and service-side application. 
 </tbody>
 </table>
 <div class="paragraph">
-<p>To be able to correlate a critical log message to the appropriate application service, we need to use tag-based service mapping to correlate the Kubernetes pod to the application service. This correlation is accomplished by setting the <code>servicenow.com/service-instance</code> label in the template for the Kubernetes pod. The label value is the <strong>display name</strong> of the service instance. Because Kubernetes label values cannot contain spaces or parentheses, the display name is written in the Kubernetes label character set — spaces become hyphens (<code>Spark Master</code> → <code>Spark-Master</code>). Docker labels have no such restriction and carry the display name verbatim.</p>
+<p>To be able to correlate a critical log message to the appropriate service instance, we need to use tag-based service mapping to correlate the Kubernetes pod to the service instance. This correlation is accomplished by setting the <code>servicenow.com/service-instance</code> label in the template for the Kubernetes pod. The label value is the <strong>display name</strong> of the service instance. Because Kubernetes label values cannot contain spaces or parentheses, the display name is written in the Kubernetes label character set — spaces become hyphens (<code>Spark Master</code> → <code>Spark-Master</code>). Docker labels have no such restriction and carry the display name verbatim.</p>
 </div>
 <div class="paragraph">
 <p>Spark Master StatefulSet pod template for the Spark Master is shown below.</p>
@@ -1290,10 +1290,10 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="sect3">
 <h4 id="_client_side_model">5.3. Client-side Model</h4>
 <div class="paragraph">
-<p>The client-side scenario is of interest on its own as there are so many workstation and mobile client applications. In the client-side scenario the log message occurs on workstation or mobile device that is not managed in the CMdb. As ServiceNow does not manage the client device in the CMdb, there are no CIs to attach to any log alert or incident. One way to address this is to create a synthetic CI that represents the application running on any client device. For this we choose the Application Service class(cmdb_ci_service_discovered) to instantiate a CI for the Spark Client. This CI will not have any infrastructure CIs associated with it as the client device is not managed in the CMdb.</p>
+<p>The client-side scenario is of interest on its own as there are so many workstation and mobile client applications. In the client-side scenario the log message occurs on workstation or mobile device that is not managed in the CMdb. As ServiceNow does not manage the client device in the CMdb, there are no CIs to attach to any log alert or incident. One way to address this is to create a synthetic CI that represents the application running on any client device. For this we choose the service instance class(cmdb_ci_service_discovered) to instantiate a CI for the Spark Client. This CI will not have any infrastructure CIs associated with it as the client device is not managed in the CMdb.</p>
 </div>
 <div class="paragraph">
-<p><a href="#fig-spark-servicenow-model-client-side">Figure 7</a> illustrates the Client-side model of the Spark Client. It shows a device (and host) independent model consisting of a single Application Service CI that represents the Spark Client.</p>
+<p><a href="#fig-spark-servicenow-model-client-side">Figure 7</a> illustrates the Client-side model of the Spark Client. It shows a device (and host) independent model consisting of a single service instance CI that represents the Spark Client.</p>
 </div>
 <div id="fig-spark-servicenow-model-client-side" class="imageblock text-center figure-indent">
 <div class="content">
@@ -1302,7 +1302,7 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="title">Figure 7. Spark Client-Side Model</div>
 </div>
 <div class="paragraph">
-<p>The application service YAML specification for the Spark Client is shown below.</p>
+<p>The service instance YAML specification for the Spark Client is shown below.</p>
 </div>
 <div id="list-spark-client-csdm-model" class="listingblock figure-indent">
 <div class="title">Listing 3. Spark CSDM Model for the Spark Client</div>
@@ -1317,13 +1317,13 @@ In the client-side scenario we have both a client and service-side application. 
 </div>
 </div>
 <div class="paragraph">
-<p>Now, given the Spark Client application service how do we map a log message on the client device to the Spark Client application service? This is done by creating a custom device entity in Dynatrace that represents the Spark Client. This custom device entity must then be included in any log problems sent as events to ServiceNow from Dynatrace&#8217;s OneClient agent on the device to Dynatrace&#8217;s OpenPipeline.</p>
+<p>Now, given the Spark Client service instance how do we map a log message on the client device to the Spark Client service instance? This is done by creating a custom device entity in Dynatrace that represents the Spark Client. This custom device entity must then be included in any log problems sent as events to ServiceNow from Dynatrace&#8217;s OneClient agent on the device to Dynatrace&#8217;s OpenPipeline.</p>
 </div>
 </div>
 <div class="sect3">
 <h4 id="step-0-pod-labels">5.4. Kubernetes Pod CIs</h4>
 <div class="paragraph">
-<p>In this section we drill down into the details of how Kubernetes Pod CIs are created and how they are correlated to the application service. The pod tags are labels that are set on the pod manifest. These labels are then used to create the Kubernetes Pod CIs. Pod manifest labels are the single source of truth for tag-based Service Mapping on Spark workloads.</p>
+<p>In this section we drill down into the details of how Kubernetes Pod CIs are created and how they are correlated to the service instance. The pod tags are labels that are set on the pod manifest. These labels are then used to create the Kubernetes Pod CIs. Pod manifest labels are the single source of truth for tag-based Service Mapping on Spark workloads.</p>
 </div>
 <div class="paragraph">
 <p>Tag-based Service Mapping matches workload CIs to a service instance using <strong><code>cmdb_key_value</code></strong> rows copied from these pod labels. The ServiceNow label uses the vendor-domain prefix <code>servicenow.com/</code>. There is no hard standard for the key name; this implementation uses the single key listed in the table below.</p>
@@ -1491,7 +1491,7 @@ In the client-side scenario we have both a client and service-side application. 
 <h2 id="ch-client-mode">6. Chapter 5 — Client Mode Use Case</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This chapter walks the Log to Incident reference path for <strong>Spark Client Mode</strong> only: application logs under <code>/mnt/spark/client-logs/</code>, OneAgent custom log source file tail, OpenPipeline Client enrichment (<code>spark.as_identifier</code>), and the Client Davis processor. Cluster Mode (container stdout) is <a href="#ch-cluster-mode">Chapter 6</a>.</p>
+<p>This chapter walks the Log to Incident reference path for <strong>Spark Client Mode</strong> only: application logs under <code>/mnt/spark/client-logs/</code>, OneAgent custom log source file tail, OpenPipeline Client enrichment (<code>spark.service_instance</code>), and the Client Davis processor. Cluster Mode (container stdout) is <a href="#ch-cluster-mode">Chapter 6</a>.</p>
 </div>
 <div class="sect2">
 <h3 id="_phase_2_spark_application">6.1. Phase 2 — Spark Application</h3>
@@ -1534,7 +1534,7 @@ dated.
 <div class="sect3">
 <h4 id="_log_file_directory_structure">6.1.1. Log File Directory Structure</h4>
 <div class="paragraph">
-<p>Client Mode uses a <strong>directory-based</strong> Log4j RollingFile under <code>/mnt/spark/client-logs/&lt;instance&gt;/</code> (node-local bind mount — not NFS). OneAgent tails those files via a custom log source. The <strong>instance</strong> path element defaults to the wrapper PID of the Spark Driver; parallel drivers on one host set <strong>SPARK_DRIVER_INSTANCE</strong>. OpenPipeline sets <strong><code>spark.mode=Client</code></strong>, composes <strong><code>spark.instance=&lt;host.name&gt;:&lt;instance&gt;</code></strong>, and stamps <strong><code>spark.as_identifier=spark-client</code></strong>.</p>
+<p>Client Mode uses a <strong>directory-based</strong> Log4j RollingFile under <code>/mnt/spark/client-logs/&lt;instance&gt;/</code> (node-local bind mount — not NFS). OneAgent tails those files via a custom log source. The <strong>instance</strong> path element defaults to the wrapper PID of the Spark Driver; parallel drivers on one host set <strong>SPARK_DRIVER_INSTANCE</strong>. OpenPipeline sets <strong><code>spark.mode=Client</code></strong>, composes <strong><code>spark.instance=&lt;host.name&gt;:&lt;instance&gt;</code></strong>, and stamps <strong><code>spark.service_instance=Spark-Client</code></strong>.</p>
 </div>
 <div class="paragraph">
 <p><a href="#list-spark-client-log-tree">Listing 6</a> illustrates the client-mode log directories.</p>
@@ -1592,7 +1592,7 @@ dated.
 <p>The key requirements for Client Mode are that:
 - We need to know the log level in order to determine which issues are critical or not.
 - We need to mark the stream as Client Mode and capture the driver <strong>instance</strong> differentiator.
-- We need an Application Service bind key (<code>spark.as_identifier</code>) for ServiceNow.</p>
+- We need a service instance bind key (<code>spark.service_instance</code>) for ServiceNow.</p>
 </div>
 <div class="paragraph">
 <p>OneAgent provides a limited set of default metadata fields (raw line, log level, log source path). The custom log source below stamps the Client Mode <code>spark.*</code> attributes from the path pattern.</p>
@@ -1615,7 +1615,7 @@ dated.
             </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.log.path"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${0}"</span><span class="w"> </span><span class="p">},</span><span class="w">
             </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.mode"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client"</span><span class="w"> </span><span class="p">},</span><span class="w">
             </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.driver.instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${1}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-            </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.as_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-client"</span><span class="w"> </span><span class="p">}</span><span class="w">
+            </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.service_instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark-Client"</span><span class="w"> </span><span class="p">}</span><span class="w">
           </span><span class="p">]</span><span class="w">
         </span><span class="p">},</span><span class="w">
         </span><span class="p">{</span><span class="w">
@@ -1624,7 +1624,7 @@ dated.
             </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.log.path"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${0}"</span><span class="w"> </span><span class="p">},</span><span class="w">
             </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.mode"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client"</span><span class="w"> </span><span class="p">},</span><span class="w">
             </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.driver.instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${1}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-            </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.as_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-client"</span><span class="w"> </span><span class="p">}</span><span class="w">
+            </span><span class="p">{</span><span class="w"> </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"attribute"</span><span class="p">,</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.service_instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark-Client"</span><span class="w"> </span><span class="p">}</span><span class="w">
           </span><span class="p">]</span><span class="w">
         </span><span class="p">}</span><span class="w">
       </span><span class="p">]</span><span class="w">
@@ -1682,9 +1682,9 @@ dated.
 <td class="tableblock halign-left valign-top"><p class="tableblock">Driver directory under <code>/mnt/spark/client-logs/</code> (<code>par-a</code>, PID, …)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.as_identifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.service_instance</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Custom log source</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark-client</code> (Application Service bind key for ServiceNow)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark-Client</code> (service instance bind key for ServiceNow)</p></td>
 </tr>
 </tbody>
 </table>
@@ -1806,12 +1806,12 @@ dated.
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;host.name&gt;:&lt;driver-instance&gt;</code> (composed in pipeline)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">spark.as_identifier</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark-client</code> (from custom source / pipeline; SN AS bind)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">spark.service_instance</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark-Client</code> (from custom source / pipeline; SN SI bind)</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">dt.source_entity</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">HOST (OneAgent file tail; in MZ). SN binds via <code>spark.as_identifier</code>, not HOST</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">HOST (OneAgent file tail; in MZ). SN binds via <code>spark.service_instance</code>, not HOST</p></td>
 </tr>
 </tbody>
 </table>
@@ -1827,7 +1827,7 @@ dated.
 <p><strong><code>compose-client-instance</code></strong> — defines <code>spark.instance</code> from <code>host.name</code> and <code>spark.driver.instance</code>.</p>
 </li>
 <li>
-<p><strong><code>ensure-client-as-identifier</code></strong> — sets <code>spark.as_identifier=spark-client</code> when missing so ServiceNow can bind the Application Service.</p>
+<p><strong><code>ensure-client-service-instance</code></strong> — sets <code>spark.service_instance=Spark-Client</code> when missing so ServiceNow can bind the service instance.</p>
 </li>
 <li>
 <p><strong><code>extract-log4j-class-line</code></strong> — parses the Log4j short class and line (<code>Class:Line</code>) from the <code>content</code> field.</p>
@@ -1866,14 +1866,14 @@ dated.
           </span><span class="p">}</span><span class="w">
         </span><span class="p">},</span><span class="w">
         </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ensure-client-as-identifier"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ensure-client-service-instance"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fieldsAdd"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client: Application Service identifier for ServiceNow bind (dt.source_entity left as OneAgent HOST)"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.mode == </span><span class="se">\"</span><span class="s2">Client</span><span class="se">\"</span><span class="s2"> AND isNull(spark.as_identifier)"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client: K8s-sanitized service instance display name for ServiceNow bind (dt.source_entity left as OneAgent HOST)"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.mode == </span><span class="se">\"</span><span class="s2">Client</span><span class="se">\"</span><span class="s2"> AND isNull(spark.service_instance)"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"fieldsAdd"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
             </span><span class="nl">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.as_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-client"</span><span class="w"> </span><span class="p">}</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.service_instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark-Client"</span><span class="w"> </span><span class="p">}</span><span class="w">
             </span><span class="p">]</span><span class="w">
           </span><span class="p">}</span><span class="w">
         </span><span class="p">},</span><span class="w">
@@ -1893,7 +1893,7 @@ dated.
 </div>
 </div>
 <div class="paragraph">
-<p><code>spark.as_identifier</code> carries the Application Service <code>identifier</code> (<code>spark-client</code>) that ServiceNow uses to bind the Client Application Service; Davis leaves <code>dt.source_entity</code> as the OneAgent HOST.</p>
+<p><code>spark.service_instance</code> carries the K8s-sanitized service instance display name (<code>Spark-Client</code> for <strong>Spark Client</strong>) that ServiceNow uses to bind the Client service instance; Davis leaves <code>dt.source_entity</code> as the OneAgent HOST.</p>
 </div>
 <div class="paragraph">
 <p>The Java class and line number uniquely identify the source of a log entry. For log entries that represent error conditions the class and line number form part of an error signature that we can use to identify errors that likely have the same root cause. Combined with mode information, we use the class name and line number (class:line)as the unique identifier for the log entry. This is used to correlate the log entry to a ServiceNow incident.</p>
@@ -1994,15 +1994,15 @@ dated.
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.description</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">includes <code>{spark.log.class}:{spark.log.line}</code>, path, and <code>spark.as_identifier=</code> for SN bind</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">includes <code>{spark.log.class}:{spark.log.line}</code>, path, and <code>spark.service_instance=</code> for SN bind</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.source_entity</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">HOST (OneAgent file tail; in MZ). SN binds via <code>spark.as_identifier</code>, not HOST</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">HOST (OneAgent file tail; in MZ). SN binds via <code>spark.service_instance</code>, not HOST</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.as_identifier</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark-client</code> (stamped into description + properties)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.service_instance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark-Client</code> (stamped into description + properties)</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.unique_identifier</code></p></td>
@@ -2035,7 +2035,7 @@ dated.
           </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-client-warn-error-davis"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"davis"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.as_identifier; leave HOST as dt.source_entity"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.service_instance; leave HOST as dt.source_entity"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(loglevel == </span><span class="se">\"</span><span class="s2">WARN</span><span class="se">\"</span><span class="s2"> OR loglevel == </span><span class="se">\"</span><span class="s2">ERROR</span><span class="se">\"</span><span class="s2">) AND spark.mode == </span><span class="se">\"</span><span class="s2">Client</span><span class="se">\"</span><span class="s2"> AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
             </span><span class="nl">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
@@ -2044,10 +2044,10 @@ dated.
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.name"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w">
                 </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.description"</span><span class="p">,</span><span class="w">
-                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.as_identifier={spark.as_identifier}: {content}"</span><span class="w">
+                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance={spark.service_instance}: {content}"</span><span class="w">
               </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_merging_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.as_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{spark.as_identifier}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.service_instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{spark.service_instance}"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.unique_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{pipeline}"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_entity_remapping_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
@@ -2215,13 +2215,13 @@ dated.
         </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="p">,</span><span class="w">
         </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR"</span><span class="p">,</span><span class="w">
         </span><span class="nl">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"eventDescription"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.as_identifier=spark-client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"</span><span class="w">
+        </span><span class="nl">"eventDescription"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"</span><span class="w">
       </span><span class="p">}</span><span class="w">
     </span><span class="p">],</span><span class="w">
     </span><span class="nl">"startTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">1719502426000</span><span class="p">,</span><span class="w">
     </span><span class="nl">"endTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">-1</span><span class="w">
   </span><span class="p">},</span><span class="w">
-  </span><span class="nl">"ProblemDetailsText"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.as_identifier=spark-client:</span><span class="se">\n</span><span class="s2">2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job</span><span class="se">\n\n</span><span class="s2">1 impacted entity: Lab3"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemDetailsText"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client:</span><span class="se">\n</span><span class="s2">2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job</span><span class="se">\n\n</span><span class="s2">1 impacted entity: Lab3"</span><span class="p">,</span><span class="w">
   </span><span class="nl">"ImpactedEntities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
     </span><span class="p">{</span><span class="w">
       </span><span class="nl">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST-A1B2C3D4E5F67890"</span><span class="p">,</span><span class="w">
@@ -2445,7 +2445,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>toString(k8s.pod.name)</code> (from pipeline; SN bind key)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">spark.as_identifier</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">spark.service_instance</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">unset</p></td>
 </tr>
 <tr>
@@ -2500,7 +2500,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="paragraph">
-<p><code>spark.pod_identifier</code> carries the Kubernetes pod name for the ServiceNow <code>svc_ci_assoc</code> membership lookup to the Application Service. OpenPipeline does <strong>not</strong> bake CAI entity ids at apply time.</p>
+<p><code>spark.pod_identifier</code> carries the Kubernetes pod name for the ServiceNow <code>svc_ci_assoc</code> membership lookup to the service instance. OpenPipeline does <strong>not</strong> bake CAI entity ids at apply time.</p>
 </div>
 </div>
 <div class="sect4">
@@ -2681,7 +2681,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="paragraph">
-<p>ServiceNow <strong><code>ResolveApplicationService</code></strong> binds via <code>spark.pod_identifier</code> → pod CI by name → <code>svc_ci_assoc</code> Application Service membership (ignores HOST when the pod identifier is present).</p>
+<p>ServiceNow <strong><code>ResolveApplicationService</code></strong> binds via <code>spark.pod_identifier</code> → pod CI by name → <code>svc_ci_assoc</code> service instance membership (ignores HOST when the pod identifier is present).</p>
 </div>
 <hr>
 </div>
@@ -2932,7 +2932,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>After a test problem fires, confirm <strong><code>em_event.source=SGO-Dynatrace</code></strong> and <strong><code>em_event.cmdb_ci</code></strong> is populated (Application Service via <code>spark.pod_identifier</code> for Cluster; Spark Client AS via <code>spark.as_identifier</code> for Client).</p>
+<p>After a test problem fires, confirm <strong><code>em_event.source=SGO-Dynatrace</code></strong> and <strong><code>em_event.cmdb_ci</code></strong> is populated (service instance via <code>spark.pod_identifier</code> for Cluster; Spark Client AS via <code>spark.service_instance</code> for Client).</p>
 </li>
 <li>
 <p>If Cluster <strong><code>cmdb_ci</code></strong> remains empty or a Linux server, return to <a href="#step-2-dynatrace-cluster">Chapter 6 — OneAgent</a> / <a href="#lst-openpipeline-processing-cluster">Cluster OpenPipeline processors</a> and verify <strong><code>spark.pod_identifier</code></strong> from <code>k8s.pod.name</code> on Container Output, then the entity bind rules.</p>
@@ -2941,7 +2941,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>Confirm <strong><code>sys_object_source</code></strong> contains a row with <strong><code>name=SGO-Dynatrace</code></strong> and <strong><code>id=&lt;entityId&gt;</code></strong> from the webhook <strong>before</strong> the event arrives (SGC scheduled import lag is a common root cause of empty CI).</p>
 </li>
 <li>
-<p>Deploy or verify the generic entity bind business rules (<a href="#step-5-br-k8s-pod">entity bind business rules</a>) so <code>ResolveApplicationService</code> can bind from <code>spark.as_identifier</code> / <code>spark.pod_identifier</code>.</p>
+<p>Deploy or verify the generic entity bind business rules (<a href="#step-5-br-k8s-pod">entity bind business rules</a>) so <code>ResolveApplicationService</code> can bind from <code>spark.service_instance</code> / <code>spark.pod_identifier</code>.</p>
 </li>
 </ol>
 </div>
@@ -2949,12 +2949,12 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p><strong>No ServiceNow-side changes</strong> are required on the monitored <strong>application</strong> (the Java/Spark/Python workload). <strong>No additional Dynatrace</strong> configuration is required at Phase 5 if <a href="#ch-client-mode">Chapter 5</a> and <a href="#ch-cluster-mode">Chapter 6</a> Dynatrace phases are correct.</p>
 </div>
 <div class="paragraph">
-<p>Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds Application Service via <strong><code>spark.pod_identifier</code></strong> (pod CI → <code>svc_ci_assoc</code>), not HOST file-tail.</p>
+<p>Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds service instance via <strong><code>spark.pod_identifier</code></strong> (pod CI → <code>svc_ci_assoc</code>), not HOST file-tail.</p>
 </div>
 <hr>
 </div>
 <div class="sect3">
-<h4 id="_create_incident_bound_to_application_service">8.7. Create incident bound to Application Service</h4>
+<h4 id="_create_incident_bound_to_service_instance">8.7. Create incident bound to service instance</h4>
 
 </div>
 <div class="sect3">
@@ -2983,7 +2983,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </tbody>
 </table>
 <div class="paragraph">
-<p>Incidents must set <strong>incident.cmdb_ci</strong> to <strong>cmdb_ci_service_discovered</strong> (Application Service), not the infrastructure CI on the alert.</p>
+<p>Incidents must set <strong>incident.cmdb_ci</strong> to <strong>cmdb_ci_service_discovered</strong> (service instance), not the infrastructure CI on the alert.</p>
 </div>
 </div>
 <div class="sect3">
@@ -3016,7 +3016,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Incident</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">incident</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">cmdb_ci_service_discovered (Application Service)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">cmdb_ci_service_discovered (service instance)</p></td>
 </tr>
 </tbody>
 </table>
@@ -3030,7 +3030,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>The comparison table summarizes alert CI versus incident CI for each pattern. Full algorithms follow in the adjacent subsections.</p>
 </div>
 <table id="tbl-incident-correlation-patterns" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 17. Incident correlation patterns — alert CI vs Application Service</caption>
+<caption class="title">Table 17. Incident correlation patterns — alert CI vs service instance</caption>
 <colgroup>
 <col style="width: 30%;">
 <col style="width: 35%;">
@@ -3059,7 +3059,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <div class="sect4">
 <h5 id="step-5-service-side">8.10.1. Service-side</h5>
 <div class="paragraph">
-<p>The <strong>Spark Service-Side Log Pattern</strong> resolves Application Services by looking up the alert&#8217;s pod CI in the <strong><code>svc_ci_assoc</code></strong> membership table maintained by tag-based Service Mapping (see <a href="#step-0-tag-based-membership">Tag-Based Service Mapping and svc_ci_assoc</a>). A membership row associating the pod CI with a <code>cmdb_ci_service_discovered</code> service instance <strong>must</strong> exist before the problem fires.</p>
+<p>The <strong>Spark Service-Side Log Pattern</strong> resolves service instances by looking up the alert&#8217;s pod CI in the <strong><code>svc_ci_assoc</code></strong> membership table maintained by tag-based Service Mapping (see <a href="#step-0-tag-based-membership">Tag-Based Service Mapping and svc_ci_assoc</a>). A membership row associating the pod CI with a <code>cmdb_ci_service_discovered</code> service instance <strong>must</strong> exist before the problem fires.</p>
 </div>
 <div id="fig-incident-correlation-service-side" class="imageblock">
 <div class="content">
@@ -3087,7 +3087,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <div class="sect4">
 <h5 id="step-5-client-side">8.10.2. Client-side</h5>
 <div class="paragraph">
-<p>The <strong>Spark Client-Side Log Pattern</strong> maps log paths to a single logical Application Service. Client-mode driver logs <strong>do not</strong> correspond to a <code>cmdb_ci_kubernetes_pod</code>; incident automation <strong>must not</strong> depend on alert CI or <code>svc_ci_assoc</code> membership.</p>
+<p>The <strong>Spark Client-Side Log Pattern</strong> maps log paths to a single logical service instance. Client-mode driver logs <strong>do not</strong> correspond to a <code>cmdb_ci_kubernetes_pod</code>; incident automation <strong>must not</strong> depend on alert CI or <code>svc_ci_assoc</code> membership.</p>
 </div>
 <div id="fig-incident-correlation-client-side" class="imageblock">
 <div class="content">
@@ -3101,13 +3101,13 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>Scan <code>em_alert.description</code>, <code>resource</code>, and <code>node</code> for the substring <code>/client-logs/</code>.</p>
 </li>
 <li>
-<p>Look up Application Service <strong><code>Spark Client</code></strong> by <strong><code>name</code></strong> (see <a href="#csdm-identifier-field-mapping">CSDM identifier lookup</a>).</p>
+<p>Look up service instance <strong><code>Spark Client</code></strong> by <strong><code>name</code></strong> (see <a href="#csdm-identifier-field-mapping">CSDM identifier lookup</a>).</p>
 </li>
 <li>
-<p>Set <strong><code>incident.cmdb_ci</code></strong> to that Application Service sys_id.</p>
+<p>Set <strong><code>incident.cmdb_ci</code></strong> to that service instance sys_id.</p>
 </li>
 <li>
-<p><strong><code>K8sLogPodCiBind</code></strong> skips path segment <code>spark-client</code> when parsing pod names.</p>
+<p><strong><code>K8sLogPodCiBind</code></strong> skips path segment <code>Spark-Client</code> when parsing pod names.</p>
 </li>
 </ol>
 </div>
@@ -3119,7 +3119,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>CSDM <strong><code>identifier</code></strong> in <code>*.csdm.yaml</code> is the logical machine key embedded in log paths and optional Dynatrace tags. The table below shows which CMDB fields are reliable for incident lookup on optimizincdemo1.</p>
 </div>
 <table id="tbl-csdm-identifier-lookup" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 18. CSDM identifier lookup fields on Application Service</caption>
+<caption class="title">Table 18. CSDM identifier lookup fields on service instance</caption>
 <colgroup>
 <col style="width: 30%;">
 <col style="width: 35%;">
@@ -3135,7 +3135,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Manual / logical AS documentation</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">CSDM <code>identifier: spark-client</code> in log path contract</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CSDM display name <strong>Spark Client</strong> → stamp <code>spark.service_instance=Spark-Client</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong><code>identifier</code></strong> column — often <strong>not populated</strong> on optimizincdemo1</p></td>
 </tr>
 <tr>
@@ -3154,7 +3154,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>Spark Client AS <strong>must</strong> have <code>service_status=operational</code> (promoted by <code>csdm/deploy.yml</code> → <code>ensure_host_as_operational.yml</code>).</p>
 </div>
 <div id="lst-verify-spark-client-as" class="listingblock">
-<div class="title">Listing 25. Verify Spark Client Application Service operational status</div>
+<div class="title">Listing 25. Verify Spark Client service instance operational status</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="bash"><span class="nb">cd </span>ansible
 ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/incident/verify_spark_client_as.yml <span class="se">\</span>
@@ -3173,7 +3173,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 <div class="ulist">
 <ul>
 <li>
-<p>Custom log source sets <strong><code>spark.mode</code></strong>, <strong><code>spark.driver.instance</code></strong> or <strong><code>spark.pod_identifier</code></strong>, <strong><code>spark.as_identifier</code></strong> (Client), and <strong><code>spark.log.path</code></strong>. OpenPipeline parses <strong><code>spark.log.class</code> / <code>spark.log.line</code></strong>.</p>
+<p>Custom log source sets <strong><code>spark.mode</code></strong>, <strong><code>spark.driver.instance</code></strong> or <strong><code>spark.pod_identifier</code></strong>, <strong><code>spark.service_instance</code></strong> (Client), and <strong><code>spark.log.path</code></strong>. OpenPipeline parses <strong><code>spark.log.class</code> / <code>spark.log.line</code></strong>.</p>
 </li>
 <li>
 <p>Davis <strong><code>event.name</code></strong> / <strong><code>event.unique_identifier</code></strong> use <strong><code>{spark.mode}</code> + class:line</strong> so each call site is a distinct event on the OneAgent <strong>HOST</strong> <code>dt.source_entity</code>.</p>
@@ -3182,7 +3182,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 <p><strong><code>dt.davis.is_merging_allowed=false</code></strong> so different class:line events are not HOST-bundled; same class:line across drivers already shares one event via <code>event.name</code>.</p>
 </li>
 <li>
-<p>ServiceNow binds Client alerts via <code>/client-logs/</code> or Davis <strong><code>Client error at …</code></strong> text to Application Service <strong>Spark Client</strong>; Cluster alerts use the pod&#8217;s <code>svc_ci_assoc</code> membership.</p>
+<p>ServiceNow binds Client alerts via <code>/client-logs/</code> or Davis <strong><code>Client error at …</code></strong> text to service instance <strong>Spark Client</strong>; Cluster alerts use the pod&#8217;s <code>svc_ci_assoc</code> membership.</p>
 </li>
 </ul>
 </div>
@@ -3207,11 +3207,11 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Script Include: <code>ResolveApplicationService</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Service-Side: <code>svc_ci_assoc</code> membership from pod CI to Application Service (tag-based Service Mapping). Spark client: <code>resolveFromSparkClientLogPath()</code> when alert text contains <code>/client-logs/</code> → Application Service <strong>Spark Client</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Service-Side: <code>svc_ci_assoc</code> membership from pod CI to service instance (tag-based Service Mapping). Spark client: <code>resolveFromSparkClientLogPath()</code> when alert text contains <code>/client-logs/</code> → service instance <strong>Spark Client</strong></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Script Include: <code>K8sLogPodCiBind</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Rebind <code>em_event</code> / <code>em_alert</code> from initial SGO HOST binding to <code>cmdb_ci_kubernetes_pod</code> when log path segment matches a discovered pod <code>name</code>; <strong>skip</strong> segment <code>spark-client</code>; propagate binding to alerts sharing <code>message_key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rebind <code>em_event</code> / <code>em_alert</code> from initial SGO HOST binding to <code>cmdb_ci_kubernetes_pod</code> when log path segment matches a discovered pod <code>name</code>; <strong>skip</strong> segment <code>Spark-Client</code>; propagate binding to alerts sharing <code>message_key</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">EM event rule</p></td>
@@ -3235,7 +3235,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Business rule: <code>em-alert-create-k8s-log-incident</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>After</strong> insert/update on <code>em_alert</code>; order <strong>5020</strong>; tries spark-client path first, else Service-Side <code>svc_ci_assoc</code> lookup; creates or correlates incident, sets <strong><code>em_alert.incident</code></strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>After</strong> insert/update on <code>em_alert</code>; order <strong>5020</strong>; tries Spark-Client path first, else Service-Side <code>svc_ci_assoc</code> lookup; creates or correlates incident, sets <strong><code>em_alert.incident</code></strong></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Severity filter</p></td>
@@ -3243,7 +3243,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Duplicate suppression</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Correlate open incidents by Application Service + short description prefix <code>Event Log</code>; use <code>ProblemID</code> / <code>message_key</code> for event lifecycle</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Correlate open incidents by service instance + short description prefix <code>Event Log</code>; use <code>ProblemID</code> / <code>message_key</code> for event lifecycle</p></td>
 </tr>
 </tbody>
 </table>
@@ -3375,9 +3375,9 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;host.name&gt;:&lt;driver-instance&gt;</code> under <code>/mnt/spark/client-logs/</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.as_identifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.service_instance</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Client custom source / OpenPipeline</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Application Service <code>identifier</code> (<code>spark-client</code>) for SN bind</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">K8s-sanitized service instance display name (<code>Spark-Client</code>) for SN bind</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.type</code></p></td>
@@ -3421,7 +3421,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 <i class="fa icon-note" title="Note"></i>
 </td>
 <td class="content">
-Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.source_entity</code> inside the Spark Observability management zone. ServiceNow <strong><code>ResolveApplicationService</code></strong> binds Cluster alerts via <strong><code>spark.pod_identifier</code></strong> (pod CI → <code>svc_ci_assoc</code> AS) and Client alerts via <strong><code>spark.as_identifier</code></strong> to Application Service <strong>Spark Client</strong>, ignoring HOST for those paths.
+Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.source_entity</code> inside the Spark Observability management zone. ServiceNow <strong><code>ResolveApplicationService</code></strong> binds Cluster alerts via <strong><code>spark.pod_identifier</code></strong> (pod CI → <code>svc_ci_assoc</code> AS) and Client alerts via <strong><code>spark.service_instance</code></strong> to service instance <strong>Spark Client</strong>, ignoring HOST for those paths.
 </td>
 </tr>
 </table>
@@ -3470,7 +3470,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 <div class="sect4">
 <h5 id="_resolveapplicationservice">8.19.1. ResolveApplicationService</h5>
 <div class="paragraph">
-<p><strong>Purpose:</strong> Resolve <strong><code>cmdb_ci_service_discovered</code></strong> (Application Service) sys_id for incident binding.</p>
+<p><strong>Purpose:</strong> Resolve <strong><code>cmdb_ci_service_discovered</code></strong> (service instance) sys_id for incident binding.</p>
 </div>
 <div class="paragraph">
 <p><strong>Methods:</strong></p>
@@ -3481,7 +3481,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 <p><code>resolveFromInfrastructureCi(ciSysId)</code> — <strong>Spark Service-Side Log Pattern.</strong> Queries <strong><code>svc_ci_assoc</code></strong> where <code>ci_id</code> = pod CI and <code>service_id</code> is a <code>cmdb_ci_service_discovered</code> (membership maintained by tag-based Service Mapping). Returns the service instance sys_id or <code>null</code>.</p>
 </li>
 <li>
-<p><code>resolveFromSparkClientLogPath(text)</code> — <strong>Spark Client-Side Log Pattern.</strong> When <code>text</code> contains <code>/client-logs/</code>, looks up Application Service <strong>Spark Client</strong> by <code>identifier=spark-client</code>, then fallback <strong><code>name=Spark Client</code></strong>.</p>
+<p><code>resolveFromSparkClientLogPath(text)</code> — <strong>Spark Client-Side Log Pattern.</strong> When <code>text</code> contains <code>/client-logs/</code>, looks up service instance <strong>Spark Client</strong> by <code>identifier=Spark-Client</code>, then fallback <strong><code>name=Spark Client</code></strong>.</p>
 </li>
 </ul>
 </div>
@@ -3489,7 +3489,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 <p><strong>Inputs:</strong> Workload CI sys_id (Service-side) or alert description/resource text (Client-side).</p>
 </div>
 <div class="paragraph">
-<p><strong>Outputs:</strong> Application Service sys_id for <code>incident.cmdb_ci</code>; no CMDB writes.</p>
+<p><strong>Outputs:</strong> service instance sys_id for <code>incident.cmdb_ci</code>; no CMDB writes.</p>
 </div>
 <div class="paragraph">
 <p><strong>Side effects:</strong> None (read-only GlideRecord queries).</p>
@@ -3509,7 +3509,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 <div class="ulist">
 <ul>
 <li>
-<p><code>resolvePodName(description, resource, node)</code> — Scans concatenated fields for <code>/…/logs/&lt;segment&gt;/</code>; skips <code>spark-client</code> and wildcards; verifies pod exists in CMDB.</p>
+<p><code>resolvePodName(description, resource, node)</code> — Scans concatenated fields for <code>/…/logs/&lt;segment&gt;/</code>; skips <code>Spark-Client</code> and wildcards; verifies pod exists in CMDB.</p>
 </li>
 <li>
 <p><code>applyPodBinding(gr)</code> — Sets <code>cmdb_ci</code>, <code>node</code>, <code>resource</code>, <code>message_key</code> prefix <code>K8sLog-{pod}-</code>, and <code>message</code> to <code>Event Log WARN/ERROR</code> when generic. Returns <code>true</code> on success. Caller must <code>update()</code>.</p>
@@ -3608,7 +3608,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 <div class="sect4">
 <h5 id="_em_alert_create_k8s_log_incident">8.20.3. em-alert-create-k8s-log-incident</h5>
 <div class="paragraph">
-<p>Creates or correlates an incident on the Application Service, then sets <strong><code>current.task</code></strong> so the alert appears on the incident <strong>Alerts</strong> tab.</p>
+<p>Creates or correlates an incident on the service instance, then sets <strong><code>current.task</code></strong> so the alert appears on the incident <strong>Alerts</strong> tab.</p>
 </div>
 <div id="lst-br-em-alert-create-incident" class="listingblock">
 <div class="title">Listing 28. Business rule script — em-alert-create-k8s-log-incident</div>
@@ -3678,7 +3678,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
     <span class="nx">backfillInc</span><span class="p">.</span><span class="nx">work_notes</span> <span class="o">=</span>
       <span class="dl">'</span><span class="s1">Set Configuration item from alert </span><span class="dl">'</span> <span class="o">+</span>
       <span class="nx">current</span><span class="p">.</span><span class="nx">number</span> <span class="o">+</span>
-      <span class="dl">'</span><span class="s1"> (Application Service resolved from pod CI).</span><span class="dl">'</span><span class="p">;</span>
+      <span class="dl">'</span><span class="s1"> (service instance resolved from pod CI).</span><span class="dl">'</span><span class="p">;</span>
     <span class="nx">backfillInc</span><span class="p">.</span><span class="nx">update</span><span class="p">();</span>
     <span class="nx">linkAlertToIncident</span><span class="p">(</span><span class="nx">backfillInc</span><span class="p">.</span><span class="nx">sys_id</span><span class="p">);</span>
     <span class="k">return</span><span class="p">;</span>
@@ -3766,11 +3766,11 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">SM membership</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">svc_ci_assoc: pod CI is a member of Application Service Myapp Worker Zone A (tag-based Service Mapping)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">svc_ci_assoc: pod CI is a member of service instance Myapp Worker Zone A (tag-based Service Mapping)</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Incident</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">incident.cmdb_ci → Application Service Myapp Worker Zone A (via Service-Side svc_ci_assoc lookup)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">incident.cmdb_ci → service instance Myapp Worker Zone A (via Service-Side svc_ci_assoc lookup)</p></td>
 </tr>
 </tbody>
 </table>
@@ -3787,7 +3787,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-08-06 11:22:00 -0500
+Last updated 2026-08-06 16:17:35 -0500
 </div>
 </div>
 </body>

@@ -2,7 +2,7 @@
 # Ensure SGC ingests Dynatrace problems whose ImpactedEntities have no
 # topology CI match (e.g. HOST-only log problems before lab BRs rebind).
 # Client/Cluster log bind no longer relies on CUSTOM_DEVICE SOS / cmdb_key_value;
-# ResolveApplicationService uses spark.as_identifier / spark.pod_identifier.
+# ResolveApplicationService uses spark.service_instance / spark.pod_identifier.
 
 - name: Look up SGC unmatched-CI events property
   ansible.builtin.uri:
@@ -48,6 +48,6 @@
       sn_dynatrace_integ.events_for_unmatched_ci.enabled =>
       {{ sn_unmatched_ci_prop.json.result[0].value | default('missing') }}
       (set true so problems without topology CI match still create em_events;
-      lab BRs bind via spark.as_identifier / spark.pod_identifier / HOST).
+      lab BRs bind via spark.service_instance / spark.pod_identifier / HOST).
   when: sn_unmatched_ci_prop.json.result | default([]) | length > 0
   run_once: true

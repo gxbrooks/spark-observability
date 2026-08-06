@@ -1,7 +1,7 @@
 ---
-# Build the servicenow.com/service-instance label from an application service
-# (service instance) specification. Value = display name; kubernetes-platform
-# values sanitize to the K8s label charset (no spaces/parens).
+# Build the servicenow.com/service-instance label from a service instance
+# specification. Value = display name; kubernetes-platform values sanitize to the
+# K8s label charset (no spaces/parens) and must pass K8s label validation.
 # Input: sn_as_spec, sn_as_host (optional, for expand placeholders)
 # Output: sn_as_identifier, sn_as_display_name, sn_servicenow_workload_labels
 
@@ -16,12 +16,27 @@
          | replace('{host}', sn_as_host | default(''))
          | replace('{host_lower}', (sn_as_host | default('')) | lower) }}
 
+- name: Sanitize kubernetes service-instance label value from display name
+  ansible.builtin.set_fact:
+    sn_as_k8s_label_value: >-
+      {{ sn_as_display_name
+         | regex_replace('[^A-Za-z0-9._-]+', '-')
+         | regex_replace('^[-._]+|[-._]+$', '') }}
+  when: sn_as_spec.platform | default('') == 'kubernetes'
+
+- name: Validate kubernetes service-instance label (CSDM injector)
+  ansible.builtin.include_tasks: validate_k8s_label_value.yml
+  vars:
+    sn_k8s_label_value: "{{ sn_as_k8s_label_value }}"
+    sn_k8s_label_context: >-
+      servicenow.com/service-instance for '{{ sn_as_display_name }}'
+      (identifier={{ sn_as_identifier }})
+  when: sn_as_spec.platform | default('') == 'kubernetes'
+
 - name: Build servicenow.com/service-instance workload label
   ansible.builtin.set_fact:
     sn_servicenow_workload_labels:
       servicenow.com/service-instance: >-
-        {{ (sn_as_display_name
-            | regex_replace('[^A-Za-z0-9._-]+', '-')
-            | regex_replace('^[-._]+|[-._]+$', ''))
+        {{ sn_as_k8s_label_value
            if sn_as_spec.platform | default('') == 'kubernetes'
            else sn_as_display_name }}

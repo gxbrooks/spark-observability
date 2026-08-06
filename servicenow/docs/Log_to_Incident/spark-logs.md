@@ -329,7 +329,7 @@ The **SGO-Dynatrace** Event Management listener creates or updates **`em_event`*
 | `type` | `ERROR` (typical) |
 | `additional_info` | JSON fragment with `ProblemURL`, `Tags`, `ImpactedEntities`, … |
 
-Event rules may promote **`em_event` → `em_alert`**. Incident automation (if configured) walks **`cmdb_rel_ci` Contains** from the infrastructure CI to an Application Service — that is a **downstream** step, not part of the webhook payload.
+Event rules may promote **`em_event` → `em_alert`**. Incident automation (if configured) walks **`cmdb_rel_ci` Contains** from the infrastructure CI to a service instance — that is a **downstream** step, not part of the webhook payload.
 
 ---
 
@@ -407,7 +407,7 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 2. **Ingest** — OneAgent custom log source paths `/mnt/spark/client-logs/*/spark-app*.log`; restart OneAgent after deploy if paths were added recently.
 3. **Detect** — OpenPipeline `spark-warn-error-davis` processor; Davis **`event.name`** = `Critical log.level error at {class}:{line}`; timeout **15m**.
 4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
-5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → Application Service **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
+5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → service instance **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 
 ### Parallel chapter load (two drivers)
 

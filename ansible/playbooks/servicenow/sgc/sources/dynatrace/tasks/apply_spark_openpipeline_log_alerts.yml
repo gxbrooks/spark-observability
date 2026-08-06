@@ -3,7 +3,7 @@
 # Required on Grail tenants where logs are routed to a custom OpenPipeline (e.g. Metric Route):
 # classic builtin:logmonitoring.log-events no longer evaluate on those records.
 #
-# Davis stamps CRITICAL_LOG_EVENT with spark.as_identifier (Client) or spark.pod_identifier
+# Davis stamps CRITICAL_LOG_EVENT with spark.service_instance (Client) or spark.pod_identifier
 # (Cluster). ServiceNow ResolveApplicationService binds Application Service from those fields
 # (dt.source_entity remains OneAgent HOST; SN ignores HOST when the spark.* stamps are present).
 
@@ -194,6 +194,6 @@
       OpenPipeline log alerts pipeline '{{ dt_sn_spark_openpipeline_pipeline_display_name }}'
       => {{ dt_spark_openpipeline_pipeline_object_id }}
       ({{ 'created/updated' if dt_spark_openpipeline_pipeline_change_needed | bool else 'already up to date' }});
-      SN binds via spark.as_identifier / spark.pod_identifier;
+      SN binds via spark.service_instance / spark.pod_identifier;
       routing {{ 'updated' if dt_openpipeline_routing_change_needed | default(false) | bool else 'already includes Spark route' }}.
   run_once: true

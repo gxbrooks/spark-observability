@@ -44,14 +44,14 @@
           }
         },
         {
-          "id": "ensure-client-as-identifier",
+          "id": "ensure-client-service-instance",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Client: Application Service identifier for ServiceNow bind (dt.source_entity left as OneAgent HOST)",
-          "matcher": "spark.mode == \"Client\" AND isNull(spark.as_identifier)",
+          "description": "Client: service instance stamp for ServiceNow bind (K8s-sanitized display name) (dt.source_entity left as OneAgent HOST)",
+          "matcher": "spark.mode == \"Client\" AND isNull(spark.service_instance)",
           "fieldsAdd": {
             "fields": [
-              { "name": "spark.as_identifier", "value": "spark-client" }
+              { "name": "spark.service_instance", "value": "Spark-Client" }
             ]
           }
         },
@@ -73,7 +73,7 @@
           "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Client WARN/ERROR → ERROR_EVENT; spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.as_identifier; leave HOST as dt.source_entity",
+          "description": "Client WARN/ERROR → ERROR_EVENT; spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.service_instance; leave HOST as dt.source_entity",
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
@@ -82,10 +82,10 @@
               { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.as_identifier={spark.as_identifier}: {content}"
+                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance={spark.service_instance}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "spark.as_identifier", "value": "{spark.as_identifier}" },
+              { "key": "spark.service_instance", "value": "{spark.service_instance}" },
               { "key": "event.unique_identifier", "value": "Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
               { "key": "pipeline", "value": "{pipeline}" },
               { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
