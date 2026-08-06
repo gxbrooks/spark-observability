@@ -1,10 +1,10 @@
 ---
-# Sync servicenow.io/* pod labels from the cluster into cmdb_key_value on pod CIs.
+# Sync servicenow.com/* pod labels from the cluster into cmdb_key_value on pod CIs.
 # Run after KVA has populated pod CIs (typically following k8s/discover.yml KVA restart).
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/sync_pod_labels.yml -e @../vars/secrets.yaml
 
-- name: Collect Kubernetes pods with servicenow.io labels
+- name: Collect Kubernetes pods with servicenow.com labels
   hosts: kubernetes_master
   become: true
   gather_facts: false
@@ -42,7 +42,7 @@
       loop_control:
         label: "{{ item.item | default('') }}"
 
-- name: Upsert servicenow.io labels on CMDB pod CIs
+- name: Upsert servicenow.com labels on CMDB pod CIs
   hosts: localhost
   connection: local
   gather_facts: false
@@ -51,7 +51,7 @@
     - "{{ playbook_dir }}/../common/vars.yml"
     - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
   tasks:
-    - name: Sync servicenow.io labels for each pod
+    - name: Sync servicenow.com labels for each pod
       ansible.builtin.include_tasks: tasks/sync_one_k8s_pod_labels.yml
       loop: "{{ hostvars[groups['kubernetes_master'][0]].sn_k8s_pods_for_label_sync | default([]) }}"
       loop_control:
@@ -62,4 +62,4 @@
       ansible.builtin.debug:
         msg: >-
           Processed {{ hostvars[groups['kubernetes_master'][0]].sn_k8s_pods_for_label_sync | default([]) | length }}
-          pod(s) for servicenow.io label sync (cluster {{ sn_k8s_cluster_name }}).
+          pod(s) for servicenow.com label sync (cluster {{ sn_k8s_cluster_name }}).

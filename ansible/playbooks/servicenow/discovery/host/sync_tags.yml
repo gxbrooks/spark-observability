@@ -1,5 +1,5 @@
 ---
-# Sync CSDM host-platform servicenow.io tags onto linux_server CIs (Elastic Agent, OneAgent, etc.).
+# Sync CSDM host-platform servicenow.com/service-instance tags onto linux_server CIs (Elastic Agent, OneAgent, etc.).
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/sync_tags.yml -e @../vars/secrets.yaml
 
@@ -33,5 +33,5 @@
     - name: Host tag sync summary
       ansible.builtin.debug:
         msg: >-
-          Synced servicenow.io labels for {{ sn_host_csdm_queue | default([]) | length }}
+          Synced servicenow.com labels for {{ sn_host_csdm_queue | default([]) | length }}
           host application service instance(s).

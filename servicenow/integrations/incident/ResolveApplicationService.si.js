@@ -21,29 +21,29 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Resolve Application Service parent of a workload CI via Contains::Contained by.
+   * Resolve the Service Instance (Application Service) that a workload CI
+   * belongs to via svc_ci_assoc — the membership table maintained by
+   * tag-based Service Mapping (servicenow.com/service-instance tags).
+   * No cmdb_rel_ci ownership edges are used (CSDM 5.0 model).
    */
   resolveFromInfrastructureCi: function (ciSysId) {
     if (!ciSysId) {
       return null;
     }
 
-    var typeGr = new GlideRecord('cmdb_rel_type');
-    typeGr.addQuery('name', 'Contains::Contained by');
-    typeGr.setLimit(1);
-    typeGr.query();
-    if (!typeGr.next()) {
-      return null;
-    }
-
-    var rel = new GlideRecord('cmdb_rel_ci');
-    rel.addQuery('child', ciSysId);
-    rel.addQuery('type', typeGr.sys_id.toString());
-    rel.addQuery('parent.sys_class_name', 'cmdb_ci_service_discovered');
-    rel.setLimit(1);
-    rel.query();
-    if (rel.next()) {
-      return rel.parent.sys_id.toString();
+    var assoc = new GlideRecord('svc_ci_assoc');
+    assoc.addQuery('ci_id', ciSysId);
+    // Tag-populated services are cmdb_ci_service_by_tags, a child class of
+    // cmdb_ci_service_discovered — match the whole hierarchy.
+    assoc.addQuery(
+      'service_id.sys_class_name',
+      'IN',
+      'cmdb_ci_service_discovered,cmdb_ci_service_calculated,cmdb_ci_service_by_tags'
+    );
+    assoc.setLimit(1);
+    assoc.query();
+    if (assoc.next()) {
+      return assoc.getValue('service_id');
     }
 
     return null;
@@ -240,7 +240,7 @@ ResolveApplicationService.prototype = {
         if (asFromCi) {
           return {
             sysId: asFromCi,
-            how: 'cmdb_key_value→CI→Contains Application Service',
+            how: 'cmdb_key_value→CI→svc_ci_assoc Application Service',
           };
         }
       }
@@ -263,8 +263,9 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Map spark-* pod names to lab Application Service display names when
-   * Contains::Contained by is missing (common for Deployment worker pods).
+   * Map spark-* pod names to lab Application Service display names when the
+   * svc_ci_assoc membership row is missing (e.g. Service Mapping has not yet
+   * recomputed after a new Deployment worker pod appeared).
    */
   resolveSparkAsNameFromPodName: function (podName) {
     var n = String(podName || '');
@@ -281,7 +282,7 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * CLOUD_APPLICATION_INSTANCE → pod CI → Application Service via Contains.
+   * CLOUD_APPLICATION_INSTANCE → pod CI → Application Service via svc_ci_assoc.
    * Fallback: spark-master/worker/history pod name → AS by display name.
    * Returns { asSysId, podSysId, podName, how } or null when nothing maps.
    */
@@ -317,7 +318,7 @@ ResolveApplicationService.prototype = {
           podSysId: podSysId,
           asSysId: asSysId,
           podName: name || '',
-          how: 'CAI→pod→Contains Application Service',
+          how: 'CAI→pod→svc_ci_assoc Application Service',
         };
       }
     }
@@ -338,7 +339,7 @@ ResolveApplicationService.prototype = {
             (name || '') +
             ' → Application Service name "' +
             asName +
-            '" (Contains edge missing)',
+            '" (svc_ci_assoc row missing)',
         };
       }
     }
@@ -348,7 +349,7 @@ ResolveApplicationService.prototype = {
         podSysId: podSysId,
         asSysId: null,
         podName: name || '',
-        how: 'CAI→pod found but no Contains Application Service',
+        how: 'CAI→pod found but no svc_ci_assoc Application Service',
       };
     }
 
@@ -539,7 +540,7 @@ ResolveApplicationService.prototype = {
   /**
    * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
    *   1. spark.as_identifier → Application Service by identifier (ignore HOST)
-   *   2. spark.pod_identifier → pod name → Contains AS (ignore HOST)
+   *   2. spark.pod_identifier → pod name → svc_ci_assoc AS (ignore HOST)
    *   3. primary ImpactedEntity: HOST / CUSTOM_DEVICE / CAI
    *   else leave cmdb_ci empty and note failure
    *

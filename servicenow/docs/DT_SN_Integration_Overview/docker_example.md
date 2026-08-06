@@ -5,7 +5,5 @@ services:
     labels:
       com.docker.compose.project: observability
       com.docker.compose.service: elasticsearch
-      servicenow.io/application-service-identifier: elasticsearch
-      servicenow.io/environment: on-prem
-      servicenow.io/location: my-region
+      servicenow.com/service-instance: Elasticsearch
 ```

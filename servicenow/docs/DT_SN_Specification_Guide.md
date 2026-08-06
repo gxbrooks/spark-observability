@@ -18,7 +18,7 @@ Most enterprises maintain three layers that must stay aligned over time.
 
 The **business model** lives in ServiceNow as CSDM objects — Business Applications, Business Services, and Application Services — and answers portfolio and service-management questions: who owns a capability, how it fits the product map, and which team receives an incident. The **runtime inventory** is what Discovery and the Kubernetes Visibility Agent actually find: pods, containers, hosts, and the label rows attached to those configuration items in **`cmdb_key_value`**. The **observability partition** in Dynatrace holds metrics, logs, traces, and problems, scoped by management zones and tags so alerts do not bleed across environments or products.
 
-Discovery and KVA populate the runtime inventory from deployed workloads. CSDM deploy materializes the business model that would otherwise be entered manually in the ServiceNow UI. **Tags** on running services — especially **`servicenow.io/application-service-identifier`** — are copied into **`cmdb_key_value`** and become the join key that binds discovered CIs to Application Services for tag-based Service Mapping. Dynatrace uses the same identifiers and boundaries so Event Management, SGC, and topology import land on the correct CMDB objects.
+Discovery and KVA populate the runtime inventory from deployed workloads. CSDM deploy materializes the business model that would otherwise be entered manually in the ServiceNow UI. The **`servicenow.com/service-instance`** tag on running services is copied into **`cmdb_key_value`** and becomes the join key that binds discovered CIs to Service Instances (Application Services) as members in **`svc_ci_assoc`** for tag-based Service Mapping. Dynatrace uses the same names and boundaries so Event Management, SGC, and topology import land on the correct CMDB objects.
 
 ```mermaid
 %%{init: {'themeVariables': {'fontSize': '32px', 'fontFamily': 'arial'}}}%%
@@ -32,7 +32,7 @@ flowchart TB
   subgraph SN["ServiceNow"]
     BA["Business Application"]
     BS["Business Service"]
-    AS["Application Service"]
+    AS["Service Instance"]
     CI["Discovered CIs + cmdb_key_value"]
     SM["Tag-based Service Mapping"]
     BA --> BS --> AS
@@ -47,7 +47,7 @@ flowchart TB
   CSDM -->|csdm/deploy.yml| BA
   Compose -->|Discovery / KVA| CI
   K8s -->|Discovery / KVA| CI
-  AS -.->|identifiers| MZ
+  AS -.->|names| MZ
   Region --> CSDM
 ```
 
@@ -71,13 +71,13 @@ CSDM specifications declare the Business Application → Business Service → Ap
 |-------|------------|------|
 | **Business Application** | `cmdb_ci_business_app` | Portfolio or product boundary |
 | **Business Service** | `cmdb_ci_service` | Logical capability the organization recognizes |
-| **Application Service** | `cmdb_ci_service_discovered` | Deployable unit that Service Mapping populates and binds to discovered CIs |
+| **Service Instance** (Application Service) | `cmdb_ci_service_discovered`; reclassed to `cmdb_ci_service_by_tags` when tag-based | Deployable unit that Service Mapping populates and binds to discovered CIs |
 
-Each Application Service carries a stable **`identifier`** (slug: `[a-z0-9-]+`, max 63 characters). For tag-based Service Mapping, this **`identifier`** must equal **`servicenow.io/application-service-identifier`** on the running workload.
+Each Service Instance carries a stable **`identifier`** (slug: `[a-z0-9-]+`, max 63 characters) used only as an internal logical key — cross-references within specs, `{host}`/`{host_lower}` expansion, and log labels. It is not sent to ServiceNow and not used in any tag. For tag-based Service Mapping, the join key is the display **`name`**: the workload carries **`servicenow.com/service-instance`** set to that name, sanitized to the Kubernetes label charset when the platform is Kubernetes (for example `Spark Master` → `Spark-Master`).
 
 **Business Application and Business Service relationships are declared only in CSDM** (or the ServiceNow UI) through **`parent_business_application`** and **`parent_business_service`**. Do not repeat those relationships as container labels — they are not join keys and would duplicate authoritative CMDB hierarchy.
 
-CSDM files also carry **`depends_on`**, ownership, location, **`platform`**, and **`service_mapping`** method on each entity explicitly. They do **not** carry Docker Compose service names, Kubernetes recommended labels, or runtime **`servicenow.io/*`** values.
+CSDM files also carry **`depends_on`**, ownership, location, **`platform`**, and **`service_mapping`** method on each entity explicitly. They do **not** carry Docker Compose service names, Kubernetes recommended labels, or runtime **`servicenow.com/*`** values.
 
 ### Region registry
 
@@ -87,7 +87,7 @@ Each management region has a **`region.yaml`** under `servicenow/regions/<region
 
 Runtime workload specifications describe services as they are deployed: Docker Compose files, Kubernetes manifests, Helm charts, or DynaKube configuration. They define images, ports, volumes, and — for Service Mapping — **labels** that Discovery stores in the CMDB.
 
-The container or Kubernetes specification is the **authoritative source** for every **`servicenow.io/*`** label on a running workload. See [Single source of truth for runtime tags](#single-source-of-truth-for-runtime-tags).
+The container or Kubernetes specification is the **authoritative source** for the **`servicenow.com/service-instance`** label on a running workload. See [Single source of truth for runtime tags](#single-source-of-truth-for-runtime-tags).
 
 ---
 
@@ -97,11 +97,12 @@ Every tag value on a deployed workload must have **one** authoritative definitio
 
 | Concern | Where it is specified |
 |---------|------------------------|
-| **`servicenow.io/*` on containers and pods** | `docker-compose.yml`, Kubernetes manifests or templates, DynaKube pod labels |
+| **`servicenow.com/service-instance` on containers and pods** | `docker-compose.yml`, Kubernetes manifests or templates, DynaKube pod labels |
 | **`com.docker.compose.*`, `app.kubernetes.io/*`** | Same container specifications only |
-| **Application Service `identifier`** | `*.csdm.yaml` — must match **`servicenow.io/application-service-identifier`** on the workload |
+| **Service Instance display `name`** | `*.csdm.yaml` — the **`servicenow.com/service-instance`** label value must equal this name (Kubernetes-sanitized for `platform: kubernetes`); the deploy generates the ServiceNow-side tag population rule from the same name |
+| **Service Instance `identifier`** | `*.csdm.yaml` — internal logical key only (cross-references, `{host}` expansion, log labels); not sent to ServiceNow, not used in any tag |
 | **BA → BS → AS hierarchy, `depends_on`, ownership** | `*.csdm.yaml` (or ServiceNow UI) only |
-| **CMDB `location` on CSDM records** | Explicit **`location`** on each Application Service in CSDM — mirrored on workloads as **`servicenow.io/location`** |
+| **CMDB `location` on CSDM records** | Explicit **`location`** on each Service Instance in CSDM — a CI field only, not emitted as a workload label |
 
 Do not duplicate Compose service names or Kubernetes label selectors in CSDM. CSDM declares the Application Service and its relationships; the container spec carries everything Discovery must read from the runtime.
 
@@ -156,7 +157,7 @@ business_services:
 ### Application service — Docker platform
 
 ```yaml
-application_services:
+service_instances:
   - name: Elasticsearch
     identifier: elasticsearch
     short_description: Elasticsearch — HTTPS API
@@ -175,12 +176,12 @@ application_services:
       - Elasticsearch
 ```
 
-The **`identifier`** must appear on the running container as **`servicenow.io/application-service-identifier: elasticsearch`** in the Compose file.
+The display **`name`** must appear on the running container as **`servicenow.com/service-instance: Elasticsearch`** in the Compose file. Docker labels carry the exact display name — spaces are allowed (for example `servicenow.com/service-instance: OpenTelemetry Collector`).
 
 ### Application service — Kubernetes platform
 
 ```yaml
-application_services:
+service_instances:
   - name: Spark Master
     identifier: spark-master
     short_description: Spark master StatefulSet
@@ -201,12 +202,12 @@ application_services:
 
 Do **not** declare Application Service → `cmdb_ci_linux_server` `depends_on` edges. Host placement is reached through discovered workload CIs (for example pod **Runs on** host).
 
-Pod templates must carry **`servicenow.io/application-service-identifier: spark-master`**. When one pod template serves multiple Application Services (for example Dynatrace OneAgent per node), set the identifier explicitly per pod — not by inferring from pod name prefixes.
+Pod templates must carry **`servicenow.com/service-instance: Spark-Master`** — the display name sanitized to the Kubernetes label charset (`Spark Master` → `Spark-Master`). When one pod template serves multiple Service Instances (for example Dynatrace OneAgent per node), set the label explicitly per pod — not by inferring from pod name prefixes.
 
 ### Application service — host platform
 
 ```yaml
-application_services:
+service_instances:
   - name: "Elastic Agent ({host})"
     identifier: "elastic-agent-{host_lower}"
     short_description: "Elastic Agent on {host}"
@@ -226,7 +227,7 @@ application_services:
 ### Application service — SaaS or manual mapping
 
 ```yaml
-application_services:
+service_instances:
   - name: Dynatrace Tenant
     identifier: dynatrace-tenant
     platform: saas
@@ -242,7 +243,7 @@ No runtime tags; map manually or through SGC import.
 
 ## Container and Kubernetes specifications
 
-Container and Kubernetes specifications describe **what is deployed**. For tag-based Service Mapping, each service or pod template must include **`servicenow.io/*`** labels that Discovery copies into **`cmdb_key_value`**.
+Container and Kubernetes specifications describe **what is deployed**. For tag-based Service Mapping, each service or pod template must include the **`servicenow.com/service-instance`** label that Discovery copies into **`cmdb_key_value`**.
 
 After you change labels, redeploy the workload so running objects match the specification, then allow Discovery or KVA to refresh the CMDB. **`discovery/k8s/sync_pod_labels.yml`** copies pod labels from the cluster into **`cmdb_key_value`** when KVA has not yet ingested them.
 
@@ -250,11 +251,9 @@ After you change labels, redeploy the workload so running objects match the spec
 
 | Label key | Required? | Notes |
 |-----------|-----------|-------|
-| `servicenow.io/application-service-identifier` | **Yes** | Must match CSDM Application Service **`identifier`** |
-| `servicenow.io/environment` | Recommended | Should match explicit **`environment`** on the Application Service in CSDM |
-| `servicenow.io/location` | Recommended | Should match explicit **`location`** on the Application Service in CSDM |
+| `servicenow.com/service-instance` | **Yes** | Must equal the CSDM Service Instance display **`name`** — Kubernetes-sanitized for `platform: kubernetes` (characters outside `A-Za-z0-9._-` collapse to `-`, leading/trailing `-._` stripped); exact name with spaces allowed for Docker Compose and host platforms |
 
-Do **not** use **`servicenow.io/application-identifier`** or **`servicenow.io/business-service-identifier`**. BA and BS relationships belong only in CSDM.
+This is the only ServiceNow label. Do **not** add environment, location, business-application, or business-service labels: BA and BS relationships belong only in CSDM, and `environment`/`location` are CI fields on the service record, not workload labels.
 
 ### Docker Compose example
 
@@ -265,9 +264,7 @@ services:
     labels:
       com.docker.compose.project: observability
       com.docker.compose.service: elasticsearch
-      servicenow.io/application-service-identifier: elasticsearch
-      servicenow.io/environment: on-prem
-      servicenow.io/location: my-region
+      servicenow.com/service-instance: Elasticsearch
 ```
 
 ### Kubernetes pod template example
@@ -277,22 +274,20 @@ metadata:
   labels:
     app.kubernetes.io/name: spark-master
     app.kubernetes.io/component: master
-    servicenow.io/application-service-identifier: spark-master
-    servicenow.io/environment: on-prem
-    servicenow.io/location: my-region
+    servicenow.com/service-instance: Spark-Master
 ```
 
 ### Per-node Kubernetes workloads (Dynatrace OneAgent)
 
-Dynatrace OneAgent is the one workload that needs a **post-deploy labeling step** in addition to normal pod template labels. DynaKube creates a single DaemonSet for all nodes; the DynaKube CR can set **shared** labels (`servicenow.io/environment`, `servicenow.io/location`, etc.) on every OneAgent pod, but each node maps to a **different** Application Service in CSDM (`dynatrace-oneagent-lab1`, `dynatrace-oneagent-lab2`, …). Kubernetes cannot vary `servicenow.io/application-service-identifier` per node from one static DaemonSet template without per-node manifests.
+Dynatrace OneAgent is the one workload that needs a **post-deploy labeling step** in addition to normal pod template labels. DynaKube creates a single DaemonSet for all nodes; the DynaKube CR can set **shared** labels on every OneAgent pod, but each node maps to a **different** Service Instance in CSDM (one OneAgent service per node). Kubernetes cannot vary `servicenow.com/service-instance` per node from one static DaemonSet template without per-node manifests.
 
 The labeling step is **not** a separate modeling path — it sets the same explicit join key every other workload carries in its spec:
 
 1. **`apply_dynakube.yml`** applies shared labels from `dynakube.yaml.j2` and runs **`label_oneagent_servicenow.yml`** once OneAgent pods are ready.
-2. **`discovery/k8s/label_oneagent_pods.yml`** re-applies per-node identifiers when pods are recreated (for example after a DynaKube rollout) without a full Dynatrace deploy.
+2. **`discovery/k8s/label_oneagent_pods.yml`** re-applies per-node service-instance labels when pods are recreated (for example after a DynaKube rollout) without a full Dynatrace deploy.
 3. **`discovery/k8s/sync_pod_labels.yml`** reads labels from the cluster into `cmdb_key_value` — the same bridge used for Spark and other pods.
 
-There is no name-prefix inference: each pod receives an explicit `servicenow.io/application-service-identifier` for its node.
+There is no name-prefix inference: each pod receives an explicit `servicenow.com/service-instance` label for its node's Service Instance.
 
 ---
 
@@ -331,11 +326,11 @@ See [DT_SN_Comparison_Process.md](DT_SN_Comparison_Process.md) for the full work
 
 | Platform | Workload | CMDB CI | Typical ingestion |
 |----------|----------|---------|-------------------|
-| Docker | Compose service | `cmdb_ci_docker_container` | Docker Pattern |
-| Kubernetes | Pod | `cmdb_ci_kubernetes_pod` | KVA Informer; **`sync_pod_labels.yml`** bridges gaps |
-| Host | systemd agent | `cmdb_ci_linux_server` | Interim CSDM sync when no workload labels |
+| Docker | Compose service | `cmdb_ci_docker_container` | **`discovery/docker/discover.yml`** label sync (Docker Pattern enriches the container graph but not custom label rows) |
+| Kubernetes | Pod | `cmdb_ci_kubernetes_pod` | KVA Informer (source `system`); **`sync_pod_labels.yml`** bridges gaps |
+| Host | systemd agent | `cmdb_ci_linux_server` | **`discovery/host/sync_tags.yml`** host tag sync |
 
-Tag-based Service Mapping matches **`servicenow.io/application-service-identifier`** only.
+All Ansible label mirrors match and copy only **`servicenow.com/*`** keys. Tag-based Service Mapping matches **`servicenow.com/service-instance`** only; matching CIs become service members in **`svc_ci_assoc`**.
 
 ---
 
@@ -353,11 +348,11 @@ Ansible still defines **`DT_TENANT_URL`**, **`DT_API_URL`**, tokens, and partiti
 
 1. Author or update **`*.csdm.yaml`** — hierarchy, explicit attributes on each entity, **identifiers**, platform, **`depends_on`**, Service Mapping method.
 2. Register the spec in **`region.yaml`**.
-3. Add **`servicenow.io/*`** and platform labels to container or Kubernetes specifications.
+3. Add the **`servicenow.com/service-instance`** label and platform labels to container or Kubernetes specifications, using the service instance display **`name`** (Kubernetes-sanitized on Kubernetes).
 4. Deploy workloads so Discovery and KVA see current labels.
-5. Run **`csdm/deploy.yml`** to create or update Application Services in the CMDB.
+5. Run **`csdm/deploy.yml`** to create or update Service Instances in the CMDB; for tag-based services it also sets the tag population rule (via the `/populate_tags` Scripted REST API) and triggers membership recalculation.
 6. Run native discovery; run **`discovery/k8s/sync_pod_labels.yml`** when needed.
-7. Configure tag-based Service Mapping — [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md).
+7. Ensure the **Service Instance** tag category exists (**`service-mapping/common/ensure_tag_categories.yml`**) — [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md).
 8. Run **`compare.yml`** and review **`DT_SN_Model_Comparison_Report.json`** for drift.
 
 ---

@@ -1,6 +1,8 @@
 ---
-# Apply per-node servicenow.io/application-service-identifier to OneAgent pods.
+# Apply per-node servicenow.com/service-instance to OneAgent pods.
 # DynaKube shared labels cannot vary by node; this task sets the explicit join key per pod.
+# Value = service instance display name "Dynatrace OneAgent (<host>)" sanitized to the
+# K8s label charset (spaces/parens → '-'), matching configure_tag_based_sm.yml.
 
 - name: Resolve OneAgent pod on node {{ oneagent_node | lower }}
   ansible.builtin.command:
@@ -19,7 +21,9 @@
   ansible.builtin.command:
     cmd: >-
       kubectl label pod -n dynatrace {{ oneagent_pod_name_cmd.stdout | trim }}
-      servicenow.io/application-service-identifier=dynatrace-oneagent-{{ oneagent_node | lower }}
+      servicenow.com/service-instance={{ ('Dynatrace OneAgent (' ~ oneagent_node ~ ')')
+        | regex_replace('[^A-Za-z0-9._-]+', '-')
+        | regex_replace('^[-._]+|[-._]+$', '') }}
       --overwrite
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf

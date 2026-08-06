@@ -24,7 +24,7 @@ Official ServiceNow guidance emphasizes:
 - Tag-based mapping **does not require elevated credentials on workloads** (unlike vertical/top-down Service Mapping).
 - For Kubernetes, the **Kubernetes Visibility Agent (KVA) Informer** is the recommended near-real-time path: it watches the API server and populates pod/service CIs and label rows.
 - Organizations **should standardize labels before deployment** (for example `app.kubernetes.io/*`, environment, application name) and use **Tag Categories** in the Service Mapping Workspace to normalize inconsistent keys.
-- **`servicenow.io/*`** keys (especially `servicenow.io/application-service-identifier`) are the recommended correlation keys between discovered CIs and CSDM application services.
+- **`servicenow.com/service-instance`** is the correlation key between discovered CIs and CSDM service instances; its value is the service instance **display name**.
 
 **Intended division of labor:**
 
@@ -32,7 +32,7 @@ Official ServiceNow guidance emphasizes:
 |------|----------------|
 | **Platform / DevOps** | Author runtime labels on workloads (Compose, K8s, cloud). |
 | **Discovery operator** | Run KVA, Docker Pattern, cloud discovery so CIs and `cmdb_key_value` exist. |
-| **CSDM modeler** | Declare BA/BS/AS hierarchy and **identifiers** in `*.csdm.yaml`. |
+| **CSDM modeler** | Declare BA/BS/service-instance hierarchy and **display names** in `*.csdm.yaml`. |
 | **Service Mapping operator** | Configure Tag Categories and tag filters on the instance. |
 
 External orchestration that scrapes runtime and REST-writes CMDB is **not** ServiceNow’s documented happy path. See [Single source of truth](#single-source-of-truth-principle) in the specification guide for where runtime labels must be authored.
@@ -54,7 +54,7 @@ KVA does **not** automatically provide everything this project needs:
 
 | Gap | Consequence |
 |-----|-------------|
-| **`servicenow.io/*` canonical keys** | KVA copies labels that exist on pods; it does not invent CSDM correlation keys. Workloads without `servicenow.io/application-service-identifier` on the pod will not bind to application services by canonical key. |
+| **`servicenow.com/service-instance` canonical key** | KVA copies labels that exist on pods; it does not invent CSDM correlation keys. Workloads without `servicenow.com/service-instance` on the pod will not bind to service instances by canonical key. |
 | **Spec vs runtime drift** | Manifests in Git may declare labels that are not yet on running pods until redeploy. |
 | **Integration user ACLs** | KVA writes as `system`. The automation user (`admin_brooks_lab`) required separate **`cmdb_key_value`** table ACL changes to upsert rows via REST ([install.md](install.md) §6.3). |
 
@@ -62,10 +62,10 @@ KVA does **not** automatically provide everything this project needs:
 
 | Mechanism | What ServiceNow / MID does | What it puts in `cmdb_key_value` |
 |-----------|---------------------------|----------------------------------|
-| **Docker Pattern** (horizontal Discovery) | Discovers containers, processes, relationships for vertical Service Mapping | **Not** custom `servicenow.io/*` Compose labels ([CSDM_Specifications.md](CSDM_Specifications.md) Statement 4.4) |
-| **`discovery/docker/discover.yml`** (this repo) | `docker ps` + `docker inspect` on the host | **All** container labels, including `servicenow.io/*` and `com.docker.compose.*` |
+| **Docker Pattern** (horizontal Discovery) | Discovers containers, processes, relationships for vertical Service Mapping | **Not** custom `servicenow.com/*` Compose labels ([CSDM_Specifications.md](CSDM_Specifications.md) Statement 4.4) |
+| **`discovery/docker/discover.yml`** (this repo) | `docker ps` + `docker inspect` on the host | **All** container labels, including `servicenow.com/*` and `com.docker.compose.*` |
 
-Docker Pattern enriches the container/process graph; it does **not** populate Compose **`servicenow.io/*`** rows that tag-based Service Mapping rules expect in this lab.
+Docker Pattern enriches the container/process graph; it does **not** populate Compose **`servicenow.com/*`** rows that tag-based Service Mapping rules expect in this lab.
 
 ---
 
@@ -73,8 +73,7 @@ Docker Pattern enriches the container/process graph; it does **not** populate Co
 
 | Playbook | Runtime contact | Direction | Role |
 |----------|-----------------|-----------|------|
-| **`k8s/sync_csdm_tags.yml`** | `kubectl get pods` (read names only) | CSDM spec → SN `cmdb_key_value` | Bridge when runtime labels missing; not native discovery |
-| **`k8s/sync_pod_labels.yml`** | `kubectl get pods -o json` (read labels) | Runtime → SN `cmdb_key_value` | Mirror `servicenow.io/*` when KVA lag or labels present on pods |
+| **`k8s/sync_pod_labels.yml`** | `kubectl get pods -o json` (read labels) | Runtime → SN `cmdb_key_value` | Mirror `servicenow.com/*` when KVA lag or labels present on pods |
 | **`docker/discover.yml`** | `docker ps`, `docker inspect` | Runtime → SN `cmdb_key_value` (+ container CI upsert) | Fills Docker Pattern gap for Compose labels |
 | **`host/sync_tags.yml`** | None | CSDM spec → SN `cmdb_key_value` on `linux_server` | Host agents without container/pod label surface |
 | **`k8s/discover.yml`** | `kubectl rollout restart` KVA | SN-side informer only | Not app pod labels |
@@ -83,10 +82,7 @@ Docker Pattern enriches the container/process graph; it does **not** populate Co
 
 **None of these playbooks inject tags into running containers or pods.** They either read runtime and write CMDB, or push model intent into CMDB.
 
-There are **two Kubernetes tag pipelines**:
-
-1. **Runtime mirror** (`sync_pod_labels.yml`) — duplicates what KVA would do if pods carry full `servicenow.io/*` labels.
-2. **Model injection** (`sync_csdm_tags.yml`) — writes CMDB from CSDM when runtime labels are absent (compare/drift bridge, not SN-native discovery).
+The Kubernetes tag pipeline is a **runtime mirror** (`sync_pod_labels.yml`) — it duplicates what KVA would do if pods carry the `servicenow.com/service-instance` label, covering KVA lag.
 
 ---
 
@@ -96,7 +92,7 @@ There are **two Kubernetes tag pipelines**:
 
 External Ansible that inspects Docker or Kubernetes and REST-writes **`cmdb_key_value`** is a **workaround** when:
 
-- Native discovery does not copy the keys you standardized on (`servicenow.io/*`).
+- Native discovery does not copy the keys you standardized on (`servicenow.com/*`).
 - GitOps CSDM deploy and tag binding must proceed before native ingestion catches up.
 - Instance ACLs block the integration user from the same writes KVA makes as `system`.
 - Custom **container inventory sync** (`container_discovery: true`) runs separately from MID Docker Pattern.
@@ -105,23 +101,20 @@ External Ansible that inspects Docker or Kubernetes and REST-writes **`cmdb_key_
 
 1. **Runtime labels correct** on all workloads (Compose, K8s manifests deployed).
 2. **KVA + Docker Pattern** as the only runtime readers into CMDB.
-3. **Ansible limited to CSDM deploy** (BA/BS/AS) and **compare** — not tag scraping or CMDB tag injection.
-4. **`sync_csdm_tags.yml` retired** once runtime labels and KVA ingestion are trusted.
-
-Long-term retention of **`sync_csdm_tags.yml`** supports **“CMDB reflects spec when runtime lags”** for drift detection; useful for compare, not for production Service Mapping reliance.
+3. **Ansible limited to CSDM deploy** (BA/BS/service instances) and **compare** — not tag scraping or CMDB tag injection.
 
 ---
 
 ## ServiceNow best practices for tags
 
 1. **Define a tagging standard early** — consistent keys across environments (Application, Environment, Location, Owner). For Kubernetes, prefer **`app.kubernetes.io/*`** recommended labels.
-2. **Use `servicenow.io/*` for Service Mapping correlation** — especially `servicenow.io/application-service-identifier` matching CSDM `identifier`.
+2. **Use `servicenow.com/service-instance` for Service Mapping correlation** — its value matching the CSDM service instance display name (`name:`; K8s-sanitized for `platform: kubernetes`).
 3. **Apply tags at deploy time** — Compose `labels:`, pod templates, cloud tag policies; avoid manual CMDB tag entry.
 4. **Run native discovery** — KVA for Kubernetes; cloud discovery for AWS/Azure/GCP; Docker Pattern where container/process graph is required.
 5. **Configure Tag Categories** in Service Mapping Workspace — normalize `app`, `app.kubernetes.io/name`, etc.
 6. **Verify `cmdb_key_value`** before expecting maps — `cmdb_key_value.list`, filter by key.
 7. **Separate concerns** — CSDM hierarchy (business model) vs tags (workload → application service binding) vs traversal rules (map topology).
-8. **One canonical key per CI** — do not assign multiple `servicenow.io/application-service-identifier` values on the same CI (for example Elastic Agent and OneAgent both on one `linux_server`); use the correct CI class (pod vs host).
+8. **One canonical key per CI** — do not assign multiple `servicenow.com/service-instance` values on the same CI (for example Elastic Agent and OneAgent both on one `linux_server`); use the correct CI class (pod vs host).
 
 ---
 
@@ -135,8 +128,8 @@ ServiceNow **does** read labels that exist on objects and that the ingestion pat
 
 It does **not** automatically:
 
-- Guarantee **`servicenow.io/*`** without those labels on the workload.
-- Copy Compose **`servicenow.io/*`** via **Docker Pattern alone** in this lab.
+- Guarantee **`servicenow.com/service-instance`** without that label on the workload.
+- Copy Compose **`servicenow.com/*`** via **Docker Pattern alone** in this lab.
 - Replace **CSDM deploy** (Business Applications are model declarations, not discovered).
 - Ingest tags into **Dynatrace** (OneAgent/Operator and cloud integrations are separate).
 

@@ -38,8 +38,8 @@
           Allow 3–10 minutes for CMDB sync, then run k8s/sync_pod_labels.yml.
           CMDB filter: cmdb_ci_kubernetes* name STARTSWITH brooks-lab
 
-- name: Ensure OneAgent pods carry per-node application-service-identifier
+- name: Ensure OneAgent pods carry per-node servicenow.com/service-instance
   ansible.builtin.import_playbook: label_oneagent_pods.yml
 
-- name: Sync servicenow.io pod labels to cmdb_key_value
+- name: Sync servicenow.com pod labels to cmdb_key_value
   ansible.builtin.import_playbook: sync_pod_labels.yml

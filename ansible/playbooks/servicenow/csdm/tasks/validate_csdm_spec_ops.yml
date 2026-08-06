@@ -18,7 +18,7 @@
 
 - name: Validate csdm_op on application services
   ansible.builtin.include_tasks: resolve_csdm_op.yml
-  loop: "{{ sn_csdm_spec.application_services | default([]) }}"
+  loop: "{{ sn_csdm_spec.service_instances | default([]) }}"
   loop_control:
     loop_var: sn_csdm_object_spec
     label: "{{ sn_csdm_object_spec.name | default('') }}"

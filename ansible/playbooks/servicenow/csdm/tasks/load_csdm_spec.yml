@@ -28,5 +28,5 @@
     that:
       - (sn_csdm_spec.business_applications | default([]) | length) > 0
         or (sn_csdm_spec.business_services | default([]) | length) > 0
-        or (sn_csdm_spec.application_services | default([]) | length) > 0
-    fail_msg: "CSDM specification {{ sn_csdm_spec_path }} has no business_applications, business_services, or application_services."
+        or (sn_csdm_spec.service_instances | default([]) | length) > 0
+    fail_msg: "CSDM specification {{ sn_csdm_spec_path }} has no business_applications, business_services, or service_instances."

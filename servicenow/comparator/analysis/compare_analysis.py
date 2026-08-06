@@ -6,8 +6,22 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-CANONICAL_TAG_KEY = "servicenow.io/application-service-identifier"
+CANONICAL_TAG_KEY = "servicenow.com/service-instance"
 ALTERNATE_TAG_KEYS = frozenset({"app.kubernetes.io/name", "app"})
+
+
+def expected_tag_value(intent: dict) -> str:
+    """Canonical tag value = service instance display name.
+
+    Kubernetes label values cannot contain spaces or parentheses, so
+    kubernetes-platform values are sanitized to the K8s label charset
+    (matching configure_tag_based_sm.yml)."""
+    import re
+
+    name = intent.get("name", "")
+    if intent.get("platform") == "kubernetes":
+        return re.sub(r"^[-._]+|[-._]+$", "", re.sub(r"[^A-Za-z0-9._-]+", "-", name))
+    return name
 
 
 def field_value(value) -> str:
@@ -184,7 +198,7 @@ def build_app_service_diff(
         name = intent.get("name", "")
         identifier = intent.get("identifier", "")
         sn = sn_by_name.get(name, {})
-        canonical_count = canonical_counts.get(identifier, 0)
+        canonical_count = canonical_counts.get(expected_tag_value(intent), 0)
         alternate_count = alternate_counts.get(identifier, 0)
         if not sn.get("present_in_cmdb"):
             status = "missing_in_cmdb"

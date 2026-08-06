@@ -54,7 +54,7 @@ def resolution_for(issue: str, app_row: dict | None = None) -> dict:
             **common_csdm,
         },
         "missing_tag_binding": {
-            "summary": "Tag-based application service has no canonical servicenow.io tag bindings in CMDB.",
+            "summary": "Tag-based service instance has no canonical servicenow.com/service-instance tag bindings in CMDB.",
             "steps": [
                 "Ensure Docker/Kubernetes runtime labels match the CSDM specification.",
                 "Run discovery playbooks so cmdb_key_value rows are created.",
@@ -62,9 +62,9 @@ def resolution_for(issue: str, app_row: dict | None = None) -> dict:
             "docs": ["servicenow/docs/Tag_Based_Service_Mapping.md", "servicenow/docs/install.md"],
         },
         "alternate_tag_only": {
-            "summary": "Only alternate tags are bound; canonical servicenow.io key is missing.",
+            "summary": "Only alternate tags are bound; canonical servicenow.com key is missing.",
             "steps": [
-                "Add servicenow.io/application-service-identifier to workload labels.",
+                "Add servicenow.com/service-instance to workload labels.",
                 "Re-run discovery to refresh cmdb_key_value.",
             ],
             "docs": ["servicenow/docs/Tag_Based_Service_Mapping.md"],

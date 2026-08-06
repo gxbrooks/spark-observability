@@ -52,7 +52,7 @@ class CompareConfig:
             "KUBERNETES_NODE",
         ]
     )
-    identifier_tag_key: str = "servicenow.io/application-service-identifier"
+    identifier_tag_key: str = "servicenow.com/service-instance"
     export_filename: str = "DT_SN_Model_Comparison.json"
     report_filename: str = "DT_SN_Model_Comparison_Report.json"
 

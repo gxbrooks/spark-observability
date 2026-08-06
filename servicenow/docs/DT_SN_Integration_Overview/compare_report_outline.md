@@ -20,7 +20,7 @@ Generated from `DT_SN_Model_Comparison_Report.json`. Numeric inventory values ar
     "count": 1,
     "item": {
       "registry": "scope_unit_id, region_id, …",
-      "intent": "BA, BS, application_services"
+      "intent": "BA, BS, service_instances"
     }
   },
   "instance": {

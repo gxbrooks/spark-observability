@@ -17,7 +17,7 @@
     sn_host_csdm_file_queue: >-
       {{ sn_host_csdm_file_queue + [ {'spec': item, 'host': ''} ] }}
   loop: >-
-    {{ sn_csdm_spec.application_services | default([])
+    {{ sn_csdm_spec.service_instances | default([])
        | selectattr('platform', 'equalto', 'host')
        | rejectattr('expand', 'defined')
        | list }}
@@ -28,7 +28,7 @@
     sn_csdm_app_svc_entry: "{{ expand_entry }}"
     sn_csdm_app_svc_queue: "{{ sn_host_csdm_file_queue }}"
   loop: >-
-    {{ sn_csdm_spec.application_services | default([])
+    {{ sn_csdm_spec.service_instances | default([])
        | selectattr('platform', 'equalto', 'host')
        | selectattr('expand', 'defined')
        | list }}
@@ -40,7 +40,7 @@
   ansible.builtin.set_fact:
     sn_host_csdm_file_queue: "{{ sn_csdm_app_svc_queue }}"
   when: >-
-    sn_csdm_spec.application_services | default([])
+    sn_csdm_spec.service_instances | default([])
     | selectattr('platform', 'equalto', 'host')
     | selectattr('expand', 'defined')
     | list | length > 0

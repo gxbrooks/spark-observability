@@ -60,8 +60,9 @@ chmod 755 "${_spark_client_root}" 2>/dev/null || true
 chmod 755 "${SPARK_LOG_DIR}" 2>/dev/null || true
 echo "SPARK_LOG_DIR=${SPARK_LOG_DIR} (instance=${_spark_driver_instance})"
 
-# Optional: tag driver process in Dynatrace when PROCESS_GROUP is in ImpactedEntities.
-export DT_TAGS="${DT_TAGS:-servicenow.io/application-service-identifier=spark-client}"
+# DT_TAGS process tagging removed: the only ServiceNow tag is
+# servicenow.com/service-instance on managed workloads (K8s/Docker); Client
+# binding uses the spark.as_identifier log contract, not process tags.
 
 # PySpark driver must load log4j2-client (file + console); default driver config is console-only.
 if [[ "${PYSPARK_SUBMIT_ARGS:-}" != *"log4j2.configurationFile"* ]]; then

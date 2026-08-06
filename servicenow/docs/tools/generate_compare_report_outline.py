@@ -47,7 +47,7 @@ def build_outline(report: dict[str, Any]) -> dict[str, Any]:
         },
         "csdm_intent_sources": {
             "count": len(report.get("csdm_intent_sources", [])),
-            "item": {"registry": "scope_unit_id, region_id, …", "intent": "BA, BS, application_services"},
+            "item": {"registry": "scope_unit_id, region_id, …", "intent": "BA, BS, service_instances"},
         },
         "instance": {"servicenow_url": "…", "dynatrace_ui_url": "…"},
         "summary": {

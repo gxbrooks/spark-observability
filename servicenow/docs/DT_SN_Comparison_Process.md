@@ -10,7 +10,7 @@ Enterprises maintain **two parallel models** of the same IT environment:
 
 | System | Model |
 |--------|--------|
-| **ServiceNow** | CSDM hierarchy (Business Application → Business Service → Application Service) backed by CMDB CIs, relationships, tags, and Service Mapping |
+| **ServiceNow** | CSDM hierarchy (Business Application → Business Service → Service Instance) backed by CMDB CIs, relationships, tags, and Service Mapping |
 | **Dynatrace** | Entity graph (hosts, process groups, services, Kubernetes objects) with partitioning by management zones, tags, and Smartscape relationships |
 
 **Compare** answers three questions for a chosen scope:
@@ -156,7 +156,7 @@ Run all applicable layers for each scope unit. Not every deployment uses every p
 | Check | ServiceNow | Dynatrace | Pass criteria |
 |-------|------------|-----------|---------------|
 | Container CIs | `cmdb_ci_docker_container` (+ Docker Pattern relationships) | Process groups / containers on host | Containers for scoped services exist in both |
-| Tag-based SM | `cmdb_key_value`: `servicenow.io/application-service-identifier` | DT tags on process/host (if mirrored) or naming convention map | Identifier matches `csdm.yaml` |
+| Tag-based SM | `cmdb_key_value`: `servicenow.com/service-instance` | DT tags on process/host (if mirrored) or naming convention map | Value matches the service instance display name in `csdm.yaml` |
 | Vertical SM | Entry points, `cmdb_tcp`, **Runs on** | Host listeners in DT | Enrichment present when `service_mapping: vertical` |
 
 ### Kubernetes
@@ -165,8 +165,8 @@ Run all applicable layers for each scope unit. Not every deployment uses every p
 |-------|------------|-----------|---------------|
 | Cluster | KVA / Discovery cluster CI | `KUBERNETES_CLUSTER` entity | Cluster name mapping documented in registry |
 | Workloads | Pod / deployment CIs via KVA labels | K8s entities in MZ | Labeled workloads appear in CMDB |
-| Tag-based SM | K8s labels → `cmdb_key_value` | Optional mirrored tags | `servicenow.io/application-service-identifier` binds map |
-| CSDM app services | `cmdb_ci_service_discovered`, `platform: kubernetes` | Not 1:1; compare via tags / process groups | Each declared app service has bound workload CIs |
+| Tag-based SM | K8s labels → `cmdb_key_value` | Optional mirrored tags | `servicenow.com/service-instance` binds membership |
+| CSDM service instances | `cmdb_ci_service_discovered` / `cmdb_ci_service_by_tags`, `platform: kubernetes` | Not 1:1; compare via tags / process groups | Each declared service instance has bound workload CIs |
 
 ### Cloud (AWS / Azure / GCP)
 
@@ -192,16 +192,14 @@ Use stable keys declared in `csdm.yaml` and the scope registry—not display nam
 
 | Purpose | ServiceNow | Dynatrace | Notes |
 |---------|------------|-----------|-------|
-| Application service identity | `identifier` + `cmdb_key_value` key `servicenow.io/application-service-identifier` | Tag or mapped process group / service name | Primary key for tag-based SM |
-| Business service | `servicenow.io/business-service-identifier` | Optional DT tag | Secondary filter |
-| Business application | `servicenow.io/application-identifier` | Optional DT tag | Secondary filter |
-| Environment | `environment` + `servicenow.io/environment` | Auto-tag / custom tag | Align values in registry |
-| Location | `location` + `servicenow.io/location` | **Not** management zone | Geographic CSDM placement |
+| Service instance identity | Display name (`name:`; K8s-sanitized for `platform: kubernetes`) + `cmdb_key_value` key `servicenow.com/service-instance` | Tag or mapped process group / service name | Primary key for tag-based SM |
+| Environment | `environment` attribute in the CSDM spec | Auto-tag / custom tag | Align values in registry; no workload tag |
+| Location | `location` attribute → `cmn_location` | **Not** management zone | Geographic CSDM placement; no workload tag |
 | Host | CMDB `name` / `host_name` (normalized) | HOST `displayName` / `detectedName` | Watch short name vs FQDN |
 | K8s cluster | Cluster CI name | K8s cluster display name | Document SN ↔ DT name pairs in registry |
 | Cloud resource | Account + region + resource id | Cloud entity id | Required for cloud scope units |
 
-**Recommendation:** Where possible, apply the same `servicenow.io/*` labels on Kubernetes manifests, Docker Compose services, and (optionally) Dynatrace custom tags so both platforms share machine-readable keys without a manual mapping table.
+**Recommendation:** Where possible, apply the same `servicenow.com/service-instance` label on Kubernetes manifests, Docker Compose services, and (optionally) Dynatrace custom tags so both platforms share machine-readable keys without a manual mapping table.
 
 ---
 
@@ -227,7 +225,7 @@ Sources:
 
 - CSDM deploy / diagnose automation (if available)
 - Table API / CMDB Workspace lists filtered by location, BA, and class
-- `cmdb_rel_ci` for **Contains** and **Depends on::Used by**
+- `cmdb_rel_ci` for **Depends on::Used by**; `svc_ci_assoc` for tag-based service membership
 - `cmdb_key_value` for tag-based Service Mapping labels
 - `discovery_source` for Discovery vs SGO-Dynatrace vs KVA
 
@@ -295,7 +293,7 @@ Aggregate results by `environment`, business unit, geography, and platform. Trac
 | **Scope** | All comparison inputs match the registry row (location, environment, MZ, tenant) |
 | **Infrastructure** | Every in-scope Dynatrace HOST maps to exactly one authoritative CMDB host CI |
 | **CSDM structure** | BA / BS / application service tree matches `csdm.yaml` |
-| **Tag-based services** | Each `service_mapping: tags` application service has at least one workload CI with the expected `servicenow.io/application-service-identifier` |
+| **Tag-based services** | Each `service_mapping: tags` service instance has at least one workload CI with the expected `servicenow.com/service-instance` value (the display name) |
 | **Dependencies** | Declared `depends_on` links exist in CMDB (or are documented deferrals) |
 | **Observability binding** | Sample problems/events correlate to the expected CMDB CI (end-to-end spot check) |
 
@@ -406,7 +404,7 @@ flowchart TB
 | Artifact | Role |
 |----------|------|
 | `servicenow/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags, `csdm_op` |
-| `servicenow/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and `servicenow.io/*` keys |
+| `servicenow/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and the `servicenow.com/service-instance` key |
 | `servicenow/comparator/` | **Automated compare** (Python) — export + annotated JSON report |
 | `servicenow/comparator/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |
 | `servicenow/regions/*/region.yaml` | Scope correlation registry (discovered by compare) |
@@ -453,7 +451,7 @@ ansible-playbook ... -e sn_compare_filter_by_dynatrace_mz=true
 
 **Diff classification** (`matched`, `servicenow_only`, `dynatrace_only`, `missing_in_cmdb`, `missing_tag_binding`, `ok_canonical_tag`, `ok_alternate_tag_only`) is computed by `compare/files/generate_compare_report.py`.
 
-**Tag binding notes:** Compare queries `cmdb_key_value` for the canonical key `servicenow.io/application-service-identifier` plus alternate keys `app.kubernetes.io/name` and `app`. When canonical rows are absent but alternate rows match an intent `identifier`, the report marks **`alternate_tag_only`** — run `discovery/docker/discover.yml` or fix table ACLs per `servicenow/docs/install.md` §6.3.
+**Tag binding notes:** Compare queries `cmdb_key_value` for the canonical key `servicenow.com/service-instance` (expected value: the service instance display name, K8s-sanitized for `platform: kubernetes`) plus alternate keys `app.kubernetes.io/name` and `app`. When canonical rows are absent but alternate rows match an intent `identifier`, the report marks **`alternate_tag_only`** — run `discovery/docker/discover.yml` or fix table ACLs per `servicenow/docs/install.md` §6.3.
 
 This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; run those for deep Service Mapping, SGC, and IRE diagnostics. Compare focuses on **cross-platform inventory, tag alignment, and annotated drift** at correlation keys.
 

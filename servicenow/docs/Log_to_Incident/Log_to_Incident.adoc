@@ -240,7 +240,7 @@ business_services:
     owned_by: gbrooks
     business_criticality: "4 - not critical"
 
-application_services:
+service_instances:
   - name: Spark Master
     identifier: spark-master
     short_description: Spark master — Kubernetes StatefulSet
@@ -313,7 +313,7 @@ The table below enumerates the different CMDB objects in the Service-side scenar
 
 |===
 
-To be able to correlate a critical log message to the appropriate application service, we need to use tag-based service mapping to correlate the Kubernetes pod to the application service. This correlation is accomplished by setting the servicenow.io/application-service-identifier attribute in the template for the Kubernetes pod. This attribute is then used to correlate the pod to the application service.
+To be able to correlate a critical log message to the appropriate application service, we need to use tag-based service mapping to correlate the Kubernetes pod to the application service. This correlation is accomplished by setting the `servicenow.com/service-instance` label in the template for the Kubernetes pod. The label value is the **display name** of the service instance. Because Kubernetes label values cannot contain spaces or parentheses, the display name is written in the Kubernetes label character set — spaces become hyphens (`Spark Master` → `Spark-Master`). Docker labels have no such restriction and carry the display name verbatim.
 
 Spark Master StatefulSet pod template for the Spark Master is shown below.
 
@@ -331,12 +331,10 @@ template:
       app.kubernetes.io/component: master
       app.kubernetes.io/part-of: apache-spark
       app.kubernetes.io/managed-by: ansible
-      servicenow.io/application-service-identifier: spark-master
-      servicenow.io/environment: on-prem
-      servicenow.io/location: brooks-lab
+      servicenow.com/service-instance: Spark-Master
 ----
 
-The `servicenow.io/application-service-identifier` attribute is used to correlate the pod to the application service. Each time Kubernetes creates such a pod, the KVA (Kubernetes Visibility Agent) Informer notifies ServiceNow to create a new pod CI. The Informer also sets the `servicenow.io/application-service-identifier` attribute on the pod CI. This attribute is then used to correlate the pod to the application service.
+The `servicenow.com/service-instance` label correlates the pod to the service instance. Each time Kubernetes creates such a pod, the KVA (Kubernetes Visibility Agent) Informer notifies ServiceNow to create a new pod CI, and the label is copied to `cmdb_key_value` on that pod CI. Tag-based Service Mapping then matches the tag value against the population rule configured for the service instance and records the membership in the **`svc_ci_assoc`** table.
 
 ==== Client-side Model
 
@@ -371,7 +369,7 @@ Now, given the Spark Client application service how do we map a log message on t
 ==== Kubernetes Pod CIs
 In this section we drill down into the details of how Kubernetes Pod CIs are created and how they are correlated to the application service. The pod tags are labels that are set on the pod manifest. These labels are then used to create the Kubernetes Pod CIs. Pod manifest labels are the single source of truth for tag-based Service Mapping on Spark workloads.
 
-Tag-based Service Mapping matches workload CIs to an Application Service using **`cmdb_key_value`** rows copied from these pod labels. The ServiceNow labels have the formation "servicenow.io/<key>". There is no hard standard on how these keys are used. In this implementation, we keys listed in the table below.
+Tag-based Service Mapping matches workload CIs to a service instance using **`cmdb_key_value`** rows copied from these pod labels. The ServiceNow label uses the vendor-domain prefix `servicenow.com/`. There is no hard standard for the key name; this implementation uses the single key listed in the table below.
 
 [[tbl-servicenow-pod-label-keys]]
 .ServiceNow pod label keys for tag-based Service Mapping
@@ -379,17 +377,11 @@ Tag-based Service Mapping matches workload CIs to an Application Service using *
 |===
 |Key|Role
 
-|`application-service-identifier`
-|Primary tag filter. Value equals the Application Service `identifier` (for example `spark-master`). Tag-based SM uses this to **Contains** matching pods under that Application Service.
-
-|`environment`
-|Scope filter (for example `on-prem`). Narrows membership so the same application-service identifier in another environment does not match.
-
-|`location`
-|Scope filter (for example `brooks-lab`). Narrows membership across sites.
+|`servicenow.com/service-instance`
+|The only tag filter. Value equals the service instance **display name** (for example `Spark-Master` in the Kubernetes label character set, or `Elasticsearch` verbatim on Docker). Tag-based Service Mapping uses this to record matching workloads as members of that service instance in `svc_ci_assoc`.
 |===
 
-Of the tag keys listed in the table above, the `application-service-identifier` and `environment` are required. The `location` is optional. The application-service-identifier is used to correlate a pod to the appropriate application service by matching the `identifier` attribute of the Application Service CI. This is a slightly brittle convention that the teams need to keep in mind. 
+The `servicenow.com/service-instance` tag is required on every workload that belongs to a tag-mapped service instance; no other ServiceNow tags (environment, location) are used. The tag value must match the display name of the service instance CI (spaces written as hyphens for Kubernetes labels). This is a naming contract that the teams need to keep in mind: renaming a service instance requires updating the workload labels and the tag population rule together.
 
 <<list-spark-worker-pod-template>> illustrates the pod template for the Spark Worker.
 
@@ -403,9 +395,7 @@ kind: Pod
 metadata:
   name: spark-worker-lab1-0
   labels:
-    servicenow.io/application-service-identifier: spark-worker
-    servicenow.io/environment: on-prem
-    servicenow.io/location: brooks-lab
+    servicenow.com/service-instance: Spark-Worker
     app.kubernetes.io/name: spark-worker
 spec:
   containers:
@@ -424,6 +414,21 @@ spec:
       persistentVolumeClaim:
         claimName: spark-logs-pvc
 ----
+
+[#step-0-tag-based-membership]
+==== Tag-Based Service Mapping and svc_ci_assoc
+
+Getting a pod (or container) associated with its service instance is a meeting of two halves that are configured independently and joined by ServiceNow:
+
+. **The workload side.** The deployment manifests carry the `servicenow.com/service-instance` label (single source of truth). KVA (Kubernetes) or the Docker discovery sync copies the label into `cmdb_key_value` on the workload CI. This happens continuously as workloads come and go — no per-pod automation is involved.
+. **The service side.** When the CSDM specification is deployed (`csdm/deploy.yml`), every service instance with `service_mapping: tags` gets a **tag population rule**: the deploy calls the Service Mapping Operations REST API (`/populate_tags`), which invokes `SMServiceByTagsUtils.updateServiceFromTagsList()` against the service instance sys_id with the single tag predicate `servicenow.com/service-instance = <display name>`.
+
+ServiceNow's tag-based Service Mapping engine then evaluates the population rule against `cmdb_key_value` and records each matching workload CI as a member of the service instance in the **`svc_ci_assoc`** table (Service CI Association). This membership — not a CMDB relationship — is what incident automation traverses.
+
+Two design rules follow from this model:
+
+* **No ownership edges in `cmdb_rel_ci`.** Runtime topology relationships (pod → node → host, workload → pod) are imported by the Service Graph Connector and remain Dynatrace's Smartscape view. Service-instance ownership lives only in `svc_ci_assoc`, maintained by tag-based Service Mapping. No playbook or script materializes `Contains::Contained by` edges between service instances and workloads.
+* **Elasticity without automation in the critical path.** Once the service instance and its population rule exist, new replicas of a known workload (for example a scaled-out Spark Worker Deployment) are picked up by KVA and joined to the service instance by Service Mapping alone. External automation (Ansible today, a Python utility in the future) is needed only when an *entirely new* service instance is introduced — a controlled CSDM onboarding step, not a runtime dependency.
 
 ==== ServiceNow — SGC Topology Import
 
@@ -1289,7 +1294,7 @@ Same pipeline shell as Chapter 5 (`spark-lab-log-alerts`). Cluster Mode adds the
 }
 ----
 
-`spark.pod_identifier` carries the Kubernetes pod name for ServiceNow Contains traversal to the Application Service. OpenPipeline does **not** bake CAI entity ids at apply time.
+`spark.pod_identifier` carries the Kubernetes pod name for the ServiceNow `svc_ci_assoc` membership lookup to the Application Service. OpenPipeline does **not** bake CAI entity ids at apply time.
 
 ===== Davis
 
@@ -1444,7 +1449,7 @@ Payload shape matches <<spec-dt-webhook-payload-json,Chapter 5 payload specifica
 }
 ----
 
-ServiceNow **`ResolveApplicationService`** binds via `spark.pod_identifier` → pod CI by name → Contains Application Service (ignores HOST when the pod identifier is present).
+ServiceNow **`ResolveApplicationService`** binds via `spark.pod_identifier` → pod CI by name → `svc_ci_assoc` Application Service membership (ignores HOST when the pod identifier is present).
 
 ---
 
@@ -1603,7 +1608,7 @@ At Phase 5 the **Observability engineer** typically performs **verification**, n
 
 **No ServiceNow-side changes** are required on the monitored **application** (the Java/Spark/Python workload). **No additional Dynatrace** configuration is required at Phase 5 if <<ch-client-mode,Chapter 5>> and <<ch-cluster-mode,Chapter 6>> Dynatrace phases are correct.
 
-Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds Application Service via **`spark.pod_identifier`** (pod CI → Contains), not HOST file-tail.
+Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds Application Service via **`spark.pod_identifier`** (pod CI → `svc_ci_assoc`), not HOST file-tail.
 
 ---
 
@@ -1650,7 +1655,7 @@ Incidents must set **incident.cmdb_ci** to **cmdb_ci_service_discovered** (Appli
 [#step-5-incident-correlation]
 ==== Incident correlation
 
-Incident correlation defines how enriched alerts map to **`incident.cmdb_ci`**. The business rule **`em-alert-create-k8s-log-incident`** tries the **Client-side** log path first, then the **Service-side** Contains traversal.
+Incident correlation defines how enriched alerts map to **`incident.cmdb_ci`**. The business rule **`em-alert-create-k8s-log-incident`** tries the **Client-side** log path first, then the **Service-side** `svc_ci_assoc` membership lookup.
 
 The comparison table summarizes alert CI versus incident CI for each pattern. Full algorithms follow in the adjacent subsections.
 
@@ -1662,7 +1667,7 @@ The comparison table summarizes alert CI versus incident CI for each pattern. Fu
 
 |Service-side
 |`cmdb_ci_kubernetes_pod` (preferred) or HOST fallback
-|<<step-5-service-side,Spark Service-Side Log Pattern>> — Contains traversal from pod CI
+|<<step-5-service-side,Spark Service-Side Log Pattern>> — `svc_ci_assoc` membership lookup from pod CI
 
 |Client-side
 |HOST or empty (acceptable)
@@ -1672,7 +1677,7 @@ The comparison table summarizes alert CI versus incident CI for each pattern. Fu
 [#step-5-service-side]
 ===== Service-side
 
-The **Spark Service-Side Log Pattern** resolves Application Services by traversing **Contains::Contained by** from the alert's pod CI. A materialized edge from `cmdb_ci_service_discovered` (parent) to `cmdb_ci_kubernetes_pod` (child) **must** exist before the problem fires.
+The **Spark Service-Side Log Pattern** resolves Application Services by looking up the alert's pod CI in the **`svc_ci_assoc`** membership table maintained by tag-based Service Mapping (see <<step-0-tag-based-membership,Tag-Based Service Mapping and svc_ci_assoc>>). A membership row associating the pod CI with a `cmdb_ci_service_discovered` service instance **must** exist before the problem fires.
 
 [[fig-incident-correlation-service-side]]
 .Incident correlation — Spark Service-Side Log Pattern
@@ -1684,7 +1689,7 @@ digraph incident_correlation {
   edge [fontname="Noto Sans" fontsize=12]
 
   ALERT [label="em_alert.cmdb_ci\n(cmdb_ci_kubernetes_pod)"]
-  REL [label="cmdb_rel_ci\nContains::Contained by"]
+  REL [label="svc_ci_assoc\n(tag-based Service Mapping)"]
   AS [label="cmdb_ci_service_discovered\nApplication Service"]
   INC [label="incident.cmdb_ci"]
 
@@ -1693,16 +1698,15 @@ digraph incident_correlation {
 ----
 
 . `K8sLogPodCiBind` sets `em_event.cmdb_ci` and `em_alert.cmdb_ci` to the **pod CI** whose `name` matches the log path segment (Phase 5).
-. Query `cmdb_rel_ci` where `child` = pod CI sys_id and `type` = **Contains::Contained by**.
-. Parent row **must** be `cmdb_ci_service_discovered`.
-. Set `incident.cmdb_ci` = parent Application Service sys_id.
+. Query `svc_ci_assoc` where `ci_id` = pod CI sys_id and `service_id` is a `cmdb_ci_service_discovered`.
+. Set `incident.cmdb_ci` = the associated service instance sys_id.
 
-**Out of scope:** host CI binding without pod rebind, process group CI, tag-only lookup without a Contains edge.
+**Out of scope:** host CI binding without pod rebind, process group CI, `cmdb_rel_ci` ownership edges (none are created in this model).
 
 [#step-5-client-side]
 ===== Client-side
 
-The **Spark Client-Side Log Pattern** maps log paths to a single logical Application Service. Client-mode driver logs **do not** correspond to a `cmdb_ci_kubernetes_pod`; incident automation **must not** depend on alert CI or Contains edges.
+The **Spark Client-Side Log Pattern** maps log paths to a single logical Application Service. Client-mode driver logs **do not** correspond to a `cmdb_ci_kubernetes_pod`; incident automation **must not** depend on alert CI or `svc_ci_assoc` membership.
 
 [[fig-incident-correlation-client-side]]
 .Incident correlation — Spark Client-Side Log Pattern
@@ -1748,9 +1752,9 @@ CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key embedded in lo
 | CSDM **`name`** (e.g. `Spark Client`)
 | **`name`** — reliable for `resolveFromSparkClientLogPath()`
 
-|Optional process tag
-| `DT_TAGS=servicenow.io/application-service-identifier=spark-client`
-| Process-group problems only; **not** required for log-path incidents
+|Tag-based membership
+| `servicenow.com/service-instance` = display name (K8s/Docker workloads only)
+| Not applicable to Spark Client — the client is not a managed CI; binding uses the log-path contract
 |===
 
 Spark Client AS **must** have `service_status=operational` (promoted by `csdm/deploy.yml` → `ensure_host_as_operational.yml`).
@@ -1774,7 +1778,7 @@ Dynatrace can appear to “bundle” unrelated log lines when **`event.name`** d
 * Custom log source sets **`spark.mode`**, **`spark.driver.instance`** or **`spark.pod_identifier`**, **`spark.as_identifier`** (Client), and **`spark.log.path`**. OpenPipeline parses **`spark.log.class` / `spark.log.line`**.
 * Davis **`event.name`** / **`event.unique_identifier`** use **`{spark.mode}` + class:line** so each call site is a distinct event on the OneAgent **HOST** `dt.source_entity`.
 * **`dt.davis.is_merging_allowed=false`** so different class:line events are not HOST-bundled; same class:line across drivers already shares one event via `event.name`.
-* ServiceNow binds Client alerts via `/client-logs/` or Davis **`Client error at …`** text to Application Service **Spark Client**; Cluster alerts use pod Contains.
+* ServiceNow binds Client alerts via `/client-logs/` or Davis **`Client error at …`** text to Application Service **Spark Client**; Cluster alerts use the pod's `svc_ci_assoc` membership.
 
 Worker→multi-client cascading failures remain a topology case; this pipeline does not force-correlate unrelated History Server vs Driver call sites beyond what Davis merge decides.
 
@@ -1787,7 +1791,7 @@ Worker→multi-client cascading failures remain a topology case; this pipeline d
 |Component |Specification
 
 |Script Include: `ResolveApplicationService`
-|Service-Side: `cmdb_rel_ci` Contains::Contained by from pod CI to Application Service. Spark client: `resolveFromSparkClientLogPath()` when alert text contains `/client-logs/` → Application Service **Spark Client**
+|Service-Side: `svc_ci_assoc` membership from pod CI to Application Service (tag-based Service Mapping). Spark client: `resolveFromSparkClientLogPath()` when alert text contains `/client-logs/` → Application Service **Spark Client**
 
 |Script Include: `K8sLogPodCiBind`
 |Rebind `em_event` / `em_alert` from initial SGO HOST binding to `cmdb_ci_kubernetes_pod` when log path segment matches a discovered pod `name`; **skip** segment `spark-client`; propagate binding to alerts sharing `message_key`
@@ -1808,7 +1812,7 @@ Worker→multi-client cascading failures remain a topology case; this pipeline d
 |**Before** insert/update on `em_alert`; order **5010**; same pod/path enrichment when alert is created or updated directly (covers SGC webhook path that skips a separate bind on the event)
 
 |Business rule: `em-alert-create-k8s-log-incident`
-|**After** insert/update on `em_alert`; order **5020**; tries spark-client path first, else Service-Side Contains; creates or correlates incident, sets **`em_alert.incident`**
+|**After** insert/update on `em_alert`; order **5020**; tries spark-client path first, else Service-Side `svc_ci_assoc` lookup; creates or correlates incident, sets **`em_alert.incident`**
 
 |Severity filter
 |Non-prod: `em_alert.severity <= 3` (ERROR and WARN); Production: `em_alert.severity = 2` (ERROR only)
@@ -1890,9 +1894,9 @@ Attributes added by automation (not Spark-specific semantics):
 |`event.description` |OpenPipeline Davis |includes path plus `spark.as_identifier=` or `spark.pod_identifier=` and `{content}`
 |===
 
-Pod **Kubernetes labels** (`servicenow.io/application-service-identifier`, etc.) are the CMDB/service-mapping contract — not Dynatrace tags. See <<step-0-pod-labels,pod labels>>.
+The Pod **Kubernetes label** (`servicenow.com/service-instance`) is the CMDB/service-mapping contract — not a Dynatrace tag. See <<step-0-pod-labels,pod labels>>.
 
-NOTE: Cluster/Client Davis problems keep OneAgent **HOST** as `dt.source_entity` inside the Spark Observability management zone. ServiceNow **`ResolveApplicationService`** binds Cluster alerts via **`spark.pod_identifier`** (pod CI → Contains AS) and Client alerts via **`spark.as_identifier`** to Application Service **Spark Client**, ignoring HOST for those paths.
+NOTE: Cluster/Client Davis problems keep OneAgent **HOST** as `dt.source_entity` inside the Spark Observability management zone. ServiceNow **`ResolveApplicationService`** binds Cluster alerts via **`spark.pod_identifier`** (pod CI → `svc_ci_assoc` AS) and Client alerts via **`spark.as_identifier`** to Application Service **Spark Client**, ignoring HOST for those paths.
 
 [#step-5-em-rules]
 ==== Event Management rules (manual configuration)
@@ -1926,7 +1930,7 @@ Each Script Include below summarizes **purpose**, **inputs**, **outputs / side e
 
 **Methods:**
 
-* `resolveFromInfrastructureCi(ciSysId)` — **Spark Service-Side Log Pattern.** Queries `cmdb_rel_ci` for **Contains::Contained by** where `child` = pod CI and `parent` is an Application Service. Returns parent sys_id or `null`.
+* `resolveFromInfrastructureCi(ciSysId)` — **Spark Service-Side Log Pattern.** Queries **`svc_ci_assoc`** where `ci_id` = pod CI and `service_id` is a `cmdb_ci_service_discovered` (membership maintained by tag-based Service Mapping). Returns the service instance sys_id or `null`.
 * `resolveFromSparkClientLogPath(text)` — **Spark Client-Side Log Pattern.** When `text` contains `/client-logs/`, looks up Application Service **Spark Client** by `identifier=spark-client`, then fallback **`name=Spark Client`**.
 
 **Inputs:** Workload CI sys_id (Service-side) or alert description/resource text (Client-side).
@@ -2147,13 +2151,13 @@ Playbook path: `ansible/playbooks/servicenow/incident/deploy.yml`. Source files:
 |em_alert; same pod CI; description contains full ERROR log line
 
 |Tag on pod CI
-|cmdb_key_value: servicenow.io/application-service-identifier=myapp-worker-zone-a
+|cmdb_key_value: servicenow.com/service-instance=Myapp-Worker-Zone-A
 
-|SM edge
-|Application Service myapp-worker-zone-a Contains pod CI
+|SM membership
+|svc_ci_assoc: pod CI is a member of Application Service Myapp Worker Zone A (tag-based Service Mapping)
 
 |Incident
-|incident.cmdb_ci → Application Service myapp-worker-zone-a (via Service-Side Contains traversal)
+|incident.cmdb_ci → Application Service Myapp Worker Zone A (via Service-Side svc_ci_assoc lookup)
 |===
 
 ==== Application and Dynatrace (Phase 5)

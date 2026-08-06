@@ -14,23 +14,19 @@ Entities are organized by domain. Each entity has a unique ID, a detected name, 
 
 ### Tag-based relationships (`cmdb_key_value`)
 
-In brooks-lab, **tags are relationships by another name**: each `cmdb_key_value` row stores a label on a CMDB CI. Tag-based Service Mapping matches those rows against an Application Service filter and creates **`cmdb_rel_ci` Contains::Contained by** edges. SGC copies Dynatrace entity tags the same way when **`DT_TAGS`** or auto-tag rules populate the Dynatrace entity.
+In brooks-lab, **tags are relationships by another name**: each `cmdb_key_value` row stores a label on a CMDB CI. Tag-based Service Mapping matches those rows against a service instance tag population rule and records membership in **`svc_ci_assoc`** (service → CI associations). SGC copies Dynatrace entity tags the same way when **`DT_TAGS`** or auto-tag rules populate the Dynatrace entity.
 
 Storage: **`cmdb_key_value.configuration_item`** → tagged CI; **`key`** / **`value`** → label pair.
 
-#### Canonical CSDM keys (all platforms)
+#### Canonical CSDM key (all platforms)
 
 | Key | Value field |
 | --- | --- |
-| `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
-| `servicenow.io/application-identifier` | `cmdb_ci_business_app.identifier` |
-| `servicenow.io/business-service-identifier` | `cmdb_ci_service.identifier` |
-| `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
-| `servicenow.io/location` | `cmn_location.name` |
+| `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name` (service instance display name) |
 
-1. Keys are written to **`cmdb_key_value`** on workload CIs: `cmdb_ci_docker_container`, `cmdb_ci_kubernetes_pod`, `cmdb_ci_linux_server`, and (via SGC) `cmdb_ci_appl` / `cmdb_ci_group`.
-2. The tag **value** must equal the target field on the CSDM CI (for example `cmdb_ci_service_discovered.identifier` from `*.csdm.yaml`).
-3. When tag-based Service Mapping runs, parent **`cmdb_ci_service_discovered`** → **Contains::Contained by** → tagged workload CI.
+1. The key is written to **`cmdb_key_value`** on workload CIs: `cmdb_ci_docker_container`, `cmdb_ci_kubernetes_pod`, `cmdb_ci_linux_server`, and (via SGC) `cmdb_ci_appl` / `cmdb_ci_group`.
+2. The tag **value** is the service instance display name (`name:` in `*.csdm.yaml` `service_instances:`). For `platform: kubernetes` service instances the value is sanitized to the Kubernetes label charset (e.g. `Spark Worker` → `Spark-Worker`); Docker Compose and host platforms use the exact display name, spaces allowed. The same sanitization is applied to the ServiceNow tag population rule, so workload label and rule always match.
+3. When tag-based Service Mapping runs, membership is recorded in **`svc_ci_assoc`**: `service_id` = service instance (`cmdb_ci_service_by_tags`), `ci_id` = tagged workload CI.
 
 #### Docker Compose keys (bridge + identity)
 
@@ -41,7 +37,7 @@ Storage: **`cmdb_key_value.configuration_item`** → tagged CI; **`key`** / **`v
 
 1. Written by **`discovery/docker/discover.yml`** onto **`cmdb_ci_docker_container`** from `docker inspect` labels.
 2. Not in the Dynatrace problem webhook unless mirrored via **`DT_TAGS`** onto the Dynatrace process group entity.
-3. **`com.docker.compose.service`** bridges **`cmdb_ci_appl`** (process group CI) to **`cmdb_ci_docker_container`** on the same **`cmdb_ci_linux_server`** when the process group CI lacks `servicenow.io/*` tags.
+3. **`com.docker.compose.service`** bridges **`cmdb_ci_appl`** (process group CI) to **`cmdb_ci_docker_container`** on the same **`cmdb_ci_linux_server`** when the process group CI lacks the `servicenow.com/service-instance` tag.
 
 #### Kubernetes keys (KVA + pod label sync)
 
@@ -52,20 +48,20 @@ Storage: **`cmdb_key_value.configuration_item`** → tagged CI; **`key`** / **`v
 | `app.kubernetes.io/component` | Component role (string) |
 | `app.kubernetes.io/part-of` | Product / business-app name (string) |
 
-1. KVA writes **`app.kubernetes.io/*`** to **`cmdb_key_value`** on **`cmdb_ci_kubernetes_pod`** as user **`system`**.
-2. **`discovery/k8s/sync_pod_labels.yml`** writes **`servicenow.io/*`** on the same pod CIs.
-3. **`app.kubernetes.io/name`** is an alternate Service Mapping key when the canonical `servicenow.io/application-service-identifier` row is missing (compare report marks **`alternate_tag_only`**).
+1. KVA writes pod labels — including **`app.kubernetes.io/*`** and **`servicenow.com/service-instance`** — to **`cmdb_key_value`** on **`cmdb_ci_kubernetes_pod`** as user **`system`**.
+2. **`discovery/k8s/sync_pod_labels.yml`** mirrors **`servicenow.com/*`** keys on the same pod CIs.
+3. **`app.kubernetes.io/name`** is an alternate Service Mapping key when the canonical `servicenow.com/service-instance` row is missing (compare report marks **`alternate_tag_only`**).
 
 #### Dynatrace → CMDB tag copy (SGC)
 
 | DT source | Key on DT entity | On class |
 | --- | --- |
-| Compose `DT_TAGS=…` | `servicenow.io/application-service-identifier` | `cmdb_ci_appl` / `cmdb_ci_group` |
+| Compose `DT_TAGS=…` | `servicenow.com/service-instance` | `cmdb_ci_appl` / `cmdb_ci_group` |
 | Auto-tag rules | `Environment`, `Project`, … | `cmdb_ci_computer`, `cmdb_ci_appl`, `cmdb_ci_service_auto`, … |
 | Entity tags (any) | user-defined | Any SGC-imported CI |
 
 1. SGC scheduled import copies Dynatrace entity tags into **`cmdb_key_value`** on the merged CMDB CI.
-2. Only keys listed above participate in CSDM tag-based Service Mapping unless you add custom Tag Categories on the instance.
+2. Only `servicenow.com/service-instance` participates in CSDM tag-based Service Mapping (Tag Category **Service Instance**) unless you add custom Tag Categories on the instance.
 
 ### 1. Core Application Stack (OneAgent-Monitored)
 
@@ -101,12 +97,10 @@ Imported by the **SGO-Dynatrace Hosts** scheduled import (Hosts V2 cascade). IRE
 
 | Key | Value field |
 | --- | --- |
-| `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
-| `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
-| `servicenow.io/location` | `cmn_location.name` |
+| `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name` (display name) |
 
 1. Tags are on **`cmdb_ci_linux_server`**, written by **`discovery/host/sync_tags.yml`**.
-2. Tag-based Service Mapping creates **`cmdb_rel_ci` Contains::Contained by** from **`cmdb_ci_service_discovered`** (parent) to **`cmdb_ci_linux_server`** (child).
+2. Tag-based Service Mapping records membership in **`svc_ci_assoc`** from the service instance to **`cmdb_ci_linux_server`**.
 
 
 #### 1.2 HOST_GROUP — `dt.entity.host_group`
@@ -142,12 +136,10 @@ Imported by **SGO-Dynatrace Process Groups** feed. Mapped to **`cmdb_ci_group`**
 
 | Key | Value field |
 | --- | --- |
-| `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
-| `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
-| `servicenow.io/location` | `cmn_location.name` |
+| `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name` (display name) |
 
-1. When set via **`DT_TAGS`** in Compose/K8s and copied by SGC, tags land on **`cmdb_ci_appl`** or **`cmdb_ci_group`** (process group CI). Incident lookup: tag value → **`cmdb_ci_service_discovered.identifier`**.
-2. Without **`DT_TAGS`**, process group CIs usually lack `servicenow.io/*` rows — bridge via **`cmdb_rel_ci` Runs on::Runs** to **`cmdb_ci_linux_server`**, then match **`cmdb_ci_docker_container`** or **`cmdb_ci_kubernetes_pod`** tags on that host/cluster.
+1. When set via **`DT_TAGS`** in Compose/K8s and copied by SGC, tags land on **`cmdb_ci_appl`** or **`cmdb_ci_group`** (process group CI). Incident lookup: tag value → service instance display name (**`cmdb_ci_service_discovered.name`**).
+2. Without **`DT_TAGS`**, process group CIs usually lack `servicenow.com/*` rows — bridge via **`cmdb_rel_ci` Runs on::Runs** to **`cmdb_ci_linux_server`**, then match **`cmdb_ci_docker_container`** or **`cmdb_ci_kubernetes_pod`** tags on that host/cluster.
 
 
 #### 1.4 PROCESS_GROUP_INSTANCE — `dt.entity.process_group_instance`
@@ -409,16 +401,14 @@ Imported by **SGO-Dynatrace Kubernetes Pod** feed. Mapped to **`cmdb_ci_kubernet
 
 | Key | Value field |
 | --- | --- |
-| `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
-| `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
-| `servicenow.io/location` | `cmn_location.name` |
+| `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name`, sanitized to the K8s label charset (e.g. `Spark-Worker`) |
 | `app.kubernetes.io/name` | Workload name (string) |
 | `app.kubernetes.io/component` | Component role (string) |
 | `app.kubernetes.io/part-of` | Product name (string) |
 
-1. Tags are on **`cmdb_ci_kubernetes_pod`**. `servicenow.io/*` from **`discovery/k8s/sync_pod_labels.yml`**; `app.kubernetes.io/*` from KVA.
+1. Tags are on **`cmdb_ci_kubernetes_pod`**. KVA copies pod labels (including `servicenow.com/service-instance`) as user `system`; **`discovery/k8s/sync_pod_labels.yml`** mirrors `servicenow.com/*` keys.
 2. Dynatrace **`CLOUD_APPLICATION_INSTANCE`** binds to the same pod CI via **`sys_object_source`** — tags are on the CMDB row, not in the problem webhook payload.
-3. Service Mapping match creates **`cmdb_rel_ci` Contains::Contained by** from **`cmdb_ci_service_discovered`** to **`cmdb_ci_kubernetes_pod`**.
+3. Service Mapping match records membership in **`svc_ci_assoc`** from the service instance to **`cmdb_ci_kubernetes_pod`**.
 
 
 #### 3.6 CLOUD_APPLICATION_NAMESPACE — `dt.entity.cloud_application_namespace`
@@ -447,8 +437,8 @@ Docker workloads on bare-metal or VM hosts use a **dual CMDB path** in brooks-la
 | Path | Source | CMDB result |
 | --- | --- |
 | **SGC topology import** | OneAgent on container host; Smartscape process/container entities | `cmdb_ci_computer`, `cmdb_ci_group`, `cmdb_ci_appl`, `cmdb_ci_service_auto` / `cmdb_ci_service_calculated`, optional `cmdb_ci_docker_container` when container entity is in cascade |
-| **ServiceNow Discovery** | `discovery/docker/discover.yml` on `DOCKER_HOSTS` with `container_discovery: true` | `cmdb_ci_docker_container` + **`cmdb_key_value`** from Compose labels (`com.docker.compose.*`, `servicenow.io/*`) |
-| **CSDM Service Mapping** | Tag-based SM on Application Services | **`cmdb_rel_ci` Contains::Contained by** from `cmdb_ci_service_discovered` → container / host (not from Dynatrace) |
+| **ServiceNow Discovery** | `discovery/docker/discover.yml` on `DOCKER_HOSTS` with `container_discovery: true` | `cmdb_ci_docker_container` + **`cmdb_key_value`** from Compose labels (`com.docker.compose.*`, `servicenow.com/*`) |
+| **CSDM Service Mapping** | Tag-based SM on service instances | **`svc_ci_assoc`** membership from `cmdb_ci_service_by_tags` → container / host (not from Dynatrace) |
 
 Dynatrace **`CONTAINER_GROUP`** / **`CONTAINER_GROUP_INSTANCE`** appear on Docker hosts and inside K8s pods. On Compose hosts, correlate container CIs to process groups via **shared host** + Compose service name tags — see [docker_model.md](docker_model.md).
 
@@ -475,13 +465,13 @@ When the Docker/container import set is enabled in the SGC cascade, may map to a
 
 | Key | Value field |
 | --- | --- |
-| `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
+| `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name` (display name) |
 | `com.docker.compose.service` | Compose service name (string) |
 | `com.docker.compose.project` | Compose project name (string) |
 
 1. Tags are on **`cmdb_ci_docker_container`**, not on the Dynatrace container group entity.
-2. Bridge when **`cmdb_ci_appl`** (process group) lacks `servicenow.io/*`: process group **`cmdb_rel_ci` Runs on::Runs** → **`cmdb_ci_linux_server`**, then find container on that host with matching **`cmdb_key_value`**.
-3. Tag-based Service Mapping creates **`cmdb_rel_ci` Contains::Contained by** from **`cmdb_ci_service_discovered`** to **`cmdb_ci_docker_container`**.
+2. Bridge when **`cmdb_ci_appl`** (process group) lacks `servicenow.com/*`: process group **`cmdb_rel_ci` Runs on::Runs** → **`cmdb_ci_linux_server`**, then find container on that host with matching **`cmdb_key_value`**.
+3. Tag-based Service Mapping records membership in **`svc_ci_assoc`** from the service instance to **`cmdb_ci_docker_container`**.
 
 
 #### 4.2 CONTAINER_GROUP_INSTANCE — `dt.entity.container_group_instance`
@@ -504,25 +494,21 @@ Imported by Docker/container feeds when enabled. Mapped to **`cmdb_ci_docker_con
 | `runs_on` | Runs on::Runs: `cmdb_ci_docker_container` → `cmdb_ci_computer` |
 | `belongs_to` | Contains::Contained by: `cmdb_ci_kubernetes_pod` → `cmdb_ci_docker_container` |
 | `contains` | Contains::Contained by: `cmdb_ci_docker_container` → `cmdb_ci_appl` |
-| CSDM tag-based SM | Contains::Contained by: `cmdb_ci_service_discovered` → `cmdb_ci_docker_container` |
+| CSDM tag-based SM | **`svc_ci_assoc`** membership (not `cmdb_rel_ci`): service instance → `cmdb_ci_docker_container` |
 
-1. **`CSDM tag-based SM`** row is not a Dynatrace edge — created when Service Mapping matches container tags.
+1. **`CSDM tag-based SM`** row is not a Dynatrace edge — the `svc_ci_assoc` membership is created when Service Mapping matches container tags.
 2. On K8s, same container entity may appear under **`cmdb_ci_kubernetes_pod`** via **`belongs_to`**.
 
 **Tag-based relationships:**
 
 | Key | Value field |
 | --- | --- |
-| `servicenow.io/application-service-identifier` | `cmdb_ci_service_discovered.identifier` |
-| `servicenow.io/application-identifier` | `cmdb_ci_business_app.identifier` |
-| `servicenow.io/business-service-identifier` | `cmdb_ci_service.identifier` |
-| `servicenow.io/environment` | `cmdb_ci_service_discovered.environment` |
-| `servicenow.io/location` | `cmn_location.name` |
+| `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name` (display name) |
 | `com.docker.compose.service` | Compose service name (string) |
 | `com.docker.compose.project` | Compose project name (string) |
 
 1. All rows on **`cmdb_ci_docker_container`**, written by **`discovery/docker/discover.yml`** from Compose/`docker inspect` labels.
-2. Primary Service Mapping key: **`servicenow.io/application-service-identifier`** → **`cmdb_ci_service_discovered.identifier`**.
+2. Service Mapping key: **`servicenow.com/service-instance`** → service instance display name (**`cmdb_ci_service_discovered.name`**).
 
 
 #### 4.3 Docker host application stack — HOST, PROCESS_GROUP, SERVICE
@@ -542,9 +528,9 @@ PROCESS_GROUP ◄─Depends on── SERVICE        (SGC Application Relationshi
 | **PROCESS_GROUP** | `cmdb_ci_group` / `cmdb_ci_appl` (IRE) | **Runs on::Runs** → host; **Depends on::Used by** ← SERVICE |
 | **PROCESS_GROUP_INSTANCE** | `cmdb_ci_appl` | **Runs on::Runs** → host |
 | **SERVICE** | `cmdb_ci_service_auto` | **Depends on::Used by** → process group; **calls** peers |
-| **CONTAINER_GROUP_INSTANCE** | `cmdb_ci_docker_container` | Runs on::Runs → `cmdb_ci_computer`; Contains::Contained by from `cmdb_ci_service_discovered` (tag-based SM) |
+| **CONTAINER_GROUP_INSTANCE** | `cmdb_ci_docker_container` | Runs on::Runs → `cmdb_ci_computer`; `svc_ci_assoc` membership from the service instance (tag-based SM) |
 
-**Tag bridge (process group alert):** When **`em_alert.cmdb_ci`** is **`cmdb_ci_appl`** without `servicenow.io/*` tags: (1) follow **`cmdb_rel_ci` Runs on::Runs** to **`cmdb_ci_linux_server`**; (2) find **`cmdb_ci_docker_container`** on that host with matching **`cmdb_key_value`**; (3) resolve **`cmdb_ci_service_discovered`** where **`identifier`** equals the tag value. Optional: **`DT_TAGS=servicenow.io/application-service-identifier=<identifier>`** in Compose so SGC copies the tag onto the process group CI.
+**Tag bridge (process group alert):** When **`em_alert.cmdb_ci`** is **`cmdb_ci_appl`** without a `servicenow.com/service-instance` tag: (1) follow **`cmdb_rel_ci` Runs on::Runs** to **`cmdb_ci_linux_server`**; (2) find **`cmdb_ci_docker_container`** on that host with matching **`cmdb_key_value`**; (3) resolve the service instance where **`name`** equals the tag value. Optional: **`DT_TAGS=servicenow.com/service-instance=<display name>`** in Compose so SGC copies the tag onto the process group CI.
 
 **Problem / event binding:** Log and APM problems usually attach to **`PROCESS_GROUP`** or **HOST**, not the container CI, unless `sys_object_source` exists for the container **`entityId`**. Plan incident automation accordingly — see [docker_model.md](docker_model.md).
 
@@ -1219,9 +1205,9 @@ Smartscape relationship types (sections 1–11) are directed edges on Dynatrace 
 | --- | --- |
 | Workload label | `cmdb_key_value` on workload CI |
 | Dynatrace tag copy (SGC) | `cmdb_key_value` on SGC-imported CI |
-| Application Service filter | `cmdb_ci_service_discovered.tag_list` |
+| Service instance tag population rule | Set via `/populate_tags` Scripted REST (`SMServiceByTagsUtils.updateServiceFromTagsList()`) |
 
-1. Tag-based Service Mapping creates **`cmdb_rel_ci` Contains::Contained by**: parent **`cmdb_ci_service_discovered`**, child workload CI (`cmdb_ci_docker_container`, `cmdb_ci_kubernetes_pod`, or `cmdb_ci_linux_server`).
-2. The Application Service **`tag_list`** defines which keys/values the mapping job matches; it is not stored in **`cmdb_key_value`**.
+1. Tag-based Service Mapping records membership in **`svc_ci_assoc`**: `service_id` = service instance (`cmdb_ci_service_by_tags`), `ci_id` = workload CI (`cmdb_ci_docker_container`, `cmdb_ci_kubernetes_pod`, or `cmdb_ci_linux_server`).
+2. The tag population rule defines which key/value the mapping matches (`servicenow.com/service-instance` = display name, sanitized for `platform: kubernetes`); it is not stored in **`cmdb_key_value`**.
 3. Canonical key and value-field mapping: see **Tag-based relationships (`cmdb_key_value`)** under [Dynatrace entities](#dynatrace-entities).
 

@@ -21,25 +21,25 @@ These are the same real-world objects represented in two systems. They should al
 | **Physical / VM hosts** | `cmdb_ci_linux_server` from Discovery, filtered by location | `HOST` in scoped management zone | Normalized hostname / FQDN; IRE merges SGC import into Discovery CI |
 | **Kubernetes cluster** | KVA cluster CI | `KUBERNETES_CLUSTER` | Documented name map in `dynatrace-correlation.yaml` (e.g. `brooks-lab` ↔ `spark-observability-k8s`) |
 | **K8s nodes** | KVA node CIs | K8s node entities | Cluster + node name |
-| **Scoped workloads** | Pod/deployment CIs with `servicenow.io/*` labels | Matching K8s entities in management zone | Labels / identifiers ↔ `csdm.yaml` application services |
+| **Scoped workloads** | Pod/deployment CIs with `servicenow.com/service-instance` labels | Matching K8s entities in management zone | Label value ↔ `csdm.yaml` service instance display names |
 | **Docker containers** (when in scope) | `cmdb_ci_docker_container` from Docker Pattern | Process groups / containers on host | Host + container name / Compose labels |
 
 **Not 1:1 correlated by SGC:**
 
-- **CSDM Business Applications, Business Services, Application Services** — authored in ServiceNow (`*.csdm.yaml` deploy). Dynatrace has its own application and service entities; binding is via **tags**, **process groups**, and **vertical service mapping**, not a direct SGC entity import of the CSDM tree.
+- **CSDM Business Applications, Business Services, Service Instances** — authored in ServiceNow (`*.csdm.yaml` deploy). Dynatrace has its own application and service entities; binding is via **tags**, **process groups**, and **vertical service mapping**, not a direct SGC entity import of the CSDM tree.
 - **Business metadata** (`owned_by`, `business_criticality`, BA/BS hierarchy) — ServiceNow-owned; Dynatrace does not mirror these.
 
 ---
 
 ## Indirect / tag-based (both sides should “cover” the same workload, not the same record)
 
-Tag-based Service Mapping uses runtime labels as the join key between discovered workload CIs and CSDM Application Services.
+Tag-based Service Mapping uses runtime labels as the join key between discovered workload CIs and CSDM Service Instances.
 
 | Concept | ServiceNow | Dynatrace |
 |---------|------------|-----------|
-| Application service identity | `cmdb_key_value`: `servicenow.io/application-service-identifier` | Optional mirrored tags on host/process; primarily aligned via same labels on K8s/Docker workloads |
-| Environment / location | `servicenow.io/environment`, `servicenow.io/location` on workload CIs | Management zone membership + auto-tags (`Environment`, `Project`, …) from Ansible deploy |
-| Workload scope | Tag-based SM binds pod/container CI → Application Service | Process groups and K8s entities in management zone covering the same hosts |
+| Service instance identity | `cmdb_key_value`: `servicenow.com/service-instance` (value = display name) | Optional mirrored tags on host/process; primarily aligned via same labels on K8s/Docker workloads |
+| Environment / location | CSDM spec attributes (`environment`, `location` → `cmn_location` on CIs); no workload tags | Management zone membership + auto-tags (`Environment`, `Project`, …) from Ansible deploy |
+| Workload scope | Tag-based SM adds pod/container CI as a member of the Service Instance (`svc_ci_assoc`) | Process groups and K8s entities in management zone covering the same hosts |
 
 Both platforms should **observe the same workloads**; they do not share a single shared record. Compare checks that canonical tag bindings exist in CMDB and that hosts/clusters sit in the expected management zone.
 
@@ -51,8 +51,9 @@ Both platforms should **observe the same workloads**; they do not share a single
 |--------|---------------|------|
 | Business Application | `cmdb_ci_business_app` | Portfolio / ownership hierarchy |
 | Business Service | `cmdb_ci_service` | Capability grouping under BA |
-| Application Service (CSDM) | `cmdb_ci_service_discovered` | Service Mapping target; declared in `*.csdm.yaml` |
-| CSDM relationships | `cmdb_rel_ci` (Contains, Depends on::Used by) | Hierarchy and declared dependencies |
+| Service Instance (CSDM) | `cmdb_ci_service_discovered`; reclassed to `cmdb_ci_service_by_tags` when `service_mapping: tags` | Service Mapping target; declared in `*.csdm.yaml` |
+| CSDM relationships | `cmdb_rel_ci` (Depends on::Used by) | Hierarchy and declared dependencies |
+| Service membership | `svc_ci_assoc` | Tag-based population adds matching workload CIs as members |
 | Discovery-authoritative host attributes | `cmdb_ci_linux_server` (location, operational status from Discovery) | Authoritative when IRE merges SGC overlay |
 | Tag bindings (authoritative for SM) | `cmdb_key_value` on workload CIs | Join key for tag-based mapping |
 

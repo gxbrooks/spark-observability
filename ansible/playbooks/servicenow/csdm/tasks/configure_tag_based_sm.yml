@@ -3,23 +3,25 @@
 # Calls Service Mapping Operations REST API → CSDMAppServiceHelper.updateBuildMethod.
 # Input: sn_csdm_app_svc_item { spec, host }, sn_csdm_app_svc_sys_id, sn_csdm_app_svc_name
 
-- name: Resolve tag-based population identifier for instance
+# Tag value = service instance display name. Kubernetes label values cannot
+# contain spaces or parentheses, so kubernetes-platform values sanitize the
+# display name to the K8s label charset (Spark Master → Spark-Master); the
+# workload labels apply the same transform.
+- name: Resolve tag-based population value for instance (display name)
   ansible.builtin.set_fact:
-    sn_csdm_tag_identifier: >-
-      {{ sn_csdm_app_svc_item.spec.identifier
-         | replace('{host}', sn_csdm_app_svc_item.host | default(''))
-         | replace('{host_lower}', sn_csdm_app_svc_item.host | default('') | lower) }}
+    sn_csdm_tag_value: >-
+      {{ (sn_csdm_app_svc_name
+          | regex_replace('[^A-Za-z0-9._-]+', '-')
+          | regex_replace('^[-._]+|[-._]+$', ''))
+         if sn_csdm_app_svc_item.spec.platform == 'kubernetes'
+         else sn_csdm_app_svc_name }}
 
 - name: Build tag_list population tags from CSDM spec
   ansible.builtin.set_fact:
     sn_csdm_tag_population_tags: >-
       {{ [
-           {'key': sn_csdm_tag_key_application_service, 'value': sn_csdm_tag_identifier}
-         ]
-         + ([{'key': sn_csdm_tag_key_environment, 'value': sn_csdm_app_svc_item.spec.environment}]
-            if sn_csdm_app_svc_item.spec.environment is defined else [])
-         + ([{'key': sn_csdm_tag_key_location, 'value': sn_csdm_app_svc_item.spec.location}]
-            if sn_csdm_app_svc_item.spec.location is defined else []) }}
+           {'key': sn_csdm_tag_key_service_instance, 'value': sn_csdm_tag_value}
+         ] }}
 
 - name: Load persisted Service Mapping REST URIs
   ansible.builtin.set_fact:
@@ -63,7 +65,7 @@
   ansible.builtin.debug:
     msg: >-
       Tag SM {{ sn_csdm_app_svc_name }}: HTTP {{ sn_sm_tag_populate_result.status }}
-      identifier={{ sn_csdm_tag_identifier }}
+      tag value={{ sn_csdm_tag_value }}
       {{ sn_sm_tag_populate_result.json.result
          if sn_sm_tag_populate_result.json.result is defined
          else sn_sm_tag_populate_result.json.error | default(sn_sm_tag_populate_result.json) }}

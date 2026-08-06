@@ -13,9 +13,9 @@ Canonical process narrative, diagrams, and step-by-step automation live in [Log_
 | **Who emits the log** | PySpark client-mode driver on a host | Spark workload in Kubernetes (master, worker, history, …) |
 | **Log path contract** | `/mnt/spark/client-logs/<driver-instance>/spark-app*.log` | `/mnt/spark/logs/<pod-name>/spark-app*.log` |
 | **Dynatrace problem entity** | **HOST** (OneAgent file tail); `spark.device` = CUSTOM_DEVICE id for SN | **HOST** (OneAgent file tail); pod entity lookup disabled |
-| **ServiceNow event/alert CI** | Application Service **Spark Client** (early bind) | Application Service via pod **Contains** (early bind; pod name in `node`) |
-| **ServiceNow incident CI** | Same Application Service **Spark Client** (propagate) | Same parent **Application Service** (propagate) |
-| **CMDB bridge used for incident** | Text → AS **by name** (no Contains) | Path → pod → **Contains** → AS (done at event bind) |
+| **ServiceNow event/alert CI** | Application Service **Spark Client** (early bind) | Application Service via pod **`svc_ci_assoc`** membership (early bind; pod name in `node`) |
+| **ServiceNow incident CI** | Same Application Service **Spark Client** (propagate) | Same **Application Service** (propagate) |
+| **CMDB bridge used for incident** | Text → AS **by name** (no membership lookup) | Path → pod → **`svc_ci_assoc`** → AS (done at event bind) |
 
 Shared path: OpenPipeline Davis `ERROR_EVENT` → Dynatrace Problem → ServiceNow Event Management (`em_event` / `em_alert`) → business rules → `incident`.
 
@@ -44,7 +44,7 @@ flowchart TB
   SAS[Application Service AS]
   SINC[incident CI Application Service]
   SLOG --> SDT --> SPOD
-  SPOD -->|Contains Contained by| SAS --> SINC
+  SPOD -->|svc_ci_assoc membership| SAS --> SINC
 ```
 
 ---
@@ -92,7 +92,7 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 | Davis `event.name` | `Spark critical <loglevel> error at <class>:<line>` | same |
 | Davis `event.description` | `Spark Client critical <loglevel> error at … in <path>: …` | `Spark Cluster critical … in <path>: …` |
 | Problem impacted entity | CUSTOM_DEVICE Spark Client | HOST (usually) |
-| SN path / mode detector | `/client-logs/` or `Spark Client critical` | `/mnt/spark/logs/<pod>/` → pod CI → Contains → AS |
+| SN path / mode detector | `/client-logs/` or `Spark Client critical` | `/mnt/spark/logs/<pod>/` → pod CI → `svc_ci_assoc` → AS |
 
 ---
 
@@ -103,13 +103,13 @@ and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **pr
 ```
 Business Application: Data and Analytic Services
   └── Business Service: Apache Spark
-        ├── Application Service: Spark Client      (client-side)
-        ├── Application Service: Spark Master      (service-side)
-        ├── Application Service: Spark History Server
-        └── Application Service: Spark Worker      (all worker pods)
+        ├── Service Instance: Spark Client      (client-side)
+        ├── Service Instance: Spark Master      (service-side)
+        ├── Service Instance: Spark History Server
+        └── Service Instance: Spark Worker      (all worker pods)
 ```
 
-Source: `servicenow/regions/brooks-lab/spark.csdm.yaml`.
+Source: `servicenow/regions/brooks-lab/spark.csdm.yaml` (`service_instances:` — CSDM 5.0 Service Instance).
 
 ### Client-side (CMDB)
 
@@ -117,7 +117,7 @@ Source: `servicenow/regions/brooks-lab/spark.csdm.yaml`.
 |--------|-------|------|
 | **Spark Client** | `cmdb_ci_service_discovered` | **Alert CI** and **incident CI** |
 | CSDM | `identifier: spark-client`, `platform: host`, `service_mapping: manual`, `discover: false` | Logical AS; no required workload children |
-| Contains edges | **None required** | Incident bind does **not** walk Contains |
+| `svc_ci_assoc` membership | **None required** | Incident bind does **not** query membership |
 | Depends on | Spark Master, lab3 NFS | Topology only — **not** used for incident CI |
 | Host / process | Optional `cmdb_ci_linux_server` / `cmdb_ci_appl` | May appear from classic connector; **overridden** by path-based AS bind |
 
@@ -134,30 +134,30 @@ Source: `servicenow/regions/brooks-lab/spark.csdm.yaml`.
 | Object | Class | Role |
 |--------|-------|------|
 | **Pod** (e.g. `spark-master-0`) | `cmdb_ci_kubernetes_pod` | **`em_alert.cmdb_ci`** (preferred) |
-| **Application Service** (e.g. Spark Master) | `cmdb_ci_service_discovered` | **`incident.cmdb_ci`** |
-| Pod label / KVA | `servicenow.io/application-service-identifier=<identifier>` | Correlates pod ↔ CSDM `identifier` for tag-based SM |
-| **Contains::Contained by** | `cmdb_rel_ci` parent AS → child pod | **Required** for incident AS resolution |
-| Depends on / Instantiates / namespace | Other `cmdb_rel_ci` edges | Discovery / topology — **not** used for incident bind |
+| **Application Service** (e.g. Spark Master) | `cmdb_ci_service_by_tags` | **`incident.cmdb_ci`** |
+| Pod label / KVA | `servicenow.com/service-instance=<sanitized display name>` | Correlates pod ↔ service instance `name` for tag-based SM |
+| **`svc_ci_assoc`** membership | Service → pod association maintained by tag-based SM | **Required** for incident AS resolution |
+| Depends on / Instantiates / namespace | `cmdb_rel_ci` edges (SGC / KVA) | Discovery / topology — **not** used for incident bind |
 
-CSDM for Kubernetes ASes: `platform: kubernetes`, `service_mapping: tags`, `discover: false`, with matching pod labels (e.g. `spark-master` on the master StatefulSet pods).
+CSDM for Kubernetes service instances: `platform: kubernetes`, `service_mapping: tags`, `discover: false`, with matching pod labels — the display name sanitized to the Kubernetes label charset (e.g. `Spark Master` → `Spark-Master` on the master StatefulSet pods).
 
 **Bind algorithm:**
 
 1. `K8sLogPodCiBind` sets alert CI to the pod whose **`name`** matches the log path segment / Davis title.
-2. `ResolveApplicationService.resolveFromInfrastructureCi(pod)` queries `cmdb_rel_ci` where `child` = pod, `type` = **Contains::Contained by**, `parent.sys_class_name` = `cmdb_ci_service_discovered`.
-3. Create-incident BR sets **`incident.cmdb_ci`** to that parent AS and **leaves** service-side **`em_alert.cmdb_ci`** on the pod.
+2. `ResolveApplicationService.resolveFromInfrastructureCi(pod)` queries **`svc_ci_assoc`** where `ci_id` = pod and `service_id.sys_class_name` IN (`cmdb_ci_service_discovered`, `cmdb_ci_service_calculated`, `cmdb_ci_service_by_tags`).
+3. Create-incident BR sets **`incident.cmdb_ci`** to that service instance and **leaves** service-side **`em_alert.cmdb_ci`** on the pod.
 
-If Contains is missing, incident AS resolution fails even when the alert is correctly on the pod. Backfill: `ansible/playbooks/servicenow/incident/ensure_as_contains_from_kva.yml` (materializes Contains from KVA when tag SM has not).
+If the `svc_ci_assoc` membership row is missing, incident AS resolution fails even when the alert is correctly on the pod. Recompute membership: the CSDM deploy's `/populate_tags` Scripted REST API triggers `SNC.ServicePopulatorRunner('INTERACTIVE')` for immediate recalculation.
 
 ### Side-by-side (CMDB)
 
 | | Client-side | Service-side |
 |--|-------------|--------------|
 | Alert CI class | Application Service | Kubernetes pod |
-| Incident CI class | Application Service (same) | Application Service (parent of pod) |
-| Relationship required for incident | None | **Contains::Contained by** AS → pod |
-| Lookup key | AS **name** “Spark Client” | Pod **name** → Contains → AS |
-| KVA / pod label | Not used for bind | Used to materialize Contains (precondition) |
+| Incident CI class | Application Service (same) | Application Service (service of pod) |
+| Membership required for incident | None | **`svc_ci_assoc`** service → pod |
+| Lookup key | AS **name** “Spark Client” | Pod **name** → `svc_ci_assoc` → AS |
+| KVA / pod label | Not used for bind | Feeds tag-based SM membership (precondition) |
 
 ---
 
@@ -180,7 +180,7 @@ sequenceDiagram
     DT->>DT: HOST entity with pod name in event
     DT->>SN: problem with pod event name
     SN->>SN: bind alert to kubernetes pod CI
-    SN->>SN: Contains walk to Application Service
+    SN->>SN: svc_ci_assoc lookup to Application Service
     SN->>SN: set incident to Application Service
   end
 ```
@@ -188,12 +188,12 @@ sequenceDiagram
 ### Contract summary
 
 1. **Dynatrace** decides *which problem entity and event title* the log produces (CUSTOM_DEVICE + `spark-client-…` vs HOST + `<pod-name>`).
-2. **ServiceNow CMDB** holds the *authoritative Application Service* and (for Service-side) the *pod* and *Contains* edge.
+2. **ServiceNow CMDB** holds the *authoritative Application Service* and (for Service-side) the *pod* and its *`svc_ci_assoc`* membership.
 3. **ServiceNow scripts** map alert text / pod CI → **`incident.cmdb_ci`**:
    - Client: path / event name → AS by name.
-   - Service: path → pod CI → Contains → AS.
+   - Service: path → pod CI → `svc_ci_assoc` → AS.
 
-Neither platform alone completes the story: Dynatrace without CMDB Contains (or client path rules) cannot set the CSDM Application Service on the incident; CMDB without Davis `event.name` / path context cannot tell client from service or which pod fired.
+Neither platform alone completes the story: Dynatrace without `svc_ci_assoc` membership (or client path rules) cannot set the CSDM Application Service on the incident; CMDB without Davis `event.name` / path context cannot tell client from service or which pod fired.
 
 ---
 
@@ -203,7 +203,7 @@ Neither platform alone completes the story: Dynatrace without CMDB Contains (or 
 |-----------|-------------|--------------|
 | `ResolveApplicationService.applySparkClientAlertBinding` | Sets event/alert CI to Spark Client AS | Skipped when text is not client |
 | `ResolveApplicationService.resolveFromSparkClientLogPath` | Incident AS | — |
-| `ResolveApplicationService.resolveFromInfrastructureCi` | — | Incident AS via Contains |
+| `ResolveApplicationService.resolveFromInfrastructureCi` | — | Incident AS via `svc_ci_assoc` |
 | `K8sLogPodCiBind` | Skips `spark-client` segment | Binds alert to pod CI |
 | `em-alert-create-k8s-log-incident` | Client first; may align alert CI to AS | Keeps alert on pod; incident gets AS |
 
@@ -216,7 +216,7 @@ Business rules accept `source=SGO-Dynatrace` **or** `source=Dynatrace` so classi
 | Pattern | Alert CI | Incident CI |
 |---------|----------|-------------|
 | Client | Spark Client (`cmdb_ci_service_discovered`) | Spark Client |
-| Service | `spark-master-0` (`cmdb_ci_kubernetes_pod`) | Spark Master (`cmdb_ci_service_discovered`) |
+| Service | `spark-master-0` (`cmdb_ci_kubernetes_pod`) | Spark Master (`cmdb_ci_service_by_tags`) |
 
 ---
 
@@ -224,7 +224,7 @@ Business rules accept `source=SGO-Dynatrace` **or** `source=Dynatrace` so classi
 
 - [Log_to_Incident.adoc](Log_to_Incident.adoc) — Steps 0–5, Graphviz figures, automation spec
 - [README.md](README.md) — render / export for the AsciiDoc
-- `servicenow/regions/brooks-lab/spark.csdm.yaml` — Application Service declarations
+- `servicenow/regions/brooks-lab/spark.csdm.yaml` — Service Instance declarations
 - `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2` — OpenPipeline / Davis
 - `observability/dynatrace/docs/DT_Problems_to_SN_Event.md` — Problem → SN event path
-- `ansible/playbooks/servicenow/incident/` — Script Includes, BRs, Contains backfill playbook
+- `ansible/playbooks/servicenow/incident/` — Script Includes, BRs

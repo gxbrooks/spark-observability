@@ -50,5 +50,5 @@
         loop_var: label_item
         label: "{{ label_item.key }}"
       when: >-
-        label_item.key is match('^servicenow\\.io/')
+        label_item.key is match('^servicenow\\.com/')
         or label_item.key is match('^com\\.docker\\.compose\\.')

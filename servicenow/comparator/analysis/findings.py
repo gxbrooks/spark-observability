@@ -27,7 +27,7 @@ from servicenow.comparator.analysis.entity_links import (
 
 REPORT_VERSION = "1.3"
 
-CANONICAL_TAG_KEY = "servicenow.io/application-service-identifier"
+CANONICAL_TAG_KEY = "servicenow.com/service-instance"
 
 
 def resolution_for(issue: str, app_row: dict | None = None) -> dict:
@@ -37,11 +37,11 @@ def resolution_for(issue: str, app_row: dict | None = None) -> dict:
             "docs": ["servicenow/docs/CSDM_Specifications.md"],
         },
         "missing_tag_binding": {
-            "summary": "Tag-based application service has no canonical servicenow.io tag bindings in CMDB.",
+            "summary": "Tag-based service instance has no canonical servicenow.com/service-instance tag bindings in CMDB.",
             "docs": ["servicenow/docs/Tag_Based_Service_Mapping.md"],
         },
         "alternate_tag_only": {
-            "summary": "Only alternate tags are bound; canonical servicenow.io key is missing.",
+            "summary": "Only alternate tags are bound; canonical servicenow.com key is missing.",
             "docs": ["servicenow/docs/Tag_Based_Service_Mapping.md"],
         },
     }
@@ -651,7 +651,7 @@ def _build_specification_alignment(unit: dict, sn: dict, dt_entities: dict, link
                     "smartscape_entity_type": None,
                     "name": row["name"],
                     "identifier": row["identifier"],
-                    "observation": "Alternate tags present; canonical servicenow.io key missing.",
+                    "observation": "Alternate tags present; canonical servicenow.com key missing.",
                     "resolution": resolution_for("alternate_tag_only", row),
                 }
             )

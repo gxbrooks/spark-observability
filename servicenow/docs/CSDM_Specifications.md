@@ -4,7 +4,7 @@ title: CSDM Specification Format
 
 # CSDM Specification Format
 
-This document defines the YAML specification format for **Common Service Data Model (CSDM)** objects, Service Mapping population methods, runtime tags, and dependency relationships. It applies to any deployment that registers Business Applications, Business Services, and Application Services in a CMDB.
+This document defines the YAML specification format for **Common Service Data Model (CSDM)** objects, Service Mapping population methods, runtime tags, and dependency relationships. It applies to any deployment that registers Business Applications, Business Services, and Service Instances in a CMDB.
 
 Specifications are written primarily for the **CSDM Modeler** — the person who understands the application architecture and enterprise role of each service. Automation (**deploy processor**) materializes those declarations into the CMDB.
 
@@ -20,24 +20,26 @@ Audiences: **CSDM Modelers**, deploy processor maintainers, discovery operators,
 
 ### Document and processing terms
 
-- **CSDM specification** (**`csdm.yaml`**): YAML declaring `business_applications`, `business_services`, and `application_services`, optional `tag_defaults`, and related attributes for one application or stack.
+- **CSDM specification** (**`csdm.yaml`**): YAML declaring `business_applications`, `business_services`, and `service_instances`, optional `tag_defaults`, and related attributes for one application or stack.
 - **Deploy processor**: Generic automation (Ansible tasks under `csdm/tasks/`) that reads registered specification files and updates the CMDB. The deploy processor **must not** embed names, hosts, or topology from any particular solution.
 - **Deploy registry**: In-memory map of object names to CMDB `sys_id` values built during a deploy run, used to resolve cross-file `depends_on` targets.
 - **Deferred dependency**: A `depends_on` link whose target CI is not yet in the CMDB; the deploy processor skips the link without failing and reports it for a later run.
-- **Runtime tag manifest**: Optional processor output listing merged labels per application service instance for orchestration playbooks.
+- **Runtime tag manifest**: Optional processor output listing merged labels per service instance for orchestration playbooks.
 
 ### CSDM object terms
 
 - **Business Application (BA)**: Top-level CSDM object (`cmdb_ci_business_app`).
 - **Business Service (BS)**: Logical service under a BA (`cmdb_ci_service`).
-- **Application Service**: Deployable or mappable software unit (`cmdb_ci_service_discovered`).
-- **Identifier**: Stable machine-readable key (`[a-z0-9-]+`, max 63 characters). Same concept as a web **slug**.
+- **Service Instance**: Deployable or mappable software unit (CSDM 5.0 term for Application Service). Class `cmdb_ci_service_discovered`; the deploy processor reclasses tag-based service instances to `cmdb_ci_service_by_tags`.
+- **Identifier**: Stable machine-readable key (`[a-z0-9-]+`, max 63 characters). Same concept as a web **slug**. Internal logical key only — used for cross-references within specifications, `{host}`/`{host_lower}` expansion, and log labels; **not** sent to ServiceNow and **not** used in any tag.
+- **Service instance tag**: The single workload label key **`servicenow.com/service-instance`**. Its value is the service instance display **`name`** (Kubernetes-sanitized for `platform: kubernetes`).
+- **Kubernetes label sanitization**: Mapping a display name to the Kubernetes label value charset (max 63 characters; must be empty or begin and end alphanumeric; only alphanumerics, `-`, `_`, `.` in between): characters outside `A-Za-z0-9._-` collapse to `-`, and leading/trailing `-`, `.`, `_` are stripped (for example `Spark Worker` → `Spark-Worker`).
 - **Platform**: Runtime environment — `kubernetes`, `docker`, `host`, or `saas`.
 
 ### Service Mapping terms
 
 - **Service Mapping (SM)**: ServiceNow capability that builds application service maps from CMDB CIs and relationships.
-- **Tag-based Service Mapping**: SM population that groups CMDB CIs by label/tag rules (KVA labels, Docker Compose labels, `cmdb_key_value`). Does **not** use vertical discovery or `sa_m2m` entry-point registration for map construction.
+- **Tag-based Service Mapping**: SM population that groups CMDB CIs by label/tag rules (KVA labels, Docker Compose labels, `cmdb_key_value`). Membership is stored as service → CI associations in **`svc_ci_assoc`**; tag-based services use class `cmdb_ci_service_by_tags`. Does **not** use vertical discovery or `sa_m2m` entry-point registration for map construction.
 - **Vertical discovery** (top-down): Classic Service Mapping starting from a registered **entry point**, walking host TCP/process/container relationships via MID Server. In specifications, **`discover: true`** triggers vertical discovery **only** when **`service_mapping: vertical`**.
 - **Horizontal Discovery**: Infrastructure discovery (Linux servers, TCP, processes, Docker Pattern, K8s resources) that enriches the CMDB. CSDM deploy **does not** replace horizontal Discovery.
 - **Entry point**: A `cmdb_ci_endpoint` CI linked **Depends on::Used by** from an application service and registered in **`sa_m2m_service_entry_point`** for **vertical** Service Mapping only.
@@ -45,8 +47,9 @@ Audiences: **CSDM Modelers**, deploy processor maintainers, discovery operators,
 
 ### Relationship terms
 
-- **`depends_on`**: Consumer → provider **Depends on::Used by** relationships declared on an application service.
-- **Contains::Contained by**: BA → BS → application service hierarchy.
+- **`depends_on`**: Consumer → provider **Depends on::Used by** relationships declared on a service instance.
+- **Contains::Contained by**: BA → BS → service instance hierarchy.
+- **`svc_ci_assoc`**: ServiceNow table holding service → CI membership associations maintained by tag-based Service Mapping. Playbooks do **not** create workload-membership **Contains::Contained by** rows in `cmdb_rel_ci`.
 - **Runs on::Runs**: Endpoint CI → Linux server host linkage (vertical entry points).
 
 ### Dependency tiers
@@ -73,36 +76,13 @@ Authors **should** document `depends_on` entries using tier comments (not stored
 ### Identifier and naming
 
 - CSDM **`name`** values **must not** embed **location** or **cluster** tokens (`brooks-lab`, `(Lab3)` as site).
-- **Location** **must** use the top-level **`location`** attribute (CMDB `cmn_location`) and matching runtime labels.
-- Authors **must not** use **`expand`** to create one Application Service per node for a horizontally scaled Kubernetes fleet (for example Spark Workers). Use **one** Application Service and the same `servicenow.io/application-service-identifier` on every pod; tag-based Service Mapping **Contains** all matching pods as they scale.
-- Authors **may** use **`expand`** for **host-scoped** agents where each host is a distinct operational Application Service (for example Elastic Agent or Dynatrace OneAgent per node). With **`expand`**, display **`name`** **may** include a host instance suffix (`Elastic Agent (Lab1)`); **`identifier`** **must** include the host token (`elastic-agent-lab1`).
+- **Location** **must** use the top-level **`location`** attribute (CMDB `cmn_location`); workloads carry no location label.
+- Authors **must not** use **`expand`** to create one Service Instance per node for a horizontally scaled Kubernetes fleet (for example Spark Workers). Use **one** Service Instance and the same `servicenow.com/service-instance` label on every pod; tag-based Service Mapping adds all matching pods as members in `svc_ci_assoc` as they scale.
+- Authors **may** use **`expand`** for **host-scoped** agents where each host is a distinct operational Service Instance (for example Elastic Agent or Dynatrace OneAgent per node). With **`expand`**, display **`name`** **may** include a host instance suffix (`Elastic Agent (Lab1)`); **`identifier`** **must** include the host token (`elastic-agent-lab1`).
 
-### Location: CMDB column vs runtime label
+### Location: CMDB column only
 
-<table style="margin-left: 1.5em; width: 95%; border-collapse: collapse;">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 30%">
-<col style="width: 45%">
-</colgroup>
-<thead>
-<tr><th>Mechanism</th><th>Where it lives</th><th>Purpose</th></tr>
-</thead>
-<tbody>
-<tr>
-<td><code>location</code> (YAML top-level)</td>
-<td>CMDB reference on BA/BS/application service CIs</td>
-<td>Authoritative CSDM/APM placement; reporting and filters</td>
-</tr>
-<tr>
-<td><code>servicenow.io/location</code> (runtime label)</td>
-<td>Kubernetes labels / Docker Compose labels → <code>cmdb_key_value</code> via discovery</td>
-<td>Tag-based Service Mapping rules; correlates discovered workload CIs</td>
-</tr>
-</tbody>
-</table>
-
-Authors **must** set both to the same location name (`cmn_location.name`, for example `brooks-lab`). The CMDB column is the system-of-record for CSDM objects the deploy processor creates. Labels propagate placement to dynamically discovered CIs (pods, containers) so Service Mapping can group them without manual CMDB edits.
+The optional top-level **`location`** attribute sets the CMDB reference (`cmn_location`) on BA/BS/service instance CIs for authoritative CSDM/APM placement, reporting, and filters. Workloads carry **no** location label: the single `servicenow.com/service-instance` tag identifies membership, and host placement of discovered CIs comes from **Runs on** relationships created by discovery.
 
 ## Roles and Responsibilities
 
@@ -112,7 +92,7 @@ The **CSDM Modeler** understands CSDM, the application architecture, and each co
 
 ### Deploy processor
 
-The **deploy processor** is the generic automation (`csdm/tasks/`, invoked by `csdm/deploy.yml`) that materializes CSDM specifications into the CMDB. It **must** validate each application service, resolve users and locations, upsert CIs, create hierarchy and `depends_on` relationships, register vertical entry points when specified, trigger vertical discovery asynchronously, and emit runtime tag manifests when configured. It **must not** embed application-specific topology.
+The **deploy processor** is the generic automation (`csdm/tasks/`, invoked by `csdm/deploy.yml`) that materializes CSDM specifications into the CMDB. It **must** validate each service instance, resolve users and locations, upsert CIs, create hierarchy and `depends_on` relationships, set tag population rules for tag-based services via the `/populate_tags` Scripted REST API, register vertical entry points when specified, trigger vertical discovery asynchronously, and emit runtime tag manifests when configured. It **must not** embed application-specific topology.
 
 ### Deploy processor maintainer
 
@@ -124,7 +104,7 @@ The **discovery operator** runs horizontal Discovery (SSH Linux, Docker Pattern,
 
 ### Service Mapping operator
 
-The **Service Mapping operator** configures tag-based Service Mapping rules on the ServiceNow instance (typically keyed on **servicenow.io/application-service-identifier**). The operator **must** configure rules before tag-based application services can reach **operational** map status. The operator **should** monitor vertical discovery jobs triggered by the deploy processor and investigate services stuck in **Requirements**.
+The **Service Mapping operator** maintains the tag-based Service Mapping configuration on the ServiceNow instance. The operator **must** ensure the single **Service Instance** tag category (tag key **`servicenow.com/service-instance`**) exists — `service-mapping/common/ensure_tag_categories.yml` configures it; per-service tag population rules are set by the deploy processor, not by hand. The operator **should** monitor vertical discovery jobs triggered by the deploy processor and investigate services stuck in **Requirements**.
 
 ## Statements
 
@@ -152,23 +132,23 @@ The **Service Mapping operator** configures tag-based Service Mapping rules on t
 
 1.2.2 Authors **must** declare **`depends_on`** tiers for failure propagation and Service Map context even when vertical discovery is disabled.
 
-1.2.3 Authors **must** set **`identifier`**, **`environment`**, and **`location`** on every application service.
+1.2.3 Authors **must** set **`identifier`** on every service instance as an internal logical key. Authors **may** set **`environment`** and **`location`** as CI fields on the service record; these attributes are **not** emitted as workload tags.
 
-1.2.4 Authors **must** apply runtime **servicenow.io/** labels on workloads (and platform-specific keys in Statements 1.3–1.5) when `service_mapping: tags`.
+1.2.4 Authors **must** apply the runtime **`servicenow.com/service-instance`** label on workloads (and platform-specific keys in Statements 1.3–1.5) when `service_mapping: tags`.
 
 1.2.5 Authors **must** ensure horizontal discovery, KVA, and/or Docker inventory sync run so backing workload CIs exist in the CMDB before expecting tag-based maps to populate.
 
-1.2.6 Tag-based Service Mapping adds **Contains** relationships from application services to discovered workload CIs when instance rules match labels. **`depends_on`** supplies cross-service and non-host infrastructure edges (for example `nfs_server`) the map does not infer automatically.
+1.2.6 Tag-based Service Mapping adds discovered workload CIs as service members in **`svc_ci_assoc`** when the service's tag population rule matches labels. **`depends_on`** supplies cross-service and non-host infrastructure edges (for example `nfs_server`) the map does not infer automatically.
 
 1.2.7 Authors **must not** declare Application Service → `cmdb_ci_linux_server` relationships via `depends_on` with `type: linux_server` (or equivalent). When workloads are discovered, the Linux host **must** be reached through the workload CI (for example `cmdb_ci_kubernetes_pod` or `cmdb_ci_docker_container` **Runs on** the host). Hard-coded AS → host edges do not scale with rescheduling and multi-node placement and **must not** be used as a membership or placement model.
 
-1.2.8 Authors **must not** use `expand` to create one Application Service per Kubernetes node for a horizontally scaled fleet. Authors **must** declare a single Application Service and apply the same `servicenow.io/application-service-identifier` on every pod in the fleet so tag-based Service Mapping **Contains** all pods as replica count changes. Authors **may** use `expand` only for host-scoped agents where each host is itself a distinct Application Service (for example Elastic Agent or Dynatrace OneAgent).
+1.2.8 Authors **must not** use `expand` to create one Service Instance per Kubernetes node for a horizontally scaled fleet. Authors **must** declare a single Service Instance and apply the same `servicenow.com/service-instance` label on every pod in the fleet so tag-based Service Mapping keeps all pods as members (`svc_ci_assoc`) as replica count changes. Authors **may** use `expand` only for host-scoped agents where each host is itself a distinct Service Instance (for example Elastic Agent or Dynatrace OneAgent).
 
 #### 1.3 Runtime tags — all platforms
 
-When `service_mapping: tags`, authors **must** apply the following **servicenow.io/** keys on every workload (Kubernetes pod labels or Docker Compose service labels). Tag-based Service Mapping reads these from **`cmdb_key_value`**. KVA writes Kubernetes labels as **`system`**. Docker Compose labels reach **`cmdb_key_value`** through **`discovery/docker/discover.yml`** (REST upsert) when the integration user has write ACLs, or through an instance-specific label-import path — **Docker Pattern** horizontal discovery enriches container/process relationships but **does not** by itself populate custom **`servicenow.io/*`** rows in this lab.
+When `service_mapping: tags`, authors **must** apply the single **`servicenow.com/service-instance`** key on every workload (Kubernetes pod labels or Docker Compose service labels). Tag-based Service Mapping reads it from **`cmdb_key_value`**. KVA writes Kubernetes labels as **`system`**. Docker Compose labels reach **`cmdb_key_value`** through **`discovery/docker/discover.yml`** (REST upsert) when the integration user has write ACLs, or through an instance-specific label-import path — **Docker Pattern** horizontal discovery enriches container/process relationships but **does not** by itself populate custom **`servicenow.com/*`** rows in this lab.
 
-> **All platforms — servicenow.io keys**
+> **All platforms — servicenow.com key**
 
 <table style="margin-left: 1.5em; width: 95%; border-collapse: collapse;">
 <colgroup>
@@ -180,31 +160,17 @@ When `service_mapping: tags`, authors **must** apply the following **servicenow.
 </thead>
 <tbody>
 <tr>
-<td><code>servicenow.io/application-service-identifier</code></td>
-<td>Authors <strong>must</strong> set this label to the Application Service <code>identifier</code>; this value <strong>must</strong> match the primary tag-based Service Mapping rule on the instance.</td>
-</tr>
-<tr>
-<td><code>servicenow.io/environment</code></td>
-<td>Authors <strong>must</strong> set this label to the application service <code>environment</code> or to <code>tag_defaults.environment</code> when the service inherits it (for example, <code>on-prem</code>).</td>
-</tr>
-<tr>
-<td><code>servicenow.io/location</code></td>
-<td>Authors <strong>must</strong> set this label to the same location name as the top-level <code>location</code> attribute (for example, <code>brooks-lab</code>).</td>
-</tr>
-<tr>
-<td><code>servicenow.io/application-identifier</code></td>
-<td>Authors <strong>may</strong> set this label to the Business Application <code>identifier</code> as an optional secondary filter. It is <strong>not</strong> required for tag-based AS→workload <strong>Contains</strong>; the BA is already reachable via the CSDM AS → BS → BA hierarchy.</td>
-</tr>
-<tr>
-<td><code>servicenow.io/business-service-identifier</code></td>
-<td>Authors <strong>may</strong> set this label to the parent Business Service <code>identifier</code> as an optional secondary filter. It is <strong>not</strong> required for tag-based AS→workload <strong>Contains</strong>; the BS is already the parent of the Application Service.</td>
+<td><code>servicenow.com/service-instance</code></td>
+<td>Authors <strong>must</strong> set this label to the service instance display <code>name</code>. For <code>platform: kubernetes</code>, the value <strong>must</strong> be the Kubernetes-sanitized name (for example <code>Spark Worker</code> → <code>Spark-Worker</code>); for Docker Compose and host platforms, the value <strong>must</strong> be the exact display name (spaces allowed). The deploy processor generates the ServiceNow-side tag population rule from the same <code>name</code> with the same sanitization, so workload label and rule always match.</td>
 </tr>
 </tbody>
 </table>
 
-1.3.1 Authors **must** apply the same **servicenow.io/** keys on Docker containers as on Kubernetes pods when using tag-based Service Mapping.
+1.3.1 Authors **must** apply the same **`servicenow.com/service-instance`** key on Docker containers as on Kubernetes pods when using tag-based Service Mapping.
 
-1.3.2 Authors **should** declare these keys in Docker Compose `labels:` blocks (see `observability/docker-compose.yml`) and in Kubernetes manifest labels; the deploy processor **may** emit a runtime tag manifest under `vars/contexts/csdm_runtime_tags/` for downstream automation.
+1.3.2 Authors **should** declare this key in Docker Compose `labels:` blocks (see `observability/docker-compose.yml`) and in Kubernetes manifest labels; the deploy processor **may** emit a runtime tag manifest under `vars/contexts/csdm_runtime_tags/` for downstream automation.
+
+1.3.3 Authors **must not** apply environment, location, business-application, or business-service label keys on workloads; BA and BS context comes from the CSDM hierarchy, and `environment`/`location` are CI fields on the service record only.
 
 #### 1.4 Runtime tags — Kubernetes
 
@@ -298,7 +264,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 #### 2.1 Specification files
 
-2.1.1 The CSDM Modeler **must** use YAML lists for `business_applications`, `business_services`, and `application_services`.
+2.1.1 The CSDM Modeler **must** use YAML lists for `business_applications`, `business_services`, and `service_instances`.
 
 2.1.2 Specifications **may** use Jinja for values resolved from context variable files at deploy time.
 
@@ -306,7 +272,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 2.1.4 Each file **should** live at `<application-playbook-dir>/servicenow/csdm.yaml` and **must** be registered in `csdm/common/vars.yml`.
 
-2.1.5 Every BA, BS, and application service **must** declare an **`identifier`** obeying identifier rules in Definitions.
+2.1.5 Every BA, BS, and service instance **must** declare an **`identifier`** obeying identifier rules in Definitions; the identifier is an internal logical key and is **not** sent to ServiceNow.
 
 #### 2.2 Business Application attributes
 
@@ -322,7 +288,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 </thead>
 <tbody>
 <tr><td><code>name</code></td><td>Authors <strong>must</strong> set the CMDB display name.</td></tr>
-<tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key used in <code>servicenow.io/application-identifier</code>.</td></tr>
+<tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key used for cross-references within specifications.</td></tr>
 <tr><td><code>business_owner</code></td><td>Authors <strong>must</strong> set a ServiceNow <code>user_name</code>; maps to CMDB <code>owned_by</code> when no <code>business_owner</code> column exists.</td></tr>
 <tr><td><code>it_application_owner</code></td><td>Authors <strong>must</strong> set a ServiceNow <code>user_name</code>.</td></tr>
 <tr><td><code>operational_status</code></td><td>Authors <strong>must</strong> set <code>"1"</code> for Operational.</td></tr>
@@ -345,7 +311,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 </thead>
 <tbody>
 <tr><td><code>name</code></td><td>Authors <strong>must</strong> set the CMDB display name.</td></tr>
-<tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key used in <code>servicenow.io/business-service-identifier</code>.</td></tr>
+<tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key used for cross-references within specifications.</td></tr>
 <tr><td><code>parent_business_application</code></td><td>Authors <strong>must</strong> set the parent BA <code>name</code>.</td></tr>
 <tr><td><code>owned_by</code></td><td>Authors <strong>must</strong> set a ServiceNow <code>user_name</code>.</td></tr>
 <tr><td><code>business_criticality</code></td><td>Authors <strong>must</strong> set a choice value from Statement 2.7.</td></tr>
@@ -354,9 +320,9 @@ Authors **must not** set `discover: true` until all of the following are true fo
 </tbody>
 </table>
 
-#### 2.4 Application Service attributes
+#### 2.4 Service Instance attributes
 
-> **Application Service (<code>cmdb_ci_service_discovered</code>) attributes**
+> **Service Instance (<code>cmdb_ci_service_discovered</code>; reclassed to <code>cmdb_ci_service_by_tags</code> when <code>service_mapping: tags</code>) attributes**
 
 <table style="margin-left: 1.5em; width: 95%; border-collapse: collapse;">
 <colgroup>
@@ -367,15 +333,15 @@ Authors **must not** set `discover: true` until all of the following are true fo
 <tr><th>Field</th><th>Statement</th></tr>
 </thead>
 <tbody>
-<tr><td><code>name</code></td><td>Authors <strong>must</strong> set the display name; authors <strong>may</strong> use <code>{host}</code> / <code>{host_lower}</code> with <code>expand</code>.</td></tr>
-<tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key that <strong>must</strong> match <code>servicenow.io/application-service-identifier</code> when tag-based.</td></tr>
+<tr><td><code>name</code></td><td>Authors <strong>must</strong> set the display name; when <code>service_mapping: tags</code> this name (Kubernetes-sanitized for <code>platform: kubernetes</code>) is the <code>servicenow.com/service-instance</code> label value on workloads. Authors <strong>may</strong> use <code>{host}</code> / <code>{host_lower}</code> with <code>expand</code>.</td></tr>
+<tr><td><code>identifier</code></td><td>Authors <strong>must</strong> set a stable machine key as an internal logical key (cross-references, <code>{host}</code>/<code>{host_lower}</code> expansion, log labels); it is <strong>not</strong> sent to ServiceNow and <strong>not</strong> used in any tag.</td></tr>
 <tr><td><code>parent_business_service</code></td><td>Authors <strong>must</strong> set the parent BS <code>name</code>.</td></tr>
 <tr><td><code>owned_by</code></td><td>Authors <strong>must</strong> set a ServiceNow <code>user_name</code>.</td></tr>
 <tr><td><code>business_criticality</code></td><td>Authors <strong>must</strong> set a choice value from Statement 2.7.</td></tr>
 <tr><td><code>operational_status</code></td><td>Authors <strong>must</strong> set <code>"1"</code> for Operational.</td></tr>
 <tr><td><code>platform</code></td><td>Authors <strong>must</strong> set <code>kubernetes</code>, <code>docker</code>, <code>host</code>, or <code>saas</code>.</td></tr>
-<tr><td><code>environment</code></td><td>Authors <strong>must</strong> set a value or inherit from <code>tag_defaults</code>.</td></tr>
-<tr><td><code>location</code></td><td>Authors <strong>must</strong> set the CMDB location name; authors <strong>must</strong> match <code>servicenow.io/location</code> on workloads.</td></tr>
+<tr><td><code>environment</code></td><td>Authors <strong>may</strong> set a value (or inherit from <code>tag_defaults</code>); stored as a CI field on the service record and <strong>not</strong> emitted as a workload tag.</td></tr>
+<tr><td><code>location</code></td><td>Authors <strong>may</strong> set the CMDB location name; stored as a CI field on the service record and <strong>not</strong> emitted as a workload tag.</td></tr>
 <tr><td><code>service_mapping</code></td><td>Authors <strong>must</strong> set <code>tags</code>, <code>vertical</code>, or <code>manual</code> per Statements 1.1.1–1.1.6.</td></tr>
 <tr><td><code>discover</code></td><td>Authors <strong>must</strong> set <code>false</code> for Kubernetes, SaaS, and tag-based Docker/host; authors <strong>may</strong> set <code>true</code> only with <code>service_mapping: vertical</code> and Statement 1.6 satisfied.</td></tr>
 <tr><td><code>depends_on</code></td><td>Authors <strong>should</strong> declare tiered consumer → provider lists.</td></tr>
@@ -404,7 +370,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 2.5.2.3 The CSDM Modeler **may** set `service_mapping: vertical` and `discover: true` only when every Statement 1.6 prerequisite is met and entry ports are stable.
 
-2.5.2.4 When tag-based, the CSDM Modeler **must** declare `tags.docker` per Statement 1.5 and apply **servicenow.io/** labels on Compose services.
+2.5.2.4 When tag-based, the CSDM Modeler **must** declare `tags.docker` per Statement 1.5 and apply the **`servicenow.com/service-instance`** label on Compose services.
 
 2.5.2.5 When vertical, the CSDM Modeler **must** declare `entry_points` with `host_lookup_name` resolving to a Linux server CI.
 
@@ -456,7 +422,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 3.2.2 The deploy processor **must** map YAML `business_owner` to CMDB `owned_by` when the instance has no `business_owner` column.
 
-3.2.3 The deploy processor **must** create **Contains::Contained by** for BA → BS → application service hierarchy.
+3.2.3 The deploy processor **must** create **Contains::Contained by** for BA → BS → service instance hierarchy.
 
 3.2.4 The deploy processor **must** create **Depends on::Used by** for `depends_on` entries.
 
@@ -471,6 +437,10 @@ Authors **must not** set `discover: true` until all of the following are true fo
 3.3.4 For tag-based services, the deploy processor **must not** create entry points or call `addEntryPoint`.
 
 3.3.5 The deploy processor **may** emit a runtime tag manifest under `vars/contexts/csdm_runtime_tags/` for downstream label application.
+
+3.3.6 For services with `service_mapping: tags`, the deploy processor **must** reclass the service to **`cmdb_ci_service_by_tags`** and call the `/populate_tags` Scripted REST API (backed by `csdm/files/sm_populate_tag_list.js`), which sets the tag population rule via `SMServiceByTagsUtils.updateServiceFromTagsList()`, sets service metadata (populator, checksum, category values), and triggers `SNC.ServicePopulatorRunner('INTERACTIVE')` so membership recalculates immediately.
+
+3.3.7 The deploy processor **must** derive the tag population rule value from the service instance **`name`**, applying Kubernetes sanitization for `platform: kubernetes`, so the rule always matches the workload label.
 
 #### 3.4 Validation
 
@@ -492,7 +462,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 4.3 The discovery operator **must** run ServiceNow **Docker Pattern** horizontal discovery on Docker hosts where vertical Service Mapping or container/process enrichment is required (for example, Lab3 with `discovery_docker_pattern: true`).
 
-4.4 The discovery operator **must** run **`discovery/docker/discover.yml`** on Docker hosts where tag-based Service Mapping depends on **`cmdb_key_value`** rows from Compose labels; that playbook reads labels from `docker inspect` and upserts **`cmdb_key_value`** when the integration user has write ACLs.
+4.4 The discovery operator **must** run **`discovery/docker/discover.yml`** on Docker hosts where tag-based Service Mapping depends on **`cmdb_key_value`** rows from Compose labels; that playbook reads labels from `docker inspect` and upserts **`cmdb_key_value`** (matching only **`servicenow.com/*`** keys) when the integration user has write ACLs.
 
 4.5 When **`cmdb_key_value`** REST insert returns HTTP 403, operators **must** extend table ACLs so **`cmdb_inst_admin`** appears in **Requires role** on the active **create**, **write**, and **delete** ACLs for table **`cmdb_key_value`** — see `docs/install.md` §6.3. Read access is usually satisfied out of the box via **`cmdb_read`**. KVA populates Kubernetes labels as user **`system`**, which is a separate internal path.
 
@@ -500,7 +470,7 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 ### 5. Service Mapping operator
 
-5.1 The Service Mapping operator **must** configure tag-based rules matching **servicenow.io/application-service-identifier** (or the configured prefix) before tag-based application services can reach operational status.
+5.1 The Service Mapping operator **must** ensure the single **Service Instance** tag category (tag key **`servicenow.com/service-instance`**, defined as `sn_csdm_tag_key_service_instance` in `service-mapping/common/vars.yml`) exists on the instance; `service-mapping/common/ensure_tag_categories.yml` configures it. The operator **must not** author per-service tag population rules by hand — the deploy processor sets them (Statements 3.3.6–3.3.7).
 
 5.2 The Service Mapping operator **should** monitor `process_status` and `service_status` on `cmdb_ci_service_discovered` after vertical triggers.
 
@@ -508,13 +478,15 @@ Authors **must not** set `discover: true` until all of the following are true fo
 
 ## Commentary
 
-### Why identifiers and tags overlap
+### Why the workload tag uses the display name
 
-CSDM display **`name`** values are human-oriented. Tags and Service Mapping rules require stable machine keys. **`identifier`** is the single source of truth; top-level **`environment`** and **`location`** duplicate into **servicenow.io/** label keys so SM rules do not parse nested YAML.
+There is a single workload tag: **`servicenow.com/service-instance`**, whose value is the service instance display **`name`**. For `platform: kubernetes` the value is sanitized to the Kubernetes label value charset (max 63 characters, alphanumeric at both ends, only alphanumerics, `-`, `_`, `.` in between); Docker Compose and host platforms use the exact display name, spaces allowed. The deploy processor generates the ServiceNow-side tag population rule from the same `name` with the same sanitization, so the workload label and the rule always match. **`identifier`** stays internal — cross-references within specs, `{host}`/`{host_lower}` expansion, and log labels — and never reaches ServiceNow. Environment and location scoping tags were dropped as unnecessary in this lab; `environment` and `location` remain optional CI fields on the service record.
+
+Matching on display names is deliberate and accepted as brittle: renaming a service instance in the spec requires updating the hardcoded label values in `ansible/roles/spark/templates/spark-*.yaml.j2` and `observability/docker-compose.yml`. Drift is detected — the comparator flags workloads whose tag matches no service, and membership fails closed — but not prevented.
 
 ### Why Docker Compose uses tag-based mapping in this lab
 
-ServiceNow **allows** vertical discovery for Docker but **recommends** tags for Compose stacks that change frequently. Vertical discovery requires a traversable graph from entry point → TCP → process → container. Container inventory sync that only upserts `cmdb_ci_docker_container` rows without **cmdb_rel_ci** relationships leaves vertical discovery stuck in **Requirements** — tag-based mapping with Compose labels is the reliable path when **servicenow.io/** labels are on services and **Docker Pattern** or KVA has populated **`cmdb_key_value`**.
+ServiceNow **allows** vertical discovery for Docker but **recommends** tags for Compose stacks that change frequently. Vertical discovery requires a traversable graph from entry point → TCP → process → container. Container inventory sync that only upserts `cmdb_ci_docker_container` rows without **cmdb_rel_ci** relationships leaves vertical discovery stuck in **Requirements** — tag-based mapping with Compose labels is the reliable path when the **`servicenow.com/service-instance`** label is on services and label sync has populated **`cmdb_key_value`**.
 
 ### Document rendering and tables
 
@@ -530,13 +502,13 @@ Authors **should** prefer inline HTML tables with explicit `<colgroup>` percenta
 
 Infrastructure targets and cross-file application services may not exist on first deploy. The second-pass linker resolves registry → CMDB lookup → defer without duplicate relationships.
 
-### Why Application Services must not Depends on linux_server
+### Why Service Instances must not Depends on linux_server
 
-Tag-based maps already place workloads under the Application Service (**Contains**). Discovery and SGC already place pods/containers on hosts (**Runs on**). Declaring AS → `cmdb_ci_linux_server` in `depends_on` duplicates placement as a static edge that drifts when pods reschedule. Prefer the discovered path: Application Service → Contains → pod → Runs on → host. Keep `depends_on` for cross-service and non-host infrastructure (for example NFS).
+Tag-based maps already place workloads under the Service Instance as members (**`svc_ci_assoc`**). Discovery and SGC already place pods/containers on hosts (**Runs on**). Declaring service → `cmdb_ci_linux_server` in `depends_on` duplicates placement as a static edge that drifts when pods reschedule. Prefer the discovered path: Service Instance → member (`svc_ci_assoc`) → pod → Runs on → host. Keep `depends_on` for cross-service and non-host infrastructure (for example NFS).
 
-### Why horizontally scaled fleets use one Application Service
+### Why horizontally scaled fleets use one Service Instance
 
-Creating one Application Service per node for Spark Workers (or similar Deployments) couples CSDM cardinality to inventory size and breaks when replica sets move or new nodes join. One Application Service with a shared `identifier` lets tag-based Service Mapping **Contains** every matching pod. Reserve `expand` for agents that are intentionally one Application Service per host.
+Creating one Service Instance per node for Spark Workers (or similar Deployments) couples CSDM cardinality to inventory size and breaks when replica sets move or new nodes join. One Service Instance whose `servicenow.com/service-instance` label is shared across pods lets tag-based Service Mapping keep every matching pod as a member. Reserve `expand` for agents that are intentionally one Service Instance per host.
 
 ## References
 
@@ -544,5 +516,6 @@ Creating one Application Service per node for Spark Workers (or similar Deployme
 - ServiceNow [Quick Start Guide for Service Mapping](https://www.servicenow.com/community/itom-articles/quick-start-guide-for-service-mapping/ta-p/3521583)
 - [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md) — instance UI paths, tag categories, ACL/Docker Pattern notes, and which application services need rules
 - Kubernetes [Recommended Labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/)
+- Kubernetes [Labels and Selectors — Syntax and character set](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set)
 - `meta-standards/tpgs-for-tpgs.md` — TPG structure and numbered Statements subsections
 - `meta-standards/keywords-for-standards.md` — must, should, may

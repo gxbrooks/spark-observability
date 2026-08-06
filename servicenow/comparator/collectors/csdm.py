@@ -26,7 +26,7 @@ def _validate_csdm_spec(spec: dict, spec_path: Path) -> None:
                     f"must declare {field} explicitly."
                 )
 
-    for item in spec.get("application_services") or []:
+    for item in spec.get("service_instances") or []:
         if item.get("platform") == "saas":
             continue
         for field in (
@@ -39,7 +39,7 @@ def _validate_csdm_spec(spec: dict, spec_path: Path) -> None:
         ):
             if field not in item or (field != "operational_status" and not str(item.get(field, "")).strip()):
                 raise ValueError(
-                    f"Application service '{item.get('name', '')}' in {basename} "
+                    f"Service instance '{item.get('name', '')}' in {basename} "
                     f"must declare {field} explicitly."
                 )
 
@@ -124,7 +124,9 @@ def load_csdm_intent(
                 }
             )
 
-        for item in spec.get("application_services") or []:
+        # Spec section renamed to service_instances (CSDM 5.0). The intent dict
+        # keeps the legacy application_services key as internal report schema.
+        for item in spec.get("service_instances") or []:
             if item.get("csdm_op", "insert") == "delete":
                 continue
             if "expand" in item:

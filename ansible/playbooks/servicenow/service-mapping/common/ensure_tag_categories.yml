@@ -29,9 +29,7 @@
   ansible.builtin.set_fact:
     sn_sm_tag_category_payload: >-
       {{ sn_sm_default_tag_categories | default([
-           {'name': 'Application Service', 'tag_key': sn_csdm_tag_key_application_service},
-           {'name': 'Environment', 'tag_key': sn_csdm_tag_key_environment},
-           {'name': 'Location', 'tag_key': sn_csdm_tag_key_location}
+           {'name': 'Service Instance', 'tag_key': sn_csdm_tag_key_service_instance}
          ]) }}
 
 - name: Ensure CI tag categories via Service Mapping REST API

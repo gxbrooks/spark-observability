@@ -560,14 +560,14 @@ operation on table ACLs.
    ```
 
 3. In ServiceNow: **`cmdb_key_value.list`** → **Key** =
-   `servicenow.io/application-service-identifier` → expect rows on container CIs.
+   `servicenow.com/service-instance` → expect rows on container CIs.
 
 4. Optional Table API spot-check (expect **201**, not **403**):
 
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' -u "$SN_USER:$SN_PASSWORD" \
      -H 'Content-Type: application/json' \
-     -d '{"configuration_item":"<container_ci_sys_id>","key":"servicenow.io/application-service-identifier","value":"grafana"}' \
+     -d '{"configuration_item":"<container_ci_sys_id>","key":"servicenow.com/service-instance","value":"Grafana"}' \
      'https://optimizincdemo1.service-now.com/api/now/table/cmdb_key_value'
    ```
 
@@ -601,20 +601,20 @@ See `discovery/docker/README.md` for playbook details.
 
 **Who:** The Ansible automation user (`admin_brooks_lab`) configures tag-based population during **`csdm/deploy.yml`**. Tag Categories (Step A below) require **`service_mapping_admin`** on your interactive user ( **`sm_admin`** is often absent on Zurich).
 
-**Why the CMDB map shows “add an entry point”:** CSDM creates **`cmdb_ci_service_discovered`** rows with **`service_mapping: tags`** and **`discover: false`**. The CMDB Service Map widget defaults to the **vertical** path until tag-based population runs. **`csdm/deploy.yml`** applies tag filters from each spec’s **`identifier`**, **`environment`**, and **`location`** via the Service Mapping Operations REST API. **Do not add entry points** for observability Docker services.
+**Why the CMDB map shows “add an entry point”:** CSDM creates service instance rows with **`service_mapping: tags`** and **`discover: false`**, reclassed to **`cmdb_ci_service_by_tags`**. The CMDB Service Map widget defaults to the **vertical** path until tag-based population runs. **`csdm/deploy.yml`** applies the tag population rule from each spec’s display name (**`name:`**) via the Service Mapping Operations Scripted REST API (**`/populate_tags`**). **Do not add entry points** for observability Docker services.
 
 #### What Ansible automates vs what stays manual
 
 | Step | Automated | Playbook / action |
 | ---- | --------- | ----------------- |
-| Delete + recreate Application Services | Yes | `observability-platform-delete.csdm.yaml` then `observability-platform.csdm.yaml` via `csdm/deploy.yml` (see below) |
-| BA → BS → AS hierarchy + `depends_on` | Yes | `csdm/deploy.yml` |
-| Container CIs + `servicenow.io/*` tags | Yes (after §6.3) | `discovery/docker/discover.yml` |
-| Tag filter per Application Service (`tag_list`) | Yes | `csdm/deploy.yml` → `configure_tag_based_sm.yml` (when `service_mapping: tags`) |
-| Tag Categories (instance-wide) | Yes | `service-mapping/deploy.yml` (via scoped REST; included in `csdm/deploy.yml`) |
-| **Contains** workload → Application Service | **ServiceNow** (after tags + filters exist) | Tag-based mapping scheduled job / **Update map** |
+| Delete + recreate Service Instances | Yes | `observability-platform-delete.csdm.yaml` then `observability-platform.csdm.yaml` via `csdm/deploy.yml` (see below) |
+| BA → BS → service instance hierarchy + `depends_on` | Yes | `csdm/deploy.yml` |
+| Container CIs + `servicenow.com/*` tags | Yes (after §6.3) | `discovery/docker/discover.yml` |
+| Tag population rule per Service Instance (`tag_list`) | Yes | `csdm/deploy.yml` → `configure_tag_based_sm.yml` (when `service_mapping: tags`) |
+| Tag Category (instance-wide) | Yes | `service-mapping/deploy.yml` (via scoped REST; included in `csdm/deploy.yml`) |
+| Membership (`svc_ci_assoc`) workload → Service Instance | **ServiceNow** (after tags + rules exist) | `SNC.ServicePopulatorRunner('INTERACTIVE')`, triggered by the deploy |
 
-For every Application Service with **`service_mapping: tags`** in a `*.csdm.yaml` file, the deploy processor POSTs a **`tag_list`** to **`/api/opti8/service_mapping_operations_api/populate_tags`**, using the same platform path as **`snc service-graph app-service populate`**. Disable with **`-e sn_csdm_configure_tag_sm=false`**.
+For every service instance with **`service_mapping: tags`** in a `*.csdm.yaml` file, the deploy processor POSTs a **`tag_list`** to **`/api/opti8/service_mapping_operations_api/populate_tags`** (backed by `ansible/playbooks/servicenow/csdm/files/sm_populate_tag_list.js`), which sets the population rule via **`SMServiceByTagsUtils.updateServiceFromTagsList()`**, sets service metadata (populator, checksum, category values), and triggers **`SNC.ServicePopulatorRunner('INTERACTIVE')`** so membership recalculates immediately. Disable with **`-e sn_csdm_configure_tag_sm=false`**.
 
 Once tag filters exist, ServiceNow re-evaluates maps when new containers match — no per-container rule is needed.
 
@@ -624,7 +624,7 @@ Once tag filters exist, ServiceNow re-evaluates maps when new containers match �
 cd ansible
 OBS="/home/gxbrooks/repos/spark-observability/servicenow/regions/brooks-lab"
 
-# 1. Delete seven Application Services (BA/BS retained)
+# 1. Delete seven service instances (BA/BS retained)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
   -e @../vars/secrets.yaml \
   -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform-delete.csdm.yaml\"]}"
@@ -655,7 +655,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.ym
   -e @../vars/secrets.yaml
 ```
 
-Tag categories are created automatically by **`service-mapping/deploy.yml`** (also run at the start of **`csdm/deploy.yml`**).
+The tag category is created automatically by **`service-mapping/deploy.yml`** (also run at the start of **`csdm/deploy.yml`**) via **`service-mapping/common/ensure_tag_categories.yml`**; the tag key variable is **`sn_csdm_tag_key_service_instance`** in **`service-mapping/common/vars.yml`**.
 
 **Manual fallback** (when deploy output shows tag category errors):
 
@@ -666,39 +666,35 @@ Tag categories are created automatically by **`service-mapping/deploy.yml`** (al
 
 | Tag Category (name) | Label key (`tag_key`) |
 | ------------------- | --------------------- |
-| **Application Service** | `servicenow.io/application-service-identifier` |
-| **Environment** | `servicenow.io/environment` |
-| **Location** | `servicenow.io/location` |
+| **Service Instance** | `servicenow.com/service-instance` |
 
 The Service Mapping Workspace URL (`/now/svc-map/tag-categories`) may be unavailable when the **`sn_itom_map_app`** Store package cannot be downloaded on a shared demo; classic **CI tag categories** is sufficient for brooks-lab. See [ServiceNow tag mapping doc](https://www.servicenow.com/docs/r/it-operations-management/service-mapping/map-service-tag.html) (role: **`service_mapping_admin`**).
 
 #### Step B — Tag population (automated by `csdm/deploy.yml`)
 
-When **`service_mapping: tags`** is set on an Application Service in a `*.csdm.yaml` file, **`csdm/deploy.yml`** configures tag-based population automatically after the CI is created or updated. Tags are derived from the spec:
+When **`service_mapping: tags`** is set on a service instance in a `*.csdm.yaml` file, **`csdm/deploy.yml`** configures tag-based population automatically after the CI is created or updated. The tag is derived from the spec:
 
 | CSDM field | Tag key |
 | ---------- | ------- |
-| **`identifier`** (with `{host}` / `{host_lower}` expansion) | `servicenow.io/application-service-identifier` |
-| **`environment`** (when present) | `servicenow.io/environment` |
-| **`location`** (when present) | `servicenow.io/location` |
+| **`name`** (display name; sanitized to the K8s label charset when `platform: kubernetes`) | `servicenow.com/service-instance` |
 
 For observability-platform, values match `observability/docker-compose.yml` labels:
 
-| Application Service | `servicenow.io/application-service-identifier` | Optional scope |
-| ------------------- | ------------------------------------------------ | -------------- |
-| Elasticsearch | `elasticsearch` | environment=`on-prem`, location=`brooks-lab` |
-| Kibana | `kibana` | same |
-| Grafana | `grafana` | same |
-| Prometheus | `prometheus` | same |
-| Grafana Tempo | `grafana-tempo` | same |
-| OpenTelemetry Collector | `opentelemetry-collector` | same |
-| Logstash | `logstash` | same |
+| Service Instance | `servicenow.com/service-instance` |
+| ------------------- | ------------------------------------------------ |
+| Elasticsearch | `Elasticsearch` |
+| Kibana | `Kibana` |
+| Grafana | `Grafana` |
+| Prometheus | `Prometheus` |
+| Grafana Tempo | `Grafana Tempo` |
+| OpenTelemetry Collector | `OpenTelemetry Collector` |
+| Logstash | `Logstash` |
 
-Deploy output shows **`Tag SM <name>: HTTP 202`** for each service when population succeeds. **`service_status`** may remain **requirements** until workload tags exist and the tag-based mapping job runs.
+Deploy output shows **`Tag SM <name>: HTTP 202`** for each service when population succeeds. **`service_status`** may remain **requirements** until workload tags exist and the Service Populator runs.
 
-**Verify tags before blaming SM:** `cmdb_key_value.list` filtered on key `servicenow.io/application-service-identifier`. If rows are missing, complete [§6.3](#63-enable-automation-to-update-key-value-pairs) and re-run `discovery/docker/discover.yml`.
+**Verify tags before blaming SM:** `cmdb_key_value.list` filtered on key `servicenow.com/service-instance`. If rows are missing, complete [§6.3](#63-enable-automation-to-update-key-value-pairs) and re-run `discovery/docker/discover.yml`.
 
-**Verify relationships:** `cmdb_rel_ci.list` with parent = Application Service sys_id and type **Contains::Contained by**. Trigger **Update map** in Service Mapping Workspace if **Contains** edges are slow to appear.
+**Verify membership:** `svc_ci_assoc.list` with service = Service Instance sys_id — tag-based SM adds matching CIs as **members** in `svc_ci_assoc` (no `cmdb_rel_ci` **Contains** edges are created). The deploy triggers `SNC.ServicePopulatorRunner('INTERACTIVE')` so membership recalculates immediately.
 
 ```bash
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml

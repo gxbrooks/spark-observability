@@ -292,7 +292,7 @@ This split is intentional: Dynatrace problems reference Smartscape entities; Ser
 | Problem | — (Dynatrace) | — | `HOST`, `PROCESS_GROUP`, `PROCESS_GROUP_INSTANCE`, `CONTAINER_GROUP_INSTANCE` | Davis / impacted entities |
 | Event | `em_event` | Infrastructure CI | `cmdb_ci_linux_server`, `cmdb_ci_docker_container`, SGC process group CI | `sys_object_source` ← Dynatrace `entityId` |
 | Alert | `em_alert` | Same as source event(s) | Same as event | Copied or re-derived from correlated `em_event.cmdb_ci` |
-| Incident | `incident` | Application Service | `cmdb_ci_service_discovered` | **`cmdb_rel_ci` Contains** traversal from alert CI (primary); tag lookup (fallback) |
+| Incident | `incident` | Application Service | `cmdb_ci_service_by_tags` (child of `cmdb_ci_service_discovered`) | **`svc_ci_assoc`** membership lookup from alert CI (primary); tag lookup (fallback) |
 
 ```mermaid
 flowchart TB
@@ -309,7 +309,7 @@ flowchart TB
     INF[Infrastructure CI]
     KV[cmdb_key_value tags]
     AS[Application Service]
-    SM[Service Mapping Contains]
+    SM[svc_ci_assoc membership]
   end
   subgraph SN_ITSM["ServiceNow ITSM"]
     INC[incident]
@@ -322,9 +322,9 @@ flowchart TB
   AL -->|cmdb_ci| INF
   INF --> KV
   KV -->|labels feed tag-based SM| SM
-  SM -->|materializes Contains| AS
+  SM -->|records membership| AS
   INF -->|member of| SM
-  AL -->|traverse Contains primary| INC
+  AL -->|query svc_ci_assoc primary| INC
   AL -.->|tag lookup fallback| KV
   INC -->|cmdb_ci| AS
 ```
@@ -388,69 +388,69 @@ Configure alert rules so **`cmdb_ci` is required** (or alerts are held in a revi
 
 ITSM incidents created **automatically from `em_alert`** (via Event Management incident rules, `em_action` → Create Incident, or Flow Designer) should set **`incident.cmdb_ci`** to the **Application Service**, not the host or container on the alert.
 
-**Why:** Assignment groups, priority matrices, and service outage communication expect the CSDM Application Service (`identifier` from `*.csdm.yaml`, table **`cmdb_ci_service_discovered`**). The alert still carries the infrastructure CI for technical diagnosis; the incident carries the service boundary for ITSM workflow.
+**Why:** Assignment groups, priority matrices, and service outage communication expect the CSDM Application Service (display `name` from `*.csdm.yaml` `service_instances:`, table **`cmdb_ci_service_by_tags`**). The alert still carries the infrastructure CI for technical diagnosis; the incident carries the service boundary for ITSM workflow.
 
 #### Tags vs explicit relationships (ServiceNow best practice)
 
-ServiceNow uses **both** tags and **`cmdb_rel_ci`** relationships — they are not interchangeable.
+ServiceNow uses **both** tags and service membership / relationship records — they are not interchangeable.
 
 | Mechanism | Role | Visible in Service Map / dependency views? | Used by incident / AI graph reasoning? |
 | --------- | ---- | -------------------------------------------- | ---------------------------------------- |
-| **`cmdb_key_value` tags** | **Membership input** — declares which Application Service a workload belongs to (`servicenow.io/application-service-identifier`) | No — tags are CI attributes, not graph edges | Only if custom code re-implements lookup at read time |
-| **`cmdb_rel_ci` (Contains, Depends on::Used by, …)** | **Authoritative topology** — what Service Mapping, CSDM, impact analysis, and dependency diagrams traverse | Yes | Yes — platform features and analytics walk explicit relationships |
+| **`cmdb_key_value` tags** | **Membership input** — declares which Application Service a workload belongs to (`servicenow.com/service-instance`) | No — tags are CI attributes, not graph edges | Only if custom code re-implements lookup at read time |
+| **`svc_ci_assoc`** (service → CI) + **`cmdb_rel_ci`** (Depends on::Used by, …) | **Authoritative topology** — what Service Mapping, CSDM, impact analysis, and dependency diagrams use | Yes | Yes — platform features and analytics use service membership and explicit relationships |
 
 **ServiceNow best practice:**
 
 1. **Tags bind** — runtime labels on Docker containers, K8s pods, or hosts are synced to **`cmdb_key_value`** (automation in this repo).
-2. **Service Mapping materializes Contains** — tag-based SM rules on the instance match those labels and create **`cmdb_rel_ci` Contains** edges from each Application Service to its member workload CIs. This is the supported way to turn tags into a visible graph without hand-wiring hundreds of edges.
-3. **CSDM deploy creates hierarchy and declared deps** — **`csdm/deploy.yml`** creates BA → BS → Application Service **Contains** and **`depends_on`** **Depends on::Used by** edges that Service Mapping does not infer (for example Kibana depending on Elasticsearch).
-4. **Incidents traverse relationships** — auto-incident rules should **walk Contains** (or Service Mapping APIs) from the alert’s infrastructure CI to the Application Service. Tag lookup is a **fallback** when the map is incomplete, not the primary design.
-5. **Do not duplicate with manual DependsOn** — avoid extra **Depends on** edges from SGC process groups to Application Services when **Contains** from container/pod → Application Service already exists; duplicate edges confuse impact direction and Service Map layout.
+2. **Service Mapping records membership** — the tag population rule on each service instance matches those labels and writes service → CI rows in **`svc_ci_assoc`**. This is the supported way to turn tags into service membership without hand-wiring hundreds of edges.
+3. **CSDM deploy creates hierarchy and declared deps** — **`csdm/deploy.yml`** creates the BA → BS → service instance hierarchy and **`depends_on`** **Depends on::Used by** edges that Service Mapping does not infer (for example Kibana depending on Elasticsearch).
+4. **Incidents query membership** — auto-incident rules should query **`svc_ci_assoc`** (or Service Mapping APIs) from the alert’s infrastructure CI to the Application Service. Tag lookup is a **fallback** when the map is incomplete, not the primary design.
+5. **Do not duplicate with manual DependsOn** — avoid extra **Depends on** edges from SGC process groups to Application Services when **`svc_ci_assoc`** membership from container/pod already exists; duplicate edges confuse impact direction and Service Map layout.
 
-Tags answer *“which service does this CI belong to?”* Relationships answer *“what depends on what, and what appears on the map?”* Downstream automation (including AI-assisted incident analysis) should prefer the **relationship graph** Service Mapping builds from tags.
+Tags answer *“which service does this CI belong to?”* Membership and relationships answer *“what depends on what, and what appears on the map?”* Downstream automation (including AI-assisted incident analysis) should prefer the **membership graph** (`svc_ci_assoc`) Service Mapping builds from tags.
 
 See [CSDM_Specifications.md](../../../../../../servicenow/docs/CSDM_Specifications.md) Statement 1.2.6 and [Tag_Based_Service_Mapping.md](../../../../../../servicenow/docs/Tag_Based_Service_Mapping.md).
 
 #### Resolving Application Service from alert CI
 
-Use **Pattern A (relationship traversal) as primary**; **Pattern B (tag lookup) as fallback** when maps or ACLs are incomplete.
+Use **Pattern A (service membership lookup) as primary**; **Pattern B (tag lookup) as fallback** when maps or ACLs are incomplete.
 
-**Pattern A — Service Mapping / `cmdb_rel_ci` Contains traversal (recommended)**
+**Pattern A — Service Mapping / `svc_ci_assoc` membership (recommended)**
 
-After tag-based Service Mapping has run, explicit **Contains** relationships link workload CIs to Application Services. These edges appear in Service Map and dependency views and are what ServiceNow platform features traverse.
+After tag-based Service Mapping has run, **`svc_ci_assoc`** rows link workload CIs to Application Services. This membership drives the Service Map and is what ServiceNow platform features use.
 
 1. Start from **`em_alert.cmdb_ci`** (infrastructure sys_id — container, pod, or host).
-2. Query **`cmdb_rel_ci`** where `child` = alert CI and `type` = **Contains::Contained by** (parent = Application Service), **or** use Service Mapping APIs / map membership queries.
-3. Set **`incident.cmdb_ci`** to the parent Application Service sys_id.
+2. Query **`svc_ci_assoc`** where `ci_id` = alert CI and `service_id.sys_class_name` IN (`cmdb_ci_service_discovered`, `cmdb_ci_service_calculated`, `cmdb_ci_service_by_tags`).
+3. Set **`incident.cmdb_ci`** to the `service_id` Application Service sys_id.
 
-Implement in a **Script Include** or **Flow Designer** subflow shared by Docker, K8s, and host paths. Prefer this for production incident automation so behavior matches what operators see on the service map.
+Implemented in Script Include **`ResolveApplicationService`** (`servicenow/integrations/incident/ResolveApplicationService.si.js`) shared by Docker, K8s, and host paths. Prefer this for production incident automation so behavior matches what operators see on the service map.
 
 **Pattern B — Tag lookup (fallback)**
 
-When Application Service **`service_status`** is still **requirements**, tag sync failed (HTTP 403 on **`cmdb_key_value`** — see [install.md §6.3](../../../../../../servicenow/docs/install.md)), or SM has not yet materialized Contains:
+When Application Service **`service_status`** is still **requirements**, tag sync failed (HTTP 403 on **`cmdb_key_value`** — see [install.md §6.3](../../../../../../servicenow/docs/install.md)), or SM has not yet recorded `svc_ci_assoc` membership:
 
 1. Start from **`em_alert.cmdb_ci`**.
-2. Query **`cmdb_key_value`** where `configuration_item` = alert CI and `key` = `servicenow.io/application-service-identifier`.
-3. Read **`value`** (e.g. `grafana`).
-4. Query **`cmdb_ci_service_discovered`** where **`identifier`** = that value.
+2. Query **`cmdb_key_value`** where `configuration_item` = alert CI and `key` = `servicenow.com/service-instance`.
+3. Read **`value`** (e.g. `Grafana`).
+4. Query **`cmdb_ci_service_discovered`** (hierarchy includes `cmdb_ci_service_by_tags`) where **`name`** = that value.
 5. Set **`incident.cmdb_ci`** to the Application Service sys_id.
 
-Use Pattern B only until Pattern A is verified, or as a safety net in the same script when Contains traversal returns no row.
+Use Pattern B only until Pattern A is verified, or as a safety net in the same script when the `svc_ci_assoc` lookup returns no row.
 
 **Prerequisites (automation + instance configuration):**
 
 | Step | Playbook / action | What it produces |
 | ---- | ----------------- | ---------------- |
 | CSDM hierarchy | **`csdm/deploy.yml`** | Application Service CIs; BA → BS → AS **Contains**; declared **`depends_on`** |
-| Docker workload tags | **`discovery/docker/discover.yml`** | Container CIs + **`cmdb_key_value`** (`servicenow.io/*`) |
+| Docker workload tags | **`discovery/docker/discover.yml`** | Container CIs + **`cmdb_key_value`** (`servicenow.com/*`) |
 | K8s workload tags | **`discovery/k8s/discover.yml`** (includes **`sync_pod_labels.yml`**) | Pod CIs + **`cmdb_key_value`** |
 | Host agent tags | **`discovery/host/sync_tags.yml`** | **`cmdb_key_value`** on **`cmdb_ci_linux_server`** |
-| Tag filter per Application Service | **`csdm/deploy.yml`** (`configure_tag_based_sm.yml` when `service_mapping: tags`) | **`tag_list`** via Service Mapping Operations REST |
-| **Contains** workload → AS | **ServiceNow tag-based mapping job** (after tags + filters exist) | **`cmdb_rel_ci` Contains** materialized from tags |
+| Tag filter per Application Service | **`csdm/deploy.yml`** (`configure_tag_based_sm.yml` when `service_mapping: tags`) | **`tag_list`** via Service Mapping Operations REST (`/populate_tags`) |
+| Workload → AS membership | **ServiceNow tag-based mapping** (`ServicePopulatorRunner` + scheduled job) | **`svc_ci_assoc`** membership materialized from tags |
 | Event / alert CI binding | **`sgc/sources/dynatrace/events/deploy.yml`** (via top-level **`deploy.yml`**) | SGO-Dynatrace webhook; **`sys_object_source`** → event **`cmdb_ci`** |
-| Auto-incident + AS on incident | **Not in repo yet** (`incident/` planned) | Business rule / EM action — implement Pattern A (+ B fallback) on instance |
+| Auto-incident + AS on incident | **`ResolveApplicationService`** Script Include | Business rule / EM action — Pattern A (`svc_ci_assoc`) + B (tag lookup) fallback |
 
-**Avoid DependsOn process group → Application Service as the primary model.** SGC imports process groups as separate CIs; tags sit on **containers** or **pods**. A DependsOn edge from process group to Application Service duplicates Service Mapping **Contains**, can invert dependency semantics, and drifts when PG and workload CIs are not 1:1. Use SM **Contains** (Pattern A) or tag lookup (Pattern B) instead.
+**Avoid DependsOn process group → Application Service as the primary model.** SGC imports process groups as separate CIs; tags sit on **containers** or **pods**. A DependsOn edge from process group to Application Service duplicates tag-based **`svc_ci_assoc`** membership, can invert dependency semantics, and drifts when PG and workload CIs are not 1:1. Use SM membership (Pattern A) or tag lookup (Pattern B) instead.
 
 #### Example (Docker Grafana)
 
@@ -459,15 +459,15 @@ Use Pattern B only until Pattern A is verified, or as a safety net in the same s
 | Problem | CPU or health check on Grafana container | `CONTAINER_GROUP_INSTANCE-…` / container entity |
 | Event | `em_event` | `cmdb_ci_docker_container` (via `sys_object_source`) |
 | Alert | `em_alert` | Same container CI |
-| Tag row | `cmdb_key_value` on container | `servicenow.io/application-service-identifier` = `grafana` (feeds tag-based SM) |
-| SM edge | `cmdb_rel_ci` | Application Service **Contains** container CI |
-| Incident | `incident` | Application Service **`grafana`** — resolved by traversing **Contains** from container |
+| Tag row | `cmdb_key_value` on container | `servicenow.com/service-instance` = `Grafana` (feeds tag-based SM) |
+| SM membership | `svc_ci_assoc` | Application Service **member** = container CI |
+| Incident | `incident` | Application Service **`Grafana`** — resolved via **`svc_ci_assoc`** from container |
 
 ### Docker log problem → Application Service incident (data at each step)
 
-This section answers: *where do `com.docker.compose.service` or `servicenow.io/application-service-identifier` appear, and how does ServiceNow reach the Application Service when an incident is auto-created?*
+This section answers: *where do `com.docker.compose.service` or `servicenow.com/service-instance` appear, and how does ServiceNow reach the Application Service when an incident is auto-created?*
 
-**Short answer:** Those Compose / CSDM labels are **not** copied onto `em_event` by the SGC webhook. The webhook binds the event to an **infrastructure CI** via Dynatrace **`entityId`** → **`sys_object_source`**. Application Service correlation happens **later**, in incident automation, by walking **`cmdb_rel_ci` Contains** (or **`cmdb_key_value`** on that same infrastructure CI). Tags on the event record are **problem-level Dynatrace tags** (for example `Project:spark-observability`), not Docker Compose labels.
+**Short answer:** Those Compose / CSDM labels are **not** copied onto `em_event` by the SGC webhook. The webhook binds the event to an **infrastructure CI** via Dynatrace **`entityId`** → **`sys_object_source`**. Application Service correlation happens **later**, in incident automation, by querying **`svc_ci_assoc`** (or **`cmdb_key_value`** on that same infrastructure CI). Tags on the event record are **problem-level Dynatrace tags** (for example `Project:spark-observability`), not Docker Compose labels.
 
 #### Prerequisite state (before any problem fires)
 
@@ -475,11 +475,11 @@ These rows must exist **before** correlation works. None of them travel inside t
 
 | System | Record | Key data | How it got there |
 | ------ | ------ | -------- | ---------------- |
-| Docker / Compose | Running container `grafana` | Labels: `com.docker.compose.service=grafana`, `servicenow.io/application-service-identifier=grafana` | `observability/docker-compose.yml` |
+| Docker / Compose | Running container `grafana` | Labels: `com.docker.compose.service=grafana`, `servicenow.com/service-instance=Grafana` | `observability/docker-compose.yml` |
 | ServiceNow CMDB | `cmdb_ci_docker_container` (grafana) | `container_id`, `host` → lab3 | `discovery/docker/discover.yml` |
-| ServiceNow CMDB | `cmdb_key_value` on container CI | `key=servicenow.io/application-service-identifier`, `value=grafana` (also `com.docker.compose.service=grafana`) | `discovery/docker/discover.yml` (`docker inspect` → REST upsert) |
-| ServiceNow CMDB | `cmdb_ci_service_discovered` (Grafana) | `identifier=grafana` | `csdm/deploy.yml` |
-| ServiceNow CMDB | `cmdb_rel_ci` | Application Service **Contains::Contained by** container CI | Tag-based Service Mapping after `tag_list` from `csdm/deploy.yml` |
+| ServiceNow CMDB | `cmdb_key_value` on container CI | `key=servicenow.com/service-instance`, `value=Grafana` (also `com.docker.compose.service=grafana`) | `discovery/docker/discover.yml` (`docker inspect` → REST upsert) |
+| ServiceNow CMDB | `cmdb_ci_service_by_tags` (Grafana) | display `name=Grafana` | `csdm/deploy.yml` + `/populate_tags` reclass |
+| ServiceNow CMDB | `svc_ci_assoc` | Application Service **member** = container CI | Tag-based Service Mapping after `tag_list` from `csdm/deploy.yml` |
 | ServiceNow CMDB | `sys_object_source` | `name=SGO-Dynatrace`, `id=<Dynatrace entityId>`, `target_sys_id` → container or process group CI | SGC scheduled topology import |
 | Dynatrace | Process group / host entities | Smartscape topology; optional **Dynatrace** tags (`Project`, `Environment`, …) | OneAgent + auto-tag rules — **not** Compose labels unless you add `DT_TAGS` |
 
@@ -492,7 +492,7 @@ These rows must exist **before** correlation works. None of them travel inside t
 | Dynatrace entity graph | `HOST-…`, `PROCESS_GROUP-…`, possibly `CONTAINER_GROUP_INSTANCE-…` |
 | Dynatrace **entity tags** on those entities | Auto-tags from brooks-lab deploy (`Project:spark-observability`, `Environment:lab`, …) **if** rules propagated them |
 | **`com.docker.compose.service`** | Visible to OneAgent as **container metadata**, **not** automatically a Dynatrace tag or webhook field |
-| **`servicenow.io/application-service-identifier`** | **Not in Dynatrace** unless you add it (for example `DT_TAGS=servicenow.io/application-service-identifier=grafana` in Compose) |
+| **`servicenow.com/service-instance`** | **Not in Dynatrace** unless you add it (for example `DT_TAGS=servicenow.com/service-instance=Grafana` in Compose) |
 
 Log event detector fires → Davis opens a **problem**. Impacted entities are Smartscape types (`HOST`, `PROCESS_GROUP`, …), not CSDM Application Services.
 
@@ -509,7 +509,7 @@ Payload shape: `observability/dynatrace/integrations/sgc-problem-notification-pa
 | **`ProblemTitle`**, **`ProblemSeverity`**, **`State`** | Display / severity / OPEN\|RESOLVED | Event fields, not AS join |
 | **`ConnectionId`** | SGC alias sys_id | Routes to SGO-Dynatrace listener |
 
-**Not in the webhook today:** `com.docker.compose.service`, `servicenow.io/application-service-identifier`, or Application Service sys_id. SGC does **not** forward Docker Compose labels from the daemon into this JSON.
+**Not in the webhook today:** `com.docker.compose.service`, `servicenow.com/service-instance`, or Application Service sys_id. SGC does **not** forward Docker Compose labels from the daemon into this JSON.
 
 #### Step 2 — `em_event` (ServiceNow Event Management)
 
@@ -523,7 +523,7 @@ Payload shape: `observability/dynatrace/integrations/sgc-problem-notification-pa
 | **`additional_info`** | Webhook blob | May include **`Tags`**, full JSON — useful for debugging, **not** the designed AS join |
 | **Application Service** | — | **Not set** on `em_event` (by design) |
 
-**Where Compose / servicenow.io tags are *not*:** they are **not** mapped to dedicated columns on `em_event`. They live on the **bound CMDB CI** in `cmdb_key_value` (written earlier by `docker/discover.yml`), reachable only by following **`em_event.cmdb_ci`**.
+**Where Compose / servicenow.com tags are *not*:** they are **not** mapped to dedicated columns on `em_event`. They live on the **bound CMDB CI** in `cmdb_key_value` (written earlier by `docker/discover.yml`), reachable only by following **`em_event.cmdb_ci`**.
 
 If **`cmdb_ci` is empty**, incident automation has no infrastructure anchor — fix SGC import and `sys_object_source` before tuning AS rules.
 
@@ -540,13 +540,16 @@ Still **no Application Service** and **no Compose labels** on the alert row itse
 
 Incident automation must **derive** Application Service from the alert’s infrastructure CI. Two patterns (see [Resolving Application Service from alert CI](#resolving-application-service-from-alert-ci)):
 
-**Pattern A — Contains traversal (recommended)**
+**Pattern A — `svc_ci_assoc` membership (recommended)**
 
 ```text
 em_alert.cmdb_ci  (= container sys_id, e.g. grafana)
-  → query cmdb_rel_ci: child = that sys_id, type = Contains::Contained by
-  → parent = cmdb_ci_service_discovered (Grafana Application Service)
-  → incident.cmdb_ci = parent sys_id
+  → query svc_ci_assoc: ci_id = that sys_id,
+      service_id.sys_class_name IN (cmdb_ci_service_discovered,
+                                    cmdb_ci_service_calculated,
+                                    cmdb_ci_service_by_tags)
+  → service_id = Grafana Application Service
+  → incident.cmdb_ci = service_id sys_id
 ```
 
 **Pattern B — Tag lookup (fallback)**
@@ -554,13 +557,13 @@ em_alert.cmdb_ci  (= container sys_id, e.g. grafana)
 ```text
 em_alert.cmdb_ci  (= container sys_id)
   → query cmdb_key_value: configuration_item = that sys_id,
-                            key = servicenow.io/application-service-identifier
-  → value = grafana
-  → query cmdb_ci_service_discovered: identifier = grafana
+                            key = servicenow.com/service-instance
+  → value = Grafana
+  → query cmdb_ci_service_discovered hierarchy: name = Grafana
   → incident.cmdb_ci = Application Service sys_id
 ```
 
-**When alert CI is a process group** (no Contains edge to Application Service): bridge first — PG **Runs on::Runs** → host → find container on host with matching `cmdb_key_value`, then Pattern A or B on that container. Optional hardening: add **`DT_TAGS=servicenow.io/application-service-identifier=grafana`** to Compose so SGC imports the same key onto the process group CI in `cmdb_key_value`.
+**When alert CI is a process group** (no `svc_ci_assoc` membership to Application Service): bridge first — PG **Runs on::Runs** → host → find container on host with matching `cmdb_key_value`, then Pattern A or B on that container. Optional hardening: add **`DT_TAGS=servicenow.com/service-instance=Grafana`** to Compose so SGC imports the same key onto the process group CI in `cmdb_key_value`.
 
 #### End-to-end diagram (Docker Grafana log problem)
 
@@ -574,7 +577,7 @@ sequenceDiagram
   participant SOS as sys_object_source
   participant CTR as cmdb_ci_docker_container
   participant KV as cmdb_key_value
-  participant REL as cmdb_rel_ci Contains
+  participant REL as svc_ci_assoc
   participant AS as Application Service
   participant AL as em_alert
   participant INC as incident
@@ -589,10 +592,10 @@ sequenceDiagram
   EV->>EV: cmdb_ci = container (or PG)
   EV->>AL: alert rule
   AL->>AL: cmdb_ci = same infrastructure CI
-  Note over CTR,KV: servicenow.io/* and com.docker.compose.*<br/>already on CI from docker/discover.yml
-  Note over REL,AS: SM materialized before problem
-  AL->>REL: traverse Contains (Pattern A)
-  REL->>AS: parent Application Service
+  Note over CTR,KV: servicenow.com/* and com.docker.compose.*<br/>already on CI from docker/discover.yml
+  Note over REL,AS: SM membership materialized before problem
+  AL->>REL: query svc_ci_assoc (Pattern A)
+  REL->>AS: service_id Application Service
   AL->>INC: incident.cmdb_ci = AS
 ```
 
@@ -603,8 +606,8 @@ sequenceDiagram
 | Does Dynatrace put `com.docker.compose.service` on the event? | **No** — not in the SGC webhook contract unless it is also a **Dynatrace entity/problem tag** |
 | Does SGC pass Compose labels to ServiceNow on import? | **No** — SGC imports topology + **Dynatrace-defined tags** to `cmdb_key_value` on imported CIs; Compose labels are synced by **`docker/discover.yml`** onto **container** CIs only |
 | What does `em_event.Tags` / `additional_info` carry? | **Problem-level** Dynatrace tags (`Project`, `Environment`, …), not CSDM join keys |
-| How does incident get Application Service? | **Not from the event payload** — from **`em_alert.cmdb_ci`** → **Contains** (or **`cmdb_key_value`** on that CI) → `cmdb_ci_service_discovered` |
-| What must be true first? | Container tags synced, SM **Contains** exists, `sys_object_source` maps problem `entityId` to the same (or bridged) infrastructure CI |
+| How does incident get Application Service? | **Not from the event payload** — from **`em_alert.cmdb_ci`** → **`svc_ci_assoc`** (or **`cmdb_key_value`** on that CI) → service instance |
+| What must be true first? | Container tags synced, SM **`svc_ci_assoc`** membership exists, `sys_object_source` maps problem `entityId` to the same (or bridged) infrastructure CI |
 
 #### Kubernetes (same model as Docker)
 
@@ -613,17 +616,17 @@ K8s Application Services in **`spark.csdm.yaml`** and related specs use the same
 | Layer | K8s example |
 | ----- | ----------- |
 | Event / alert **`cmdb_ci`** | **`cmdb_ci_kubernetes_pod`** (or node/host for cluster-level problems) via SGC **`sys_object_source`** |
-| Tags | **`discovery/k8s/sync_pod_labels.yml`** upserts **`servicenow.io/application-service-identifier`** on pod CIs (Spark master, workers, Dynatrace OneAgent pods, etc.) |
-| **Contains** | Tag-based SM rules match pod labels → Application Service **Contains** pod CI |
-| Incident **`cmdb_ci`** | Traverse **Contains** from pod (Pattern A) to Application Service such as **`spark-master`** or **`spark-worker-lab1`** |
+| Tags | **`discovery/k8s/sync_pod_labels.yml`** upserts **`servicenow.com/service-instance`** on pod CIs (Spark Master, Spark Worker, Dynatrace OneAgent pods, etc.; K8s-sanitized display names) |
+| Membership | Tag-based SM rules match pod labels → Application Service **member** in **`svc_ci_assoc`** |
+| Incident **`cmdb_ci`** | Query **`svc_ci_assoc`** from pod (Pattern A) to Application Service such as **`Spark Master`** or **`Spark Worker`** |
 
-KVA writes **`app.kubernetes.io/*`** labels as user **`system`**; canonical CSDM join keys use **`servicenow.io/*`** from pod label sync. Tag filters for **`service_mapping: tags`** services are applied by **`csdm/deploy.yml`** (see [Tag_Based_Service_Mapping.md](../../../../../../servicenow/docs/Tag_Based_Service_Mapping.md)).
+KVA writes **`app.kubernetes.io/*`** labels as user **`system`**; canonical CSDM join keys use **`servicenow.com/*`** from pod label sync. Tag filters for **`service_mapping: tags`** services are applied by **`csdm/deploy.yml`** (see [Tag_Based_Service_Mapping.md](../../../../../../servicenow/docs/Tag_Based_Service_Mapping.md)).
 
-Host-level CPU alerts (Spark chapters) may bind events to **`cmdb_ci_linux_server`**. If the host tag sync (`discovery/host/sync_tags.yml`) or vertical mapping defines which Application Service owns that host agent, traverse **Contains** or use tag lookup on the **host** CI; otherwise incident rules may intentionally leave **`cmdb_ci`** empty or map to a declared host-agent Application Service (e.g. `elastic-agent-lab1`).
+Host-level CPU alerts (Spark chapters) may bind events to **`cmdb_ci_linux_server`**. If the host tag sync (`discovery/host/sync_tags.yml`) or vertical mapping defines which Application Service owns that host agent, query **`svc_ci_assoc`** or use tag lookup on the **host** CI; otherwise incident rules may intentionally leave **`cmdb_ci`** empty or map to a declared host-agent Application Service (e.g. Elastic Agent Lab1).
 
 #### What `playbooks/servicenow/deploy.yml` runs (and what it does not)
 
-Top-level **`ansible/playbooks/servicenow/deploy.yml`** orchestrates **instance configuration** for Discovery, CMDB 360, SGC, Dynatrace connector, and the events webhook. It does **not** by itself complete the tag → **Contains** → incident chain.
+Top-level **`ansible/playbooks/servicenow/deploy.yml`** orchestrates **instance configuration** for Discovery, CMDB 360, SGC, Dynatrace connector, and the events webhook. It does **not** by itself complete the tag → **`svc_ci_assoc`** → incident chain.
 
 **Included in `deploy.yml` today:**
 
@@ -648,16 +651,16 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../va
 # Horizontal Discovery scan (hosts, Docker Pattern enrichment)
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
 
-# Docker: container CIs + servicenow.io cmdb_key_value tags
+# Docker: container CIs + servicenow.com cmdb_key_value tags
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
 
-# K8s: KVA resync + servicenow.io pod label sync
+# K8s: KVA resync + servicenow.com pod label sync
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/discover.yml -e @../vars/secrets.yaml
 ```
 
-Tag filters for **`service_mapping: tags`** services are applied by **`csdm/deploy.yml`** automatically. Confirm **Contains** edges after workload tags sync — see [install.md §6.5](../../../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services).
+Tag filters for **`service_mapping: tags`** services are applied by **`csdm/deploy.yml`** automatically. Confirm **`svc_ci_assoc`** membership after workload tags sync — see [install.md §6.5](../../../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services).
 
-**Not implemented in any playbook yet:** EM incident rules that traverse **Contains** to set **`incident.cmdb_ci`** (future **`incident/`** playbooks or instance-side Business Rules documented here as the target design).
+Incident automation uses Script Include **`ResolveApplicationService`** to query **`svc_ci_assoc`** and set **`incident.cmdb_ci`**.
 
 ### Configuration checklist (brooks-lab)
 
@@ -666,9 +669,9 @@ Tag filters for **`service_mapping: tags`** services are applied by **`csdm/depl
 | 1 | SGC topology import current; `sys_object_source` rows exist for entities in problems |
 | 2 | CSDM Application Services deployed — **`csdm/deploy.yml`** (`servicenow/regions/brooks-lab/*.csdm.yaml`) |
 | 3 | Docker/K8s/host tags synced — **`discovery/docker/discover.yml`**, **`discovery/k8s/discover.yml`**, **`discovery/host/sync_tags.yml`** as applicable |
-| 4 | Tag-based Service Mapping filters applied (**`csdm/deploy.yml`**); confirm **Contains** children on each Application Service map |
+| 4 | Tag-based Service Mapping filters applied (**`csdm/deploy.yml`**); confirm **`svc_ci_assoc`** members on each Application Service |
 | 5 | EM alert rules create alerts with **`cmdb_ci`** populated (infrastructure CI) |
-| 6 | Incident automation traverses **Contains** (Pattern A); tag lookup (Pattern B) only as fallback |
+| 6 | Incident automation queries **`svc_ci_assoc`** (Pattern A); tag lookup (Pattern B) only as fallback |
 | 7 | Validate with `events/test.yml` and a controlled chapter run before enabling aggressive auto-incident rules |
 
 See **[Observability Application Services — tag-based map bootstrap](#observability-application-services--tag-based-map-bootstrap-brooks-lab)** for why Grafana shows “add an entry point”, what runs automatically, and how to reset services to the correct tag-based state.
@@ -677,7 +680,7 @@ See **[Observability Application Services — tag-based map bootstrap](#observab
 
 ## Observability Application Services — tag-based map bootstrap (brooks-lab)
 
-Observability Docker services (`observability-platform.csdm.yaml`) are specified with **`service_mapping: tags`** and **`discover: false`**. The CSDM deploy processor creates **`cmdb_ci_service_discovered`** rows, BA → BS → AS **Contains** hierarchy, declared **`depends_on`** edges, and **`tag_list`** Service Mapping population from each spec’s **`identifier`**, **`environment`**, and **`location`**.
+Observability Docker services (`observability-platform.csdm.yaml`) are specified with **`service_mapping: tags`** and **`discover: false`**. The CSDM deploy processor creates service instance rows (reclassed to **`cmdb_ci_service_by_tags`**), BA → BS → AS **Contains** hierarchy, declared **`depends_on`** edges, and **`tag_list`** Service Mapping population from each service instance display **`name`** (tag key **`servicenow.com/service-instance`**).
 
 Until workload tags exist and the tag-based mapping job runs, Application Services may look “empty” in the Service Map UI and may prompt for an **entry point**. That prompt is for **vertical** mapping; tag-based services must **not** use it.
 
@@ -690,14 +693,14 @@ Until workload tags exist and the tag-based mapping job runs, Application Servic
 | Cross-service **`depends_on`** | Yes — **`csdm/deploy.yml`** (second pass) | **`cmdb_rel_ci`** Depends on::Used by |
 | Tag-based SM **rules** (tag filter per Application Service) | Yes — **`csdm/deploy.yml`** | **`configure_tag_based_sm.yml`** → REST **`/populate_tags`** |
 | Container / pod CIs in CMDB | Partially — Discovery, Docker Pattern, KVA | **`discovery/discover.yml`**, KVA informer |
-| **`servicenow.io/*`** on workload CIs | Yes — after ACL fix, re-run discover playbooks | **`discovery/docker/discover.yml`**, **`discovery/k8s/discover.yml`** |
-| Workload → AS **Contains** (map membership) | **After tags + filters exist** — ServiceNow scheduled tag-based mapping job | Platform job; trigger **Update map** or wait |
+| **`servicenow.com/*`** on workload CIs | Yes — after ACL fix, re-run discover playbooks | **`discovery/docker/discover.yml`**, **`discovery/k8s/discover.yml`** |
+| Workload → AS membership (`svc_ci_assoc`) | **After tags + filters exist** — `/populate_tags` + ServicePopulatorRunner / scheduled job | Platform job; deploy triggers interactive recalculation |
 | Re-bind when new container gets labels | **After rules exist** — same scheduled job on next run | Re-run **`docker/discover.yml`** if labels changed; SM job picks up new CIs |
 | Tag Categories (instance-wide) | **One-time manual** (`sm_admin`) if missing | Service Mapping Workspace — see [install.md §6.5 Step A](../../../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services) |
 
 Compose labels → **`docker/discover.yml`** → **`cmdb_key_value`** is automated. Tag filter configuration per Application Service is driven by the **`*.csdm.yaml`** spec during **`csdm/deploy.yml`** — no separate per-service UI step is required unless troubleshooting.
 
-Once tag filters are configured, any container (or pod) whose **`servicenow.io/application-service-identifier`** matches the filter should appear in the map on the next tag-based mapping run — you do not need a new entry point per container redeploy.
+Once tag filters are configured, any container (or pod) whose **`servicenow.com/service-instance`** value matches the service instance display name should appear as an **`svc_ci_assoc`** member on the next tag-based mapping run — you do not need a new entry point per container redeploy.
 
 ### Why Grafana shows “No map available, please add an entry point”
 
@@ -724,8 +727,8 @@ Delete the seven observability Application Services (Grafana, Elasticsearch, Kib
 **Ansible (idempotent delete by name):** add **`csdm_op: delete`** to each application service in a one-off spec, or delete via UI on a test instance. Example pattern:
 
 ```yaml
-# One-off reset fragment — application_services only
-application_services:
+# One-off reset fragment — service_instances only
+service_instances:
   - name: Grafana
     csdm_op: delete
   - name: Elasticsearch
@@ -744,7 +747,7 @@ cd ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
 ```
 
-Source: **`servicenow/regions/brooks-lab/observability-platform.csdm.yaml`** — each service has **`service_mapping: tags`**, **`discover: false`**, **`identifier`** matching Compose labels.
+Source: **`servicenow/regions/brooks-lab/observability-platform.csdm.yaml`** — each service has **`service_mapping: tags`**, **`discover: false`**, and a display **`name`** that matches the Compose `servicenow.com/service-instance` label value.
 
 #### 3. Ensure workload CIs and tags exist
 
@@ -752,35 +755,35 @@ Source: **`servicenow/regions/brooks-lab/observability-platform.csdm.yaml`** —
 # Horizontal Discovery + Docker Pattern (Lab3)
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
 
-# Container CIs + servicenow.io/* cmdb_key_value (requires install.md §6.3 ACLs)
+# Container CIs + servicenow.com/* cmdb_key_value (requires install.md §6.3 ACLs)
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
 ```
 
 Verify:
 
 ```text
-cmdb_key_value.list  →  key=servicenow.io/application-service-identifier  →  value=grafana
+cmdb_key_value.list  →  key=servicenow.com/service-instance  →  value=Grafana
 ```
 
 Labels are defined in **`observability/docker-compose.yml`** (single source of truth).
 
 #### 4. Tag-based Service Mapping (automated in `csdm/deploy.yml`)
 
-**`csdm/deploy.yml`** configures **`tag_list`** population for every Application Service with **`service_mapping: tags`**. Tags come from the CSDM spec **`identifier`**, **`environment`**, and **`location`** — the same values as Compose labels.
+**`csdm/deploy.yml`** configures **`tag_list`** population for every Application Service with **`service_mapping: tags`**. The tag key is **`servicenow.com/service-instance`**; the value is the service instance display **`name`** — the same value as Compose labels.
 
-On a greenfield instance, confirm **Tag Categories** exist once ( **`sm_admin`** ) — see [install.md §6.5 Step A](../../../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services). Per-service tag filters no longer require manual UI steps.
+On a greenfield instance, confirm the **Service Instance** Tag Category exists once ( **`sm_admin`** ) — see [install.md §6.5 Step A](../../../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services). Per-service tag filters no longer require manual UI steps.
 
-Deploy output should show **`Tag SM <name>: HTTP 202`** for each observability service. ServiceNow then inserts **`cmdb_rel_ci` Contains** (Application Service → container CI) when workload tags match — trigger **Update map** or wait for the scheduled tag-based mapping job.
+Deploy output should show **`Tag SM <name>: HTTP 202`** for each observability service. ServiceNow then inserts **`svc_ci_assoc`** membership (Application Service → container CI) when workload tags match — deploy triggers interactive recalculation via **`ServicePopulatorRunner`**.
 
 #### 5. Verify correct state
 
 | Check | Expected |
 | ----- | -------- |
-| Service Map for Grafana | **Contains** child = **`cmdb_ci_docker_container`** for Grafana stack |
+| Service Map for Grafana | Member = **`cmdb_ci_docker_container`** for Grafana stack (`svc_ci_assoc`) |
 | **`service_status`** | Moves toward **Operational** (not stuck in **Requirements** for lack of tags) |
-| **`cmdb_rel_ci`** | Parent = Application Service sys_id, child = container sys_id, type **Contains::Contained by** |
-| Comparator | Re-run **`python -m servicenow.comparator`** — **`C_specification_alignment`** tag bindings for each identifier |
-| **`csdm/diagnose.yml`** | Application services present; process_status / service_status reported |
+| **`svc_ci_assoc`** | `service_id` = Application Service sys_id, `ci_id` = container sys_id |
+| Comparator | Re-run **`python -m servicenow.comparator`** — **`C_specification_alignment`** tag bindings for each service instance |
+| **`csdm/diagnose.yml`** | Service instances present; process_status / service_status reported |
 
 ```bash
 cd ansible
@@ -792,13 +795,11 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../
 Processes may complete in different orders on a shared demo instance. Safe iteration:
 
 ```text
-1. csdm/deploy.yml          → Application Services exist
+1. csdm/deploy.yml          → Service instances exist + tag population + svc_ci_assoc recalc
 2. discovery/discover.yml   → hosts + Docker Pattern containers
 3. docker/discover.yml      → cmdb_key_value tags (may fail until §6.3 ACLs fixed — fix ACL, re-run)
-4. SM tag filters (UI)      → one-time per Application Service
-5. Update map / wait        → Contains edges appear
-6. If tags change in Compose → docker compose up -d, then re-run docker/discover.yml, then Update map
-7. If map empty but tags OK  → confirm tag filter value = identifier; confirm environment/location scope
+4. If tags change in Compose → docker compose up -d, then re-run docker/discover.yml, then re-run csdm/deploy.yml or Update map
+5. If map empty but tags OK  → confirm tag filter value = display name (servicenow.com/service-instance)
 ```
 
 **`playbooks/servicenow/deploy.yml` does not include steps 1, 2, 3, or 4** — run them explicitly as part of observability bootstrap.

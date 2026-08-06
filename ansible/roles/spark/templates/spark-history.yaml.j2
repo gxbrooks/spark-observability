@@ -17,9 +17,8 @@ spec:
         app.kubernetes.io/component: history
         app.kubernetes.io/part-of: apache-spark
         app.kubernetes.io/managed-by: ansible
-        servicenow.io/application-service-identifier: spark-history-server
-        servicenow.io/environment: on-prem
-        servicenow.io/location: brooks-lab
+        # Value = ServiceNow service instance display name (K8s label charset).
+        servicenow.com/service-instance: Spark-History-Server
     spec:
       serviceAccountName: spark
       securityContext:

@@ -1,18 +1,27 @@
 ---
-# Build servicenow.io label map from explicit application service specification fields.
+# Build the servicenow.com/service-instance label from an application service
+# (service instance) specification. Value = display name; kubernetes-platform
+# values sanitize to the K8s label charset (no spaces/parens).
 # Input: sn_as_spec, sn_as_host (optional, for expand placeholders)
-# Output: sn_as_identifier, sn_servicenow_workload_labels
+# Output: sn_as_identifier, sn_as_display_name, sn_servicenow_workload_labels
 
-- name: Resolve application service identifier
+- name: Resolve service instance identifier and display name
   ansible.builtin.set_fact:
     sn_as_identifier: >-
       {{ sn_as_spec.identifier
          | replace('{host}', sn_as_host | default(''))
          | replace('{host_lower}', (sn_as_host | default('')) | lower) }}
+    sn_as_display_name: >-
+      {{ sn_as_spec.name
+         | replace('{host}', sn_as_host | default(''))
+         | replace('{host_lower}', (sn_as_host | default('')) | lower) }}
 
-- name: Build servicenow.io workload labels from explicit specification
+- name: Build servicenow.com/service-instance workload label
   ansible.builtin.set_fact:
     sn_servicenow_workload_labels:
-      servicenow.io/application-service-identifier: "{{ sn_as_identifier }}"
-      servicenow.io/environment: "{{ sn_as_spec.environment }}"
-      servicenow.io/location: "{{ sn_as_spec.location }}"
+      servicenow.com/service-instance: >-
+        {{ (sn_as_display_name
+            | regex_replace('[^A-Za-z0-9._-]+', '-')
+            | regex_replace('^[-._]+|[-._]+$', ''))
+           if sn_as_spec.platform | default('') == 'kubernetes'
+           else sn_as_display_name }}

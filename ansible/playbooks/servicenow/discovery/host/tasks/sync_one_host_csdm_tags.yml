@@ -1,8 +1,9 @@
 ---
-# Sync servicenow.io/* labels from CSDM host application services onto linux_server CIs.
+# Sync the servicenow.com/service-instance label from CSDM host service instances
+# onto linux_server CIs.
 # Input: sn_host_csdm_entry { spec, host }, sn_host_csdm_spec (loaded yaml)
 
-- name: Build servicenow.io labels from explicit application service specification
+- name: Build servicenow.com labels from explicit service instance specification
   ansible.builtin.include_tasks: ../../../common/tasks/build_servicenow_workload_labels.yml
   vars:
     sn_as_spec: "{{ sn_host_csdm_entry.spec }}"
@@ -24,7 +25,7 @@
     msg: "Linux server CI '{{ sn_host_cmdb_name }}' not found — skip host tag sync."
   when: sn_rest_json.result | default([]) | length == 0
 
-- name: Upsert host servicenow.io labels for {{ sn_as_identifier }}
+- name: Upsert host servicenow.com labels for {{ sn_as_identifier }}
   ansible.builtin.include_tasks: ../../common/sync_cmdb_kv_labels.yml
   vars:
     sn_kv_ci_sys_id: "{{ sn_rest_json.result[0].sys_id }}"

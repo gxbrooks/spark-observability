@@ -91,7 +91,7 @@
          else (dynakube_oneagent_rollout.stdout | default('')) }}.
       Run dynatrace/diagnose.yml and inspect dynakube-oneagent pod logs for host-agent conflicts.
 
-- name: Label OneAgent pods with per-node application-service-identifier
+- name: Label OneAgent pods with per-node servicenow.com/service-instance
   ansible.builtin.include_tasks: label_oneagent_servicenow.yml
   loop: "{{ groups['k8s_nodes'] | default([]) }}"
   loop_control:

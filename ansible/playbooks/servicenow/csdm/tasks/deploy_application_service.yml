@@ -38,7 +38,7 @@
     sn_csdm_app_svc_sys_id: "{{ sn_csdm_record_sys_id }}"
     sn_csdm_registry: >-
       {{ sn_csdm_registry | combine(
-           {'application_services': sn_csdm_registry.application_services | default({}) | combine({sn_csdm_app_svc_name: sn_csdm_record_sys_id})},
+           {'service_instances': sn_csdm_registry.service_instances | default({}) | combine({sn_csdm_app_svc_name: sn_csdm_record_sys_id})},
            recursive=True) }}
 
 - name: Link business service to application service

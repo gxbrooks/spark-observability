@@ -1,19 +1,19 @@
 # Tag-Based Service Mapping — Brooks Lab
 
-This guide explains **where and how** to configure tag-based Service Mapping on the ServiceNow instance for application services declared in `csdm.yaml` with `service_mapping: tags`.
+This guide explains **where and how** tag-based Service Mapping is configured on the ServiceNow instance for service instances declared in `csdm.yaml` with `service_mapping: tags`.
 
-Tag-based mapping matches discovered workload CIs to application services using **`cmdb_key_value`** rows (label key → value on each CI). The deploy processor creates the CSDM hierarchy; **Service Mapping rules on the instance** populate maps from tags.
+Tag-based mapping matches discovered workload CIs to service instances using **`cmdb_key_value`** rows (label key → value on each CI). The deploy processor creates the CSDM hierarchy and configures the tag population rule on each service; the Service Populator adds matching CIs as members in **`svc_ci_assoc`**.
 
 ## Prerequisites (automation in this repo)
 
 | Step | Playbook | Purpose |
 |------|----------|---------|
-| 1 | `csdm/deploy.yml` | Create BA / BS / application service CIs |
-| 2 | `discovery/docker/discover.yml` | Sync containers; upsert `servicenow.io/*` on container CIs |
+| 1 | `csdm/deploy.yml` | Create BA / BS / service instance CIs; configure tag population rules |
+| 2 | `discovery/docker/discover.yml` | Sync containers; upsert `servicenow.com/*` on container CIs |
 | 3 | **Docker Pattern** horizontal discovery on Lab3 (`discovery/discover.yml`) | Enriches container/process relationships (vertical SM) |
-| 4 | KVA + `discovery/k8s/sync_pod_labels.yml` | K8s pod CIs; KVA writes `app.kubernetes.io/*`; pod sync writes `servicenow.io/*` |
-| 5 | `discovery/host/sync_tags.yml` | Host agents — `servicenow.io/*` on `cmdb_ci_linux_server` |
-| 6 | **Instance UI** (below) | Tag Categories + tag filter on each application service |
+| 4 | KVA + `discovery/k8s/sync_pod_labels.yml` | K8s pod CIs; KVA copies pod labels (including `servicenow.com/service-instance`); pod sync mirrors `servicenow.com/*` |
+| 5 | `discovery/host/sync_tags.yml` | Host agents — `servicenow.com/*` on `cmdb_ci_linux_server` |
+| 6 | **Instance UI** (below) | Verify the Tag Category + tag population rule on each service instance |
 
 ### cmdb_key_value and table ACLs
 
@@ -44,10 +44,10 @@ Until label rows exist, configure tag-based Service Mapping rules in the UI but 
 Verify labels in CMDB:
 
 ```text
-cmdb_key_value.list  →  key=servicenow.io/application-service-identifier
+cmdb_key_value.list  →  key=servicenow.com/service-instance
 ```
 
-Each observability Docker container should have a row whose **value** matches the application service **`identifier`** in `csdm.yaml` (for example `grafana`, `elasticsearch`).
+Each observability Docker container should have a row whose **value** matches the service instance **display name** (the `name:` attribute) in `csdm.yaml` (for example `Grafana`, `Elasticsearch`).
 
 ## Where to configure tag-based rules (ServiceNow UI)
 
@@ -69,83 +69,80 @@ Required role: **`service_mapping_admin`** on Zurich ( **`sm_admin`** is often a
 
 ## Tag Categories to create
 
-Create (or extend OOTB) categories that match labels this lab uses:
+One category covers all workloads in this lab (created automatically by `ansible/playbooks/servicenow/service-mapping/common/ensure_tag_categories.yml`; key variable `sn_csdm_tag_key_service_instance` in `service-mapping/common/vars.yml`):
 
-| Tag Category (display name) | Label keys to include | Used for |
+| Tag Category (display name) | Label key to include | Used for |
 |----------------------------|------------------------|----------|
-| **Application Service** | `servicenow.io/application-service-identifier` | Primary map key — matches `identifier` in `csdm.yaml` |
-| **Business Service** | `servicenow.io/business-service-identifier` | Optional filter / grouping |
-| **Business Application** | `servicenow.io/application-identifier` | Optional filter / grouping |
-| **Environment** | `servicenow.io/environment` | Scope (for example `on-prem`) |
-| **Location** | `servicenow.io/location` | Scope (for example `brooks-lab`) |
+| **Service Instance** | `servicenow.com/service-instance` | Primary map key — value is the service instance **display name** (`name:` in `csdm.yaml`; K8s-sanitized for `platform: kubernetes`) |
 
 For Kubernetes-only services, also map **`app.kubernetes.io/name`**, **`app.kubernetes.io/component`**, and **`app.kubernetes.io/part-of`** if you use family-based candidates instead of per-service filters.
 
-## Which application services need tag-based mapping
+## Which service instances need tag-based mapping
 
 ### Observability Docker Compose (`servicenow/regions/brooks-lab/observability-platform.csdm.yaml`)
 
-All seven use `service_mapping: tags`. Each **`identifier`** must match **`servicenow.io/application-service-identifier`** on the container. See [DT_SN_Specification_Guide.md](DT_SN_Specification_Guide.md) for compose label examples.
+All seven use `service_mapping: tags`. The **`servicenow.com/service-instance`** label value must match the service instance **display name**. See [DT_SN_Specification_Guide.md](DT_SN_Specification_Guide.md) for compose label examples.
 
-| Application Service | identifier (tag value) | Compose service |
+| Service Instance | Display name (tag value) | Compose service |
 |--------------------|------------------------|-----------------|
-| Elasticsearch | `elasticsearch` | `es01` |
-| Kibana | `kibana` | `kibana` |
-| Grafana | `grafana` | `grafana` |
-| Prometheus | `prometheus` | `prometheus` |
-| Grafana Tempo | `grafana-tempo` | `tempo` |
-| OpenTelemetry Collector | `opentelemetry-collector` | `otel-collector` |
-| Logstash | `logstash` | `logstash01` |
+| Elasticsearch | `Elasticsearch` | `es01` |
+| Kibana | `Kibana` | `kibana` |
+| Grafana | `Grafana` | `grafana` |
+| Prometheus | `Prometheus` | `prometheus` |
+| Grafana Tempo | `Grafana Tempo` | `tempo` |
+| OpenTelemetry Collector | `OpenTelemetry Collector` | `otel-collector` |
+| Logstash | `Logstash` | `logstash01` |
 
 ### Spark Kubernetes (`servicenow/regions/brooks-lab/spark.csdm.yaml`)
 
-| Application Service | identifier | Runtime labels |
+Values are the display names sanitized to the Kubernetes label charset (illegal characters collapse to `-`).
+
+| Service Instance | Tag value (K8s-sanitized) | Runtime labels |
 |--------------------|------------|----------------|
-| Spark Master | `spark-master` | `servicenow.io/*` on pod + `app.kubernetes.io/*` (KVA) |
-| Spark History Server | `spark-history-server` | … |
-| Spark Worker | `spark-worker` | same identifier on every worker pod (all nodes) |
+| Spark Master | `Spark-Master` | `servicenow.com/service-instance` on pod + `app.kubernetes.io/*` (KVA) |
+| Spark History Server | `Spark-History-Server` | … |
+| Spark Worker | `Spark-Worker` | same value on every worker pod (all nodes) |
 
 Sync canonical tags: `discovery/k8s/sync_pod_labels.yml` (included in `discovery/k8s/discover.yml`).
 
 ### Host agents (tag-based, per node)
 
-| Spec file | Application Service pattern | Tag target CI |
+| Spec file | Service Instance pattern | Tag target CI |
 |-----------|----------------------------|---------------|
-| `elastic-agent.csdm.yaml` | `elastic-agent-lab1` … | `cmdb_ci_linux_server` |
+| `elastic-agent.csdm.yaml` | `Elastic Agent (Lab1)` … | `cmdb_ci_linux_server` |
 
 Run `discovery/host/sync_tags.yml` after CSDM deploy.
 
 ### Kubernetes agent pods (tag-based, per node)
 
-| Spec file | Application Service pattern | Tag target CI |
+| Spec file | Service Instance pattern | Tag target CI |
 |-----------|----------------------------|---------------|
-| `dynatrace-monitoring.csdm.yaml` | `dynatrace-oneagent-lab1` … | `cmdb_ci_kubernetes_pod` (Dynakube OneAgent pod) |
+| `dynatrace-monitoring.csdm.yaml` | `Dynatrace OneAgent (Lab1)` … (K8s-sanitized on the pod, e.g. `Dynatrace-OneAgent-Lab1`) | `cmdb_ci_kubernetes_pod` (Dynakube OneAgent pod) |
 
-Run `discovery/k8s/sync_csdm_tags.yml`. Do **not** tag both Elastic Agent and OneAgent on the same `linux_server` CI — they share one canonical `application-service-identifier` key per CI.
+Run `discovery/k8s/label_oneagent_pods.yml`. Do **not** tag both Elastic Agent and OneAgent on the same `linux_server` CI — they share one canonical `servicenow.com/service-instance` key per CI.
 
 ### Excluded from tag-based SM
 
-| Application Service | Reason |
+| Service Instance | Reason |
 |--------------------|--------|
 | **Dynatrace Tenant** | `service_mapping: manual` (SaaS) |
 | Synthetic / test CIs | `csdm/test/*` |
 
-## How to attach tags to an existing CSDM application service
+## How to attach tags to an existing CSDM service instance
 
-We pre-create **`cmdb_ci_service_discovered`** records via `csdm/deploy.yml`. Do **not** create duplicate services from Service Candidates unless you retire the CSDM-created CI first.
+We pre-create service instance records via `csdm/deploy.yml`; services with `service_mapping: tags` are reclassed to **`cmdb_ci_service_by_tags`**, and the deploy configures the tag population rule automatically (`configure_tag_based_sm.yml` → `/populate_tags` Scripted REST API, which calls `SMServiceByTagsUtils.updateServiceFromTagsList()` and triggers `SNC.ServicePopulatorRunner('INTERACTIVE')`). Do **not** create duplicate services from Service Candidates unless you retire the CSDM-created CI first.
 
-Recommended path for **existing** application services:
+Manual UI path (verification / troubleshooting only — the deploy automates this):
 
-1. Open **Configuration** → **Application Services** (or `cmdb_ci_service_discovered.list`).
-2. Open the application service (for example **Grafana**).
+1. Open **Configuration** → **Application Services** (or `cmdb_ci_service_by_tags.list`).
+2. Open the service instance (for example **Grafana**).
 3. Use **Service Mapping** related links / **Manage Service Map** (wording varies by version).
 4. Add population method **Tags** (or run **Convert to tag-based service** wizard if offered — **irreversible**; prefer adding tag filter without class conversion when possible).
-5. Define tag filter: **`servicenow.io/application-service-identifier`** = **`grafana`** (the service `identifier` from `csdm.yaml`).
-6. Optionally add **`servicenow.io/environment`** = `on-prem` and **`servicenow.io/location`** = `brooks-lab` to avoid cross-environment matches.
-7. Save and run **Update map** / wait for the tag-based scheduled job.
-8. Confirm **Contains** children include the Docker container CI (or K8s pod/deployment).
+5. Define tag filter: **`servicenow.com/service-instance`** = **`Grafana`** (the service instance display name from `csdm.yaml`; K8s-sanitized for `platform: kubernetes`, e.g. `Spark-Worker`).
+6. Save and run **Update map** / wait for the tag-based scheduled job.
+7. Confirm the Docker container CI (or K8s pod/deployment) appears as a member in **`svc_ci_assoc`**.
 
-Alternative (family-based, net-new services): define a **Tag-Based Service Family** using Application Service + Environment categories, review **Service Candidates**, and create maps — only when not using CSDM-precreated application services.
+Alternative (family-based, net-new services): define a **Tag-Based Service Family** using the Service Instance category, review **Service Candidates**, and create maps — only when not using CSDM-precreated service instances.
 
 ## Traversal rules
 
@@ -160,11 +157,11 @@ cd ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
   -e @../vars/secrets.yaml
 
-# Kubernetes pod servicenow.io labels (after KVA sync)
+# Kubernetes pod servicenow.com labels (after KVA sync)
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/sync_pod_labels.yml \
   -e @../vars/secrets.yaml
 
-# Host agent servicenow.io labels on linux_server CIs
+# Host agent servicenow.com labels on linux_server CIs
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/sync_tags.yml \
   -e @../vars/secrets.yaml
 

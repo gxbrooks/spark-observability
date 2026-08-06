@@ -16,7 +16,7 @@ business_services:
     short_description: Primary metrics, logs, and trace storage (Elastic Stack)
     parent_business_application: Observability Platform
 
-application_services:
+service_instances:
   - name: Elasticsearch
     identifier: elasticsearch
     short_description: Elasticsearch — HTTPS API
@@ -34,9 +34,7 @@ services:
     labels:
       com.docker.compose.project: observability
       com.docker.compose.service: es01
-      servicenow.io/application-service-identifier: elasticsearch
-      servicenow.io/environment: on-prem
-      servicenow.io/location: brooks-lab
+      servicenow.com/service-instance: Elasticsearch
 ```
 
-**Join key:** Application Service `identifier` = `servicenow.io/application-service-identifier` on the running container.
+**Join key:** Service instance display name (`name:`) = `servicenow.com/service-instance` on the running container.

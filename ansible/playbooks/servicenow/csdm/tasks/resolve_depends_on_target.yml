@@ -27,11 +27,11 @@
 
 - name: Resolve application service target from deploy registry
   ansible.builtin.set_fact:
-    sn_dep_target_sys_id: "{{ sn_csdm_registry.application_services[sn_dep_target_name] }}"
+    sn_dep_target_sys_id: "{{ sn_csdm_registry.service_instances[sn_dep_target_name] }}"
     sn_dep_target_resolved: true
   when:
     - sn_dep_target_type == 'application_service'
-    - sn_csdm_registry.application_services[sn_dep_target_name] is defined
+    - sn_csdm_registry.service_instances[sn_dep_target_name] is defined
 
 - name: Look up application service target in CMDB when not in registry
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"

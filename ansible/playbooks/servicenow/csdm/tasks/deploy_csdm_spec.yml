@@ -10,7 +10,7 @@
 
 - name: Initialize CSDM registry for this specification
   ansible.builtin.set_fact:
-    sn_csdm_registry: "{{ sn_csdm_registry | default({}) | combine({'business_applications': sn_csdm_registry.business_applications | default({}), 'business_services': sn_csdm_registry.business_services | default({}), 'application_services': sn_csdm_registry.application_services | default({})}, recursive=True) }}"
+    sn_csdm_registry: "{{ sn_csdm_registry | default({}) | combine({'business_applications': sn_csdm_registry.business_applications | default({}), 'business_services': sn_csdm_registry.business_services | default({}), 'service_instances': sn_csdm_registry.service_instances | default({})}, recursive=True) }}"
     sn_csdm_app_svc_queue: []
     sn_csdm_app_svc_delete_queue: []
     sn_sm_discover_service_names: "{{ sn_sm_discover_service_names | default([]) }}"
@@ -19,7 +19,7 @@
   ansible.builtin.set_fact:
     sn_csdm_app_svc_delete_queue: >-
       {{ sn_csdm_app_svc_delete_queue | default([]) + [ {'spec': app_svc_spec, 'host': ''} ] }}
-  loop: "{{ sn_csdm_spec.application_services | default([]) | rejectattr('expand', 'defined') | list }}"
+  loop: "{{ sn_csdm_spec.service_instances | default([]) | rejectattr('expand', 'defined') | list }}"
   loop_control:
     loop_var: app_svc_spec
     label: "{{ app_svc_spec.name | default('') }}"
@@ -31,7 +31,7 @@
 
 - name: Queue expanded application services for delete
   ansible.builtin.include_tasks: queue_expanded_application_service.yml
-  loop: "{{ sn_csdm_spec.application_services | default([]) | selectattr('expand', 'defined') | list }}"
+  loop: "{{ sn_csdm_spec.service_instances | default([]) | selectattr('expand', 'defined') | list }}"
   loop_control:
     loop_var: sn_csdm_app_svc_entry
     label: "{{ sn_csdm_app_svc_entry.name | default('') }}"
@@ -85,7 +85,7 @@
   ansible.builtin.set_fact:
     sn_csdm_app_svc_queue: >-
       {{ sn_csdm_app_svc_queue + [ {'spec': app_svc_spec, 'host': ''} ] }}
-  loop: "{{ sn_csdm_spec.application_services | default([]) | rejectattr('expand', 'defined') | list }}"
+  loop: "{{ sn_csdm_spec.service_instances | default([]) | rejectattr('expand', 'defined') | list }}"
   loop_control:
     loop_var: app_svc_spec
     label: "{{ app_svc_spec.name | default('') }}"
@@ -93,7 +93,7 @@
 
 - name: Queue expanded application services (inventory group loop)
   ansible.builtin.include_tasks: queue_expanded_application_service.yml
-  loop: "{{ sn_csdm_spec.application_services | default([]) | selectattr('expand', 'defined') | list }}"
+  loop: "{{ sn_csdm_spec.service_instances | default([]) | selectattr('expand', 'defined') | list }}"
   loop_control:
     loop_var: sn_csdm_app_svc_entry
     label: "{{ sn_csdm_app_svc_entry.name | default('') }}"
