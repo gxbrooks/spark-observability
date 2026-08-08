@@ -262,7 +262,7 @@ service_instances:
 ----
 
 
-==== Service-Side Model
+=== Service-Side Model
 
 The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM service instances, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped (server side)logs. One of the main outcomes of this model is to be able to map service-side alerts to a reasonable CI and incidents to a service instance CI for more timely communication to the appropriate support team.
 
@@ -313,9 +313,7 @@ The table below enumerates the different CMDB objects in the Service-side scenar
 
 |===
 
-To be able to correlate a critical log message to the appropriate service instance, we need to use tag-based service mapping to correlate the Kubernetes pod to the service instance. This correlation is accomplished by setting the `servicenow.com/service-instance` label in the template for the Kubernetes pod. The label value is the **display name** of the service instance. Because Kubernetes label values cannot contain spaces or parentheses, the display name is written in the Kubernetes label character set — spaces become hyphens (`Spark Master` → `Spark-Master`). Docker labels have no such restriction and carry the display name verbatim.
-
-Spark Master StatefulSet pod template for the Spark Master is shown below.
+To be able to correlate a critical log message to the appropriate service instance, we need to use tag-based service mapping to correlate the Kubernetes pod to the service instance. This correlation is accomplished by setting the `servicenow.com/service-instance` tag in the template for the Kubernetes pod. The tag value is the **display name** of the service instance with spaces written as hyphens (e.g. `Spark Master` → `Spark-Master`) to comply with Kubernetes label characters set (i.e. no spaces or parentheses). Docker labels have no such restriction and carry the display name verbatim. As an example, the tag is shown in <<list-spark-master-pod-template>>, below, for the Spark Master StatefulSet pod template.
 
 [.figure-indent]
 [[list-spark-master-pod-template]]
@@ -334,9 +332,9 @@ template:
       servicenow.com/service-instance: Spark-Master
 ----
 
-The `servicenow.com/service-instance` label correlates the pod to the service instance. Each time Kubernetes creates such a pod, the KVA (Kubernetes Visibility Agent) Informer notifies ServiceNow to create a new pod CI, and the label is copied to `cmdb_key_value` on that pod CI. Tag-based Service Mapping then matches the tag value against the population rule configured for the service instance and records the membership in the **`svc_ci_assoc`** table.
+Tag discovery will take the `servicenow.com/service-instance` label and correlate the service instance for Spark-Master to pod. This introduces a service map relationship in the `svc_ci_assoc` table and not a CMdb relationship in `cmdb_ci_rel`. Each time Kubernetes creates such a pod, the KVA (Kubernetes Visibility Agent) Informer notifies ServiceNow to create a new pod CI, and the label is copied to `cmdb_key_value` on that pod CI. Tag-based Service Mapping then matches the tag value against the population rule configured for the service instance and records the membership in the **`svc_ci_assoc`** table.
 
-==== Client-side Model
+=== Client-side Model
 
 The client-side scenario is of interest on its own as there are so many workstation and mobile client applications. In the client-side scenario the log message occurs on workstation or mobile device that is not managed in the CMdb. As ServiceNow does not manage the client device in the CMdb, there are no CIs to attach to any log alert or incident. One way to address this is to create a synthetic CI that represents the application running on any client device. For this we choose the service instance class(cmdb_ci_service_discovered) to instantiate a CI for the Spark Client. This CI will not have any infrastructure CIs associated with it as the client device is not managed in the CMdb.
 
@@ -474,7 +472,7 @@ Place hosts, Kubernetes cluster entities, and pods that run the application in a
 
 == Spark Application - Phase 2
 
-The Spark application needs to be configure in two areas. One area is the association between the Spark executing context the CSDM service instance for the Spark application. The other area is for Spark application logging. Both configurations depend on which Spark mode is being used: Cluster Mode or Client Mode.
+The development and operation teams need to configure how the Spark application is deployed and how it is logging. This is done in two areas. One area is to specify the association between the Spark execution context and the CSDM service instance for the Spark application. The other area is to configure the Spark application logging. Both configurations depend on which Spark mode is being used: Cluster Mode or Client Mode.
 
 === Service Instance Association
 
