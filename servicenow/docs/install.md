@@ -599,22 +599,22 @@ See `discovery/docker/README.md` for playbook details.
 
 **When:** After **§6.3** (`cmdb_key_value` ACLs), **§6.4** (`discovery/docker/discover.yml`), and **`csdm/deploy.yml`** for `observability-platform.csdm.yaml`.
 
-**Who:** The Ansible automation user (`admin_brooks_lab`) configures tag-based population during **`csdm/deploy.yml`**. Tag Categories (Step A below) require **`service_mapping_admin`** on your interactive user ( **`sm_admin`** is often absent on Zurich).
+**Who:** **`csdm/deploy.yml`** runs **`csdm-inject`** as the automation user (`admin_brooks_lab`). Tag Categories (Step A below) require **`service_mapping_admin`** on your interactive user ( **`sm_admin`** is often absent on Zurich).
 
-**Why the CMDB map shows “add an entry point”:** CSDM creates service instance rows with **`service_mapping: tags`** and **`discover: false`**, reclassed to **`cmdb_ci_service_by_tags`**. The CMDB Service Map widget defaults to the **vertical** path until tag-based population runs. **`csdm/deploy.yml`** applies the tag population rule from each spec’s display name (**`name:`**) via the Service Mapping Operations Scripted REST API (**`/populate_tags`**). **Do not add entry points** for observability Docker services.
+**Why the CMDB map shows “add an entry point”:** CSDM creates service instance rows with **`service_mapping: tags`** and **`discover: false`**, reclassed to **`cmdb_ci_service_by_tags`**. The CMDB Service Map widget defaults to the **vertical** path until tag-based population runs. **`csdm-inject`** (via **`csdm/deploy.yml`**) applies the tag population rule from each spec’s display name (**`name:`**) via the Service Mapping Operations Scripted REST API (**`/populate_tags`**). **Do not add entry points** for observability Docker services.
 
-#### What Ansible automates vs what stays manual
+#### What automation covers vs what stays manual
 
 | Step | Automated | Playbook / action |
 | ---- | --------- | ----------------- |
-| Delete + recreate Service Instances | Yes | `observability-platform-delete.csdm.yaml` then `observability-platform.csdm.yaml` via `csdm/deploy.yml` (see below) |
-| BA → BS → service instance hierarchy + `depends_on` | Yes | `csdm/deploy.yml` |
+| Delete + recreate Service Instances | Yes | `csdm-delete --ci …` then `csdm/deploy.yml` / `csdm-inject` (see below) |
+| BA → BS → service instance hierarchy + `depends_on` | Yes | `csdm/deploy.yml` → `csdm-inject` |
 | Container CIs + `servicenow.com/*` tags | Yes (after §6.3) | `discovery/docker/discover.yml` |
-| Tag population rule per Service Instance (`tag_list`) | Yes | `csdm/deploy.yml` → `configure_tag_based_sm.yml` (when `service_mapping: tags`) |
+| Tag population rule per Service Instance (`tag_list`) | Yes | `csdm-inject` when `service_mapping: tags` |
 | Tag Category (instance-wide) | Yes | `service-mapping/deploy.yml` (via scoped REST; included in `csdm/deploy.yml`) |
-| Membership (`svc_ci_assoc`) workload → Service Instance | **ServiceNow** (after tags + rules exist) | `SNC.ServicePopulatorRunner('INTERACTIVE')`, triggered by the deploy |
+| Membership (`svc_ci_assoc`) workload → Service Instance | **ServiceNow** (after tags + rules exist) | `SNC.ServicePopulatorRunner('INTERACTIVE')`, triggered by inject |
 
-For every service instance with **`service_mapping: tags`** in a `*.csdm.yaml` file, the deploy processor POSTs a **`tag_list`** to **`/api/opti8/service_mapping_operations_api/populate_tags`** (backed by `ansible/playbooks/servicenow/csdm/files/sm_populate_tag_list.js`), which sets the population rule via **`SMServiceByTagsUtils.updateServiceFromTagsList()`**, sets service metadata (populator, checksum, category values), and triggers **`SNC.ServicePopulatorRunner('INTERACTIVE')`** so membership recalculates immediately. Disable with **`-e sn_csdm_configure_tag_sm=false`**.
+For every service instance with **`service_mapping: tags`** in a `*.csdm.yaml` file, **`csdm-inject`** POSTs a **`tag_list`** to the Scripted REST **`/populate_tags`** operation (script under `ansible/playbooks/servicenow/service-mapping/files/sm_populate_tag_list.js`), which sets the population rule via **`SMServiceByTagsUtils.updateServiceFromTagsList()`**, sets service metadata, and triggers **`SNC.ServicePopulatorRunner('INTERACTIVE')`**.
 
 Once tag filters exist, ServiceNow re-evaluates maps when new containers match — no per-container rule is needed.
 
@@ -624,10 +624,12 @@ Once tag filters exist, ServiceNow re-evaluates maps when new containers match �
 cd ansible
 OBS="/home/gxbrooks/repos/spark-observability/servicenow/regions/brooks-lab"
 
-# 1. Delete seven service instances (BA/BS retained)
-ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+# 1. Delete named service instances (BA/BS retained)
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/delete.yml \
   -e @../vars/secrets.yaml \
-  -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform-delete.csdm.yaml\"]}"
+  -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform.csdm.yaml\"], \
+       \"sn_csdm_delete_cis\": [\"Elasticsearch\", \"Kibana\", \"Grafana\", \"Prometheus\", \
+       \"Grafana Tempo\", \"OpenTelemetry Collector\", \"Logstash\"]}"
 
 # 2. Recreate from CSDM spec (skip horizontal discovery trigger for faster run)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
@@ -639,7 +641,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover
   -e @../vars/secrets.yaml
 ```
 
-Override variable **`sn_csdm_spec_paths_override`** limits `csdm/deploy.yml` to one or more spec files (see `ansible/playbooks/servicenow/common/resolve_csdm_spec_paths.yml`).
+Override variable **`sn_csdm_spec_paths_override`** limits `csdm/deploy.yml` / `delete.yml` to one or more spec files.
 
 #### Step A — Tag Categories (once per instance)
 
@@ -670,9 +672,9 @@ The tag category is created automatically by **`service-mapping/deploy.yml`** (a
 
 The Service Mapping Workspace URL (`/now/svc-map/tag-categories`) may be unavailable when the **`sn_itom_map_app`** Store package cannot be downloaded on a shared demo; classic **CI tag categories** is sufficient for brooks-lab. See [ServiceNow tag mapping doc](https://www.servicenow.com/docs/r/it-operations-management/service-mapping/map-service-tag.html) (role: **`service_mapping_admin`**).
 
-#### Step B — Tag population (automated by `csdm/deploy.yml`)
+#### Step B — Tag population (automated by `csdm-inject` / `csdm/deploy.yml`)
 
-When **`service_mapping: tags`** is set on a service instance in a `*.csdm.yaml` file, **`csdm/deploy.yml`** configures tag-based population automatically after the CI is created or updated. The tag is derived from the spec:
+When **`service_mapping: tags`** is set on a service instance in a `*.csdm.yaml` file, **`csdm-inject`** configures tag-based population automatically after the CI is created or updated. The tag is derived from the spec:
 
 | CSDM field | Tag key |
 | ---------- | ------- |
@@ -702,7 +704,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../
 
 #### Manual fallback (UI or CLI)
 
-Use these when automation is disabled (**`-e sn_csdm_configure_tag_sm=false`**) or for troubleshooting:
+Use these when troubleshooting outside **`csdm-inject`**:
 
 - **Service Mapping Workspace** → per-service **Tags** filter (same keys/values as the table above).
 - **ServiceNow CLI** (`snc service-graph app-service populate` with `population_method.type: tag_list`) — see [Automating Application Service Registration](https://www.servicenow.com/community/cmdb-articles/automating-application-service-registration-with-best-practices/ta-p/3275122).

@@ -1,10 +1,10 @@
 ---
-# Diagnose CSDM registration and Service Mapping discovery status for all configured specs.
+# Diff CSDM specifications against the ServiceNow instance via csdm-diff.
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
 #     -e @../vars/secrets.yaml
 
-- name: Diagnose ServiceNow CSDM and Service Mapping discovery
+- name: Diagnose ServiceNow CSDM model via csdm-diff
   hosts: localhost
   connection: local
   gather_facts: false
@@ -14,25 +14,41 @@
     - "{{ playbook_dir }}/../common/spec_roots.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
-    - name: Compare horizontal vs vertical Discovery timing
-      ansible.builtin.include_tasks: tasks/diagnose_discovery_coordination.yml
+    - name: Require csdm-diff on PATH
+      ansible.builtin.command:
+        argv: ["{{ sn_csdm_diff_bin }}", "--help"]
+      register: sn_csdm_diff_help
+      changed_when: false
+      failed_when: sn_csdm_diff_help.rc != 0
 
-    - name: Probe SM prerequisite #4 enrichment for Requirements services
-      ansible.builtin.include_tasks: tasks/diagnose_sm_enrichment.yml
+    - name: Build csdm-diff argv for explicit spec paths
+      ansible.builtin.set_fact:
+        sn_csdm_diff_argv: "{{ [sn_csdm_diff_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) + ['--inventory', sn_inventory_file] }}"
+      when: sn_csdm_spec_paths_override | default([]) | length > 0
 
-    - name: Resolve CSDM specification paths from management regions
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/../common/resolve_csdm_spec_paths.yml"
+    - name: Build csdm-diff argv for specs-root
+      ansible.builtin.set_fact:
+        sn_csdm_diff_argv: "{{ [sn_csdm_diff_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) + ['--inventory', sn_inventory_file] }}"
+      when: sn_csdm_spec_paths_override | default([]) | length == 0
 
-    - name: Diagnose each CSDM specification
-      ansible.builtin.include_tasks: tasks/diagnose_csdm_spec.yml
-      vars:
-        sn_csdm_spec_path: "{{ item }}"
-      loop: "{{ sn_csdm_spec_paths }}"
-      loop_control:
-        label: "{{ item | basename }}"
+    - name: Diff CSDM model with csdm-diff
+      ansible.builtin.command:
+        argv: "{{ sn_csdm_diff_argv }}"
+      environment:
+        SN_URL: "{{ sn_url }}"
+        SN_USER: "{{ sn_user }}"
+        SN_PASSWORD: "{{ sn_password }}"
+      register: sn_csdm_diff_result
+      changed_when: false
+      failed_when: sn_csdm_diff_result.rc not in [0, 1]
 
-    - name: Service Mapping discovery status note
+    - name: Show csdm-diff output
       ansible.builtin.debug:
-        msg: |
-          process_status on cmdb_ci_service_discovered: 1 = Discovered, 2 = In Progress (typical after trigger).
-          Vertical discovery can take many minutes per application service. Re-run diagnose.yml to refresh status.
+        msg: "{{ sn_csdm_diff_result.stdout | default('(no stdout)') }}"
+
+    - name: Note csdm-diff differences
+      ansible.builtin.debug:
+        msg: >-
+          csdm-diff reported differences (exit {{ sn_csdm_diff_result.rc }}).
+          Re-run csdm/deploy.yml or csdm-inject to converge the instance.
+      when: sn_csdm_diff_result.rc == 1

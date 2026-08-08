@@ -1,14 +1,21 @@
 ---
-# Deploy CSDM objects from application csdm.yaml specifications.
+# Deploy CSDM objects from region *.csdm.yaml specifications via csdm-injector.
 # Idempotent — safe to re-run after application or inventory changes.
+#
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
 #     -e @../vars/secrets.yaml
+#
+# Optional:
+#   -e sn_region_filter=brooks-lab
+#   -e sn_specs_root_override=/path/to/servicenow
+#   -e '{"sn_csdm_spec_paths_override": ["/path/to/file.csdm.yaml"]}'
+#   -e sn_csdm_trigger_horizontal_discovery=false
 
 - import_playbook: ../service-mapping/deploy.yml
 
-- name: Deploy ServiceNow CSDM objects
+- name: Deploy ServiceNow CSDM objects via csdm-injector
   hosts: localhost
   connection: local
   gather_facts: false
@@ -18,34 +25,57 @@
     - "{{ playbook_dir }}/../common/spec_roots.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
-    - name: Initialize CSDM user reference cache
+    - name: Require csdm-inject on PATH
+      ansible.builtin.command:
+        argv: ["{{ sn_csdm_inject_bin }}", "--help"]
+      register: sn_csdm_inject_help
+      changed_when: false
+      failed_when: sn_csdm_inject_help.rc != 0
+
+    - name: Load Service Mapping REST URIs from context
       ansible.builtin.set_fact:
-        sn_csdm_user_cache: {}
+        sn_sm_deploy_ctx: "{{ lookup('file', sn_sm_deploy_context_file) | from_json }}"
 
-    - name: Ensure runtime tag manifest output directory exists
-      ansible.builtin.file:
-        path: "{{ sn_csdm_runtime_tag_output_dir }}"
-        state: directory
-        mode: "0755"
+    - name: Require populate_tags URI for tag-based Service Mapping
+      ansible.builtin.assert:
+        that:
+          - sn_sm_deploy_ctx.sm_rest_populate_tags_uri | default('') | length > 0
+        fail_msg: >-
+          {{ sn_sm_deploy_context_file }} is missing sm_rest_populate_tags_uri.
+          Run service-mapping/deploy.yml first (imported by this playbook).
 
-    - name: Resolve CSDM specification paths from management regions
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/../common/resolve_csdm_spec_paths.yml"
+    - name: Build csdm-inject argv for explicit spec paths
+      ansible.builtin.set_fact:
+        sn_csdm_inject_argv: "{{ [sn_csdm_inject_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) + ['--inventory', sn_inventory_file] }}"
+      when: sn_csdm_spec_paths_override | default([]) | length > 0
 
-    - name: Deploy CSDM specifications
-      ansible.builtin.include_tasks: tasks/deploy_csdm_spec.yml
-      vars:
-        sn_csdm_spec_path: "{{ item }}"
-      loop: "{{ sn_csdm_spec_paths }}"
-      loop_control:
-        label: "{{ item | basename }}"
+    - name: Build csdm-inject argv for specs-root
+      ansible.builtin.set_fact:
+        sn_csdm_inject_argv: "{{ [sn_csdm_inject_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) + ['--inventory', sn_inventory_file] }}"
+      when: sn_csdm_spec_paths_override | default([]) | length == 0
 
-    - name: Link depends_on relationships (second pass; deferred when target CIs missing)
-      ansible.builtin.include_tasks: tasks/link_all_depends_on.yml
+    - name: Show csdm-inject invocation
+      ansible.builtin.debug:
+        msg: "Running: {{ sn_csdm_inject_argv | join(' ') }}"
+
+    - name: Inject CSDM model with csdm-inject
+      ansible.builtin.command:
+        argv: "{{ sn_csdm_inject_argv }}"
+      environment:
+        SN_URL: "{{ sn_url }}"
+        SN_USER: "{{ sn_user }}"
+        SN_PASSWORD: "{{ sn_password }}"
+        SN_SM_POPULATE_TAGS_URI: "{{ sn_sm_deploy_ctx.sm_rest_populate_tags_uri }}"
+        SN_SM_DISCOVER_URI: "{{ sn_sm_deploy_ctx.sm_rest_discover_uri | default('') }}"
+        SN_SM_ENSURE_TAG_CATEGORIES_URI: "{{ sn_sm_deploy_ctx.sm_rest_ensure_tag_categories_uri | default('') }}"
+        SN_MID_SERVER_NAME: "{{ sn_mid_server_name }}"
+      register: sn_csdm_inject_result
+      changed_when: sn_csdm_inject_result.rc == 0
+
+    - name: Show csdm-inject output
+      ansible.builtin.debug:
+        msg: "{{ sn_csdm_inject_result.stdout | default('(no stdout)') }}"
 
     - name: Trigger horizontal Discovery (async adjunct — does not wait for completion)
-      ansible.builtin.include_tasks: tasks/trigger_horizontal_discovery.yml
+      ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/tasks/trigger_horizontal_discovery.yml"
       when: sn_csdm_trigger_horizontal_discovery | default(true) | bool
-
-    - name: Trigger Service Mapping vertical discovery (async — does not wait for completion)
-      ansible.builtin.include_tasks: tasks/trigger_sm_discovery.yml
-      when: sn_sm_discover_service_names | default([]) | length > 0

@@ -1,43 +1,30 @@
 ---
-# Shared ServiceNow CSDM deploy variables (application-agnostic).
+# Shared variables for CSDM top-level playbooks (csdm-injector wrappers).
 
 sn_url: "{{ SN_URL | trim }}"
 sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
 sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
-sn_lab_location_name: "{{ SN_LAB_LOCATION_NAME | default('brooks-lab') }}"
 
-sn_api_headers:
-  Accept: application/json
-  Content-Type: application/json
-
+# playbook_dir = .../ansible/playbooks/servicenow/csdm
 sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
-sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
-sn_playbooks_root: "{{ sn_servicenow_playbooks_dir | dirname }}"
+sn_ansible_root: "{{ playbook_dir | regex_replace('/playbooks/.*$', '') }}"
+sn_inventory_file: "{{ sn_ansible_root }}/inventory.yml"
+sn_repo_root: "{{ sn_ansible_root | dirname }}"
+sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
+sn_discovery_common_dir: "{{ sn_discovery_playbooks_dir }}/common"
 
-sn_sm_rel_contains: "Contains::Contained by"
-sn_sm_rel_depends: "Depends on::Used by"
-sn_sm_rel_runs_on: "Runs on::Runs"
 sn_mid_server_name: "{{ SN_MID_SERVER_NAME | default('mid-brooks-lab3') }}"
 sn_discovery_schedule_name: "{{ SN_DISCOVERY_SCHEDULE_NAME | default('Brooks Lab CI Discovery') }}"
-sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
 sn_csdm_trigger_horizontal_discovery: true
-sn_csdm_runtime_tag_output_dir: "{{ playbook_dir }}/../../../../vars/contexts/csdm_runtime_tags"
+
+sn_sm_deploy_context_file: "{{ sn_repo_root }}/vars/contexts/servicenow_sm_deploy.json"
+
+sn_csdm_inject_bin: "{{ sn_csdm_inject_bin_override | default('csdm-inject') }}"
+sn_csdm_diff_bin: "{{ sn_csdm_diff_bin_override | default('csdm-diff') }}"
+sn_csdm_delete_bin: "{{ sn_csdm_delete_bin_override | default('csdm-delete') }}"
+
 docker_discovery_hosts: >-
   {{ DOCKER_HOSTS | default([])
      | selectattr('container_discovery', 'defined')
      | selectattr('container_discovery')
      | list }}
-
-sn_sm_rest_api_name: Service Mapping Operations API
-sn_sm_rest_discover_path: /discover
-sn_sm_rest_populate_tags_path: /populate_tags
-sn_sm_rest_ensure_tag_categories_path: /ensure_tag_categories
-sn_csdm_configure_tag_sm: true
-sn_csdm_tag_key_service_instance: servicenow.com/service-instance
-sn_sm_poll_discovery: false
-
-sn_csdm_dir: "{{ playbook_dir }}"
-sn_csdm_files_dir: "{{ sn_csdm_dir }}/files"
-sn_csdm_app_svc_queue: []
-sn_sm_discover_service_names: []
-sn_csdm_depends_on_queue: []

@@ -5,9 +5,7 @@
 
 - name: Load persisted Service Mapping REST URIs
   ansible.builtin.set_fact:
-    sn_sm_rest_context_loaded: "{{ lookup('file', sn_csdm_context_file) | from_json }}"
-  vars:
-    sn_csdm_context_file: "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_sm_deploy.json"
+    sn_sm_rest_context_loaded: "{{ lookup('file', sn_sm_deploy_context_file) | from_json }}"
   failed_when: false
 
 - name: Apply persisted ensure_tag_categories REST URI
@@ -23,7 +21,7 @@
       - sn_sm_rest_ensure_tag_categories_uri | default('') | length > 0
     fail_msg: >-
       Service Mapping ensure_tag_categories REST URI is unset. Run
-      service-mapping/deploy.yml or csdm/deploy.yml (deploy_sm_rest_api.yml) first.
+      service-mapping/deploy.yml first.
 
 - name: Build default tag category payload
   ansible.builtin.set_fact:

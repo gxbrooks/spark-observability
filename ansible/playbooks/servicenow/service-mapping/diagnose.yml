@@ -1,0 +1,22 @@
+---
+# Diagnose horizontal/vertical Discovery coordination and SM enrichment.
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/diagnose.yml \
+#     -e @../vars/secrets.yaml
+
+- name: Diagnose Service Mapping discovery coordination
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - common/vars.yml
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/spec_roots.yml"
+    - "{{ playbook_dir }}/../csdm/common/vars.yml"
+  tasks:
+    - name: Compare horizontal vs vertical Discovery timing
+      ansible.builtin.include_tasks: tasks/diagnose_discovery_coordination.yml
+
+    - name: Probe SM prerequisite enrichment for Requirements services
+      ansible.builtin.include_tasks: tasks/diagnose_sm_enrichment.yml

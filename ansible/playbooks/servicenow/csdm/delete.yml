@@ -1,0 +1,78 @@
+---
+# Delete CSDM objects via csdm-delete.
+# Usage:
+#   # Delete all CIs declared in a region (or override paths)
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/delete.yml \
+#     -e @../vars/secrets.yaml -e sn_csdm_delete_all=true
+#
+#   # Delete named CIs only
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/delete.yml \
+#     -e @../vars/secrets.yaml \
+#     -e '{"sn_csdm_delete_cis": ["Elasticsearch", "Kibana"]}'
+
+- name: Delete ServiceNow CSDM objects via csdm-delete
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/spec_roots.yml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Require exactly one delete mode
+      ansible.builtin.assert:
+        that:
+          - (sn_csdm_delete_all | default(false) | bool)
+            or (sn_csdm_delete_cis | default([]) | length > 0)
+          - not ((sn_csdm_delete_all | default(false) | bool)
+                 and (sn_csdm_delete_cis | default([]) | length > 0))
+        fail_msg: >-
+          Set sn_csdm_delete_all=true or sn_csdm_delete_cis=['Name', ...]
+          (not both).
+
+    - name: Require csdm-delete on PATH
+      ansible.builtin.command:
+        argv: ["{{ sn_csdm_delete_bin }}", "--help"]
+      register: sn_csdm_delete_help
+      changed_when: false
+      failed_when: sn_csdm_delete_help.rc != 0
+
+    - name: Build csdm-delete argv for explicit spec paths
+      ansible.builtin.set_fact:
+        sn_csdm_delete_argv: "{{ [sn_csdm_delete_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) }}"
+      when: sn_csdm_spec_paths_override | default([]) | length > 0
+
+    - name: Build csdm-delete argv for specs-root
+      ansible.builtin.set_fact:
+        sn_csdm_delete_argv: "{{ [sn_csdm_delete_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) }}"
+      when: sn_csdm_spec_paths_override | default([]) | length == 0
+
+    - name: Append --all delete mode
+      ansible.builtin.set_fact:
+        sn_csdm_delete_argv: "{{ sn_csdm_delete_argv + ['--all'] }}"
+      when: sn_csdm_delete_all | default(false) | bool
+
+    - name: Append --ci delete targets
+      ansible.builtin.set_fact:
+        sn_csdm_delete_argv: "{{ sn_csdm_delete_argv + ['--ci', item] }}"
+      loop: "{{ sn_csdm_delete_cis | default([]) }}"
+      when: sn_csdm_delete_cis | default([]) | length > 0
+
+    - name: Show csdm-delete invocation
+      ansible.builtin.debug:
+        msg: "Running: {{ sn_csdm_delete_argv | join(' ') }}"
+
+    - name: Delete CSDM objects with csdm-delete
+      ansible.builtin.command:
+        argv: "{{ sn_csdm_delete_argv }}"
+      environment:
+        SN_URL: "{{ sn_url }}"
+        SN_USER: "{{ sn_user }}"
+        SN_PASSWORD: "{{ sn_password }}"
+      register: sn_csdm_delete_result
+      changed_when: sn_csdm_delete_result.rc == 0
+
+    - name: Show csdm-delete output
+      ansible.builtin.debug:
+        msg: "{{ sn_csdm_delete_result.stdout | default('(no stdout)') }}"

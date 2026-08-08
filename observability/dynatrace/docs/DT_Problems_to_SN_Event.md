@@ -445,7 +445,7 @@ Use Pattern B only until Pattern A is verified, or as a safety net in the same s
 | Docker workload tags | **`discovery/docker/discover.yml`** | Container CIs + **`cmdb_key_value`** (`servicenow.com/*`) |
 | K8s workload tags | **`discovery/k8s/discover.yml`** (includes **`sync_pod_labels.yml`**) | Pod CIs + **`cmdb_key_value`** |
 | Host agent tags | **`discovery/host/sync_tags.yml`** | **`cmdb_key_value`** on **`cmdb_ci_linux_server`** |
-| Tag filter per Application Service | **`csdm/deploy.yml`** (`configure_tag_based_sm.yml` when `service_mapping: tags`) | **`tag_list`** via Service Mapping Operations REST (`/populate_tags`) |
+| Tag filter per Application Service | **`csdm/deploy.yml`** → **`csdm-inject`** (when `service_mapping: tags`) | **`tag_list`** via Service Mapping Operations REST (`/populate_tags`) |
 | Workload → AS membership | **ServiceNow tag-based mapping** (`ServicePopulatorRunner` + scheduled job) | **`svc_ci_assoc`** membership materialized from tags |
 | Event / alert CI binding | **`sgc/sources/dynatrace/events/deploy.yml`** (via top-level **`deploy.yml`**) | SGO-Dynatrace webhook; **`sys_object_source`** → event **`cmdb_ci`** |
 | Auto-incident + AS on incident | **`ResolveApplicationService`** Script Include | Business rule / EM action — Pattern A (`svc_ci_assoc`) + B (tag lookup) fallback |
@@ -691,7 +691,7 @@ Until workload tags exist and the tag-based mapping job runs, Application Servic
 | Application Service CI created | Yes — re-run **`csdm/deploy.yml`** | Ansible CSDM deploy processor |
 | BA → BS → AS **Contains** (CSDM hierarchy) | Yes — **`csdm/deploy.yml`** | **`cmdb_rel_ci`** from deploy processor |
 | Cross-service **`depends_on`** | Yes — **`csdm/deploy.yml`** (second pass) | **`cmdb_rel_ci`** Depends on::Used by |
-| Tag-based SM **rules** (tag filter per Application Service) | Yes — **`csdm/deploy.yml`** | **`configure_tag_based_sm.yml`** → REST **`/populate_tags`** |
+| Tag-based SM **rules** (tag filter per Application Service) | Yes — **`csdm/deploy.yml`** → **`csdm-inject`** | REST **`/populate_tags`** |
 | Container / pod CIs in CMDB | Partially — Discovery, Docker Pattern, KVA | **`discovery/discover.yml`**, KVA informer |
 | **`servicenow.com/*`** on workload CIs | Yes — after ACL fix, re-run discover playbooks | **`discovery/docker/discover.yml`**, **`discovery/k8s/discover.yml`** |
 | Workload → AS membership (`svc_ci_assoc`) | **After tags + filters exist** — `/populate_tags` + ServicePopulatorRunner / scheduled job | Platform job; deploy triggers interactive recalculation |
@@ -724,19 +724,7 @@ Delete the seven observability Application Services (Grafana, Elasticsearch, Kib
 
 **UI:** `cmdb_ci_service_discovered.list` → filter name → delete each Application Service.
 
-**Ansible (idempotent delete by name):** add **`csdm_op: delete`** to each application service in a one-off spec, or delete via UI on a test instance. Example pattern:
-
-```yaml
-# One-off reset fragment — service_instances only
-service_instances:
-  - name: Grafana
-    csdm_op: delete
-  - name: Elasticsearch
-    csdm_op: delete
-  # … remaining five observability application services
-```
-
-Run through **`csdm/deploy.yml`** with that spec file, or delete manually.
+**Ansible / CLI (delete by name):** use **`csdm/delete.yml`** with `sn_csdm_delete_cis`, or `csdm-delete --ci NAME` against the declarative spec (see install.md §6.5).
 
 Also remove any **vertical** artifacts if present: **`sa_m2m_service_entry_point`** rows or **Depends on** links to **`cmdb_ci_endpoint`** entry points on these services (Service Mapping UI → manage service → remove stale entry points per [Tag_Based_Service_Mapping.md](../../../../../../servicenow/docs/Tag_Based_Service_Mapping.md)).
 

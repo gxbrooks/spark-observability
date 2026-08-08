@@ -130,7 +130,7 @@ Run `discovery/k8s/label_oneagent_pods.yml`. Do **not** tag both Elastic Agent a
 
 ## How to attach tags to an existing CSDM service instance
 
-We pre-create service instance records via `csdm/deploy.yml`; services with `service_mapping: tags` are reclassed to **`cmdb_ci_service_by_tags`**, and the deploy configures the tag population rule automatically (`configure_tag_based_sm.yml` → `/populate_tags` Scripted REST API, which calls `SMServiceByTagsUtils.updateServiceFromTagsList()` and triggers `SNC.ServicePopulatorRunner('INTERACTIVE')`). Do **not** create duplicate services from Service Candidates unless you retire the CSDM-created CI first.
+We pre-create service instance records via `csdm/deploy.yml` → `csdm-inject`; services with `service_mapping: tags` are reclassed to **`cmdb_ci_service_by_tags`**, and inject configures the tag population rule automatically (`/populate_tags` Scripted REST API under `service-mapping/`, which calls `SMServiceByTagsUtils.updateServiceFromTagsList()` and triggers `SNC.ServicePopulatorRunner('INTERACTIVE')`). Do **not** create duplicate services from Service Candidates unless you retire the CSDM-created CI first.
 
 Manual UI path (verification / troubleshooting only — the deploy automates this):
 

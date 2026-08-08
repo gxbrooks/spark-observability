@@ -2,7 +2,7 @@
 # Apply per-node servicenow.com/service-instance to OneAgent pods.
 # DynaKube shared labels cannot vary by node; this task sets the explicit join key per pod.
 # Value = service instance display name "Dynatrace OneAgent (<host>)" sanitized to the
-# K8s label charset (spaces/parens → '-'), matching configure_tag_based_sm.yml.
+# K8s label charset (spaces/parens → '-'), matching csdm-inject tag sanitization.
 
 - name: Resolve OneAgent pod on node {{ oneagent_node | lower }}
   ansible.builtin.command:

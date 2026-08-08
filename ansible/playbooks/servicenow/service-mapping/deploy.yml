@@ -20,7 +20,7 @@
       ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
 
     - name: Deploy Service Mapping Operations REST API
-      ansible.builtin.include_tasks: "{{ sn_csdm_dir }}/tasks/deploy_sm_rest_api.yml"
+      ansible.builtin.include_tasks: tasks/deploy_sm_rest_api.yml
 
     - name: Ensure default CI tag categories
       ansible.builtin.include_tasks: common/ensure_tag_categories.yml

@@ -61,7 +61,7 @@
 
 - name: Build Service Mapping REST discover operation payload
   ansible.builtin.set_fact:
-    sn_sm_rest_discover_script: "{{ lookup('file', sn_csdm_files_dir + '/sm_discover_service.js') }}"
+    sn_sm_rest_discover_script: "{{ lookup('file', sn_sm_files_dir + '/sm_discover_service.js') }}"
 
 - name: Look up Service Mapping discover REST operation
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
@@ -119,7 +119,7 @@
 
 - name: Build Service Mapping REST populate_tags operation payload
   ansible.builtin.set_fact:
-    sn_sm_rest_populate_tags_script: "{{ lookup('file', sn_csdm_files_dir + '/sm_populate_tag_list.js') }}"
+    sn_sm_rest_populate_tags_script: "{{ lookup('file', sn_sm_files_dir + '/sm_populate_tag_list.js') }}"
 
 - name: Look up Service Mapping populate_tags REST operation
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
@@ -177,7 +177,7 @@
 
 - name: Build Service Mapping REST ensure_tag_categories operation payload
   ansible.builtin.set_fact:
-    sn_sm_rest_ensure_tag_categories_script: "{{ lookup('file', sn_csdm_files_dir + '/sm_ensure_tag_categories.js') }}"
+    sn_sm_rest_ensure_tag_categories_script: "{{ lookup('file', sn_sm_files_dir + '/sm_ensure_tag_categories.js') }}"
 
 - name: Look up Service Mapping ensure_tag_categories REST operation
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
@@ -235,7 +235,7 @@
 
 - name: Persist Service Mapping REST URIs to context file
   ansible.builtin.copy:
-    dest: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_sm_deploy.json"
+    dest: "{{ sn_sm_deploy_context_file }}"
     mode: "0644"
     content: >-
       {{ {

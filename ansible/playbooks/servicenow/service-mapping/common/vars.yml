@@ -15,8 +15,8 @@ sn_sm_dir: "{{ playbook_dir | regex_replace('^(.*/service-mapping)(/.*)?$', '\\1
 sn_sgc_dir: "{{ sn_sm_dir | dirname }}/sgc"
 sn_servicenow_playbooks_dir: "{{ sn_sm_dir | dirname }}"
 sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
-sn_csdm_dir: "{{ sn_servicenow_playbooks_dir }}/csdm"
-sn_csdm_files_dir: "{{ sn_csdm_dir }}/files"
+sn_sm_files_dir: "{{ sn_sm_dir }}/files"
+sn_sm_deploy_context_file: "{{ sn_sm_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_sm_deploy.json"
 
 sn_sm_rest_api_name: Service Mapping Operations API
 sn_sm_rest_discover_path: /discover

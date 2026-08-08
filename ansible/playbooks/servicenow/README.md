@@ -11,7 +11,8 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | --------- | ------- |
 | `discovery/` | Phases 1–3: MID Server, Discovery credentials, schedules, on-demand scans, K8s/Docker discovery |
 | `cmdb/` | CMDB 360 (Multisource CMDB): license check, sys_properties, diagnose |
-| `service-mapping/` | Tag-based Service Mapping: Store apps (`sn_service_mapping`, `sn_itom_map_app`) + classic plugin (`com.snc.service-mapping`) |
+| `service-mapping/` | Tag-based Service Mapping: Store apps, classic plugin, Scripted REST (`/populate_tags`) |
+| `csdm/` | Thin wrappers around **csdm-injector** (`deploy.yml` / `delete.yml` / `diagnose.yml`) |
 | `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
 | *(future)* `incident/` | Incident integrations |
 
@@ -62,7 +63,10 @@ ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/
 # Model compare (Python — from repo root)
 # PYTHONPATH=. python -m servicenow.comparator
 
-# CSDM deploy and compare process: servicenow/docs/DT_SN_Comparison_Process.md
+# CSDM model (requires csdm-inject on PATH)
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml
+# Compare process: servicenow/docs/DT_SN_Comparison_Process.md
 
 # Phase 1 — Discovery only
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml

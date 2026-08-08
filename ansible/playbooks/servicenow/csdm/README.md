@@ -1,63 +1,84 @@
 # CSDM deploy automation
 
-Ansible playbooks here **apply** ServiceNow CSDM specifications; the specifications themselves live under **`servicenow/regions/`** at the repository root (see [servicenow/README.md](../../../../servicenow/README.md)).
+Top-level Ansible playbooks wrap **csdm-injector** to apply ServiceNow CSDM
+specifications under **`servicenow/regions/`** (see
+[servicenow/README.md](../../../../servicenow/README.md)).
 
-See **[servicenow/docs/CSDM_Specifications.md](../../../../servicenow/docs/CSDM_Specifications.md)** for the full TPG: roles (**CSDM Modeler**, deploy processor), platform Service Mapping guidance, attribute tables, runtime tags, and vertical discovery prerequisites.
+Normative TPG: **[csdm-injector/docs/CSDM_Specifications.md](../../../../../../csdm-injector/docs/CSDM_Specifications.md)**.  
+Operator CLI: **[csdm-injector/docs/usage.md](../../../../../../csdm-injector/docs/usage.md)**.
 
-## Roles
+## Entry points
 
-| Role | Responsibility |
-|------|----------------|
-| **CSDM Modeler** | Authors `{stack}.csdm.yaml` under a management region |
-| **Deploy processor maintainer** | Generic automation in `csdm/tasks/` |
-| **Discovery operator** | Horizontal Discovery, KVA, Docker Pattern |
-| **Service Mapping operator** | Tag Categories on the instance (one-time); tag filters applied by deploy when `service_mapping: tags` |
+| Playbook | Role |
+|----------|------|
+| `deploy.yml` | Imports `service-mapping/deploy.yml`, then runs `csdm-inject` |
+| `delete.yml` | Runs `csdm-delete` (`sn_csdm_delete_all` or `sn_csdm_delete_cis`) |
+| `diagnose.yml` | Runs `csdm-diff` (exit `1` = differences; playbook does not fail) |
 
-## Quick start
+Requires `csdm-inject` / `csdm-diff` on `PATH` (system install or venv).
 
 ```bash
 cd ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
   -e @../vars/secrets.yaml
-```
 
-Deploy discovers all `servicenow/regions/*/region.yaml` files and applies listed CSDM specs. Limit to one region: `-e sn_region_filter=brooks-lab`.
+# One region
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+  -e @../vars/secrets.yaml -e sn_region_filter=brooks-lab
 
-When specs live outside Git: `-e sn_specs_root_override=/path/to/servicenow`.
-
-Vertical discovery is **triggered asynchronously** only when `service_mapping: vertical` and `discover: true`. Tag-based services do **not** trigger vertical discovery.
-
-**Tag-based Service Mapping:** for each Application Service with **`service_mapping: tags`** in a `*.csdm.yaml` file, deploy configures **`tag_list`** population via **`configure_tag_based_sm.yml`** (Service Mapping Operations REST **`/populate_tags`**). Skip with **`-e sn_csdm_configure_tag_sm=false`**. Tag Categories may still need one-time UI setup — see **[install.md §6.5](../../../../servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services)** and [Tag_Based_Service_Mapping.md](../../../../servicenow/docs/Tag_Based_Service_Mapping.md).
-
-Limit deploy to specific spec files:
-
-```bash
+# Explicit specs
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
   -e @../vars/secrets.yaml \
-  -e '{"sn_csdm_spec_paths_override": ["/path/to/servicenow/regions/brooks-lab/observability-platform.csdm.yaml"]}'
-```
+  -e '{"sn_csdm_spec_paths_override": ["/path/to/app.csdm.yaml"]}'
 
-**Observability reset** (delete seven Application Services, recreate): `observability-platform-delete.csdm.yaml` then `observability-platform.csdm.yaml` — commands in install.md §6.5.
-
-Check status:
-
-```bash
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
   -e @../vars/secrets.yaml
 ```
 
-## Adding a stack to a management region
+`deploy.yml` loads `SN_*` from Observability secrets/context and
+`SN_SM_*` URIs from `vars/contexts/servicenow_sm_deploy.json` (written by
+`service-mapping/deploy.yml`). Optional adjunct: horizontal Discovery trigger
+(`-e sn_csdm_trigger_horizontal_discovery=false` to skip).
 
-1. Create `servicenow/regions/{region-id}/{name}.csdm.yaml` following `servicenow/docs/CSDM_Specifications.md`.
-2. Add the filename to `csdm_specs` in that region's `region.yaml`.
-3. Apply runtime labels on workloads to match the specification.
-4. Run `csdm/deploy.yml`.
+## Direct CLI (same semantics)
 
-To remove objects, set `csdm_op: delete` on entries in the CSDM file. See `servicenow/docs/CSDM_Specifications.md` — **csdm_op**.
+```bash
+export SN_URL=... SN_USER=... SN_PASSWORD=...
+export SN_SM_POPULATE_TAGS_URI=$(jq -r .sm_rest_populate_tags_uri \
+  vars/contexts/servicenow_sm_deploy.json)
 
-Synthetic insert/delete examples: `csdm/test/servicenow_insert.yaml` and `csdm/test/servicenow_delete.yaml`.
+csdm-inject --specs-root ~/repos/spark-observability/servicenow \
+  --region brooks-lab \
+  --inventory ~/repos/spark-observability/ansible/inventory.yml
 
-Shared infrastructure values (instance URL, hostnames, ports used by multiple stacks) belong in `vars/variables.yaml` and are referenced from specifications via Jinja (`{{ SPARK_MASTER_HOST }}`). Application-only CSDM names and descriptions belong in `*.csdm.yaml`, not in `variables.yaml`.
+csdm-delete --all --specs path/to/app.csdm.yaml   # or --ci NAME
+csdm-diff --specs-root ~/repos/spark-observability/servicenow --region brooks-lab \
+  --inventory ~/repos/spark-observability/ansible/inventory.yml
+```
+
+Specs are purely declarative — use operators; do not put `csdm_op` in YAML.
+
+## Layout
+
+| Path | Purpose |
+|------|---------|
+| `deploy.yml` / `diagnose.yml` | Top-level wrappers |
+| `common/vars.yml` | Injector env wiring |
+| `test/servicenow_insert.yaml` | Synthetic sample (prefer `csdm-injector/fixtures/`) |
+
+Service Mapping Scripted REST sources live under
+`../service-mapping/` (not here). Discovery coordination diagnostics:
+`../service-mapping/diagnose.yml`.
+
+## Adding a stack
+
+1. Create `servicenow/regions/{region-id}/{name}.csdm.yaml`.
+2. List it in that region’s `region.yaml` → `csdm_specs`.
+3. Apply matching runtime labels on workloads.
+4. Run `csdm/deploy.yml` (or `csdm-inject`).
+
+Shared infrastructure values belong in `vars/variables.yaml` (Jinja in specs).
+Application-only CSDM names belong in `*.csdm.yaml`.
 
 ## Service Mapping by platform
 
@@ -68,4 +89,4 @@ Shared infrastructure values (instance URL, hostnames, ports used by multiple st
 | Host | Tag-based or vertical | **May** |
 | SaaS | Manual | **Must not** |
 
-Full normative guidance: `servicenow/docs/CSDM_Specifications.md` Statement 1.
+Full normative guidance: `csdm-injector/docs/CSDM_Specifications.md` Statement 1.

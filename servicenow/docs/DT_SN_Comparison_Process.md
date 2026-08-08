@@ -270,8 +270,8 @@ Export to CSV or JSON. Resolve management zone **name → numeric id** via `GET 
 
 | Drift type | Reconciliation path |
 |------------|---------------------|
-| CSDM hierarchy | CSDM deploy processor (`csdm.yaml`, `csdm_op: insert`) |
-| Retire obsolete CIs | `csdm_op: delete` or delete-only spec |
+| CSDM hierarchy | `csdm/deploy.yml` → `csdm-inject` |
+| Retire obsolete CIs | `csdm/delete.yml` / `csdm-delete` |
 | Host / container enrichment | Horizontal Discovery, Docker Pattern, KVA |
 | Dynatrace → CMDB topology | SGC scheduled import (per connection / MZ) |
 | Host identity | IRE identification rules; align hostname forms |
@@ -403,7 +403,7 @@ flowchart TB
 
 | Artifact | Role |
 |----------|------|
-| `servicenow/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags, `csdm_op` |
+| `csdm-injector/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags (declarative) |
 | `servicenow/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and the `servicenow.com/service-instance` key |
 | `servicenow/comparator/` | **Automated compare** (Python) — export + annotated JSON report |
 | `servicenow/comparator/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |

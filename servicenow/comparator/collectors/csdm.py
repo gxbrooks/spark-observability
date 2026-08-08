@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+log = logging.getLogger(__name__)
 
 
 def _validate_csdm_spec(spec: dict, spec_path: Path) -> None:
@@ -48,6 +51,43 @@ def _expand_template(value: str, host: str) -> str:
     return value.replace("{host}", host).replace("{host_lower}", host.lower())
 
 
+def _skip_legacy_csdm_op(item: dict, *, kind: str, spec_name: str) -> bool:
+    """Return True if the entry should be skipped (legacy csdm_op: delete).
+
+    Pure-declarative specs omit csdm_op. Delete is an operator concern
+    (csdm-delete / Ansible delete tasks), not a spec field for new work.
+    """
+    if "csdm_op" not in item:
+        return False
+    op = str(item.get("csdm_op") or "insert").strip().lower()
+    name = item.get("name", "")
+    if op == "delete":
+        log.warning(
+            "Ignoring legacy csdm_op=delete on %s '%s' in %s "
+            "(use csdm-delete; treating remaining objects as insert)",
+            kind,
+            name,
+            spec_name,
+        )
+        return True
+    if op != "insert":
+        log.warning(
+            "Ignoring unsupported csdm_op='%s' on %s '%s' in %s (treating as insert)",
+            op,
+            kind,
+            name,
+            spec_name,
+        )
+    else:
+        log.debug(
+            "Ignoring deprecated csdm_op on %s '%s' in %s (treating as insert)",
+            kind,
+            name,
+            spec_name,
+        )
+    return False
+
+
 def _append_app_service(
     apps: list[dict],
     item: dict,
@@ -65,7 +105,7 @@ def _append_app_service(
         "parent_business_service": item.get("parent_business_service", ""),
         "platform": item.get("platform", ""),
         "service_mapping": item.get("service_mapping", ""),
-        "csdm_op": item.get("csdm_op", "insert"),
+        "csdm_op": "insert",
         "spec_file": spec_path.name,
         "environment": item.get("environment", ""),
         "location": item.get("location", ""),
@@ -95,13 +135,13 @@ def load_csdm_intent(
         spec_files.append(path.name)
 
         for item in spec.get("business_applications") or []:
-            if item.get("csdm_op", "insert") == "delete":
+            if _skip_legacy_csdm_op(item, kind="business_application", spec_name=path.name):
                 continue
             bas.append(
                 {
                     "name": item["name"],
                     "identifier": item.get("identifier", ""),
-                    "csdm_op": item.get("csdm_op", "insert"),
+                    "csdm_op": "insert",
                     "spec_file": path.name,
                     "business_owner": item.get("business_owner", ""),
                     "it_application_owner": item.get("it_application_owner", ""),
@@ -109,7 +149,7 @@ def load_csdm_intent(
             )
 
         for item in spec.get("business_services") or []:
-            if item.get("csdm_op", "insert") == "delete":
+            if _skip_legacy_csdm_op(item, kind="business_service", spec_name=path.name):
                 continue
             bss.append(
                 {
@@ -117,7 +157,7 @@ def load_csdm_intent(
                     "identifier": item.get("identifier", ""),
                     "parent_business_application": item.get("parent_business_application", ""),
                     "platform": "",
-                    "csdm_op": item.get("csdm_op", "insert"),
+                    "csdm_op": "insert",
                     "spec_file": path.name,
                     "owned_by": item.get("owned_by", ""),
                     "business_criticality": item.get("business_criticality", item.get("busines_criticality", "")),
@@ -127,7 +167,7 @@ def load_csdm_intent(
         # Spec section renamed to service_instances (CSDM 5.0). The intent dict
         # keeps the legacy application_services key as internal report schema.
         for item in spec.get("service_instances") or []:
-            if item.get("csdm_op", "insert") == "delete":
+            if _skip_legacy_csdm_op(item, kind="service_instance", spec_name=path.name):
                 continue
             if "expand" in item:
                 expand_cfg = item["expand"] or {}

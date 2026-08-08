@@ -94,12 +94,3 @@ service_instances:
       - Elasticsearch
       - name: lab3
         type: nfs_server
-
-  # Remove legacy per-node worker Application Services (replaced by single Spark Worker above).
-  - name: Spark Worker (Lab1)
-    identifier: spark-worker-lab1
-    csdm_op: delete
-
-  - name: Spark Worker (Lab2)
-    identifier: spark-worker-lab2
-    csdm_op: delete

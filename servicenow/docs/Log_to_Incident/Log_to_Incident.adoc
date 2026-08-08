@@ -136,10 +136,9 @@ In client mode, the client-side application is a standalone application that can
 
 The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitute the heart of the application. 
 
-== Dynatrace and ServiceNow
+== Log Event Management Reference Implementation
 
-This chapter documents a reference implementation of Log to Incident using **Dynatrace** as the observability platform and **ServiceNow** as the ITSM & Event Management platform used to observe and manage an Apache Spark implementation. 
-The <<fig-log-to-incident-dataflow>>, below, illustrates the end-to-end flow log messages from the Spark application through Dynatrace to ServiceNow. This is a for phase process that starts with Spark writing to an application log file; Dynatrace then ingests and processes a log line, deciding which ones are critical issues (Problems) and then notifies ServiceNow of critical issue. ServiceNow ingest the issue (event) and creates an alert and incident mapping bot to appropriate CIs. ServiceNow then notifies the support team of the CI assigned to the incident.
+This chapter documents the high-level architecture of a reference implementation of the Log to Incident process. In this implementation we use **Dynatrace** as the observability platform and **ServiceNow** as the ITSM & Event Management platform used to observe and manage an Apache Spark implementation. <<fig-log-to-incident-dataflow>>, below, illustrates the end-to-end flow log messages from the Spark application through Dynatrace to ServiceNow. This is a for phase process that starts with Spark writing to an application log file; Dynatrace then ingests and processes a log line, deciding which ones are critical issues (Problems) and then notifies ServiceNow of critical issue. ServiceNow ingest the issue (event) and creates an alert and incident mapping bot to appropriate CIs. ServiceNow then notifies the support team of the CI assigned to the incident.
 
 [.figure-indent]
 [[fig-log-to-incident-dataflow]]
@@ -174,6 +173,7 @@ a|
 |Phase 4
 |Dynatrace
 a|
+* **Log Routing:** How does Dynatrace route the log messages to the appropriate OpenPipeline?
 * *Log Processing:* How does Dynatrace process the data and metadata sent from OneAgent? 
 * *Critical issue determination:* How does Dynatrace determine which log messages are critical and create a Dynatrace problem that should be sent to ServiceNow (as an event)? 
 * *Problem notification:* How does Dynatrace send the Problem (as an event) to ServiceNow?

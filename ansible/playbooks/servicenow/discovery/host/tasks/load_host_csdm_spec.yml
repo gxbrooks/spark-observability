@@ -6,7 +6,7 @@
     sn_csdm_spec_path: "{{ sn_regions_dir }}/{{ sn_region_id }}/{{ sn_host_csdm_spec_file }}"
 
 - name: Load host CSDM specification
-  ansible.builtin.include_tasks: ../../../csdm/tasks/load_csdm_spec.yml
+  ansible.builtin.include_tasks: ../../../common/tasks/load_csdm_spec.yml
 
 - name: Initialize per-file host application service queue
   ansible.builtin.set_fact:
@@ -23,7 +23,7 @@
        | list }}
 
 - name: Queue expanded host application services from {{ sn_host_csdm_spec_file }}
-  ansible.builtin.include_tasks: ../../../csdm/tasks/queue_expanded_application_service.yml
+  ansible.builtin.include_tasks: ../../../common/tasks/queue_expanded_application_service.yml
   vars:
     sn_csdm_app_svc_entry: "{{ expand_entry }}"
     sn_csdm_app_svc_queue: "{{ sn_host_csdm_file_queue }}"
