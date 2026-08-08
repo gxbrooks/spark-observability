@@ -32,8 +32,7 @@ Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with `Log_to_Incide
 | **Spark Architecture** | Client vs Cluster application context |
 | **Dynatrace and ServiceNow** | Reference implementation overview |
 | **Phase 1 — ServiceNow Modeling** | CSDM / CMDB foundation |
-| **Chapter 5 — Client Mode Use Case** | File-tail `/mnt/spark/client-logs` → OpenPipeline → Davis |
-| **Chapter 6 — Cluster Mode Use Case** | Stdout → Container Output → OpenPipeline → Davis |
+| **Client and Cluster Mode Use Cases** | Shared OpenPipeline; Cluster stdout → Container Output; Client file-tail `/mnt/spark/client-logs` → Davis |
 | **Phase 4 — ServiceNow** | Event / alert / incident automation |
 
 Companion notes (Markdown):

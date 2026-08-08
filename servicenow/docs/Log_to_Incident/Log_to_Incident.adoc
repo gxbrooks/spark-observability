@@ -187,7 +187,7 @@ a|
 
 |===
 
-Client Mode configuration is <<ch-client-mode,Chapter 5>>; Cluster Mode (stdout / Container Output) is <<ch-cluster-mode,Chapter 6>>. ServiceNow Event Management remains <<Phase 4 — ServiceNow,Phase 4>>.
+Client and Cluster Mode configuration is <<ch-client-mode,Client and Cluster Mode Use Cases>>. ServiceNow Event Management remains <<Phase 4 — ServiceNow,Phase 4>>.
 
 ---
 
@@ -427,8 +427,8 @@ ServiceNow's tag-based Service Mapping engine then evaluates the population rule
 
 Two design rules follow from this model:
 
-* **No ownership edges in `cmdb_rel_ci`.** Runtime topology relationships (pod → node → host, workload → pod) are imported by the Service Graph Connector and remain Dynatrace's Smartscape view. Service-instance ownership lives only in `svc_ci_assoc`, maintained by tag-based Service Mapping. No playbook or script materializes `Contains::Contained by` edges between service instances and workloads.
-* **Elasticity without automation in the critical path.** Once the service instance and its population rule exist, new replicas of a known workload (for example a scaled-out Spark Worker Deployment) are picked up by KVA and joined to the service instance by Service Mapping alone. External automation (Ansible today, a Python utility in the future) is needed only when an *entirely new* service instance is introduced — a controlled CSDM onboarding step, not a runtime dependency.
+**No CMdb relationship between service instances and workloads:** Runtime topology relationships (pod → node → host, workload → pod) are imported by the Service Graph Connector from Dynatrace's Smartscape view and are realized in ServiceNow as CMdb relationships. However, Service-instance ownership lives only in a service map (i.e. on the `svc_ci_assoc` table), maintained by tag-based Service Mapping.
+* **Elasticity with CSDM modeling:** Once the service instance and its population rule are created during CSDM modeling, new replicas of a known workload (for example a scaled-out Spark Worker Deployment) are picked up by KVA and joined to the service instance by Service Mapping alone. CSDM Modeling is needed only when an *entirely new* service instance is introduced — a controlled CSDM onboarding step and not at runtime.
 
 ==== ServiceNow — SGC Topology Import
 
@@ -463,24 +463,54 @@ Each imported entity receives a **sys_object_source** row: name=SGO-Dynatrace, i
 
 Configure on the ServiceNow instance:
 
-* Service Graph Connector for Observability – Dynatrace (scoped app 'sn_dynatrace_integ')
+* Service Graph Connector for Dynatrace Observability (i.e.the scoped app 'sn_dynatrace_integ')
 * Inbound event listener: POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
-* Scheduled imports for hosts, Kubernetes pods, and process groups covering the cluster namespace
+* Scheduled SGC discovery imports for hosts, Kubernetes pods, and process groups covering the cluster namespace
 
 ==== Dynatrace — management zone
 
 Place hosts, Kubernetes cluster entities, and pods that run the application in a **management zone** dedicated to the integration (for example *Application Observability*). The **alerting profile** for ServiceNow problem notifications must scope to that management zone so only in-scope problems are forwarded.
 
-[[ch-client-mode]]
-== Chapter 5 — Client Mode Use Case
 
-This chapter walks the Log to Incident reference path for **Spark Client Mode** only: application logs under `/mnt/spark/client-logs/`, OneAgent custom log source file tail, OpenPipeline Client enrichment (`spark.service_instance`), and the Client Davis processor. Cluster Mode (container stdout) is <<ch-cluster-mode,Chapter 6>>.
+== Spark Application - Phase 2
 
-=== Phase 2 — Spark Application
+The Spark application needs to be configure in two areas. One area is the association between the Spark executing context the CSDM service instance for the Spark application. The other area is for Spark application logging. Both configurations depend on which Spark mode is being used: Cluster Mode or Client Mode.
 
-Now that we have defined the CMdb model for the Spark application, we can walk through the process and configurations needed to emit a Spark Client Mode log line with requisite metadata.
+=== Service Instance Association
 
-To start with, <<list-spark-log-file-sample>> illustrates a sample log file from a Client Mode Spark Driver.
+Service instance association is done in two significantly different ways depending on the Spark mode. For cluster mode we can use Kubernetes labels. For client mode we need to use a custom log source path in OneAgent to identify the service instance.
+
+==== Cluster Mode
+
+In cluster mode, the Spark application is running in a Kubernetes pod. The pod needs to be manually associated with it's corresponding service instance. This is done by setting the `servicenow.com/service-instance` label in the pod template. The label value is the **display name** of the service instance. The service instance display name is the same as the service instance identifier. For example, the Spark Master service instance has the display name `Spark-Master`.
+
+
+[.figure-indent]
+[[list-spark-master-pod-template2]]
+.Spark Master StatefulSet pod template labels
+[source,yaml]
+----
+template:
+  metadata:
+    labels:
+      app: spark-master
+      app.kubernetes.io/name: spark-master
+      app.kubernetes.io/instance: brooks-lab
+      app.kubernetes.io/component: master
+      app.kubernetes.io/part-of: apache-spark
+      app.kubernetes.io/managed-by: ansible
+      servicenow.com/service-instance: Spark-Master
+----
+
+==== Client Mode
+
+In client mode, the Spark application is running on a client device. ????
+
+=== Log File Generation
+
+In either mode, the Spark application will generate log files using Log4j2. However, where those log files are written is significantly different. For cluster mode, the log files are written to the container stdout. This is the container best practice. For client mode, where the Spark driver is generating the logs, the logs are written to a file under `/mnt/spark/client-logs/`.
+
+To start with, <<list-spark-log-file-sample>> illustrates a sample Log4j line (same pattern for Client and Cluster Mode).
 
 [.figure-indent]
 [[list-spark-log-file-sample]]
@@ -495,20 +525,48 @@ dated.
 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job
 ----
 
-As typical with many applications, there is not a lot of structure to the log files. There is the ever present time stamp, an error level, the file and line number of the log message, and the message itself. Of particular importance is the log level. Instead of matching a long list of critical log message patterns, we can use it to decide if the log message should be considered a critical issue. For the reference implementation we choose to use both the WARN and ERROR levels. We use warnings for convenience as they are easier to generate. 
-
+As typical with many applications, there is not a lot of structure to the log files. There is the ever present time stamp, an error level, the file and line number of the log message, and the message itself. Of particular importance is the log level. Instead of matching a long list of critical log message patterns, we can use it to decide if the log message should be considered a critical issue. For the reference implementation we choose to use both the WARN and ERROR levels. We use warnings for convenience as they are easier to generate.
 
 There are several key questions we need to answer:
 
-* Where will we keep the log files?
-* What key metadata will we need to extract from the log files?
-* What other key metadata will we need about the log files?
+* Where will the log lines be emitted (file path vs container stdout)?
+* What key metadata will we need to extract from the log lines?
+* What other key metadata will we need about the log context (mode, instance, pod)?
 
-==== Log File Directory Structure
+==== Cluster Mode
 
-Client Mode uses a **directory-based** Log4j RollingFile under `/mnt/spark/client-logs/<instance>/` (node-local bind mount — not NFS). OneAgent tails those files via a custom log source. The **instance** path element defaults to the wrapper PID of the Spark Driver; parallel drivers on one host set **SPARK_DRIVER_INSTANCE**. OpenPipeline sets **`spark.mode=Client`**, composes **`spark.instance=<host.name>:<instance>`**, and stamps **`spark.service_instance=Spark-Client`**.
+Cluster Mode Spark components (Master, Workers, History Server, executors) are Kubernetes pods that emit application logs to **stdout**. This is the best practice, because the OneAgent Log module can ingest the long entries with the Kubernetes entity context.
 
-<<list-spark-client-log-tree>> illustrates the client-mode log directories.
+===== Log emission
+
+When containers managed by Kubelet write to `stdout` and `stderr`, the container runtime writes these streams to structured log files on the host node filesystem. Kubelet organizes these logs under `/var/log/pods/<namespace>_<pod_name>_<pod_uid>/<container_name>/` on the host node. From their, OneAgent can tail the logs and ingest them with the Kubernetes entity context.
+
+===== Log4j configuration
+
+Cluster Mode looks for the Log4j configuration file in `spark/conf/log4j2-cluster.properties`. This file needs to be configured as a Console appender.
+
+[[lst-log4j-cluster-console]]
+.Log4j Console — Cluster Mode
+[source,properties]
+----
+# ConsoleAppender — kubelet /var/log/pods → Dynatrace Container Output
+appender.console.type = Console
+appender.console.name = Console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%ex
+
+# Root logger — Console only (container stdout)
+rootLogger.level = info
+rootLogger.appenderRefs = console
+rootLogger.appenderRef.console.ref = Console
+----
+
+==== Client Mode
+
+Client mode works is significantly different. The Spark driver is running on a client device as a standalone application. There can be multiple drivers running on the same host. Unlike with Kubernetes, there is no well-defined enforcement of where the log files are written. The caller of the Spark driver is responsible for managing the location of the log files. 
+
+===== Log emission
+Typically, you will use a script to marshall all the configurations for the Spark driver and then run the driver (PySpark). By convention, we expect the log files to be written to a node-local directory under `/mnt/spark/client-logs/`.  By default, the logs will be written to a directory named after the PID of the script. Since, there can be multiple drivers running on the same host, the script needs to ensure unique log directories. The script must tell the Spark Driver where to find the Log4j configuration file and it must ensure the log directory is set. <<list-spark-client-log-tree>> illustrates the client-mode log directories.
 
 [.figure-indent]
 [[list-spark-client-log-tree]]
@@ -517,13 +575,12 @@ Client Mode uses a **directory-based** Log4j RollingFile under `/mnt/spark/clien
 ----
 /mnt/spark/client-logs/                  # Client mode (node-local)
 ├── 12345/                               # default: wrapper PID
-├── par-a/                               # SPARK_DRIVER_INSTANCE override
+├── par-a/                               # SPARK_DRIVER_INSTANCE override for parallel runs
 └── par-b/
 ----
 
-==== Log4j configuration
-
-Client Mode (`spark/conf/log4j2-client.properties`) uses Console plus RollingFile. `run-chapters.sh` sets `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/` and `-Dlog4j2.configurationFile=…/log4j2-client.properties`. OneAgent harvests the RollingFile tree via the custom log source below.
+===== Log4j configuration
+OneAgent harvests the RollingFile tree as shown in <<lst-log4j-client-rolling>>, below. 
 
 [[lst-log4j-client-rolling]]
 .Log4j RollingFile — client-side
@@ -545,26 +602,95 @@ appender.rolling.strategy.type = DefaultRolloverStrategy
 appender.rolling.strategy.max = 10
 ----
 
+OneAgent will then need to be configured to harvest the log files under the directory `/mnt/spark/client-logs/*/`, where the subdirectory is the log directory for the Spark driver.
 
+[[ch-client-mode]]
+[[ch-cluster-mode]]
+== Dynatrace
 
-[#step-2-dynatrace]
+This chapter walks the Log to Incident reference path for **both** Spark modes that share one OpenPipeline (`spark-lab-log-alerts`), one alerting profile / SGO webhook, and the same ServiceNow Event Management automation in <<Phase 4 — ServiceNow,Phase 4>>:
+
+Within each phase subsection below, Dynatrace- and mode-independent material comes first, then **Cluster Mode**, then **Client Mode**.
+
+[[step-2-dynatrace]]
+[[step-2-dynatrace-cluster]]
 === Phase 2 — OneAgent
 
-OneAgent is Dynatrace's single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. In the Client Mode Log to Incident path it tails files under `/mnt/spark/client-logs/` and sends each entry with contextual metadata to Dynatrace.
+OneAgent is Dynatrace's single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. For Log to Incident it either collects container stdout/stderr (Cluster Mode) or tails files under `/mnt/spark/client-logs/` (Client Mode) and sends each entry with contextual metadata to Dynatrace.
 
-We need to tell OneAgent where to find the Client Mode log files and what contextual metadata to include with each log entry.
+We need to tell OneAgent how to find the log stream and what contextual metadata to include with each log entry. That differs by mode.
 
 ==== Log Metadata
 
-The log metadata is the key metadata fields that we need to extract from the log files or the log file context. This depends on what fields are required, the available log file context, the available fields in a log line, Dynatrace's ability to parse the log file context, and the OpenPipeline's ability to parse the log file context. 
+The log metadata is the key metadata fields that we need to extract from the log lines or the log context. This depends on what fields are required, the available log context, the available fields in a log line, Dynatrace's ability to parse the log context, and the OpenPipeline's ability to enrich or parse further.
+
+OneAgent provides a limited set of default metadata fields (raw line, log level, log source). Mode-specific enrichment then stamps the `spark.*` attributes used for ServiceNow bind.
+
+==== Cluster Mode
+
+OneAgent on each Kubernetes node collects container stdout/stderr when DynaKube enables the Log module. Cluster Mode application logs do **not** use a custom log source path pattern for `/mnt/spark/logs`.
+
+[[lst-dynakube-log-monitoring]]
+.DynaKube logMonitoring (Container Output)
+[source,yaml]
+----
+apiVersion: dynatrace.com/v1beta5
+kind: DynaKube
+metadata:
+  name: dynakube
+spec:
+  # OneAgent Log module: autodiscover container stdout/stderr
+  # (log.source=Container Output). Required for Cluster Mode Spark
+  # app logs after log4j2-cluster Console appender.
+  logMonitoring: {}
+----
+
+Repo: `observability/dynatrace/dynakube/dynakube.yaml.j2`.
+
+[[tbl-oneagent-log-metadata-cluster]]
+.OneAgent Container Output metadata fields (Cluster Mode)
+[cols="24%,36%,40%",options="header"]
+|===
+|Attribute |How it is set |Value
+
+|`content`
+|OneAgent (raw line)
+|Full Log4j line from stdout
+
+|`loglevel`
+|OneAgent (severity from line text)
+|`WARN`, `ERROR`, `INFO`, …
+
+|`log.source`
+|OneAgent Log module
+|`Container Output`
+
+|`k8s.namespace.name`
+|OneAgent / Kubernetes enrichment
+|e.g. `spark`
+
+|`k8s.pod.name`
+|OneAgent / Kubernetes enrichment
+|e.g. `spark-master-0` (pod `metadata.name`)
+
+|`spark.mode` / `spark.pod_identifier`
+|OpenPipeline (not custom log source)
+|Set in processing from `k8s.pod.name` (below)
+
+|Entity context
+|OneAgent Log module
+|May attach CAI / PGI / process context — unlike Client Mode HOST file-tail
+|===
+
+==== Client Mode
 
 The key requirements for Client Mode are that:
+
 - We need to know the log level in order to determine which issues are critical or not.
 - We need to mark the stream as Client Mode and capture the driver **instance** differentiator.
 - We need a service instance bind key (`spark.service_instance`) for ServiceNow.
 
-OneAgent provides a limited set of default metadata fields (raw line, log level, log source path). The custom log source below stamps the Client Mode `spark.*` attributes from the path pattern.
-
+The custom log source below stamps the Client Mode `spark.*` attributes from the path pattern.
 
 [[lst-custom-log-sources]]
 .Custom Log Source Configuration (Client Mode paths only)
@@ -607,46 +733,39 @@ Given the above template, OneAgent will extract the following metadata fields an
 
 [[tbl-oneagent-log-metadata]]
 .OneAgent and custom log source metadata fields (Client Mode)
-[cols="24%,36%,40%",options="header"]
+[cols="24%,76",options="header"]
 |===
-|Attribute |How it is set |Value
+|Attribute |Value
 
 |`content`
-|OneAgent (raw line)
-|Full Log4j line
+|Full Log4j line from the log file via OneAgent
 
 |`loglevel`
-|OneAgent (severity from line text)
-|`WARN`, `ERROR`, `INFO`, …
+|`WARN`, `ERROR`, `INFO`, etc., severity from OneAgent
 
 |`log.source`
-|OneAgent
-|Registered path under `/mnt/spark/client-logs/…`
+|Registered path under `/mnt/spark/client-logs/…` from OneAgent
 
 |`spark.log.path`
-|Custom log source `${0}`
-|Literal file path on the node
+|Literal file path on the node set from log source `${0}`
 
 |`spark.mode`
-|Custom log source
-|`Client`
+|The literal string `Client` set in the log source template
 
 |`spark.driver.instance`
-|Custom log source `${1}`
-|Driver directory under `/mnt/spark/client-logs/` (`par-a`, PID, …)
+|Driver directory under `/mnt/spark/client-logs/` (`par-a`, PID, …) set from log source `${1}`
 
 |`spark.service_instance`
-|Custom log source
-|`Spark-Client` (service instance bind key for ServiceNow)
+|The literal string `Spark-Client` for the service instance bind key set in the log source template
 |===
 
 === Phase 3 — Dynatrace
 
-Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow.
+Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow. Client file tails and Cluster Container Output share the same OpenPipeline, routing object, storage processors, alerting profile, and webhook.
 
 ==== Log Routing
 
-To route the logs to the designated OpenPipeline to process Spark log entries. , we need to configure the Logs Routing object. This object is used to route the logs to the OpenPipeline for Spark logs.
+To route the logs to the designated OpenPipeline for Spark log entries, we configure the Logs Routing object.
 
 [[lst-spark-log-routing]]
 .Spark OpenPipeline logs routing
@@ -662,7 +781,7 @@ To route the logs to the designated OpenPipeline to process Spark log entries. ,
         "pipelineType": "custom",
         "pipelineId": "vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t",
         "matcher": "matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"Container Output\")",
-        "description": "Spark Lab log alerts (ERROR/WARN)"
+        "description": "Spark Lab log alerts (Client file + Cluster Container Output)"
       }
     ]
   }
@@ -673,23 +792,22 @@ Where:
 
 - `pipelineId` is the ID of the Spark log processing OpenPipeline
 
-This rule routes Client file tails (`/mnt/spark/client-logs/*`) and Cluster Container Output (see <<ch-cluster-mode,Chapter 6>>) to the shared Spark log processing OpenPipeline. This chapter covers the Client path only.
+This rule routes Client file tails (`/mnt/spark/client-logs/*`) and Cluster Container Output (`log.source` = `Container Output`) to the shared Spark log processing OpenPipeline.
 
 ==== OpenPipeline processing
 
 The Spark log processing OpenPipeline has three stages of processing:
 
 . **Processors** - where the log entries are processed and the metadata fields are extracted or defined
-. **Davis** - where the log entries are matched to a Davis processor to generate a Davis event that is ultimately convertert to a problem and forwarded to ServiceNow.
+. **Davis** - where the log entries are matched to a Davis processor to generate a Davis event that is ultimately converted to a problem and forwarded to ServiceNow.
 . **Grail** - where the Davis events are stored in the Grail bucket.
 
-The template for the Spark OpenPipeline is shown below. Notice the last three stages are placeholders. We will define them as we touch on each processing stage
+The template for the Spark OpenPipeline is shown below. Notice the last three stages are placeholders. We will define them as we touch on each processing stage.
 
 [[lst-spark-open-pipeline]]
 .Spark OpenPipeline Configuration
-[source,json] 
+[source,json]
 ----
-
 {
   "schemaId": "builtin:openpipeline.logs.pipelines",
   "scope": "environment",
@@ -703,11 +821,100 @@ The template for the Spark OpenPipeline is shown below. Notice the last three st
     "storage": {}
   }
 }
-
 ----
 
 ===== Processors
-The OneAgent custom log source in <<lst-custom-log-sources>> already sets `spark.*` variables prior to entry of the pipeline. In addition to the standard Dynatrace fields like `content`, `loglevel`, and `log.source`, the available fields on entry to the pipeline processors are: 
+
+Shared processors stamp the OpenPipeline customId and parse the Log4j short class and line (`Class:Line`) from `content` for Grail and Davis `unique_identifier`. Mode-specific processors then enrich Cluster Container Output or Client file-tail records.
+
+. **`tag-pipeline-custom-id`** — stamps the OpenPipeline customId in a `pipeline` field on every log record for Grail filtering.
+
+. **`extract-log4j-class-line`** — parses the Log4j short class and line (`Class:Line`) from the `content` field.
+
+The Java class and line number uniquely identify the source of a log entry. For log entries that represent error conditions the class and line number form part of an error signature that we can use to identify errors that likely have the same root cause. Combined with mode information, we use the class name and line number (`class:line`) as the unique identifier for the log entry. This is used to correlate the log entry to a ServiceNow incident.
+
+====== Cluster Mode
+
+On entry from Container Output, Kubernetes enrichment supplies `k8s.pod.name`. The Cluster processor sets `spark.mode` and `spark.pod_identifier` before Log4j parse / Davis.
+
+[[tbl-openpipeline-entry-fields-cluster]]
+.OpenPipeline entry fields (Cluster Mode)
+[cols="30%,70%",options="header"]
+|===
+|Field Name|Cluster Mode
+
+|log.source
+|`Container Output`
+
+|k8s.pod.name
+|Kubernetes pod name (e.g. `spark-master-0`)
+
+|spark.mode
+|`Cluster` (from `enrich-cluster-from-k8s`)
+
+|spark.pod_identifier
+|`toString(k8s.pod.name)` (from pipeline; SN bind key)
+
+|spark.service_instance
+|unset
+
+|dt.source_entity
+|OneAgent Log module entity context (CAI/PGI when associated). SN binds via `spark.pod_identifier`, not HOST file-tail
+|===
+
+Cluster-relevant processors:
+
+. **`enrich-cluster-from-k8s`** — Container Output in namespace `spark` with `k8s.pod.name` matching `spark-*` → `spark.mode=Cluster` and `spark.pod_identifier=toString(k8s.pod.name)`.
+
+[[lst-openpipeline-processing-cluster]]
+.Spark OpenPipeline processing processors (Cluster Mode)
+[source,json]
+----
+{
+    "processing": {
+      "processors": [
+        {
+          "id": "tag-pipeline-custom-id",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Convention: stamp OpenPipeline customId on every log record for easy Grail filtering",
+          "matcher": "true",
+          "fieldsAdd": {
+            "fields": [
+              { "name": "pipeline", "value": "{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}" }
+            ]
+          }
+        },
+        {
+          "id": "enrich-cluster-from-k8s",
+          "type": "dql",
+          "enabled": true,
+          "description": "Cluster: Container Output → spark.mode + spark.pod_identifier from k8s.pod.name",
+          "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"spark\") AND matchesValue(k8s.pod.name, \"spark-*\") AND isNull(spark.mode)",
+          "dql": {
+            "script": "fieldsAdd spark.mode = \"Cluster\", spark.pod_identifier = toString(k8s.pod.name)"
+          }
+        },
+        {
+          "id": "extract-log4j-class-line",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse Log4j short class and line (Class:Line) for Grail and Davis unique_identifier",
+          "matcher": "true",
+          "dql": {
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD\""
+          }
+        }
+      ]
+    }
+}
+----
+
+`spark.pod_identifier` carries the Kubernetes pod name for the ServiceNow `svc_ci_assoc` membership lookup to the service instance. OpenPipeline does **not** bake CAI entity ids at apply time.
+
+====== Client Mode
+
+The OneAgent custom log source in <<lst-custom-log-sources>> already sets `spark.*` variables prior to entry of the pipeline. In addition to the standard Dynatrace fields like `content`, `loglevel`, and `log.source`, the available fields on entry to the pipeline processors are:
 
 [[tbl-openpipeline-entry-fields]]
 .OpenPipeline entry fields (Client Mode)
@@ -731,21 +938,15 @@ The OneAgent custom log source in <<lst-custom-log-sources>> already sets `spark
 |HOST (OneAgent file tail; in MZ). SN binds via `spark.service_instance`, not HOST
 |===
 
-The Client-relevant OpenPipeline processors are defined in <<lst-openpipeline-processing>>, below:
-
-. **`tag-pipeline-custom-id`** — stamps the OpenPipeline customId in a `pipeline` field on every log record for Grail filtering.
+Client-relevant processors:
 
 . **`compose-client-instance`** — defines `spark.instance` from `host.name` and `spark.driver.instance`.
 
 . **`ensure-client-service-instance`** — sets `spark.service_instance=Spark-Client` when missing so ServiceNow can bind the service instance.
 
-. **`extract-log4j-class-line`** — parses the Log4j short class and line (`Class:Line`) from the `content` field.
-
-(Cluster Mode adds `enrich-cluster-from-k8s` on Container Output; see <<ch-cluster-mode,Chapter 6>>.)
-
 [[lst-openpipeline-processing]]
-.Spark OpenPipeline processing processors
-[source,json] 
+.Spark OpenPipeline processing processors (Client Mode)
+[source,json]
 ----
 {
     "processing": {
@@ -801,35 +1002,32 @@ The Client-relevant OpenPipeline processors are defined in <<lst-openpipeline-pr
 
 `spark.service_instance` carries the K8s-sanitized service instance display name (`Spark-Client` for **Spark Client**) that ServiceNow uses to bind the Client service instance; Davis leaves `dt.source_entity` as the OneAgent HOST.
 
-The Java class and line number uniquely identify the source of a log entry. For log entries that represent error conditions the class and line number form part of an error signature that we can use to identify errors that likely have the same root cause. Combined with mode information, we use the class name and line number (class:line)as the unique identifier for the log entry. This is used to correlate the log entry to a ServiceNow incident.
-
 ===== Davis
 
 Davis processing enables communication of critical issues to ServiceNow and provides opportunities to reduce noise or increase the strength of the signals sent to ServiceNow. Noise is reduced by eliding potential events that match an existing Davis event. Signal strength is increased by creating a Davis problem and grouping events that have the same root cause into a single Davis problem. We discuss how Davis processors work and then how we define the processors for handling Spark log entries.
 
 ====== Davis Processing
+
 The Davis processors create Davis events or if a pipeline candidate's identity matches an existing Davis event, it will update the existing event. Davis defines identity as the tuple:
 [.text-center]
 `(event.name, event.type, dt.source_entity)`
 
 If this tuple is the same across the candidate in the pipeline and an existing Davis event, the existing event will be updated. If there was no match, a new Davis event will be created.
 
-Once a Davis event is created, the Davis processor may create or update a Davis problem. A Davis processor is a rule that has a matcher. If the condition of the matcher is met, the Davis processor will create a Davis problem for an event or group the event into an existing Davis problem. If the condition of the matcher is not met, the Davis processor will drop the event from any further Davis processing, but not from any other Pipeline processing, like persisting the event to Grail. 
+Once a Davis event is created, the Davis processor may create or update a Davis problem. A Davis processor is a rule that has a matcher. If the condition of the matcher is met, the Davis processor will create a Davis problem for an event or group the event into an existing Davis problem. If the condition of the matcher is not met, the Davis processor will drop the event from any further Davis processing, but not from any other Pipeline processing, like persisting the event to Grail.
 
 If the matcher condition is met, the Davis processor will create a Davis problem or group the event into an existing Davis problem. Grouping is dependent on the problem's:
 
 . the matcher condition is met
 . `dt.davis.is_merging_allowed` property is set to `true`
-. the event's timestamp being with the 'dt.davis.event_timeout' window of the existing Davis problem
-. the event's `dt.source_entity` being the same as the existing problem's entity or topologically close in Smartscape as in process to host relationships or closely related services 
-
-Once the metadata fields are defined in the processors, we are ready to create Davis problems for those "critical" Client Mode log entries with a log level of WARN or ERROR. This chapter documents the **Client** Davis processor plus a fail-visible processor when `spark.mode` is missing on a Client file path. The Cluster Davis processor is in <<ch-cluster-mode,Chapter 6>>.
+. the event's timestamp being within the `dt.davis.event_timeout` window of the existing Davis problem
+. the event's `dt.source_entity` being the same as the existing problem's entity or topologically close in Smartscape as in process to host relationships or closely related services
 
 ====== Davis Configuration for Spark
 
-You should consult application development and operations teams on analysis of log message severity and root cause equivalence classes of log messages. For the purpose of this reference implementation, we need to make some assumptions. We define a unique error signature as being the class name and line number of a critical log entry. For now, we assume a critical error is log message with a severity of WARN or ERROR. We use WARNs merely for convenience as they are more likely to be generated. 
+You should consult application development and operations teams on analysis of log message severity and root cause equivalence classes of log messages. For the purpose of this reference implementation, we need to make some assumptions. We define a unique error signature as being the class name and line number of a critical log entry. For now, we assume a critical error is a log message with a severity of WARN or ERROR. We use WARNs merely for convenience as they are more likely to be generated.
 
-Furthermore, we assume that the same error signature across pods and/or client instances does *not* necessarily have the same root cause. For example, in a enterprise getting the same error around the same time across clusters in different regions likely does not have the same root cause. Granted, having the same error signature across pods in the same region likely does have the same root cause. Also, we assume that different error signatures within the same pod or client do no necessarily have the same root cause. However, Davis *does not* have the fidelity to define event by root cause and differentiate between different remote or local clusters or clients.
+Furthermore, we assume that the same error signature across pods and/or client instances does *not* necessarily have the same root cause. For example, in an enterprise getting the same error around the same time across clusters in different regions likely does not have the same root cause. Granted, having the same error signature across pods in the same region likely does have the same root cause. Also, we assume that different error signatures within the same pod or client do not necessarily have the same root cause. However, Davis *does not* have the fidelity to define event by root cause and differentiate between different remote or local clusters or clients.
 
 Since different critical errors may likely have different root causes, we want to create a Davis problem (and ServiceNow incident) for each different critical error. To arrange this we need to ensure that the tuple `(event.name, event.type, dt.source_entity)` is unique for each critical error. Tuple uniqueness will result in a new Davis problem being created for each critical error. The main component over which we have some control is `event.name`. To ensure uniqueness for different error signatures, we will define `event.name` in terms of the error's (log entries) class name and line number.
 
@@ -838,465 +1036,41 @@ We will define `event.name` as:
 [.text-center]
 `Critical log.level error at {spark.log.class}:{spark.log.line}`
 
-The Davis processors would group events, i.e. different error signatures, into a single Davis problem. At least for now we want to avoid this. To do so requires setting the `dt.davis.is_merging_allowed` property to `false`. The net results is that we will only get one Davis problem for each unique error signature across all pods or clients. This may not be ideal for different dispersed clusters, but probably the best we can do at this time.
+The Davis processors would group events, i.e. different error signatures, into a single Davis problem. At least for now we want to avoid this. To do so requires setting the `dt.davis.is_merging_allowed` property to `false`. The net result is that we will only get one Davis problem for each unique error signature across all pods or clients. This may not be ideal for different dispersed clusters, but probably the best we can do at this time.
 
-We could put `{spark.mode}` in the `event.name` to group errors by mode, but if the error signature was the same across modes, we would still want to have a single Davis event as the root cause would likely be the same. 
+We could put `{spark.mode}` in the `event.name` to group errors by mode, but if the error signature was the same across modes, we would still want to have a single Davis event as the root cause would likely be the same.
 
+Once the metadata fields are defined in the processors, we create Davis problems for "critical" log entries with a log level of WARN or ERROR. Separate Davis processors match Cluster Mode (`spark.mode == "Cluster"`) and Client Mode (`spark.mode == "Client"`). A shared fail-visible processor raises when `spark.mode` is missing on either Container Output or a Client file path.
 
-The Davis process define the following properties across all three processors:
-
-[[tbl-davis-properties]]
-.Davis Properties (Client Mode)
-[cols="20%,80%",options="header"]
-|===
-|Property Name|Description
-
-|`event.type`
-|`ERROR_EVENT` (Dynatrace Settings API fixed enum)
-
-|`spark.event_kind`
-|`CRITICAL_LOG_EVENT` (lab semantic label; ServiceNow remaps `em_event.type` / `em_alert.type`)
-
-|`event.name`
-|`Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}`
-
-|`event.description`
-|includes `{spark.log.class}:{spark.log.line}`, path, and `spark.service_instance=` for SN bind
-
-|`dt.source_entity`
-|HOST (OneAgent file tail; in MZ). SN binds via `spark.service_instance`, not HOST
-
-|`spark.service_instance`
-|`Spark-Client` (stamped into description + properties)
-
-|`event.unique_identifier`
-|`Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}`
-
-|`pipeline`
-|`spark-lab-log-alerts` (OpenPipeline customId; stamped in processing)
-
-|`dt.davis.is_merging_allowed`
-|`false` to prevent merging of multiple Davis events into the same problem
-
-|`dt.davis.event_timeout`
-|`15m` (unused while merging is disabled)
-
-|===
-
-The Davis processors are defined in <<lst-openpipeline-davis>>, below.
-
-[[lst-openpipeline-davis]]
-.Spark OpenPipeline Davis processors
-[source,json] 
-----
-{
-    "davis": {
-      "processors": [
-        {
-          "id": "spark-client-warn-error-davis",
-          "type": "davis",
-          "enabled": true,
-          "description": "Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.service_instance; leave HOST as dt.source_entity",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
-          "davis": {
-            "properties": [
-              { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
-              {
-                "key": "event.description",
-                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance={spark.service_instance}: {content}"
-              },
-              { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "spark.service_instance", "value": "{spark.service_instance}" },
-              { "key": "event.unique_identifier", "value": "Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
-              { "key": "pipeline", "value": "{pipeline}" },
-              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" }
-            ]
-          }
-        },
-        {
-          "id": "spark-enrichment-missing-davis",
-          "type": "davis",
-          "enabled": true,
-          "description": "Fail-visible: WARN/ERROR without spark.mode (Client file path)",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode) AND matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
-          "davis": {
-            "properties": [
-              { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
-              {
-                "key": "event.description",
-                "value": "Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
-              },
-              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
-              { "key": "pipeline", "value": "{pipeline}" },
-              { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" }
-            ]
-          }
-        }
-      ]
-    }
-}
-
-----
-
-Once a Davis problem is created the problem is forwarded to ServiceNow via the alerting profile in <<lst-alerting-profile>>.
-
-===== Storage
-After the problems are created, Dynatrace stores all of the *log records* in the default_logs bucket (storage processors below). 
-
-[[lst-openpipeline-storage]]
-.Spark OpenPipeline storage (default_logs bucket)
-[source,json] 
-----
-{
-    "storage": {
-      "processors": [
-        {
-          "id": "default-storage",
-          "type": "bucketAssignment",
-          "enabled": true,
-          "description": "Store in default logs bucket",
-          "matcher": "true",
-          "bucketAssignment": { "bucketName": "default_logs" }
-        }
-      ]
-    }
-}
-----
-
-==== Alerting
-
-To emit a Davis problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format. 
-
-
-===== Alerting Profile
-The alerting profile couples a management zone to a set of severity level and event filters on the problems. Matching problems will be emitted to ServiceNow. THe full alerting profile template is shown below.
-
-[[lst-alerting-profile]]
-.Alerting profile for Spark Observability to ServiceNow
+[[lst-openpipeline-davis-enrichment-missing]]
+.Spark OpenPipeline Davis processor — enrichment missing (shared)
 [source,json]
 ----
 {
-  "schemaId": "builtin:alerting.profile",
-  "scope": "environment",
-  "value": {
-    "name": "Application Observability - ServiceNow",
-    "severityRules": [
-      { "severityLevel": "AVAILABILITY", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
-      { "severityLevel": "ERRORS", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
-      { "severityLevel": "PERFORMANCE", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
-      { "severityLevel": "RESOURCE_CONTENTION", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
-      { "severityLevel": "CUSTOM_ALERT", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" }
-    ],
-    "eventFilters": [],
-    "managementZone": "<Spark Observability - MANAGMENT ZONE OBJECT-ID>"
-  }
-}
-----
-
-Note that alerting profiles management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have an `dt.source_entity` in the Spark Observability management zone. This means that the impacted entities (hosts for OneAgent file tails and CPU) must be in the Spark Observability management zone, too.
-
-===== Webhook Endpoint
-The webhook endpoint template couples the alerting profile to the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. The full webhook endpoint template is shown below.
-
-[[lst-webhook-endpoint]]
-.Problem notification webhook endpoint (SGC)
-[source,yaml]
-----
-enabled: true
-type: WEBHOOK
-displayName: "ServiceNow brooks-lab - Spark Observability"
-alertingProfile: "<Application Observability - ServiceNow OBJECT-ID"
-webHookNotification:
-  url: "https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
-"
-----
-
-==== Problem notification payload template
-The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. **`ProblemDetailsJSON.rankedEvents[]`** carries the OpenPipeline Davis properties from <<lst-openpipeline-davis,OpenPipeline Davis processors>> (`event.description`, entity ids, severity). Those ranked events are the **problem specification** that flows into ServiceNow **`em_event.description`** (via **`ProblemDetailsText`**) and into **`em_event.additional_info`**.
-
-.Specification 2.6.2-1. Problem notification payload (SGC)
-[#spec-dt-webhook-payload-json]
-[source,json]
-----
-{
-  "ConnectionId": "<sgc-connection-sys-id>",
-  "ProblemID": "{ProblemID}",
-  "ProblemTitle": "{ProblemTitle}",
-  "ProblemSeverity": "{ProblemSeverity}",
-  "ProblemImpact": "{ProblemImpact}",
-  "ProblemDetailsJSON": {ProblemDetailsJSON},
-  "ProblemDetailsText": "{ProblemDetailsText}",
-  "ImpactedEntities": {ImpactedEntities},
-  "ImpactedEntity": "{ImpactedEntity}",
-  "ProblemURL": "{ProblemURL}",
-  "State": "{State}",
-  "Tags": "{Tags}",
-  "PID": "{PID}"
-}
-----
-
-A complete example of the problem notification payload is shown below.
-
-[[lst-problem-notification-payload-example]]
-.Example Client Mode problem notification payload
-[source,json]
-----
-{
-  "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
-  "ProblemID": "-9876543210987654321",
-  "ProblemTitle": "Spark critical ERROR error at TaskSetManager:270",
-  "ProblemSeverity": "ERROR",
-  "ProblemImpact": "INFRASTRUCTURE",
-  "ProblemDetailsJSON": {
-    "displayName": "Spark critical ERROR error at TaskSetManager:270",
-    "problemId": "-9876543210987654321",
-    "rankedEvents": [
+  "id": "spark-enrichment-missing-davis",
+  "type": "davis",
+  "enabled": true,
+  "description": "Fail-visible: WARN/ERROR without spark.mode (not Client file nor Cluster Container Output enrichment)",
+  "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode) AND (matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"Container Output\"))",
+  "davis": {
+    "properties": [
+      { "key": "event.type", "value": "ERROR_EVENT" },
+      { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
+      { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
       {
-        "entityId": "HOST-A1B2C3D4E5F67890",
-        "entityName": "Lab3",
-        "eventType": "ERROR_EVENT",
-        "severityLevel": "ERROR",
-        "title": "Spark critical ERROR error at TaskSetManager:270",
-        "eventDescription": "Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
-      }
-    ],
-    "startTime": 1719502426000,
-    "endTime": -1
-  },
-  "ProblemDetailsText": "Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: Lab3",
-  "ImpactedEntities": [
-    {
-      "entityId": "HOST-A1B2C3D4E5F67890",
-      "name": "Lab3",
-      "type": "HOST"
-    }
-  ],
-  "ImpactedEntity": "Lab3",
-  "ProblemURL": "https://<tenant>.apps.dynatrace.com/ui/problems/<problem-id>",
-  "State": "OPEN",
-  "Tags": "Project:spark-observability",
-  "PID": "-9876543210987654321"
-}
-----
-
-
-[[ch-cluster-mode]]
-== Chapter 6 — Cluster Mode Use Case
-
-This chapter mirrors <<ch-client-mode,Chapter 5>> for **Spark Cluster Mode**: Log4j2 **Console** → container stdout, DynaKube `logMonitoring: {}` → `log.source=Container Output`, OpenPipeline enrichment from `k8s.pod.name` (`spark.mode=Cluster`, `spark.pod_identifier`), and the Cluster Davis processor. There is **no** custom log source path on `/mnt/spark/logs` for application logs.
-
-=== Phase 2 — Spark Application
-
-Cluster Mode Spark components (Master, Workers, History Server, executors) emit application logs to **stdout** so the kubelet / OneAgent Log module can ingest them with Kubernetes entity context.
-
-<<list-spark-log-file-sample-cluster>> illustrates a sample Cluster Mode log line (same Log4j pattern as Client Mode).
-
-[.figure-indent]
-[[list-spark-log-file-sample-cluster]]
-.Spark Cluster Mode log sample (stdout)
-[source,text]
-----
-2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job
-----
-
-Criticality for the reference implementation remains WARN and ERROR log levels.
-
-==== Log emission (container stdout)
-
-Cluster Mode does **not** rely on OneAgent file-tail under `/mnt/spark/logs/<pod>/` for Log-to-Incident application logs. Pods write Log4j application lines to the Console appender (container stdout). Dynatrace ingests those streams as **`log.source=Container Output`**.
-
-NOTE: A separate RollingFile under `/opt/spark/logs` may still exist for the OTel EventEmitter path; that file is **not** used for L2I Davis alerts.
-
-==== Log4j configuration
-
-Cluster Mode uses `spark/conf/log4j2-cluster.properties`: root logger → **Console** only for application logs.
-
-[[lst-log4j-cluster-console]]
-.Log4j Console — Cluster Mode (container stdout)
-[source,properties]
-----
-# ConsoleAppender — kubelet /var/log/pods → Dynatrace Container Output
-appender.console.type = Console
-appender.console.name = Console
-appender.console.layout.type = PatternLayout
-appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%ex
-
-# Root logger — Console only (container stdout)
-rootLogger.level = info
-rootLogger.appenderRefs = console
-rootLogger.appenderRef.console.ref = Console
-----
-
-[#step-2-dynatrace-cluster]
-=== Phase 2 — OneAgent
-
-OneAgent on each Kubernetes node collects container stdout/stderr when DynaKube enables the Log module. Unlike Client Mode, Cluster Mode application logs do **not** use a custom log source path pattern for `/mnt/spark/logs`.
-
-==== Log Metadata
-
-[[lst-dynakube-log-monitoring]]
-.DynaKube logMonitoring (Container Output)
-[source,yaml]
-----
-apiVersion: dynatrace.com/v1beta5
-kind: DynaKube
-metadata:
-  name: dynakube
-spec:
-  # OneAgent Log module: autodiscover container stdout/stderr
-  # (log.source=Container Output). Required for Cluster Mode Spark
-  # app logs after log4j2-cluster Console appender.
-  logMonitoring: {}
-----
-
-Repo: `observability/dynatrace/dynakube/dynakube.yaml.j2`.
-
-[[tbl-oneagent-log-metadata-cluster]]
-.OneAgent Container Output metadata fields (Cluster Mode)
-[cols="24%,36%,40%",options="header"]
-|===
-|Attribute |How it is set |Value
-
-|`content`
-|OneAgent (raw line)
-|Full Log4j line from stdout
-
-|`loglevel`
-|OneAgent (severity from line text)
-|`WARN`, `ERROR`, `INFO`, …
-
-|`log.source`
-|OneAgent Log module
-|`Container Output`
-
-|`k8s.namespace.name`
-|OneAgent / Kubernetes enrichment
-|e.g. `spark`
-
-|`k8s.pod.name`
-|OneAgent / Kubernetes enrichment
-|e.g. `spark-master-0` (pod `metadata.name`)
-
-|`spark.mode` / `spark.pod_identifier`
-|OpenPipeline (not custom log source)
-|Set in processing from `k8s.pod.name` (below)
-
-|Entity context
-|OneAgent Log module
-|May attach CAI / PGI / process context — unlike Client Mode HOST file-tail
-|===
-
-=== Phase 3 — Dynatrace
-
-==== Log Routing
-
-Cluster Container Output shares the Spark Lab OpenPipeline with Client file tails (same routing object as <<lst-spark-log-routing,Chapter 5 routing>>). Matcher includes `log.source` = `Container Output`.
-
-[[lst-spark-log-routing-cluster]]
-.Spark OpenPipeline logs routing (Cluster-relevant matcher)
-[source,json]
-----
-{
-  "schemaId": "builtin:openpipeline.logs.routing",
-  "scope": "environment",
-  "value": {
-    "routingEntries": [
-      {
-        "enabled": true,
-        "pipelineType": "custom",
-        "pipelineId": "vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t",
-        "matcher": "matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"Container Output\")",
-        "description": "Spark Lab log alerts (Client file + Cluster Container Output)"
-      }
+        "key": "event.description",
+        "value": "Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
+      },
+      { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
+      { "key": "pipeline", "value": "{pipeline}" },
+      { "key": "dt.davis.is_merging_allowed", "value": "false" },
+      { "key": "dt.davis.event_timeout", "value": "15m" }
     ]
   }
 }
 ----
 
-==== OpenPipeline processing
-
-Same pipeline shell as Chapter 5 (`spark-lab-log-alerts`). Cluster Mode adds the `enrich-cluster-from-k8s` processor before Log4j parse / Davis.
-
-[[tbl-openpipeline-entry-fields-cluster]]
-.OpenPipeline entry fields (Cluster Mode)
-[cols="30%,70%",options="header"]
-|===
-|Field Name|Cluster Mode
-
-|log.source
-|`Container Output`
-
-|k8s.pod.name
-|Kubernetes pod name (e.g. `spark-master-0`)
-
-|spark.mode
-|`Cluster` (from `enrich-cluster-from-k8s`)
-
-|spark.pod_identifier
-|`toString(k8s.pod.name)` (from pipeline; SN bind key)
-
-|spark.service_instance
-|unset
-
-|dt.source_entity
-|OneAgent Log module entity context (CAI/PGI when associated). SN binds via `spark.pod_identifier`, not HOST file-tail
-|===
-
-===== Processors
-
-[[lst-openpipeline-processing-cluster]]
-.Spark OpenPipeline processing processors (Cluster Mode)
-[source,json]
-----
-{
-    "processing": {
-      "processors": [
-        {
-          "id": "tag-pipeline-custom-id",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Convention: stamp OpenPipeline customId on every log record for easy Grail filtering",
-          "matcher": "true",
-          "fieldsAdd": {
-            "fields": [
-              { "name": "pipeline", "value": "{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}" }
-            ]
-          }
-        },
-        {
-          "id": "enrich-cluster-from-k8s",
-          "type": "dql",
-          "enabled": true,
-          "description": "Cluster: Container Output → spark.mode + spark.pod_identifier from k8s.pod.name",
-          "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"spark\") AND matchesValue(k8s.pod.name, \"spark-*\") AND isNull(spark.mode)",
-          "dql": {
-            "script": "fieldsAdd spark.mode = \"Cluster\", spark.pod_identifier = toString(k8s.pod.name)"
-          }
-        },
-        {
-          "id": "extract-log4j-class-line",
-          "type": "dql",
-          "enabled": true,
-          "description": "Parse Log4j short class and line (Class:Line) for Grail and Davis unique_identifier",
-          "matcher": "true",
-          "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD\""
-          }
-        }
-      ]
-    }
-}
-----
-
-`spark.pod_identifier` carries the Kubernetes pod name for the ServiceNow `svc_ci_assoc` membership lookup to the service instance. OpenPipeline does **not** bake CAI entity ids at apply time.
-
-===== Davis
+====== Cluster Mode
 
 [[tbl-davis-properties-cluster]]
 .Davis Properties (Cluster Mode)
@@ -1365,25 +1139,79 @@ Same pipeline shell as Chapter 5 (`spark-lab-log-alerts`). Cluster Mode adds the
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
-        },
+        }
+      ]
+    }
+}
+----
+
+====== Client Mode
+
+[[tbl-davis-properties]]
+.Davis Properties (Client Mode)
+[cols="20%,80%",options="header"]
+|===
+|Property Name|Description
+
+|`event.type`
+|`ERROR_EVENT` (Dynatrace Settings API fixed enum)
+
+|`spark.event_kind`
+|`CRITICAL_LOG_EVENT` (lab semantic label; ServiceNow remaps `em_event.type` / `em_alert.type`)
+
+|`event.name`
+|`Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}`
+
+|`event.description`
+|includes `{spark.log.class}:{spark.log.line}`, path, and `spark.service_instance=` for SN bind
+
+|`dt.source_entity`
+|HOST (OneAgent file tail; in MZ). SN binds via `spark.service_instance`, not HOST
+
+|`spark.service_instance`
+|`Spark-Client` (stamped into description + properties)
+
+|`event.unique_identifier`
+|`Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}`
+
+|`pipeline`
+|`spark-lab-log-alerts` (OpenPipeline customId; stamped in processing)
+
+|`dt.davis.is_merging_allowed`
+|`false` to prevent merging of multiple Davis events into the same problem
+
+|`dt.davis.event_timeout`
+|`15m` (unused while merging is disabled)
+
+|===
+
+[[lst-openpipeline-davis]]
+.Spark OpenPipeline Davis processors (Client Mode)
+[source,json]
+----
+{
+    "davis": {
+      "processors": [
         {
-          "id": "spark-enrichment-missing-davis",
+          "id": "spark-client-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Fail-visible: WARN/ERROR without spark.mode on Container Output",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode) AND matchesValue(log.source, \"Container Output\")",
+          "description": "Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.service_instance; leave HOST as dt.source_entity",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
               { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
+              { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
               {
                 "key": "event.description",
-                "value": "Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
+                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance={spark.service_instance}: {content}"
               },
-              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
-              { "key": "pipeline", "value": "{pipeline}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "spark.service_instance", "value": "{spark.service_instance}" },
+              { "key": "event.unique_identifier", "value": "Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
           }
@@ -1393,19 +1221,115 @@ Same pipeline shell as Chapter 5 (`spark-lab-log-alerts`). Cluster Mode adds the
 }
 ----
 
-Once a Davis problem is created it is forwarded to ServiceNow via the same alerting profile / webhook as Chapter 5 (<<lst-alerting-profile>>).
+Once a Davis problem is created the problem is forwarded to ServiceNow via the alerting profile in <<lst-alerting-profile>>.
 
 ===== Storage
 
-Storage is the same default_logs bucket assignment as Chapter 5 (<<lst-openpipeline-storage>>).
+After the problems are created, Dynatrace stores all of the *log records* in the default_logs bucket (storage processors below). The same bucket assignment applies to Client and Cluster Mode records that traverse this pipeline.
+
+[[lst-openpipeline-storage]]
+.Spark OpenPipeline storage (default_logs bucket)
+[source,json]
+----
+{
+    "storage": {
+      "processors": [
+        {
+          "id": "default-storage",
+          "type": "bucketAssignment",
+          "enabled": true,
+          "description": "Store in default logs bucket",
+          "matcher": "true",
+          "bucketAssignment": { "bucketName": "default_logs" }
+        }
+      ]
+    }
+}
+----
 
 ==== Alerting
 
-Alerting profile and brooks-lab webhook are shared with Client Mode. Ensure Kubernetes workloads (`CLOUD_APPLICATION` `spark-*`) and related CAI instances are in MZ **Spark Observability** so Container Output problems notify SGO.
+To emit a Davis problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format. Client and Cluster Mode share the same alerting profile and brooks-lab webhook.
+
+===== Alerting Profile
+
+The alerting profile couples a management zone to a set of severity level and event filters on the problems. Matching problems will be emitted to ServiceNow. The full alerting profile template is shown below.
+
+[[lst-alerting-profile]]
+.Alerting profile for Spark Observability to ServiceNow
+[source,json]
+----
+{
+  "schemaId": "builtin:alerting.profile",
+  "scope": "environment",
+  "value": {
+    "name": "Application Observability - ServiceNow",
+    "severityRules": [
+      { "severityLevel": "AVAILABILITY", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "ERRORS", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "PERFORMANCE", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "RESOURCE_CONTENTION", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
+      { "severityLevel": "CUSTOM_ALERT", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" }
+    ],
+    "eventFilters": [],
+    "managementZone": "<Spark Observability - MANAGMENT ZONE OBJECT-ID>"
+  }
+}
+----
+
+Note that the alerting profile management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have a `dt.source_entity` in the Spark Observability management zone. This means that the impacted entities (hosts for OneAgent file tails and CPU, and Kubernetes workloads for Container Output) must be in the Spark Observability management zone, too.
+
+===== Webhook Endpoint
+
+The webhook endpoint template couples the alerting profile to the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. The full webhook endpoint template is shown below.
+
+[[lst-webhook-endpoint]]
+.Problem notification webhook endpoint (SGC)
+[source,yaml]
+----
+enabled: true
+type: WEBHOOK
+displayName: "ServiceNow brooks-lab - Spark Observability"
+alertingProfile: "<Application Observability - ServiceNow OBJECT-ID"
+webHookNotification:
+  url: "https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
+"
+----
+
+===== Cluster Mode
+
+Ensure Kubernetes workloads (`CLOUD_APPLICATION` `spark-*`) and related CAI instances are in MZ **Spark Observability** so Container Output problems notify SGO.
+
+===== Client Mode
+
+Impacted entities for Client Mode Davis problems are typically the OneAgent **HOST** that tailed `/mnt/spark/client-logs/`. That host must be in MZ **Spark Observability** for the shared alerting profile to forward the problem.
 
 ==== Problem notification payload template
 
-Payload shape matches <<spec-dt-webhook-payload-json,Chapter 5 payload specification>>. Cluster Mode example:
+The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. **`ProblemDetailsJSON.rankedEvents[]`** carries the OpenPipeline Davis properties from the Davis processors (`event.description`, entity ids, severity). Those ranked events are the **problem specification** that flows into ServiceNow **`em_event.description`** (via **`ProblemDetailsText`**) and into **`em_event.additional_info`**.
+
+.Specification 2.6.2-1. Problem notification payload (SGC)
+[#spec-dt-webhook-payload-json]
+[source,json]
+----
+{
+  "ConnectionId": "<sgc-connection-sys-id>",
+  "ProblemID": "{ProblemID}",
+  "ProblemTitle": "{ProblemTitle}",
+  "ProblemSeverity": "{ProblemSeverity}",
+  "ProblemImpact": "{ProblemImpact}",
+  "ProblemDetailsJSON": {ProblemDetailsJSON},
+  "ProblemDetailsText": "{ProblemDetailsText}",
+  "ImpactedEntities": {ImpactedEntities},
+  "ImpactedEntity": "{ImpactedEntity}",
+  "ProblemURL": "{ProblemURL}",
+  "State": "{State}",
+  "Tags": "{Tags}",
+  "PID": "{PID}"
+}
+----
+
+===== Cluster Mode
 
 [[lst-problem-notification-payload-example-cluster]]
 .Example Cluster Mode problem notification payload
@@ -1450,6 +1374,50 @@ Payload shape matches <<spec-dt-webhook-payload-json,Chapter 5 payload specifica
 ----
 
 ServiceNow **`ResolveApplicationService`** binds via `spark.pod_identifier` → pod CI by name → `svc_ci_assoc` service instance membership (ignores HOST when the pod identifier is present).
+
+===== Client Mode
+
+[[lst-problem-notification-payload-example]]
+.Example Client Mode problem notification payload
+[source,json]
+----
+{
+  "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
+  "ProblemID": "-9876543210987654321",
+  "ProblemTitle": "Spark critical ERROR error at TaskSetManager:270",
+  "ProblemSeverity": "ERROR",
+  "ProblemImpact": "INFRASTRUCTURE",
+  "ProblemDetailsJSON": {
+    "displayName": "Spark critical ERROR error at TaskSetManager:270",
+    "problemId": "-9876543210987654321",
+    "rankedEvents": [
+      {
+        "entityId": "HOST-A1B2C3D4E5F67890",
+        "entityName": "Lab3",
+        "eventType": "ERROR_EVENT",
+        "severityLevel": "ERROR",
+        "title": "Spark critical ERROR error at TaskSetManager:270",
+        "eventDescription": "Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
+      }
+    ],
+    "startTime": 1719502426000,
+    "endTime": -1
+  },
+  "ProblemDetailsText": "Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: Lab3",
+  "ImpactedEntities": [
+    {
+      "entityId": "HOST-A1B2C3D4E5F67890",
+      "name": "Lab3",
+      "type": "HOST"
+    }
+  ],
+  "ImpactedEntity": "Lab3",
+  "ProblemURL": "https://<tenant>.apps.dynatrace.com/ui/problems/<problem-id>",
+  "State": "OPEN",
+  "Tags": "Project:spark-observability",
+  "PID": "-9876543210987654321"
+}
+----
 
 ---
 
@@ -1602,11 +1570,11 @@ see if there is an existing event with the same message key. If there was no mes
 At Phase 5 the **Observability engineer** typically performs **verification**, not new Dynatrace or application configuration:
 
 . After a test problem fires, confirm **`em_event.source=SGO-Dynatrace`** and **`em_event.cmdb_ci`** is populated (service instance via `spark.pod_identifier` for Cluster; Spark Client AS via `spark.service_instance` for Client).
-. If Cluster **`cmdb_ci`** remains empty or a Linux server, return to <<step-2-dynatrace-cluster,Chapter 6 — OneAgent>> / <<lst-openpipeline-processing-cluster,Cluster OpenPipeline processors>> and verify **`spark.pod_identifier`** from `k8s.pod.name` on Container Output, then the entity bind rules.
+. If Cluster **`cmdb_ci`** remains empty or a Linux server, return to <<step-2-dynatrace-cluster,Phase 2 — OneAgent (Cluster)>> / <<lst-openpipeline-processing-cluster,Cluster OpenPipeline processors>> and verify **`spark.pod_identifier`** from `k8s.pod.name` on Container Output, then the entity bind rules.
 . Confirm **`sys_object_source`** contains a row with **`name=SGO-Dynatrace`** and **`id=<entityId>`** from the webhook **before** the event arrives (SGC scheduled import lag is a common root cause of empty CI).
 . Deploy or verify the generic entity bind business rules (<<step-5-br-k8s-pod,entity bind business rules>>) so `ResolveApplicationService` can bind from `spark.service_instance` / `spark.pod_identifier`.
 
-**No ServiceNow-side changes** are required on the monitored **application** (the Java/Spark/Python workload). **No additional Dynatrace** configuration is required at Phase 5 if <<ch-client-mode,Chapter 5>> and <<ch-cluster-mode,Chapter 6>> Dynatrace phases are correct.
+**No ServiceNow-side changes** are required on the monitored **application** (the Java/Spark/Python workload). **No additional Dynatrace** configuration is required at Phase 5 if <<ch-client-mode,Client and Cluster Mode>> Dynatrace phases are correct.
 
 Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds service instance via **`spark.pod_identifier`** (pod CI → `svc_ci_assoc`), not HOST file-tail.
 

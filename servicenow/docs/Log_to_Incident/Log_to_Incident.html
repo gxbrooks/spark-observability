@@ -727,17 +727,19 @@ code {
 <li><a href="#_dynatrace_management_zone">5.7. Dynatrace — management zone</a></li>
 </ul>
 </li>
-<li><a href="#ch-client-mode">6. Chapter 5 — Client Mode Use Case</a>
+<li><a href="#ch-cluster-mode">6. Client and Cluster Mode Use Cases</a>
 <ul class="sectlevel2">
 <li><a href="#_phase_2_spark_application">6.1. Phase 2 — Spark Application</a>
 <ul class="sectlevel3">
-<li><a href="#_log_file_directory_structure">6.1.1. Log File Directory Structure</a></li>
-<li><a href="#_log4j_configuration">6.1.2. Log4j configuration</a></li>
+<li><a href="#_cluster_mode">6.1.1. Cluster Mode</a></li>
+<li><a href="#_client_mode">6.1.2. Client Mode</a></li>
 </ul>
 </li>
-<li><a href="#step-2-dynatrace">6.2. Phase 2 — OneAgent</a>
+<li><a href="#step-2-dynatrace-cluster">6.2. Phase 2 — OneAgent</a>
 <ul class="sectlevel3">
 <li><a href="#_log_metadata">6.2.1. Log Metadata</a></li>
+<li><a href="#_cluster_mode_2">6.2.2. Cluster Mode</a></li>
+<li><a href="#_client_mode_2">6.2.3. Client Mode</a></li>
 </ul>
 </li>
 <li><a href="#_phase_3_dynatrace">6.3. Phase 3 — Dynatrace</a>
@@ -750,54 +752,31 @@ code {
 </li>
 </ul>
 </li>
-<li><a href="#ch-cluster-mode">7. Chapter 6 — Cluster Mode Use Case</a>
-<ul class="sectlevel2">
-<li><a href="#_phase_2_spark_application_2">7.1. Phase 2 — Spark Application</a>
+<li><a href="#_phase_4_servicenow">7. Phase 4 — ServiceNow</a>
 <ul class="sectlevel3">
-<li><a href="#_log_emission_container_stdout">7.1.1. Log emission (container stdout)</a></li>
-<li><a href="#_log4j_configuration_2">7.1.2. Log4j configuration</a></li>
-</ul>
-</li>
-<li><a href="#step-2-dynatrace-cluster">7.2. Phase 2 — OneAgent</a>
-<ul class="sectlevel3">
-<li><a href="#_log_metadata_2">7.2.1. Log Metadata</a></li>
-</ul>
-</li>
-<li><a href="#_phase_3_dynatrace_2">7.3. Phase 3 — Dynatrace</a>
-<ul class="sectlevel3">
-<li><a href="#_log_routing_2">7.3.1. Log Routing</a></li>
-<li><a href="#_openpipeline_processing_2">7.3.2. OpenPipeline processing</a></li>
-<li><a href="#_alerting_2">7.3.3. Alerting</a></li>
-<li><a href="#_problem_notification_payload_template_2">7.3.4. Problem notification payload template</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_phase_4_servicenow">8. Phase 4 — ServiceNow</a>
-<ul class="sectlevel3">
-<li><a href="#_event_management">8.1. Event Management</a></li>
-<li><a href="#_entity_type_to_cmdb_class">8.2. Entity type to CMDB class</a></li>
-<li><a href="#_alert_management">8.3. Alert Management</a></li>
-<li><a href="#_description_and_alert_text">8.4. Description and alert text</a></li>
-<li><a href="#_sgc_and_event_management_configuration">8.5. SGC and Event Management configuration</a></li>
-<li><a href="#step-4-sn-dynatrace">8.6. Application and Dynatrace (???? 5)</a></li>
-<li><a href="#_create_incident_bound_to_service_instance">8.7. Create incident bound to service instance</a></li>
-<li><a href="#_severity_policy">8.8. Severity policy</a></li>
-<li><a href="#_layer_model">8.9. Layer model</a></li>
-<li><a href="#step-5-incident-correlation">8.10. Incident correlation</a></li>
-<li><a href="#csdm-identifier-field-mapping">8.11. CSDM identifier lookup</a></li>
-<li><a href="#known-limitation-davis-bundling">8.12. Davis event identity vs problem merge</a></li>
-<li><a href="#_servicenow_incident_automation_specification">8.13. ServiceNow incident automation specification</a></li>
-<li><a href="#_business_rule_order_and_rationale">8.14. Business rule order and rationale</a></li>
-<li><a href="#_alert_to_incident_linkage_em_alert_incident">8.15. Alert to incident linkage (<code>em_alert.incident</code>)</a></li>
-<li><a href="#_problem_and_alert_lifecycle_open_resolved">8.16. Problem and alert lifecycle (OPEN / RESOLVED)</a></li>
-<li><a href="#_openpipeline_and_custom_source_attributes_generic_log4j_pattern">8.17. OpenPipeline and custom-source attributes (generic Log4j pattern)</a></li>
-<li><a href="#step-5-em-rules">8.18. Event Management rules (manual configuration)</a></li>
-<li><a href="#_script_includes">8.19. Script Includes</a></li>
-<li><a href="#step-5-br-k8s-pod">8.20. Business rules (prescriptive configuration)</a></li>
-<li><a href="#_ansible_deployment">8.21. Ansible deployment</a></li>
-<li><a href="#_example_resolution_kubernetes_worker_pod">8.22. Example resolution (Kubernetes worker pod)</a></li>
-<li><a href="#_application_and_dynatrace_phase_5">8.23. Application and Dynatrace (Phase 5)</a></li>
+<li><a href="#_event_management">7.1. Event Management</a></li>
+<li><a href="#_entity_type_to_cmdb_class">7.2. Entity type to CMDB class</a></li>
+<li><a href="#_alert_management">7.3. Alert Management</a></li>
+<li><a href="#_description_and_alert_text">7.4. Description and alert text</a></li>
+<li><a href="#_sgc_and_event_management_configuration">7.5. SGC and Event Management configuration</a></li>
+<li><a href="#step-4-sn-dynatrace">7.6. Application and Dynatrace (???? 5)</a></li>
+<li><a href="#_create_incident_bound_to_service_instance">7.7. Create incident bound to service instance</a></li>
+<li><a href="#_severity_policy">7.8. Severity policy</a></li>
+<li><a href="#_layer_model">7.9. Layer model</a></li>
+<li><a href="#step-5-incident-correlation">7.10. Incident correlation</a></li>
+<li><a href="#csdm-identifier-field-mapping">7.11. CSDM identifier lookup</a></li>
+<li><a href="#known-limitation-davis-bundling">7.12. Davis event identity vs problem merge</a></li>
+<li><a href="#_servicenow_incident_automation_specification">7.13. ServiceNow incident automation specification</a></li>
+<li><a href="#_business_rule_order_and_rationale">7.14. Business rule order and rationale</a></li>
+<li><a href="#_alert_to_incident_linkage_em_alert_incident">7.15. Alert to incident linkage (<code>em_alert.incident</code>)</a></li>
+<li><a href="#_problem_and_alert_lifecycle_open_resolved">7.16. Problem and alert lifecycle (OPEN / RESOLVED)</a></li>
+<li><a href="#_openpipeline_and_custom_source_attributes_generic_log4j_pattern">7.17. OpenPipeline and custom-source attributes (generic Log4j pattern)</a></li>
+<li><a href="#step-5-em-rules">7.18. Event Management rules (manual configuration)</a></li>
+<li><a href="#_script_includes">7.19. Script Includes</a></li>
+<li><a href="#step-5-br-k8s-pod">7.20. Business rules (prescriptive configuration)</a></li>
+<li><a href="#_ansible_deployment">7.21. Ansible deployment</a></li>
+<li><a href="#_example_resolution_kubernetes_worker_pod">7.22. Example resolution (Kubernetes worker pod)</a></li>
+<li><a href="#_application_and_dynatrace_phase_5">7.23. Application and Dynatrace (Phase 5)</a></li>
 </ul>
 </li>
 </ul>
@@ -1106,7 +1085,7 @@ The <a href="#fig-log-to-incident-dataflow">Figure 4</a>, below, illustrates the
 </tbody>
 </table>
 <div class="paragraph">
-<p>Client Mode configuration is <a href="#ch-client-mode">Chapter 5</a>; Cluster Mode (stdout / Container Output) is <a href="#ch-cluster-mode">Chapter 6</a>. ServiceNow Event Management remains <a href="#_phase_4_servicenow">Phase 4</a>.</p>
+<p>Client and Cluster Mode configuration is <a href="#ch-client-mode">Client and Cluster Mode Use Cases</a>. ServiceNow Event Management remains <a href="#_phase_4_servicenow">Phase 4</a>.</p>
 </div>
 <hr>
 </div>
@@ -1403,15 +1382,9 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="paragraph">
 <p>Two design rules follow from this model:</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p><strong>No ownership edges in <code>cmdb_rel_ci</code>.</strong> Runtime topology relationships (pod → node → host, workload → pod) are imported by the Service Graph Connector and remain Dynatrace&#8217;s Smartscape view. Service-instance ownership lives only in <code>svc_ci_assoc</code>, maintained by tag-based Service Mapping. No playbook or script materializes <code>Contains::Contained by</code> edges between service instances and workloads.</p>
-</li>
-<li>
-<p><strong>Elasticity without automation in the critical path.</strong> Once the service instance and its population rule exist, new replicas of a known workload (for example a scaled-out Spark Worker Deployment) are picked up by KVA and joined to the service instance by Service Mapping alone. External automation (Ansible today, a Python utility in the future) is needed only when an <strong>entirely new</strong> service instance is introduced — a controlled CSDM onboarding step, not a runtime dependency.</p>
-</li>
-</ul>
+<div class="paragraph">
+<p><strong>No CMdb relationship between service instances and workloads:</strong> Runtime topology relationships (pod → node → host, workload → pod) are imported by the Service Graph Connector from Dynatrace&#8217;s Smartscape view and are realized in ServiceNow as CMdb relationships. However, Service-instance ownership lives only in a service map (i.e. on the <code>svc_ci_assoc</code> table), maintained by tag-based Service Mapping.
+* <strong>Elasticity with CSDM modeling:</strong> Once the service instance and its population rule are created during CSDM modeling, new replicas of a known workload (for example a scaled-out Spark Worker Deployment) are picked up by KVA and joined to the service instance by Service Mapping alone. CSDM Modeling is needed only when an <strong>entirely new</strong> service instance is introduced — a controlled CSDM onboarding step and not at runtime.</p>
 </div>
 </div>
 <div class="sect3">
@@ -1468,13 +1441,13 @@ In the client-side scenario we have both a client and service-side application. 
 <div class="ulist">
 <ul>
 <li>
-<p>Service Graph Connector for Observability – Dynatrace (scoped app 'sn_dynatrace_integ')</p>
+<p>Service Graph Connector for Dynatrace Observability (i.e.the scoped app 'sn_dynatrace_integ')</p>
 </li>
 <li>
 <p>Inbound event listener: POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace</p>
 </li>
 <li>
-<p>Scheduled imports for hosts, Kubernetes pods, and process groups covering the cluster namespace</p>
+<p>Scheduled SGC discovery imports for hosts, Kubernetes pods, and process groups covering the cluster namespace</p>
 </li>
 </ul>
 </div>
@@ -1488,18 +1461,31 @@ In the client-side scenario we have both a client and service-side application. 
 </div>
 </div>
 <div class="sect1">
-<h2 id="ch-client-mode">6. Chapter 5 — Client Mode Use Case</h2>
+<h2 id="ch-cluster-mode">6. Client and Cluster Mode Use Cases</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>This chapter walks the Log to Incident reference path for <strong>Spark Client Mode</strong> only: application logs under <code>/mnt/spark/client-logs/</code>, OneAgent custom log source file tail, OpenPipeline Client enrichment (<code>spark.service_instance</code>), and the Client Davis processor. Cluster Mode (container stdout) is <a href="#ch-cluster-mode">Chapter 6</a>.</p>
+<p>This chapter walks the Log to Incident reference path for <strong>both</strong> Spark modes that share one OpenPipeline (<code>spark-lab-log-alerts</code>), one alerting profile / SGO webhook, and the same ServiceNow Event Management automation in <a href="#_phase_4_servicenow">Phase 4</a>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Cluster Mode</strong> — Log4j2 <strong>Console</strong> → container stdout → <code>log.source=Container Output</code> (DynaKube <code>logMonitoring: {}</code>) → OpenPipeline enrichment from <code>k8s.pod.name</code> (<code>spark.mode=Cluster</code>, <code>spark.pod_identifier</code>) → Cluster Davis processor. There is <strong>no</strong> custom log source path on <code>/mnt/spark/logs</code> for application logs.</p>
+</li>
+<li>
+<p><strong>Client Mode</strong> — RollingFile under <code>/mnt/spark/client-logs/</code>, OneAgent custom log source file tail, OpenPipeline Client enrichment (<code>spark.service_instance</code>), and the Client Davis processor.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Within each phase subsection below, Dynatrace- and mode-independent material comes first, then <strong>Cluster Mode</strong>, then <strong>Client Mode</strong>.</p>
 </div>
 <div class="sect2">
 <h3 id="_phase_2_spark_application">6.1. Phase 2 — Spark Application</h3>
 <div class="paragraph">
-<p>Now that we have defined the CMdb model for the Spark application, we can walk through the process and configurations needed to emit a Spark Client Mode log line with requisite metadata.</p>
+<p>Now that we have defined the CMDB model for the Spark application, we can walk through the process and configurations needed to emit a Spark log line with requisite metadata.</p>
 </div>
 <div class="paragraph">
-<p>To start with, <a href="#list-spark-log-file-sample">Listing 5</a> illustrates a sample log file from a Client Mode Spark Driver.</p>
+<p>To start with, <a href="#list-spark-log-file-sample">Listing 5</a> illustrates a sample Log4j line (same pattern for Client and Cluster Mode).</p>
 </div>
 <div id="list-spark-log-file-sample" class="listingblock figure-indent">
 <div class="title">Listing 5. Spark Log File Sample</div>
@@ -1521,26 +1507,71 @@ dated.
 <div class="ulist">
 <ul>
 <li>
-<p>Where will we keep the log files?</p>
+<p>Where will the log lines be emitted (file path vs container stdout)?</p>
 </li>
 <li>
-<p>What key metadata will we need to extract from the log files?</p>
+<p>What key metadata will we need to extract from the log lines?</p>
 </li>
 <li>
-<p>What other key metadata will we need about the log files?</p>
+<p>What other key metadata will we need about the log context (mode, instance, pod)?</p>
 </li>
 </ul>
 </div>
 <div class="sect3">
-<h4 id="_log_file_directory_structure">6.1.1. Log File Directory Structure</h4>
+<h4 id="_cluster_mode">6.1.1. Cluster Mode</h4>
+<div class="paragraph">
+<p>Cluster Mode Spark components (Master, Workers, History Server, executors) emit application logs to <strong>stdout</strong> so the kubelet / OneAgent Log module can ingest them with Kubernetes entity context.</p>
+</div>
+<div class="sect4">
+<h5 id="_log_emission_container_stdout">6.1.1.1. Log emission (container stdout)</h5>
+<div class="paragraph">
+<p>Cluster Mode does <strong>not</strong> rely on OneAgent file-tail under <code>/mnt/spark/logs/&lt;pod&gt;/</code> for Log-to-Incident application logs. Pods write Log4j application lines to the Console appender (container stdout). Dynatrace ingests those streams as <strong><code>log.source=Container Output</code></strong>.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+A separate RollingFile under <code>/opt/spark/logs</code> may still exist for the OTel EventEmitter path; that file is <strong>not</strong> used for L2I Davis alerts.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_log4j_configuration">6.1.1.2. Log4j configuration</h5>
+<div class="paragraph">
+<p>Cluster Mode uses <code>spark/conf/log4j2-cluster.properties</code>: root logger → <strong>Console</strong> only for application logs.</p>
+</div>
+<div id="lst-log4j-cluster-console" class="listingblock">
+<div class="title">Listing 6. Log4j Console — Cluster Mode (container stdout)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="properties"><span class="c"># ConsoleAppender — kubelet /var/log/pods → Dynatrace Container Output
+</span><span class="py">appender.console.type</span> <span class="p">=</span> <span class="s">Console</span>
+<span class="py">appender.console.name</span> <span class="p">=</span> <span class="s">Console</span>
+<span class="py">appender.console.layout.type</span> <span class="p">=</span> <span class="s">PatternLayout</span>
+<span class="py">appender.console.layout.pattern</span> <span class="p">=</span> <span class="s">%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%ex</span>
+
+<span class="c"># Root logger — Console only (container stdout)
+</span><span class="py">rootLogger.level</span> <span class="p">=</span> <span class="s">info</span>
+<span class="py">rootLogger.appenderRefs</span> <span class="p">=</span> <span class="s">console</span>
+<span class="py">rootLogger.appenderRef.console.ref</span> <span class="p">=</span> <span class="s">Console</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_client_mode">6.1.2. Client Mode</h4>
 <div class="paragraph">
 <p>Client Mode uses a <strong>directory-based</strong> Log4j RollingFile under <code>/mnt/spark/client-logs/&lt;instance&gt;/</code> (node-local bind mount — not NFS). OneAgent tails those files via a custom log source. The <strong>instance</strong> path element defaults to the wrapper PID of the Spark Driver; parallel drivers on one host set <strong>SPARK_DRIVER_INSTANCE</strong>. OpenPipeline sets <strong><code>spark.mode=Client</code></strong>, composes <strong><code>spark.instance=&lt;host.name&gt;:&lt;instance&gt;</code></strong>, and stamps <strong><code>spark.service_instance=Spark-Client</code></strong>.</p>
 </div>
 <div class="paragraph">
-<p><a href="#list-spark-client-log-tree">Listing 6</a> illustrates the client-mode log directories.</p>
+<p><a href="#list-spark-client-log-tree">Listing 7</a> illustrates the client-mode log directories.</p>
 </div>
 <div id="list-spark-client-log-tree" class="listingblock figure-indent">
-<div class="title">Listing 6. Spark client-mode log directories</div>
+<div class="title">Listing 7. Spark client-mode log directories</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="text">/mnt/spark/client-logs/                  # Client mode (node-local)
 ├── 12345/                               # default: wrapper PID
@@ -1548,14 +1579,13 @@ dated.
 └── par-b/</code></pre>
 </div>
 </div>
-</div>
-<div class="sect3">
-<h4 id="_log4j_configuration">6.1.2. Log4j configuration</h4>
+<div class="sect4">
+<h5 id="_log4j_configuration_2">6.1.2.1. Log4j configuration</h5>
 <div class="paragraph">
 <p>Client Mode (<code>spark/conf/log4j2-client.properties</code>) uses Console plus RollingFile. <code>run-chapters.sh</code> sets <code>SPARK_LOG_DIR=/mnt/spark/client-logs/&lt;instance&gt;/</code> and <code>-Dlog4j2.configurationFile=…/log4j2-client.properties</code>. OneAgent harvests the RollingFile tree via the custom log source below.</p>
 </div>
 <div id="lst-log4j-client-rolling" class="listingblock">
-<div class="title">Listing 7. Log4j RollingFile — client-side</div>
+<div class="title">Listing 8. Log4j RollingFile — client-side</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="properties"><span class="py">appender.rolling.type</span> <span class="p">=</span> <span class="s">RollingFile</span>
 <span class="py">appender.rolling.name</span> <span class="p">=</span> <span class="s">RollingFile</span>
@@ -1575,30 +1605,122 @@ dated.
 </div>
 </div>
 </div>
+</div>
 <div class="sect2">
-<h3 id="step-2-dynatrace">6.2. Phase 2 — OneAgent</h3>
+<h3 id="step-2-dynatrace-cluster">6.2. Phase 2 — OneAgent</h3>
 <div class="paragraph">
-<p>OneAgent is Dynatrace&#8217;s single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. In the Client Mode Log to Incident path it tails files under <code>/mnt/spark/client-logs/</code> and sends each entry with contextual metadata to Dynatrace.</p>
+<p>OneAgent is Dynatrace&#8217;s single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. For Log to Incident it either collects container stdout/stderr (Cluster Mode) or tails files under <code>/mnt/spark/client-logs/</code> (Client Mode) and sends each entry with contextual metadata to Dynatrace.</p>
 </div>
 <div class="paragraph">
-<p>We need to tell OneAgent where to find the Client Mode log files and what contextual metadata to include with each log entry.</p>
+<p>We need to tell OneAgent how to find the log stream and what contextual metadata to include with each log entry. That differs by mode.</p>
 </div>
 <div class="sect3">
 <h4 id="_log_metadata">6.2.1. Log Metadata</h4>
 <div class="paragraph">
-<p>The log metadata is the key metadata fields that we need to extract from the log files or the log file context. This depends on what fields are required, the available log file context, the available fields in a log line, Dynatrace&#8217;s ability to parse the log file context, and the OpenPipeline&#8217;s ability to parse the log file context.</p>
+<p>The log metadata is the key metadata fields that we need to extract from the log lines or the log context. This depends on what fields are required, the available log context, the available fields in a log line, Dynatrace&#8217;s ability to parse the log context, and the OpenPipeline&#8217;s ability to enrich or parse further.</p>
 </div>
 <div class="paragraph">
-<p>The key requirements for Client Mode are that:
-- We need to know the log level in order to determine which issues are critical or not.
-- We need to mark the stream as Client Mode and capture the driver <strong>instance</strong> differentiator.
-- We need a service instance bind key (<code>spark.service_instance</code>) for ServiceNow.</p>
+<p>OneAgent provides a limited set of default metadata fields (raw line, log level, log source). Mode-specific enrichment then stamps the <code>spark.*</code> attributes used for ServiceNow bind.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_cluster_mode_2">6.2.2. Cluster Mode</h4>
+<div class="paragraph">
+<p>OneAgent on each Kubernetes node collects container stdout/stderr when DynaKube enables the Log module. Cluster Mode application logs do <strong>not</strong> use a custom log source path pattern for <code>/mnt/spark/logs</code>.</p>
+</div>
+<div id="lst-dynakube-log-monitoring" class="listingblock">
+<div class="title">Listing 9. DynaKube logMonitoring (Container Output)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">dynatrace.com/v1beta5</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">DynaKube</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">dynakube</span>
+<span class="na">spec</span><span class="pi">:</span>
+  <span class="c1"># OneAgent Log module: autodiscover container stdout/stderr</span>
+  <span class="c1"># (log.source=Container Output). Required for Cluster Mode Spark</span>
+  <span class="c1"># app logs after log4j2-cluster Console appender.</span>
+  <span class="na">logMonitoring</span><span class="pi">:</span> <span class="pi">{}</span></code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>OneAgent provides a limited set of default metadata fields (raw line, log level, log source path). The custom log source below stamps the Client Mode <code>spark.*</code> attributes from the path pattern.</p>
+<p>Repo: <code>observability/dynatrace/dynakube/dynakube.yaml.j2</code>.</p>
+</div>
+<table id="tbl-oneagent-log-metadata-cluster" class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 5. OneAgent Container Output metadata fields (Cluster Mode)</caption>
+<colgroup>
+<col style="width: 24%;">
+<col style="width: 36%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Attribute</th>
+<th class="tableblock halign-left valign-top">How it is set</th>
+<th class="tableblock halign-left valign-top">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>content</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent (raw line)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Full Log4j line from stdout</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>loglevel</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent (severity from line text)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>WARN</code>, <code>ERROR</code>, <code>INFO</code>, …</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>log.source</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent Log module</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Container Output</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s.namespace.name</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent / Kubernetes enrichment</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">e.g. <code>spark</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s.pod.name</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent / Kubernetes enrichment</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">e.g. <code>spark-master-0</code> (pod <code>metadata.name</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.mode</code> / <code>spark.pod_identifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OpenPipeline (not custom log source)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Set in processing from <code>k8s.pod.name</code> (below)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Entity context</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent Log module</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">May attach CAI / PGI / process context — unlike Client Mode HOST file-tail</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect3">
+<h4 id="_client_mode_2">6.2.3. Client Mode</h4>
+<div class="paragraph">
+<p>The key requirements for Client Mode are that:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>We need to know the log level in order to determine which issues are critical or not.</p>
+</li>
+<li>
+<p>We need to mark the stream as Client Mode and capture the driver <strong>instance</strong> differentiator.</p>
+</li>
+<li>
+<p>We need a service instance bind key (<code>spark.service_instance</code>) for ServiceNow.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The custom log source below stamps the Client Mode <code>spark.*</code> attributes from the path pattern.</p>
 </div>
 <div id="lst-custom-log-sources" class="listingblock">
-<div class="title">Listing 8. Custom Log Source Configuration (Client Mode paths only)</div>
+<div class="title">Listing 10. Custom Log Source Configuration (Client Mode paths only)</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
   </span><span class="nl">"schemaId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtin:logmonitoring.custom-log-source-settings"</span><span class="p">,</span><span class="w">
@@ -1637,54 +1759,45 @@ dated.
 <p>Given the above template, OneAgent will extract the following metadata fields and send them to Dynatrace.</p>
 </div>
 <table id="tbl-oneagent-log-metadata" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 5. OneAgent and custom log source metadata fields (Client Mode)</caption>
+<caption class="title">Table 6. OneAgent and custom log source metadata fields (Client Mode)</caption>
 <colgroup>
 <col style="width: 24%;">
-<col style="width: 36%;">
-<col style="width: 40%;">
+<col style="width: 76%;">
 </colgroup>
 <thead>
 <tr>
 <th class="tableblock halign-left valign-top">Attribute</th>
-<th class="tableblock halign-left valign-top">How it is set</th>
 <th class="tableblock halign-left valign-top">Value</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>content</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent (raw line)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Full Log4j line</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Full Log4j line from the log file via OneAgent</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>loglevel</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent (severity from line text)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>WARN</code>, <code>ERROR</code>, <code>INFO</code>, …</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>WARN</code>, <code>ERROR</code>, <code>INFO</code>, etc., severity from OneAgent</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>log.source</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Registered path under <code>/mnt/spark/client-logs/…</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Registered path under <code>/mnt/spark/client-logs/…</code> from OneAgent</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.log.path</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Custom log source <code>${0}</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Literal file path on the node</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Literal file path on the node set from log source <code>${0}</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.mode</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Custom log source</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Client</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The literal string <code>Client</code> set in the log source template</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.driver.instance</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Custom log source <code>${1}</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Driver directory under <code>/mnt/spark/client-logs/</code> (<code>par-a</code>, PID, …)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Driver directory under <code>/mnt/spark/client-logs/</code> (<code>par-a</code>, PID, …) set from log source <code>${1}</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.service_instance</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Custom log source</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark-Client</code> (service instance bind key for ServiceNow)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The literal string <code>Spark-Client</code> for the service instance bind key set in the log source template</p></td>
 </tr>
 </tbody>
 </table>
@@ -1693,15 +1806,15 @@ dated.
 <div class="sect2">
 <h3 id="_phase_3_dynatrace">6.3. Phase 3 — Dynatrace</h3>
 <div class="paragraph">
-<p>Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow.</p>
+<p>Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow. Client file tails and Cluster Container Output share the same OpenPipeline, routing object, storage processors, alerting profile, and webhook.</p>
 </div>
 <div class="sect3">
 <h4 id="_log_routing">6.3.1. Log Routing</h4>
 <div class="paragraph">
-<p>To route the logs to the designated OpenPipeline to process Spark log entries. , we need to configure the Logs Routing object. This object is used to route the logs to the OpenPipeline for Spark logs.</p>
+<p>To route the logs to the designated OpenPipeline for Spark log entries, we configure the Logs Routing object.</p>
 </div>
 <div id="lst-spark-log-routing" class="listingblock">
-<div class="title">Listing 9. Spark OpenPipeline logs routing</div>
+<div class="title">Listing 11. Spark OpenPipeline logs routing</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
   </span><span class="nl">"schemaId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtin:openpipeline.logs.routing"</span><span class="p">,</span><span class="w">
@@ -1713,7 +1826,7 @@ dated.
         </span><span class="nl">"pipelineType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"custom"</span><span class="p">,</span><span class="w">
         </span><span class="nl">"pipelineId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t"</span><span class="p">,</span><span class="w">
         </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"matchesValue(log.source, </span><span class="se">\"</span><span class="s2">/mnt/spark/client-logs/*</span><span class="se">\"</span><span class="s2">) OR matchesValue(log.source, </span><span class="se">\"</span><span class="s2">Container Output</span><span class="se">\"</span><span class="s2">)"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Lab log alerts (ERROR/WARN)"</span><span class="w">
+        </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Lab log alerts (Client file + Cluster Container Output)"</span><span class="w">
       </span><span class="p">}</span><span class="w">
     </span><span class="p">]</span><span class="w">
   </span><span class="p">}</span><span class="w">
@@ -1731,7 +1844,7 @@ dated.
 </ul>
 </div>
 <div class="paragraph">
-<p>This rule routes Client file tails (<code>/mnt/spark/client-logs/*</code>) and Cluster Container Output (see <a href="#ch-cluster-mode">Chapter 6</a>) to the shared Spark log processing OpenPipeline. This chapter covers the Client path only.</p>
+<p>This rule routes Client file tails (<code>/mnt/spark/client-logs/*</code>) and Cluster Container Output (<code>log.source</code> = <code>Container Output</code>) to the shared Spark log processing OpenPipeline.</p>
 </div>
 </div>
 <div class="sect3">
@@ -1745,7 +1858,7 @@ dated.
 <p><strong>Processors</strong> - where the log entries are processed and the metadata fields are extracted or defined</p>
 </li>
 <li>
-<p><strong>Davis</strong> - where the log entries are matched to a Davis processor to generate a Davis event that is ultimately convertert to a problem and forwarded to ServiceNow.</p>
+<p><strong>Davis</strong> - where the log entries are matched to a Davis processor to generate a Davis event that is ultimately converted to a problem and forwarded to ServiceNow.</p>
 </li>
 <li>
 <p><strong>Grail</strong> - where the Davis events are stored in the Grail bucket.</p>
@@ -1753,13 +1866,12 @@ dated.
 </ol>
 </div>
 <div class="paragraph">
-<p>The template for the Spark OpenPipeline is shown below. Notice the last three stages are placeholders. We will define them as we touch on each processing stage</p>
+<p>The template for the Spark OpenPipeline is shown below. Notice the last three stages are placeholders. We will define them as we touch on each processing stage.</p>
 </div>
 <div id="lst-spark-open-pipeline" class="listingblock">
-<div class="title">Listing 10. Spark OpenPipeline Configuration</div>
+<div class="title">Listing 12. Spark OpenPipeline Configuration</div>
 <div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="w">
-</span><span class="p">{</span><span class="w">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
   </span><span class="nl">"schemaId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtin:openpipeline.logs.pipelines"</span><span class="p">,</span><span class="w">
   </span><span class="nl">"scope"</span><span class="p">:</span><span class="w"> </span><span class="s2">"environment"</span><span class="p">,</span><span class="w">
   </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
@@ -1771,17 +1883,135 @@ dated.
     </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span><span class="w">
     </span><span class="nl">"storage"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w">
   </span><span class="p">}</span><span class="w">
-</span><span class="p">}</span><span class="w">
-</span></code></pre>
+</span><span class="p">}</span></code></pre>
 </div>
 </div>
 <div class="sect4">
 <h5 id="_processors">6.3.2.1. Processors</h5>
 <div class="paragraph">
-<p>The OneAgent custom log source in <a href="#lst-custom-log-sources">Listing 8</a> already sets <code>spark.*</code> variables prior to entry of the pipeline. In addition to the standard Dynatrace fields like <code>content</code>, <code>loglevel</code>, and <code>log.source</code>, the available fields on entry to the pipeline processors are:</p>
+<p>Shared processors stamp the OpenPipeline customId and parse the Log4j short class and line (<code>Class:Line</code>) from <code>content</code> for Grail and Davis <code>unique_identifier</code>. Mode-specific processors then enrich Cluster Container Output or Client file-tail records.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong><code>tag-pipeline-custom-id</code></strong> — stamps the OpenPipeline customId in a <code>pipeline</code> field on every log record for Grail filtering.</p>
+</li>
+<li>
+<p><strong><code>extract-log4j-class-line</code></strong> — parses the Log4j short class and line (<code>Class:Line</code>) from the <code>content</code> field.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>The Java class and line number uniquely identify the source of a log entry. For log entries that represent error conditions the class and line number form part of an error signature that we can use to identify errors that likely have the same root cause. Combined with mode information, we use the class name and line number (<code>class:line</code>) as the unique identifier for the log entry. This is used to correlate the log entry to a ServiceNow incident.</p>
+</div>
+<div class="sect5">
+<h6 id="_cluster_mode_3">6.3.2.1.1. Cluster Mode</h6>
+<div class="paragraph">
+<p>On entry from Container Output, Kubernetes enrichment supplies <code>k8s.pod.name</code>. The Cluster processor sets <code>spark.mode</code> and <code>spark.pod_identifier</code> before Log4j parse / Davis.</p>
+</div>
+<table id="tbl-openpipeline-entry-fields-cluster" class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 7. OpenPipeline entry fields (Cluster Mode)</caption>
+<colgroup>
+<col style="width: 30%;">
+<col style="width: 70%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Field Name</th>
+<th class="tableblock halign-left valign-top">Cluster Mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">log.source</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Container Output</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">k8s.pod.name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kubernetes pod name (e.g. <code>spark-master-0</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">spark.mode</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Cluster</code> (from <code>enrich-cluster-from-k8s</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">spark.pod_identifier</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>toString(k8s.pod.name)</code> (from pipeline; SN bind key)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">spark.service_instance</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">unset</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">dt.source_entity</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent Log module entity context (CAI/PGI when associated). SN binds via <code>spark.pod_identifier</code>, not HOST file-tail</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Cluster-relevant processors:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong><code>enrich-cluster-from-k8s</code></strong> — Container Output in namespace <code>spark</code> with <code>k8s.pod.name</code> matching <code>spark-*</code> → <code>spark.mode=Cluster</code> and <code>spark.pod_identifier=toString(k8s.pod.name)</code>.</p>
+</li>
+</ol>
+</div>
+<div id="lst-openpipeline-processing-cluster" class="listingblock">
+<div class="title">Listing 13. Spark OpenPipeline processing processors (Cluster Mode)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+    </span><span class="nl">"processing"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"processors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tag-pipeline-custom-id"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fieldsAdd"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Convention: stamp OpenPipeline customId on every log record for easy Grail filtering"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"true"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"fieldsAdd"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}"</span><span class="w"> </span><span class="p">}</span><span class="w">
+            </span><span class="p">]</span><span class="w">
+          </span><span class="p">}</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"enrich-cluster-from-k8s"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dql"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Cluster: Container Output → spark.mode + spark.pod_identifier from k8s.pod.name"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"matchesValue(log.source, </span><span class="se">\"</span><span class="s2">Container Output</span><span class="se">\"</span><span class="s2">) AND matchesValue(k8s.namespace.name, </span><span class="se">\"</span><span class="s2">spark</span><span class="se">\"</span><span class="s2">) AND matchesValue(k8s.pod.name, </span><span class="se">\"</span><span class="s2">spark-*</span><span class="se">\"</span><span class="s2">) AND isNull(spark.mode)"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"dql"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"script"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fieldsAdd spark.mode = </span><span class="se">\"</span><span class="s2">Cluster</span><span class="se">\"</span><span class="s2">, spark.pod_identifier = toString(k8s.pod.name)"</span><span class="w">
+          </span><span class="p">}</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"extract-log4j-class-line"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dql"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Parse Log4j short class and line (Class:Line) for Grail and Davis unique_identifier"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"true"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"dql"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"script"</span><span class="p">:</span><span class="w"> </span><span class="s2">"parse content, </span><span class="se">\"</span><span class="s2">TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD</span><span class="se">\"</span><span class="s2">"</span><span class="w">
+          </span><span class="p">}</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>spark.pod_identifier</code> carries the Kubernetes pod name for the ServiceNow <code>svc_ci_assoc</code> membership lookup to the service instance. OpenPipeline does <strong>not</strong> bake CAI entity ids at apply time.</p>
+</div>
+</div>
+<div class="sect5">
+<h6 id="_client_mode_3">6.3.2.1.2. Client Mode</h6>
+<div class="paragraph">
+<p>The OneAgent custom log source in <a href="#lst-custom-log-sources">Listing 10</a> already sets <code>spark.*</code> variables prior to entry of the pipeline. In addition to the standard Dynatrace fields like <code>content</code>, <code>loglevel</code>, and <code>log.source</code>, the available fields on entry to the pipeline processors are:</p>
 </div>
 <table id="tbl-openpipeline-entry-fields" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 6. OpenPipeline entry fields (Client Mode)</caption>
+<caption class="title">Table 8. OpenPipeline entry fields (Client Mode)</caption>
 <colgroup>
 <col style="width: 30%;">
 <col style="width: 70%;">
@@ -1816,29 +2046,20 @@ dated.
 </tbody>
 </table>
 <div class="paragraph">
-<p>The Client-relevant OpenPipeline processors are defined in <a href="#lst-openpipeline-processing">Listing 11</a>, below:</p>
+<p>Client-relevant processors:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
-<li>
-<p><strong><code>tag-pipeline-custom-id</code></strong> — stamps the OpenPipeline customId in a <code>pipeline</code> field on every log record for Grail filtering.</p>
-</li>
 <li>
 <p><strong><code>compose-client-instance</code></strong> — defines <code>spark.instance</code> from <code>host.name</code> and <code>spark.driver.instance</code>.</p>
 </li>
 <li>
 <p><strong><code>ensure-client-service-instance</code></strong> — sets <code>spark.service_instance=Spark-Client</code> when missing so ServiceNow can bind the service instance.</p>
 </li>
-<li>
-<p><strong><code>extract-log4j-class-line</code></strong> — parses the Log4j short class and line (<code>Class:Line</code>) from the <code>content</code> field.</p>
-</li>
 </ol>
 </div>
-<div class="paragraph">
-<p>(Cluster Mode adds <code>enrich-cluster-from-k8s</code> on Container Output; see <a href="#ch-cluster-mode">Chapter 6</a>.)</p>
-</div>
 <div id="lst-openpipeline-processing" class="listingblock">
-<div class="title">Listing 11. Spark OpenPipeline processing processors</div>
+<div class="title">Listing 14. Spark OpenPipeline processing processors (Client Mode)</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
     </span><span class="nl">"processing"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
@@ -1895,8 +2116,6 @@ dated.
 <div class="paragraph">
 <p><code>spark.service_instance</code> carries the K8s-sanitized service instance display name (<code>Spark-Client</code> for <strong>Spark Client</strong>) that ServiceNow uses to bind the Client service instance; Davis leaves <code>dt.source_entity</code> as the OneAgent HOST.</p>
 </div>
-<div class="paragraph">
-<p>The Java class and line number uniquely identify the source of a log entry. For log entries that represent error conditions the class and line number form part of an error signature that we can use to identify errors that likely have the same root cause. Combined with mode information, we use the class name and line number (class:line)as the unique identifier for the log entry. This is used to correlate the log entry to a ServiceNow incident.</p>
 </div>
 </div>
 <div class="sect4">
@@ -1930,24 +2149,21 @@ dated.
 <p><code>dt.davis.is_merging_allowed</code> property is set to <code>true</code></p>
 </li>
 <li>
-<p>the event&#8217;s timestamp being with the 'dt.davis.event_timeout' window of the existing Davis problem</p>
+<p>the event&#8217;s timestamp being within the <code>dt.davis.event_timeout</code> window of the existing Davis problem</p>
 </li>
 <li>
 <p>the event&#8217;s <code>dt.source_entity</code> being the same as the existing problem&#8217;s entity or topologically close in Smartscape as in process to host relationships or closely related services</p>
 </li>
 </ol>
 </div>
-<div class="paragraph">
-<p>Once the metadata fields are defined in the processors, we are ready to create Davis problems for those "critical" Client Mode log entries with a log level of WARN or ERROR. This chapter documents the <strong>Client</strong> Davis processor plus a fail-visible processor when <code>spark.mode</code> is missing on a Client file path. The Cluster Davis processor is in <a href="#ch-cluster-mode">Chapter 6</a>.</p>
-</div>
 </div>
 <div class="sect5">
 <h6 id="_davis_configuration_for_spark">6.3.2.2.2. Davis Configuration for Spark</h6>
 <div class="paragraph">
-<p>You should consult application development and operations teams on analysis of log message severity and root cause equivalence classes of log messages. For the purpose of this reference implementation, we need to make some assumptions. We define a unique error signature as being the class name and line number of a critical log entry. For now, we assume a critical error is log message with a severity of WARN or ERROR. We use WARNs merely for convenience as they are more likely to be generated.</p>
+<p>You should consult application development and operations teams on analysis of log message severity and root cause equivalence classes of log messages. For the purpose of this reference implementation, we need to make some assumptions. We define a unique error signature as being the class name and line number of a critical log entry. For now, we assume a critical error is a log message with a severity of WARN or ERROR. We use WARNs merely for convenience as they are more likely to be generated.</p>
 </div>
 <div class="paragraph">
-<p>Furthermore, we assume that the same error signature across pods and/or client instances does <strong>not</strong> necessarily have the same root cause. For example, in a enterprise getting the same error around the same time across clusters in different regions likely does not have the same root cause. Granted, having the same error signature across pods in the same region likely does have the same root cause. Also, we assume that different error signatures within the same pod or client do no necessarily have the same root cause. However, Davis <strong>does not</strong> have the fidelity to define event by root cause and differentiate between different remote or local clusters or clients.</p>
+<p>Furthermore, we assume that the same error signature across pods and/or client instances does <strong>not</strong> necessarily have the same root cause. For example, in an enterprise getting the same error around the same time across clusters in different regions likely does not have the same root cause. Granted, having the same error signature across pods in the same region likely does have the same root cause. Also, we assume that different error signatures within the same pod or client do not necessarily have the same root cause. However, Davis <strong>does not</strong> have the fidelity to define event by root cause and differentiate between different remote or local clusters or clients.</p>
 </div>
 <div class="paragraph">
 <p>Since different critical errors may likely have different root causes, we want to create a Davis problem (and ServiceNow incident) for each different critical error. To arrange this we need to ensure that the tuple <code>(event.name, event.type, dt.source_entity)</code> is unique for each critical error. Tuple uniqueness will result in a new Davis problem being created for each critical error. The main component over which we have some control is <code>event.name</code>. To ensure uniqueness for different error signatures, we will define <code>event.name</code> in terms of the error&#8217;s (log entries) class name and line number.</p>
@@ -1959,554 +2175,46 @@ dated.
 <p><code>Critical log.level error at {spark.log.class}:{spark.log.line}</code></p>
 </div>
 <div class="paragraph">
-<p>The Davis processors would group events, i.e. different error signatures, into a single Davis problem. At least for now we want to avoid this. To do so requires setting the <code>dt.davis.is_merging_allowed</code> property to <code>false</code>. The net results is that we will only get one Davis problem for each unique error signature across all pods or clients. This may not be ideal for different dispersed clusters, but probably the best we can do at this time.</p>
+<p>The Davis processors would group events, i.e. different error signatures, into a single Davis problem. At least for now we want to avoid this. To do so requires setting the <code>dt.davis.is_merging_allowed</code> property to <code>false</code>. The net result is that we will only get one Davis problem for each unique error signature across all pods or clients. This may not be ideal for different dispersed clusters, but probably the best we can do at this time.</p>
 </div>
 <div class="paragraph">
 <p>We could put <code>{spark.mode}</code> in the <code>event.name</code> to group errors by mode, but if the error signature was the same across modes, we would still want to have a single Davis event as the root cause would likely be the same.</p>
 </div>
 <div class="paragraph">
-<p>The Davis process define the following properties across all three processors:</p>
+<p>Once the metadata fields are defined in the processors, we create Davis problems for "critical" log entries with a log level of WARN or ERROR. Separate Davis processors match Cluster Mode (<code>spark.mode == "Cluster"</code>) and Client Mode (<code>spark.mode == "Client"</code>). A shared fail-visible processor raises when <code>spark.mode</code> is missing on either Container Output or a Client file path.</p>
 </div>
-<table id="tbl-davis-properties" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 7. Davis Properties (Client Mode)</caption>
-<colgroup>
-<col style="width: 20%;">
-<col style="width: 80%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property Name</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.type</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ERROR_EVENT</code> (Dynatrace Settings API fixed enum)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.event_kind</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>CRITICAL_LOG_EVENT</code> (lab semantic label; ServiceNow remaps <code>em_event.type</code> / <code>em_alert.type</code>)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.name</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.description</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">includes <code>{spark.log.class}:{spark.log.line}</code>, path, and <code>spark.service_instance=</code> for SN bind</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.source_entity</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">HOST (OneAgent file tail; in MZ). SN binds via <code>spark.service_instance</code>, not HOST</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.service_instance</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark-Client</code> (stamped into description + properties)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.unique_identifier</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pipeline</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark-lab-log-alerts</code> (OpenPipeline customId; stamped in processing)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.davis.is_merging_allowed</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code> to prevent merging of multiple Davis events into the same problem</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.davis.event_timeout</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>15m</code> (unused while merging is disabled)</p></td>
-</tr>
-</tbody>
-</table>
-<div class="paragraph">
-<p>The Davis processors are defined in <a href="#lst-openpipeline-davis">Listing 12</a>, below.</p>
-</div>
-<div id="lst-openpipeline-davis" class="listingblock">
-<div class="title">Listing 12. Spark OpenPipeline Davis processors</div>
+<div id="lst-openpipeline-davis-enrichment-missing" class="listingblock">
+<div class="title">Listing 15. Spark OpenPipeline Davis processor — enrichment missing (shared)</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-    </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-      </span><span class="nl">"processors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-        </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-client-warn-error-davis"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"davis"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.service_instance; leave HOST as dt.source_entity"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(loglevel == </span><span class="se">\"</span><span class="s2">WARN</span><span class="se">\"</span><span class="s2"> OR loglevel == </span><span class="se">\"</span><span class="s2">ERROR</span><span class="se">\"</span><span class="s2">) AND spark.mode == </span><span class="se">\"</span><span class="s2">Client</span><span class="se">\"</span><span class="s2"> AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-            </span><span class="nl">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.type"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.event_kind"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CRITICAL_LOG_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.name"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w">
-                </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.description"</span><span class="p">,</span><span class="w">
-                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance={spark.service_instance}: {content}"</span><span class="w">
-              </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_merging_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.service_instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{spark.service_instance}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.unique_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{pipeline}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_entity_remapping_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.event_timeout"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"15m"</span><span class="w"> </span><span class="p">}</span><span class="w">
-            </span><span class="p">]</span><span class="w">
-          </span><span class="p">}</span><span class="w">
-        </span><span class="p">},</span><span class="w">
-        </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-enrichment-missing-davis"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"davis"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Fail-visible: WARN/ERROR without spark.mode (Client file path)"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(loglevel == </span><span class="se">\"</span><span class="s2">WARN</span><span class="se">\"</span><span class="s2"> OR loglevel == </span><span class="se">\"</span><span class="s2">ERROR</span><span class="se">\"</span><span class="s2">) AND isNull(spark.mode) AND matchesValue(log.source, </span><span class="se">\"</span><span class="s2">/mnt/spark/client-logs/*</span><span class="se">\"</span><span class="s2">)"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-            </span><span class="nl">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.type"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.event_kind"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CRITICAL_LOG_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.name"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark log missing spark.mode enrichment on {log.source}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w">
-                </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.description"</span><span class="p">,</span><span class="w">
-                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"</span><span class="w">
-              </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.unique_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"enrichment-missing|{log.source}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{pipeline}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_merging_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.event_timeout"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"15m"</span><span class="w"> </span><span class="p">}</span><span class="w">
-            </span><span class="p">]</span><span class="w">
-          </span><span class="p">}</span><span class="w">
-        </span><span class="p">}</span><span class="w">
-      </span><span class="p">]</span><span class="w">
-    </span><span class="p">}</span><span class="w">
-</span><span class="p">}</span><span class="w">
-</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Once a Davis problem is created the problem is forwarded to ServiceNow via the alerting profile in <a href="#lst-alerting-profile">Listing 14</a>.</p>
-</div>
-</div>
-</div>
-<div class="sect4">
-<h5 id="_storage">6.3.2.3. Storage</h5>
-<div class="paragraph">
-<p>After the problems are created, Dynatrace stores all of the <strong>log records</strong> in the default_logs bucket (storage processors below).</p>
-</div>
-<div id="lst-openpipeline-storage" class="listingblock">
-<div class="title">Listing 13. Spark OpenPipeline storage (default_logs bucket)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-    </span><span class="nl">"storage"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-      </span><span class="nl">"processors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-        </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default-storage"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bucketAssignment"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Store in default logs bucket"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"true"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"bucketAssignment"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nl">"bucketName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default_logs"</span><span class="w"> </span><span class="p">}</span><span class="w">
-        </span><span class="p">}</span><span class="w">
-      </span><span class="p">]</span><span class="w">
-    </span><span class="p">}</span><span class="w">
-</span><span class="p">}</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_alerting">6.3.3. Alerting</h4>
-<div class="paragraph">
-<p>To emit a Davis problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format.</p>
-</div>
-<div class="sect4">
-<h5 id="_alerting_profile">6.3.3.1. Alerting Profile</h5>
-<div class="paragraph">
-<p>The alerting profile couples a management zone to a set of severity level and event filters on the problems. Matching problems will be emitted to ServiceNow. THe full alerting profile template is shown below.</p>
-</div>
-<div id="lst-alerting-profile" class="listingblock">
-<div class="title">Listing 14. Alerting profile for Spark Observability to ServiceNow</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-  </span><span class="nl">"schemaId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtin:alerting.profile"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"scope"</span><span class="p">:</span><span class="w"> </span><span class="s2">"environment"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application Observability - ServiceNow"</span><span class="p">,</span><span class="w">
-    </span><span class="nl">"severityRules"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AVAILABILITY"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
-      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERRORS"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
-      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PERFORMANCE"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
-      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"RESOURCE_CONTENTION"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
-      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CUSTOM_ALERT"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">}</span><span class="w">
-    </span><span class="p">],</span><span class="w">
-    </span><span class="nl">"eventFilters"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span><span class="w">
-    </span><span class="nl">"managementZone"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;Spark Observability - MANAGMENT ZONE OBJECT-ID&gt;"</span><span class="w">
-  </span><span class="p">}</span><span class="w">
-</span><span class="p">}</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Note that alerting profiles management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have an <code>dt.source_entity</code> in the Spark Observability management zone. This means that the impacted entities (hosts for OneAgent file tails and CPU) must be in the Spark Observability management zone, too.</p>
-</div>
-</div>
-<div class="sect4">
-<h5 id="_webhook_endpoint">6.3.3.2. Webhook Endpoint</h5>
-<div class="paragraph">
-<p>The webhook endpoint template couples the alerting profile to the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. The full webhook endpoint template is shown below.</p>
-</div>
-<div id="lst-webhook-endpoint" class="listingblock">
-<div class="title">Listing 15. Problem notification webhook endpoint (SGC)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="yaml"><span class="na">enabled</span><span class="pi">:</span> <span class="no">true</span>
-<span class="na">type</span><span class="pi">:</span> <span class="s">WEBHOOK</span>
-<span class="na">displayName</span><span class="pi">:</span> <span class="s2">"</span><span class="s">ServiceNow</span><span class="nv"> </span><span class="s">brooks-lab</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">Spark</span><span class="nv"> </span><span class="s">Observability"</span>
-<span class="na">alertingProfile</span><span class="pi">:</span> <span class="s2">"</span><span class="s">&lt;Application</span><span class="nv"> </span><span class="s">Observability</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">ServiceNow</span><span class="nv"> </span><span class="s">OBJECT-ID"</span>
-<span class="na">webHookNotification</span><span class="pi">:</span>
-  <span class="na">url</span><span class="pi">:</span> <span class="s2">"</span><span class="s">https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace</span>
-<span class="s">"</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_problem_notification_payload_template">6.3.4. Problem notification payload template</h4>
-<div class="paragraph">
-<p>The template in <a href="#spec-dt-webhook-payload-json">Problem notification payload specification</a> is substituted by Dynatrace at send time. <strong><code>ProblemDetailsJSON.rankedEvents[]</code></strong> carries the OpenPipeline Davis properties from <a href="#lst-openpipeline-davis">OpenPipeline Davis processors</a> (<code>event.description</code>, entity ids, severity). Those ranked events are the <strong>problem specification</strong> that flows into ServiceNow <strong><code>em_event.description</code></strong> (via <strong><code>ProblemDetailsText</code></strong>) and into <strong><code>em_event.additional_info</code></strong>.</p>
-</div>
-<div id="spec-dt-webhook-payload-json" class="listingblock">
-<div class="title">Listing 16. Specification 2.6.2-1. Problem notification payload (SGC)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-  </span><span class="nl">"ConnectionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;sgc-connection-sys-id&gt;"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemID}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemTitle}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemSeverity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemSeverity}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemImpact"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemImpact}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemDetailsJSON"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">ProblemDetailsJSON</span><span class="p">},</span><span class="w">
-  </span><span class="nl">"ProblemDetailsText"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemDetailsText}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ImpactedEntities"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">ImpactedEntities</span><span class="p">},</span><span class="w">
-  </span><span class="nl">"ImpactedEntity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ImpactedEntity}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemURL"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemURL}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"State"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{State}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"Tags"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{Tags}"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"PID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{PID}"</span><span class="w">
-</span><span class="p">}</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>A complete example of the problem notification payload is shown below.</p>
-</div>
-<div id="lst-problem-notification-payload-example" class="listingblock">
-<div class="title">Listing 17. Example Client Mode problem notification payload</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-  </span><span class="nl">"ConnectionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a1b2c3d4e5f678901234567890abcdef0"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"-9876543210987654321"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemSeverity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemImpact"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INFRASTRUCTURE"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemDetailsJSON"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-    </span><span class="nl">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
-    </span><span class="nl">"problemId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"-9876543210987654321"</span><span class="p">,</span><span class="w">
-    </span><span class="nl">"rankedEvents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+  </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-enrichment-missing-davis"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"davis"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Fail-visible: WARN/ERROR without spark.mode (not Client file nor Cluster Container Output enrichment)"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(loglevel == </span><span class="se">\"</span><span class="s2">WARN</span><span class="se">\"</span><span class="s2"> OR loglevel == </span><span class="se">\"</span><span class="s2">ERROR</span><span class="se">\"</span><span class="s2">) AND isNull(spark.mode) AND (matchesValue(log.source, </span><span class="se">\"</span><span class="s2">/mnt/spark/client-logs/*</span><span class="se">\"</span><span class="s2">) OR matchesValue(log.source, </span><span class="se">\"</span><span class="s2">Container Output</span><span class="se">\"</span><span class="s2">))"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.type"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.event_kind"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CRITICAL_LOG_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.name"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark log missing spark.mode enrichment on {log.source}"</span><span class="w"> </span><span class="p">},</span><span class="w">
       </span><span class="p">{</span><span class="w">
-        </span><span class="nl">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST-A1B2C3D4E5F67890"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"entityName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Lab3"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"eventDescription"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"</span><span class="w">
-      </span><span class="p">}</span><span class="w">
-    </span><span class="p">],</span><span class="w">
-    </span><span class="nl">"startTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">1719502426000</span><span class="p">,</span><span class="w">
-    </span><span class="nl">"endTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">-1</span><span class="w">
-  </span><span class="p">},</span><span class="w">
-  </span><span class="nl">"ProblemDetailsText"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client:</span><span class="se">\n</span><span class="s2">2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job</span><span class="se">\n\n</span><span class="s2">1 impacted entity: Lab3"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ImpactedEntities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-    </span><span class="p">{</span><span class="w">
-      </span><span class="nl">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST-A1B2C3D4E5F67890"</span><span class="p">,</span><span class="w">
-      </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Lab3"</span><span class="p">,</span><span class="w">
-      </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST"</span><span class="w">
-    </span><span class="p">}</span><span class="w">
-  </span><span class="p">],</span><span class="w">
-  </span><span class="nl">"ImpactedEntity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Lab3"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"ProblemURL"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://&lt;tenant&gt;.apps.dynatrace.com/ui/problems/&lt;problem-id&gt;"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"State"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OPEN"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"Tags"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Project:spark-observability"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"PID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"-9876543210987654321"</span><span class="w">
-</span><span class="p">}</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="ch-cluster-mode">7. Chapter 6 — Cluster Mode Use Case</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>This chapter mirrors <a href="#ch-client-mode">Chapter 5</a> for <strong>Spark Cluster Mode</strong>: Log4j2 <strong>Console</strong> → container stdout, DynaKube <code>logMonitoring: {}</code> → <code>log.source=Container Output</code>, OpenPipeline enrichment from <code>k8s.pod.name</code> (<code>spark.mode=Cluster</code>, <code>spark.pod_identifier</code>), and the Cluster Davis processor. There is <strong>no</strong> custom log source path on <code>/mnt/spark/logs</code> for application logs.</p>
-</div>
-<div class="sect2">
-<h3 id="_phase_2_spark_application_2">7.1. Phase 2 — Spark Application</h3>
-<div class="paragraph">
-<p>Cluster Mode Spark components (Master, Workers, History Server, executors) emit application logs to <strong>stdout</strong> so the kubelet / OneAgent Log module can ingest them with Kubernetes entity context.</p>
-</div>
-<div class="paragraph">
-<p><a href="#list-spark-log-file-sample-cluster">Listing 18</a> illustrates a sample Cluster Mode log line (same Log4j pattern as Client Mode).</p>
-</div>
-<div id="list-spark-log-file-sample-cluster" class="listingblock figure-indent">
-<div class="title">Listing 18. Spark Cluster Mode log sample (stdout)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="text">2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Criticality for the reference implementation remains WARN and ERROR log levels.</p>
-</div>
-<div class="sect3">
-<h4 id="_log_emission_container_stdout">7.1.1. Log emission (container stdout)</h4>
-<div class="paragraph">
-<p>Cluster Mode does <strong>not</strong> rely on OneAgent file-tail under <code>/mnt/spark/logs/&lt;pod&gt;/</code> for Log-to-Incident application logs. Pods write Log4j application lines to the Console appender (container stdout). Dynatrace ingests those streams as <strong><code>log.source=Container Output</code></strong>.</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-A separate RollingFile under <code>/opt/spark/logs</code> may still exist for the OTel EventEmitter path; that file is <strong>not</strong> used for L2I Davis alerts.
-</td>
-</tr>
-</table>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_log4j_configuration_2">7.1.2. Log4j configuration</h4>
-<div class="paragraph">
-<p>Cluster Mode uses <code>spark/conf/log4j2-cluster.properties</code>: root logger → <strong>Console</strong> only for application logs.</p>
-</div>
-<div id="lst-log4j-cluster-console" class="listingblock">
-<div class="title">Listing 19. Log4j Console — Cluster Mode (container stdout)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="properties"><span class="c"># ConsoleAppender — kubelet /var/log/pods → Dynatrace Container Output
-</span><span class="py">appender.console.type</span> <span class="p">=</span> <span class="s">Console</span>
-<span class="py">appender.console.name</span> <span class="p">=</span> <span class="s">Console</span>
-<span class="py">appender.console.layout.type</span> <span class="p">=</span> <span class="s">PatternLayout</span>
-<span class="py">appender.console.layout.pattern</span> <span class="p">=</span> <span class="s">%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n%ex</span>
-
-<span class="c"># Root logger — Console only (container stdout)
-</span><span class="py">rootLogger.level</span> <span class="p">=</span> <span class="s">info</span>
-<span class="py">rootLogger.appenderRefs</span> <span class="p">=</span> <span class="s">console</span>
-<span class="py">rootLogger.appenderRef.console.ref</span> <span class="p">=</span> <span class="s">Console</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="step-2-dynatrace-cluster">7.2. Phase 2 — OneAgent</h3>
-<div class="paragraph">
-<p>OneAgent on each Kubernetes node collects container stdout/stderr when DynaKube enables the Log module. Unlike Client Mode, Cluster Mode application logs do <strong>not</strong> use a custom log source path pattern for <code>/mnt/spark/logs</code>.</p>
-</div>
-<div class="sect3">
-<h4 id="_log_metadata_2">7.2.1. Log Metadata</h4>
-<div id="lst-dynakube-log-monitoring" class="listingblock">
-<div class="title">Listing 20. DynaKube logMonitoring (Container Output)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="yaml"><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">dynatrace.com/v1beta5</span>
-<span class="na">kind</span><span class="pi">:</span> <span class="s">DynaKube</span>
-<span class="na">metadata</span><span class="pi">:</span>
-  <span class="na">name</span><span class="pi">:</span> <span class="s">dynakube</span>
-<span class="na">spec</span><span class="pi">:</span>
-  <span class="c1"># OneAgent Log module: autodiscover container stdout/stderr</span>
-  <span class="c1"># (log.source=Container Output). Required for Cluster Mode Spark</span>
-  <span class="c1"># app logs after log4j2-cluster Console appender.</span>
-  <span class="na">logMonitoring</span><span class="pi">:</span> <span class="pi">{}</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Repo: <code>observability/dynatrace/dynakube/dynakube.yaml.j2</code>.</p>
-</div>
-<table id="tbl-oneagent-log-metadata-cluster" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 8. OneAgent Container Output metadata fields (Cluster Mode)</caption>
-<colgroup>
-<col style="width: 24%;">
-<col style="width: 36%;">
-<col style="width: 40%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Attribute</th>
-<th class="tableblock halign-left valign-top">How it is set</th>
-<th class="tableblock halign-left valign-top">Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>content</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent (raw line)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Full Log4j line from stdout</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>loglevel</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent (severity from line text)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>WARN</code>, <code>ERROR</code>, <code>INFO</code>, …</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>log.source</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent Log module</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Container Output</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s.namespace.name</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent / Kubernetes enrichment</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">e.g. <code>spark</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s.pod.name</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent / Kubernetes enrichment</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">e.g. <code>spark-master-0</code> (pod <code>metadata.name</code>)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.mode</code> / <code>spark.pod_identifier</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OpenPipeline (not custom log source)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Set in processing from <code>k8s.pod.name</code> (below)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Entity context</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent Log module</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">May attach CAI / PGI / process context — unlike Client Mode HOST file-tail</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_phase_3_dynatrace_2">7.3. Phase 3 — Dynatrace</h3>
-<div class="sect3">
-<h4 id="_log_routing_2">7.3.1. Log Routing</h4>
-<div class="paragraph">
-<p>Cluster Container Output shares the Spark Lab OpenPipeline with Client file tails (same routing object as <a href="#lst-spark-log-routing">Chapter 5 routing</a>). Matcher includes <code>log.source</code> = <code>Container Output</code>.</p>
-</div>
-<div id="lst-spark-log-routing-cluster" class="listingblock">
-<div class="title">Listing 21. Spark OpenPipeline logs routing (Cluster-relevant matcher)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-  </span><span class="nl">"schemaId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtin:openpipeline.logs.routing"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"scope"</span><span class="p">:</span><span class="w"> </span><span class="s2">"environment"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-    </span><span class="nl">"routingEntries"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-      </span><span class="p">{</span><span class="w">
-        </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"pipelineType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"custom"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"pipelineId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"matchesValue(log.source, </span><span class="se">\"</span><span class="s2">/mnt/spark/client-logs/*</span><span class="se">\"</span><span class="s2">) OR matchesValue(log.source, </span><span class="se">\"</span><span class="s2">Container Output</span><span class="se">\"</span><span class="s2">)"</span><span class="p">,</span><span class="w">
-        </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Lab log alerts (Client file + Cluster Container Output)"</span><span class="w">
-      </span><span class="p">}</span><span class="w">
+        </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.description"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.unique_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"enrichment-missing|{log.source}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{pipeline}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_merging_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.event_timeout"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"15m"</span><span class="w"> </span><span class="p">}</span><span class="w">
     </span><span class="p">]</span><span class="w">
   </span><span class="p">}</span><span class="w">
 </span><span class="p">}</span></code></pre>
 </div>
 </div>
 </div>
-<div class="sect3">
-<h4 id="_openpipeline_processing_2">7.3.2. OpenPipeline processing</h4>
-<div class="paragraph">
-<p>Same pipeline shell as Chapter 5 (<code>spark-lab-log-alerts</code>). Cluster Mode adds the <code>enrich-cluster-from-k8s</code> processor before Log4j parse / Davis.</p>
-</div>
-<table id="tbl-openpipeline-entry-fields-cluster" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 9. OpenPipeline entry fields (Cluster Mode)</caption>
-<colgroup>
-<col style="width: 30%;">
-<col style="width: 70%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Field Name</th>
-<th class="tableblock halign-left valign-top">Cluster Mode</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">log.source</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Container Output</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">k8s.pod.name</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Kubernetes pod name (e.g. <code>spark-master-0</code>)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">spark.mode</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Cluster</code> (from <code>enrich-cluster-from-k8s</code>)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">spark.pod_identifier</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>toString(k8s.pod.name)</code> (from pipeline; SN bind key)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">spark.service_instance</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">unset</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">dt.source_entity</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OneAgent Log module entity context (CAI/PGI when associated). SN binds via <code>spark.pod_identifier</code>, not HOST file-tail</p></td>
-</tr>
-</tbody>
-</table>
-<div class="sect4">
-<h5 id="_processors_2">7.3.2.1. Processors</h5>
-<div id="lst-openpipeline-processing-cluster" class="listingblock">
-<div class="title">Listing 22. Spark OpenPipeline processing processors (Cluster Mode)</div>
-<div class="content">
-<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
-    </span><span class="nl">"processing"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-      </span><span class="nl">"processors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-        </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tag-pipeline-custom-id"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fieldsAdd"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Convention: stamp OpenPipeline customId on every log record for easy Grail filtering"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"true"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"fieldsAdd"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-            </span><span class="nl">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}"</span><span class="w"> </span><span class="p">}</span><span class="w">
-            </span><span class="p">]</span><span class="w">
-          </span><span class="p">}</span><span class="w">
-        </span><span class="p">},</span><span class="w">
-        </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"enrich-cluster-from-k8s"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dql"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Cluster: Container Output → spark.mode + spark.pod_identifier from k8s.pod.name"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"matchesValue(log.source, </span><span class="se">\"</span><span class="s2">Container Output</span><span class="se">\"</span><span class="s2">) AND matchesValue(k8s.namespace.name, </span><span class="se">\"</span><span class="s2">spark</span><span class="se">\"</span><span class="s2">) AND matchesValue(k8s.pod.name, </span><span class="se">\"</span><span class="s2">spark-*</span><span class="se">\"</span><span class="s2">) AND isNull(spark.mode)"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"dql"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-            </span><span class="nl">"script"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fieldsAdd spark.mode = </span><span class="se">\"</span><span class="s2">Cluster</span><span class="se">\"</span><span class="s2">, spark.pod_identifier = toString(k8s.pod.name)"</span><span class="w">
-          </span><span class="p">}</span><span class="w">
-        </span><span class="p">},</span><span class="w">
-        </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"extract-log4j-class-line"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dql"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Parse Log4j short class and line (Class:Line) for Grail and Davis unique_identifier"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"true"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"dql"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
-            </span><span class="nl">"script"</span><span class="p">:</span><span class="w"> </span><span class="s2">"parse content, </span><span class="se">\"</span><span class="s2">TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD</span><span class="se">\"</span><span class="s2">"</span><span class="w">
-          </span><span class="p">}</span><span class="w">
-        </span><span class="p">}</span><span class="w">
-      </span><span class="p">]</span><span class="w">
-    </span><span class="p">}</span><span class="w">
-</span><span class="p">}</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p><code>spark.pod_identifier</code> carries the Kubernetes pod name for the ServiceNow <code>svc_ci_assoc</code> membership lookup to the service instance. OpenPipeline does <strong>not</strong> bake CAI entity ids at apply time.</p>
-</div>
-</div>
-<div class="sect4">
-<h5 id="_davis_2">7.3.2.2. Davis</h5>
+<div class="sect5">
+<h6 id="_cluster_mode_4">6.3.2.2.3. Cluster Mode</h6>
 <table id="tbl-davis-properties-cluster" class="tableblock frame-all grid-all stretch">
-<caption class="title">Table 10. Davis Properties (Cluster Mode)</caption>
+<caption class="title">Table 9. Davis Properties (Cluster Mode)</caption>
 <colgroup>
 <col style="width: 20%;">
 <col style="width: 80%;">
@@ -2561,7 +2269,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </tbody>
 </table>
 <div id="lst-openpipeline-davis-cluster" class="listingblock">
-<div class="title">Listing 23. Spark OpenPipeline Davis processors (Cluster Mode)</div>
+<div class="title">Listing 16. Spark OpenPipeline Davis processors (Cluster Mode)</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
     </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
@@ -2589,25 +2297,96 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.event_timeout"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"15m"</span><span class="w"> </span><span class="p">}</span><span class="w">
             </span><span class="p">]</span><span class="w">
           </span><span class="p">}</span><span class="w">
-        </span><span class="p">},</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect5">
+<h6 id="_client_mode_4">6.3.2.2.4. Client Mode</h6>
+<table id="tbl-davis-properties" class="tableblock frame-all grid-all stretch">
+<caption class="title">Table 10. Davis Properties (Client Mode)</caption>
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 80%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.type</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ERROR_EVENT</code> (Dynatrace Settings API fixed enum)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.event_kind</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>CRITICAL_LOG_EVENT</code> (lab semantic label; ServiceNow remaps <code>em_event.type</code> / <code>em_alert.type</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.name</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.description</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">includes <code>{spark.log.class}:{spark.log.line}</code>, path, and <code>spark.service_instance=</code> for SN bind</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.source_entity</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">HOST (OneAgent file tail; in MZ). SN binds via <code>spark.service_instance</code>, not HOST</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark.service_instance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark-Client</code> (stamped into description + properties)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>event.unique_identifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pipeline</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>spark-lab-log-alerts</code> (OpenPipeline customId; stamped in processing)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.davis.is_merging_allowed</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code> to prevent merging of multiple Davis events into the same problem</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dt.davis.event_timeout</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>15m</code> (unused while merging is disabled)</p></td>
+</tr>
+</tbody>
+</table>
+<div id="lst-openpipeline-davis" class="listingblock">
+<div class="title">Listing 17. Spark OpenPipeline Davis processors (Client Mode)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+    </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"processors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
         </span><span class="p">{</span><span class="w">
-          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-enrichment-missing-davis"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark-client-warn-error-davis"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"davis"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Fail-visible: WARN/ERROR without spark.mode on Container Output"</span><span class="p">,</span><span class="w">
-          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(loglevel == </span><span class="se">\"</span><span class="s2">WARN</span><span class="se">\"</span><span class="s2"> OR loglevel == </span><span class="se">\"</span><span class="s2">ERROR</span><span class="se">\"</span><span class="s2">) AND isNull(spark.mode) AND matchesValue(log.source, </span><span class="se">\"</span><span class="s2">Container Output</span><span class="se">\"</span><span class="s2">)"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp spark.service_instance; leave HOST as dt.source_entity"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"(loglevel == </span><span class="se">\"</span><span class="s2">WARN</span><span class="se">\"</span><span class="s2"> OR loglevel == </span><span class="se">\"</span><span class="s2">ERROR</span><span class="se">\"</span><span class="s2">) AND spark.mode == </span><span class="se">\"</span><span class="s2">Client</span><span class="se">\"</span><span class="s2"> AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)"</span><span class="p">,</span><span class="w">
           </span><span class="nl">"davis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
             </span><span class="nl">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.type"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.event_kind"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CRITICAL_LOG_EVENT"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.name"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark log missing spark.mode enrichment on {log.source}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.name"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w">
                 </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.description"</span><span class="p">,</span><span class="w">
-                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"</span><span class="w">
+                </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance={spark.service_instance}: {content}"</span><span class="w">
               </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.unique_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"enrichment-missing|{log.source}"</span><span class="w"> </span><span class="p">},</span><span class="w">
-              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{pipeline}"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_merging_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark.service_instance"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{spark.service_instance}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"event.unique_identifier"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pipeline"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{pipeline}"</span><span class="w"> </span><span class="p">},</span><span class="w">
+              </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.is_entity_remapping_allowed"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"false"</span><span class="w"> </span><span class="p">},</span><span class="w">
               </span><span class="p">{</span><span class="w"> </span><span class="nl">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dt.davis.event_timeout"</span><span class="p">,</span><span class="w"> </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"15m"</span><span class="w"> </span><span class="p">}</span><span class="w">
             </span><span class="p">]</span><span class="w">
           </span><span class="p">}</span><span class="w">
@@ -2618,29 +2397,131 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="paragraph">
-<p>Once a Davis problem is created it is forwarded to ServiceNow via the same alerting profile / webhook as Chapter 5 (<a href="#lst-alerting-profile">Listing 14</a>).</p>
+<p>Once a Davis problem is created the problem is forwarded to ServiceNow via the alerting profile in <a href="#lst-alerting-profile">Listing 19</a>.</p>
+</div>
 </div>
 </div>
 <div class="sect4">
-<h5 id="_storage_2">7.3.2.3. Storage</h5>
+<h5 id="_storage">6.3.2.3. Storage</h5>
 <div class="paragraph">
-<p>Storage is the same default_logs bucket assignment as Chapter 5 (<a href="#lst-openpipeline-storage">Listing 13</a>).</p>
+<p>After the problems are created, Dynatrace stores all of the <strong>log records</strong> in the default_logs bucket (storage processors below). The same bucket assignment applies to Client and Cluster Mode records that traverse this pipeline.</p>
+</div>
+<div id="lst-openpipeline-storage" class="listingblock">
+<div class="title">Listing 18. Spark OpenPipeline storage (default_logs bucket)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+    </span><span class="nl">"storage"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"processors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+        </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default-storage"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bucketAssignment"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Store in default logs bucket"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"true"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"bucketAssignment"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nl">"bucketName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default_logs"</span><span class="w"> </span><span class="p">}</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
 </div>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_alerting_2">7.3.3. Alerting</h4>
+<h4 id="_alerting">6.3.3. Alerting</h4>
 <div class="paragraph">
-<p>Alerting profile and brooks-lab webhook are shared with Client Mode. Ensure Kubernetes workloads (<code>CLOUD_APPLICATION</code> <code>spark-*</code>) and related CAI instances are in MZ <strong>Spark Observability</strong> so Container Output problems notify SGO.</p>
+<p>To emit a Davis problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format. Client and Cluster Mode share the same alerting profile and brooks-lab webhook.</p>
+</div>
+<div class="sect4">
+<h5 id="_alerting_profile">6.3.3.1. Alerting Profile</h5>
+<div class="paragraph">
+<p>The alerting profile couples a management zone to a set of severity level and event filters on the problems. Matching problems will be emitted to ServiceNow. The full alerting profile template is shown below.</p>
+</div>
+<div id="lst-alerting-profile" class="listingblock">
+<div class="title">Listing 19. Alerting profile for Spark Observability to ServiceNow</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"schemaId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"builtin:alerting.profile"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"scope"</span><span class="p">:</span><span class="w"> </span><span class="s2">"environment"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application Observability - ServiceNow"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"severityRules"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AVAILABILITY"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERRORS"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PERFORMANCE"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"RESOURCE_CONTENTION"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">},</span><span class="w">
+      </span><span class="p">{</span><span class="w"> </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CUSTOM_ALERT"</span><span class="p">,</span><span class="w"> </span><span class="nl">"delayInMinutes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nl">"tagFilterIncludeMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="w"> </span><span class="p">}</span><span class="w">
+    </span><span class="p">],</span><span class="w">
+    </span><span class="nl">"eventFilters"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span><span class="w">
+    </span><span class="nl">"managementZone"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;Spark Observability - MANAGMENT ZONE OBJECT-ID&gt;"</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that the alerting profile management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have a <code>dt.source_entity</code> in the Spark Observability management zone. This means that the impacted entities (hosts for OneAgent file tails and CPU, and Kubernetes workloads for Container Output) must be in the Spark Observability management zone, too.</p>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_webhook_endpoint">6.3.3.2. Webhook Endpoint</h5>
+<div class="paragraph">
+<p>The webhook endpoint template couples the alerting profile to the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. The full webhook endpoint template is shown below.</p>
+</div>
+<div id="lst-webhook-endpoint" class="listingblock">
+<div class="title">Listing 20. Problem notification webhook endpoint (SGC)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="yaml"><span class="na">enabled</span><span class="pi">:</span> <span class="no">true</span>
+<span class="na">type</span><span class="pi">:</span> <span class="s">WEBHOOK</span>
+<span class="na">displayName</span><span class="pi">:</span> <span class="s2">"</span><span class="s">ServiceNow</span><span class="nv"> </span><span class="s">brooks-lab</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">Spark</span><span class="nv"> </span><span class="s">Observability"</span>
+<span class="na">alertingProfile</span><span class="pi">:</span> <span class="s2">"</span><span class="s">&lt;Application</span><span class="nv"> </span><span class="s">Observability</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">ServiceNow</span><span class="nv"> </span><span class="s">OBJECT-ID"</span>
+<span class="na">webHookNotification</span><span class="pi">:</span>
+  <span class="na">url</span><span class="pi">:</span> <span class="s2">"</span><span class="s">https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace</span>
+<span class="s">"</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_cluster_mode_5">6.3.3.3. Cluster Mode</h5>
+<div class="paragraph">
+<p>Ensure Kubernetes workloads (<code>CLOUD_APPLICATION</code> <code>spark-*</code>) and related CAI instances are in MZ <strong>Spark Observability</strong> so Container Output problems notify SGO.</p>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_client_mode_5">6.3.3.4. Client Mode</h5>
+<div class="paragraph">
+<p>Impacted entities for Client Mode Davis problems are typically the OneAgent <strong>HOST</strong> that tailed <code>/mnt/spark/client-logs/</code>. That host must be in MZ <strong>Spark Observability</strong> for the shared alerting profile to forward the problem.</p>
+</div>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_problem_notification_payload_template_2">7.3.4. Problem notification payload template</h4>
+<h4 id="_problem_notification_payload_template">6.3.4. Problem notification payload template</h4>
 <div class="paragraph">
-<p>Payload shape matches <a href="#spec-dt-webhook-payload-json">Chapter 5 payload specification</a>. Cluster Mode example:</p>
+<p>The template in <a href="#spec-dt-webhook-payload-json">Problem notification payload specification</a> is substituted by Dynatrace at send time. <strong><code>ProblemDetailsJSON.rankedEvents[]</code></strong> carries the OpenPipeline Davis properties from the Davis processors (<code>event.description</code>, entity ids, severity). Those ranked events are the <strong>problem specification</strong> that flows into ServiceNow <strong><code>em_event.description</code></strong> (via <strong><code>ProblemDetailsText</code></strong>) and into <strong><code>em_event.additional_info</code></strong>.</p>
 </div>
+<div id="spec-dt-webhook-payload-json" class="listingblock">
+<div class="title">Listing 21. Specification 2.6.2-1. Problem notification payload (SGC)</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"ConnectionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;sgc-connection-sys-id&gt;"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemID}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemTitle}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemSeverity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemSeverity}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemImpact"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemImpact}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemDetailsJSON"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">ProblemDetailsJSON</span><span class="p">},</span><span class="w">
+  </span><span class="nl">"ProblemDetailsText"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemDetailsText}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ImpactedEntities"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">ImpactedEntities</span><span class="p">},</span><span class="w">
+  </span><span class="nl">"ImpactedEntity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ImpactedEntity}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemURL"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{ProblemURL}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"State"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{State}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"Tags"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{Tags}"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"PID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{PID}"</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_cluster_mode_6">6.3.4.1. Cluster Mode</h5>
 <div id="lst-problem-notification-payload-example-cluster" class="listingblock">
-<div class="title">Listing 24. Example Cluster Mode problem notification payload</div>
+<div class="title">Listing 22. Example Cluster Mode problem notification payload</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
   </span><span class="nl">"ConnectionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a1b2c3d4e5f678901234567890abcdef0"</span><span class="p">,</span><span class="w">
@@ -2683,13 +2564,58 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <div class="paragraph">
 <p>ServiceNow <strong><code>ResolveApplicationService</code></strong> binds via <code>spark.pod_identifier</code> → pod CI by name → <code>svc_ci_assoc</code> service instance membership (ignores HOST when the pod identifier is present).</p>
 </div>
+</div>
+<div class="sect4">
+<h5 id="_client_mode_6">6.3.4.2. Client Mode</h5>
+<div id="lst-problem-notification-payload-example" class="listingblock">
+<div class="title">Listing 23. Example Client Mode problem notification payload</div>
+<div class="content">
+<pre class="rouge highlight"><code data-lang="json"><span class="p">{</span><span class="w">
+  </span><span class="nl">"ConnectionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a1b2c3d4e5f678901234567890abcdef0"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"-9876543210987654321"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemSeverity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemImpact"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INFRASTRUCTURE"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemDetailsJSON"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"problemId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"-9876543210987654321"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"rankedEvents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w">
+        </span><span class="nl">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST-A1B2C3D4E5F67890"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"entityName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Lab3"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR_EVENT"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"severityLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ERROR"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark critical ERROR error at TaskSetManager:270"</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"eventDescription"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"</span><span class="w">
+      </span><span class="p">}</span><span class="w">
+    </span><span class="p">],</span><span class="w">
+    </span><span class="nl">"startTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">1719502426000</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"endTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">-1</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"ProblemDetailsText"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT spark.service_instance=Spark-Client:</span><span class="se">\n</span><span class="s2">2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job</span><span class="se">\n\n</span><span class="s2">1 impacted entity: Lab3"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ImpactedEntities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST-A1B2C3D4E5F67890"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Lab3"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"HOST"</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">],</span><span class="w">
+  </span><span class="nl">"ImpactedEntity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Lab3"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ProblemURL"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://&lt;tenant&gt;.apps.dynatrace.com/ui/problems/&lt;problem-id&gt;"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"State"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OPEN"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"Tags"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Project:spark-observability"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"PID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"-9876543210987654321"</span><span class="w">
+</span><span class="p">}</span></code></pre>
+</div>
+</div>
 <hr>
 </div>
 </div>
 </div>
 </div>
+</div>
 <div class="sect1">
-<h2 id="_phase_4_servicenow">8. Phase 4 — ServiceNow</h2>
+<h2 id="_phase_4_servicenow">7. Phase 4 — ServiceNow</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>ServiceNow Event Management is a three stage process. First, event data is received from external sources, like Dynatrace and an event is created. If the message key of the candidate event matches an existing event, the candidate event is considered a duplicate event, and it will get combined with the earlier event. Then, an event is either promoted to an alert or grouped into an existing alert. Alerts then optionally be promoted to an incident or grouped with an existing incident. Once an incident is created a support team is notified.</p>
@@ -2701,7 +2627,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>At each step in the process there is an opportunity to increase the signal to noise ratio. For example, in the first step, we can deduplicate events from the same source and time window. In the second step, we can group related events into a single alert. In the third step, we can group related alerts into a single incident.</p>
 </div>
 <div class="sect3">
-<h4 id="_event_management">8.1. Event Management</h4>
+<h4 id="_event_management">7.1. Event Management</h4>
 <div class="paragraph">
 <p>Once an event payload is received, the first step is to create an event object in ServiceNow. The table below shows how the webhook fields map to the event object fields.</p>
 </div>
@@ -2797,7 +2723,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="sect3">
-<h4 id="_entity_type_to_cmdb_class">8.2. Entity type to CMDB class</h4>
+<h4 id="_entity_type_to_cmdb_class">7.2. Entity type to CMDB class</h4>
 <table id="tbl-entity-prefix-to-cmdb" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 12. Dynatrace entityId prefix to CMDB class</caption>
 <colgroup>
@@ -2851,13 +2777,13 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="sect3">
-<h4 id="_alert_management">8.3. Alert Management</h4>
+<h4 id="_alert_management">7.3. Alert Management</h4>
 <div class="paragraph">
 <p>see if there is an existing event with the same message key. If there was no message key, ServiceNow generates a message key from the Source, Node, Type, Resource, and Metric Name fields. The message key (Problem ID) should always be populated by Dynatrace. If the event is a duplicate, it will get grouped into the alert of the existing event. If the duplicate</p>
 </div>
 </div>
 <div class="sect3">
-<h4 id="_description_and_alert_text">8.4. Description and alert text</h4>
+<h4 id="_description_and_alert_text">7.4. Description and alert text</h4>
 <table id="tbl-description-and-alert-text" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 13. Required description and alert text fields</caption>
 <colgroup>
@@ -2891,7 +2817,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </table>
 </div>
 <div class="sect3">
-<h4 id="_sgc_and_event_management_configuration">8.5. SGC and Event Management configuration</h4>
+<h4 id="_sgc_and_event_management_configuration">7.5. SGC and Event Management configuration</h4>
 <table id="tbl-sgc-em-configuration" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 14. SGC and Event Management configuration components</caption>
 <colgroup>
@@ -2925,7 +2851,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </table>
 </div>
 <div class="sect3">
-<h4 id="step-4-sn-dynatrace">8.6. Application and Dynatrace (???? 5)</h4>
+<h4 id="step-4-sn-dynatrace">7.6. Application and Dynatrace (???? 5)</h4>
 <div class="paragraph">
 <p>At Phase 5 the <strong>Observability engineer</strong> typically performs <strong>verification</strong>, not new Dynatrace or application configuration:</p>
 </div>
@@ -2935,7 +2861,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>After a test problem fires, confirm <strong><code>em_event.source=SGO-Dynatrace</code></strong> and <strong><code>em_event.cmdb_ci</code></strong> is populated (service instance via <code>spark.pod_identifier</code> for Cluster; Spark Client AS via <code>spark.service_instance</code> for Client).</p>
 </li>
 <li>
-<p>If Cluster <strong><code>cmdb_ci</code></strong> remains empty or a Linux server, return to <a href="#step-2-dynatrace-cluster">Chapter 6 — OneAgent</a> / <a href="#lst-openpipeline-processing-cluster">Cluster OpenPipeline processors</a> and verify <strong><code>spark.pod_identifier</code></strong> from <code>k8s.pod.name</code> on Container Output, then the entity bind rules.</p>
+<p>If Cluster <strong><code>cmdb_ci</code></strong> remains empty or a Linux server, return to <a href="#step-2-dynatrace-cluster">Phase 2 — OneAgent (Cluster)</a> / <a href="#lst-openpipeline-processing-cluster">Cluster OpenPipeline processors</a> and verify <strong><code>spark.pod_identifier</code></strong> from <code>k8s.pod.name</code> on Container Output, then the entity bind rules.</p>
 </li>
 <li>
 <p>Confirm <strong><code>sys_object_source</code></strong> contains a row with <strong><code>name=SGO-Dynatrace</code></strong> and <strong><code>id=&lt;entityId&gt;</code></strong> from the webhook <strong>before</strong> the event arrives (SGC scheduled import lag is a common root cause of empty CI).</p>
@@ -2946,7 +2872,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </ol>
 </div>
 <div class="paragraph">
-<p><strong>No ServiceNow-side changes</strong> are required on the monitored <strong>application</strong> (the Java/Spark/Python workload). <strong>No additional Dynatrace</strong> configuration is required at Phase 5 if <a href="#ch-client-mode">Chapter 5</a> and <a href="#ch-cluster-mode">Chapter 6</a> Dynatrace phases are correct.</p>
+<p><strong>No ServiceNow-side changes</strong> are required on the monitored <strong>application</strong> (the Java/Spark/Python workload). <strong>No additional Dynatrace</strong> configuration is required at Phase 5 if <a href="#ch-client-mode">Client and Cluster Mode</a> Dynatrace phases are correct.</p>
 </div>
 <div class="paragraph">
 <p>Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds service instance via <strong><code>spark.pod_identifier</code></strong> (pod CI → <code>svc_ci_assoc</code>), not HOST file-tail.</p>
@@ -2954,11 +2880,11 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <hr>
 </div>
 <div class="sect3">
-<h4 id="_create_incident_bound_to_service_instance">8.7. Create incident bound to service instance</h4>
+<h4 id="_create_incident_bound_to_service_instance">7.7. Create incident bound to service instance</h4>
 
 </div>
 <div class="sect3">
-<h4 id="_severity_policy">8.8. Severity policy</h4>
+<h4 id="_severity_policy">7.8. Severity policy</h4>
 <table id="tbl-severity-policy" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 15. Automatic incident severity policy by environment</caption>
 <colgroup>
@@ -2987,7 +2913,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="sect3">
-<h4 id="_layer_model">8.9. Layer model</h4>
+<h4 id="_layer_model">7.9. Layer model</h4>
 <table id="tbl-em-layer-model" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 16. Event Management layer model and cmdb_ci classes</caption>
 <colgroup>
@@ -3022,7 +2948,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </table>
 </div>
 <div class="sect3">
-<h4 id="step-5-incident-correlation">8.10. Incident correlation</h4>
+<h4 id="step-5-incident-correlation">7.10. Incident correlation</h4>
 <div class="paragraph">
 <p>Incident correlation defines how enriched alerts map to <strong><code>incident.cmdb_ci</code></strong>. The business rule <strong><code>em-alert-create-k8s-log-incident</code></strong> tries the <strong>Client-side</strong> log path first, then the <strong>Service-side</strong> <code>svc_ci_assoc</code> membership lookup.</p>
 </div>
@@ -3057,7 +2983,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </tbody>
 </table>
 <div class="sect4">
-<h5 id="step-5-service-side">8.10.1. Service-side</h5>
+<h5 id="step-5-service-side">7.10.1. Service-side</h5>
 <div class="paragraph">
 <p>The <strong>Spark Service-Side Log Pattern</strong> resolves service instances by looking up the alert&#8217;s pod CI in the <strong><code>svc_ci_assoc</code></strong> membership table maintained by tag-based Service Mapping (see <a href="#step-0-tag-based-membership">Tag-Based Service Mapping and svc_ci_assoc</a>). A membership row associating the pod CI with a <code>cmdb_ci_service_discovered</code> service instance <strong>must</strong> exist before the problem fires.</p>
 </div>
@@ -3085,7 +3011,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="sect4">
-<h5 id="step-5-client-side">8.10.2. Client-side</h5>
+<h5 id="step-5-client-side">7.10.2. Client-side</h5>
 <div class="paragraph">
 <p>The <strong>Spark Client-Side Log Pattern</strong> maps log paths to a single logical service instance. Client-mode driver logs <strong>do not</strong> correspond to a <code>cmdb_ci_kubernetes_pod</code>; incident automation <strong>must not</strong> depend on alert CI or <code>svc_ci_assoc</code> membership.</p>
 </div>
@@ -3114,7 +3040,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 </div>
 </div>
 <div class="sect3">
-<h4 id="csdm-identifier-field-mapping">8.11. CSDM identifier lookup</h4>
+<h4 id="csdm-identifier-field-mapping">7.11. CSDM identifier lookup</h4>
 <div class="paragraph">
 <p>CSDM <strong><code>identifier</code></strong> in <code>*.csdm.yaml</code> is the logical machine key embedded in log paths and optional Dynatrace tags. The table below shows which CMDB fields are reliable for incident lookup on optimizincdemo1.</p>
 </div>
@@ -3154,7 +3080,7 @@ A separate RollingFile under <code>/opt/spark/logs</code> may still exist for th
 <p>Spark Client AS <strong>must</strong> have <code>service_status=operational</code> (promoted by <code>csdm/deploy.yml</code> → <code>ensure_host_as_operational.yml</code>).</p>
 </div>
 <div id="lst-verify-spark-client-as" class="listingblock">
-<div class="title">Listing 25. Verify Spark Client service instance operational status</div>
+<div class="title">Listing 24. Verify Spark Client service instance operational status</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="bash"><span class="nb">cd </span>ansible
 ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/incident/verify_spark_client_as.yml <span class="se">\</span>
@@ -3163,7 +3089,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 </div>
 <div class="sect3">
-<h4 id="known-limitation-davis-bundling">8.12. Davis event identity vs problem merge</h4>
+<h4 id="known-limitation-davis-bundling">7.12. Davis event identity vs problem merge</h4>
 <div class="paragraph">
 <p>Dynatrace can appear to “bundle” unrelated log lines when <strong><code>event.name</code></strong> does not include the intended split key. Reports with the same <strong><code>event.name</code> + <code>event.type</code> + <code>dt.source_entity</code></strong> refresh one Davis event; <strong><code>event.unique_identifier</code> alone does not split that identity</strong>.</p>
 </div>
@@ -3191,7 +3117,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 </div>
 <div class="sect3">
-<h4 id="_servicenow_incident_automation_specification">8.13. ServiceNow incident automation specification</h4>
+<h4 id="_servicenow_incident_automation_specification">7.13. ServiceNow incident automation specification</h4>
 <table id="tbl-sn-incident-automation-spec" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 19. ServiceNow incident automation components</caption>
 <colgroup>
@@ -3249,7 +3175,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </table>
 </div>
 <div class="sect3">
-<h4 id="_business_rule_order_and_rationale">8.14. Business rule order and rationale</h4>
+<h4 id="_business_rule_order_and_rationale">7.14. Business rule order and rationale</h4>
 <div class="paragraph">
 <p>Business rules on <code>em_event</code> and <code>em_alert</code> run in <strong>order</strong> within the same <strong>when</strong> phase (<code>before</code> or <code>after</code>). Lower order runs first.</p>
 </div>
@@ -3292,7 +3218,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </table>
 </div>
 <div class="sect3">
-<h4 id="_alert_to_incident_linkage_em_alert_incident">8.15. Alert to incident linkage (<code>em_alert.incident</code>)</h4>
+<h4 id="_alert_to_incident_linkage_em_alert_incident">7.15. Alert to incident linkage (<code>em_alert.incident</code>)</h4>
 <div class="paragraph">
 <p>On <strong>optimizincdemo1</strong>, Event Management links an alert to its incident through <strong><code>em_alert.incident</code></strong> (reference to the incident record). That field populates the incident <strong>Alerts</strong> tab. Some instances expose the same reference as <code>em_alert.task</code>; this build uses <strong><code>incident</code> only</strong> — do not reference <code>task</code>.</p>
 </div>
@@ -3304,7 +3230,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 </div>
 <div class="sect3">
-<h4 id="_problem_and_alert_lifecycle_open_resolved">8.16. Problem and alert lifecycle (OPEN / RESOLVED)</h4>
+<h4 id="_problem_and_alert_lifecycle_open_resolved">7.16. Problem and alert lifecycle (OPEN / RESOLVED)</h4>
 <div class="paragraph">
 <p>Spark/Log4j does <strong>not</strong> emit explicit “clear” or “recovery” log lines for this use case. Closure is driven by <strong>Dynatrace problem lifecycle</strong>, not application log content:</p>
 </div>
@@ -3335,7 +3261,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 </div>
 <div class="sect3">
-<h4 id="_openpipeline_and_custom_source_attributes_generic_log4j_pattern">8.17. OpenPipeline and custom-source attributes (generic Log4j pattern)</h4>
+<h4 id="_openpipeline_and_custom_source_attributes_generic_log4j_pattern">7.17. OpenPipeline and custom-source attributes (generic Log4j pattern)</h4>
 <div class="paragraph">
 <p>Attributes added by automation (not Spark-specific semantics):</p>
 </div>
@@ -3428,7 +3354,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-5-em-rules">8.18. Event Management rules (manual configuration)</h4>
+<h4 id="step-5-em-rules">7.18. Event Management rules (manual configuration)</h4>
 <div class="paragraph">
 <p>Configure under <strong>Event Management → Rules</strong>:</p>
 </div>
@@ -3460,7 +3386,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect3">
-<h4 id="_script_includes">8.19. Script Includes</h4>
+<h4 id="_script_includes">7.19. Script Includes</h4>
 <div class="paragraph">
 <p>Deploy from <code>servicenow/integrations/incident/</code>. Global scope, <strong>Active</strong> = true. Ansible: <code>ansible/playbooks/servicenow/incident/deploy.yml</code>.</p>
 </div>
@@ -3468,7 +3394,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 <p>Each Script Include below summarizes <strong>purpose</strong>, <strong>inputs</strong>, <strong>outputs / side effects</strong>, and how it fits the business rules. Source of truth is the <code>.si.js</code> file in the repository.</p>
 </div>
 <div class="sect4">
-<h5 id="_resolveapplicationservice">8.19.1. ResolveApplicationService</h5>
+<h5 id="_resolveapplicationservice">7.19.1. ResolveApplicationService</h5>
 <div class="paragraph">
 <p><strong>Purpose:</strong> Resolve <strong><code>cmdb_ci_service_discovered</code></strong> (service instance) sys_id for incident binding.</p>
 </div>
@@ -3499,7 +3425,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect4">
-<h5 id="_k8slogpodcibind">8.19.2. K8sLogPodCiBind</h5>
+<h5 id="_k8slogpodcibind">7.19.2. K8sLogPodCiBind</h5>
 <div class="paragraph">
 <p><strong>Purpose:</strong> Rebind <strong><code>em_event</code></strong> and <strong><code>em_alert</code></strong> from HOST or empty CI to <strong><code>cmdb_ci_kubernetes_pod</code></strong> when the log path directory segment matches a discovered pod name (OpenPipeline often leaves problems on HOST).</p>
 </div>
@@ -3531,7 +3457,7 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect3">
-<h4 id="step-5-br-k8s-pod">8.20. Business rules (prescriptive configuration)</h4>
+<h4 id="step-5-br-k8s-pod">7.20. Business rules (prescriptive configuration)</h4>
 <div class="paragraph">
 <p>Create under <strong>System Definition → Business Rules</strong>. All three run <strong>After</strong> insert and update. Filter conditions must include <strong><code>source=SGO-Dynatrace</code></strong> so legacy connectors are not modified.</p>
 </div>
@@ -3573,9 +3499,9 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </tbody>
 </table>
 <div class="sect4">
-<h5 id="_em_event_bind_k8s_log_pod_ci">8.20.1. em-event-bind-k8s-log-pod-ci</h5>
+<h5 id="_em_event_bind_k8s_log_pod_ci">7.20.1. em-event-bind-k8s-log-pod-ci</h5>
 <div id="lst-br-em-event-bind" class="listingblock">
-<div class="title">Listing 26. Business rule script — em-event-bind-k8s-log-pod-ci</div>
+<div class="title">Listing 25. Business rule script — em-event-bind-k8s-log-pod-ci</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="javascript"><span class="p">(</span><span class="kd">function</span> <span class="nx">executeRule</span><span class="p">(</span><span class="nx">current</span><span class="p">,</span> <span class="nx">previous</span> <span class="cm">/*null on insert*/</span><span class="p">)</span> <span class="p">{</span>
   <span class="kd">var</span> <span class="nx">binder</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">K8sLogPodCiBind</span><span class="p">();</span>
@@ -3590,9 +3516,9 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect4">
-<h5 id="_em_alert_bind_k8s_log_pod_ci">8.20.2. em-alert-bind-k8s-log-pod-ci</h5>
+<h5 id="_em_alert_bind_k8s_log_pod_ci">7.20.2. em-alert-bind-k8s-log-pod-ci</h5>
 <div id="lst-br-em-alert-bind" class="listingblock">
-<div class="title">Listing 27. Business rule script — em-alert-bind-k8s-log-pod-ci</div>
+<div class="title">Listing 26. Business rule script — em-alert-bind-k8s-log-pod-ci</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="javascript"><span class="p">(</span><span class="kd">function</span> <span class="nx">executeRule</span><span class="p">(</span><span class="nx">current</span><span class="p">,</span> <span class="nx">previous</span> <span class="cm">/*null on insert*/</span><span class="p">)</span> <span class="p">{</span>
   <span class="kd">var</span> <span class="nx">binder</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">K8sLogPodCiBind</span><span class="p">();</span>
@@ -3606,12 +3532,12 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect4">
-<h5 id="_em_alert_create_k8s_log_incident">8.20.3. em-alert-create-k8s-log-incident</h5>
+<h5 id="_em_alert_create_k8s_log_incident">7.20.3. em-alert-create-k8s-log-incident</h5>
 <div class="paragraph">
 <p>Creates or correlates an incident on the service instance, then sets <strong><code>current.task</code></strong> so the alert appears on the incident <strong>Alerts</strong> tab.</p>
 </div>
 <div id="lst-br-em-alert-create-incident" class="listingblock">
-<div class="title">Listing 28. Business rule script — em-alert-create-k8s-log-incident</div>
+<div class="title">Listing 27. Business rule script — em-alert-create-k8s-log-incident</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="javascript"><span class="p">(</span><span class="kd">function</span> <span class="nx">executeRule</span><span class="p">(</span><span class="nx">current</span><span class="p">,</span> <span class="nx">previous</span> <span class="cm">/*null on insert*/</span><span class="p">)</span> <span class="p">{</span>
   <span class="k">if</span> <span class="p">(</span><span class="nx">current</span><span class="p">.</span><span class="nx">source</span><span class="p">.</span><span class="nx">toString</span><span class="p">()</span> <span class="o">!==</span> <span class="dl">'</span><span class="s1">SGO-Dynatrace</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
@@ -3720,9 +3646,9 @@ Cluster/Client Davis problems keep OneAgent <strong>HOST</strong> as <code>dt.so
 </div>
 </div>
 <div class="sect3">
-<h4 id="_ansible_deployment">8.21. Ansible deployment</h4>
+<h4 id="_ansible_deployment">7.21. Ansible deployment</h4>
 <div id="lst-ansible-incident-deploy" class="listingblock">
-<div class="title">Listing 29. Deploy Log-to-Incident ServiceNow automation</div>
+<div class="title">Listing 28. Deploy Log-to-Incident ServiceNow automation</div>
 <div class="content">
 <pre class="rouge highlight"><code data-lang="bash"><span class="nb">cd </span>ansible
 ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/incident/deploy.yml <span class="se">\</span>
@@ -3734,7 +3660,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 </div>
 <div class="sect3">
-<h4 id="_example_resolution_kubernetes_worker_pod">8.22. Example resolution (Kubernetes worker pod)</h4>
+<h4 id="_example_resolution_kubernetes_worker_pod">7.22. Example resolution (Kubernetes worker pod)</h4>
 <table id="tbl-example-resolution-worker-pod" class="tableblock frame-all grid-all stretch">
 <caption class="title">Table 24. Example resolution path for a Kubernetes worker pod log</caption>
 <colgroup>
@@ -3776,7 +3702,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </table>
 </div>
 <div class="sect3">
-<h4 id="_application_and_dynatrace_phase_5">8.23. Application and Dynatrace (Phase 5)</h4>
+<h4 id="_application_and_dynatrace_phase_5">7.23. Application and Dynatrace (Phase 5)</h4>
 <div class="paragraph">
 <p>No configuration on the application or Dynatrace side. Dynatrace problem tags (Project, Environment) do not replace CSDM tags on pod CIs for incident binding.</p>
 </div>
@@ -3787,7 +3713,7 @@ ansible-playbook <span class="nt">-i</span> inventory.yml playbooks/servicenow/i
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-08-06 16:17:35 -0500
+Last updated 2026-08-07 10:08:55 -0500
 </div>
 </div>
 </body>
