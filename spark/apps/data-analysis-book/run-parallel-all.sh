@@ -10,9 +10,15 @@ echo "${LOG}" > /tmp/latest-chapter-run-dir.txt
 
 echo "LOG=${LOG}"
 
-SPARK_DRIVER_INSTANCE=par-a "${SCRIPT_DIR}/run-chapters.sh" 03 04 05 06 >"${LOG}/par-a.log" 2>&1 &
+# SPARK_DRIVER_INSTANCE=par-a "${SCRIPT_DIR}/run-chapters.sh" 03 04 05 06 >"${LOG}/par-a.log" 2>&1 &
+# pid_a=$!
+# SPARK_DRIVER_INSTANCE=par-b "${SCRIPT_DIR}/run-chapters.sh" 07 08 09 10 >"${LOG}/par-b.log" 2>&1 &
+# pid_b=$!
+
+# Balanced out based off of average chapter runtime
+SPARK_DRIVER_INSTANCE=par-a "${SCRIPT_DIR}/run-chapters.sh" 03 04 06 07 08 10 >"${LOG}/par-a.log" 2>&1 &
 pid_a=$!
-SPARK_DRIVER_INSTANCE=par-b "${SCRIPT_DIR}/run-chapters.sh" 07 08 09 10 >"${LOG}/par-b.log" 2>&1 &
+SPARK_DRIVER_INSTANCE=par-b "${SCRIPT_DIR}/run-chapters.sh" 05 09 >"${LOG}/par-b.log" 2>&1 &
 pid_b=$!
 
 echo "Started par-a pid=${pid_a}, par-b pid=${pid_b}"
