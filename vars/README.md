@@ -1,141 +1,36 @@
-# Variable Context Framework
+# Project variables (data plane)
 
-This directory (`vars/`) contains the core components of the project's data-driven variable management framework. It serves as the single source of truth for all configuration variables used across the Spark and Observability stacks.
+This directory holds **spark-observability** variable definitions and generated
+context files. The generator itself lives in the separate
+**[context-variables](https://github.com/gxbrooks/context-variables)** package.
 
-## Modular, Layered Architecture
+## Contents
 
-The `vars/` module is designed as a **standalone, independent module** that can operate without dependencies on the rest of the project:
+| Path | Role |
+|------|------|
+| `variables.yaml` | Single source of truth for values and context tags |
+| `contexts.yaml` | Output formats and filenames |
+| `secrets.yaml` | Local secrets (gitignored) — see `secrets.example.yaml` |
+| `secrets.example.yaml` | Template for `secrets.yaml` |
+| `contexts/` | Generated outputs (gitignored) |
 
-### **Layer 1: Bootstrap (System Python)**
-- **`generate_env.sh`** - Wrapper script that uses system Python (any 3.x)
-- **`vars-grid.sh`** - Wrapper script for analysis tool (uses system Python)
-- **Purpose**: Breaks circular dependencies by using system Python instead of project venv
-- **Dependencies**: Only requires system `python3` and `pyyaml` (auto-installs if missing)
-- **Can run**: Before any virtual environment exists, before Python version is determined
+## Generate contexts
 
-### **Layer 2: Core Scripts (Python)**
-- **`generate_env.py`** - Main generator script
-  - **Purpose**: Transforms `variables.yaml` + `contexts.yaml` into context-specific files
-  - **Called by**: `generate_env.sh` wrapper or directly (if PyYAML is installed)
-- **`vars-grid.py`** - Variable-context grid generator (analysis tool)
-  - **Purpose**: Generates grid showing which variables are used in which contexts
-  - **Called by**: `vars-grid.sh` wrapper or directly (if PyYAML is installed)
-- **Dependencies**: Python 3.x with PyYAML
-
-### **Layer 3: Configuration (YAML)**
-- **`variables.yaml`** - Single source of truth for all variable values
-- **`contexts.yaml`** - Specification of output formats and file paths
-- **Purpose**: Declarative configuration, no code dependencies
-
-### **Layer 4: Generated Output**
-- **`contexts/`** directory - All generated files (gitignored)
-- **Purpose**: Context-specific configuration files consumed by deployment tools
-
-**Key Design Principle**: The `vars/` module is **independent** and uses **system Python** to avoid circular dependencies. This allows environment files to be generated even when:
-- No virtual environment exists
-- Python version is not yet determined
-- Project dependencies are not installed
-
-## Organization
-
-```
-vars/
-├── README.md                # This file - module overview
-├── variables.yaml           # Single source of truth for all variables
-├── contexts.yaml            # Context specifications (output formats and paths)
-├── generate_env.sh          # Bootstrap wrapper for generate_env.py (uses system Python)
-├── generate_env.py          # Core generator script
-├── vars-grid.sh             # Bootstrap wrapper for vars-grid.py (uses system Python)
-├── vars-grid.py             # Variable-context grid generator (analysis tool)
-└── contexts/                # Generated files (gitignored)
-    ├── observability/
-    ├── spark-runtime/
-    ├── spark-client/
-    └── ... (other contexts)
-```
-
-## Quick Start
+Install `context-variables` (apt/`dpkg` or `packaging/install.sh`), then:
 
 ```bash
-# Generate all contexts (recommended - uses wrapper)
-bash vars/generate_env.sh
+generate-contexts --vars-dir "$(pwd)" -f
+# or from repo root:
+generate-contexts --vars-dir ./vars service-now -v
 
-# Force regeneration of specific contexts
-bash vars/generate_env.sh -f observability spark-runtime
-
-# Verbose mode
-bash vars/generate_env.sh -v devops
-
-# Or directly (requires PyYAML installed)
-python3 vars/generate_env.py -f observability spark-runtime
+vars-grid --vars-dir ./vars --summary
 ```
+
+Ansible playbooks call `generate-contexts` via
+`ansible/playbooks/tasks/regenerate_contexts.yml`.
 
 ## Documentation
 
-- **[Context_Variable_Best_Practice.md](docs/Context_Variable_Best_Practice.md)** - Context variable technical policy and guidelines (TPG)
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - High-level architecture, data flow, and component design
-- **[IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** - Detailed implementation: all generated files, formats, consumers, and deployment processes
-
-## Contexts
-
-| Context | Output File | Purpose |
-|---------|-------------|---------|
-| `observability` | `observability_docker.env` | Docker Compose environment variables |
-| `spark-image` | `spark-image.toml` | Spark Docker image build arguments |
-| `spark-runtime` | `spark-configmap.yaml` | Kubernetes ConfigMap for Spark pods |
-| `spark-ansible` | `spark_ansible_vars.yml` | Ansible variables for Spark/Hadoop playbooks |
-| `dynatrace-ansible` | `dynatrace_ansible_vars.yml` | Ansible variables for Dynatrace playbooks |
-| `elastic-observability-ansible` | `elastic_observability_ansible_vars.yml` | Ansible variables for Elastic/Grafana stack playbooks |
-| `nfs` | `nfs_ansible_vars.yml` | Ansible variables for NFS playbooks |
-| `service-now` | `servicenow_ansible_vars.yml` | Ansible variables for ServiceNow Discovery |
-| `spark-client` | `spark_client_env.sh` | Local Spark client environment |
-| `ispark` | `ispark_client_env.sh` | Interactive Spark (iPython) environment |
-| `elastic-agent` | `elastic_agent_env.conf` | Elastic Agent systemd EnvironmentFile |
-| `elastic-agent-ansible` | `elastic_agent_ansible_vars.yml` | Ansible variables for Elastic Agent |
-| `devops` | `devops_env.sh` | Devops client tooling environment |
-| `managed-node` | `managed_node_env.sh` | Managed node validation environment |
-
-Variables are selected by `contexts:` tags in `variables.yaml` only. Optional `section:` on each variable groups output in Ansible context files. Application-specific naming (e.g. snake_case) belongs in playbook/role `vars`, not in the generator.
-
-### Singleton contexts and application-local configuration
-
-See **[docs/Context_Variable_Best_Practice.md](docs/Context_Variable_Best_Practice.md)** for the full policy. In brief: a **singleton context** is referenced by only one variable in `variables.yaml`. Such variables **should** move to application-local files instead (for example `ansible/playbooks/<app>/servicenow/csdm.yaml` for ServiceNow CSDM names, or `common/vars.yml` next to playbooks).
-
-Shared ServiceNow infrastructure values (instance URL, lab location, Spark host/port NodePorts used by discovery and CSDM) remain in `variables.yaml` under the `service-now` context. Spark CSDM object names and hierarchy live in `ansible/playbooks/spark/servicenow/csdm.yaml` and are deployed by `ansible/playbooks/servicenow/csdm/deploy.yml`.
-
-## Common Workflow
-
-1. Edit `vars/variables.yaml` to add or update values
-2. Tag variables with relevant contexts
-3. Run `bash vars/generate_env.sh -f <context>` to regenerate (recommended)
-   - Or: `python3 vars/generate_env.py -f <context>` (if PyYAML installed)
-4. Commit `vars/variables.yaml` (generated files remain gitignored)
-
-## Key Principles
-
-- **Single Source of Truth**: All variables defined in `variables.yaml`
-- **Context-Based Generation**: Variables filtered and formatted per context
-- **Clear Separation**: Generated files in dedicated `contexts/` directory
-- **Idempotent**: Generator only updates changed files
-- **Fail-Fast**: Missing variables cause immediate failure
-- **Modular Independence**: `vars/` module uses system Python, no project dependencies
-- **Circular Dependency Resolution**: Wrapper script breaks dependency chain
-
-## Utility Scripts
-
-- **`generate_env.sh`** - Wrapper for `generate_env.py` (uses system Python)
-- **`vars-grid.sh`** - Wrapper for `vars-grid.py` (uses system Python)
-- **`generate_env.py`** - Core generator script
-- **`vars-grid.py`** - Variable-context grid generator (analysis tool)
-
-## Version Control
-
-- ✅ **Source files** (`variables.yaml`, `contexts.yaml`, `generate_env.py`, `generate_env.sh`, `vars-grid.py`, `vars-grid.sh`): Committed
-- ❌ **Generated files** (`contexts/`): Gitignored
-
-## See Also
-
-- `vars/docs/BEST_PRACTICES.md` - Rationale and best practices
-- `vars/docs/ARCHITECTURE.md` - High-level architecture
-- `vars/docs/IMPLEMENTATION.md` - Detailed implementation
-- `scripts/setup-local-env.sh` - Convenience script for local development
+Operator and design docs: `context-variables` package
+(`/opt/context-variables/docs/` or the GitHub repo), especially
+`docs/usage.md` and `docs/Context_Variable_Best_Practice.md`.

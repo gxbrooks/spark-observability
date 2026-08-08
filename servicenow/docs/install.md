@@ -274,7 +274,7 @@ that exist in the cluster itself.
 Regenerate context files after editing:
 
 ```bash
-cd vars && ./generate_contexts.sh service-now
+generate-contexts --vars-dir ./vars service-now
 # or: ansible-playbook ... discovery/common/regenerate_context.yml
 ```
 
@@ -375,7 +375,7 @@ Docker host definitions live in `**vars/variables.yaml`** (immediately after
 Regenerate context files after editing:
 
 ```bash
-cd vars && ./generate_contexts.sh -f service-now
+generate-contexts --vars-dir ./vars -f service-now
 ```
 
 ### 6.2 `DOCKER_HOSTS` entry fields

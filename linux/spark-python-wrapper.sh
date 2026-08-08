@@ -23,7 +23,7 @@ DEVOPS_ENV_FILE="${ROOT_DIR}/vars/contexts/devops/devops_env.sh"
 if [ -f "${DEVOPS_ENV_FILE}" ]; then
     source "${DEVOPS_ENV_FILE}"
 else
-    echo "Error: devops_env.sh not found at ${DEVOPS_ENV_FILE}. Run: bash vars/generate_env.sh devops"
+    echo "Error: devops_env.sh not found at ${DEVOPS_ENV_FILE}. Run: generate-contexts --vars-dir ${ROOT_DIR}/vars devops"
     exit 1
 fi
 

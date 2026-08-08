@@ -26,7 +26,7 @@ if [ -f "${ISPARK_ENV_FILE}" ]; then
     export SPARK_MASTER_URL="spark://${SPARK_MASTER_HOST}:${SPARK_MASTER_PORT}"
 else
     echo -e "${RED}Error: ispark environment not found at ${ISPARK_ENV_FILE}${NC}"
-    echo "Run: bash vars/generate_env.sh ispark" >&2
+    echo "Run: generate-contexts --vars-dir ${ROOT_DIR}/vars ispark" >&2
     exit 1
 fi
 

@@ -270,7 +270,7 @@ check_env_files() {
     if [ "$all_good" = false ]; then
         if $FIX && ! $CHECK; then
             echo "Info    : Generating all client environment files (devops, spark-client, ispark)..."
-            cd "$root_dir" && bash vars/generate_contexts.sh devops spark-client ispark -f
+            generate-contexts --vars-dir "$root_dir/vars" devops spark-client ispark -f
         elif $CHECK; then
             echo "Check   : Would generate all client environment files (devops, spark-client, ispark) using generate_contexts.sh"
         fi
@@ -390,7 +390,7 @@ check_ipython_client() {
         all_good=false
         if $FIX && ! $CHECK; then
             echo "Info    : Generating all client environment files (devops, spark-client, ispark)..."
-            cd "$root_dir" && bash vars/generate_contexts.sh devops spark-client ispark -f
+            generate-contexts --vars-dir "$root_dir/vars" devops spark-client ispark -f
         elif $CHECK; then
             echo "Check   : Would generate all client environment files using generate_contexts.sh"
         fi
@@ -528,7 +528,7 @@ check_spark_config() {
                 # Ensure spark_client_env.sh exists first (needed by generator)
                 if [ ! -f "${root_dir}/vars/contexts/spark_client_env.sh" ]; then
                     echo "Info    : Generating spark-client environment file first..."
-                    cd "$root_dir" && bash vars/generate_contexts.sh spark-client -f
+                    generate-contexts --vars-dir "$root_dir/vars" spark-client -f
                 fi
                 bash "$generator"
             else

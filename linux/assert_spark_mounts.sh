@@ -33,7 +33,7 @@ root_dir="$(cd "$dir/.." && pwd)"
 
 if ! $CHECK; then
   echo "Info    : Regenerating devops context for NFS/server variables..."
-  (cd "$root_dir" && bash vars/generate_contexts.sh devops -f) || true
+  (generate-contexts --vars-dir "$root_dir/vars" devops -f) || true
 fi
 
 DEVOPS_ENV_FILE="$root_dir/vars/contexts/devops_env.sh"

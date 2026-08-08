@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ ! -f "${ROOT_DIR}/vars/contexts/spark_client_env.sh" ]]; then
-  echo "spark_client_env.sh not found; run: python3 ${ROOT_DIR}/vars/generate_contexts.py -f" >&2
+  echo "spark_client_env.sh not found; run: generate-contexts --vars-dir ${ROOT_DIR}/vars -f" >&2
   exit 1
 fi
 

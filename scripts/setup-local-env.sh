@@ -15,7 +15,7 @@ echo ""
 # Check if vars/contexts exists
 if [ ! -d "vars/contexts" ]; then
     echo "❌ Error: vars/contexts/ directory not found"
-    echo "   Run: python3 vars/generate_contexts.py -f"
+    echo "   Run: generate-contexts --vars-dir ./vars -f"
     exit 1
 fi
 
@@ -36,7 +36,7 @@ done
 if [ "${MISSING}" -eq 1 ]; then
     echo ""
     echo "⚠️  Some context files are missing. Regenerate with:"
-    echo "   bash vars/generate_contexts.sh -f"
+    echo "   generate-contexts --vars-dir ./vars -f"
     exit 1
 fi
 

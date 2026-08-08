@@ -30,7 +30,7 @@ fi
 SPARK_CLIENT_ENV="${ROOT_DIR}/vars/contexts/spark_client_env.sh"
 if [ ! -f "${SPARK_CLIENT_ENV}" ]; then
     echo "Info: Generating spark_client_env.sh from variables..." >&2
-    (cd "${ROOT_DIR}" && bash vars/generate_contexts.sh spark-client -f) || exit 1
+    (generate-contexts --vars-dir "${ROOT_DIR}/vars" spark-client -f) || exit 1
 fi
 
 # Always source Spark client env: devops_env may already set PYSPARK/ES and skip sourcing,

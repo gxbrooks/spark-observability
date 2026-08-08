@@ -1,20 +1,34 @@
 ---
-# Regenerate vars/contexts/* from variables.yaml, contexts.yaml, and secrets.yaml (if present).
-# Invoke before copy/template tasks that read generated files.
+# Regenerate vars/contexts/* using the installed context-variables CLI
+# (generate-contexts). Project data stays in vars/{variables,contexts,secrets}.yaml.
 #
-# Required variable: regenerate_contexts_root — absolute path to spark-observability repo root on the controller.
-# Optional: regenerate_context_names — list of context names (see vars/contexts.yaml); empty = all contexts.
-# Optional: regenerate_context_force — pass -f to force regeneration (default false; mtime + secrets drive updates).
+# Required: regenerate_contexts_root — absolute path to spark-observability repo root.
+# Optional: regenerate_context_names — list of context names; empty = all.
+# Optional: regenerate_context_force — pass -f (default false).
+# Optional: regenerate_contexts_bin — override CLI path (default: generate-contexts on PATH).
 
-- name: Build generate_contexts argument list
+- name: Resolve vars directory and generate-contexts binary
   ansible.builtin.set_fact:
-    _regenerate_context_argv: "{{ (regenerate_context_names | default([])) + (['-f'] if (regenerate_context_force | default(false)) else []) }}"
+    regenerate_contexts_vars_dir: "{{ regenerate_contexts_root }}/vars"
+    regenerate_contexts_cli: "{{ regenerate_contexts_bin | default('generate-contexts') }}"
 
-- name: Regenerate context files from repo variables (controller checkout)
+- name: Build generate-contexts argument list
+  ansible.builtin.set_fact:
+    _regenerate_context_argv: "{{ [regenerate_contexts_cli, '--vars-dir', regenerate_contexts_vars_dir] + (['-f'] if (regenerate_context_force | default(false)) else []) + (regenerate_context_names | default([])) }}"
+
+- name: Require generate-contexts on PATH
   ansible.builtin.command:
-    argv: "{{ ['bash', 'vars/generate_contexts.sh'] + _regenerate_context_argv }}"
-  args:
-    chdir: "{{ regenerate_contexts_root }}"
+    argv: ["{{ regenerate_contexts_cli }}", "--help"]
+  delegate_to: localhost
+  connection: local
+  become: false
+  changed_when: false
+  register: regenerate_contexts_help
+  failed_when: regenerate_contexts_help.rc != 0
+
+- name: Regenerate context files from project variables (controller)
+  ansible.builtin.command:
+    argv: "{{ _regenerate_context_argv }}"
   delegate_to: localhost
   connection: local
   become: false

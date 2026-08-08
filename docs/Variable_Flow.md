@@ -111,8 +111,8 @@ flowchart LR
 |------|---------|--------|
 | `vars/variables.yaml` | Variable values + contexts | YAML |
 | `vars/contexts.yaml` | Output specifications | YAML |
-| `vars/generate_contexts.py` | Code generator | Python |
-| `vars/generate_contexts.sh` | Bootstrap wrapper (uses system Python) | Bash |
+| `context-variables (generate-contexts)` | Code generator | Python |
+| `generate-contexts` | Bootstrap wrapper (uses system Python) | Bash |
 
 **Generated Files** (examples):
 - `vars/contexts/spark-image/spark-image.toml` → Docker build args
@@ -144,10 +144,10 @@ Some files use Jinja2 templates for additional flexibility:
 vim vars/variables.yaml
 
 # 2. Regenerate all contexts (use wrapper script - recommended)
-bash vars/generate_contexts.sh -f
+generate-contexts --vars-dir ./vars -f
 
 # Or directly (requires PyYAML installed)
-python3 vars/generate_contexts.py -f
+python3 context-variables (generate-contexts) -f
 
 # 3. Regenerate Spark client configuration (if Spark-related variables changed)
 linux/generate_spark_defaults.sh
@@ -164,23 +164,23 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/spark/deploy.yml
 # 1. Edit vars/contexts.yaml - add new context spec
 # 2. Tag variables in vars/variables.yaml with new context name
 # 3. Run generator (use wrapper script - recommended)
-bash vars/generate_contexts.sh <context-name> -v
+generate-contexts --vars-dir ./vars <context-name> -v
 
 # Or directly
-python3 vars/generate_contexts.py <context-name> -v
+python3 context-variables (generate-contexts) <context-name> -v
 ```
 
 ### **Check Status**
 
 ```bash
 # See what would be regenerated (use wrapper - recommended)
-bash vars/generate_contexts.sh
+generate-contexts --vars-dir ./vars
 
 # Force regenerate all with verbose output
-bash vars/generate_contexts.sh -f -v
+generate-contexts --vars-dir ./vars -f -v
 
 # Or directly (requires PyYAML installed)
-python3 vars/generate_contexts.py -f -v
+python3 context-variables (generate-contexts) -f -v
 ```
 
 ---
@@ -231,14 +231,14 @@ python3 vars/generate_contexts.py -f -v
 
 ### **Stage 1: Core Environment Files**
 
-`bash vars/generate_contexts.sh` (or `python3 vars/generate_env.py`) generates environment files from `vars/variables.yaml`:
+`generate-contexts --vars-dir ./vars` (or `python3 vars/generate_env.py`) generates environment files from `vars/variables.yaml`:
 
 ```
 vars/variables.yaml + vars/contexts.yaml
         ↓
-vars/generate_contexts.sh (wrapper - uses system Python)
+generate-contexts (wrapper - uses system Python)
         ↓
-vars/generate_contexts.py (actual generator)
+context-variables (generate-contexts) (actual generator)
         ↓
 Generated Files:
   - vars/contexts/devops_env.sh
@@ -275,7 +275,7 @@ spark/conf/spark-defaults.conf
 
 For detailed code examples and technical implementation, see:
 - `vars/contexts.yaml` - Context specifications (stage 1)
-- `vars/generate_contexts.py` - Core generator (stage 1)
+- `context-variables (generate-contexts)` - Core generator (stage 1)
 - `spark/conf/spark-defaults.conf.j2` - Jinja2 template (stage 2)
 - `linux/generate_spark_defaults.sh` - Template renderer (stage 2)
 - `linux/.bashrc` - Auto-regeneration on login
