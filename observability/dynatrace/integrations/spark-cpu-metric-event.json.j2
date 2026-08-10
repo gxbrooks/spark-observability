@@ -32,11 +32,11 @@
     },
     "eventTemplate": {
       "title": "Host ({dims:dt.entity.host}) CPU above 80%",
-      "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 80%. spark.event_kind=CPU_EVENT",
+      "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 80%. log.event_kind=CPU_EVENT",
       "eventType": "CUSTOM_ALERT",
       "davisMerge": false,
       "metadata": [
-        { "metadataKey": "spark.event_kind", "metadataValue": "CPU_EVENT" }
+        { "metadataKey": "log.event_kind", "metadataValue": "CPU_EVENT" }
       ]
     }
   }

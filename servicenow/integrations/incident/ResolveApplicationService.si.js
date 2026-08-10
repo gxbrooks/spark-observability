@@ -387,62 +387,33 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse spark.service_instance from description / additional_info JSON.
-   * Value is a K8s-sanitized service instance display name (e.g. Spark-Client).
-   * Also accepts legacy spark.as_identifier for in-flight problems.
-   * Returns the stamp string or null.
+   * Parse service_instance from description / additional_info JSON.
+   * Pattern: Standalone App with short Log4j2 logs (custom log source stamp).
    */
-  extractSparkServiceInstance: function (gr) {
+  extractServiceInstance: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
     var m = blob.match(
-      /spark\.service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      /(?:^|[\s,{;])service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
     );
     if (!m) {
       m = blob.match(
-        /["']spark\.service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
-      );
-    }
-    // Legacy field name from pre-rename OpenPipeline stamps.
-    if (!m) {
-      m = blob.match(/spark\.as_identifier\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
-    }
-    if (!m) {
-      m = blob.match(
-        /["']spark\.as_identifier["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+        /["']service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
       );
     }
     return m ? m[1] : null;
   },
 
-  /** @deprecated Use extractSparkServiceInstance */
-  extractSparkAsIdentifier: function (gr) {
-    return this.extractSparkServiceInstance(gr);
-  },
-
-
   /**
-   * Parse spark.pod_identifier from description / additional_info JSON.
-   * Returns the pod name string or null.
+   * Parse k8s.pod.name from description / additional_info JSON.
+   * Pattern: K8s App with short Log4j2 logs (Container Output / Davis stamp).
    */
-  extractSparkPodIdentifier: function (gr) {
+  extractK8sPodName: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(
-      /spark\.pod_identifier\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
-    );
+    var m = blob.match(/k8s\.pod\.name\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
     if (!m) {
       m = blob.match(
-        /["']spark\.pod_identifier["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+        /["']k8s\.pod\.name["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
       );
-    }
-    if (!m) {
-      // Container Output / PGI display: "(Worker spark-worker-lab1-…)" / "(Master spark-master-0)"
-      m = blob.match(
-        /\(\s*(?:Worker|Master|Driver|Executor)\s+(spark-[A-Za-z0-9][\w.-]*)\s*\)/i
-      );
-    }
-    if (!m) {
-      // Legacy Cluster file-tail path segment
-      m = blob.match(/\/mnt\/spark\/logs\/([A-Za-z0-9][\w.-]*)\//);
     }
     return m ? m[1] : null;
   },
@@ -461,10 +432,9 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Service instance from spark.service_instance (K8s-sanitized display name).
-   * Prefer name match; also match when CMDB name sanitizes to the stamp
-   * (Spark-Client ↔ Spark Client). Legacy stamp spark-client still maps to
-   * Spark Client. Optional identifier column only when isValidField.
+   * Service instance from service_instance stamp (K8s-sanitized display name).
+   * Prefer exact name; also match when CMDB name sanitizes to the stamp
+   * (Spark-Client ↔ Spark Client). Optional identifier column when isValidField.
    * Returns { sysId, how } or null.
    */
   resolveFromServiceInstance: function (stamp) {
@@ -473,10 +443,6 @@ ResolveApplicationService.prototype = {
     }
 
     var candidates = [stamp];
-    // Legacy OpenPipeline value before display-name alignment.
-    if (stamp === 'spark-client' || stamp === 'Spark-Client') {
-      candidates.push('Spark Client');
-    }
     var spaced = String(stamp).replace(/-/g, ' ');
     if (spaced !== stamp) {
       candidates.push(spaced);
@@ -502,17 +468,16 @@ ResolveApplicationService.prototype = {
               ? 'service instance name=' + preferredName
               : 'service instance name "' +
                 preferredName +
-                '" (spark.service_instance=' +
+                '" (service_instance=' +
                 stamp +
                 ')',
         };
       }
     }
 
-    // Fallback: scan recent service instances for sanitized-name match.
+    // Fallback: scan service instances for sanitized-name match.
     var scan = new GlideRecord('cmdb_ci_service_discovered');
-    scan.addQuery('name', 'STARTSWITH', 'Spark');
-    scan.setLimit(50);
+    scan.setLimit(200);
     scan.query();
     while (scan.next()) {
       var nm = scan.name.toString();
@@ -522,7 +487,7 @@ ResolveApplicationService.prototype = {
           how:
             'service instance name "' +
             nm +
-            '" (sanitized match for spark.service_instance=' +
+            '" (sanitized match for service_instance=' +
             stamp +
             ')',
         };
@@ -549,32 +514,27 @@ ResolveApplicationService.prototype = {
     return null;
   },
 
-  /** @deprecated Use resolveFromServiceInstance */
-  resolveFromAsIdentifier: function (asIdentifier) {
-    return this.resolveFromServiceInstance(asIdentifier);
-  },
-
   /**
-   * Parse spark.event_kind from description / additional_info.
+   * Parse log.event_kind from description / additional_info.
+   * Dynatrace keeps event.type as a fixed enum; log.event_kind carries the
+   * ServiceNow semantic type (CRITICAL_LOG_EVENT / CPU_EVENT).
    */
-  extractSparkEventKind: function (gr) {
+  extractLogEventKind: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(/spark\.event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    var m = blob.match(/log\.event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
     if (!m) {
       m = blob.match(
-        /["']spark\.event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
+        /["']log\.event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
       );
     }
     return m ? m[1] : null;
   },
 
   /**
-   * Dynatrace Settings API only allows enum event.type values (ERROR_EVENT,
-   * CUSTOM_ALERT, …). Lab stamps spark.event_kind and remaps em_event.type
-   * (and em_alert.type) so SN UI shows CRITICAL_LOG_EVENT / CPU_EVENT.
-   * Leaves CPU_SATURATED and other built-ins alone.
+   * Remap em_event.type / em_alert.type from Dynatrace enum values to
+   * log.event_kind (CRITICAL_LOG_EVENT / CPU_EVENT). Leaves CPU_SATURATED alone.
    */
-  applySparkEventTypeRename: function (gr) {
+  applyLogEventTypeRename: function (gr) {
     if (!gr || !gr.isValidField('type')) {
       return;
     }
@@ -582,8 +542,7 @@ ResolveApplicationService.prototype = {
     if (current === 'CPU_SATURATED') {
       return;
     }
-    var kind = this.extractSparkEventKind(gr);
-    var blob = this.collectSparkLookupBlob(gr);
+    var kind = this.extractLogEventKind(gr);
     var next = null;
 
     if (kind === 'CRITICAL_LOG_EVENT') {
@@ -592,35 +551,26 @@ ResolveApplicationService.prototype = {
       next = 'CPU_EVENT';
     } else if (
       current === 'ERROR_EVENT' &&
-      (this.extractSparkServiceInstance(gr) ||
-        this.extractSparkPodIdentifier(gr))
+      (this.extractServiceInstance(gr) || this.extractK8sPodName(gr))
     ) {
       next = 'CRITICAL_LOG_EVENT';
-    } else if (
-      current === 'CUSTOM_ALERT' &&
-      /Host\s+.*CPU\s+above\s+80%|CPU usage in management zone/i.test(blob)
-    ) {
-      next = 'CPU_EVENT';
     }
 
     if (next && next !== current) {
       gr.type = next;
       this.appendProcessingNote(
         gr,
-        'em-entity-bind: type ' + current + ' → ' + next + ' (spark.event_kind rename)'
+        'em-entity-bind: type ' + current + ' → ' + next + ' (log.event_kind rename)'
       );
     }
   },
 
   /**
    * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
-   *   1. spark.service_instance → service instance by display name (ignore HOST)
-   *   2. spark.pod_identifier → pod name → svc_ci_assoc SI (ignore HOST)
-   *   3. primary ImpactedEntity: HOST / CUSTOM_DEVICE / CAI
+   *   1. service_instance → service instance by display name (Standalone pattern)
+   *   2. k8s.pod.name → pod name → svc_ci_assoc SI (K8s pattern)
+   *   3. primary ImpactedEntity: HOST / CAI
    *   else leave cmdb_ci empty and note failure
-   *
-   * Stamps: resource = spark.* key or entityId; node = display name.
-   * Returns { bound: boolean, kind: string, note: string }.
    */
   applyEntityBinding: function (gr) {
     var result = { bound: false, kind: 'none', note: '' };
@@ -631,61 +581,61 @@ ResolveApplicationService.prototype = {
       return result;
     }
 
-    this.applySparkEventTypeRename(gr);
+    this.applyLogEventTypeRename(gr);
 
-    // 1) Client log path: OpenPipeline stamps spark.service_instance (ignore HOST).
-    var serviceInstance = this.extractSparkServiceInstance(gr);
+    // 1) Standalone short Log4j2: custom log source stamps service_instance.
+    var serviceInstance = this.extractServiceInstance(gr);
     if (serviceInstance) {
       var asBind = this.resolveFromServiceInstance(serviceInstance);
       if (asBind && asBind.sysId) {
         gr.node = serviceInstance;
-        gr.resource = 'spark.service_instance:' + serviceInstance;
+        gr.resource = 'service_instance:' + serviceInstance;
         gr.cmdb_ci = asBind.sysId;
         result.bound = true;
         result.kind = 'service_instance';
         result.note =
-          'em-entity-bind: spark.service_instance=' +
+          'em-entity-bind: service_instance=' +
           serviceInstance +
           ' → service instance via ' +
           asBind.how;
         this.appendProcessingNote(gr, result.note);
         this.appendClassLineToMessageKey(gr, 'SvcInst-');
-        this.enrichSparkLogDescription(gr, 'Client');
+        this.enrichLogDescription(gr, 'Standalone');
         return result;
       }
       result.kind = 'service_instance';
       result.note =
-        'em-entity-bind: spark.service_instance=' +
+        'em-entity-bind: service_instance=' +
         serviceInstance +
         ' — no service instance by name/identifier; cmdb_ci left empty (HOST ImpactedEntity ignored)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
 
-    // 2) Cluster log path: OpenPipeline stamps spark.pod_identifier (ignore HOST).
-    var podIdentifier = this.extractSparkPodIdentifier(gr);
-    if (podIdentifier) {
-      var byName = this.resolveFromCloudApplicationInstance(null, podIdentifier);
+    // 2) K8s short Log4j2: Davis stamps k8s.pod.name from Container Output.
+    var podName = this.extractK8sPodName(gr);
+    if (podName) {
+      var byName = this.resolveFromCloudApplicationInstance(null, podName);
       if (byName && byName.asSysId) {
-        gr.node = podIdentifier;
-        gr.resource = 'spark.pod_identifier:' + podIdentifier;
+        gr.node = podName;
+        gr.resource = 'k8s.pod.name:' + podName;
         gr.cmdb_ci = byName.asSysId;
         result.bound = true;
-        result.kind = 'pod_identifier';
+        result.kind = 'k8s_pod_name';
         result.note =
-          'em-entity-bind: spark.pod_identifier=' +
-          podIdentifier +
-          ' → Application Service via ' +
+          'em-entity-bind: k8s.pod.name=' +
+          podName +
+          ' → service instance via ' +
           byName.how;
         this.appendProcessingNote(gr, result.note);
         this.appendClassLineToMessageKey(gr, 'K8sPod-');
-        this.enrichSparkLogDescription(gr, 'Cluster');
+        this.enrichLogDescription(gr, 'K8s');
         return result;
       }
-      result.kind = 'pod_identifier';
+      result.kind = 'k8s_pod_name';
       result.note =
-        'em-entity-bind: spark.pod_identifier=' +
-        podIdentifier +
+        'em-entity-bind: k8s.pod.name=' +
+        podName +
         ' — ' +
         (byName && byName.how
           ? byName.how
@@ -695,11 +645,11 @@ ResolveApplicationService.prototype = {
       return result;
     }
 
-    // 3) Primary ImpactedEntity (HOST for CPU; CUSTOM_DEVICE / CAI when present).
+    // 3) Primary ImpactedEntity (HOST for CPU; CAI when present).
     var entity = this.parsePrimaryImpactedEntity(gr);
     if (!entity) {
       result.note =
-        'em-entity-bind: no spark.service_instance / spark.pod_identifier and no primary impacted entity (HOST / CUSTOM_DEVICE / CLOUD_APPLICATION_INSTANCE)';
+        'em-entity-bind: no service_instance / k8s.pod.name and no primary impacted entity (HOST / CLOUD_APPLICATION_INSTANCE)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
@@ -727,33 +677,6 @@ ResolveApplicationService.prototype = {
       result.kind = 'host';
       result.note = 'em-entity-bind: HOST→CI via ' + host.how;
       this.appendProcessingNote(gr, result.note);
-      return result;
-    }
-
-    if (entity.type === 'CUSTOM_DEVICE') {
-      var client = this.resolveApplicationServiceFromCustomDevice(
-        entity.entityId,
-        entity.name
-      );
-      if (!client) {
-        result.kind = 'custom_device';
-        result.note =
-          'em-entity-bind: CUSTOM_DEVICE ' +
-          entity.entityId +
-          ' (' +
-          (entity.name || 'unnamed') +
-          ') found but no Application Service mapped; cmdb_ci left empty';
-        this.appendProcessingNote(gr, result.note);
-        return result;
-      }
-      gr.cmdb_ci = client.sysId;
-      result.bound = true;
-      result.kind = 'custom_device';
-      result.note =
-        'em-entity-bind: CUSTOM_DEVICE→Application Service via ' + client.how;
-      this.appendProcessingNote(gr, result.note);
-      this.appendClassLineToMessageKey(gr, 'Device-');
-      this.enrichSparkLogDescription(gr, 'Client');
       return result;
     }
 
@@ -786,7 +709,7 @@ ResolveApplicationService.prototype = {
       result.note = 'em-entity-bind: ' + pod.how;
       this.appendProcessingNote(gr, result.note);
       this.appendClassLineToMessageKey(gr, 'K8sPod-');
-      this.enrichSparkLogDescription(gr, 'Cluster');
+      this.enrichLogDescription(gr, 'K8s');
       return result;
     }
 
@@ -804,7 +727,7 @@ ResolveApplicationService.prototype = {
       return '';
     }
     var m = text.match(
-      /Spark\s+(?:\w+\s+)?[Cc]ritical\s+(?:WARN|ERROR)\s+error\s+(?:at\s+)?([A-Za-z_][\w$]*):(\d+)/
+      /[Cc]ritical\s+(?:WARN|ERROR)\s+(?:error\s+)?(?:at\s+)?([A-Za-z_][\w$]*):(\d+)/
     );
     if (m) {
       return m[1] + ':' + m[2];
@@ -816,18 +739,18 @@ ResolveApplicationService.prototype = {
     return '';
   },
 
-  extractSparkLogIdentity: function (text, modeHint) {
+  extractLogIdentity: function (text, patternHint) {
     var classLine = this.extractLog4jClassLine(text);
     if (!classLine) {
       return null;
     }
     var parts = classLine.split(':');
-    var mode = modeHint || '';
-    if (!mode) {
+    var pattern = patternHint || '';
+    if (!pattern) {
       return null;
     }
     return {
-      mode: mode,
+      pattern: pattern,
       className: parts[0],
       line: parts[1],
       classLine: classLine,
@@ -906,7 +829,7 @@ ResolveApplicationService.prototype = {
   },
 
   /** DQL text only — never execute against Grail on the BR critical path. */
-  buildSparkLogDql: function (identity, window, maxLines) {
+  buildLogDql: function (identity, window, maxLines) {
     maxLines = maxLines || 100;
     return (
       'fetch logs\n' +
@@ -915,12 +838,9 @@ ResolveApplicationService.prototype = {
       '") and timestamp <= toTimestamp("' +
       window.toIso +
       '")\n' +
-      '| filter spark.mode == "' +
-      identity.mode +
-      '"\n' +
-      '| filter spark.log.class == "' +
+      '| filter log.class == "' +
       identity.className +
-      '" and spark.log.line == ' +
+      '" and log.line == ' +
       identity.line +
       '\n' +
       '| sort timestamp desc\n' +
@@ -932,21 +852,21 @@ ResolveApplicationService.prototype = {
   /**
    * Append DQL for matching log lines to description. No URL, no Grail fetch.
    */
-  enrichSparkLogDescription: function (gr, modeHint) {
-    var marker = '--- Matching Spark log lines (DQL) ---';
+  enrichLogDescription: function (gr, patternHint) {
+    var marker = '--- Matching log lines (DQL) ---';
     var desc = gr.description ? gr.description.toString() : '';
     var stripFrom = desc.indexOf(marker);
     if (stripFrom === -1) {
       stripFrom = desc.indexOf('--- L2I enrichment ---');
     }
     if (stripFrom === -1) {
-      stripFrom = desc.indexOf('--- Matching Spark log lines ---');
+      stripFrom = desc.indexOf('--- Matching Spark log lines (DQL) ---');
     }
     if (stripFrom > 0) {
       desc = desc.substring(0, stripFrom).replace(/\s+$/, '');
     }
 
-    var identity = this.extractSparkLogIdentity(desc, modeHint);
+    var identity = this.extractLogIdentity(desc, patternHint);
     if (!identity) {
       return false;
     }
@@ -955,7 +875,7 @@ ResolveApplicationService.prototype = {
     var block =
       marker +
       '\n' +
-      this.buildSparkLogDql(identity, window, 100) +
+      this.buildLogDql(identity, window, 100) +
       '\n';
     var combined = desc + '\n\n' + block;
     if (combined.length > 4000) {

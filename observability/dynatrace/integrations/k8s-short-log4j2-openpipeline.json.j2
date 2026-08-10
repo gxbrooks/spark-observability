@@ -1,0 +1,101 @@
+{
+  "schemaId": "builtin:openpipeline.logs.pipelines",
+  "scope": "environment",
+  "value": {
+    "displayName": "{{ dt_l2i_k8s_openpipeline_display_name }}",
+    "customId": "{{ dt_l2i_k8s_openpipeline_custom_id }}",
+    "routing": "routable",
+    "groupRole": "memberPipeline",
+    "processing": {
+      "processors": [
+        {
+          "id": "tag-pipeline-custom-id",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Stamp OpenPipeline customId for Grail filtering",
+          "matcher": "true",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "pipeline",
+                "value": "{{ dt_l2i_k8s_openpipeline_custom_id | mandatory }}"
+              }
+            ]
+          }
+        },
+        {
+          "id": "extract-log4j-class-line",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse short Log4j2 Class:Line from content",
+          "matcher": "true",
+          "dql": {
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:log.class ':' INT:log.line LD\""
+          }
+        }
+      ]
+    },
+    "davis": {
+      "processors": [
+        {
+          "id": "k8s-short-log4j2-warn-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "K8s short Log4j2 WARN/ERROR → ERROR_EVENT; stamp k8s.pod.name",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(log.class) AND isNotNull(log.line) AND isNotNull(k8s.pod.name)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "log.event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "event.name", "value": "Critical {loglevel} at {log.class}:{log.line}" },
+              {
+                "key": "event.description",
+                "value": "K8s short Log4j2 critical {loglevel} at {log.class}:{log.line} on {k8s.pod.name} log.event_kind=CRITICAL_LOG_EVENT k8s.pod.name={k8s.pod.name}: {content}"
+              },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "k8s.pod.name", "value": "{k8s.pod.name}" },
+              { "key": "event.unique_identifier", "value": "K8s Critical {loglevel} {log.class}:{log.line}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        },
+        {
+          "id": "k8s-short-log4j2-missing-pod-name-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Fail-visible: WARN/ERROR without k8s.pod.name on Container Output",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(k8s.pod.name)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "log.event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "event.name", "value": "K8s log missing k8s.pod.name on {log.source}" },
+              {
+                "key": "event.description",
+                "value": "Container Output log missing k8s.pod.name for {log.source} log.event_kind=CRITICAL_LOG_EVENT: {content}"
+              },
+              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        }
+      ]
+    },
+    "storage": {
+      "processors": [
+        {
+          "id": "default-storage",
+          "type": "bucketAssignment",
+          "enabled": true,
+          "description": "Store in default logs bucket",
+          "matcher": "true",
+          "bucketAssignment": { "bucketName": "default_logs" }
+        }
+      ]
+    }
+  }
+}

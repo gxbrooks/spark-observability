@@ -93,8 +93,44 @@ dt_sn_cpu_metric_event_host_names:
   - lab2
   - lab3
 dt_sn_spark_error_log_event_summary: "Spark Lab - ERROR and WARN log lines"
-dt_sn_spark_log_custom_source_name: "Spark Lab - application log files"
 dt_sn_spark_error_log_event_summary_legacy: "Spark Lab - ERROR log lines"
-dt_sn_spark_openpipeline_pipeline_display_name: "Spark Lab - log alerts"
-dt_sn_spark_openpipeline_pipeline_custom_id: "spark-lab-log-alerts"
-dt_sn_spark_openpipeline_routing_description: "Spark Lab log alerts (ERROR/WARN)"
+
+# ---------------------------------------------------------------------------
+# L2I patterns (Spark-independent)
+#   1) Standalone App with short Log4j2 logs  — custom log source + service_instance
+#   2) K8s App with short Log4j2 logs         — Container Output + k8s.pod.name
+# Attributes we introduce use the log.* basename (log.class, log.line, log.event_kind).
+# event.type stays the Dynatrace Davis enum; log.event_kind is the SN semantic remap.
+# ---------------------------------------------------------------------------
+dt_l2i_standalone_custom_source_name: "Standalone short Log4j2 - application log files"
+dt_l2i_standalone_service_instance: "Spark-Client"
+dt_l2i_standalone_log_path_pattern: "/mnt/spark/client-logs/*/spark-app.log"
+dt_l2i_standalone_log_path_pattern_rotated: "/mnt/spark/client-logs/*/spark-app-*.log"
+dt_l2i_standalone_log_source_glob: "/mnt/spark/client-logs/*"
+dt_l2i_standalone_openpipeline_display_name: "Standalone short Log4j2 - log alerts"
+dt_l2i_standalone_openpipeline_custom_id: "standalone-short-log4j2-log-alerts"
+dt_l2i_standalone_routing_description: "Standalone short Log4j2 log alerts (custom log source)"
+
+dt_l2i_k8s_namespace: "spark"
+dt_l2i_k8s_openpipeline_display_name: "K8s short Log4j2 - log alerts"
+dt_l2i_k8s_openpipeline_custom_id: "k8s-short-log4j2-log-alerts"
+dt_l2i_k8s_routing_description: "K8s short Log4j2 log alerts (Container Output)"
+
+# Prior route descriptions removed from routing on apply (idempotent cleanup)
+dt_l2i_routing_description_legacy:
+  - "Spark Lab log alerts (ERROR/WARN)"
+  - "Spark Lab Client log alerts (/mnt/spark/client-logs)"
+  - "Spark Lab Cluster log alerts (Container Output ns=spark)"
+
+# Back-compat aliases for older play references
+dt_sn_spark_log_custom_source_name: "{{ dt_l2i_standalone_custom_source_name }}"
+dt_sn_spark_client_openpipeline_display_name: "{{ dt_l2i_standalone_openpipeline_display_name }}"
+dt_sn_spark_client_openpipeline_custom_id: "{{ dt_l2i_standalone_openpipeline_custom_id }}"
+dt_sn_spark_client_routing_description: "{{ dt_l2i_standalone_routing_description }}"
+dt_sn_spark_cluster_openpipeline_display_name: "{{ dt_l2i_k8s_openpipeline_display_name }}"
+dt_sn_spark_cluster_openpipeline_custom_id: "{{ dt_l2i_k8s_openpipeline_custom_id }}"
+dt_sn_spark_cluster_routing_description: "{{ dt_l2i_k8s_routing_description }}"
+dt_sn_spark_openpipeline_routing_description_legacy: "Spark Lab log alerts (ERROR/WARN)"
+dt_sn_spark_openpipeline_pipeline_display_name: "{{ dt_l2i_standalone_openpipeline_display_name }}"
+dt_sn_spark_openpipeline_pipeline_custom_id: "{{ dt_l2i_standalone_openpipeline_custom_id }}"
+dt_sn_spark_openpipeline_routing_description: "{{ dt_l2i_standalone_routing_description }}"

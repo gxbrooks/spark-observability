@@ -1,0 +1,111 @@
+{
+  "schemaId": "builtin:openpipeline.logs.pipelines",
+  "scope": "environment",
+  "value": {
+    "displayName": "{{ dt_l2i_standalone_openpipeline_display_name }}",
+    "customId": "{{ dt_l2i_standalone_openpipeline_custom_id }}",
+    "routing": "routable",
+    "groupRole": "memberPipeline",
+    "processing": {
+      "processors": [
+        {
+          "id": "tag-pipeline-custom-id",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Stamp OpenPipeline customId for Grail filtering",
+          "matcher": "true",
+          "fieldsAdd": {
+            "fields": [
+              {
+                "name": "pipeline",
+                "value": "{{ dt_l2i_standalone_openpipeline_custom_id | mandatory }}"
+              }
+            ]
+          }
+        },
+        {
+          "id": "compose-log-instance",
+          "type": "dql",
+          "enabled": true,
+          "description": "Compose log.instance from host.name + log.driver.instance",
+          "matcher": "isNotNull(log.driver.instance)",
+          "dql": {
+            "script": "fieldsAdd log.instance = concat(toString(coalesce(host.name, \"unknown\")), \":\", toString(log.driver.instance))"
+          }
+        },
+        {
+          "id": "extract-log4j-class-line",
+          "type": "dql",
+          "enabled": true,
+          "description": "Parse short Log4j2 Class:Line from content",
+          "matcher": "true",
+          "dql": {
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:log.class ':' INT:log.line LD\""
+          }
+        }
+      ]
+    },
+    "davis": {
+      "processors": [
+        {
+          "id": "standalone-short-log4j2-warn-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Standalone short Log4j2 WARN/ERROR → ERROR_EVENT; stamp service_instance",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(log.class) AND isNotNull(log.line) AND isNotNull(service_instance)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "log.event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "event.name", "value": "Critical {loglevel} at {log.class}:{log.line}" },
+              {
+                "key": "event.description",
+                "value": "Standalone short Log4j2 critical {loglevel} at {log.class}:{log.line} in {log.path} log.event_kind=CRITICAL_LOG_EVENT service_instance={service_instance}: {content}"
+              },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "service_instance", "value": "{service_instance}" },
+              { "key": "event.unique_identifier", "value": "Standalone Critical {loglevel} {log.class}:{log.line}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        },
+        {
+          "id": "standalone-short-log4j2-missing-service-instance-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Fail-visible: WARN/ERROR without service_instance from custom log source",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(service_instance)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "ERROR_EVENT" },
+              { "key": "log.event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "event.name", "value": "Standalone log missing service_instance on {log.source}" },
+              {
+                "key": "event.description",
+                "value": "Custom log source did not set service_instance for {log.source} log.event_kind=CRITICAL_LOG_EVENT: {content}"
+              },
+              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
+              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        }
+      ]
+    },
+    "storage": {
+      "processors": [
+        {
+          "id": "default-storage",
+          "type": "bucketAssignment",
+          "enabled": true,
+          "description": "Store in default logs bucket",
+          "matcher": "true",
+          "bucketAssignment": { "bucketName": "default_logs" }
+        }
+      ]
+    }
+  }
+}

@@ -18,7 +18,7 @@ Playbooks under `tasks/ensure_*.yml` **upsert ServiceNow artifacts** (Script Inc
 
 | Name | Role |
 | ---- | ---- |
-| `ResolveApplicationService` | Generic bind: `spark.service_instance`→service instance; `spark.pod_identifier`→pod→service instance; else HOST→host CI / CAI→service instance; else leave `cmdb_ci` empty |
+| `ResolveApplicationService` | Generic bind: `service_instance`→SI; `k8s.pod.name`→pod→SI; else HOST/CAI; remaps type via `log.event_kind` |
 | `em-event-bind-entity-ci` | Before insert/update on `em_event` (order 5000) |
 | `em-alert-bind-entity-ci` | Before insert/update on `em_alert` (order 5010); keeps existing `cmdb_ci` if set |
 | `em-alert-create-log-incident` | Before insert/update on `em_alert` (order 5020); prefers alert CI else rebinds |

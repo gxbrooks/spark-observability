@@ -2,38 +2,47 @@
 
 **Instance:** optimizincdemo1  
 **Dynatrace tenant:** pdt20158  
-**Date:** 2026-08-04 (stdout Cluster + client file tail + generic entity bind)  
-**Scope:** Spark / K8s application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
+**Date:** 2026-08-09 (Spark-independent L2I patterns: Standalone + K8s short Log4j2)  
+**Scope:** short Log4j2 application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
 
-This note is the **design of record** for the lab Log-to-Incident path, plus product / configuration gaps for Dynatrace and ServiceNow account teams. Historical dead-ends (CUSTOM_DEVICE bake-in, path-tail Cluster, CAI OpenPipeline remapping, `sn_ci_lookup`) are marked **Historical** only where they still explain a gap or recommendation.
+This note is the **design of record** for the lab Log-to-Incident path, plus product / configuration gaps for Dynatrace and ServiceNow account teams. Historical dead-ends (CUSTOM_DEVICE, `spark.*` bind/pipeline attributes, unified pipelines) are marked **Historical** only where they still explain a gap.
 
-**Promote timestamp (filter post-cutover noise):** `2026-08-03T14:31:46Z` — also in `tmp/l2i_generic_bind_promote_ts.txt`. Prefer `sys_created_on >=` that time when auditing events/alerts/incidents.
+**Promote timestamp:** write `tmp/l2i_pattern_promote_ts.txt` on each cutover.
 
 ---
 
-## 0. Current design of record (2026-08-04)
+## 0. Current design of record (2026-08-09)
+
+### Attribute basename: `log.*`
+
+Introduced attributes use the **`log`** basename (not `spark` / `l2i` / `event` for custom fields):
+
+| Attribute | Role |
+| --------- | ---- |
+| `log.class` / `log.line` | Parsed short Log4j2 `Class:Line` (OpenPipeline) |
+| `log.path` / `log.driver.instance` / `log.instance` | Standalone custom-source / composed identity |
+| `log.event_kind` | SN semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`) |
+| `service_instance` | Standalone bind key (from custom log source) |
+| `k8s.pod.name` | K8s bind key (Container Output / Davis stamp) |
+| `pipeline` | OpenPipeline customId stamp |
+
+**Why both `event.type` and `log.event_kind`?** Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). `log.event_kind` carries the ServiceNow UI type; `ResolveApplicationService.applyLogEventTypeRename` remaps `em_event.type` / `em_alert.type`. Built-in `CPU_SATURATED` is left unchanged.
 
 ### End-to-end contract
 
-| Mode | Log emission | OneAgent ingest | OpenPipeline enrich | Davis / SN bind keys |
-| ---- | ------------ | --------------- | ------------------- | -------------------- |
-| **Client** | Log4j2 RollingFile under `/mnt/spark/client-logs/<instance>/` (`log4j2-client.properties`) | Custom log source path patterns only | `spark.mode=Client`, `spark.service_instance=Spark-Client`, compose `spark.instance` | `spark.service_instance` → service instance by **name first** (`Spark-Client` → **Spark Client**); `dt.source_entity` stays OneAgent **HOST** (SN ignores HOST when service instance stamp present) |
-| **Cluster** | Log4j2 **Console** → container stdout (`log4j2-cluster.properties`) | DynaKube `logMonitoring: {}` → `log.source=Container Output` (pod / CAI / PGI context from Log module). **No** custom log source on `/mnt/spark/logs` for app logs | `enrich-cluster-from-k8s`: `k8s.pod.name` → `spark.mode=Cluster` + `spark.pod_identifier` | `spark.pod_identifier` → pod CI by name → Contains service instance; SN ignores HOST when pod identifier present |
-| **Host CPU** | Metric event | Host OneAgent | `spark.event_kind=CPU_EVENT` on metric template | Primary ImpactedEntity **HOST** → host CI |
+| Pattern | Log emission | OneAgent ingest | OpenPipeline | SN bind |
+| ------- | ------------ | --------------- | ------------ | ------- |
+| **Standalone App with short Log4j2 logs** | RollingFile under lab path (`/mnt/spark/client-logs/…`) | Custom log source stamps `service_instance` | `standalone-short-log4j2-log-alerts` | `service_instance` → service instance (name / sanitized name) |
+| **K8s App with short Log4j2 logs** | Console → container stdout | DynaKube `logMonitoring: {}` → `Container Output` + `k8s.pod.name` | `k8s-short-log4j2-log-alerts` | `k8s.pod.name` → pod CI → service instance |
+| **Host CPU** | Metric event | Host OneAgent | `log.event_kind=CPU_EVENT` on metric template | Primary ImpactedEntity **HOST** → host CI |
 
-Shared pipeline: **Spark Lab - log alerts** (`spark-lab-log-alerts`) in `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`. Custom source (Client only): `spark-log-custom-source.json.j2`. DynaKube: `observability/dynatrace/dynakube/dynakube.yaml.j2`.
-
-### Dynatrace `event.type` vs ServiceNow type remap
-
-Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). Lab stamps **`spark.event_kind`** (`CRITICAL_LOG_EVENT` | `CPU_EVENT`) on Davis properties / description. ServiceNow **`ResolveApplicationService.applySparkEventTypeRename`** remaps `em_event.type` / `em_alert.type` to those names for the Event Management UI. Built-in `CPU_SATURATED` is left unchanged.
-
-Davis also stamps: `dt.davis.is_merging_allowed=false`, `event.unique_identifier`, mode bind keys (`spark.service_instance` or `spark.pod_identifier`). **No** `CUSTOM_DEVICE`, `spark.device`, `spark.davis_entity`, `sn_ci_lookup`, or OpenPipeline CAI bake-in.
+Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.j2`, `l2i-openpipeline-routing-entries.json.j2`, `dynakube.yaml.j2`.
 
 ### ServiceNow generic entity CI-bind
 
 | Layer | Behavior |
 | ----- | -------- |
-| **Event CI bind** | (1) `spark.service_instance` → SI by **name** first (`Spark-Client` → `Spark Client`; else name equals the identifier string), then optional `identifier` column only if the field is valid and matches; (2) else `spark.pod_identifier` (from OpenPipeline or parsed from Container Output / PGI display names such as `(Worker spark-worker-…)`) → pod CI by name → `svc_ci_assoc` SI; if Contains is missing, map `spark-master*` / `spark-worker*` / `spark-history*` pod names to service instances **Spark Master** / **Spark Worker** / **Spark History Server**; (3) else primary ImpactedEntity: `HOST` (CPU / `CPU_EVENT`), `CLOUD_APPLICATION_INSTANCE` → SI via pod `svc_ci_assoc`, `CUSTOM_DEVICE` only as **legacy fallback** if still present. **No match → leave `cmdb_ci` empty.** |
+| **Event CI bind** | (1) `service_instance` → SI by name / sanitized name / optional `identifier`; (2) else `k8s.pod.name` → pod CI → `svc_ci_assoc` SI (name-fallback Master/Worker/History when Contains missing); (3) else primary ImpactedEntity `HOST` or `CLOUD_APPLICATION_INSTANCE`. **No CUSTOM_DEVICE path.** **No match → leave `cmdb_ci` empty.** |
 | **Alert CI bind** | If the alert already has `cmdb_ci`, **keep it**; otherwise same generic bind. |
 | **Incident create** | If the alert has `cmdb_ci`, **use it**; otherwise same bind. Skip create when still empty. |
 | **Propagate** | **Disabled.** CI must be correct on first insert. |
@@ -56,9 +65,9 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 
 OpenPipeline **Processing cannot look up entities by name**. Lab **does not** bake pod→CAI `fieldsAdd` processors at apply time.
 
-**Current workaround:** stamp `spark.pod_identifier` (from `k8s.pod.name` on Container Output) into Davis description / properties; ServiceNow binds service instance by pod CI name. Client bind uses `spark.service_instance`, not a Dynatrace CUSTOM_DEVICE.
+**Current workaround:** stamp `k8s.pod.name` (already on Container Output) into Davis description / properties; ServiceNow binds service instance by pod CI name. Client bind uses `service_instance` from the custom log source, not a Dynatrace CUSTOM_DEVICE.
 
-**Still desirable from DT:** native OpenPipeline entity lookup. Cluster Mode **already** uses container-context log collection (stdout → Container Output) so OneAgent can attach CAI/PGI when the Log module associates the stream; SN still prefers the stamped pod identifier for durable CMDB Contains traversal.
+**Still desirable from DT:** native OpenPipeline entity lookup / PGI→pod remapping so SN can rely on ImpactedEntity alone. Until then SN prefers the stamped `k8s.pod.name` for durable CMDB Contains traversal.
 
 ### Product gap: SGC drops problems without topology CI match unless unmatched-CI events are enabled
 
@@ -66,7 +75,7 @@ OpenPipeline **Processing cannot look up entities by name**. Lab **does not** ba
 
 **Root cause:** `sn_dynatrace_integ.events_for_unmatched_ci.enabled=false` → syslog `SGO-Dynatrace: Skipping event creation on non matched CI`.
 
-**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `spark.service_instance` / `spark.pod_identifier` (or HOST for CPU).
+**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `service_instance` / `k8s.pod.name` (or HOST for CPU).
 
 **Ask SN:** document this property for SGO customers whose Davis primary entity is not in an SGC topology feed (common for Client HOST file-tail and any residual HOST-primary Cluster problems).
 

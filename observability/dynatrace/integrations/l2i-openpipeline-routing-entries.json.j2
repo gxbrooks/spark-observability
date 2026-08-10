@@ -1,0 +1,16 @@
+[
+  {
+    "enabled": true,
+    "pipelineType": "custom",
+    "pipelineId": "{{ dt_l2i_standalone_pipeline_object_id }}",
+    "matcher": "matchesValue(log.source, \"{{ dt_l2i_standalone_log_source_glob }}\")",
+    "description": "{{ dt_l2i_standalone_routing_description }}"
+  },
+  {
+    "enabled": true,
+    "pipelineType": "custom",
+    "pipelineId": "{{ dt_l2i_k8s_pipeline_object_id }}",
+    "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"{{ dt_l2i_k8s_namespace }}\")",
+    "description": "{{ dt_l2i_k8s_routing_description }}"
+  }
+]

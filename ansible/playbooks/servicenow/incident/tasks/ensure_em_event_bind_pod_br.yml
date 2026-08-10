@@ -13,8 +13,8 @@
       order: "{{ sn_incident_em_event_br_order }}"
       filter_condition: source=SGO-Dynatrace
       description: >-
-        Artifact: generic bind for SGO-Dynatrace events — spark.service_instance→AS,
-        spark.pod_identifier→pod→AS, else HOST→host CI / CAI→AS via Contains;
+        Artifact: generic bind for SGO-Dynatrace events — service_instance→SI,
+        k8s.pod.name→pod→SI, else HOST→host CI / CAI→SI via Contains;
         leaves cmdb_ci empty when no match; always writes processing_notes.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_bind_entity_ci.br.js') }}"
 

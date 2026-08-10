@@ -1,0 +1,92 @@
+---
+# Upsert one Dynatrace Settings 2.0 object from a rendered JSON document.
+#
+# Required vars:
+#   dt_upsert_schema_id       — schemaIds query value
+#   dt_upsert_doc             — full POST/PUT body dict (schemaId, scope, value)
+#   dt_upsert_match_key       — key under item.value (e.g. customId, config-item-title)
+#   dt_upsert_match_value     — identifying value
+# After success, callers read dt_upsert_found_id (and dt_upsert_change_needed).
+#
+# Optional:
+#   dt_upsert_match_key_alt / dt_upsert_match_value_alt — secondary OR match
+
+- name: "List settings objects ({{ dt_upsert_schema_id }})"
+  ansible.builtin.uri:
+    url: >-
+      {{ dt_api_url_resolved }}/v2/settings/objects?schemaIds={{ dt_upsert_schema_id }}&fields=objectId,value&pageSize=200
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_upsert_list
+  delegate_to: localhost
+  run_once: true
+
+- name: Clear prior upsert match facts
+  ansible.builtin.set_fact:
+    dt_upsert_found_id: ""
+    dt_upsert_found_value: {}
+  run_once: true
+
+- name: "Find existing object ({{ dt_upsert_match_key }}={{ dt_upsert_match_value }})"
+  ansible.builtin.set_fact:
+    dt_upsert_found_id: "{{ item.objectId }}"
+    dt_upsert_found_value: "{{ item.value }}"
+  loop: "{{ dt_upsert_list.json['items'] | default([]) }}"
+  when: >-
+    (item.value[dt_upsert_match_key] | default('') == dt_upsert_match_value)
+    or (
+      (dt_upsert_match_key_alt | default('') | length > 0)
+      and (item.value[dt_upsert_match_key_alt] | default('')
+           == (dt_upsert_match_value_alt | default(dt_upsert_match_value)))
+    )
+  run_once: true
+
+- name: Determine whether settings value changed
+  ansible.builtin.set_fact:
+    dt_upsert_change_needed: >-
+      {{ (dt_upsert_found_id | length) == 0
+         or (dt_upsert_found_value | combine(dt_upsert_doc.value, recursive=True))
+            != dt_upsert_found_value }}
+  run_once: true
+
+- name: "Create settings object ({{ dt_upsert_match_value }})"
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      - "{{ dt_upsert_doc }}"
+    status_code: [200, 201]
+  register: dt_upsert_create
+  when: dt_upsert_found_id | length == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Record objectId after create
+  ansible.builtin.set_fact:
+    dt_upsert_found_id: "{{ dt_upsert_create.json[0].objectId | default('') }}"
+  when:
+    - dt_upsert_create is defined
+    - not dt_upsert_create is skipped
+  run_once: true
+
+- name: "Update settings object ({{ dt_upsert_match_value }})"
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_upsert_found_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ dt_upsert_doc }}"
+    status_code: [200, 204]
+  when:
+    - dt_upsert_found_id | length > 0
+    - dt_upsert_change_needed | bool
+  delegate_to: localhost
+  run_once: true

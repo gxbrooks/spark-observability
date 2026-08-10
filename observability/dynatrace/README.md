@@ -24,7 +24,7 @@ There is **no** per-tenant directory (e.g. `tenants/pdt20158/`). Specs describe 
 | Path | Purpose |
 |------|---------|
 | `management-zones/spark-observability/` | MZ **Spark Observability** — host group + K8s + CUSTOM_DEVICE rules |
-| `integrations/` | OpenPipeline, alerting profile, anomaly detectors, webhook payload templates |
+| `integrations/` | Dual Client/Cluster OpenPipelines + routing entries, alerting profile, anomaly detectors, webhook payloads |
 | `dashboards/` | Spark System Metrics and drilldown dashboards |
 | `dynakube/dynakube.yaml.j2` | cloudNativeFullStack Operator CR |
 

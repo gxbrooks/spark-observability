@@ -102,7 +102,7 @@ Symptoms observed during chapter runs:
 | Classic log event | Enabled, DQL matched in Logs app — **zero** Davis events or problems. |
 | ServiceNow | CPU `CUSTOM_ALERT` events arrived; **no** Spark log problems in `em_event`. |
 
-**Fix:** Deploy an OpenPipeline **Davis event processor** on a dedicated pipeline and add a **routing entry** (before the catch-all `Metric Route`) for Spark log paths. Ansible: `apply_spark_openpipeline_log_alerts.yml` + `spark-openpipeline-log-alerts-pipeline.json.j2`.
+**Fix:** Deploy **Client** and **Cluster** OpenPipeline Davis processors and routing entries (before the catch-all `Metric Route`). Ansible: `apply_spark_openpipeline_log_alerts.yml` + `spark-*-openpipeline-log-alerts-pipeline.json.j2` + `spark-openpipeline-routing-entries.json.j2`.
 
 Additional prerequisites (also deployed by `events/deploy.yml`):
 
