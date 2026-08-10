@@ -30,33 +30,33 @@ Introduced attributes use the **`log`** basename (not `spark` / `l2i` / `event` 
 
 ### End-to-end contract
 
-| Pattern | Log emission | OneAgent ingest | OpenPipeline | SN bind |
-| ------- | ------------ | --------------- | ------------ | ------- |
-| **Standalone App with short Log4j2 logs** | RollingFile under lab path (`/mnt/spark/client-logs/…`) | Custom log source stamps `service_instance` | `standalone-short-log4j2-log-alerts` | `service_instance` → service instance (name / sanitized name) |
-| **K8s App with short Log4j2 logs** | Console → container stdout | DynaKube `logMonitoring: {}` → `Container Output` + `k8s.pod.name` | `k8s-short-log4j2-log-alerts` | `k8s.pod.name` → pod CI → service instance |
-| **Host CPU** | Metric event | Host OneAgent | `log.event_kind=CPU_EVENT` on metric template | Primary ImpactedEntity **HOST** → host CI |
+| Pattern | Log emission | OneAgent ingest | OpenPipeline | Alert CI | Incident CI |
+| ------- | ------------ | --------------- | ------------ | -------- | ----------- |
+| **Standalone App with short Log4j2 logs** | RollingFile under lab path (`/mnt/spark/client-logs/…`) | Custom log source stamps `service_instance` | `standalone-short-log4j2-log-alerts` | HOST (ImpactedEntity) | Service instance from `service_instance` |
+| **K8s App with short Log4j2 logs** | Console → container stdout | DynaKube `logMonitoring: {}` → `Container Output` + `k8s.pod.name` | `k8s-short-log4j2-log-alerts` | Pod CI | Service instance via pod → `svc_ci_assoc` |
+| **Host CPU** | Metric event | Host OneAgent | `log.event_kind=CPU_EVENT` on metric template | HOST | (CPU path; not log SI correlation) |
 
 Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.j2`, `l2i-openpipeline-routing-entries.json.j2`, `dynakube.yaml.j2`.
 
-### ServiceNow generic entity CI-bind
+### ServiceNow layered CI-bind and incident correlation
 
 | Layer | Behavior |
 | ----- | -------- |
-| **Event CI bind** | (1) `service_instance` → SI by name / sanitized name / optional `identifier`; (2) else `k8s.pod.name` → pod CI → `svc_ci_assoc` SI (name-fallback Master/Worker/History when Contains missing); (3) else primary ImpactedEntity `HOST` or `CLOUD_APPLICATION_INSTANCE`. **No CUSTOM_DEVICE path.** **No match → leave `cmdb_ci` empty.** |
-| **Alert CI bind** | If the alert already has `cmdb_ci`, **keep it**; otherwise same generic bind. |
-| **Incident create** | If the alert has `cmdb_ci`, **use it**; otherwise same bind. Skip create when still empty. |
-| **Propagate** | **Disabled.** CI must be correct on first insert. |
-| **OOTB AMR `SGO-Dynatrace`** | Remains **inactive** (deploy playbook enforces). |
-| **K8s-named BRs/SIs** | Retired (`K8sLogPodCiBind`, `em-*-k8s-log-*`). |
+| **Event / alert CI** | Infrastructure only: `k8s.pod.name` → **pod CI**; standalone `service_instance` stamp + HOST ImpactedEntity → **host CI**. **Not** the service instance. Support groups stay on the SI. |
+| **Incident CI** | **Service instance** via `resolveServiceInstanceForIncident` (stamp / pod→`svc_ci_assoc` / name fallback). |
+| **Incident correlate** | Open incident with same **SI + short description** `Critical log event — Class:Line` (Log4j signature). Many pod alerts for one signature → one incident. |
+| **`message_key`** | Remains Dynatrace **ProblemID** (OPEN/RESOLVED). Class:line is not folded into `message_key`. |
+| **Propagate** | **Disabled.** |
+| **OOTB AMR `SGO-Dynatrace`** | Remains **inactive**. |
 
 ### Active lab artifacts
 
 | Name | Kind | Role |
 | ---- | ---- | ---- |
-| `ResolveApplicationService` | Script Include | Generic entity→CI (`applyEntityBinding`); name-first AS; `applySparkEventTypeRename` |
-| `em-event-bind-entity-ci` | BR `em_event` order 5000 | Bind on event insert/update |
-| `em-alert-bind-entity-ci` | BR `em_alert` order 5010 | Prefer existing CI; else bind |
-| `em-alert-create-log-incident` | BR `em_alert` order 5020 | Prefer alert CI; else bind; create/correlate `Critical log event` |
+| `ResolveApplicationService` | Script Include | Infra bind + SI resolve + `log.event_kind` rename |
+| `em-event-bind-entity-ci` | BR `em_event` order 5000 | Bind infra CI on event |
+| `em-alert-bind-entity-ci` | BR `em_alert` order 5010 | Keep infra CI; replace SI if left on alert |
+| `em-alert-create-log-incident` | BR `em_alert` order 5020 | Incident CI=SI; correlate SI + class:line |
 | `em-event-propagate-entity-ci` | BR `em_event` order 5005 | **Inactive** |
 
 Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.

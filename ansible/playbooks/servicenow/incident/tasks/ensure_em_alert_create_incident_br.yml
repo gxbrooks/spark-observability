@@ -15,9 +15,9 @@
       order: "{{ sn_incident_em_alert_br_order }}"
       filter_condition: source=SGO-Dynatrace^severity<=3
       description: >-
-        Artifact: create/correlate Critical log event incidents using alert
-        cmdb_ci when set, else generic entity bind (service_instance /
-        k8s.pod.name / HOST / CAI).
+        Artifact: create/correlate Critical log event incidents with
+        incident.cmdb_ci = service instance; correlate open incidents by
+        SI + Log4j class:line. Alert cmdb_ci stays pod/HOST.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule

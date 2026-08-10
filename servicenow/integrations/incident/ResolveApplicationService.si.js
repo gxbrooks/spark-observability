@@ -566,14 +566,122 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Generic entity → CI bind for SGO-Dynatrace em_event / em_alert:
-   *   1. service_instance → service instance by display name (Standalone pattern)
-   *   2. k8s.pod.name → pod name → svc_ci_assoc SI (K8s pattern)
-   *   3. primary ImpactedEntity: HOST / CAI
-   *   else leave cmdb_ci empty and note failure
+   * True when sysId is a CSDM service instance (cmdb_ci_service_discovered hierarchy).
+   */
+  isServiceInstanceCi: function (sysId) {
+    if (!sysId) {
+      return false;
+    }
+    var asGr = new GlideRecord('cmdb_ci_service_discovered');
+    return asGr.get(sysId);
+  },
+
+  /**
+   * Resolve the Application Service (service instance) for incident ownership.
+   * Does not mutate gr.cmdb_ci (alerts keep infrastructure CI).
+   * Returns { sysId, how, stamp } or null.
+   */
+  resolveServiceInstanceForIncident: function (gr) {
+    var serviceInstance = this.extractServiceInstance(gr);
+    if (serviceInstance) {
+      var asBind = this.resolveFromServiceInstance(serviceInstance);
+      if (asBind && asBind.sysId) {
+        return {
+          sysId: asBind.sysId,
+          how: asBind.how,
+          stamp: serviceInstance,
+        };
+      }
+    }
+
+    var podName = this.extractK8sPodName(gr);
+    if (podName) {
+      var byPod = this.resolveFromCloudApplicationInstance(null, podName);
+      if (byPod && byPod.asSysId) {
+        return {
+          sysId: byPod.asSysId,
+          how: byPod.how,
+          stamp: podName,
+        };
+      }
+    }
+
+    if (gr && !gr.cmdb_ci.nil()) {
+      var ciId = gr.cmdb_ci.toString();
+      if (this.isServiceInstanceCi(ciId)) {
+        return {
+          sysId: ciId,
+          how: 'alert/event cmdb_ci is already a service instance',
+          stamp: gr.cmdb_ci.getDisplayValue() || ciId,
+        };
+      }
+      var fromInfra = this.resolveFromInfrastructureCi(ciId);
+      if (fromInfra) {
+        return {
+          sysId: fromInfra,
+          how: 'cmdb_ci→svc_ci_assoc service instance',
+          stamp: gr.cmdb_ci.getDisplayValue() || ciId,
+        };
+      }
+    }
+
+    var entity = this.parsePrimaryImpactedEntity(gr);
+    if (entity && entity.type === 'CLOUD_APPLICATION_INSTANCE') {
+      var cai = this.resolveFromCloudApplicationInstance(
+        entity.entityId,
+        entity.name
+      );
+      if (cai && cai.asSysId) {
+        return {
+          sysId: cai.asSysId,
+          how: cai.how,
+          stamp: cai.podName || entity.name || '',
+        };
+      }
+    }
+
+    return null;
+  },
+
+  /**
+   * Log4j Class:Line for incident correlation (SI + class:line).
+   * Prefer OpenPipeline log.class / log.line stamps; fall back to Davis text.
+   */
+  extractLogClassLineForIncident: function (gr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var m = blob.match(/["']log\.class["']\s*:\s*["']([^"']+)["']/i);
+    var lineM = blob.match(/["']log\.line["']\s*:\s*["']?(\d+)["']?/i);
+    if (m && lineM) {
+      return m[1] + ':' + lineM[1];
+    }
+    m = blob.match(/(?:^|[\s,{;])log\.class\s*[=:]\s*([A-Za-z_][\w$]*)/i);
+    lineM = blob.match(/(?:^|[\s,{;])log\.line\s*[=:]\s*(\d+)/i);
+    if (m && lineM) {
+      return m[1] + ':' + lineM[1];
+    }
+    return this.extractLog4jClassLine(blob);
+  },
+
+  /**
+   * Short description used to correlate open incidents: SI + class:line.
+   */
+  buildCriticalLogIncidentShortDescription: function (classLine) {
+    if (classLine) {
+      return 'Critical log event — ' + classLine;
+    }
+    return 'Critical log event';
+  },
+
+  /**
+   * Generic entity → infrastructure CI bind for SGO-Dynatrace em_event / em_alert:
+   *   1. k8s.pod.name → cmdb_ci_kubernetes_pod (K8s pattern; SI used only for incidents)
+   *   2. service_instance stamp → prefer HOST ImpactedEntity for alert CI (Standalone)
+   *   3. primary ImpactedEntity: HOST / CAI (pod CI, not SI)
+   * Service instance ownership is resolved separately for incidents.
+   * message_key stays the Dynatrace ProblemID (no class:line mutation).
    */
   applyEntityBinding: function (gr) {
-    var result = { bound: false, kind: 'none', note: '' };
+    var result = { bound: false, kind: 'none', note: '', asSysId: '' };
 
     if (!gr || gr.source.toString() !== 'SGO-Dynatrace') {
       result.note = 'applyEntityBinding: skipped (source is not SGO-Dynatrace)';
@@ -583,53 +691,26 @@ ResolveApplicationService.prototype = {
 
     this.applyLogEventTypeRename(gr);
 
-    // 1) Standalone short Log4j2: custom log source stamps service_instance.
-    var serviceInstance = this.extractServiceInstance(gr);
-    if (serviceInstance) {
-      var asBind = this.resolveFromServiceInstance(serviceInstance);
-      if (asBind && asBind.sysId) {
-        gr.node = serviceInstance;
-        gr.resource = 'service_instance:' + serviceInstance;
-        gr.cmdb_ci = asBind.sysId;
-        result.bound = true;
-        result.kind = 'service_instance';
-        result.note =
-          'em-entity-bind: service_instance=' +
-          serviceInstance +
-          ' → service instance via ' +
-          asBind.how;
-        this.appendProcessingNote(gr, result.note);
-        this.appendClassLineToMessageKey(gr, 'SvcInst-');
-        this.enrichLogDescription(gr, 'Standalone');
-        return result;
-      }
-      result.kind = 'service_instance';
-      result.note =
-        'em-entity-bind: service_instance=' +
-        serviceInstance +
-        ' — no service instance by name/identifier; cmdb_ci left empty (HOST ImpactedEntity ignored)';
-      this.appendProcessingNote(gr, result.note);
-      return result;
-    }
-
-    // 2) K8s short Log4j2: Davis stamps k8s.pod.name from Container Output.
+    // 1) K8s short Log4j2: bind the pod CI for visibility (not the service instance).
     var podName = this.extractK8sPodName(gr);
     if (podName) {
       var byName = this.resolveFromCloudApplicationInstance(null, podName);
-      if (byName && byName.asSysId) {
-        gr.node = podName;
-        gr.resource = 'k8s.pod.name:' + podName;
-        gr.cmdb_ci = byName.asSysId;
+      gr.node = podName;
+      gr.resource = 'k8s.pod.name:' + podName;
+      this.enrichLogDescription(gr, 'K8s');
+      if (byName && byName.podSysId) {
+        gr.cmdb_ci = byName.podSysId;
         result.bound = true;
         result.kind = 'k8s_pod_name';
+        result.asSysId = byName.asSysId || '';
         result.note =
           'em-entity-bind: k8s.pod.name=' +
           podName +
-          ' → service instance via ' +
-          byName.how;
+          ' → pod CI' +
+          (byName.asSysId
+            ? ' (service instance available via ' + byName.how + ')'
+            : ' (' + (byName.how || 'no SI membership yet') + ')');
         this.appendProcessingNote(gr, result.note);
-        this.appendClassLineToMessageKey(gr, 'K8sPod-');
-        this.enrichLogDescription(gr, 'K8s');
         return result;
       }
       result.kind = 'k8s_pod_name';
@@ -640,12 +721,44 @@ ResolveApplicationService.prototype = {
         (byName && byName.how
           ? byName.how
           : 'no cmdb_ci_kubernetes_pod by name') +
-        '; cmdb_ci left empty (HOST ImpactedEntity ignored)';
+        '; cmdb_ci left empty';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
 
-    // 3) Primary ImpactedEntity (HOST for CPU; CAI when present).
+    // 2) Standalone short Log4j2: stamp identifies SI for incidents; alert CI = HOST.
+    var serviceInstance = this.extractServiceInstance(gr);
+    if (serviceInstance) {
+      gr.node = serviceInstance;
+      gr.resource = 'service_instance:' + serviceInstance;
+      this.enrichLogDescription(gr, 'Standalone');
+      var entitySi = this.parsePrimaryImpactedEntity(gr);
+      if (entitySi && entitySi.type === 'HOST') {
+        var hostSi = this.resolveFromHost(entitySi.entityId, entitySi.name);
+        if (hostSi) {
+          gr.cmdb_ci = hostSi.sysId;
+          result.bound = true;
+          result.kind = 'standalone_host';
+          result.note =
+            'em-entity-bind: service_instance=' +
+            serviceInstance +
+            ' stamped; alert CI=HOST via ' +
+            hostSi.how +
+            ' (SI reserved for incident)';
+          this.appendProcessingNote(gr, result.note);
+          return result;
+        }
+      }
+      result.kind = 'standalone_host';
+      result.note =
+        'em-entity-bind: service_instance=' +
+        serviceInstance +
+        ' stamped; no HOST CI for alert (SI used only at incident create)';
+      this.appendProcessingNote(gr, result.note);
+      return result;
+    }
+
+    // 3) Primary ImpactedEntity (HOST for CPU; CAI → pod CI).
     var entity = this.parsePrimaryImpactedEntity(gr);
     if (!entity) {
       result.note =
@@ -685,7 +798,7 @@ ResolveApplicationService.prototype = {
         entity.entityId,
         entity.name
       );
-      if (!pod || !pod.asSysId) {
+      if (!pod || !pod.podSysId) {
         result.kind = 'cai';
         result.note =
           'em-entity-bind: CLOUD_APPLICATION_INSTANCE ' +
@@ -702,13 +815,16 @@ ResolveApplicationService.prototype = {
       }
       if (pod.podName) {
         gr.node = pod.podName;
+        gr.resource = 'k8s.pod.name:' + pod.podName;
       }
-      gr.cmdb_ci = pod.asSysId;
+      gr.cmdb_ci = pod.podSysId;
       result.bound = true;
       result.kind = 'cai';
-      result.note = 'em-entity-bind: ' + pod.how;
+      result.asSysId = pod.asSysId || '';
+      result.note =
+        'em-entity-bind: CAI→pod CI' +
+        (pod.asSysId ? ' (' + pod.how + ')' : '');
       this.appendProcessingNote(gr, result.note);
-      this.appendClassLineToMessageKey(gr, 'K8sPod-');
       this.enrichLogDescription(gr, 'K8s');
       return result;
     }
@@ -885,20 +1001,13 @@ ResolveApplicationService.prototype = {
     return true;
   },
 
-  appendClassLineToMessageKey: function (gr, prefix) {
-    var mk = gr.message_key ? gr.message_key.toString() : '';
-    if (prefix && mk.indexOf(prefix) === -1) {
-      mk = prefix + mk;
-    }
-    var classLine = this.extractLog4jClassLine(
-      (gr.description ? gr.description.toString() : '') +
-        ' ' +
-        (gr.resource ? gr.resource.toString() : '')
-    );
-    if (classLine && mk.indexOf('|' + classLine) === -1) {
-      mk = mk + '|' + classLine;
-    }
-    gr.message_key = mk;
+  /**
+   * Intentionally a no-op: em_event.message_key must remain the Dynatrace
+   * ProblemID for OPEN/RESOLVED lifecycle. Incident correlation uses
+   * service instance + class:line on short_description instead.
+   */
+  appendClassLineToMessageKey: function (/* gr, prefix */) {
+    return;
   },
 
   type: 'ResolveApplicationService',

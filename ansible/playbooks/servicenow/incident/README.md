@@ -18,10 +18,10 @@ Playbooks under `tasks/ensure_*.yml` **upsert ServiceNow artifacts** (Script Inc
 
 | Name | Role |
 | ---- | ---- |
-| `ResolveApplicationService` | Generic bind: `service_instance`→SI; `k8s.pod.name`→pod→SI; else HOST/CAI; remaps type via `log.event_kind` |
+| `ResolveApplicationService` | Alert/event bind: `k8s.pod.name`→**pod CI**, standalone→**HOST**; remaps type via `log.event_kind`. Incident ownership resolved separately to the **service instance**. |
 | `em-event-bind-entity-ci` | Before insert/update on `em_event` (order 5000) |
-| `em-alert-bind-entity-ci` | Before insert/update on `em_alert` (order 5010); keeps existing `cmdb_ci` if set |
-| `em-alert-create-log-incident` | Before insert/update on `em_alert` (order 5020); prefers alert CI else rebinds |
+| `em-alert-bind-entity-ci` | Before insert/update on `em_alert` (order 5010); keeps infra `cmdb_ci`; rebinds if a service instance was left on the alert |
+| `em-alert-create-log-incident` | Before insert/update on `em_alert` (order 5020); incident `cmdb_ci`=service instance; correlates open incidents by **SI + class:line** |
 | `em-event-propagate-entity-ci` | **Inactive** (former event→alert propagate safety net) |
 | OOTB AMR `SGO-Dynatrace` | **Inactive** |
 
@@ -52,4 +52,4 @@ ServiceNow links alerts to incidents through **`em_alert.incident`** on optimizi
 
 Use `diagnose.yml` with `-e spark_alert_number=Alert00…` to query via the Table API.
 
-Incidents created by `em-alert-create-log-incident` use short description **Critical log event** and require a bound `cmdb_ci` on the alert first.
+Incidents created by `em-alert-create-log-incident` set **`incident.cmdb_ci`** to the **service instance** (support-group owner). Short description is **`Critical log event — Class:Line`** when a Log4j signature is present; open incidents are correlated by that exact short description plus service instance so many pod alerts for the same signature share one ticket. Alert `cmdb_ci` remains the infrastructure CI (pod or HOST).
