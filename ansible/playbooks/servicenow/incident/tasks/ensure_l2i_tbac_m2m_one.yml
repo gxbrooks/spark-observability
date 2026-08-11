@@ -1,0 +1,16 @@
+---
+- name: Look up m2m def={{ sn_l2i_tbac_def_sys_id }} tag={{ item.sys_id }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions_tags_m2m
+    sn_rest_query: "sysparm_query=alert_clustering_definition={{ sn_l2i_tbac_def_sys_id }}^alert_clustering_tag={{ item.sys_id }}&sysparm_limit=1"
+
+- name: Create m2m link for {{ item.name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions_tags_m2m
+    sn_rest_body:
+      alert_clustering_definition: "{{ sn_l2i_tbac_def_sys_id }}"
+      alert_clustering_tag: "{{ item.sys_id }}"
+  when: (sn_rest_json.result | default([]) | length) == 0

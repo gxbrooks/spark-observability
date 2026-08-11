@@ -29,3 +29,50 @@ sn_incident_max_severity: "3"
 # OOTB SGO-Dynatrace Alert Management Rule (must stay inactive for L2I).
 sn_sgo_ootb_amr_name: SGO-Dynatrace
 sn_sgo_ootb_amr_sys_id: 7f5e284e07032010b1306a77c4a93523
+
+# OOTB primary-alert incident AMR (copies pod CI onto Group Alert incidents).
+sn_l2i_ootb_primary_amr_name: Create Incident for Primary Alert
+
+# L2I AMR — reserved for Create incident from Alert → EvtMgmtIncidentHandler.
+# OOTB "Create Incident" subflow does NOT call the handler/populator; keep inactive
+# until a published Flow uses action "Create incident from Alert".
+sn_l2i_amr_name: L2I Create Incident CRITICAL_LOG_EVENT
+sn_l2i_amr_order: "50"
+sn_l2i_create_incident_subflow_name: Create Incident
+sn_l2i_create_incident_subflow_sys_id: 45454f6193330300415c74aff67ffbfb
+# Note: do not put dotted attribute names in LIKE (SN treats them as dot-walk).
+sn_l2i_amr_filter: "maintenance=false^incidentISEMPTY^severity<=3^descriptionLIKECRITICAL_LOG_EVENT^source=SGO-Dynatrace^correlation_group!=Secondary"
+sn_l2i_amr_active: "false"
+sn_l2i_process_pending_job_name: L2IProcessPendingAlerts
+# sysauto_script run_period is seconds.
+sn_l2i_process_pending_job_period_seconds: "60"
+
+# Tag-Based Alert Clustering (env + SI + signature).
+# Dash keys (not dots): TBAC splits additional_info_key on "." as a nested path
+# walk into JSON; flat Davis keys like sn.log.signature break that walk.
+sn_l2i_tbac_definition_name: L2I short Log4j2 SI + signature
+sn_l2i_tbac_definition_description: >-
+  Group L2I CRITICAL_LOG_EVENT alerts that share sn-environment,
+  sn-service_instance, and sn-log-signature (prevents cross-environment merge).
+# TBAC time_difference is minutes on this instance (see peer definitions).
+sn_l2i_tbac_time_difference_seconds: "15"
+sn_l2i_tbac_alert_filter: descriptionLIKECRITICAL_LOG_EVENT
+sn_l2i_tbac_custom_props_prefix: >-
+  ProblemDetailsJSON.rankedEvents[0].customProperties
+sn_l2i_tbac_tags:
+  - name: L2I exact match sn-environment
+    key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-environment"
+    description: L2I environment partition (lab/prod)
+  - name: L2I exact match sn-service_instance
+    key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-service_instance"
+    description: L2I service instance clustering key
+  - name: L2I exact match sn-log-signature
+    key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-log-signature"
+    description: L2I Log4j Class:Line signature
+
+# Bind/propagate BRs retired. Create BR is AMR shim → EvtMgmtIncidentHandler.
+sn_l2i_deactivate_br_names:
+  - em-event-bind-entity-ci
+  - em-alert-bind-entity-ci
+  - em-event-propagate-entity-ci
+sn_l2i_create_br_active: "true"

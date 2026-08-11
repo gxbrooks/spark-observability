@@ -101,7 +101,10 @@ dt_sn_spark_error_log_event_summary_legacy: "Spark Lab - ERROR log lines"
 #   2) K8s App with short Log4j2 logs         — Container Output + k8s.pod.name
 # Attributes we introduce use the log.* basename (log.class, log.line, log.event_kind).
 # event.type stays the Dynatrace Davis enum; log.event_kind is the SN semantic remap.
+# Clustering / AMR tags: log.signature, l2i.environment, l2i.service_instance.
 # ---------------------------------------------------------------------------
+# Prevents TBAC / Davis correlation across environments (lab vs prod, etc.).
+dt_l2i_environment: "lab"
 dt_l2i_standalone_custom_source_name: "Standalone short Log4j2 - application log files"
 dt_l2i_standalone_service_instance: "Spark-Client"
 dt_l2i_standalone_log_path_pattern: "/mnt/spark/client-logs/*/spark-app.log"

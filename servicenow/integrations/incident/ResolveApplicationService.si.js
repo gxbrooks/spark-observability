@@ -387,20 +387,87 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse service_instance from description / additional_info JSON.
-   * Pattern: Standalone App with short Log4j2 logs (custom log source stamp).
+   * Parse sn-service_instance from description / additional_info JSON.
+   * Legacy: sn.service_instance, l2i.service_instance, bare service_instance.
    */
   extractServiceInstance: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
     var m = blob.match(
-      /(?:^|[\s,{;])service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      /(?:^|[\s,{;])sn-service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
     );
+    if (!m) {
+      m = blob.match(
+        /["']sn-service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /(?:^|[\s,{;])sn\.service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /["']sn\.service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /(?:^|[\s,{;])l2i\.service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /["']l2i\.service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /(?:^|[\s,{;])service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      );
+    }
     if (!m) {
       m = blob.match(
         /["']service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
       );
     }
     return m ? m[1] : null;
+  },
+
+  /**
+   * Parse sn-log-signature (Class:Line) from OpenPipeline stamps.
+   * Legacy: sn.log.signature, log.signature.
+   */
+  extractLogSignature: function (gr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var m = blob.match(
+      /(?:^|[\s,{;])sn-log-signature\s*[=:]\s*([A-Za-z_][\w$]*:\d+)/i
+    );
+    if (!m) {
+      m = blob.match(
+        /["']sn-log-signature["']\s*:\s*["']([A-Za-z_][\w$]*:\d+)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /(?:^|[\s,{;])sn\.log\.signature\s*[=:]\s*([A-Za-z_][\w$]*:\d+)/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /["']sn\.log\.signature["']\s*:\s*["']([A-Za-z_][\w$]*:\d+)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /(?:^|[\s,{;])log\.signature\s*[=:]\s*([A-Za-z_][\w$]*:\d+)/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /["']log\.signature["']\s*:\s*["']([A-Za-z_][\w$]*:\d+)["']/i
+      );
+    }
+    return m ? m[1] : this.extractLogClassLineForIncident(gr);
   },
 
   /**
@@ -515,13 +582,30 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse log.event_kind from description / additional_info.
-   * Dynatrace keeps event.type as a fixed enum; log.event_kind carries the
+   * Parse sn-event_kind from description / additional_info.
+   * Dynatrace keeps event.type as a fixed enum; sn-event_kind carries the
    * ServiceNow semantic type (CRITICAL_LOG_EVENT / CPU_EVENT).
+   * Legacy: sn.event_kind, log.event_kind.
    */
   extractLogEventKind: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(/log\.event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    var m = blob.match(/sn-event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    if (!m) {
+      m = blob.match(
+        /["']sn-event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(/sn\.event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    }
+    if (!m) {
+      m = blob.match(
+        /["']sn\.event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(/log\.event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    }
     if (!m) {
       m = blob.match(
         /["']log\.event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
@@ -532,7 +616,7 @@ ResolveApplicationService.prototype = {
 
   /**
    * Remap em_event.type / em_alert.type from Dynatrace enum values to
-   * log.event_kind (CRITICAL_LOG_EVENT / CPU_EVENT). Leaves CPU_SATURATED alone.
+   * sn-event_kind (CRITICAL_LOG_EVENT / CPU_EVENT). Leaves CPU_SATURATED alone.
    */
   applyLogEventTypeRename: function (gr) {
     if (!gr || !gr.isValidField('type')) {
@@ -560,7 +644,7 @@ ResolveApplicationService.prototype = {
       gr.type = next;
       this.appendProcessingNote(
         gr,
-        'em-entity-bind: type ' + current + ' → ' + next + ' (log.event_kind rename)'
+        'em-entity-bind: type ' + current + ' → ' + next + ' (sn-event_kind rename)'
       );
     }
   },
@@ -640,17 +724,86 @@ ResolveApplicationService.prototype = {
       }
     }
 
+    // Group Alert primary: inherit SI from a secondary/member SGO alert.
+    if (gr && String(gr.source) === 'Group Alert') {
+      return this.resolveServiceInstanceFromAlertGroup(gr);
+    }
+
     return null;
   },
 
   /**
+   * Walk secondary alerts under a Group Alert / primary and resolve SI + signature.
+   * Returns { sysId, how, stamp, classLine } or null.
+   */
+  resolveServiceInstanceFromAlertGroup: function (primaryGr) {
+    if (!primaryGr || primaryGr.sys_id.nil()) {
+      return null;
+    }
+    var parentId = primaryGr.sys_id.toString();
+    var child = new GlideRecord('em_alert');
+    child.addQuery('parent', parentId);
+    child.orderBy('sys_created_on');
+    child.setLimit(25);
+    child.query();
+    while (child.next()) {
+      var si = this.resolveServiceInstanceForIncident(child);
+      if (si && si.sysId) {
+        si.classLine = this.extractLogSignature(child);
+        si.how = 'group member ' + child.number + ' → ' + si.how;
+        return si;
+      }
+    }
+    return null;
+  },
+
+  /**
+   * True when this alert is an L2I critical log (OpenPipeline stamp).
+   */
+  isL2iCriticalLogAlert: function (gr) {
+    if (!gr) {
+      return false;
+    }
+    if (gr.type && gr.type.toString() === 'CRITICAL_LOG_EVENT') {
+      return true;
+    }
+    var blob = this.collectSparkLookupBlob(gr);
+    return blob.indexOf('sn-event_kind=CRITICAL_LOG_EVENT') !== -1 ||
+      blob.indexOf('"sn-event_kind":"CRITICAL_LOG_EVENT"') !== -1 ||
+      blob.indexOf('sn.event_kind=CRITICAL_LOG_EVENT') !== -1 ||
+      blob.indexOf('"sn.event_kind":"CRITICAL_LOG_EVENT"') !== -1 ||
+      blob.indexOf('log.event_kind=CRITICAL_LOG_EVENT') !== -1 ||
+      blob.indexOf('"log.event_kind":"CRITICAL_LOG_EVENT"') !== -1;
+  },
+
+  /**
    * Log4j Class:Line for incident correlation (SI + class:line).
-   * Prefer OpenPipeline log.class / log.line stamps; fall back to Davis text.
+   * Prefer sn-log-class / sn-log-line; legacy dotted forms; Davis text.
    */
   extractLogClassLineForIncident: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(/["']log\.class["']\s*:\s*["']([^"']+)["']/i);
-    var lineM = blob.match(/["']log\.line["']\s*:\s*["']?(\d+)["']?/i);
+    var m = blob.match(/["']sn-log-class["']\s*:\s*["']([^"']+)["']/i);
+    var lineM = blob.match(/["']sn-log-line["']\s*:\s*["']?(\d+)["']?/i);
+    if (m && lineM) {
+      return m[1] + ':' + lineM[1];
+    }
+    m = blob.match(/(?:^|[\s,{;])sn-log-class\s*[=:]\s*([A-Za-z_][\w$]*)/i);
+    lineM = blob.match(/(?:^|[\s,{;])sn-log-line\s*[=:]\s*(\d+)/i);
+    if (m && lineM) {
+      return m[1] + ':' + lineM[1];
+    }
+    m = blob.match(/["']sn\.log\.class["']\s*:\s*["']([^"']+)["']/i);
+    lineM = blob.match(/["']sn\.log\.line["']\s*:\s*["']?(\d+)["']?/i);
+    if (m && lineM) {
+      return m[1] + ':' + lineM[1];
+    }
+    m = blob.match(/(?:^|[\s,{;])sn\.log\.class\s*[=:]\s*([A-Za-z_][\w$]*)/i);
+    lineM = blob.match(/(?:^|[\s,{;])sn\.log\.line\s*[=:]\s*(\d+)/i);
+    if (m && lineM) {
+      return m[1] + ':' + lineM[1];
+    }
+    m = blob.match(/["']log\.class["']\s*:\s*["']([^"']+)["']/i);
+    lineM = blob.match(/["']log\.line["']\s*:\s*["']?(\d+)["']?/i);
     if (m && lineM) {
       return m[1] + ':' + lineM[1];
     }

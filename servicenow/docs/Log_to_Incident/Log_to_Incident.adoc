@@ -1027,6 +1027,50 @@ You should consult application development and operations teams on analysis of l
 
 Furthermore, we assume that the same error signature across pods and/or client instances does *not* necessarily have the same root cause. For example, in an enterprise getting the same error around the same time across clusters in different regions likely does not have the same root cause. Granted, having the same error signature across pods in the same region likely does have the same root cause. Also, we assume that different error signatures within the same pod or client do not necessarily have the same root cause. However, Davis *does not* have the fidelity to define event by root cause and differentiate between different remote or local clusters or clients.
 
+===== Tag Contract
+
+The tag contract is a set of tags that are used to identify the problem and help ServiceNow group related ServiceNow alerts together. The tags are:
+
+[[tbl-tag-contract]]
+.Tag Contract
+[cols="15%,15%,70%",options="header"]
+|===
+|Attribute|Usage|Description
+
+|sn.event_kind
+|Used
+|Describes the kind of the event. For critical log events it will be CRITICAL_LOG_EVENT. Other events will be noted different, e.g. CPU_EVENT for CPU issues
+
+|sn.environment
+|Used
+|The environment name for the DT problems. Alerts from different environments should not be grouped together.
+
+|sn.service_instance
+|Used
+|The K8s compliant name of the service instance that we want assigned to the CI of an incident generated from this event.
+
+|sn.pipeline
+|Convenience
+|The name of the OpenPipeline that processed the event. This is for convenience purposes to identify the OpenPipeline that processed the event in ServiceNow.
+
+|sn.log.signature
+|Used
+|The signature of the log entry consisting of the class name and line number as: `{class name}:{line number}`. This is used to identify the log entry and is used to group related log entries together. We assume that different critical errors with the same error signature likely have the same root cause.
+
+|sn.log.class 
+|Convenience
+|The class name of the log entry used as a convenience to filter log entries by class name.
+
+|sn.log.line
+|Convenience
+|The line number of the log entry used as a convenience to filter log entries by line number.
+
+|k8s.pod.name
+|Used
+|The name of the Kubernetes pod that the log entry was generated from. This is used to identify the pod that the log entry was generated from.
+
+|===
+
 Since different critical errors may likely have different root causes, we want to create a Davis problem (and ServiceNow incident) for each different critical error. To arrange this we need to ensure that the tuple `(event.name, event.type, dt.source_entity)` is unique for each critical error. Tuple uniqueness will result in a new Davis problem being created for each critical error. The main component over which we have some control is `event.name`. To ensure uniqueness for different error signatures, we will define `event.name` in terms of the error's (log entries) class name and line number.
 
 We will define `event.name` as:
@@ -1306,7 +1350,7 @@ Impacted entities for Client Mode Davis problems are typically the OneAgent **HO
 
 The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. **`ProblemDetailsJSON.rankedEvents[]`** carries the OpenPipeline Davis properties from the Davis processors (`event.description`, entity ids, severity). Those ranked events are the **problem specification** that flows into ServiceNow **`em_event.description`** (via **`ProblemDetailsText`**) and into **`em_event.additional_info`**.
 
-.Specification 2.6.2-1. Problem notification payload (SGC)
+.Problem notification payload (SGC)
 [#spec-dt-webhook-payload-json]
 [source,json]
 ----
@@ -1326,6 +1370,8 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
   "PID": "{PID}"
 }
 ----
+
+
 
 ===== Cluster Mode
 

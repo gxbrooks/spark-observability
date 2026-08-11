@@ -1,0 +1,38 @@
+---
+# Upsert L2IIncidentFromAlert Script Include (create/correlate without BRs).
+
+- name: Build L2IIncidentFromAlert payload
+  ansible.builtin.set_fact:
+    sn_l2i_incident_si_body:
+      name: L2IIncidentFromAlert
+      active: "true"
+      access: public
+      script: "{{ lookup('file', sn_incident_integrations_dir + '/L2IIncidentFromAlert.si.js') }}"
+
+- name: Look up L2IIncidentFromAlert
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_script_include
+    sn_rest_query: "sysparm_query=name=L2IIncidentFromAlert^sys_scope=global&sysparm_limit=1"
+
+- name: Record L2IIncidentFromAlert state
+  ansible.builtin.set_fact:
+    sn_l2i_incident_si_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_incident_si_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Update L2IIncidentFromAlert
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script_include
+    sn_rest_sys_id: "{{ sn_l2i_incident_si_sys_id }}"
+    sn_rest_body: "{{ sn_l2i_incident_si_body }}"
+  when: sn_l2i_incident_si_exists | bool
+
+- name: Create L2IIncidentFromAlert
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script_include
+    sn_rest_body: "{{ sn_l2i_incident_si_body }}"
+  when: not sn_l2i_incident_si_exists | bool

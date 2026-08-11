@@ -6,18 +6,18 @@
   ansible.builtin.set_fact:
     sn_incident_em_alert_br_body:
       name: "{{ sn_incident_em_alert_br_name }}"
-      active: "true"
+      active: "{{ sn_l2i_create_br_active | default('true') }}"
       collection: em_alert
       advanced: "true"
-      when: before
+      when: after
       action_insert: "true"
       action_update: "true"
       order: "{{ sn_incident_em_alert_br_order }}"
-      filter_condition: source=SGO-Dynatrace^severity<=3
+      filter_condition: source=SGO-Dynatrace^severity<=3^incidentISEMPTY
       description: >-
-        Artifact: create/correlate Critical log event incidents with
-        incident.cmdb_ci = service instance; correlate open incidents by
-        SI + Log4j class:line. Alert cmdb_ci stays pod/HOST.
+        AMR shim: EvtMgmtIncidentHandler.createIncidentNoUpdate(alert,false)
+        → EvtMgmtCustomIncidentPopulator (same as Create incident from Alert).
+        autoOpen=false while AMR inactive. Remove when published Flow owns create.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule

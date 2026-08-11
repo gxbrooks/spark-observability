@@ -1,55 +1,70 @@
 # Log-to-Incident ServiceNow automation playbooks
 
-Deploy and validate Dynatrace (SGC / **SGO-Dynatrace**) → Event Management → ITSM incident automation using **generic entity → CI** binding.
+Deploy Dynatrace (SGC / **SGO-Dynatrace**) → Event Management → ITSM using:
+OpenPipeline `sn-*` tags → Tag-Based Alert Clustering →
+**EvtMgmtIncidentHandler** / **EvtMgmtCustomIncidentPopulator**
+(incident CI = **service instance**). Bind BRs are inactive.
 
-Playbooks under `tasks/ensure_*.yml` **upsert ServiceNow artifacts** (Script Includes, Business Rules). Those artifacts perform bind/create at runtime; the playbooks do not insert events, alerts, or incidents directly.
+## Create path (AMR + Create incident from Alert)
+
+Target: AMR **L2I Create Incident CRITICAL_LOG_EVENT** → Flow action
+**Create incident from Alert** → `EvtMgmtIncidentHandler` →
+`EvtMgmtCustomIncidentPopulator` (SI + `sn-log-signature`).
+
+Interim: BR `em-alert-create-log-incident` (after insert/update) calls
+`EvtMgmtIncidentHandler.createIncidentNoUpdate(alert, false)` — same
+populator path as the Flow action. `autoOpen=false` is required while the
+L2I AMR is inactive (`autoOpen=true` demands a matching `em_alert_rule`).
+AMR stays **inactive** to avoid the OOTB Create Incident subflow (skips populator).
+Deactivate the BR when an admin publishes the Flow and activates the AMR.
+
+## Why dash keys (`sn-log-signature`) not dots (`sn.log.signature`)
+
+TBAC reads `additional_info` via a **dot-path** into JSON, e.g.
+`ProblemDetailsJSON.rankedEvents[0].customProperties.sn-log-signature`.
+Each `.` is a nested-object step. Flat Davis keys that themselves contain
+dots (e.g. `sn.log.signature`) cannot be resolved by that walk. Dashes keep
+the path segment atomic while remaining readable.
 
 ## Playbooks
 
 | Playbook | Purpose |
 | -------- | ------- |
-| `deploy.yml` | Upsert `ResolveApplicationService` and generic SGO-Dynatrace BRs; deactivate legacy K8s/Spark BRs + OOTB AMR |
-| `verify_log_incident_bindings.yml` | Assert recent SGO-Dynatrace events have service instance / host CI |
-| `diagnose.yml` | Open SGO-Dynatrace alerts, log incidents, business rules; optional alert↔incident lookup |
-| `reprocess_spark_log_events.yml` | Touch existing `em_event` rows to re-run entity bind BR |
-| `reprocess_spark_log_alerts.yml` | Touch existing `em_alert` rows to re-run entity bind BR |
+| `deploy.yml` | Upsert Script Includes, handler shim BR, TBAC; deactivate bind BRs + OOTB AMRs |
+| `verify_log_incident_bindings.yml` | Assert recent SGO-Dynatrace events/alerts |
+| `diagnose.yml` | Open SGO-Dynatrace alerts, log incidents; optional alert↔incident lookup |
 
 ## Active artifacts (after deploy)
 
 | Name | Role |
 | ---- | ---- |
-| `ResolveApplicationService` | Alert/event bind: `k8s.pod.name`→**pod CI**, standalone→**HOST**; remaps type via `log.event_kind`. Incident ownership resolved separately to the **service instance**. |
-| `em-event-bind-entity-ci` | Before insert/update on `em_event` (order 5000) |
-| `em-alert-bind-entity-ci` | Before insert/update on `em_alert` (order 5010); keeps infra `cmdb_ci`; rebinds if a service instance was left on the alert |
-| `em-alert-create-log-incident` | Before insert/update on `em_alert` (order 5020); incident `cmdb_ci`=service instance; correlates open incidents by **SI + class:line** |
-| `em-event-propagate-entity-ci` | **Inactive** (former event→alert propagate safety net) |
-| OOTB AMR `SGO-Dynatrace` | **Inactive** |
+| `ResolveApplicationService` | SI resolve helpers (`sn-service_instance`, `k8s.pod.name`, …) |
+| `EvtMgmtCustomIncidentPopulator` | L2I: incident CI = SI; correlate by SI + `sn-log-signature` |
+| `L2IIncidentFromAlert` | Helper → `EvtMgmtIncidentHandler` (job / reprocess) |
+| BR `em-alert-create-log-incident` | Shim → `EvtMgmtIncidentHandler.createIncidentNoUpdate` |
+| TBAC `L2I short Log4j2 SI + signature` | Groups on `sn-environment` + `sn-service_instance` + `sn-log-signature` |
+| AMR `L2I Create Incident CRITICAL_LOG_EVENT` | **Inactive** (activate with published Create-incident-from-Alert Flow) |
+| OOTB `Create Incident for Primary Alert` / `SGO-Dynatrace` | **Inactive** |
+| Bind / propagate BRs | **Inactive** |
+
+## OpenPipeline tags (must be present on Davis events)
+
+| Tag | Purpose |
+| --- | ------- |
+| `sn-event_kind=CRITICAL_LOG_EVENT` | Gate for incident create |
+| `sn-log-signature` | Class:Line clustering / incident short description |
+| `sn-log-class` / `sn-log-line` | Parsed parts |
+| `sn-environment` | Partition (no cross-env grouping) |
+| `sn-service_instance` | Service instance clustering / resolve key |
+| `sn-pipeline` | OpenPipeline customId |
+| `k8s.pod.name` | K8s bind key (unchanged) |
+
+Standalone custom log source still stamps OneAgent `service_instance`; OpenPipeline maps it to `sn-service_instance`.
 
 ## Usage
 
 ```bash
 cd ansible
-
-# Deploy automation to ServiceNow
 ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml
-
-# Verify recent pipeline (after chapter run or synthetic log)
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_log_incident_bindings.yml -e @../vars/secrets.yaml
-
-# Diagnose a specific alert and find its incident
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/diagnose.yml -e @../vars/secrets.yaml \
-  -e spark_alert_number=Alert0014216
-
-# Reprocess historical rows after BR or enrichment changes
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/reprocess_spark_log_events.yml -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/reprocess_spark_log_alerts.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 ```
-
-## Finding the incident for an alert
-
-ServiceNow links alerts to incidents through **`em_alert.incident`** on optimizincdemo1 (reference to the incident record). That populates the incident **Alerts** tab. Incidents created before the business rule set this field may only appear in **Comments** / **Work notes**. Search **Incidents** with:
-- **Short description** = `Critical log event` with matching **Created** time.
-
-Use `diagnose.yml` with `-e spark_alert_number=Alert00…` to query via the Table API.
-
-Incidents created by `em-alert-create-log-incident` set **`incident.cmdb_ci`** to the **service instance** (support-group owner). Short description is **`Critical log event — Class:Line`** when a Log4j signature is present; open incidents are correlated by that exact short description plus service instance so many pod alerts for the same signature share one ticket. Alert `cmdb_ci` remains the infrastructure CI (pod or HOST).

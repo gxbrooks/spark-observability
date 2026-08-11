@@ -1,6 +1,7 @@
 ---
-# Upsert Log-to-Incident ServiceNow artifacts (Script Includes + Business Rules).
-# Runtime bind/create is performed by those artifacts, not by this playbook.
+# Deploy Log-to-Incident ServiceNow automation (enterprise path):
+#   OpenPipeline sn.* tags → TBAC → EvtMgmtIncidentHandler / populator
+#   (BR shim until AMR + published Create incident from Alert Flow).
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml
@@ -21,17 +22,20 @@
     - name: Ensure ResolveApplicationService Script Include
       ansible.builtin.include_tasks: tasks/ensure_resolve_application_service_si.yml
 
-    - name: Ensure em_event entity CI binding business rule
-      ansible.builtin.include_tasks: tasks/ensure_em_event_bind_pod_br.yml
+    - name: Ensure L2IIncidentFromAlert Script Include (handler helper)
+      ansible.builtin.include_tasks: tasks/ensure_l2i_incident_from_alert_si.yml
 
-    - name: Ensure em_event propagate entity CI business rule (inactive)
-      ansible.builtin.include_tasks: tasks/ensure_em_event_propagate_pod_br.yml
+    - name: Ensure EvtMgmtCustomIncidentPopulator (Create incident from Alert path)
+      ansible.builtin.include_tasks: tasks/ensure_evtmgmt_custom_incident_populator.yml
 
-    - name: Ensure em_alert entity CI binding business rule
-      ansible.builtin.include_tasks: tasks/ensure_em_alert_bind_pod_br.yml
-
-    - name: Ensure em_alert create incident business rule
+    - name: Ensure em-alert-create-log-incident BR (EvtMgmtIncidentHandler shim)
       ansible.builtin.include_tasks: tasks/ensure_em_alert_create_incident_br.yml
+
+    - name: Try L2IProcessPendingAlerts scheduled job (optional; often ACL-blocked)
+      ansible.builtin.include_tasks: tasks/ensure_l2i_process_pending_job.yml
+
+    - name: Ensure L2I AMR + TBAC; deactivate bind BRs and OOTB primary AMR
+      ansible.builtin.include_tasks: tasks/ensure_l2i_amr_and_tbac.yml
 
     - name: Deactivate legacy L2I automation and OOTB SGO AMR
       ansible.builtin.include_tasks: tasks/deactivate_legacy_spark_incident_automation.yml
@@ -39,7 +43,6 @@
     - name: Log-to-Incident automation summary
       ansible.builtin.debug:
         msg: >-
-          Deployed ResolveApplicationService and business rules
-          '{{ sn_incident_em_event_br_name }}', '{{ sn_incident_em_alert_bind_br_name }}',
-          '{{ sn_incident_em_alert_br_name }}'; propagate '{{ sn_incident_em_event_propagate_br_name }}'
-          active={{ sn_incident_em_event_propagate_br_active | default('false') }}.
+          L2I path: sn.* tags + TBAC '{{ sn_l2i_tbac_definition_name }}'
+          + EvtMgmtIncidentHandler via BR '{{ sn_incident_em_alert_br_name }}'.
+          Bind BRs inactive; AMR '{{ sn_l2i_amr_name }}' active={{ sn_l2i_amr_active }}.

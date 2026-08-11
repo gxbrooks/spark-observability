@@ -1,0 +1,60 @@
+---
+# Scheduled job: process SGO L2I alerts with empty incident (no Business Rules).
+# Needed because OOTB AMR subflow "Create Incident" does not invoke
+# EvtMgmtCustomIncidentPopulator / EvtMgmtIncidentHandler on this instance.
+
+# Optional: deploy user often lacks sysauto_script ACL. Prefer thin create BR.
+- name: Look up L2IProcessPendingAlerts job
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sysauto_script?sysparm_query=name={{ sn_l2i_process_pending_job_name | urlencode }}&sysparm_limit=1"
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_l2i_job_lookup
+  no_log: true
+  delegate_to: localhost
+  become: false
+  failed_when: false
+
+- name: Upsert L2IProcessPendingAlerts job when ACL allows
+  when: sn_l2i_job_lookup.status | default(0) == 200
+  block:
+    - name: Build L2IProcessPendingAlerts job body
+      ansible.builtin.set_fact:
+        sn_l2i_process_pending_job_body:
+          name: "{{ sn_l2i_process_pending_job_name }}"
+          active: "true"
+          run_type: periodically
+          run_period: "{{ sn_l2i_process_pending_job_period_seconds }}"
+          script: |
+            L2IIncidentFromAlert.processPending();
+        sn_l2i_job_exists: "{{ (sn_l2i_job_lookup.json.result | default([]) | length) > 0 }}"
+        sn_l2i_job_sys_id: "{{ sn_l2i_job_lookup.json.result[0].sys_id | default('') }}"
+
+    - name: Create L2IProcessPendingAlerts job
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+      vars:
+        sn_rest_method: post
+        sn_rest_table: sysauto_script
+        sn_rest_body: "{{ sn_l2i_process_pending_job_body }}"
+      when: not sn_l2i_job_exists | bool
+
+    - name: Update L2IProcessPendingAlerts job
+      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+      vars:
+        sn_rest_method: patch
+        sn_rest_table: sysauto_script
+        sn_rest_sys_id: "{{ sn_l2i_job_sys_id }}"
+        sn_rest_body: "{{ sn_l2i_process_pending_job_body }}"
+      when: sn_l2i_job_exists | bool
+
+- name: Note when scheduled job ACL blocks deploy
+  ansible.builtin.debug:
+    msg: >-
+      sysauto_script ACL blocked L2IProcessPendingAlerts upsert; using thin
+      BR em-alert-create-log-incident → L2IIncidentFromAlert instead.
+  when: sn_l2i_job_lookup.status | default(0) != 200

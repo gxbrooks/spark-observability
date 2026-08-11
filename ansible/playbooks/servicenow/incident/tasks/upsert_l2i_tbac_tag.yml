@@ -1,0 +1,36 @@
+---
+# Upsert one sn_em_tbac_alert_clustering_tags row (additional_info nested key).
+
+- name: Look up TBAC tag {{ sn_l2i_tbac_tag_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_tag_name | urlencode }}&sysparm_limit=1"
+
+- name: Create TBAC tag {{ sn_l2i_tbac_tag_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_body:
+      name: "{{ sn_l2i_tbac_tag_name }}"
+      source: additional_info
+      match_method: Exact
+      additional_info_key: "{{ sn_l2i_tbac_tag_key }}"
+      description: "{{ sn_l2i_tbac_tag_description }}"
+      customize_name: "true"
+  when: (sn_rest_json.result | default([]) | length) == 0
+
+- name: Update TBAC tag {{ sn_l2i_tbac_tag_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body:
+      source: additional_info
+      match_method: Exact
+      additional_info_key: "{{ sn_l2i_tbac_tag_key }}"
+      description: "{{ sn_l2i_tbac_tag_description }}"
+      customize_name: "true"
+  when: (sn_rest_json.result | default([]) | length) > 0

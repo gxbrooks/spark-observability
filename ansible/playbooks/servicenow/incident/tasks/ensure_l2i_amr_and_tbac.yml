@@ -1,0 +1,169 @@
+---
+# L2I enterprise path:
+#   - Deactivate OOTB "Create Incident for Primary Alert"
+#   - Upsert AMR that creates incidents for L2I CRITICAL_LOG_EVENT (non-secondary)
+#   - Upsert Tag-Based Alert Clustering tags + definition (env + SI + signature)
+#   - Deactivate L2I Business Rules (bind/create)
+
+- name: Deactivate OOTB Create Incident for Primary Alert
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_management_rule
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_ootb_primary_amr_name | urlencode }}&sysparm_fields=sys_id,name,active&sysparm_limit=5"
+
+- name: Patch OOTB primary AMR inactive
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_management_rule
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      active: "false"
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  when:
+    - sn_rest_status | default(0) == 200
+    - item.active | default('') in ['true', '1', true, 1]
+
+- name: Build L2I CRITICAL_LOG_EVENT AMR body
+  ansible.builtin.set_fact:
+    sn_l2i_amr_body:
+      name: "{{ sn_l2i_amr_name }}"
+      active: "{{ sn_l2i_amr_active | default('false') }}"
+      type: incident
+      order: "{{ sn_l2i_amr_order }}"
+      automatic_execution_setting: "1"
+      multiple_alert_rules: "1"
+      description: >-
+        L2I: reserved AMR for CRITICAL_LOG_EVENT. Keep inactive until a published
+        Flow uses action Create incident from Alert (EvtMgmtIncidentHandler).
+        Interim create path: BR em-alert-create-log-incident → same handler.
+      alert_filter: "{{ sn_l2i_amr_filter }}"
+
+- name: Look up L2I AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_management_rule
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_amr_name | urlencode }}&sysparm_limit=1"
+
+- name: Record L2I AMR state
+  ansible.builtin.set_fact:
+    sn_l2i_amr_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_amr_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create L2I AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: em_alert_management_rule
+    sn_rest_body: "{{ sn_l2i_amr_body }}"
+  when: not sn_l2i_amr_exists | bool
+
+- name: Update L2I AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_management_rule
+    sn_rest_sys_id: "{{ sn_l2i_amr_sys_id }}"
+    sn_rest_body: "{{ sn_l2i_amr_body }}"
+  when: sn_l2i_amr_exists | bool
+
+- name: Capture L2I AMR sys_id after create
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_management_rule
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_amr_name | urlencode }}&sysparm_limit=1"
+  when: not sn_l2i_amr_exists | bool
+
+- name: Set L2I AMR sys_id after create
+  ansible.builtin.set_fact:
+    sn_l2i_amr_sys_id: "{{ sn_rest_json.result[0].sys_id | default(sn_l2i_amr_sys_id) }}"
+  when: not sn_l2i_amr_exists | bool
+
+- name: Ensure L2I AMR has Create Incident subflow action (required to activate)
+  ansible.builtin.include_tasks: ensure_l2i_amr_create_incident_action.yml
+  when: sn_l2i_amr_sys_id | default('') | length > 0
+
+- name: Upsert L2I TBAC clustering tags
+  ansible.builtin.include_tasks: upsert_l2i_tbac_tag.yml
+  vars:
+    sn_l2i_tbac_tag_name: "{{ item.name }}"
+    sn_l2i_tbac_tag_key: "{{ item.key }}"
+    sn_l2i_tbac_tag_description: "{{ item.description }}"
+  loop: "{{ sn_l2i_tbac_tags }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Look up L2I TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_definition_name | urlencode }}&sysparm_limit=1"
+
+- name: Record L2I TBAC definition state
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_def_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_tbac_def_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create L2I TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_body:
+      name: "{{ sn_l2i_tbac_definition_name }}"
+      active: "true"
+      description: "{{ sn_l2i_tbac_definition_description }}"
+      time_difference: "{{ sn_l2i_tbac_time_difference_seconds }}"
+      alert_filter: "{{ sn_l2i_tbac_alert_filter }}"
+      grouping_method: "1"
+  when: not sn_l2i_tbac_def_exists | bool
+
+- name: Capture new L2I TBAC definition sys_id
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_definition_name | urlencode }}&sysparm_limit=1"
+  when: not sn_l2i_tbac_def_exists | bool
+
+- name: Set L2I TBAC definition sys_id after create
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_def_sys_id: "{{ sn_rest_json.result[0].sys_id | default(sn_l2i_tbac_def_sys_id) }}"
+  when: not sn_l2i_tbac_def_exists | bool
+
+- name: Update L2I TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_sys_id: "{{ sn_l2i_tbac_def_sys_id }}"
+    sn_rest_body:
+      active: "true"
+      description: "{{ sn_l2i_tbac_definition_description }}"
+      time_difference: "{{ sn_l2i_tbac_time_difference_seconds }}"
+      alert_filter: "{{ sn_l2i_tbac_alert_filter }}"
+  when:
+    - sn_l2i_tbac_def_exists | bool
+    - sn_l2i_tbac_def_sys_id | length > 0
+
+- name: Link L2I TBAC tags to definition (m2m)
+  ansible.builtin.include_tasks: ensure_l2i_tbac_m2m.yml
+  when: sn_l2i_tbac_def_sys_id | default('') | length > 0
+
+- name: Deactivate L2I Business Rules (enterprise path uses AMR + populator)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=nameIN{{ sn_l2i_deactivate_br_names | join(',') }}&sysparm_fields=sys_id,name,active&sysparm_limit=20"
+
+- name: Patch L2I BRs inactive
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      active: "false"
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  when:
+    - sn_rest_status | default(0) == 200
+    - item.active | default('') in ['true', '1', true, 1]

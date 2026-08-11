@@ -12,13 +12,17 @@
           "id": "tag-pipeline-custom-id",
           "type": "fieldsAdd",
           "enabled": true,
-          "description": "Stamp OpenPipeline customId for Grail filtering",
+          "description": "Stamp sn-pipeline and sn-environment (dash keys for SN TBAC)",
           "matcher": "true",
           "fieldsAdd": {
             "fields": [
               {
-                "name": "pipeline",
+                "name": "sn-pipeline",
                 "value": "{{ dt_l2i_k8s_openpipeline_custom_id | mandatory }}"
+              },
+              {
+                "name": "sn-environment",
+                "value": "{{ dt_l2i_environment | mandatory }}"
               }
             ]
           }
@@ -27,10 +31,20 @@
           "id": "extract-log4j-class-line",
           "type": "dql",
           "enabled": true,
-          "description": "Parse short Log4j2 Class:Line from content",
+          "description": "Parse short Log4j2 Class:Line into sn-log-* fields",
           "matcher": "true",
           "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:log.class ':' INT:log.line LD\""
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature"
+          }
+        },
+        {
+          "id": "derive-sn-service-instance-from-pod",
+          "type": "dql",
+          "enabled": true,
+          "description": "Map k8s.pod.name prefix to sn-service_instance (Spark-*)",
+          "matcher": "isNotNull(k8s.pod.name)",
+          "dql": {
+            "script": "fieldsAdd `sn-service_instance` = if(startsWith(toString(k8s.pod.name), \"spark-master\"), \"Spark-Master\", else: if(startsWith(toString(k8s.pod.name), \"spark-worker\"), \"Spark-Worker\", else: if(startsWith(toString(k8s.pod.name), \"spark-history\"), \"Spark-History-Server\", else: \"\")))"
           }
         }
       ]
@@ -41,21 +55,29 @@
           "id": "k8s-short-log4j2-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "K8s short Log4j2 WARN/ERROR → ERROR_EVENT; stamp k8s.pod.name",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(log.class) AND isNotNull(log.line) AND isNotNull(k8s.pod.name)",
+          "description": "K8s short Log4j2 WARN/ERROR → ERROR_EVENT; sn-* L2I tags",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(`sn-log-class`) AND isNotNull(`sn-log-line`) AND isNotNull(k8s.pod.name)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "log.event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "event.name", "value": "Critical {loglevel} at {log.class}:{log.line}" },
+              { "key": "sn-event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "sn-log-class", "value": "{sn-log-class}" },
+              { "key": "sn-log-line", "value": "{sn-log-line}" },
+              { "key": "sn-log-signature", "value": "{sn-log-signature}" },
+              { "key": "sn-environment", "value": "{sn-environment}" },
+              { "key": "sn-service_instance", "value": "{sn-service_instance}" },
+              { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "k8s.pod.name", "value": "{k8s.pod.name}" },
+              { "key": "event.name", "value": "Critical {loglevel} at {sn-log-class}:{sn-log-line}" },
               {
                 "key": "event.description",
-                "value": "K8s short Log4j2 critical {loglevel} at {log.class}:{log.line} on {k8s.pod.name} log.event_kind=CRITICAL_LOG_EVENT k8s.pod.name={k8s.pod.name}: {content}"
+                "value": "K8s short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} on {k8s.pod.name} sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service_instance={sn-service_instance} sn-pipeline={sn-pipeline} k8s.pod.name={k8s.pod.name}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "k8s.pod.name", "value": "{k8s.pod.name}" },
-              { "key": "event.unique_identifier", "value": "K8s Critical {loglevel} {log.class}:{log.line}" },
-              { "key": "pipeline", "value": "{pipeline}" },
+              {
+                "key": "event.unique_identifier",
+                "value": "{sn-environment}|{sn-service_instance}|K8s Critical {loglevel} {sn-log-signature}"
+              },
               { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]
@@ -70,14 +92,15 @@
           "davis": {
             "properties": [
               { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "log.event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "sn-event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "sn-environment", "value": "{sn-environment}" },
+              { "key": "sn-pipeline", "value": "{sn-pipeline}" },
               { "key": "event.name", "value": "K8s log missing k8s.pod.name on {log.source}" },
               {
                 "key": "event.description",
-                "value": "Container Output log missing k8s.pod.name for {log.source} log.event_kind=CRITICAL_LOG_EVENT: {content}"
+                "value": "Container Output log missing k8s.pod.name for {log.source} sn-event_kind=CRITICAL_LOG_EVENT sn-environment={sn-environment}: {content}"
               },
-              { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
-              { "key": "pipeline", "value": "{pipeline}" },
+              { "key": "event.unique_identifier", "value": "{sn-environment}|enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" }
             ]

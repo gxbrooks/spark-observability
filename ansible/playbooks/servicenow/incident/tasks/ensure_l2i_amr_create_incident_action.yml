@@ -1,0 +1,50 @@
+---
+# Attach OOTB "Create Incident" subflow to the L2I AMR (required to activate).
+
+- name: Look up OOTB Create Incident subflow
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_hub_flow
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_create_incident_subflow_name | urlencode }}^sys_id={{ sn_l2i_create_incident_subflow_sys_id }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+
+- name: Fail when Create Incident subflow is missing
+  ansible.builtin.assert:
+    that:
+      - (sn_rest_json.result | default([]) | length) > 0
+    fail_msg: >-
+      OOTB subflow '{{ sn_l2i_create_incident_subflow_name }}'
+      ({{ sn_l2i_create_incident_subflow_sys_id }}) not found.
+
+- name: Look up L2I AMR action (rule↔subflow m2m)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_query: "sysparm_query=management_rule={{ sn_l2i_amr_sys_id }}^sub_flow={{ sn_l2i_create_incident_subflow_sys_id }}&sysparm_limit=1"
+
+- name: Record L2I AMR action state
+  ansible.builtin.set_fact:
+    sn_l2i_amr_action_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_amr_action_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create L2I AMR Create Incident action
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_body:
+      management_rule: "{{ sn_l2i_amr_sys_id }}"
+      sub_flow: "{{ sn_l2i_create_incident_subflow_sys_id }}"
+      active: "true"
+      execution: "1"
+      executions_limit: "1"
+  when: not sn_l2i_amr_action_exists | bool
+
+- name: Set L2I AMR active flag (default false — job path owns create)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_management_rule
+    sn_rest_sys_id: "{{ sn_l2i_amr_sys_id }}"
+    sn_rest_body:
+      active: "{{ sn_l2i_amr_active | default('false') }}"
+  when: sn_l2i_amr_sys_id | default('') | length > 0

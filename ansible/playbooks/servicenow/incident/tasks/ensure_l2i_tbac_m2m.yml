@@ -1,0 +1,45 @@
+---
+# Ensure each L2I TBAC tag is linked to the L2I clustering definition.
+# Unlink any other tags still attached (e.g. legacy l2i.* / log.signature names).
+
+- name: Collect L2I TBAC tag sys_ids
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_query: "sysparm_query=nameIN{{ sn_l2i_tbac_tags | map(attribute='name') | join(',') | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=20"
+
+- name: Set L2I TBAC tag id list
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_tag_rows: "{{ sn_rest_json.result | default([]) }}"
+    sn_l2i_tbac_desired_tag_ids: "{{ (sn_rest_json.result | default([])) | map(attribute='sys_id') | list }}"
+
+- name: Ensure m2m for each L2I TBAC tag
+  ansible.builtin.include_tasks: ensure_l2i_tbac_m2m_one.yml
+  loop: "{{ sn_l2i_tbac_tag_rows }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: List all m2m links for L2I TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions_tags_m2m
+    sn_rest_query: "sysparm_query=alert_clustering_definition={{ sn_l2i_tbac_def_sys_id }}&sysparm_fields=sys_id,alert_clustering_tag&sysparm_limit=50"
+
+- name: Delete stale L2I TBAC m2m links
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_em_tbac_alert_clustering_definitions_tags_m2m/{{ item.sys_id }}"
+    method: DELETE
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 204, 404]
+  loop: "{{ sn_rest_json.result | default([]) }}"
+  when:
+    - item.alert_clustering_tag is defined
+    - (item.alert_clustering_tag.value | default(item.alert_clustering_tag)) not in sn_l2i_tbac_desired_tag_ids
+  loop_control:
+    label: "{{ item.sys_id }}"
+  no_log: true
+  delegate_to: localhost
+  become: false

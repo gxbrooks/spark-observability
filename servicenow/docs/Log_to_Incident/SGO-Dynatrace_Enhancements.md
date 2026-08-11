@@ -2,7 +2,7 @@
 
 **Instance:** optimizincdemo1  
 **Dynatrace tenant:** pdt20158  
-**Date:** 2026-08-09 (Spark-independent L2I patterns: Standalone + K8s short Log4j2)  
+**Date:** 2026-08-10 (Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR)  
 **Scope:** short Log4j2 application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
 
 This note is the **design of record** for the lab Log-to-Incident path, plus product / configuration gaps for Dynatrace and ServiceNow account teams. Historical dead-ends (CUSTOM_DEVICE, `spark.*` bind/pipeline attributes, unified pipelines) are marked **Historical** only where they still explain a gap.
@@ -11,22 +11,26 @@ This note is the **design of record** for the lab Log-to-Incident path, plus pro
 
 ---
 
-## 0. Current design of record (2026-08-09)
+## 0. Current design of record (2026-08-10 — sn-* dash tags + handler create path)
 
-### Attribute basename: `log.*`
+### Attribute basename: `sn-*` (solution-specific; dashes, not dots)
 
-Introduced attributes use the **`log`** basename (not `spark` / `l2i` / `event` for custom fields):
+Dots in attribute names break ServiceNow TBAC nested-path walks into
+`additional_info` JSON. Use dashes so
+`…customProperties.sn-log-signature` is one path segment.
 
 | Attribute | Role |
 | --------- | ---- |
-| `log.class` / `log.line` | Parsed short Log4j2 `Class:Line` (OpenPipeline) |
-| `log.path` / `log.driver.instance` / `log.instance` | Standalone custom-source / composed identity |
-| `log.event_kind` | SN semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`) |
-| `service_instance` | Standalone bind key (from custom log source) |
-| `k8s.pod.name` | K8s bind key (Container Output / Davis stamp) |
-| `pipeline` | OpenPipeline customId stamp |
+| `sn-log-class` / `sn-log-line` | Parsed short Log4j2 `Class:Line` (OpenPipeline) |
+| `sn-log-signature` | `Class:Line` clustering / incident short description |
+| `sn-event_kind` | SN semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`) |
+| `sn-environment` | Environment partition (no cross-env grouping) |
+| `sn-service_instance` | Service instance clustering / resolve key |
+| `sn-pipeline` | OpenPipeline customId stamp |
+| `k8s.pod.name` | K8s bind key (unchanged platform attr) |
+| `service_instance` | Standalone OneAgent custom-source stamp (mapped → `sn-service_instance`) |
 
-**Why both `event.type` and `log.event_kind`?** Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). `log.event_kind` carries the ServiceNow UI type; `ResolveApplicationService.applyLogEventTypeRename` remaps `em_event.type` / `em_alert.type`. Built-in `CPU_SATURATED` is left unchanged.
+**Why both `event.type` and `sn-event_kind`?** Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). `sn-event_kind` carries the ServiceNow UI type; `ResolveApplicationService.applyLogEventTypeRename` remaps `em_event.type` / `em_alert.type`. Built-in `CPU_SATURATED` is left unchanged.
 
 ### End-to-end contract
 
@@ -34,30 +38,47 @@ Introduced attributes use the **`log`** basename (not `spark` / `l2i` / `event` 
 | ------- | ------------ | --------------- | ------------ | -------- | ----------- |
 | **Standalone App with short Log4j2 logs** | RollingFile under lab path (`/mnt/spark/client-logs/…`) | Custom log source stamps `service_instance` | `standalone-short-log4j2-log-alerts` | HOST (ImpactedEntity) | Service instance from `service_instance` |
 | **K8s App with short Log4j2 logs** | Console → container stdout | DynaKube `logMonitoring: {}` → `Container Output` + `k8s.pod.name` | `k8s-short-log4j2-log-alerts` | Pod CI | Service instance via pod → `svc_ci_assoc` |
-| **Host CPU** | Metric event | Host OneAgent | `log.event_kind=CPU_EVENT` on metric template | HOST | (CPU path; not log SI correlation) |
+| **Host CPU** | Metric event | Host OneAgent | `sn-event_kind=CPU_EVENT` on metric template | HOST | (CPU path; not log SI correlation) |
 
 Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.j2`, `l2i-openpipeline-routing-entries.json.j2`, `dynakube.yaml.j2`.
 
-### ServiceNow layered CI-bind and incident correlation
+### ServiceNow enterprise path (handler create + TBAC)
 
 | Layer | Behavior |
 | ----- | -------- |
-| **Event / alert CI** | Infrastructure only: `k8s.pod.name` → **pod CI**; standalone `service_instance` stamp + HOST ImpactedEntity → **host CI**. **Not** the service instance. Support groups stay on the SI. |
-| **Incident CI** | **Service instance** via `resolveServiceInstanceForIncident` (stamp / pod→`svc_ci_assoc` / name fallback). |
-| **Incident correlate** | Open incident with same **SI + short description** `Critical log event — Class:Line` (Log4j signature). Many pod alerts for one signature → one incident. |
-| **`message_key`** | Remains Dynatrace **ProblemID** (OPEN/RESOLVED). Class:line is not folded into `message_key`. |
-| **Propagate** | **Disabled.** |
-| **OOTB AMR `SGO-Dynatrace`** | Remains **inactive**. |
+| **OpenPipeline tags** | `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline` (+ `k8s.pod.name`) in Davis custom properties and description tokens. |
+| **TBAC** | Definition **L2I short Log4j2 SI + signature** exact-matches those customProperties keys so alerts share a group only within the same env + SI + Class:Line. |
+| **Alert CI** | Left to SGO / Group Alert (often PGI/HOST/pod). Support groups are **not** on those CIs. |
+| **Incident create** | Target: AMR + Flow action **Create incident from Alert**. Interim: BR shim → `EvtMgmtIncidentHandler.createIncident`. AMR reserved **inactive** (OOTB Create Incident subflow skips populator). |
+| **Incident CI** | `EvtMgmtCustomIncidentPopulator` sets **service instance**; correlates open incidents by SI + `Critical log event — Class:Line`. |
+| **assignment_group** | Not set in L2I (hold). Best practice when enabled: copy CI `support_group` → incident `assignment_group`. |
+| **Bind BRs** | Inactive. |
+
+### CMDB / mixed grouping — additional noise reduction (#3)
+
+Beyond tag clustering on **env + SI + signature**, ServiceNow Mixed / CMDB-based grouping can collapse alerts that share **service topology** even when signatures differ:
+
+| Extra grouping | Noise reduction | What it takes here |
+| -------------- | --------------- | ------------------ |
+| **CMDB / service map** (alerts on CIs under the same Application Service) | One group when Master WARN, Worker WARN, and Client errors fire during the same outage window — ops sees “Spark Worker service degraded” instead of N signature tickets | (1) Keep alert CI as **pod/HOST** with reliable `svc_ci_assoc` to the SI; (2) enable Mixed grouping with CMDB + our TBAC definition; (3) accept coarser incidents (may merge distinct Class:Line defects) or use CMDB grouping only for severity≥Critical |
+| **Same host / node** | Node pressure (CPU + many worker pods) → one infra-oriented group | CMDB Runs-on edges from pod→node→host must be current (SGC/KVA); add a TBAC/CMDB definition scoped to HOST |
+| **Change / maintenance window** | Suppress L2I incidents during deploy | Wire `maintenance=true` on alerts (already excluded by AMR filter) via change calendars |
+
+**Recommendation for this lab:** keep TBAC at **env + SI + signature** (defect-level tickets). Add CMDB mixed grouping later only if operators want outage-level super-groups, and gate it so `log.event_kind=CRITICAL_LOG_EVENT` still creates SI-scoped incidents via the populator (one incident per signature under the group primary).
 
 ### Active lab artifacts
 
 | Name | Kind | Role |
 | ---- | ---- | ---- |
-| `ResolveApplicationService` | Script Include | Infra bind + SI resolve + `log.event_kind` rename |
-| `em-event-bind-entity-ci` | BR `em_event` order 5000 | Bind infra CI on event |
-| `em-alert-bind-entity-ci` | BR `em_alert` order 5010 | Keep infra CI; replace SI if left on alert |
-| `em-alert-create-log-incident` | BR `em_alert` order 5020 | Incident CI=SI; correlate SI + class:line |
-| `em-event-propagate-entity-ci` | BR `em_event` order 5005 | **Inactive** |
+| `ResolveApplicationService` | Script Include | SI resolve helpers (`sn-*`) |
+| `EvtMgmtCustomIncidentPopulator` | Script Include | L2I SI CI + correlate by `sn-log-signature` |
+| `L2IIncidentFromAlert` | Script Include | Helper → `EvtMgmtIncidentHandler` |
+| `em-alert-create-log-incident` | BR (shim) | `EvtMgmtIncidentHandler.createIncidentNoUpdate` |
+| `L2I short Log4j2 SI + signature` | TBAC definition | Tag cluster: `sn-environment` + SI + signature |
+| `L2I Create Incident CRITICAL_LOG_EVENT` | AMR | **Inactive** until published Create-incident-from-Alert Flow |
+| Bind / propagate BRs; OOTB primary / SGO AMRs | — | **Inactive** |
+
+**Product gap:** OOTB remediation subflow **Create Incident** does not invoke `EvtMgmtIncidentHandler` / `EvtMgmtCustomIncidentPopulator` on this instance. Deploy user also cannot insert `sysauto_script`. Until a Flow uses action **Create incident from Alert** (or an admin creates `L2IProcessPendingAlerts`), the handler shim BR is required.
 
 Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 
