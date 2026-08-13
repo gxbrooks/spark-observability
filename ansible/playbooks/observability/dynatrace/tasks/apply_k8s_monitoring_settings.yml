@@ -1,0 +1,36 @@
+---
+# Apply OOTB Kubernetes monitoring / anomaly settings (enabled or disabled).
+# Vars:
+#   dt_k8s_mon_mode: enabled | disabled
+# Specs: observability/dynatrace/integrations/k8s-monitoring/*-anomaly-{{ mode }}.json
+
+- name: Resolve Dynatrace API token from flat or nested secrets
+  ansible.builtin.set_fact:
+    dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
+    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+    dt_k8s_mon_mode: "{{ dt_k8s_mon_mode | default('enabled') }}"
+    dt_k8s_mon_integrations_dir: "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/observability/dynatrace/integrations/k8s-monitoring"
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert K8s monitoring mode is enabled or disabled
+  ansible.builtin.assert:
+    that:
+      - dt_k8s_mon_mode in ['enabled', 'disabled']
+    fail_msg: "dt_k8s_mon_mode must be 'enabled' or 'disabled' (got {{ dt_k8s_mon_mode }})"
+  run_once: true
+
+- name: Load K8s monitoring areas manifest
+  ansible.builtin.set_fact:
+    dt_k8s_mon_areas: "{{ lookup('file', dt_k8s_mon_integrations_dir + '/areas.json') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Upsert K8s monitoring settings for each area ({{ dt_k8s_mon_mode }})
+  ansible.builtin.include_tasks: upsert_k8s_monitoring_settings_object.yml
+  vars:
+    dt_k8s_mon_spec_path: "{{ dt_k8s_mon_integrations_dir }}/{{ item.area }}-anomaly-{{ dt_k8s_mon_mode }}.json"
+  loop: "{{ dt_k8s_mon_areas }}"
+  loop_control:
+    label: "{{ item.area }} ({{ item.schemaId }})"
+  run_once: true

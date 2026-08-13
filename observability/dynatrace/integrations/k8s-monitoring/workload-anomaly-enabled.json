@@ -1,0 +1,109 @@
+{
+  "schemaId": "builtin:anomaly-detection.kubernetes.workload",
+  "scope": "environment",
+  "value": {
+    "containerRestarts": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 1,
+        "samplePeriodInMinutes": 2,
+        "observationPeriodInMinutes": 2
+      }
+    },
+    "deploymentStuck": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 2,
+        "observationPeriodInMinutes": 2
+      }
+    },
+    "pendingPods": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 1,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "podStuckInTerminating": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "workloadWithoutReadyPods": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "notAllPodsReady": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 20,
+        "observationPeriodInMinutes": 20
+      }
+    },
+    "highMemoryUsage": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "highCpuUsage": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "highCpuThrottling": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "oomKills": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 1,
+        "observationPeriodInMinutes": 1
+      }
+    },
+    "jobFailureEvents": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 1,
+        "observationPeriodInMinutes": 1
+      }
+    },
+    "podBackoffEvents": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 1,
+        "observationPeriodInMinutes": 1
+      }
+    },
+    "podEvictionEvents": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 1,
+        "observationPeriodInMinutes": 1
+      }
+    },
+    "podPreemptionEvents": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 1,
+        "observationPeriodInMinutes": 1
+      }
+    }
+  }
+}

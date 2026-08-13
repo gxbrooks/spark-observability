@@ -1,21 +1,21 @@
 #!/bin/bash
-# Run the full chapter suite in two parallel threads with distinct client log dirs.
+# Run the full chapter suite in three parallel threads with distinct client log dirs.
 # Layout: /mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/
 #
 # Each thread runs all chapters (03–10), N times. N is the number of full-suite
 # iterations per thread (not a chapter-split scheme).
 #
 # Usage:
-#   ./run-parallel-all.sh [LOG_DIR] [N]
-#   N=2 ./run-parallel-all.sh
+#   ./run-parallel-3way.sh [LOG_DIR] [N]
+#   N=2 ./run-parallel-3way.sh
 #
 # Outputs:
-#   ${LOG}/par-a.log, ${LOG}/par-b.log
+#   ${LOG}/par-a.log, ${LOG}/par-b.log, ${LOG}/par-c.log
 #   ${LOG}/thread-durations.txt
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG="${1:-/tmp/chapter-run-$(date +%Y%m%d-%H%M%S)}"
+LOG="${1:-/tmp/chapter-run-3way-$(date +%Y%m%d-%H%M%S)}"
 N="${2:-${N:-1}}"
 
 if ! [[ "${N}" =~ ^[1-9][0-9]*$ ]]; then
@@ -31,7 +31,7 @@ ALL_CHAPTERS=(03 04 05 06 07 08 09 10)
 echo "LOG=${LOG}"
 echo "N=${N} (each thread runs all chapters N times)"
 echo "Chapters: ${ALL_CHAPTERS[*]}"
-echo "Threads: 2 (par-a, par-b)"
+echo "Threads: 3 (par-a, par-b, par-c)"
 
 run_batch() {
   local instance="$1"
@@ -71,12 +71,14 @@ run_thread par-a >"${LOG}/par-a.log" 2>&1 &
 pid_a=$!
 run_thread par-b >"${LOG}/par-b.log" 2>&1 &
 pid_b=$!
+run_thread par-c >"${LOG}/par-c.log" 2>&1 &
+pid_c=$!
 
-echo "Started par-a pid=${pid_a}, par-b pid=${pid_b}"
-wait "${pid_a}" "${pid_b}" || true
+echo "Started par-a pid=${pid_a}, par-b pid=${pid_b}, par-c pid=${pid_c}"
+wait "${pid_a}" "${pid_b}" "${pid_c}" || true
 
 : > "${LOG}/thread-durations.txt"
-for f in "${LOG}/par-a.duration" "${LOG}/par-b.duration"; do
+for f in "${LOG}/par-a.duration" "${LOG}/par-b.duration" "${LOG}/par-c.duration"; do
   [ -f "${f}" ] && cat "${f}" >> "${LOG}/thread-durations.txt"
 done
 
@@ -95,6 +97,8 @@ echo "=== par-a ==="
 rg 'THREAD_|=====|✅|❌|⏱️|SPARK_LOG_DIR=' "${LOG}/par-a.log" || true
 echo "=== par-b ==="
 rg 'THREAD_|=====|✅|❌|⏱️|SPARK_LOG_DIR=' "${LOG}/par-b.log" || true
+echo "=== par-c ==="
+rg 'THREAD_|=====|✅|❌|⏱️|SPARK_LOG_DIR=' "${LOG}/par-c.log" || true
 echo ""
-echo "Full logs: ${LOG}/par-a.log ${LOG}/par-b.log"
+echo "Full logs: ${LOG}/par-a.log ${LOG}/par-b.log ${LOG}/par-c.log"
 echo "Durations: ${LOG}/thread-durations.txt"

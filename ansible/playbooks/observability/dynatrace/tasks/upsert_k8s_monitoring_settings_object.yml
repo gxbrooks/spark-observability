@@ -1,0 +1,98 @@
+---
+# Upsert one environment-scoped Settings object from a k8s-monitoring spec file.
+# Vars: dt_k8s_mon_spec_path (absolute path to JSON with schemaId/scope/value)
+
+- name: Load K8s monitoring settings spec {{ dt_k8s_mon_spec_path | basename }}
+  ansible.builtin.set_fact:
+    dt_k8s_mon_spec: "{{ lookup('file', dt_k8s_mon_spec_path) | from_json }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: List existing settings for {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds={{ dt_k8s_mon_spec.schemaId | urlencode }}&fields=objectId,scope,value&pageSize=50"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200, 401, 403]
+  register: dt_k8s_mon_list
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert settings list readable for {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.assert:
+    that:
+      - dt_k8s_mon_list.status | default(0) == 200
+    fail_msg: >-
+      Cannot list {{ dt_k8s_mon_spec.schemaId }}
+      (HTTP {{ dt_k8s_mon_list.status | default('unknown') }}).
+      DT_API_TOKEN needs settings.read and settings.write.
+  run_once: true
+
+- name: Select environment-scoped object for {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.set_fact:
+    dt_k8s_mon_existing: >-
+      {{ (dt_k8s_mon_list.json['items'] | default([])
+          | selectattr('scope', 'equalto', dt_k8s_mon_spec.scope | default('environment'))
+          | list | first) | default({}, true) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Create settings object {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      - schemaId: "{{ dt_k8s_mon_spec.schemaId }}"
+        scope: "{{ dt_k8s_mon_spec.scope | default('environment') }}"
+        value: "{{ dt_k8s_mon_spec.value }}"
+    status_code: [200, 201, 400, 401, 403, 409, 422]
+  register: dt_k8s_mon_create
+  failed_when: false
+  when: (dt_k8s_mon_existing | length) == 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert create succeeded for {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.assert:
+    that:
+      - dt_k8s_mon_create.status | default(0) in [200, 201]
+    fail_msg: >-
+      Create failed for {{ dt_k8s_mon_spec.schemaId }}:
+      HTTP {{ dt_k8s_mon_create.status | default('unknown') }}
+      {{ dt_k8s_mon_create.json | default(dt_k8s_mon_create.content) }}
+  when: (dt_k8s_mon_existing | length) == 0
+  run_once: true
+
+- name: Update settings object {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_k8s_mon_existing.objectId }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      value: "{{ dt_k8s_mon_spec.value }}"
+    status_code: [200, 400, 401, 403, 404, 409, 422]
+  register: dt_k8s_mon_update
+  failed_when: false
+  when: (dt_k8s_mon_existing | length) > 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Assert update succeeded for {{ dt_k8s_mon_spec.schemaId }}
+  ansible.builtin.assert:
+    that:
+      - dt_k8s_mon_update.status | default(0) == 200
+    fail_msg: >-
+      Update failed for {{ dt_k8s_mon_spec.schemaId }}:
+      HTTP {{ dt_k8s_mon_update.status | default('unknown') }}
+      {{ dt_k8s_mon_update.json | default(dt_k8s_mon_update.content) }}
+  when: (dt_k8s_mon_existing | length) > 0
+  run_once: true

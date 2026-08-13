@@ -9,7 +9,8 @@
 #        ./run-chapters.sh --no-timeout 10  # Run without timeout
 #
 # Parallel chapter batches on one host (distinct SPARK_DRIVER_INSTANCE per batch).
-#   ./run-parallel-all.sh [LOG_DIR]
+#   ./run-parallel-all.sh [LOG_DIR] [N]      # 2 threads; each runs all chapters N times
+#   ./run-parallel-3way.sh [LOG_DIR] [N]     # 3 threads; each runs all chapters N times
 #
 # Client log layout (node-local, not NFS; separate from Cluster /mnt/spark/logs/<pod>/):
 #   /mnt/spark/client-logs/<instance>/spark-app.log

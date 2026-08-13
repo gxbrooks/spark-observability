@@ -1,0 +1,179 @@
+<mxfile host="Electron" agent="spark-observability" pages="2">
+  <diagram name="lab2-node-overview" id="lab2-node-overview">
+    <mxGraphModel dx="3354" dy="1822" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n_cluster" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;spark-observability-k8s&lt;/i&gt;&lt;div&gt;KUBERNETES_CLUSTER-1BE3EFAB6083571E&lt;/div&gt;&lt;div&gt;&lt;b&gt;KUBERNETES_CLUSTER&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="40" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="n_node" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;strokeColor=#FF0000;" value="&lt;i&gt;lab2&lt;/i&gt;&lt;div&gt;KUBERNETES_NODE-3614FE3CDBF6DCA8&lt;/div&gt;&lt;div&gt;&lt;b&gt;KUBERNETES_NODE&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="90" width="320" x="670" as="geometry" />
+        </mxCell>
+        <mxCell id="n_host" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;Lab2&lt;/i&gt;&lt;div&gt;HOST-A3921C1DA2349805&lt;/div&gt;&lt;div&gt;&lt;b&gt;HOST&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="90" width="260" x="-200" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cn" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="isClusterOfNode&#xa;(Belongs to)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_nh" edge="1" parent="1" source="n_node" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_host" value="isNodeOfHost&#xa;(Belongs to)">
+          <mxGeometry relative="1" x="-0.5018" y="-4" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_ch" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_host" value="isClusterOfHost&#xa;(Belongs to)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ns_0" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;" value="&lt;i&gt;dynatrace&lt;/i&gt;&lt;div&gt;(property namespaceName=dynatrace)&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION_NAMESPACE&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="390" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ns_1" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;" value="&lt;i&gt;kube-flannel&lt;/i&gt;&lt;div&gt;(property namespaceName=kube-flannel)&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION_NAMESPACE&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="1030" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ns_2" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;" value="&lt;i&gt;kube-system&lt;/i&gt;&lt;div&gt;(property namespaceName=kube-system)&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION_NAMESPACE&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="80" y="-320" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ns_3" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;" value="&lt;i&gt;monitoring&lt;/i&gt;&lt;div&gt;(property namespaceName=monitoring)&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION_NAMESPACE&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="475" y="-320" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ns_4" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;" value="&lt;i&gt;spark&lt;/i&gt;&lt;div&gt;(property namespaceName=spark)&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION_NAMESPACE&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="875" y="-320" as="geometry" />
+        </mxCell>
+        <mxCell id="n_note" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#FFF2CC;strokeColor=#D6B656;" value="&lt;b&gt;Context&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:11px&quot;&gt;Requested: lab2 &lt;code&gt;KUBERNETES_NODE-3614FE3CDBF6DCA8&lt;/code&gt; — SN Alert0016276 / DT P-26081576&lt;br/&gt;&lt;b&gt;Mismatch:&lt;/b&gt; P-26081576 impacted entity is &lt;b&gt;lab1&lt;/b&gt; (KUBERNETES_NODE-7127DBBDADDC24CD), not lab2. Diagram is classic Smartscape for the requested lab2 node.&lt;br/&gt;181 CLOUD_APPLICATION_INSTANCE run on this node (30d window); 7 CLOUD_APPLICATION workloads; cluster spark-observability-k8s; host Lab2.&lt;br/&gt;Namespaces shown from entity property namespaceName (CAI/CA had no classic namespace relationship in API).&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="1040" x="70" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_0" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;dynakube-oneagent ×10 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-6783526C9B6DD08F&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="40" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_0" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_0" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" x="-0.5295" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_wln_0" edge="1" parent="1" source="n_wl_0" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="10× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" x="0.4228" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_wlns_0" edge="1" parent="1" source="n_wl_0" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_0" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_1" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;dynatrace-oneagent-csi-driver ×1 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-5736348E9F10D539&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="350" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_1" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_1" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" x="-0.7617" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_wln_1" edge="1" parent="1" source="n_wl_1" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="1× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" x="0.2579" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_wlns_1" edge="1" parent="1" source="n_wl_1" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_0" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_2" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;dynatrace-webhook ×2 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-4D5C513D5F3FE604&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="660" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_2" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_2" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" x="-0.6937" y="-10" as="geometry">
+            <mxPoint x="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_wln_2" edge="1" parent="1" source="n_wl_2" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="2× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wlns_2" edge="1" parent="1" source="n_wl_2" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_0" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_3" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;kube-flannel-ds ×1 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-4624B9BB48C30F55&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="970" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_3" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_3" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" x="-0.8062" y="14" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_wln_3" edge="1" parent="1" source="n_wl_3" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="1× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wlns_3" edge="1" parent="1" source="n_wl_3" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_1" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_4" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;kube-proxy ×1 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-46137D5562AC6761&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="45" y="-190" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_4" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_4" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wln_4" edge="1" parent="1" source="n_wl_4" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="1× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wlns_4" edge="1" parent="1" source="n_wl_4" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_2" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_5" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;node-exporter ×1 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-DB5309118263C53D&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="430" y="-190" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_5" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_5" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wln_5" edge="1" parent="1" source="n_wl_5" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="1× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wlns_5" edge="1" parent="1" source="n_wl_5" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_3" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wl_6" parent="1" style="shape=ext;double=1;rounded=1;whiteSpace=wrap;html=1;" value="&lt;i&gt;spark-worker-lab2 ×165 CAI&lt;/i&gt;&lt;div&gt;CLOUD_APPLICATION-731889937837A43E&lt;/div&gt;&lt;div&gt;&lt;b&gt;CLOUD_APPLICATION&lt;/b&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="290" x="830" y="-190" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cwl_6" edge="1" parent="1" source="n_cluster" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_wl_6" value="isClusterOfCa&#xa;(Belongs to)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wln_6" edge="1" parent="1" source="n_wl_6" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_node" value="165× runsOn&#xa;(via CAI)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wlns_6" edge="1" parent="1" source="n_wl_6" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;" target="n_ns_4" value="namespaceName&#xa;(property)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="lab2-CAI-inventory" id="lab2-CAI-inventory">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="2028" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="inv_title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b&gt;All CLOUD_APPLICATION_INSTANCE on lab2 (KUBERNETES_NODE-3614FE3CDBF6DCA8)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="900" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_0" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;dynakube-oneagent  ns=dynatrace  — 10 CAI — CLOUD_APPLICATION-6783526C9B6DD08F&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;dynakube-oneagent-4snwx  |  CLOUD_APPLICATION_INSTANCE-3F988AB0FDEDA299&lt;br/&gt;dynakube-oneagent-66nl2  |  CLOUD_APPLICATION_INSTANCE-9E3CE92EF7322DE6&lt;br/&gt;dynakube-oneagent-98hm4  |  CLOUD_APPLICATION_INSTANCE-8F2BF8E243364D48&lt;br/&gt;dynakube-oneagent-hb7rq  |  CLOUD_APPLICATION_INSTANCE-40B965C33EADB660&lt;br/&gt;dynakube-oneagent-k4z8m  |  CLOUD_APPLICATION_INSTANCE-5F1ECEF90AC41FE4&lt;br/&gt;dynakube-oneagent-ln2pm  |  CLOUD_APPLICATION_INSTANCE-D304B05AB60148ED&lt;br/&gt;dynakube-oneagent-q66gr  |  CLOUD_APPLICATION_INSTANCE-D18140CF2E7049B2&lt;br/&gt;dynakube-oneagent-qv6gq  |  CLOUD_APPLICATION_INSTANCE-1ACBCCA60AA58956&lt;br/&gt;dynakube-oneagent-rzms7  |  CLOUD_APPLICATION_INSTANCE-3117272BB855AAC8&lt;br/&gt;dynakube-oneagent-zt6xh  |  CLOUD_APPLICATION_INSTANCE-218124310C5F3017&lt;/div&gt;" vertex="1">
+          <mxGeometry height="168" width="1140" x="40" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_1" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;dynatrace-oneagent-csi-driver  ns=dynatrace  — 1 CAI — CLOUD_APPLICATION-5736348E9F10D539&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;dynatrace-oneagent-csi-driver-kdqvb  |  CLOUD_APPLICATION_INSTANCE-26414606ED2B1042&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1140" x="40" y="278" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_2" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;dynatrace-webhook  ns=dynatrace  — 2 CAI — CLOUD_APPLICATION-4D5C513D5F3FE604&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;dynatrace-webhook-5899f7b84d-9wd42  |  CLOUD_APPLICATION_INSTANCE-5A04F20AD0A35B32&lt;br/&gt;dynatrace-webhook-795488ff9d-nxcxv  |  CLOUD_APPLICATION_INSTANCE-A0A4BD7374E85409&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1140" x="40" y="378" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_3" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;kube-flannel-ds  ns=kube-flannel  — 1 CAI — CLOUD_APPLICATION-4624B9BB48C30F55&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;kube-flannel-ds-mn2pq  |  CLOUD_APPLICATION_INSTANCE-E2D9DB5F3E32CCA4&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1140" x="40" y="478" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_4" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;kube-proxy  ns=kube-system  — 1 CAI — CLOUD_APPLICATION-46137D5562AC6761&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;kube-proxy-dkmwn  |  CLOUD_APPLICATION_INSTANCE-647EB308369E994F&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1140" x="40" y="578" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_5" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;node-exporter  ns=monitoring  — 1 CAI — CLOUD_APPLICATION-DB5309118263C53D&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;node-exporter-59jkd  |  CLOUD_APPLICATION_INSTANCE-88BD92F2A71E34AA&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1140" x="40" y="678" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_l_6" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;spark-worker-lab2  ns=spark  — 165 CAI — CLOUD_APPLICATION-731889937837A43E (1/2)&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;spark-worker-lab2-5494c6cc6d-2shg5  |  CLOUD_APPLICATION_INSTANCE-DF9B8D32AED939A6&lt;br/&gt;spark-worker-lab2-5494c6cc6d-45td7  |  CLOUD_APPLICATION_INSTANCE-EBFE25E42564AD80&lt;br/&gt;spark-worker-lab2-5494c6cc6d-5dqqb  |  CLOUD_APPLICATION_INSTANCE-05C937165CFB15A1&lt;br/&gt;spark-worker-lab2-5494c6cc6d-fr96n  |  CLOUD_APPLICATION_INSTANCE-B300AA29FFD788C0&lt;br/&gt;spark-worker-lab2-5494c6cc6d-gglhq  |  CLOUD_APPLICATION_INSTANCE-4B6EF73177986E61&lt;br/&gt;spark-worker-lab2-5494c6cc6d-hsjkt  |  CLOUD_APPLICATION_INSTANCE-460358A6F2605B2F&lt;br/&gt;spark-worker-lab2-5494c6cc6d-mrclm  |  CLOUD_APPLICATION_INSTANCE-81A7653349964DC6&lt;br/&gt;spark-worker-lab2-5494c6cc6d-wbmjv  |  CLOUD_APPLICATION_INSTANCE-7BF419CD2BDA7969&lt;br/&gt;spark-worker-lab2-5765585c76-76k7v  |  CLOUD_APPLICATION_INSTANCE-512F1427C57B372B&lt;br/&gt;spark-worker-lab2-5765585c76-d6dnf  |  CLOUD_APPLICATION_INSTANCE-CD911ED579C0F4F5&lt;br/&gt;spark-worker-lab2-5765585c76-kbkkh  |  CLOUD_APPLICATION_INSTANCE-2BDB4929080BC7A4&lt;br/&gt;spark-worker-lab2-5765585c76-ncwtd  |  CLOUD_APPLICATION_INSTANCE-F90C28C315F90916&lt;br/&gt;spark-worker-lab2-5765585c76-nhmlb  |  CLOUD_APPLICATION_INSTANCE-011FF6FDAD04B2DE&lt;br/&gt;spark-worker-lab2-5765585c76-pf6t2  |  CLOUD_APPLICATION_INSTANCE-C7A65B8F04BE5C42&lt;br/&gt;spark-worker-lab2-5765585c76-vms6g  |  CLOUD_APPLICATION_INSTANCE-6BEAFA4F873EB09A&lt;br/&gt;spark-worker-lab2-5765585c76-wpxlm  |  CLOUD_APPLICATION_INSTANCE-8CECA4F2B1377046&lt;br/&gt;spark-worker-lab2-5c56999dc9-6g4z5  |  CLOUD_APPLICATION_INSTANCE-ED546203D2CAE27E&lt;br/&gt;spark-worker-lab2-5c56999dc9-dc86w  |  CLOUD_APPLICATION_INSTANCE-CE47D4846C6518BB&lt;br/&gt;spark-worker-lab2-5c56999dc9-gnj58  |  CLOUD_APPLICATION_INSTANCE-86BA3D2B03B8D952&lt;br/&gt;spark-worker-lab2-5c56999dc9-j679b  |  CLOUD_APPLICATION_INSTANCE-E0755F771D927950&lt;br/&gt;spark-worker-lab2-5c56999dc9-ntt8w  |  CLOUD_APPLICATION_INSTANCE-5948FD6BCAAEFADE&lt;br/&gt;spark-worker-lab2-5c56999dc9-vjfvd  |  CLOUD_APPLICATION_INSTANCE-384C182899A00BED&lt;br/&gt;spark-worker-lab2-5c56999dc9-wmj6d  |  CLOUD_APPLICATION_INSTANCE-4EE8F61B08B90E4C&lt;br/&gt;spark-worker-lab2-5c56999dc9-zt5zd  |  CLOUD_APPLICATION_INSTANCE-88E451BA47BE71E0&lt;br/&gt;spark-worker-lab2-6488f74698-6c4fz  |  CLOUD_APPLICATION_INSTANCE-DB5A365FB1CDBA48&lt;br/&gt;spark-worker-lab2-6488f74698-6qx2q  |  CLOUD_APPLICATION_INSTANCE-8F9C20FBB3F19001&lt;br/&gt;spark-worker-lab2-6488f74698-7jwdh  |  CLOUD_APPLICATION_INSTANCE-1FDA46793E53EB10&lt;br/&gt;spark-worker-lab2-6488f74698-cwfbn  |  CLOUD_APPLICATION_INSTANCE-EB0E0D903E539A3A&lt;br/&gt;spark-worker-lab2-6488f74698-htkhm  |  CLOUD_APPLICATION_INSTANCE-15E3B5EF387D23C7&lt;br/&gt;spark-worker-lab2-6488f74698-x6pgf  |  CLOUD_APPLICATION_INSTANCE-BACA00B3C520D374&lt;br/&gt;spark-worker-lab2-6488f74698-xwhk5  |  CLOUD_APPLICATION_INSTANCE-C77F5168DC5F0799&lt;br/&gt;spark-worker-lab2-6488f74698-zmvkq  |  CLOUD_APPLICATION_INSTANCE-1F74690F9DA14559&lt;br/&gt;spark-worker-lab2-654447b7d8-ff9ng  |  CLOUD_APPLICATION_INSTANCE-36524BA1F5CC9209&lt;br/&gt;spark-worker-lab2-654447b7d8-hrttk  |  CLOUD_APPLICATION_INSTANCE-11B7EA2379C20790&lt;br/&gt;spark-worker-lab2-654447b7d8-k26gw  |  CLOUD_APPLICATION_INSTANCE-E0F055494F3F9E57&lt;br/&gt;spark-worker-lab2-654447b7d8-khmcj  |  CLOUD_APPLICATION_INSTANCE-34797F4B52665311&lt;br/&gt;spark-worker-lab2-654447b7d8-q6pkm  |  CLOUD_APPLICATION_INSTANCE-112F81AB520997F5&lt;br/&gt;spark-worker-lab2-654447b7d8-xhcsc  |  CLOUD_APPLICATION_INSTANCE-7559E0226D660CEC&lt;br/&gt;spark-worker-lab2-654447b7d8-xqhw7  |  CLOUD_APPLICATION_INSTANCE-219ACE423E656F18&lt;br/&gt;spark-worker-lab2-68565c6bcb-qjfj7  |  CLOUD_APPLICATION_INSTANCE-9B706FB272BA53E5&lt;br/&gt;spark-worker-lab2-68565c6bcb-szrhz  |  CLOUD_APPLICATION_INSTANCE-A0C94EE9A8B6277E&lt;br/&gt;spark-worker-lab2-68565c6bcb-tk67v  |  CLOUD_APPLICATION_INSTANCE-ECDE2DAF210F589E&lt;br/&gt;spark-worker-lab2-6f5656554b-7vvqh  |  CLOUD_APPLICATION_INSTANCE-9C8707A967295106&lt;br/&gt;spark-worker-lab2-6f5656554b-h9x5r  |  CLOUD_APPLICATION_INSTANCE-DDE8D066DFA2135E&lt;br/&gt;spark-worker-lab2-6f5656554b-jj9rr  |  CLOUD_APPLICATION_INSTANCE-8688DF8E439B7A39&lt;br/&gt;spark-worker-lab2-6f5656554b-pvfst  |  CLOUD_APPLICATION_INSTANCE-5981B645F7229B8B&lt;br/&gt;spark-worker-lab2-6f5656554b-qx54m  |  CLOUD_APPLICATION_INSTANCE-CEDC342C0929F256&lt;br/&gt;spark-worker-lab2-6f5656554b-shtjd  |  CLOUD_APPLICATION_INSTANCE-CCD9E3E99991528A&lt;br/&gt;spark-worker-lab2-6f5656554b-tfkc4  |  CLOUD_APPLICATION_INSTANCE-55660015DB60D1E8&lt;br/&gt;spark-worker-lab2-6f5656554b-xxdmf  |  CLOUD_APPLICATION_INSTANCE-A0AD997CB1EF113D&lt;br/&gt;spark-worker-lab2-6f56fb4997-2twqm  |  CLOUD_APPLICATION_INSTANCE-1EB849045301E7FB&lt;br/&gt;spark-worker-lab2-6f56fb4997-b2nmd  |  CLOUD_APPLICATION_INSTANCE-337B174389390FAC&lt;br/&gt;spark-worker-lab2-6f56fb4997-cj2jm  |  CLOUD_APPLICATION_INSTANCE-947176769B28BC6C&lt;br/&gt;spark-worker-lab2-6f56fb4997-djcmc  |  CLOUD_APPLICATION_INSTANCE-E3C20F38753F06AC&lt;br/&gt;spark-worker-lab2-6f56fb4997-dl2ph  |  CLOUD_APPLICATION_INSTANCE-0BFE790774D10E13&lt;br/&gt;spark-worker-lab2-6f56fb4997-jvsdr  |  CLOUD_APPLICATION_INSTANCE-B3CCD51C419CBAC2&lt;br/&gt;spark-worker-lab2-6f56fb4997-tfpvq  |  CLOUD_APPLICATION_INSTANCE-2EA083D7AAE5C218&lt;br/&gt;spark-worker-lab2-6f56fb4997-wsr54  |  CLOUD_APPLICATION_INSTANCE-78B0A0922F389D74&lt;br/&gt;spark-worker-lab2-77565746f6-8fsjm  |  CLOUD_APPLICATION_INSTANCE-91017EB4E2A2132C&lt;br/&gt;spark-worker-lab2-77565746f6-9xw4m  |  CLOUD_APPLICATION_INSTANCE-D716289ED8935C52&lt;br/&gt;spark-worker-lab2-77565746f6-jdrqm  |  CLOUD_APPLICATION_INSTANCE-1FB327B0CD0E0C39&lt;br/&gt;spark-worker-lab2-77565746f6-jsxr9  |  CLOUD_APPLICATION_INSTANCE-D761B5D4D46AFEAB&lt;br/&gt;spark-worker-lab2-77565746f6-pjrqh  |  CLOUD_APPLICATION_INSTANCE-68B2BD77C5962DE4&lt;br/&gt;spark-worker-lab2-77565746f6-w4fnl  |  CLOUD_APPLICATION_INSTANCE-FC24F71A26125A6F&lt;br/&gt;spark-worker-lab2-77565746f6-wzslx  |  CLOUD_APPLICATION_INSTANCE-5751BBA2F000CEEF&lt;br/&gt;spark-worker-lab2-77565746f6-z9d4k  |  CLOUD_APPLICATION_INSTANCE-C230E7F59DF3D286&lt;br/&gt;spark-worker-lab2-78686d4697-5l6p9  |  CLOUD_APPLICATION_INSTANCE-497BAC1F2C8728E8&lt;br/&gt;spark-worker-lab2-78686d4697-bgn4v  |  CLOUD_APPLICATION_INSTANCE-297297B94EA9A1BE&lt;br/&gt;spark-worker-lab2-78686d4697-kb628  |  CLOUD_APPLICATION_INSTANCE-FAE63DF9D59F310E&lt;br/&gt;spark-worker-lab2-78686d4697-kb8sb  |  CLOUD_APPLICATION_INSTANCE-6B1E66756A82CE52&lt;br/&gt;spark-worker-lab2-78686d4697-mfzq8  |  CLOUD_APPLICATION_INSTANCE-7E28FCF34B366B54&lt;br/&gt;spark-worker-lab2-78686d4697-nqmg7  |  CLOUD_APPLICATION_INSTANCE-CEC3B59228CFBFA4&lt;br/&gt;spark-worker-lab2-78686d4697-sx49b  |  CLOUD_APPLICATION_INSTANCE-11C8D15AF96685B9&lt;br/&gt;spark-worker-lab2-78686d4697-z64zr  |  CLOUD_APPLICATION_INSTANCE-2287CB3F3668F601&lt;br/&gt;spark-worker-lab2-7b6d478d8c-5n64w  |  CLOUD_APPLICATION_INSTANCE-B0085046FD2B7508&lt;br/&gt;spark-worker-lab2-7b6d478d8c-7xbtl  |  CLOUD_APPLICATION_INSTANCE-0D406A3556CCE675&lt;br/&gt;spark-worker-lab2-7b6d478d8c-gh6xt  |  CLOUD_APPLICATION_INSTANCE-C549F8466B3F9D7B&lt;br/&gt;spark-worker-lab2-7b6d478d8c-gp9xw  |  CLOUD_APPLICATION_INSTANCE-7EBBEDAC478004EB&lt;br/&gt;spark-worker-lab2-7b6d478d8c-hssfv  |  CLOUD_APPLICATION_INSTANCE-EB9699269AA0C18F&lt;br/&gt;spark-worker-lab2-7b6d478d8c-lpmwl  |  CLOUD_APPLICATION_INSTANCE-F3BAF78E25504A1F&lt;br/&gt;spark-worker-lab2-7b6d478d8c-rlrvq  |  CLOUD_APPLICATION_INSTANCE-9A1FF166E26CACCC&lt;br/&gt;spark-worker-lab2-7b6d478d8c-spnz8  |  CLOUD_APPLICATION_INSTANCE-AB9F3F2A6373A3EC&lt;br/&gt;spark-worker-lab2-7c7bcbd668-2zl6l  |  CLOUD_APPLICATION_INSTANCE-6AB2A1F5C2A978F8&lt;/div&gt;" vertex="1">
+          <mxGeometry height="1190" width="560" x="40" y="778" as="geometry" />
+        </mxCell>
+        <mxCell id="inv_r_6" parent="1" style="shape=ext;rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;" value="&lt;b&gt;spark-worker-lab2  ns=spark  — 165 CAI — CLOUD_APPLICATION-731889937837A43E (2/2)&lt;/b&gt;&lt;div style=&quot;text-align:left;font-size:10px&quot;&gt;spark-worker-lab2-7c7bcbd668-54jf2  |  CLOUD_APPLICATION_INSTANCE-AFAAB13A8E911D5D&lt;br/&gt;spark-worker-lab2-7c7bcbd668-557dn  |  CLOUD_APPLICATION_INSTANCE-A4760D14532B3126&lt;br/&gt;spark-worker-lab2-7c7bcbd668-9gxgz  |  CLOUD_APPLICATION_INSTANCE-C1FE542126AC9672&lt;br/&gt;spark-worker-lab2-7c7bcbd668-b99rs  |  CLOUD_APPLICATION_INSTANCE-081B386F93C48948&lt;br/&gt;spark-worker-lab2-7c7bcbd668-ktlcb  |  CLOUD_APPLICATION_INSTANCE-0FCA9D8CD8AD0733&lt;br/&gt;spark-worker-lab2-7c7bcbd668-xlggd  |  CLOUD_APPLICATION_INSTANCE-EF95ECE3B0E19476&lt;br/&gt;spark-worker-lab2-7c7bcbd668-zkmd4  |  CLOUD_APPLICATION_INSTANCE-668DA2C7C0606AC0&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-4cnlc  |  CLOUD_APPLICATION_INSTANCE-D18FBDF7CACDB7FA&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-8cqhp  |  CLOUD_APPLICATION_INSTANCE-B002C7119B59EA88&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-dwb4w  |  CLOUD_APPLICATION_INSTANCE-6E0A738F3B9F1C88&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-g2t2p  |  CLOUD_APPLICATION_INSTANCE-6EEA6A67477ADD59&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-grg7m  |  CLOUD_APPLICATION_INSTANCE-687C299C5DDDF08F&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-jgvx6  |  CLOUD_APPLICATION_INSTANCE-5657E795535EACA7&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-kznp4  |  CLOUD_APPLICATION_INSTANCE-437B97FDE6AE1EAC&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-q789k  |  CLOUD_APPLICATION_INSTANCE-07E0B450E70EECE4&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-qv2l8  |  CLOUD_APPLICATION_INSTANCE-3AAF03C76F776956&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-qwggt  |  CLOUD_APPLICATION_INSTANCE-B3D6EA05910087E3&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-rnqn2  |  CLOUD_APPLICATION_INSTANCE-60B4DB4455AC0A55&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-ts285  |  CLOUD_APPLICATION_INSTANCE-7300604ACDFD7348&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-x4ppd  |  CLOUD_APPLICATION_INSTANCE-B32CC8CC8CDAFE5B&lt;br/&gt;spark-worker-lab2-7c8f7fc74f-z2684  |  CLOUD_APPLICATION_INSTANCE-C6095FF3513DE8E4&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-6rn8w  |  CLOUD_APPLICATION_INSTANCE-35EC542202F60810&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-9gvb9  |  CLOUD_APPLICATION_INSTANCE-F9BEF264D2D510BE&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-fbrmt  |  CLOUD_APPLICATION_INSTANCE-3311B0E606D7081E&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-gklh6  |  CLOUD_APPLICATION_INSTANCE-EE6DBAC9D8ED149E&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-k62g7  |  CLOUD_APPLICATION_INSTANCE-59938CED0E756909&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-rj9zn  |  CLOUD_APPLICATION_INSTANCE-AEBF8448656B87A4&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-rvzlp  |  CLOUD_APPLICATION_INSTANCE-260C9F18B1879D66&lt;br/&gt;spark-worker-lab2-7df7dc5f4d-wwtgh  |  CLOUD_APPLICATION_INSTANCE-568862A852FF4E13&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-2bz9p  |  CLOUD_APPLICATION_INSTANCE-C19CCB8F7FDD5373&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-5x6vp  |  CLOUD_APPLICATION_INSTANCE-0744B909DA02DB31&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-9qc6z  |  CLOUD_APPLICATION_INSTANCE-04F752303D89E725&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-fnp8z  |  CLOUD_APPLICATION_INSTANCE-A85150C3F52E04D5&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-g9698  |  CLOUD_APPLICATION_INSTANCE-D86A4E3CE8D856F9&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-r6zkr  |  CLOUD_APPLICATION_INSTANCE-19AD298F01BE1147&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-sn98b  |  CLOUD_APPLICATION_INSTANCE-542F5304DE47AC9E&lt;br/&gt;spark-worker-lab2-7fdb8c9f47-z2t4s  |  CLOUD_APPLICATION_INSTANCE-33118231933D1D5B&lt;br/&gt;spark-worker-lab2-864b7d7d99-2vhr6  |  CLOUD_APPLICATION_INSTANCE-CB982A00183F5018&lt;br/&gt;spark-worker-lab2-864b7d7d99-6cbzf  |  CLOUD_APPLICATION_INSTANCE-5ED801FC55E47E76&lt;br/&gt;spark-worker-lab2-864b7d7d99-89vqr  |  CLOUD_APPLICATION_INSTANCE-7D22E0C7C38FDD5B&lt;br/&gt;spark-worker-lab2-864b7d7d99-8ml22  |  CLOUD_APPLICATION_INSTANCE-B817F5D14AB7527D&lt;br/&gt;spark-worker-lab2-864b7d7d99-gzm6t  |  CLOUD_APPLICATION_INSTANCE-74EF099A80B2D087&lt;br/&gt;spark-worker-lab2-864b7d7d99-pzzq7  |  CLOUD_APPLICATION_INSTANCE-130D8CFCFF54656A&lt;br/&gt;spark-worker-lab2-864b7d7d99-vx99v  |  CLOUD_APPLICATION_INSTANCE-D244CBE191E2ACA4&lt;br/&gt;spark-worker-lab2-8f4778fc8-4xqpt  |  CLOUD_APPLICATION_INSTANCE-7EA7F6EA57AA2EC0&lt;br/&gt;spark-worker-lab2-8f4778fc8-6d6cv  |  CLOUD_APPLICATION_INSTANCE-B7B8819A4CD63A38&lt;br/&gt;spark-worker-lab2-8f4778fc8-9hgtx  |  CLOUD_APPLICATION_INSTANCE-B336C5A3F02BF5BC&lt;br/&gt;spark-worker-lab2-8f4778fc8-jqbfm  |  CLOUD_APPLICATION_INSTANCE-5D289F052451F01F&lt;br/&gt;spark-worker-lab2-8f4778fc8-nf9lv  |  CLOUD_APPLICATION_INSTANCE-ADCFA4100BD27C29&lt;br/&gt;spark-worker-lab2-8f4778fc8-q6d7b  |  CLOUD_APPLICATION_INSTANCE-CBCC3E9DC6875FEF&lt;br/&gt;spark-worker-lab2-8f4778fc8-wj2ln  |  CLOUD_APPLICATION_INSTANCE-6A99FEF444C2C54F&lt;br/&gt;spark-worker-lab2-8f4778fc8-x4ttt  |  CLOUD_APPLICATION_INSTANCE-DA4DA8F048E776FF&lt;br/&gt;spark-worker-lab2-97cc7b658-k24hl  |  CLOUD_APPLICATION_INSTANCE-2960104CCD655339&lt;br/&gt;spark-worker-lab2-97cc7b658-nllkd  |  CLOUD_APPLICATION_INSTANCE-4EF16839334CB5EB&lt;br/&gt;spark-worker-lab2-bb5658596-2lqj6  |  CLOUD_APPLICATION_INSTANCE-0CABB26490FC1147&lt;br/&gt;spark-worker-lab2-bb5658596-4z52x  |  CLOUD_APPLICATION_INSTANCE-8B4638F9830945E7&lt;br/&gt;spark-worker-lab2-bb5658596-d6rx7  |  CLOUD_APPLICATION_INSTANCE-E8ECA64DBDD251DE&lt;br/&gt;spark-worker-lab2-bb5658596-dhmhh  |  CLOUD_APPLICATION_INSTANCE-947230F6D1A82444&lt;br/&gt;spark-worker-lab2-bb5658596-h52xz  |  CLOUD_APPLICATION_INSTANCE-AA84B589D4900A5F&lt;br/&gt;spark-worker-lab2-bb5658596-rn6sl  |  CLOUD_APPLICATION_INSTANCE-956F4E96BBC39EE0&lt;br/&gt;spark-worker-lab2-bb5658596-vkpj6  |  CLOUD_APPLICATION_INSTANCE-A8C594A585062FE7&lt;br/&gt;spark-worker-lab2-bb5658596-x7j4p  |  CLOUD_APPLICATION_INSTANCE-FF2FDE0866125B5C&lt;br/&gt;spark-worker-lab2-c8644f8f6-2k24n  |  CLOUD_APPLICATION_INSTANCE-BD254F160A1B0A97&lt;br/&gt;spark-worker-lab2-c8644f8f6-7crrj  |  CLOUD_APPLICATION_INSTANCE-4A756FAE82319138&lt;br/&gt;spark-worker-lab2-c8644f8f6-82d2f  |  CLOUD_APPLICATION_INSTANCE-7E511C4A68381C3B&lt;br/&gt;spark-worker-lab2-c8644f8f6-g25gz  |  CLOUD_APPLICATION_INSTANCE-F376C43A2D22BB34&lt;br/&gt;spark-worker-lab2-c8644f8f6-hnrs8  |  CLOUD_APPLICATION_INSTANCE-A9C431447D665D07&lt;br/&gt;spark-worker-lab2-c8644f8f6-kg7lr  |  CLOUD_APPLICATION_INSTANCE-AC4A486127736266&lt;br/&gt;spark-worker-lab2-c8644f8f6-nvtg5  |  CLOUD_APPLICATION_INSTANCE-E7325CB8680DF644&lt;br/&gt;spark-worker-lab2-c8644f8f6-z5gl5  |  CLOUD_APPLICATION_INSTANCE-14C1E291063F20D8&lt;br/&gt;spark-worker-lab2-c997b578d-4bjl7  |  CLOUD_APPLICATION_INSTANCE-134A20D14891BE6A&lt;br/&gt;spark-worker-lab2-c997b578d-65ldj  |  CLOUD_APPLICATION_INSTANCE-CCFBFB0C53DA609A&lt;br/&gt;spark-worker-lab2-c997b578d-dflt9  |  CLOUD_APPLICATION_INSTANCE-313D7D8811163C8C&lt;br/&gt;spark-worker-lab2-c997b578d-n76bm  |  CLOUD_APPLICATION_INSTANCE-1191354AB77BC900&lt;br/&gt;spark-worker-lab2-ccbb996b7-74pvm  |  CLOUD_APPLICATION_INSTANCE-F193A5BE2FD1A7A1&lt;br/&gt;spark-worker-lab2-ccbb996b7-82z59  |  CLOUD_APPLICATION_INSTANCE-0646C72E1D8CBB23&lt;br/&gt;spark-worker-lab2-ccbb996b7-8hvfg  |  CLOUD_APPLICATION_INSTANCE-8BEBD54918270061&lt;br/&gt;spark-worker-lab2-ccbb996b7-h6glc  |  CLOUD_APPLICATION_INSTANCE-A31C3690BE7E4D69&lt;br/&gt;spark-worker-lab2-ccbb996b7-n7wcq  |  CLOUD_APPLICATION_INSTANCE-0BE039CF02ED92A9&lt;br/&gt;spark-worker-lab2-ccbb996b7-vkxs7  |  CLOUD_APPLICATION_INSTANCE-82AB38CD04A83E99&lt;br/&gt;spark-worker-lab2-ccbb996b7-vw79p  |  CLOUD_APPLICATION_INSTANCE-CAB166E293F29646&lt;br/&gt;spark-worker-lab2-ccbb996b7-xq9mc  |  CLOUD_APPLICATION_INSTANCE-F2BF8ED3C8EDFB97&lt;/div&gt;" vertex="1">
+          <mxGeometry height="1176" width="560" x="620" y="778" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,44 @@
+{
+  "schemaId": "builtin:anomaly-detection.kubernetes.cluster",
+  "scope": "environment",
+  "value": {
+    "readinessIssues": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 2,
+        "observationPeriodInMinutes": 2
+      }
+    },
+    "cpuRequestsSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "memoryRequestsSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "podsSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 2,
+        "observationPeriodInMinutes": 2
+      }
+    },
+    "monitoringIssues": {
+      "enabled": true,
+      "configuration": {
+        "samplePeriodInMinutes": 10,
+        "observationPeriodInMinutes": 10
+      }
+    }
+  }
+}

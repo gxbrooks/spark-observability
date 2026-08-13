@@ -1,0 +1,29 @@
+---
+# Enable OOTB Dynatrace Kubernetes monitoring (clusters, namespaces, nodes,
+# workloads, volumes/PVC) with schema defaults, and activate the Kubernetes app.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/dynatrace/k8s_monitoring_start.yml -e @../vars/secrets.yaml
+
+- name: Start OOTB Dynatrace Kubernetes monitoring
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Activate cluster in Dynatrace Kubernetes app
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
+
+    - name: Apply OOTB Kubernetes monitoring settings (enabled)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_k8s_monitoring_settings.yml"
+      vars:
+        dt_k8s_mon_mode: enabled
+
+    - name: Summarize K8s monitoring start
+      ansible.builtin.debug:
+        msg: >-
+          Enabled OOTB Kubernetes anomaly detection (cluster, namespace, node,
+          workload, PVC) and cloud.kubernetes.monitoring pipelines; Kubernetes
+          app activation ensured.

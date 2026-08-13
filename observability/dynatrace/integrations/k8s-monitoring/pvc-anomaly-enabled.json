@@ -1,0 +1,22 @@
+{
+  "schemaId": "builtin:anomaly-detection.kubernetes.pvc",
+  "scope": "environment",
+  "value": {
+    "lowDiskSpaceCritical": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 100,
+        "samplePeriodInMinutes": 2,
+        "observationPeriodInMinutes": 2
+      }
+    },
+    "lowDiskSpaceCriticalPercentage": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 2,
+        "observationPeriodInMinutes": 2
+      }
+    }
+  }
+}

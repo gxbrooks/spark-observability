@@ -1,0 +1,46 @@
+{
+  "schemaId": "builtin:anomaly-detection.kubernetes.namespace",
+  "scope": "environment",
+  "value": {
+    "cpuRequestsQuotaSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "cpuLimitsQuotaSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "memoryRequestsQuotaSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "memoryLimitsQuotaSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    },
+    "podsQuotaSaturation": {
+      "enabled": true,
+      "configuration": {
+        "threshold": 60,
+        "samplePeriodInMinutes": 5,
+        "observationPeriodInMinutes": 5
+      }
+    }
+  }
+}

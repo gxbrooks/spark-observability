@@ -1,0 +1,26 @@
+---
+# Disable (unconfigure) OOTB Dynatrace Kubernetes monitoring detectors and
+# cloud.kubernetes.monitoring pipelines. Does not uninstall Operator/Dynakube.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/observability/dynatrace/k8s_monitoring_stop.yml -e @../vars/secrets.yaml
+
+- name: Stop OOTB Dynatrace Kubernetes monitoring
+  hosts: kubernetes_master
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+  tasks:
+    - name: Apply OOTB Kubernetes monitoring settings (disabled)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_k8s_monitoring_settings.yml"
+      vars:
+        dt_k8s_mon_mode: disabled
+
+    - name: Summarize K8s monitoring stop
+      ansible.builtin.debug:
+        msg: >-
+          Disabled OOTB Kubernetes anomaly detection (cluster, namespace, node,
+          workload, PVC) and cloud.kubernetes.monitoring pipelines.
+          Operator/Dynakube left running; use stop.yml / uninstall.yml for those.

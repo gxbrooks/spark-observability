@@ -80,7 +80,7 @@ spec:
                 name: spark-configmap
           env:
             - name: SPARK_WORKER_CORES
-              value: "4"
+              value: "5"
             - name: SPARK_LOCAL_IP
               valueFrom:
                 fieldRef:
@@ -112,10 +112,10 @@ spec:
           # Health checks removed - not available in base Apache Spark image
           resources:
             requests:
-              cpu: "2"
+              cpu: "3"
               memory: "6Gi"
             limits:
-              cpu: "4"
+              cpu: "5"
               memory: "11Gi"
           volumeMounts:
             - name: spark-events
@@ -227,7 +227,7 @@ spec:
                 name: spark-configmap
           env:
             - name: SPARK_WORKER_CORES
-              value: "4"
+              value: "5"
             - name: SPARK_LOCAL_IP
               valueFrom:
                 fieldRef:
@@ -259,10 +259,10 @@ spec:
           # Health checks removed - not available in base Apache Spark image
           resources:
             requests:
-              cpu: "2"
+              cpu: "3"
               memory: "6Gi"
             limits:
-              cpu: "4"
+              cpu: "5"
               memory: "11Gi"
           volumeMounts:
             - name: spark-events
