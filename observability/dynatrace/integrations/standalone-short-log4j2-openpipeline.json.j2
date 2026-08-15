@@ -44,7 +44,7 @@
           "description": "Parse Class:Line; map custom-source service_instance → sn-service_instance",
           "matcher": "true",
           "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-service_instance` = toString(coalesce(service_instance, \"\"))"
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-service_instance` = toString(coalesce(service_instance, \"\"))\n| fieldsAdd `sn-impact` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")\n| fieldsAdd `sn-urgency` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")"
           }
         }
       ]
@@ -67,10 +67,12 @@
               { "key": "sn-environment", "value": "{sn-environment}" },
               { "key": "sn-service_instance", "value": "{sn-service_instance}" },
               { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "sn-impact", "value": "{sn-impact}" },
+              { "key": "sn-urgency", "value": "{sn-urgency}" },
               { "key": "event.name", "value": "Critical {loglevel} at {sn-log-class}:{sn-log-line}" },
               {
                 "key": "event.description",
-                "value": "Standalone short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} in {log.path} sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service_instance={sn-service_instance} sn-pipeline={sn-pipeline}: {content}"
+                "value": "Standalone short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} in {log.path} sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service_instance={sn-service_instance} sn-pipeline={sn-pipeline} sn-impact={sn-impact} sn-urgency={sn-urgency}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               {
@@ -94,10 +96,12 @@
               { "key": "sn-event_kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-environment", "value": "{sn-environment}" },
               { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "sn-impact", "value": "3" },
+              { "key": "sn-urgency", "value": "3" },
               { "key": "event.name", "value": "Standalone log missing service_instance on {log.source}" },
               {
                 "key": "event.description",
-                "value": "Custom log source did not set service_instance for {log.source} sn-event_kind=CRITICAL_LOG_EVENT sn-environment={sn-environment}: {content}"
+                "value": "Custom log source did not set service_instance for {log.source} sn-event_kind=CRITICAL_LOG_EVENT sn-environment={sn-environment} sn-impact=3 sn-urgency=3: {content}"
               },
               { "key": "event.unique_identifier", "value": "{sn-environment}|enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },

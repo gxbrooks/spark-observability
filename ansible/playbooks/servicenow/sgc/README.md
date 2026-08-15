@@ -83,7 +83,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/dep
 # 2b. Start SGO-Dynatrace Hosts import and monitor cascade (5-minute polls)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/start.yml -e @../vars/secrets.yaml
 
-# 3. Dynatrace → ServiceNow events (CPU >80%, Spark ERROR logs)
+# 3. Dynatrace → ServiceNow events (CPU >50%, Spark ERROR logs)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/diagnose.yml -e @../vars/secrets.yaml
 

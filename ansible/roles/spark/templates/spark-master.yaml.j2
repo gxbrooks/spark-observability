@@ -3,6 +3,16 @@ kind: StatefulSet
 metadata:
   name: spark-master
   namespace: spark
+  # Controller labels (not only the pod template) so cmdb_key_value lands on
+  # cmdb_ci_kubernetes_statefulset — the CLOUD_APPLICATION bind target.
+  labels:
+    app: spark-master
+    app.kubernetes.io/name: spark-master
+    app.kubernetes.io/instance: brooks-lab
+    app.kubernetes.io/component: master
+    app.kubernetes.io/part-of: apache-spark
+    app.kubernetes.io/managed-by: ansible
+    servicenow.com/service-instance: Spark-Master
 spec:
   serviceName: "spark-master-headless" # Use the headless service for better DNS resolution
   replicas: 1

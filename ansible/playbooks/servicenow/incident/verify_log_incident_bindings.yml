@@ -36,25 +36,25 @@
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
       vars:
         sn_rest_table: em_alert
-        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEApplication%20log^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,description,resource,node,message_key,incident,incident.number,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,sys_created_on&sysparm_limit=10"
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKECRITICAL_LOG_EVENT^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,description,resource,node,message_key,incident,incident.number,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,sys_created_on&sysparm_limit=10"
 
     - name: Show recent em_alert CI bindings
       ansible.builtin.debug:
         var: sn_rest_json.result
       when: sn_rest_status | default(0) == 200
 
-    - name: Query recent Event Log incidents
+    - name: Query recent Critical log event incidents
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
       vars:
         sn_rest_table: incident
-        sn_rest_query: "sysparm_query=short_descriptionLIKEEvent%20Log^sys_created_on>javascript:gs.hoursAgo(24)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,active,sys_created_on&sysparm_limit=5"
+        sn_rest_query: "sysparm_query=short_descriptionLIKECritical%20log%20event^sys_created_on>javascript:gs.hoursAgo(24)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,active,sys_created_on&sysparm_limit=5"
 
-    - name: Show recent Event Log incidents
+    - name: Show recent Critical log event incidents
       ansible.builtin.debug:
         var: sn_rest_json.result
       when: sn_rest_status | default(0) == 200
 
-    - name: Assert em_event has pod CI and log path signal
+    - name: Assert recent SGO-Dynatrace events have a CI
       ansible.builtin.assert:
         that:
           - spark_events | length > 0
@@ -62,11 +62,9 @@
           - >-
             spark_events | selectattr('source', 'equalto', sn_sgc_event_source)
             | selectattr('cmdb_ci', 'defined') | rejectattr('cmdb_ci', 'equalto', '') | list | length > 0
-            or spark_events | selectattr('source', 'equalto', sn_sgc_event_source)
-            | map(attribute='description') | select('search', 'Application log|/mnt/spark/logs/|/logs/') | list | length > 0
         fail_msg: >-
-          Recent {{ sn_sgc_event_source }} em_event rows lack pod cmdb_ci or log-path description.
-          Check management zone includes K8s pods, OpenPipeline entity lookup, and em-event-bind-k8s-log-pod-ci BR.
+          Recent {{ sn_sgc_event_source }} em_event rows lack cmdb_ci.
+          Log events should bind the service instance; infra events HOST or K8s workload.
         success_msg: >-
           Found {{ spark_events | selectattr('source', 'equalto', sn_sgc_event_source) | list | length }}
           {{ sn_sgc_event_source }} event(s) in the last 2 hours.

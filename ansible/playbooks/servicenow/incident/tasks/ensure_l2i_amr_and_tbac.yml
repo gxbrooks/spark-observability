@@ -3,7 +3,7 @@
 #   - Deactivate OOTB "Create Incident for Primary Alert"
 #   - Upsert AMR that creates incidents for L2I CRITICAL_LOG_EVENT (non-secondary)
 #   - Upsert Tag-Based Alert Clustering tags + definition (env + SI + signature)
-#   - Deactivate L2I Business Rules (bind/create)
+#   - Keep OOTB primary AMR inactive
 
 - name: Deactivate OOTB Create Incident for Primary Alert
   ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
@@ -148,22 +148,3 @@
 - name: Link L2I TBAC tags to definition (m2m)
   ansible.builtin.include_tasks: ensure_l2i_tbac_m2m.yml
   when: sn_l2i_tbac_def_sys_id | default('') | length > 0
-
-- name: Deactivate L2I Business Rules (enterprise path uses AMR + populator)
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
-  vars:
-    sn_rest_table: sys_script
-    sn_rest_query: "sysparm_query=nameIN{{ sn_l2i_deactivate_br_names | join(',') }}&sysparm_fields=sys_id,name,active&sysparm_limit=20"
-
-- name: Patch L2I BRs inactive
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
-  vars:
-    sn_rest_method: patch
-    sn_rest_table: sys_script
-    sn_rest_sys_id: "{{ item.sys_id }}"
-    sn_rest_body:
-      active: "false"
-  loop: "{{ sn_rest_json.result | default([]) }}"
-  when:
-    - sn_rest_status | default(0) == 200
-    - item.active | default('') in ['true', '1', true, 1]

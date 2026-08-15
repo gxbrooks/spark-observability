@@ -2,7 +2,7 @@
 
 **Instance:** optimizincdemo1  
 **Dynatrace tenant:** pdt20158  
-**Date:** 2026-08-10 (Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR)  
+**Date:** 2026-08-14 (Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR; sn-impact enrich; K8s dash-key CI)  
 **Scope:** short Log4j2 application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
 
 This note is the **design of record** for the lab Log-to-Incident path, plus product / configuration gaps for Dynatrace and ServiceNow account teams. Historical dead-ends (CUSTOM_DEVICE, `spark.*` bind/pipeline attributes, unified pipelines) are marked **Historical** only where they still explain a gap.
@@ -27,8 +27,56 @@ Dots in attribute names break ServiceNow TBAC nested-path walks into
 | `sn-environment` | Environment partition (no cross-env grouping) |
 | `sn-service_instance` | Service instance clustering / resolve key |
 | `sn-pipeline` | OpenPipeline customId stamp |
-| `k8s.pod.name` | K8s bind key (unchanged platform attr) |
+| `sn-impact` | SN incident impact (1/2/3). DT stamps where it can (OpenPipeline, metric events); SN enrich maps ProblemSeverity otherwise |
+| `sn-urgency` | SN incident urgency (1/2/3). Correlated repeats bump toward 1; SN Data Lookup calculates **priority** from impact × urgency |
+| `k8s-pod-name` | Dash alias of `k8s.pod.name` (TBAC-safe). Log events; pod CI lookup |
+| `k8s-workload-name` | Dash alias of `k8s.workload.name`. Workload problems → deployment/statefulset/cronjob CI |
+| `k8s-workload-kind` | `deployment` / `statefulset` / `daemonset` / `cronjob` / `job` |
+| `k8s-cronjob-name` / `k8s-job-name` | CronJob / Job execution CI lookup |
+| `k8s.pod.name` | Platform dotted key (still stamped; SN reads via JSON bracket, never TBAC dot-walk) |
 | `service_instance` | Standalone OneAgent custom-source stamp (mapped → `sn-service_instance`) |
+
+### How alert severity and incident priority are computed today
+
+These are **three different numbers**. This lab does **not** yet calculate alert severity or incident priority from `sn-impact`/`sn-urgency`; that is deferred.
+
+| Field | Who sets it | How |
+| ----- | ----------- | --- |
+| **`em_event.severity` / `em_alert.severity`** (Event Management 1–5: Critical…OK) | SGO field mapping from Dynatrace `ProblemSeverity` | Observed on this instance: `ERROR` → **Major (2)**; `RESOURCE_CONTENTION` → **Warning (4)** (docs that say Minor/3 for contention are wrong here). `PERFORMANCE` typically Warning. `AVAILABILITY` typically Critical/Major. We do **not** overwrite this. |
+| **`sn-impact` / `sn-urgency`** (ITSM 1=High, 2=Medium, 3=Low) | Dynatrace when it can; else `em-event-enrich-sgo` / `em-alert-enrich-sgo` | OpenPipeline logs: ERROR=2/2, WARN=3/3. Host CPU metric event: 2/2. OOTB Davis/K8s: mapped from `ProblemSeverity` (table below). Stored in `additional_info` customProperties **and** description tokens so every SGO-Dynatrace event has them. |
+| **`incident.impact` / `incident.urgency`** | `EvtMgmtCustomIncidentPopulator.applySnPriorityToTask` | Copies `sn-impact`/`sn-urgency` from the alert. Repeat alerts for the same SI+`sn-log-signature` **bump urgency** toward 1 (and take the more severe impact). |
+| **`incident.priority`** | ServiceNow **Data Lookup** (`incident` Priority lookup, impact × urgency) | Not set in L2I code. Example: impact 3 + urgency 1 → priority 3. Changing this mapping is a later task. |
+
+Create-incident gate is still `severity<=3` on the shim BR, so Warning (4) CPU/K8s alerts get `sn-*` but **no incident** until that policy is revisited.
+
+### Initial `sn-impact` / `sn-urgency` mapping (tunable)
+
+| Source | sn-impact | sn-urgency |
+| ------ | --------- | ---------- |
+| OpenPipeline log ERROR | 2 | 2 |
+| OpenPipeline log WARN | 3 | 3 |
+| Host CPU metric event (`sn-event_kind=CPU_EVENT`) | 2 | 2 |
+| `ProblemSeverity=AVAILABILITY` (OOTB, SN enrich) | 1 | 2 |
+| `ProblemSeverity=ERROR` | 2 | 2 |
+| `ProblemSeverity=RESOURCE_CONTENTION` | 2 | 2 |
+| `ProblemSeverity=PERFORMANCE` | 2 | 3 |
+| `ProblemSeverity=CUSTOM_ALERT` / other | 3 | 3 |
+| No ProblemSeverity: EM severity 1 / 2 / 3 / 4–5 | 1/1, 2/2, 2/3, 3/3 | same |
+
+### Webhook / event attributes by context
+
+Dynatrace problem notification body is still `ProblemDetailsJSON` + `ImpactedEntities` (`sgc-problem-notification-payload.json.j2`). Attributes SN uses live in `rankedEvents[0].customProperties` (and description tokens). **Dash keys** are required wherever TBAC or a Glide condition would otherwise treat `.` as a JSON path walk. Script Includes read dotted platform keys with `customProperties['k8s.workload.name']` (bracket), then copy a dash alias.
+
+| Context | Who can stamp | Required / used attributes | Alert CI lookup |
+| ------- | ------------- | -------------------------- | --------------- |
+| **K8s / Standalone short Log4j2** | OpenPipeline Davis (`dt.davis.is_merging_allowed=false`) | `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline`, `sn-impact`, `sn-urgency`; K8s also `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`, `k8s-namespace-name` | **Alert CI = service instance** (enrich overwrites HOST/pod SOS). Incident CI = same SI |
+| **Host CPU metric event** | Metric event `eventTemplate.metadata` | `sn-event_kind=CPU_EVENT`, `sn-environment`, `sn-impact=2`, `sn-urgency=2` | HOST via SGO SOS (`ImpactedEntities[0].type=HOST`) |
+| **OOTB K8s workload** (CPU close to limits, etc.) | DT metric dimensions on the problem; **cannot** add OpenPipeline metadata | Platform: `k8s.workload.name`, `k8s.workload.kind`, `k8s.namespace.name`, `k8s.cluster.name`; `ImpactedEntities[0].type=CLOUD_APPLICATION`, `name=<workload>`. SN enrich copies `k8s-workload-name` / `k8s-workload-kind` | Deployment (or kind table) by **name** (`k8s-workload-name` or entity name). SGC 1.15.0 has no Workload data source — SOS/`correlation_id` usually empty |
+| **OOTB K8s pod / CAI** | DT | `k8s.pod.name` (platform); SN copies `k8s-pod-name` | `cmdb_ci_kubernetes_pod` by name |
+| **OOTB CronJob / Job** | DT when those dimensions exist | `k8s.cronjob.name` / `k8s.job.name`; SN copies `k8s-cronjob-name` / `k8s-job-name` | `cmdb_ci_kubernetes_cron_job` / `cmdb_ci_kubernetes_job` by name |
+| **OOTB host CPU_SATURATED** (Davis idle) | None (no metadata schema) | `ProblemSeverity` only | HOST SOS; SN enrich fills `sn-*` from severity |
+
+**Dotted-lookup rule:** never put `k8s.workload.name` in a TBAC `additional_info_key` or a `sys_script` filter condition. Use `k8s-workload-name`. JSON.parse + bracket access in `ResolveApplicationService.getCustomProperty` is safe.
 
 **Why both `event.type` and `sn-event_kind`?** Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). `sn-event_kind` carries the ServiceNow UI type; `ResolveApplicationService.applyLogEventTypeRename` remaps `em_event.type` / `em_alert.type`. Built-in `CPU_SATURATED` is left unchanged.
 
@@ -48,11 +96,11 @@ Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.
 | ----- | -------- |
 | **OpenPipeline tags** | `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline` (+ `k8s.pod.name`) in Davis custom properties and description tokens. |
 | **TBAC** | Definition **L2I short Log4j2 SI + signature** exact-matches those customProperties keys so alerts share a group only within the same env + SI + Class:Line. |
-| **Alert CI** | Left to SGO / Group Alert (often PGI/HOST/pod). Support groups are **not** on those CIs. |
+| **Alert CI** | **Log** (`CRITICAL_LOG_EVENT` / `sn-service_instance`): **service instance** (enrich overwrites SGO HOST/pod SOS). **Infra** (CPU / K8s workload): HOST via SOS, or `cmdb_ci_kubernetes_*` from `k8s-workload-name`. |
 | **Incident create** | Target: AMR + Flow action **Create incident from Alert**. Interim: BR shim → `EvtMgmtIncidentHandler.createIncident`. AMR reserved **inactive** (OOTB Create Incident subflow skips populator). |
 | **Incident CI** | `EvtMgmtCustomIncidentPopulator` sets **service instance**; correlates open incidents by SI + `Critical log event — Class:Line`. |
 | **assignment_group** | Not set in L2I (hold). Best practice when enabled: copy CI `support_group` → incident `assignment_group`. |
-| **Bind BRs** | Inactive. |
+| **Bind BRs** | **Purged.** Do not republish. Enrich BRs stamp `sn-*` and K8s dash-key CI only. |
 
 ### CMDB / mixed grouping — additional noise reduction (#3)
 
@@ -70,13 +118,14 @@ Beyond tag clustering on **env + SI + signature**, ServiceNow Mixed / CMDB-based
 
 | Name | Kind | Role |
 | ---- | ---- | ---- |
-| `ResolveApplicationService` | Script Include | SI resolve helpers (`sn-*`) |
+| `ResolveApplicationService` | Script Include | SI resolve helpers (`sn-*`); `enrichSgoRecord` (impact/urgency + K8s dash-key CI) |
 | `EvtMgmtCustomIncidentPopulator` | Script Include | L2I SI CI + correlate by `sn-log-signature` |
 | `L2IIncidentFromAlert` | Script Include | Helper → `EvtMgmtIncidentHandler` |
+| `em-event-enrich-sgo` / `em-alert-enrich-sgo` | BR (before) | Stamp `sn-impact`/`sn-urgency`; bind workload/pod CI from dash keys |
 | `em-alert-create-log-incident` | BR (shim) | `EvtMgmtIncidentHandler.createIncidentNoUpdate` |
 | `L2I short Log4j2 SI + signature` | TBAC definition | Tag cluster: `sn-environment` + SI + signature |
 | `L2I Create Incident CRITICAL_LOG_EVENT` | AMR | **Inactive** until published Create-incident-from-Alert Flow |
-| Bind / propagate BRs; OOTB primary / SGO AMRs | — | **Inactive** |
+| Bind / propagate BRs; OOTB primary / SGO AMRs | — | Bind BRs **purged**; OOTB AMRs **inactive** |
 
 **Product gap:** OOTB remediation subflow **Create Incident** does not invoke `EvtMgmtIncidentHandler` / `EvtMgmtCustomIncidentPopulator` on this instance. Deploy user also cannot insert `sysauto_script`. Until a Flow uses action **Create incident from Alert** (or an admin creates `L2IProcessPendingAlerts`), the handler shim BR is required.
 
@@ -159,19 +208,19 @@ Lab custom creator for comparison:
 | Mechanism                                                     | Role                                                            |
 | ------------------------------------------------------------- | --------------------------------------------------------------- |
 | AMR `SGO-Dynatrace`                                           | Product-supported alert → incident (all `source=SGO-Dynatrace`) |
-| BR `em-alert-create-log-incident`                             | Lab create/correlate after generic entity bind                  |
-| BR `em-alert-bind-entity-ci` / SI `ResolveApplicationService` | Generic entity → CI bind (not part of the AMR)                  |
+| BR `em-alert-create-log-incident`                             | Lab create/correlate via handler + populator                    |
+| `EvtMgmtCustomIncidentPopulator`                              | Incident CI = service instance (not part of the AMR)            |
 
 You do **not** register a BR inside an AMR. Options that *are* supported:
 
-1. **Keep OOTB AMR off** for lab; use bind BRs + `em-alert-create-log-incident` for log-to-incident (current).
+1. **Keep OOTB AMR off** for lab; use `em-alert-create-log-incident` (handler shim) for log-to-incident until a published Create-incident-from-Alert Flow owns create.
 2. **Narrow OOTB AMR filter** so it only covers standard SGO classes you want OOTB to handle (e.g. host CPU), and **exclude** Spark log / `ERROR_EVENT` (or require `cmdb_ci` class service instance).
 3. **Replace** OOTB create with a **custom AMR** whose filter requires `cmdb_ciISNOTEMPTY` (and ideally service instance class) — optionally use `EvtMgmtCustomIncidentPopulator` for field mapping.
 4. Do **not** run OOTB AMR **and** `em-alert-create-log-incident` together for the same alerts (dual creators).
 
 ### Does moving create into the AMR eliminate the CI race?
 
-**Partially, only if the AMR filter requires a bound service instance CI** (and bind BRs run before the AMR evaluates). Simply “using the AMR instead of the BR” with today’s filter (`source=SGO-Dynatrace` only) does **not** fix the race — that is what created empty-CI incidents.
+**Partially, only if the AMR filter requires a bound service instance CI** (SGO must finish `sys_object_source` bind before the AMR evaluates). Simply “using the AMR instead of the BR” with today’s filter (`source=SGO-Dynatrace` only) does **not** fix the race — that is what created empty-CI incidents.
 
 ### Issue
 
@@ -205,7 +254,7 @@ Dual incident creators when OOTB is active. OOTB often wins with an empty CI. Op
 ### Recommendation
 
 1. Keep OOTB inactive **or** narrow it to non–log-to-incident SGO alerts (CPU / infra) with standard SGO processing.
-2. Log-to-incident stays on bind BRs + `em-alert-create-log-incident` (or a dedicated AMR that requires service instance CI).
+2. Log-to-incident stays on `em-alert-create-log-incident` (or a dedicated AMR that requires service instance CI). Bind BRs are purged.
 3. Ask SN for a product pattern: “SGO incident AMR must not fire until CI bind complete.”
 
 ### Best practice: growing technology-dependent CI patterns (AMR vs BR)
@@ -268,10 +317,7 @@ Brooks-lab (new-school) notification:
 
 | Artifact                       | Source condition                                                                            |
 | ------------------------------ | ------------------------------------------------------------------------------------------- |
-| `em-event-bind-entity-ci`      | `filter_condition=source=SGO-Dynatrace`                                                     |
-| `em-event-propagate-entity-ci` | **inactive**; was `source=SGO-Dynatrace`                                                    |
-| `em-alert-bind-entity-ci`      | `filter_condition=source=SGO-Dynatrace`                                                     |
-| `em-alert-create-log-incident` | `filter_condition=source=SGO-Dynatrace^severity<=3` plus `current.source !== 'SGO-Dynatrace' → return` |
+| `em-alert-create-log-incident` | `filter_condition=source=SGO-Dynatrace^severity<=3^incidentISEMPTY` plus `current.source !== 'SGO-Dynatrace' → return` |
 
 Legacy `source=Dynatrace` rows are **ignored** by this automation (by design).
 
@@ -404,16 +450,14 @@ Business Rule **`em-alert-create-log-incident`** sets `cmdb_ci` on insert throug
 
 | Name | Kind | Role | Notes |
 | ---- | ---- | ---- | ----- |
-| `ResolveApplicationService` | Script Include | Generic entity→CI; name-first AS; type remap; processing notes | Active |
-| `em-event-bind-entity-ci` | BR `em_event` order 5000 | Bind on event | Active |
-| `em-event-propagate-entity-ci` | BR `em_event` order 5005 | Former event→alert CI copy | **Inactive** |
-| `em-alert-bind-entity-ci` | BR `em_alert` order 5010 | Prefer existing CI; else bind | Active |
-| `em-alert-create-log-incident` | BR `em_alert` order 5020 | Create/correlate `Critical log event` when CI bound | Active |
-| `K8sLogPodCiBind` / `em-*-k8s-*` | Legacy | Renamed/retired | **Inactive** |
+| `ResolveApplicationService` | Script Include | SI resolve helpers; type remap; processing notes | Active |
+| `em-alert-create-log-incident` | BR `em_alert` order 5020 | AMR shim → `EvtMgmtIncidentHandler` | Active |
+| Bind / propagate BRs (`em-*-bind-*`, `em-event-propagate-*`) | — | **Purged** (SGO native bind) | Deleted |
+| `K8sLogPodCiBind` / `em-*-k8s-*` create BRs | Legacy | Renamed/retired | **Inactive** |
 
-### Note on propagate
+### Note on bind / propagate BRs
 
-**Disabled by design** (2026-08-03). Prefer correct first-insert bind on event and alert BRs. If CI still disagrees within a `message_key` set, investigate OPEN vs RESOLVED ImpactedEntities or SGO native vs lab bind — do not re-enable propagate as the default.
+**Purged (2026-08-14).** Alert CI bind is SGO `sys_object_source`. Incident CI is `EvtMgmtCustomIncidentPopulator`. Do not republish bind or propagate BRs.
 
 ---
 

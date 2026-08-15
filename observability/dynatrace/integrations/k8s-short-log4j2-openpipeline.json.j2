@@ -34,7 +34,7 @@
           "description": "Parse short Log4j2 Class:Line into sn-log-* fields",
           "matcher": "true",
           "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature"
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-impact` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")\n| fieldsAdd `sn-urgency` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")"
           }
         },
         {
@@ -45,6 +45,16 @@
           "matcher": "isNotNull(k8s.pod.name)",
           "dql": {
             "script": "fieldsAdd `sn-service_instance` = if(startsWith(toString(k8s.pod.name), \"spark-master\"), \"Spark-Master\", else: if(startsWith(toString(k8s.pod.name), \"spark-worker\"), \"Spark-Worker\", else: if(startsWith(toString(k8s.pod.name), \"spark-history\"), \"Spark-History-Server\", else: \"\")))"
+          }
+        },
+        {
+          "id": "alias-k8s-dash-keys",
+          "type": "dql",
+          "enabled": true,
+          "description": "Dash-key aliases for SN TBAC (avoid dotted additional_info walks)",
+          "matcher": "isNotNull(k8s.pod.name)",
+          "dql": {
+            "script": "fieldsAdd `k8s-pod-name` = toString(k8s.pod.name)\n| fieldsAdd `k8s-namespace-name` = toString(coalesce(k8s.namespace.name, \"\"))\n| fieldsAdd `k8s-cluster-name` = toString(coalesce(k8s.cluster.name, \"\"))\n| fieldsAdd `k8s-workload-name` = if(isNotNull(k8s.workload.name) AND toString(k8s.workload.name) != \"\", toString(k8s.workload.name), else: if(isNotNull(k8s.deployment.name) AND toString(k8s.deployment.name) != \"\", toString(k8s.deployment.name), else: if(startsWith(toString(k8s.pod.name), \"spark-worker-lab1\"), \"spark-worker-lab1\", else: if(startsWith(toString(k8s.pod.name), \"spark-worker-lab2\"), \"spark-worker-lab2\", else: if(startsWith(toString(k8s.pod.name), \"spark-master\"), \"spark-master\", else: if(startsWith(toString(k8s.pod.name), \"spark-history\"), \"spark-history-server\", else: \"\"))))))\n| fieldsAdd `k8s-workload-kind` = if(isNotNull(k8s.workload.kind) AND toString(k8s.workload.kind) != \"\", toString(k8s.workload.kind), else: \"deployment\")\n| fieldsAdd `k8s-cronjob-name` = toString(coalesce(k8s.cronjob.name, \"\"))\n| fieldsAdd `k8s-job-name` = toString(coalesce(k8s.job.name, \"\"))"
           }
         }
       ]
@@ -67,11 +77,17 @@
               { "key": "sn-environment", "value": "{sn-environment}" },
               { "key": "sn-service_instance", "value": "{sn-service_instance}" },
               { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "sn-impact", "value": "{sn-impact}" },
+              { "key": "sn-urgency", "value": "{sn-urgency}" },
               { "key": "k8s.pod.name", "value": "{k8s.pod.name}" },
+              { "key": "k8s-pod-name", "value": "{k8s-pod-name}" },
+              { "key": "k8s-workload-name", "value": "{k8s-workload-name}" },
+              { "key": "k8s-workload-kind", "value": "{k8s-workload-kind}" },
+              { "key": "k8s-namespace-name", "value": "{k8s-namespace-name}" },
               { "key": "event.name", "value": "Critical {loglevel} at {sn-log-class}:{sn-log-line}" },
               {
                 "key": "event.description",
-                "value": "K8s short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} on {k8s.pod.name} sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service_instance={sn-service_instance} sn-pipeline={sn-pipeline} k8s.pod.name={k8s.pod.name}: {content}"
+                "value": "K8s short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} on {k8s.pod.name} sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service_instance={sn-service_instance} sn-pipeline={sn-pipeline} sn-impact={sn-impact} sn-urgency={sn-urgency} k8s-pod-name={k8s-pod-name} k8s-workload-name={k8s-workload-name} k8s.pod.name={k8s.pod.name}: {content}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               {
@@ -95,10 +111,12 @@
               { "key": "sn-event_kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-environment", "value": "{sn-environment}" },
               { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "sn-impact", "value": "3" },
+              { "key": "sn-urgency", "value": "3" },
               { "key": "event.name", "value": "K8s log missing k8s.pod.name on {log.source}" },
               {
                 "key": "event.description",
-                "value": "Container Output log missing k8s.pod.name for {log.source} sn-event_kind=CRITICAL_LOG_EVENT sn-environment={sn-environment}: {content}"
+                "value": "Container Output log missing k8s.pod.name for {log.source} sn-event_kind=CRITICAL_LOG_EVENT sn-environment={sn-environment} sn-impact=3 sn-urgency=3: {content}"
               },
               { "key": "event.unique_identifier", "value": "{sn-environment}|enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },

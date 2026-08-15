@@ -13,13 +13,10 @@ sn_api_headers:
   Content-Type: application/json
 
 sn_incident_si_name: ResolveApplicationService
-sn_incident_em_event_br_name: em-event-bind-entity-ci
-sn_incident_em_event_br_order: "5000"
-sn_incident_em_event_propagate_br_name: em-event-propagate-entity-ci
-sn_incident_em_event_propagate_br_order: "5005"
-sn_incident_em_event_propagate_br_active: "false"
-sn_incident_em_alert_bind_br_name: em-alert-bind-entity-ci
-sn_incident_em_alert_bind_br_order: "5010"
+sn_l2i_enrich_event_br_name: em-event-enrich-sgo
+sn_l2i_enrich_event_br_order: "100"
+sn_l2i_enrich_alert_br_name: em-alert-enrich-sgo
+sn_l2i_enrich_alert_br_order: "5000"
 sn_incident_em_alert_br_name: em-alert-create-log-incident
 sn_incident_em_alert_br_order: "5020"
 
@@ -70,9 +67,5 @@ sn_l2i_tbac_tags:
     key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-log-signature"
     description: L2I Log4j Class:Line signature
 
-# Bind/propagate BRs retired. Create BR is AMR shim → EvtMgmtIncidentHandler.
-sn_l2i_deactivate_br_names:
-  - em-event-bind-entity-ci
-  - em-alert-bind-entity-ci
-  - em-event-propagate-entity-ci
+# Create BR is AMR shim → EvtMgmtIncidentHandler until a published Flow owns create.
 sn_l2i_create_br_active: "true"

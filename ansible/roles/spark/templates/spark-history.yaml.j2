@@ -3,6 +3,15 @@ kind: Deployment
 metadata:
   name: spark-history
   namespace: spark
+  # Controller labels so cmdb_key_value lands on cmdb_ci_kubernetes_deployment.
+  labels:
+    app: spark-history
+    app.kubernetes.io/name: spark-history-server
+    app.kubernetes.io/instance: brooks-lab
+    app.kubernetes.io/component: history
+    app.kubernetes.io/part-of: apache-spark
+    app.kubernetes.io/managed-by: ansible
+    servicenow.com/service-instance: Spark-History-Server
 spec:
   replicas: 1
   selector:

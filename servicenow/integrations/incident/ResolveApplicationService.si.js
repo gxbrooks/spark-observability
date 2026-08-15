@@ -51,7 +51,8 @@ ResolveApplicationService.prototype = {
 
   /**
    * Classify a Dynatrace entity id / type string into HOST | CUSTOM_DEVICE |
-   * CLOUD_APPLICATION_INSTANCE | other.
+   * CLOUD_APPLICATION | CLOUD_APPLICATION_INSTANCE | other.
+   * INSTANCE must be matched before CLOUD_APPLICATION (prefix overlap).
    */
   classifyEntityType: function (type, entityId) {
     var t = String(type || '');
@@ -67,6 +68,9 @@ ResolveApplicationService.prototype = {
       id.indexOf('CLOUD_APPLICATION_INSTANCE-') === 0
     ) {
       return 'CLOUD_APPLICATION_INSTANCE';
+    }
+    if (t === 'CLOUD_APPLICATION' || id.indexOf('CLOUD_APPLICATION-') === 0) {
+      return 'CLOUD_APPLICATION';
     }
     return t || 'UNKNOWN';
   },
@@ -106,14 +110,31 @@ ResolveApplicationService.prototype = {
 
         var list = info.ImpactedEntities || info.impactedEntities || [];
         if (list.length) {
-          var e0 = list[0] || {};
-          var first = fromParts(
-            e0.type,
-            e0.entity || e0.entityId,
-            e0.name || e0.entityName
-          );
-          if (first) {
-            return first;
+          var preferred = null;
+          var fallback = null;
+          for (var i = 0; i < list.length; i++) {
+            var ei = list[i] || {};
+            var parts = fromParts(
+              ei.type,
+              ei.entity || ei.entityId,
+              ei.name || ei.entityName
+            );
+            if (!parts) {
+              continue;
+            }
+            if (parts.type === 'CLOUD_APPLICATION') {
+              preferred = parts;
+              break;
+            }
+            if (!fallback) {
+              fallback = parts;
+            }
+          }
+          if (preferred) {
+            return preferred;
+          }
+          if (fallback) {
+            return fallback;
           }
         }
       }
@@ -129,6 +150,7 @@ ResolveApplicationService.prototype = {
         fromResource &&
         (fromResource.type === 'HOST' ||
           fromResource.type === 'CUSTOM_DEVICE' ||
+          fromResource.type === 'CLOUD_APPLICATION' ||
           fromResource.type === 'CLOUD_APPLICATION_INSTANCE')
       ) {
         return fromResource;
@@ -150,6 +172,10 @@ ResolveApplicationService.prototype = {
     var cai = blob.match(/\b(CLOUD_APPLICATION_INSTANCE-[A-F0-9]+)\b/);
     if (cai) {
       return fromParts('CLOUD_APPLICATION_INSTANCE', cai[1], node);
+    }
+    var ca = blob.match(/\b(CLOUD_APPLICATION-[A-F0-9]+)\b/);
+    if (ca) {
+      return fromParts('CLOUD_APPLICATION', ca[1], node);
     }
     var host = blob.match(/\b(HOST-[A-F0-9]+)\b/);
     if (host) {
@@ -357,6 +383,116 @@ ResolveApplicationService.prototype = {
   },
 
   /**
+   * CLOUD_APPLICATION (K8s workload controller) → deployment/statefulset CI
+   * via SGO SOS or correlation_id, then SI via svc_ci_assoc.
+   * Returns { workloadSysId, asSysId, name, how } or null.
+   */
+  /**
+   * Map k8s.workload.kind / k8s-workload-kind to the CMDB class for that
+   * controller. Empty kind → caller tries the full table list.
+   */
+  workloadTableForKind: function (kind) {
+    var k = String(kind || '').toLowerCase();
+    if (k === 'deployment' || k === 'deployments') {
+      return 'cmdb_ci_kubernetes_deployment';
+    }
+    if (k === 'statefulset' || k === 'statefulsets') {
+      return 'cmdb_ci_kubernetes_statefulset';
+    }
+    if (k === 'daemonset' || k === 'daemonsets') {
+      return 'cmdb_ci_kubernetes_daemon_set';
+    }
+    if (k === 'cronjob' || k === 'cronjobs') {
+      return 'cmdb_ci_kubernetes_cron_job';
+    }
+    if (k === 'job' || k === 'jobs') {
+      return 'cmdb_ci_kubernetes_job';
+    }
+    return '';
+  },
+
+  k8sWorkloadTables: function (preferredKind) {
+    var preferred = this.workloadTableForKind(preferredKind);
+    var all = [
+      'cmdb_ci_kubernetes_deployment',
+      'cmdb_ci_kubernetes_statefulset',
+      'cmdb_ci_kubernetes_daemon_set',
+      'cmdb_ci_kubernetes_cron_job',
+      'cmdb_ci_kubernetes_job',
+    ];
+    if (!preferred) {
+      return all;
+    }
+    var ordered = [preferred];
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] !== preferred) {
+        ordered.push(all[i]);
+      }
+    }
+    return ordered;
+  },
+
+  resolveFromCloudApplication: function (entityId, workloadName, workloadKind) {
+    var name = workloadName ? String(workloadName) : '';
+    var sos = this.lookupSysObjectSourceTarget(entityId, null);
+    if (sos && sos.sysId) {
+      var asFromSos = this.resolveFromInfrastructureCi(sos.sysId);
+      return {
+        workloadSysId: sos.sysId,
+        asSysId: asFromSos,
+        name: name,
+        how: 'CLOUD_APPLICATION→SOS→workload CI',
+      };
+    }
+
+    var tables = this.k8sWorkloadTables(workloadKind);
+
+    if (entityId) {
+      for (var t = 0; t < tables.length; t++) {
+        var byCorr = new GlideRecord(tables[t]);
+        if (!byCorr.isValid() || !byCorr.isValidField('correlation_id')) {
+          continue;
+        }
+        byCorr.addQuery('correlation_id', entityId);
+        byCorr.setLimit(1);
+        byCorr.query();
+        if (byCorr.next()) {
+          var wId = byCorr.sys_id.toString();
+          return {
+            workloadSysId: wId,
+            asSysId: this.resolveFromInfrastructureCi(wId),
+            name: name || byCorr.name.toString(),
+            how: 'CLOUD_APPLICATION correlation_id→' + tables[t],
+          };
+        }
+      }
+    }
+
+    if (name) {
+      for (var n = 0; n < tables.length; n++) {
+        var byName = new GlideRecord(tables[n]);
+        if (!byName.isValid()) {
+          continue;
+        }
+        byName.addQuery('name', name);
+        byName.setLimit(1);
+        byName.query();
+        if (byName.next()) {
+          var nId = byName.sys_id.toString();
+          return {
+            workloadSysId: nId,
+            asSysId: this.resolveFromInfrastructureCi(nId),
+            name: name,
+            how: 'CLOUD_APPLICATION name→' + tables[n],
+          };
+        }
+      }
+    }
+
+    return null;
+  },
+
+  /**
    * Collect description / additional_info / resource / node text for Spark
    * metadata field parsing (OpenPipeline stamps into Davis description + props).
    */
@@ -384,6 +520,186 @@ ResolveApplicationService.prototype = {
       blob += ' ' + gr.node.toString();
     }
     return blob;
+  },
+
+  /**
+   * Parse em_event/em_alert.additional_info. If ProblemDetailsJSON is a
+   * nested JSON string (SGO v1), parse it in place and mark _pdjWasString
+   * so writeAdditionalInfo can round-trip the same shape.
+   */
+  parseAdditionalInfo: function (gr) {
+    try {
+      if (!gr || !gr.isValidField('additional_info') || gr.additional_info.nil()) {
+        return null;
+      }
+      var raw = gr.getValue('additional_info') || gr.additional_info.toString();
+      if (!raw) {
+        return null;
+      }
+      var info = JSON.parse(raw);
+      if (info && typeof info.ProblemDetailsJSON === 'string') {
+        try {
+          info.ProblemDetailsJSON = JSON.parse(info.ProblemDetailsJSON);
+          info._pdjWasString = true;
+        } catch (e0) {
+          /* leave as string */
+        }
+      }
+      return info;
+    } catch (e1) {
+      return null;
+    }
+  },
+
+  readRankedCustomProperties: function (info) {
+    if (!info || !info.ProblemDetailsJSON || typeof info.ProblemDetailsJSON !== 'object') {
+      return null;
+    }
+    var events = info.ProblemDetailsJSON.rankedEvents;
+    if (!events || !events.length) {
+      return null;
+    }
+    var props = events[0].customProperties;
+    if (!props || typeof props !== 'object') {
+      return null;
+    }
+    return props;
+  },
+
+  ensureRankedCustomProperties: function (info) {
+    if (!info) {
+      return null;
+    }
+    if (!info.ProblemDetailsJSON || typeof info.ProblemDetailsJSON !== 'object') {
+      info.ProblemDetailsJSON = {};
+    }
+    var pdj = info.ProblemDetailsJSON;
+    if (!pdj.rankedEvents || !pdj.rankedEvents.length) {
+      pdj.rankedEvents = [{}];
+    }
+    if (
+      !pdj.rankedEvents[0].customProperties ||
+      typeof pdj.rankedEvents[0].customProperties !== 'object'
+    ) {
+      pdj.rankedEvents[0].customProperties = {};
+    }
+    return pdj.rankedEvents[0].customProperties;
+  },
+
+  writeAdditionalInfo: function (gr, info) {
+    if (!gr || !info || !gr.isValidField('additional_info')) {
+      return;
+    }
+    var pdjWasString = !!info._pdjWasString;
+    var toWrite = JSON.parse(JSON.stringify(info));
+    delete toWrite._pdjWasString;
+    if (
+      pdjWasString &&
+      toWrite.ProblemDetailsJSON &&
+      typeof toWrite.ProblemDetailsJSON === 'object'
+    ) {
+      toWrite.ProblemDetailsJSON = JSON.stringify(toWrite.ProblemDetailsJSON);
+    }
+    gr.additional_info = JSON.stringify(toWrite);
+  },
+
+  /**
+   * Read a property from ranked customProperties using bracket keys (never
+   * GlideRecord / TBAC dot-walk), then fall back to description regex.
+   * Pass dash key first, then the platform dotted name.
+   */
+  getCustomProperty: function (gr, keys) {
+    if (!keys || !keys.length) {
+      return null;
+    }
+    var info = this.parseAdditionalInfo(gr);
+    var props = this.readRankedCustomProperties(info);
+    var i;
+    if (props) {
+      for (i = 0; i < keys.length; i++) {
+        var v = props[keys[i]];
+        if (v !== undefined && v !== null && String(v) !== '') {
+          return String(v);
+        }
+      }
+    }
+    var blob = this.collectSparkLookupBlob(gr);
+    for (i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var reJson = new RegExp(
+        '["\']' + escaped + '["\']\\s*:\\s*["\']([^"\']+)["\']',
+        'i'
+      );
+      var m = blob.match(reJson);
+      if (m) {
+        return m[1];
+      }
+      var reEq = new RegExp(
+        '(?:^|[\\s,{;])' + escaped + '\\s*[=:]\\s*([A-Za-z0-9][\\w.-]*)',
+        'i'
+      );
+      m = blob.match(reEq);
+      if (m) {
+        return m[1];
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Stamp dash-key customProperties (and description tokens) without
+   * overwriting values Dynatrace already sent.
+   */
+  stampCustomProperties: function (gr, kv) {
+    if (!gr || !kv) {
+      return false;
+    }
+    var info = this.parseAdditionalInfo(gr);
+    var props = info ? this.ensureRankedCustomProperties(info) : null;
+    var changed = false;
+    var k;
+    if (props) {
+      for (k in kv) {
+        if (!Object.prototype.hasOwnProperty.call(kv, k)) {
+          continue;
+        }
+        if (kv[k] === undefined || kv[k] === null || String(kv[k]) === '') {
+          continue;
+        }
+        if (props[k] === undefined || props[k] === null || String(props[k]) === '') {
+          props[k] = String(kv[k]);
+          changed = true;
+        }
+      }
+      if (changed) {
+        this.writeAdditionalInfo(gr, info);
+      }
+    }
+    if (gr.isValidField('description')) {
+      var desc = gr.description ? gr.description.toString() : '';
+      var extra = '';
+      for (k in kv) {
+        if (!Object.prototype.hasOwnProperty.call(kv, k)) {
+          continue;
+        }
+        if (kv[k] === undefined || kv[k] === null || String(kv[k]) === '') {
+          continue;
+        }
+        if (desc.indexOf(k + '=') === -1 && desc.indexOf('"' + k + '"') === -1) {
+          extra += ' ' + k + '=' + String(kv[k]);
+        }
+      }
+      if (extra) {
+        var combined = (desc + extra).replace(/^\s+/, '');
+        if (combined.length > 4000) {
+          combined = combined.substring(0, 3980) + '\n...[truncated]';
+        }
+        gr.description = combined;
+        changed = true;
+      }
+    }
+    return changed;
   },
 
   /**
@@ -471,18 +787,36 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse k8s.pod.name from description / additional_info JSON.
-   * Pattern: K8s App with short Log4j2 logs (Container Output / Davis stamp).
+   * Parse k8s-pod-name (dash) or k8s.pod.name (JSON bracket / regex).
+   * Dash first so TBAC and Glide conditions never see a dotted key.
    */
   extractK8sPodName: function (gr) {
-    var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(/k8s\.pod\.name\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i);
-    if (!m) {
-      m = blob.match(
-        /["']k8s\.pod\.name["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
-      );
-    }
-    return m ? m[1] : null;
+    return this.getCustomProperty(gr, ['k8s-pod-name', 'k8s.pod.name']);
+  },
+
+  extractK8sWorkloadName: function (gr) {
+    return this.getCustomProperty(gr, [
+      'k8s-workload-name',
+      'k8s.workload.name',
+    ]);
+  },
+
+  extractK8sWorkloadKind: function (gr) {
+    return this.getCustomProperty(gr, [
+      'k8s-workload-kind',
+      'k8s.workload.kind',
+    ]);
+  },
+
+  extractK8sCronJobName: function (gr) {
+    return this.getCustomProperty(gr, [
+      'k8s-cronjob-name',
+      'k8s.cronjob.name',
+    ]);
+  },
+
+  extractK8sJobName: function (gr) {
+    return this.getCustomProperty(gr, ['k8s-job-name', 'k8s.job.name']);
   },
 
   /**
@@ -615,6 +949,150 @@ ResolveApplicationService.prototype = {
   },
 
   /**
+   * Parse sn-impact / sn-urgency (ServiceNow 1=High, 2=Medium, 3=Low).
+   * Dash keys for TBAC; fallback ProblemSeverity when OOTB K8s problems
+   * have no OpenPipeline stamps.
+   */
+  extractSnChoice: function (gr, attr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var reEq = new RegExp(
+      '(?:^|[\\s,{;])' + attr + '\\s*[=:]\\s*([1-3])',
+      'i'
+    );
+    var m = blob.match(reEq);
+    if (!m) {
+      var reJson = new RegExp(
+        '["\']' + attr + '["\']\\s*:\\s*["\']?([1-3])["\']?',
+        'i'
+      );
+      m = blob.match(reJson);
+    }
+    return m ? m[1] : null;
+  },
+
+  extractSnImpact: function (gr) {
+    return this.extractSnChoice(gr, 'sn-impact') || this.defaultImpactFromSeverity(gr);
+  },
+
+  extractSnUrgency: function (gr) {
+    return this.extractSnChoice(gr, 'sn-urgency') || this.defaultUrgencyFromSeverity(gr);
+  },
+
+  extractProblemSeverity: function (gr) {
+    var blob = this.collectSparkLookupBlob(gr);
+    var m = blob.match(/["']ProblemSeverity["']\s*:\s*["']([^"']+)["']/i);
+    if (!m) {
+      m = blob.match(/ProblemSeverity\s*[=:]\s*([A-Z_]+)/i);
+    }
+    return m ? m[1].toUpperCase() : '';
+  },
+
+  /**
+   * Initial sn-impact / sn-urgency when Dynatrace did not stamp them.
+   * Tunable later. SN 1=High, 2=Medium, 3=Low.
+   *
+   *   AVAILABILITY          → 1 / 2
+   *   ERROR                 → 2 / 2
+   *   RESOURCE_CONTENTION   → 2 / 2
+   *   PERFORMANCE           → 2 / 3
+   *   CUSTOM_ALERT / other  → 3 / 3
+   *   else EM severity 1–5  → 1/1, 2/2, 2/3, 3/3, 3/3
+   */
+  mapDtSeverityToSn: function (gr) {
+    var sev = this.extractProblemSeverity(gr);
+    if (sev === 'AVAILABILITY') {
+      return { impact: '1', urgency: '2' };
+    }
+    if (sev === 'ERROR') {
+      return { impact: '2', urgency: '2' };
+    }
+    if (sev === 'RESOURCE_CONTENTION') {
+      return { impact: '2', urgency: '2' };
+    }
+    if (sev === 'PERFORMANCE') {
+      return { impact: '2', urgency: '3' };
+    }
+    if (sev === 'CUSTOM_ALERT') {
+      return { impact: '3', urgency: '3' };
+    }
+    if (this.extractLogEventKind(gr) === 'CPU_EVENT') {
+      return { impact: '2', urgency: '2' };
+    }
+    var em = '';
+    if (gr && gr.isValidField('severity') && !gr.severity.nil()) {
+      em = String(gr.severity);
+    }
+    if (em === '1') {
+      return { impact: '1', urgency: '1' };
+    }
+    if (em === '2') {
+      return { impact: '2', urgency: '2' };
+    }
+    if (em === '3') {
+      return { impact: '2', urgency: '3' };
+    }
+    return { impact: '3', urgency: '3' };
+  },
+
+  defaultImpactFromSeverity: function (gr) {
+    return this.mapDtSeverityToSn(gr).impact;
+  },
+
+  defaultUrgencyFromSeverity: function (gr) {
+    return this.mapDtSeverityToSn(gr).urgency;
+  },
+
+  /**
+   * Set incident.impact / incident.urgency from sn-impact / sn-urgency.
+   * SN calculates priority from those two fields. Repeat alerts bump urgency.
+   */
+  moreSevereChoice: function (a, b) {
+    var na = parseInt(a, 10);
+    var nb = parseInt(b, 10);
+    if (isNaN(na)) {
+      return isNaN(nb) ? '3' : String(nb);
+    }
+    if (isNaN(nb)) {
+      return String(na);
+    }
+    return na <= nb ? String(na) : String(nb);
+  },
+
+  bumpUrgency: function (choice) {
+    var n = parseInt(choice, 10);
+    if (isNaN(n) || n <= 1) {
+      return '1';
+    }
+    return String(n - 1);
+  },
+
+  applySnPriorityToTask: function (alert, task, bumpOnRepeat) {
+    if (!task) {
+      return;
+    }
+    var impact = this.extractSnImpact(alert) || '3';
+    var urgency = this.extractSnUrgency(alert) || '3';
+    if (bumpOnRepeat) {
+      urgency = this.bumpUrgency(urgency);
+      if (task.isValidField('urgency') && !task.urgency.nil()) {
+        urgency = this.moreSevereChoice(
+          this.bumpUrgency(task.urgency.toString()),
+          urgency
+        );
+      }
+      if (task.isValidField('impact') && !task.impact.nil()) {
+        impact = this.moreSevereChoice(task.impact.toString(), impact);
+      }
+    }
+    if (task.isValidField('impact')) {
+      task.impact = impact;
+    }
+    if (task.isValidField('urgency')) {
+      task.urgency = urgency;
+    }
+  },
+
+  /**
    * Remap em_event.type / em_alert.type from Dynatrace enum values to
    * sn-event_kind (CRITICAL_LOG_EVENT / CPU_EVENT). Leaves CPU_SATURATED alone.
    */
@@ -710,6 +1188,16 @@ ResolveApplicationService.prototype = {
     }
 
     var entity = this.parsePrimaryImpactedEntity(gr);
+    if (entity && entity.type === 'CLOUD_APPLICATION') {
+      var ca = this.resolveFromCloudApplication(entity.entityId, entity.name);
+      if (ca && ca.asSysId) {
+        return {
+          sysId: ca.asSysId,
+          how: ca.how + '→svc_ci_assoc',
+          stamp: ca.name || entity.name || '',
+        };
+      }
+    }
     if (entity && entity.type === 'CLOUD_APPLICATION_INSTANCE') {
       var cai = this.resolveFromCloudApplicationInstance(
         entity.entityId,
@@ -829,7 +1317,7 @@ ResolveApplicationService.prototype = {
    * Generic entity → infrastructure CI bind for SGO-Dynatrace em_event / em_alert:
    *   1. k8s.pod.name → cmdb_ci_kubernetes_pod (K8s pattern; SI used only for incidents)
    *   2. service_instance stamp → prefer HOST ImpactedEntity for alert CI (Standalone)
-   *   3. primary ImpactedEntity: HOST / CAI (pod CI, not SI)
+   *   3. primary ImpactedEntity: CLOUD_APPLICATION (workload CI) / HOST / CAI (pod)
    * Service instance ownership is resolved separately for incidents.
    * message_key stays the Dynatrace ProblemID (no class:line mutation).
    */
@@ -911,11 +1399,11 @@ ResolveApplicationService.prototype = {
       return result;
     }
 
-    // 3) Primary ImpactedEntity (HOST for CPU; CAI → pod CI).
+    // 3) Primary ImpactedEntity (CLOUD_APPLICATION workload; HOST for CPU; CAI → pod).
     var entity = this.parsePrimaryImpactedEntity(gr);
     if (!entity) {
       result.note =
-        'em-entity-bind: no service_instance / k8s.pod.name and no primary impacted entity (HOST / CLOUD_APPLICATION_INSTANCE)';
+        'em-entity-bind: no service_instance / k8s.pod.name and no primary impacted entity (HOST / CLOUD_APPLICATION / CLOUD_APPLICATION_INSTANCE)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
@@ -942,6 +1430,36 @@ ResolveApplicationService.prototype = {
       result.bound = true;
       result.kind = 'host';
       result.note = 'em-entity-bind: HOST→CI via ' + host.how;
+      this.appendProcessingNote(gr, result.note);
+      return result;
+    }
+
+    if (entity.type === 'CLOUD_APPLICATION') {
+      var workload = this.resolveFromCloudApplication(
+        entity.entityId,
+        entity.name
+      );
+      if (!workload || !workload.workloadSysId) {
+        result.kind = 'cloud_application';
+        result.note =
+          'em-entity-bind: CLOUD_APPLICATION ' +
+          entity.entityId +
+          ' (' +
+          (entity.name || 'unnamed') +
+          ') — no workload CI via SOS/correlation_id/name; cmdb_ci left empty';
+        this.appendProcessingNote(gr, result.note);
+        return result;
+      }
+      if (workload.name) {
+        gr.node = workload.name;
+      }
+      gr.resource = entity.entityId;
+      gr.cmdb_ci = workload.workloadSysId;
+      result.bound = true;
+      result.kind = 'cloud_application';
+      result.asSysId = workload.asSysId || '';
+      result.note =
+        'em-entity-bind: CLOUD_APPLICATION→workload CI via ' + workload.how;
       this.appendProcessingNote(gr, result.note);
       return result;
     }
@@ -1161,6 +1679,230 @@ ResolveApplicationService.prototype = {
    */
   appendClassLineToMessageKey: function (/* gr, prefix */) {
     return;
+  },
+
+  /**
+   * Initial SGO-Dynatrace event/alert processing (before insert/update):
+   *   1. Guarantee sn-impact / sn-urgency (DT stamps win; else ProblemSeverity
+   *      / EM severity mapping).
+   *   2. Copy dotted K8s platform keys to dash aliases (TBAC-safe).
+   *   3. CRITICAL_LOG_EVENT / sn-service_instance: cmdb_ci = service
+   *      instance (overwrites SGO HOST/pod SOS bind).
+   *   4. Else if cmdb_ci is empty, bind from k8s-workload-name /
+   *      k8s-pod-name / k8s-cronjob-name / k8s-job-name.
+   */
+  enrichSgoRecord: function (gr) {
+    if (!gr || String(gr.source) !== 'SGO-Dynatrace') {
+      return false;
+    }
+
+    var mapped = this.mapDtSeverityToSn(gr);
+    var impact = this.extractSnChoice(gr, 'sn-impact') || mapped.impact;
+    var urgency = this.extractSnChoice(gr, 'sn-urgency') || mapped.urgency;
+
+    var workload = this.extractK8sWorkloadName(gr);
+    var kind = this.extractK8sWorkloadKind(gr);
+    var pod = this.extractK8sPodName(gr);
+    var ns = this.getCustomProperty(gr, [
+      'k8s-namespace-name',
+      'k8s.namespace.name',
+    ]);
+    var cluster = this.getCustomProperty(gr, [
+      'k8s-cluster-name',
+      'k8s.cluster.name',
+    ]);
+    var cron = this.extractK8sCronJobName(gr);
+    var job = this.extractK8sJobName(gr);
+
+    if (!workload) {
+      var entity = this.parsePrimaryImpactedEntity(gr);
+      if (entity && entity.type === 'CLOUD_APPLICATION' && entity.name) {
+        workload = entity.name;
+      }
+    }
+
+    var stamps = {
+      'sn-impact': impact,
+      'sn-urgency': urgency,
+    };
+    if (workload) {
+      stamps['k8s-workload-name'] = workload;
+    }
+    if (kind) {
+      stamps['k8s-workload-kind'] = kind;
+    }
+    if (pod) {
+      stamps['k8s-pod-name'] = pod;
+    }
+    if (ns) {
+      stamps['k8s-namespace-name'] = ns;
+    }
+    if (cluster) {
+      stamps['k8s-cluster-name'] = cluster;
+    }
+    if (cron) {
+      stamps['k8s-cronjob-name'] = cron;
+    }
+    if (job) {
+      stamps['k8s-job-name'] = job;
+    }
+
+    this.stampCustomProperties(gr, stamps);
+    if (!this.applyLogServiceInstanceBinding(gr)) {
+      this.applyK8sTagCiBinding(gr, {
+        workload: workload,
+        kind: kind,
+        pod: pod,
+        cron: cron,
+        job: job,
+      });
+    }
+
+    var ciNote = 'cmdb_ci empty';
+    if (gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil()) {
+      ciNote = 'cmdb_ci=' + gr.cmdb_ci.toString();
+    }
+    this.appendProcessingNote(
+      gr,
+      'sgo-enrich: sn-impact=' +
+        impact +
+        ' sn-urgency=' +
+        urgency +
+        ' ' +
+        ciNote
+    );
+    return true;
+  },
+
+  /**
+   * Log events/alerts own the service instance CI. SGO SOS often binds the
+   * HOST (or a fan-out ImpactedEntity) first; overwrite that for L2I.
+   */
+  applyLogServiceInstanceBinding: function (gr) {
+    if (!gr) {
+      return false;
+    }
+    if (!this.isL2iCriticalLogAlert(gr) && !this.extractServiceInstance(gr)) {
+      return false;
+    }
+    var si = this.resolveServiceInstanceForIncident(gr);
+    if (!si || !si.sysId) {
+      this.appendProcessingNote(
+        gr,
+        'sgo-enrich: L2I log but no service instance CI'
+      );
+      return false;
+    }
+    var prev = '';
+    if (gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil()) {
+      prev = gr.cmdb_ci.toString();
+    }
+    if (prev !== si.sysId) {
+      gr.cmdb_ci = si.sysId;
+      this.appendProcessingNote(
+        gr,
+        'sgo-enrich: L2I cmdb_ci → service instance via ' +
+          si.how +
+          (prev ? ' (replaced ' + prev + ')' : '')
+      );
+    }
+    if (si.stamp) {
+      gr.node = si.stamp;
+      gr.resource = 'sn-service_instance:' + si.stamp;
+    }
+    return true;
+  },
+
+  applyK8sTagCiBinding: function (gr, keys) {
+    if (!gr || !gr.isValidField('cmdb_ci') || !gr.cmdb_ci.nil()) {
+      return false;
+    }
+    keys = keys || {};
+
+    if (keys.workload) {
+      var entity = this.parsePrimaryImpactedEntity(gr);
+      var entityId =
+        entity && entity.type === 'CLOUD_APPLICATION' ? entity.entityId : null;
+      var workload = this.resolveFromCloudApplication(
+        entityId,
+        keys.workload,
+        keys.kind
+      );
+      if (workload && workload.workloadSysId) {
+        gr.cmdb_ci = workload.workloadSysId;
+        gr.node = keys.workload;
+        gr.resource = 'k8s-workload-name:' + keys.workload;
+        this.appendProcessingNote(
+          gr,
+          'sgo-enrich: k8s-workload-name=' +
+            keys.workload +
+            ' → CI via ' +
+            workload.how
+        );
+        return true;
+      }
+    }
+
+    if (keys.cron) {
+      var cronGr = new GlideRecord('cmdb_ci_kubernetes_cron_job');
+      if (cronGr.isValid()) {
+        cronGr.addQuery('name', keys.cron);
+        cronGr.setLimit(1);
+        cronGr.query();
+        if (cronGr.next()) {
+          gr.cmdb_ci = cronGr.sys_id.toString();
+          gr.node = keys.cron;
+          gr.resource = 'k8s-cronjob-name:' + keys.cron;
+          this.appendProcessingNote(
+            gr,
+            'sgo-enrich: k8s-cronjob-name=' + keys.cron + ' → cron_job CI'
+          );
+          return true;
+        }
+      }
+    }
+
+    if (keys.job) {
+      var jobGr = new GlideRecord('cmdb_ci_kubernetes_job');
+      if (jobGr.isValid()) {
+        jobGr.addQuery('name', keys.job);
+        jobGr.setLimit(1);
+        jobGr.query();
+        if (jobGr.next()) {
+          gr.cmdb_ci = jobGr.sys_id.toString();
+          gr.node = keys.job;
+          gr.resource = 'k8s-job-name:' + keys.job;
+          this.appendProcessingNote(
+            gr,
+            'sgo-enrich: k8s-job-name=' + keys.job + ' → job CI'
+          );
+          return true;
+        }
+      }
+    }
+
+    if (keys.pod) {
+      var byPod = this.resolveFromCloudApplicationInstance(null, keys.pod);
+      if (byPod && byPod.podSysId) {
+        gr.cmdb_ci = byPod.podSysId;
+        gr.node = keys.pod;
+        gr.resource = 'k8s-pod-name:' + keys.pod;
+        this.appendProcessingNote(
+          gr,
+          'sgo-enrich: k8s-pod-name=' +
+            keys.pod +
+            ' → pod CI' +
+            (byPod.how ? ' (' + byPod.how + ')' : '')
+        );
+        return true;
+      }
+    }
+
+    this.appendProcessingNote(
+      gr,
+      'sgo-enrich: no K8s CI from k8s-workload-name/k8s-pod-name/k8s-cronjob-name'
+    );
+    return false;
   },
 
   type: 'ResolveApplicationService',

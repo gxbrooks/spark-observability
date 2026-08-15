@@ -58,7 +58,7 @@
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
       vars:
         sn_rest_table: incident
-        sn_rest_query: "sysparm_query=short_descriptionSTARTSWITHSpark%20Event%20Log^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,state,active,sys_created_on&sysparm_limit=10"
+        sn_rest_query: "sysparm_query=short_descriptionSTARTSWITHCritical%20log%20event^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,state,active,sys_created_on&sysparm_limit=10"
 
     - name: Recent Spark log incidents
       ansible.builtin.debug:
@@ -78,18 +78,18 @@
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
       vars:
         sn_rest_table: sys_script
-        sn_rest_query: "sysparm_query=nameINem-event-bind-k8s-log-pod-ci,em-event-propagate-k8s-log-pod-ci,em-alert-bind-k8s-log-pod-ci,em-alert-create-k8s-log-incident&sysparm_fields=name,collection,when,order,action_insert,action_update,active&sysparm_limit=10"
+        sn_rest_query: "sysparm_query=nameINem-event-enrich-sgo,em-alert-enrich-sgo,em-alert-create-log-incident&sysparm_fields=name,collection,when,order,action_insert,action_update,active,filter_condition&sysparm_limit=10"
 
-    - name: Spark log business rules
+    - name: L2I enrich and create business rules
       ansible.builtin.debug:
         var: sn_rest_json.result
 
-    - name: Verify K8sLogPodCiBind Script Include
+    - name: Verify ResolveApplicationService Script Include
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
       vars:
         sn_rest_table: sys_script_include
-        sn_rest_query: "sysparm_query=name=K8sLogPodCiBind&sysparm_fields=name,active&sysparm_limit=1"
+        sn_rest_query: "sysparm_query=name=ResolveApplicationService&sysparm_fields=name,active&sysparm_limit=1"
 
-    - name: K8sLogPodCiBind Script Include
+    - name: ResolveApplicationService Script Include
       ansible.builtin.debug:
         var: sn_rest_json.result

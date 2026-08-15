@@ -28,21 +28,26 @@
     - name: Ensure EvtMgmtCustomIncidentPopulator (Create incident from Alert path)
       ansible.builtin.include_tasks: tasks/ensure_evtmgmt_custom_incident_populator.yml
 
+    - name: Ensure SGO-Dynatrace enrich BRs (sn-impact/sn-urgency + K8s dash-key CI)
+      ansible.builtin.include_tasks: tasks/ensure_em_enrich_sgo_br.yml
+
     - name: Ensure em-alert-create-log-incident BR (EvtMgmtIncidentHandler shim)
       ansible.builtin.include_tasks: tasks/ensure_em_alert_create_incident_br.yml
 
     - name: Try L2IProcessPendingAlerts scheduled job (optional; often ACL-blocked)
       ansible.builtin.include_tasks: tasks/ensure_l2i_process_pending_job.yml
 
-    - name: Ensure L2I AMR + TBAC; deactivate bind BRs and OOTB primary AMR
+    - name: Ensure L2I AMR + TBAC; keep OOTB primary AMR inactive
       ansible.builtin.include_tasks: tasks/ensure_l2i_amr_and_tbac.yml
 
-    - name: Deactivate legacy L2I automation and OOTB SGO AMR
+    - name: Keep OOTB SGO-Dynatrace AMR inactive
       ansible.builtin.include_tasks: tasks/deactivate_legacy_spark_incident_automation.yml
 
     - name: Log-to-Incident automation summary
       ansible.builtin.debug:
         msg: >-
-          L2I path: sn.* tags + TBAC '{{ sn_l2i_tbac_definition_name }}'
+          L2I path: sn-* tags + TBAC '{{ sn_l2i_tbac_definition_name }}'
+          + enrich BRs '{{ sn_l2i_enrich_event_br_name }}' /
+          '{{ sn_l2i_enrich_alert_br_name }}'
           + EvtMgmtIncidentHandler via BR '{{ sn_incident_em_alert_br_name }}'.
-          Bind BRs inactive; AMR '{{ sn_l2i_amr_name }}' active={{ sn_l2i_amr_active }}.
+          AMR '{{ sn_l2i_amr_name }}' active={{ sn_l2i_amr_active }}.

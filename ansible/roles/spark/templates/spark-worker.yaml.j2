@@ -3,6 +3,16 @@ kind: Deployment
 metadata:
   name: spark-worker-lab2
   namespace: spark
+  # Controller labels so cmdb_key_value lands on cmdb_ci_kubernetes_deployment.
+  labels:
+    app: spark-worker
+    node: lab2
+    app.kubernetes.io/name: spark-worker
+    app.kubernetes.io/instance: brooks-lab-lab2
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: apache-spark
+    app.kubernetes.io/managed-by: ansible
+    servicenow.com/service-instance: Spark-Worker
 spec:
   replicas: 8
   selector:
@@ -155,6 +165,16 @@ kind: Deployment
 metadata:
   name: spark-worker-lab1
   namespace: spark
+  # Controller labels so cmdb_key_value lands on cmdb_ci_kubernetes_deployment.
+  labels:
+    app: spark-worker
+    node: lab1
+    app.kubernetes.io/name: spark-worker
+    app.kubernetes.io/instance: brooks-lab-lab1
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: apache-spark
+    app.kubernetes.io/managed-by: ansible
+    servicenow.com/service-instance: Spark-Worker
 spec:
   replicas: 8
   selector:

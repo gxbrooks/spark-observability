@@ -7,7 +7,8 @@ EvtMgmtCustomIncidentPopulator.prototype = {
 /**
  * Called by EvtMgmtIncidentHandler (Create incident from Alert / createIncident).
  * L2I: incident.cmdb_ci = service instance; correlate by SI + sn-log-signature.
- * Non-L2I alerts unchanged (return true).
+ * All SGO-Dynatrace alerts: sn-impact / sn-urgency drive SN priority.
+ * Non-L2I alerts still create incidents (CPU / K8s); SI is set when resolvable.
  *
  * @return true to continue incident insert; false to abort (correlated / no SI).
  */
@@ -22,7 +23,14 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
     }
 
     var resolver = new ResolveApplicationService();
-    if (!resolver.isL2iCriticalLogAlert(alert)) {
+    var isL2i = resolver.isL2iCriticalLogAlert(alert);
+
+    if (!isL2i) {
+      resolver.applySnPriorityToTask(alert, task, false);
+      var siOther = resolver.resolveServiceInstanceForIncident(alert);
+      if (siOther && siOther.sysId) {
+        task.cmdb_ci = siOther.sysId;
+      }
       return true;
     }
 
@@ -56,12 +64,16 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
     openInc.query();
     if (openInc.next()) {
       alert.incident = openInc.sys_id;
+      resolver.applySnPriorityToTask(alert, openInc, true);
       openInc.work_notes =
         'Correlated alert ' +
         alert.number +
         ' via EvtMgmtCustomIncidentPopulator (' +
         si.how +
-        ')';
+        '); sn-impact=' +
+        (openInc.impact || '') +
+        ' sn-urgency=' +
+        (openInc.urgency || '');
       openInc.update();
       gs.info(
         'EvtMgmtCustomIncidentPopulator: linked ' +
@@ -74,6 +86,7 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
 
     task.cmdb_ci = si.sysId;
     task.short_description = shortDesc;
+    resolver.applySnPriorityToTask(alert, task, false);
     if (task.isValidField('description') && alert.description) {
       var d = alert.description.toString();
       if (d.length > 4000) {
@@ -86,6 +99,10 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
         si.sysId +
         ' short=' +
         shortDesc +
+        ' impact=' +
+        (task.impact || '') +
+        ' urgency=' +
+        (task.urgency || '') +
         ' via ' +
         si.how
     );

@@ -25,7 +25,7 @@ always means minting a replacement token. Three tokens are involved:
 | Token (name in Dynatrace) | Held in | Scopes | Purpose |
 | ------------------------- | ------- | ------ | ------- |
 | `DT_TOKEN_ADMIN_TOKEN` | `vars/secrets.yaml` (`dynatrace:` block) | `apiTokens.read`, `apiTokens.write` | Mints/rotates other tokens; used by this `deploy.yml` and by `observability/dynatrace` token rotation |
-| `spark-observability-api` (variable `DT_API_TOKEN`) | `vars/secrets.yaml` | `entities.read`, `settings.read`, `settings.write`, `metrics.read`, `ReadConfig`, `WriteConfig` | Ansible automation against the Dynatrace settings/entities APIs; needs **no** SGC or apiTokens scopes |
+| `spark-observability-api` (variable `DT_API_TOKEN`) | `vars/secrets.yaml` | `entities.read`, `settings.read`, `settings.write`, `metrics.read`, `problems.read`, `ReadConfig`, `WriteConfig` | Ansible automation against the Dynatrace settings/entities/problems APIs; needs **no** SGC or apiTokens scopes |
 | `dynatrace-servicenow-sgc-integration` | **ServiceNow only** (the *Dynatrace API Key* credential) | `entities.read`, `DataExport`, `ReadConfig` | The SGC connection; minted and pushed by `deploy.yml` (`tasks/ensure_sgc_credential.yml`), never written to `vars/secrets.yaml` |
 
 `deploy.yml` mints the SGC token on first run. On-needed: when the token

@@ -12,9 +12,9 @@ detection and cloud Kubernetes monitoring pipelines.
 | Volumes (PVC) | `builtin:anomaly-detection.kubernetes.pvc` | `pvc-anomaly-*.json` |
 | Cloud K8s monitoring pipelines | `builtin:cloud.kubernetes.monitoring` | `cloud_monitoring-anomaly-*.json` |
 
-`*-enabled.json` enables detectors with lab-tuned thresholds: **60%** for
-percent-based rules, observation windows at **~1/3** of Dynatrace schema
-defaults (sample periods clamped so sample ≤ observation).
+`*-enabled.json` enables detectors with **hour-long stress-test** thresholds:
+**40%** CPU / **50%** memory (percent-based rules), observation windows of
+**2–3 minutes** so problems can open during a 3-way chapter run.
 `*-disabled.json` sets detectors / pipelines **disabled** (unconfigure).
 
 Apply via:
