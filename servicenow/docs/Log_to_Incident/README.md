@@ -30,6 +30,7 @@ Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with `Log_to_Incide
 | **Purpose** | Why the process exists |
 | **Log to Incident** | Technology-agnostic business process |
 | **Spark Architecture** | Client vs Cluster application context |
+| **Kubernetes Architecture** | K8s objects Spark uses; declared vs ephemeral; Dynatrace and CMDB mapping |
 | **Dynatrace and ServiceNow** | Reference implementation overview |
 | **Phase 1 — ServiceNow Modeling** | CSDM / CMDB foundation |
 | **Client and Cluster Mode Use Cases** | Shared OpenPipeline; Cluster stdout → Container Output; Client file-tail `/mnt/spark/client-logs` → Davis |

@@ -1,6 +1,8 @@
 ---
-# Upsert ServiceNow Business Rule: create/correlate Critical log event incidents.
-# Prefers alert cmdb_ci; else runs generic entity bind.
+# Upsert ServiceNow Business Rule: create/correlate incidents from alerts.
+# severity<=3 is the incident-promotion gate only (Critical/Major/Minor).
+# Do not put that filter on the EM Event → Ready rule — Warning and OK/clear
+# events must still reach alert create/update/close.
 
 - name: Build em_alert create incident business rule payload
   ansible.builtin.set_fact:
@@ -13,11 +15,12 @@
       action_insert: "true"
       action_update: "true"
       order: "{{ sn_incident_em_alert_br_order }}"
-      filter_condition: source=SGO-Dynatrace^severity<=3^incidentISEMPTY
+      filter_condition: "source=SGO-Dynatrace^severity<={{ sn_incident_max_severity }}^incidentISEMPTY"
       description: >-
-        AMR shim: EvtMgmtIncidentHandler.createIncidentNoUpdate(alert,false)
+        Incident promotion gate (severity<=3): EvtMgmtIncidentHandler.createIncidentNoUpdate(alert,false)
         → EvtMgmtCustomIncidentPopulator (same as Create incident from Alert).
-        autoOpen=false while AMR inactive. Remove when published Flow owns create.
+        autoOpen=false while AMR inactive. Not an Event→Ready filter.
+        Remove when published Flow owns create.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule

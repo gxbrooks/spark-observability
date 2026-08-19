@@ -3,15 +3,17 @@
 # Wait for chapter driver processes to finish.
 #
 # Usage:
-#   ./wait-chapters.sh              # poll until no run-chapters/Chapter_*.py under this dir
-#   ./wait-chapters.sh <pid> [...]  # wait on explicit background PIDs (preferred for parallel runs)
+#   ./bin/wait-chapters.sh              # poll until no run-chapters/Chapter_*.py under this app
+#   ./bin/wait-chapters.sh <pid> [...]  # wait on explicit background PIDs (preferred for parallel runs)
 #
-# Do NOT use: while ps ... | rg 'run-chapters.sh'
+# Do NOT use: while ps ... | grep 'run-chapters.sh'
 # That pattern matches the monitoring shell's own argv and never exits.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CHAPTERS_DIR="${APP_DIR}/chapters"
 INTERVAL="${CHAPTER_WAIT_INTERVAL_SECONDS:-10}"
 
 wait_pid() {
@@ -26,9 +28,9 @@ wait_pid() {
 }
 
 chapter_process_lines() {
-    # Anchor on this directory so generic shell one-liners mentioning run-chapters.sh are ignored.
     pgrep -af "${SCRIPT_DIR}/run-chapters\\.sh" 2>/dev/null || true
-    pgrep -af "${SCRIPT_DIR}/Chapter_[0-9]+\\.py" 2>/dev/null || true
+    pgrep -af "${SCRIPT_DIR}/run-stress\\.sh" 2>/dev/null || true
+    pgrep -af "${CHAPTERS_DIR}/Chapter_[0-9]+\\.py" 2>/dev/null || true
 }
 
 chapter_processes_running() {
@@ -54,7 +56,7 @@ if [ "$#" -gt 0 ]; then
     exit 0
 fi
 
-echo "Polling for chapter drivers under ${SCRIPT_DIR} (every ${INTERVAL}s)..."
+echo "Polling for chapter drivers under ${APP_DIR} (every ${INTERVAL}s)..."
 while chapter_processes_running; do
     sleep "${INTERVAL}"
 done

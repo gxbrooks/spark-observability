@@ -68,7 +68,7 @@ Centralized variables live in `vars/variables.yaml` and are emitted into context
 | `NFS_SERVER` | e.g. `Lab3.lan` | `spark-runtime`, `nfs`, `devops` | NFS server hostname for clients and env scripts |
 | `NFS_SPARK_DATA_EXPORT` | `/srv/nfs/spark/data` | `nfs` only | Server-side export path for data |
 
-Client log directory: **`/mnt/spark/client-logs/<instance>/`** — set by `spark/apps/data-analysis-book/run-chapters.sh` (`SPARK_LOG_DIR`). `<instance>` is `SPARK_DRIVER_INSTANCE` or the wrapper PID.
+Client log directory: **`/mnt/spark/client-logs/<instance>/`** — set by `spark/apps/data-analysis-book/bin/run-chapters.sh` (`SPARK_LOG_DIR`). `<instance>` is `SPARK_DRIVER_INSTANCE` or the wrapper PID.
 
 ## Kubernetes: mounts on the node vs “only in pods”
 
@@ -115,7 +115,7 @@ After changing the logs mount, **restart Spark pods** on affected nodes so `host
 | `ansible/playbooks/nfs/install.yml` | Exports, shared NFS mounts, **local application log bind**, `dtuser` → `spark` |
 | `ansible/playbooks/k8s/diagnose.yml` | Validates mount presence and `spark:spark` / `2775` contract |
 | `spark/conf/log4j2-client.properties` | Client log file permissions (`rw-r--r--`) |
-| `spark/apps/data-analysis-book/run-chapters.sh` | `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/` |
+| `spark/apps/data-analysis-book/bin/run-chapters.sh` | `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/` |
 
 ## Operational notes
 

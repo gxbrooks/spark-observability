@@ -48,7 +48,7 @@ Spark JVMs (PySpark chapter **driver** on Lab3, **executors** in K8s pods, **mas
 
 | Writer | Config | Output path |
 |--------|--------|-------------|
-| Chapter / client-mode driver | `run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/client-logs/<instance>/spark-app.log` (rollover: `spark-app-*.log` in same dir) |
+| Chapter / client-mode driver | `bin/run-chapters.sh` + `log4j2-client.properties` | `/mnt/spark/client-logs/<instance>/spark-app.log` (rollover: `spark-app-*.log` in same dir) |
 | K8s Spark pods | Pod log4j / symlink layout | `/mnt/spark/logs/<pod-dir>/spark-app.log` |
 | Legacy (retired) | prior `run-chapters.sh` | `/mnt/spark/logs/<host>-chapter/` — dropped by OpenPipeline |
 
@@ -59,7 +59,7 @@ See [Log to Incident — client-side incident mapping](Log_to_Incident.adoc#step
 | File / setting | Role |
 |----------------|------|
 | `spark/conf/log4j2-client.properties` | Console + RollingFile → `${SPARK_LOG_DIR}/spark-app.log`; 20 MB + daily rollover; keep 10 / delete 30d |
-| `spark/apps/data-analysis-book/run-chapters.sh` | Sets `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/`; optional `SPARK_DRIVER_INSTANCE`; `DT_TAGS=…spark-client`; adds `-Dlog4j2.configurationFile=…/log4j2-client.properties` |
+| `spark/apps/data-analysis-book/bin/run-chapters.sh` | Sets `SPARK_LOG_DIR=/mnt/spark/client-logs/<instance>/`; optional `SPARK_DRIVER_INSTANCE`; adds `-Dlog4j2.configurationFile=…/log4j2-client.properties` |
 | `docs/Log_Architecture.md` | NFS layout under `/mnt/spark/logs` on Lab1–Lab3 |
 | K8s / Spark deploy | Executor and master logs under per-pod directories on NFS |
 
@@ -247,7 +247,7 @@ Dynatrace **Problem notification** POSTs JSON to the SGC inbound listener. **`so
 | **Auth** | HTTP Basic (`SN_DT_WEBHOOK_USER` / `SN_DT_WEBHOOK_PASSWORD` in `vars/secrets.yaml`) |
 | **Payload template** | `sgc-problem-notification-payload.json.j2` |
 | **ConnectionId** | SGC connection alias sys_id (injected as `ConnectionId` in body) |
-| **notifyClosedProblems** | `true` — RESOLVED posts update the same `message_key` |
+| **notifyClosedProblems** | `true` — RESOLVED posts update the same `message_key`. Those updates (often EM severity **OK / 5**) must still pass Event → Ready so Alert rules can close open alerts. Do **not** filter Ready on `severity<=3`; that gate belongs on incident create only. |
 
 ### Example webhook body (illustrative keys)
 
@@ -338,7 +338,7 @@ Event rules may promote **`em_event` → `em_alert`**. Incident automation (if c
 | Stage | Configuration | Deploy / doc reference |
 |-------|---------------|------------------------|
 | Emit | `spark/conf/log4j2-client.properties` | Spark image / repo conf |
-| Emit | `spark/apps/data-analysis-book/run-chapters.sh` | Chapter runner |
+| Emit | `spark/apps/data-analysis-book/bin/run-chapters.sh` | Chapter runner |
 | Ingest | `Spark Lab - application log files` custom log source | `apply_spark_log_custom_source.yml` |
 | Route | OpenPipeline logs routing + **`Spark Lab - log alerts`** pipeline | `apply_spark_openpipeline_log_alerts.yml` |
 | Detect | Davis processor matcher + event template | `spark-openpipeline-log-alerts-pipeline.json.j2` |
@@ -362,9 +362,9 @@ ansible-playbook -i inventory.yml \
 
 ```bash
 cd spark/apps/data-analysis-book
-./run-chapters.sh 06   # TaskSetManager WARN/ERROR likely
+./bin/run-chapters.sh 06   # TaskSetManager WARN/ERROR likely
 # or
-./run-chapters.sh -a
+./bin/run-chapters.sh -a
 ```
 
 **Verify:**
@@ -409,18 +409,16 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
 5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → service instance **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 
-### Parallel chapter load (two drivers)
+### Parallel chapter load
 
 ```bash
 cd spark/apps/data-analysis-book
-LOG=/tmp/chapter-run-$$
-mkdir -p "$LOG"
-SPARK_DRIVER_INSTANCE="lab3-par-a-$$" ./run-chapters.sh 03 04 05 06 >"$LOG/par-a.log" 2>&1 & pid_a=$!
-SPARK_DRIVER_INSTANCE="lab3-par-b-$$" ./run-chapters.sh 07 08 09 10 >"$LOG/par-b.log" 2>&1 & pid_b=$!
-./wait-chapters.sh "$pid_a" "$pid_b"
+./bin/run-stress.sh --parallel 2 --iteration 1
+# or a chapter subset:
+./bin/run-stress.sh -p 2 -i 1 08 09
 ```
 
-Do **not** poll with `ps … | rg run-chapters.sh` — the monitor shell's own argv contains that string and the loop never exits.
+Do **not** poll with `ps … | grep run-chapters.sh` — the monitor shell's own argv contains that string and the loop never exits. Use `./bin/wait-chapters.sh <pid> …`.
 
 Chapter **05** sets `spark.sparkContext.setLogLevel("WARN")` — useful for driver WARN lines in spark-client logs.
 

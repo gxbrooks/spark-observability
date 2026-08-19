@@ -371,7 +371,7 @@ If **`cmdb_ci` is empty**, the event still ingests but alert/incident automation
 
 ### Stage 3 — `em_alert` (correlate at infrastructure CI)
 
-Event Management **rules** (`em_rule` / alert rules) evaluate Ready events and create or update **`em_alert`** rows:
+Event Management **rules** evaluate Ready events and create or update **`em_alert`** rows:
 
 | Field | Typical behavior |
 | ----- | ---------------- |
@@ -379,6 +379,8 @@ Event Management **rules** (`em_rule` / alert rules) evaluate Ready events and c
 | **`source`** | `SGO-Dynatrace` (inherited) |
 | **`message_key` / correlation** | May use `ProblemID`, `correlation_id` (`PID`), or rule-defined grouping keys |
 | **Severity** | Aggregated from event severities per rule (max, count threshold, etc.) |
+
+**Event rule vs incident gate:** The Event rule that marks **Ready** must accept **all** severities for `source=SGO-Dynatrace` (including Warning **4** and OK/clear **5**). Dynatrace RESOLVED posts (`notifyClosedProblems`) update the same `message_key` and often set severity to OK — those updates must become Ready so the Alert rule can close the alert. Put `severity<=3` (Critical/Major/Minor) only on **incident** create (L2I create BR / AMR), not on Event → Ready. See [ansible/playbooks/servicenow/incident/README.md](../../../ansible/playbooks/servicenow/incident/README.md) and [SGO-Dynatrace_Enhancements.md](../../../servicenow/docs/Log_to_Incident/SGO-Dynatrace_Enhancements.md).
 
 Alerts group **symptoms on a component** (CPU on Lab2, ERROR log on a host). They remain at infrastructure granularity so operators see the precise failing CI on the alert record and in Event Management dashboards.
 
@@ -876,16 +878,15 @@ Run chapters (CPU load + occasional ERROR logs):
 ```bash
 cd spark/apps/data-analysis-book
 
-# All chapters except 08/09 sequentially, with 08 then 09 in parallel:
-./run-chapters.sh 08 09 > /tmp/chapters-08-09.log 2>&1 &
-./run-chapters.sh 03 04 05 06 07 10
+./bin/run-chapters.sh 08 09 > /tmp/chapters-08-09.log 2>&1 &
+./bin/run-chapters.sh 03 04 05 06 07 10
 wait
 ```
 
 Or all chapters sequentially:
 
 ```bash
-./run-chapters.sh -a
+./bin/run-chapters.sh -a
 ```
 
 ---

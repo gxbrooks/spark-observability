@@ -39,7 +39,7 @@ This document defines that bridge as the **Log to Incident** process: selected a
 
 **Log to Incident** is the Observability process that detects and turns *critical* application log messages into *tracked* IT incidents so the application operations team can respond in time. 
 
-### The Process
+=== The Process
 The Log to Incident process takes one or more log messages and generates an incident in the ITSM platform through a three phase process: 
 
 . The application logs a message
@@ -53,27 +53,27 @@ The Log to Incident process takes one or more log messages and generates an inci
 .Log to Incident process phases
 image::Log_to_Incident.svg[Log to Incident process phases,width=100%,align=center]
 
-==== Phase 1: Application Logging
+=== Stage 1: Application Logging
 
 To various degrees applications are written to generate log messages to a file or other storage medium or APIs. The log messages can indicate forward progress in the application or problems that have occurred. The problems can range from minor inconsistencies to major failures that require immediate attention. 
 
-==== Phase 2: Observability Tooling
+=== Stage 2: Observability Tooling
 
 The observability platform ingests the log messages either through an agent reading the log files or via an API that the application calls. Either way, the observability platform processes each log message in four addition steps. 
 
 . **Enrichment**: The observability platform adds additional information to the log message. This information comes from the context of the log file (e.g. name of the log file) as well as by parsing information within the log file. This information can include can include the application name, the environment, the host name, the process id, the thread id, the timestamp, the log level, the log message, and the log message id.
 . **Storage**: The observability platform takes the enriched log message and stores it in a database for fast retrieval and further processing.
 . **Correlation**: The observability platform correlates the log message with other log messages or events to group related log messages into a single message to increase the signal to noise ration and to identify patterns and relationships with other log messages or events.
-. **Notification**: The observability platform then takes selected messages or message groups and`` sends the enriched log message to the ITSM platform as an event.
+. **Notification**: The observability platform then takes selected messages or message groups and sends the enriched log message to the ITSM platform as an event.
 
 Coordination between the application developers and the observability platform engineers. Ideally, this collaboration would begin in the application design phase to ensure that the log messages are structured in a way that that simplifies the enrichment process and identification of critical log messages.
 
-==== Phase 3: ITSM Platform
+=== Stage 3: ITSM Platform
 
 The ITSM platform accepts events from the observability platform and determines which events (aka log messages in this cae) are salient and then creates an incident for operators to track. This happens in a three stage process with a fourth follow on stage to handle multiple incidents that are related to the same underlying problem.
 
 . **Event Management**: Event management accepts an incoming event (log message) from the observability platform. Events may be clear events that indicate a past issue has been resolved. Or they may be events that indicate a new issue has been detected. Salient events are then forwarded to Alert Management. 
-. **Alert Management**: Alert Management receives the salient events from Event Management and creates an alert record in the Alert Management platform. Alerts are bound (mapped) to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an alert to a CI requires designing the CMdb model and the information in the event so that Alert Management can use the information sent in the event(s) to map the alert to the correct CI. Multiple events may be mapped to a single alert depending on a message key or other criteria. Alert management will take a clear event will close out an existing, an alert with the same message key. Salient alerts are then forwarded to Incident Management.
+. **Alert Management**: Alert Management receives the salient events from Event Management and creates an alert record in the Alert Management platform. Alerts are bound (mapped) to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an alert to a CI requires designing the CMdb model and the information in the event so that Alert Management can use the information sent in the event(s) to map the alert to the correct CI. Multiple events may be mapped to a single alert depending on a message key or other criteria. Alert management will take a clear event will close out an existing, an alert with the same message key. Salient alerts are then forwarded to Incident Management. In **this** implementation, **log** alerts bind the **service instance**; infrastructure alerts (host CPU, Kubernetes workload) bind the HOST or the workload controller.
 . **Incident Management**: Incident Management is where operations teams interact with incidents to resolve the root causes of the incident. When incident management receives a salient alert, it will either bind the alert to an existing incident or create a new incident. The incident will also be bound to a configuration item (CI) that best represents the application or the infrastructure component that best represents the component causing or involved in the event. Mapping an incident to a CI requires designing the CMdb model and the information in the alert so that Incident Management can use the information sent in the alert to map the incident to the correct CI.
 + 
 Incident Management will also assign (or determine) the support organization that will be responsible for resolving the incident. The incident will be assigned to the application's support organization and will carry enough log context for diagnosis.
@@ -90,6 +90,51 @@ Log to Incident must still hand both scenarios, even when the client is not a ma
 
 === Design considerations
 
+The following decisions are the contract between the observability platform and the ITSM platform for this implementation. Stage 3 repeats the same rules under <<tbl-l2i-design-decisions-phase4,Log to Incident design decisions (ServiceNow)>>.
+
+[[tbl-l2i-design-decisions-process]]
+.Log to Incident design decisions
+[cols="22%,40%,38%",options="header"]
+|===
+|Decision |Current rule |Why
+
+|Dash keys, not dots
+|`sn-log-signature`, `sn-service_instance`, `sn-impact`, `k8s-workload-name`
+|TBAC / Glide conditions walk `additional_info` on `.`. A key named `k8s.workload.name` is treated as a JSON path, not one property.
+
+|Dynatrace owns initial impact/urgency
+|OpenPipeline and metric-event metadata stamp `sn-impact` / `sn-urgency`. OOTB Davis/K8s cannot; SN enrich maps `ProblemSeverity`.
+|Alert `severity` (EM 1–5) and incident `priority` (Data Lookup) are **different** numbers.
+
+|Log alert CI = service instance
+|`CRITICAL_LOG_EVENT` / `sn-service_instance` → `cmdb_ci` is the CSDM service instance. Enrich **overwrites** SGO HOST/pod SOS.
+|Operators assign from the SI, not Lab3. Incident CI is the same SI.
+
+|Infra alert CI = HOST or K8s controller
+|CPU → HOST via SOS. Workload problems → Deployment (etc.) from `k8s-workload-name`.
+|SGC 1.15.0 has no Workload data source; name lookup is required.
+
+|One problem → many events
+|SGO emits **one `em_event` per ImpactedEntity** for the same `message_key` (ProblemID).
+|HOST + pod + workload rows can share one alert. That is connector fan-out, not Client vs Cluster.
+
+|Do not merge L2I Davis events
+|`dt.davis.is_merging_allowed=false` on log OpenPipeline
+|Prevents HOST-bundling a Master WARN with Lab3.
+
+|Create path
+|AMR + Flow action **Create incident from Alert** → `EvtMgmtIncidentHandler` → `EvtMgmtCustomIncidentPopulator`. Interim: BR `em-alert-create-log-incident`. AMR stays **inactive** until that Flow is published.
+|OOTB Create Incident subflow **skips** the populator.
+
+|Correlate incidents by SI + Class:Line
+|Short description `Critical log event — {sn-log-signature}`
+|Not `Event Log WARN`. Repeats bump urgency; Data Lookup sets priority.
+
+|TBAC partition
+|`sn-environment` + `sn-service_instance` + `sn-log-signature`
+|Stops cross-environment and cross-SI merge.
+|===
+
 Specific observability platforms (e.g. Dynatrace or Elastic Stack) and specific ITSM platforms (e.g. ServiceNow or Remedy) will have specific requirements for implementing the Log to Incident observability process. However, there are the several design considerations that span the different platforms. These include: 
 
 * Which log messages are considered salient and should be turned into an incident?
@@ -103,96 +148,813 @@ Subsequent chapters describe how to implement the Log to Incident process on spe
 
 == Spark Architecture
 
-Before we discuss how to observe and manage an application, we need to understand the architecture of the application. Spark is a Kuberenetes application. The Spark application consists of a Spark Master (Driver) and one or more Spark Workers. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. You can scale the Spark Workers horizontally or vertically depending on available resources. In addition, there is a Spark History Server that is used to store the history of the application. The History Server is a built-in observability components that provides debugging and monitoring capabilities for Spark. The executors on the workers run jobs and constitutes the heart of the application. 
+Before we discuss how to observe and manage an application, we need to understand the architecture of the application. Spark in this lab is a Kubernetes application with a **Master**, one or more **Workers**, a **History Server**, and a **Driver**. Those four names are easy to collapse; Log to Incident needs them kept distinct.
 
-Spark can run in one of two modes: *Client Mode* or *Cluster Mode*. In cluster mode all components run on the Kubernetes cluster. In cluster mode, the Spark Driver runs on a Kubernetes pod and communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. <<fig-cluster-mode-architecture>> illustrates the cluster mode architecture.
+* **Spark Master** is the standalone *cluster manager*. It is the Kubernetes StatefulSet `spark-master`. Workers register with it; it allocates executors. It is **not** the process that runs your PySpark program.
+* **Spark Worker** is a node that runs executors. You can scale Workers horizontally or vertically.
+* **Spark History Server** stores completed-application event logs for debugging and monitoring.
+* **Spark Driver** is the process that runs the application (`SparkContext` / `SparkSession`). It talks to the Master to obtain executors. The Driver exists in **both** modes; what changes is *where it runs* and *how the user interacts with it*.
+
+Spark can run in *Client Mode* or *Cluster Mode*.
+
+=== Cluster Mode
+
+In cluster mode the user submits a program (a file) to the cluster. The Master **schedules a Driver in the cluster** — typically as a Kubernetes pod — and that Driver runs the submitted file as a **batch job**, not an interactive REPL. The Driver then asks the Master for executors on the Workers. Master and Driver are therefore related in cluster mode (the Master launches the Driver), but they are **not the same Kubernetes object**: the Master remains `spark-master`; the Driver is a separate, usually short-lived, application process. <<fig-cluster-mode-architecture>> illustrates the cluster mode architecture.
 
 [.figure-indent]
 [[fig-cluster-mode-architecture]]
 .Spark Cluster Mode Architecture
 image::spark-cluster-mode-architecture.svg[Spark Cluster Mode Architecture,width=75%,align=center]
 
-In cluster mode, the users interacts with Spark by submitting a PySpark program to the Spark Driver. This is essentially a batch submission. The Spark Driver then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitutes the heart of the application. 
+The Master, Workers, and History Server are the **service-side** workloads. Their application logs go to container stdout. Cluster-mode Driver logs, when present, are also in-cluster; this implementation's OpenPipeline maps the durable service-side pod-name prefixes (`spark-master-*`, `spark-worker-*`, `spark-history-*`) to CSDM service instances.
 
-Client mode is a client-server architecture where the client-side application is a standalone driver that can run on a workstation. Client mode allows data scientists and engineers to work interactively and iteratively with Spark directly on their own laptops or workstations. client is shown in the <<fig-client-mode-architecture>>.
+[[tbl-spark-cluster-l2i-identity]]
+.Cluster Mode — Log to Incident identity
+[cols="22%,78%",options="header"]
+|===
+|Aspect |Value
 
+|Log path
+|Container stdout (kubelet `/var/log/pods/<namespace>_<pod>_<uid>/…` on the node)
+
+|Dynatrace entity
+|Kubernetes workload / pod / HOST (SGO may fan out one problem to several `ImpactedEntities`)
+
+|ServiceNow service instance
+|`Spark-Master` / `Spark-Worker` / `Spark-History-Server` from the OpenPipeline pod-name prefix → `sn-service_instance`
+
+|Log alert CI
+|That **service instance** (enrich overwrites HOST/pod SOS)
+|===
+
+=== Client Mode
+
+Client mode is a client-server architecture: the Driver runs on a workstation (or a host used as a workstation) as an **interactive** PySpark session. The user iterates on DataFrames, Datasets, and Spark SQL. The Driver still talks to the **same** Master and Workers on the service-side; only the Driver has moved off the cluster. The workstation is typically not a managed CI in the CMDB. <<fig-client-server-architecture>> illustrates the client architecture.
 
 [.figure-indent]
 [[fig-client-server-architecture]]
 .Spark Client Architecture
 image::spark-client-mode-architecture.svg[Spark Client Architecture,width=75%,align=center]
 
-In client mode, key parts of the Spark Driver run directly on the user's workstation. The user then interacts iteratively with the PySpark process to manipulate Spark data (DataFrames and Datasets) through PySpark programs and Spark SQL queries. The PySpark process then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. 
+[[tbl-spark-client-l2i-identity]]
+.Client Mode — Log to Incident identity
+[cols="22%,78%",options="header"]
+|===
+|Aspect |Value
 
-Spark inherently supports both Client Mode (client-side) and Cluster Mode (server-side). We have chosen to support both modes within the reference implementation in part because Spark does, but also because, client-side applications occur within many desktop and mobile applications. Client-side applications provide additional challenges in modeling and managing applications. 
+|Log path
+|`/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` (node-local; `par-a`, wrapper PID, …)
 
-You can deploy Spark as a client-server application or a server-only application. We had chosen enable the client-server mode to allow data scientists or engineers to launch applications from their own laptops or workstations. This allows for a more flexible and efficient development and testing environment. It also provides a more robust observability exercise as we have to address the client use case, which can occur in many other applications. For example, you can see the client in mobile apps where the client is not only a separate application, but it is an applications that runs on a device that is not managed in ServiceNow's CMDB.
+|Dynatrace entity
+|HOST (OneAgent file tail). A CUSTOM_DEVICE “Spark Client” is historical — not the bind.
 
-For those not familiar with Spark's client-server model, the <<fig-client-server-architecture>> illustrates the client architecture showing the different components of the Spark application in client mode.
+|ServiceNow service instance
+|`Spark-Client` from the custom-source `service_instance` stamp → `sn-service_instance`
+
+|Log alert CI
+|**Spark Client** service instance (enrich overwrites HOST SOS)
+|===
+
+Spark inherently supports both modes. This reference implementation supports both because Spark does, and because unmanaged clients (desktops, mobile apps) show up in many other applications. The Master/Worker/History Server service-side model is shared; the Driver location is what splits Client from Cluster for logging and CMDB bind. 
+
+[[ch-kubernetes-architecture]]
+== Kubernetes Architecture
+
+Kubernetes is the runtime that turns the Spark architecture from the previous
+chapter into something that actually runs. Spark Master, Spark Worker, and Spark
+History Server are not processes you start by hand on a host and leave there.
+They are *workloads* that Kubernetes keeps aligned with a declared desired
+state: a certain number of Spark Worker processes, a single Spark Master with a
+stable name, a History Server, and a network identity so clients can find the
+Master. Dynatrace and ServiceNow both invent a model of that same runtime.
+Those models only make sense if we are clear about which Kubernetes objects are
+the long-lived *specification* of Spark, and which objects are the short-lived
+*instances* Kubernetes creates, replaces, and discards in order to honor that
+specification.
+
+That distinction is the point of this chapter. Later, in Event Management, we
+will use it to decide which object an alert or incident should bind to. The
+short version, which the rest of this chapter prepares: a Spark Worker *pod*
+is a real running thing, but it is a poor configuration item for service
+management, because Kubernetes can create and destroy pods faster than
+ServiceNow can materialize their CMDB records.
+
+=== Purpose of Kubernetes
+
+Kubernetes is a cluster operating system for containerized applications. Its
+job is not to run one container well. Its job is to *continuously reconcile*
+what operators declared they want with what is actually running on a pool of
+machines. You do not tell Kubernetes "`start these eight Spark Worker processes
+on lab2.`" You tell it "`there should be eight Spark Worker replicas, scheduled
+on lab2, running this image, with these labels and this configuration.`"
+Kubernetes then creates whatever runtime objects it needs to make that
+statement true, and it keeps creating, replacing, and rescheduling them as
+nodes fail, images roll, and replica counts change.
+
+That reconciliation loop is why Spark on Kubernetes looks different from Spark
+on a static set of VMs. The application still has a Master, Workers, and a
+History Server. What changes is the *unit of replacement*. On a VM, the host
+and the Spark process tend to live for weeks. On Kubernetes, the *declaration*
+(the Deployment or StatefulSet) lives for weeks or months; the *process
+sandbox* that actually executes Spark (the Pod) may live for minutes. Observability
+and CMDB models that treat every running sandbox as a first-class, durable
+configuration item inherit that churn.
+
+=== Desired state and the object hierarchy
+
+Kubernetes organizes work as a tree of API objects. At the top of the tree
+are objects you create once and change infrequently: the cluster itself, the
+nodes that provide CPU and memory, and the namespace that scopes Spark away
+from other applications. In the middle are *workload controllers* — Deployment,
+StatefulSet, DaemonSet, CronJob — which hold the desired state and a *pod
+template*. At the bottom, Kubernetes instantiates ReplicaSets, Jobs, Pods, and
+Containers from those templates. Pods are scheduled onto nodes. Services
+select pods by label so the rest of the cluster can reach them without knowing
+pod IP addresses, which change every time a pod is replaced.
+
+The important modeling idea is that **labels do not inherit automatically down
+this tree.** A label on a Namespace object is a scope annotation; Kubernetes
+does not copy it onto Deployments or Pods. A label on a Deployment's own
+`metadata.labels` (the namespaced object) is likewise *not* copied onto the
+pods that Deployment creates. What *does* propagate is the pod template
+inside a controller: `.spec.template.metadata.labels` is copied onto every Pod
+the controller creates. ReplicaSets created by a Deployment carry the
+Deployment's selector labels. If ServiceNow or Dynatrace is to see a Spark
+identity on both the workload CI and the running pods, that identity has to be
+written in two places in the manifest: on the controller's own
+`metadata.labels`, and again on the pod template. The Spark manifests in this
+repository do exactly that with `app.kubernetes.io/*` and
+`servicenow.com/service-instance`. They do *not* put those labels on the
+Namespace. Why both places — and why not the Namespace — is taken up after the
+Worker template below.
+
+<<fig-k8s-hierarchy>> is the same tree with Spark names filled in, and with
+color showing how long each kind of object typically lives. Green objects are
+the declared desired state. Amber objects are the controller's intermediate
+revisions. Red objects are the ephemeral runtime.
+
+[[fig-k8s-hierarchy]]
+.Kubernetes object hierarchy for Spark, colored by lifetime
+[graphviz, k8s_spark_hierarchy]
+----
+digraph k8s_spark_hierarchy {
+  graph [rankdir=TB splines=true nodesep=0.35 ranksep=0.55 fontname="Noto Sans" fontsize=12]
+  node [shape=box style="rounded,filled" fontname="Noto Sans" fontsize=11 color="#333333"]
+  edge [fontname="Noto Sans" fontsize=10 color="#555555"]
+
+  kcluster [label="Cluster" fillcolor="#c8e6c9"]
+  ns [label="Namespace\nspark" fillcolor="#c8e6c9"]
+  nodek [label="Nodes\nlab3 (control plane)\nlab1, lab2 (workers)" fillcolor="#c8e6c9"]
+  svc [label="Service\nspark-master" fillcolor="#c8e6c9"]
+  sts [label="StatefulSet\nspark-master" fillcolor="#c8e6c9"]
+  depw [label="Deployment\nspark-worker-lab2" fillcolor="#c8e6c9"]
+  deph [label="Deployment\nspark-history" fillcolor="#c8e6c9"]
+  rs [label="ReplicaSet\n(Deployment revision)" fillcolor="#ffe082"]
+  rsh [label="ReplicaSet\n(History revision)" fillcolor="#ffe082"]
+  podm [label="Pod\nspark-master-0" fillcolor="#ffcdd2"]
+  podw [label="Pods\nspark-worker-lab2-*" fillcolor="#ffcdd2"]
+  podh [label="Pod\nspark-history-*" fillcolor="#ffcdd2"]
+  ctr [label="Containers\n(Spark JVM processes)" fillcolor="#ffcdd2"]
+
+  kcluster -> ns
+  kcluster -> nodek
+  ns -> sts
+  ns -> depw
+  ns -> deph
+  ns -> svc
+  sts -> podm [label="creates"]
+  depw -> rs [label="creates"]
+  deph -> rsh [label="creates"]
+  rs -> podw [label="creates"]
+  rsh -> podh [label="creates"]
+  podm -> ctr
+  podw -> ctr
+  podh -> ctr
+  podm -> nodek [style=dashed label="scheduled on"]
+  podw -> nodek [style=dashed]
+  podh -> nodek [style=dashed]
+  svc -> podm [style=dashed label="selects"]
+}
+----
+
+There *is* an ephemeral level, and it is not a vague property of "`the
+cloud.`" It is a specific band of the API tree: **Pod and everything inside
+it** (containers, and the processes Dynatrace sees inside those containers).
+Everything above that band is there to *produce* pods. Everything in that band
+is replaceable. The modeling consequence is that Dynatrace and ServiceNow can
+usefully represent the green objects as stable entities, must treat the amber
+objects as implementation detail, and should not depend on the red objects
+still existing by the time an event has crossed from the cluster into the CMDB.
+
+=== Lifetime bands
+
+Kubernetes objects are not equally durable. For Spark — and for almost any
+application that scales or rolls — three bands are enough.
+
+The **declared band** is the desired state. The cluster, the nodes, the
+`spark` namespace, the Spark Master StatefulSet, the Spark Worker Deployments,
+the History Server Deployment, and the Spark Master Service are created when
+Spark is installed and they remain until someone changes the install. Replica
+counts change; the Deployment object itself does not get a new identity. This
+is the band that should have a CMDB row for the life of the application.
+
+The **revision band** sits between controller and pod. A Deployment never
+creates pods directly. It creates a ReplicaSet for the current pod-template
+hash, and that ReplicaSet creates the pods. A rolling update of the Spark
+Worker image creates a *new* ReplicaSet, shifts replicas across, and garbage
+collects the old ReplicaSet. A CronJob (which Spark does not use) similarly
+creates a Job per schedule tick, and the Job creates one or more pods. ReplicaSets
+and Jobs are real API objects, and ServiceNow Discovery will create CIs for
+them, but they are not a stable identity for the application. They exist to
+implement one generation of the template.
+
+The **ephemeral band** is the pod, its containers, and the OS processes
+inside those containers. A pod is the smallest deployable unit Kubernetes
+will schedule: one or more containers that share a network namespace, storage
+volumes, and a unique name. Kubernetes treats pods as disposable. If a Spark
+Worker container exits, the ReplicaSet creates a replacement pod with a
+*different* name. If you scale `spark-worker-lab2` from eight replicas to
+sixteen, eight new pod names appear. If a node is drained, every pod on it is
+deleted and recreated elsewhere. Pod IP addresses, UIDs, and often names are
+not durable identifiers. Containers are even shorter-lived: a container
+restart inside a still-existing pod is a new process in the same sandbox.
+
+Frequency follows from that design. Declared objects are instantiated when
+Spark is deployed and then updated on a human timescale — hours to months.
+ReplicaSets are instantiated on each Deployment rollout, so typically days to
+weeks in a lab, and as often as every pipeline run in a busy environment. Pods
+are instantiated whenever desired replicas are not met: at deploy time, on
+every scale event, on every crash, on every OOM kill, on every node
+preemption, and on every rolling update. In a Spark Worker Deployment of
+eight replicas, a single image roll replaces eight pods. A crash-looping
+worker can create and discard pods on a seconds-to-minutes cadence. That is
+faster than Kubernetes Visibility Agent (KVA) Informer updates and Service
+Graph Connector imports can reliably create, relate, and tag a
+`cmdb_ci_kubernetes_pod` row, and it is certainly faster than tag-based
+Service Mapping can recompute `svc_ci_assoc` membership for each new name.
+
+StatefulSet pods are a mild exception that is easy to over-read. Spark Master
+is a StatefulSet with `replicas: 1`, so Kubernetes keeps a pod named
+`spark-master-0`. The *name* is stable. The *pod object* is not: if the Master
+container dies, Kubernetes deletes that pod and creates a new one that happens
+to reuse the same name. Dynatrace still sees a new `CLOUD_APPLICATION_INSTANCE`.
+ServiceNow may merge on name, or it may briefly have a gap. Stability of the
+name is not the same as immunity to churn.
+
+=== Kubernetes objects Spark uses
+
+The Spark install occupies one namespace on one cluster. The sections below
+walk that tree from the top down, naming each object the way Kubernetes,
+Dynatrace, and ServiceNow will later name it.
+
+==== Cluster and nodes
+
+A **cluster** is the control plane plus the member machines. In this lab the
+control plane runs on lab3 and the Spark executor capacity runs on lab1 and
+lab2. Dynatrace represents the cluster as `KUBERNETES_CLUSTER` and each member
+as `KUBERNETES_NODE`. ServiceNow stores those as `cmdb_ci_kubernetes_cluster`
+and `cmdb_ci_kubernetes_node`. The node is not the Linux host; it is
+Kubernetes' view of that host as a schedulable worker. The Linux host is a
+separate object — Dynatrace `HOST`, ServiceNow `cmdb_ci_linux_server` — that
+OneAgent discovers independently. A pod *runs on* a node; the node *runs on* a
+host. Both views appear in the Spark service-side CMDB model, and they should
+not be collapsed: Event Management that binds to the host is binding to the
+machine that tailed a log file, not to the Spark workload that wrote it.
+
+Nodes are durable relative to pods. They change when you add or remove
+machines, not when Spark scales. They are the wrong CI for a Spark application
+incident, because many unrelated pods share a node, but they are a legitimate
+CI for node pressure, disk, and kubelet problems.
+
+==== Namespace
+
+A **namespace** is a named scope inside the cluster. Spark's controllers,
+pods, and Services live in `spark`. Namespaces are how you keep Spark's
+`spark-master` Service from colliding with some other application's object of
+the same name. Dynatrace calls this `CLOUD_APPLICATION_NAMESPACE` (also
+surfaced as a Kubernetes namespace entity). ServiceNow stores it as
+`cmdb_ci_kubernetes_namespace`.
+
+A namespace is durable and shared. Tagging the namespace and expecting every
+child to inherit that tag is a ServiceNow Tag Engine convenience, not a
+Kubernetes behavior. For Spark we tag the workload controllers and their pod
+templates, not the namespace, so that Spark Worker, Spark Master, and Spark
+History Server can be three different service instances inside the same
+namespace.
+
+==== Workload controllers: Deployment and StatefulSet
+
+A **Deployment** is the usual controller for stateless, horizontally scaled
+software. It stores a replica count and a pod template. Kubernetes makes the
+number of matching pods equal the replica count, through ReplicaSets, and it
+does so without caring about pod names or which node a replica landed on. Spark
+Workers are Deployments: `spark-worker-lab1` and `spark-worker-lab2`, each with
+eight replicas pinned to that node by affinity. Spark History Server is also a
+Deployment, with a single replica. Dynatrace folds every workload controller
+into one entity type, `CLOUD_APPLICATION`. ServiceNow keeps the Kubernetes
+kind: `cmdb_ci_kubernetes_deployment` for the Workers and History Server.
+
+A **StatefulSet** is the controller you use when identity matters. Each replica
+gets a stable ordinal name (`spark-master-0`), a stable network identity
+through a headless Service, and, if you attach them, stable volumes. Spark
+Master is a StatefulSet with one replica because clients and Workers find it
+at a known name and port, and because there is only one Master. Dynatrace still
+calls this `CLOUD_APPLICATION`. ServiceNow stores it as
+`cmdb_ci_kubernetes_statefulset`. That class difference matters when Event
+Management looks up a CI by table: a Master problem must not be required to
+land in the Deployment table.
+
+Both controllers are the *specification* of a Spark component. They change when
+operators change the install — image, replica count, labels, resource limits —
+not when a JVM crashes. `CLOUD_APPLICATION` / `cmdb_ci_kubernetes_deployment`
+(or StatefulSet) is therefore the natural durable handle for "`this is the Spark
+Worker workload.`"
+
+==== ReplicaSet
+
+A **ReplicaSet** guarantees that a given pod template is running N times. You
+almost never create one by hand. The Deployment controller creates a ReplicaSet
+per template hash and uses it as a generation. ServiceNow Discovery will create
+`cmdb_ci_kubernetes_replicaset` CIs. Dynatrace does not give ReplicaSets their
+own first-class entity; they disappear into the parent `CLOUD_APPLICATION`.
+That is a hint. ReplicaSets are how Deployments *implement* desired state, not
+how operators *name* Spark. Modeling or binding at the ReplicaSet layer
+inherits every rollout as a new identity.
+
+==== Pod
+
+A **Pod** is a running sandbox: one or more containers, a unique UID, a name,
+an IP, and a node assignment. It is the object `kubectl get pods` lists, the
+directory name under `/mnt/spark/logs/`, and the thing that disappears when
+Spark Worker is scaled down. Dynatrace calls each pod
+`CLOUD_APPLICATION_INSTANCE`. ServiceNow stores it as `cmdb_ci_kubernetes_pod`.
+
+Pods are the ephemeral level. They are also the most tempting CI, because they
+are what is actually on fire when a container OOMs or a log line is written.
+The temptation is what later Event Management has to resist. A problem that
+names a pod that KVA has not yet inserted, or has already deleted, cannot bind
+in ServiceNow. A problem that names a Deployment can, because the Deployment
+CI was created when Spark was installed and is still there after the pod is
+gone.
+
+Spark Master's `spark-master-0` name looks like a host name. It is a
+StatefulSet ordinal. Treat it as a convenient label on an otherwise ordinary
+pod, not as a VM.
+
+==== Container and process
+
+Inside the pod, Kubernetes runs **containers** from the image in the template.
+The Spark Worker container executes `start-worker.sh`, which is a JVM.
+Dynatrace OneAgent, looking from inside the node, also sees a
+`PROCESS_GROUP` / `PROCESS_GROUP_INSTANCE` for that JVM. ServiceNow may import
+those as `cmdb_ci_group` and `cmdb_ci_appl`. They are not Kubernetes API
+objects. They are the process-level view of the same running worker. They churn
+with the pod: a new pod is a new process instance. They belong in topology.
+They are not a better bind target than the pod; they are a more granular one.
+
+==== Service
+
+A Kubernetes **Service** is a stable network identity in front of a changing
+set of pods. It selects pods by label and gives them a DNS name and a cluster
+IP (or a NodePort, or a headless DNS record). Spark Master is reached as
+`spark-master.spark.svc.cluster.local:7077` because a Service named
+`spark-master` selects pods labeled `app: spark-master`. There is also a
+headless Service for the StatefulSet and a NodePort Service for clients
+outside the cluster. Spark Workers do not need a Service of their own; they
+register with the Master. Dynatrace represents Services as
+`KUBERNETES_SERVICE`; ServiceNow as `cmdb_ci_kubernetes_service`.
+
+Services are durable and belong in the declared band. They are how other
+workloads find Spark, not how Spark runs. An incident about "Workers cannot
+reach Master" may involve the Service; an incident about a Worker log line
+does not.
+
+==== ConfigMap and the rest of the declared furniture
+
+The Worker template also mounts ConfigMaps (`spark-configmap`,
+`spark-defaults-conf`), uses a ServiceAccount, and attaches hostPath volumes
+for logs, events, data, and jars. Those objects are part of desired state.
+They rarely appear as Dynatrace entities and they are not used as Event
+Management bind targets for Spark logs. They matter because they show that a
+Deployment is a *bundle*: identity, replica count, pod template, configuration,
+and storage, not just a container image.
+
+=== Other Kubernetes objects
+
+Spark is not the whole cluster. Three other controller kinds show up in
+Dynatrace and ServiceNow even when Spark never declares them, and they follow
+the same template-versus-instance pattern.
+
+A **DaemonSet** runs exactly one pod on every node that matches its selector
+(usually every node). That is the opposite of a Deployment, which runs N
+replicas wherever the scheduler puts them. Spark does not use a DaemonSet:
+Master, Worker, and History Server need a chosen replica count and, for the
+Workers, pinning to specific nodes — not "one Spark process on every machine
+in the cluster." DaemonSets on this cluster are node-local *agents*.
+**Dynakube OneAgent** (`dynakube-oneagent` in the `dynatrace` namespace) places
+a OneAgent pod on every Kubernetes node so Dynatrace can see the host, the
+processes inside Spark pods, and the log files those pods write. **node-exporter**
+in the `monitoring` namespace does the same pattern for Prometheus: one
+exporter per node for CPU, memory, disk, and network metrics. kube-proxy and
+similar kube-system agents are also DaemonSets. Dynatrace still types the
+DaemonSet as `CLOUD_APPLICATION` and each per-node pod as
+`CLOUD_APPLICATION_INSTANCE`. ServiceNow uses `cmdb_ci_kubernetes_daemonset`.
+The DaemonSet is durable; the per-node pods churn when nodes join or the
+DaemonSet rolls. Bind to the DaemonSet, not to `node-exporter-xxxx` on lab2.
+
+A **CronJob** is a schedule plus a job template. Each tick creates a **Job**;
+the Job creates one or more pods, the pods run to completion, and they go
+away. This is the most aggressive ephemeral pattern Kubernetes offers. A
+nightly reconciliation that lasts four minutes will produce a Job CI and a
+pod CI that are already candidates for deletion by the time ServiceNow's next
+discovery interval runs. Dynatrace types the CronJob as `CLOUD_APPLICATION`.
+ServiceNow has `cmdb_ci_kubernetes_cron_job` and `cmdb_ci_kubernetes_job`.
+Spark does not use CronJobs; the lab still has to model them correctly for
+anything else on the cluster, and they are the cleanest illustration of why
+instance-level CIs cannot be the service-management identity. Tag the CronJob
+controller. Treat Jobs and their pods as runtime exhaust.
+
+Jobs that are not owned by a CronJob — one-shot batch — are the same story
+with no schedule. They are `CLOUD_APPLICATION` for the Job object if Dynatrace
+surfaces it, and `cmdb_ci_kubernetes_job` in ServiceNow, with pods underneath
+that should not be the CMDB identity of the batch *service*.
+
+=== The Spark Worker Deployment template
+
+The Spark Worker is the best teaching example because it is a Deployment, it
+scales, and it is the component whose pods churn. The live template is
+`ansible/roles/spark/templates/spark-worker.yaml.j2`. The listing below is the
+lab2 half, reduced to the fields that correspond to the objects in
+<<fig-k8s-hierarchy>>.
+
+[[list-spark-worker-deployment]]
+.Spark Worker Deployment (lab2), annotated against Kubernetes objects
+[source,yaml]
+----
+apiVersion: apps/v1
+kind: Deployment                          # <1>
+metadata:
+  name: spark-worker-lab2                 # <2>
+  namespace: spark                        # <3>
+  labels:
+    app: spark-worker
+    app.kubernetes.io/name: spark-worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: apache-spark
+    servicenow.com/service-instance: Spark-Worker  # <4>
+spec:
+  replicas: 8                             # <5>
+  selector:
+    matchLabels:
+      app: spark-worker
+      node: lab2                          # <6>
+  template:                               # <7>
+    metadata:
+      labels:
+        app: spark-worker
+        node: lab2
+        app.kubernetes.io/name: spark-worker
+        servicenow.com/service-instance: Spark-Worker  # <8>
+    spec:
+      affinity:
+        nodeAffinity:                     # <9>
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - lab2
+      containers:
+        - name: spark-worker              # <10>
+          image: "{{ spark_image }}:{{ spark_tag }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - exec /opt/spark/sbin/start-worker.sh spark://spark-master.spark.svc.cluster.local:7077
+----
+<1> *Workload controller.* `kind: Deployment` is the declared Spark Worker
+workload. Dynatrace: `CLOUD_APPLICATION`. ServiceNow:
+`cmdb_ci_kubernetes_deployment`. This object is created once per worker pool
+(`spark-worker-lab1`, `spark-worker-lab2`) and kept.
+<2> *Controller identity.* `metadata.name` is the stable workload name
+Dynatrace reports as `k8s.workload.name` and ServiceNow stores as the
+Deployment CI `name`.
+<3> *Namespace field, not Namespace labels.* `namespace: spark` *places* this
+Deployment in the `spark` namespace. It does not label the Namespace object,
+and it does not copy these labels onto pods.
+<4> *Controller labels* (`metadata.labels` on the Deployment). These labels
+are on the Deployment object itself — the namespaced resource, sometimes
+spoken of as the "`namespace level`" of the manifest to distinguish it from
+the pod template. KVA writes them to `cmdb_key_value` on
+`cmdb_ci_kubernetes_deployment`. Kubernetes does *not* copy them onto pods.
+<5> *Desired count.* Kubernetes instantiates a ReplicaSet whose job is to keep
+eight pods running. Changing this number creates or deletes pods; it does not
+create a new Deployment.
+<6> *Selector.* The Deployment owns pods that match these labels. The
+ReplicaSet uses the same selector. A Service, if we had one, would use a
+similar selector to find those pods.
+<7> *Pod template.* This is not a pod. It is the cookie cutter. Every time the
+ReplicaSet needs another replica, it copies this template, assigns a generated
+name (`spark-worker-lab2-<replicaset-hash>-<random>`), and asks the scheduler
+to place the new pod on a node.
+<8> *Pod-template labels.* Kubernetes copies these onto each created pod.
+KVA then writes them to `cmdb_key_value` on `cmdb_ci_kubernetes_pod`. The
+`servicenow.com/service-instance: Spark-Worker` value is the CSDM display name
+in the Kubernetes label character set (spaces become hyphens). Master and
+History Server use the same key with `Spark-Master` and
+`Spark-History-Server`.
+<9> *Scheduling onto a Node.* Affinity is how this Deployment stays on lab2.
+The resulting relationship is Pod *scheduled on* Node, which Dynatrace and
+ServiceNow both record. Eight Worker pods on lab2 still share one Node CI and
+one Host CI.
+<10> *Container.* The running Spark Worker JVM. Dynatrace also sees this as a
+process group instance. It dies with the pod.
+
+What the template does *not* name is as important as what it does. There is no
+pod name. There is no ReplicaSet name. Those are generated at instantiation
+time, at the frequency of the ephemeral band. The objects you can point to in
+the manifest months later are the Deployment, the namespace, the Service the
+Workers *call* (`spark-master.spark.svc.cluster.local`), and the labels that
+tie this workload to the Spark Worker service instance.
+
+Spark Master, by contrast, is the same story with `kind: StatefulSet` and
+`replicas: 1`. The template still has controller labels and pod-template
+labels. The difference is that Kubernetes names the pod `spark-master-0`
+instead of generating a random suffix. History Server is another Deployment,
+`replicas: 1`, tagged `Spark-History-Server`. Three controllers, three CSDM
+service instances, one namespace.
+
+==== Why the same labels appear on the controller and on the template
+
+The listing puts `app.kubernetes.io/*` and `servicenow.com/service-instance`
+in two places: on the Deployment's own `metadata.labels`, and again under
+`spec.template.metadata.labels`. That is not redundancy Kubernetes needs in
+order to schedule pods, and it is not a label on the Namespace object. The
+`namespace: spark` field only names where the Deployment lives.
+
+Kubernetes never copies a controller's `metadata.labels` onto the pods it
+creates. Only the pod template's labels are stamped onto each Pod. Discovery
+follows the same split. KVA creates a `cmdb_ci_kubernetes_deployment` (or
+StatefulSet) from the controller object and writes *that object's* labels into
+`cmdb_key_value` on the workload CI. It creates a `cmdb_ci_kubernetes_pod` per
+running pod and writes the *pod's* labels — which came from the template —
+onto the pod CI.
+
+Template labels alone would tag only pods. That is the ephemeral band: Service
+Mapping membership would churn as pods come and go, and Event Management that
+binds to `CLOUD_APPLICATION` / `cmdb_ci_kubernetes_deployment` would find a
+Deployment CI with no `servicenow.com/service-instance` key. Controller labels
+alone would tag the durable workload CI — which is what we want for service
+mapping and alert binding — but the running pods would not carry the Spark
+identity, so anything that still looks at pod CIs (log-path correlation,
+topology) would miss the tag. Both sets are required because they tag two
+different CIs.
+
+The `app.kubernetes.io/*` labels are the standard Kubernetes application
+identity (`name`, `instance`, `component`, `part-of`). Dynatrace and other
+tooling use them to recognize the workload. The
+`servicenow.com/service-instance` label is the CSDM join key. We do *not* put
+`servicenow.com/service-instance: Spark-Worker` on the Namespace, because the
+namespace is shared by Master, Worker, and History Server, which are three
+different service instances. A namespace-level tag would collapse them into
+one map.
+
+=== From Kubernetes objects to Dynatrace to ServiceNow
+
+Dynatrace does not copy the Kubernetes API one-for-one. It compresses the
+declared band into a small set of entity types and it treats the pod as an
+*instance of* a workload. ServiceNow's Kubernetes CMDB, filled by KVA and by
+the Service Graph Connector for Dynatrace (SGO-Dynatrace), is closer to the
+API: Deployment and StatefulSet are different classes, and ReplicaSets exist.
+The table below is the contract among the three models for the objects this
+chapter has named. Spark-used objects are listed first; DaemonSet, CronJob,
+and Job are included because they appear in the same Dynatrace and CMDB
+taxonomies the moment anything else runs on the cluster.
+
+[[tbl-k8s-dt-sn]]
+.Kubernetes constructs mapped to Dynatrace entities and ServiceNow CMDB classes
+[cols="22%,16%,14%,24%,24%",options="header"]
+|===
+|Kubernetes object |Spark uses it |Lifetime band |Dynatrace entity |ServiceNow CMDB class
+
+|Cluster
+|Yes
+|Declared
+|`KUBERNETES_CLUSTER`
+|`cmdb_ci_kubernetes_cluster`
+
+|Node
+|Yes (lab1, lab2, lab3)
+|Declared
+|`KUBERNETES_NODE`
+|`cmdb_ci_kubernetes_node`
+
+|Namespace
+|Yes (`spark`)
+|Declared
+|`CLOUD_APPLICATION_NAMESPACE`
+|`cmdb_ci_kubernetes_namespace`
+
+|Deployment
+|Yes (Workers, History Server)
+|Declared
+|`CLOUD_APPLICATION`
+|`cmdb_ci_kubernetes_deployment`
+
+|StatefulSet
+|Yes (Master)
+|Declared
+|`CLOUD_APPLICATION`
+|`cmdb_ci_kubernetes_statefulset`
+
+|DaemonSet
+|No (OneAgent, node-exporter)
+|Declared
+|`CLOUD_APPLICATION`
+|`cmdb_ci_kubernetes_daemonset`
+
+|CronJob
+|No
+|Declared
+|`CLOUD_APPLICATION`
+|`cmdb_ci_kubernetes_cron_job`
+
+|Service
+|Yes (Master)
+|Declared
+|`KUBERNETES_SERVICE`
+|`cmdb_ci_kubernetes_service`
+
+|ReplicaSet
+|Yes (implicit under Worker and History Deployments)
+|Revision
+|(none; folded into `CLOUD_APPLICATION`)
+|`cmdb_ci_kubernetes_replicaset`
+
+|Job
+|No
+|Revision
+|`CLOUD_APPLICATION` (when surfaced)
+|`cmdb_ci_kubernetes_job`
+
+|Pod
+|Yes
+|Ephemeral
+|`CLOUD_APPLICATION_INSTANCE`
+|`cmdb_ci_kubernetes_pod`
+
+|Container / process
+|Yes (Spark JVM)
+|Ephemeral
+|`PROCESS_GROUP` / `PROCESS_GROUP_INSTANCE` (and container entities)
+|`cmdb_ci_group` / `cmdb_ci_appl` (and container CIs)
+
+|Linux host (not a K8s object)
+|Yes (nodes)
+|Declared
+|`HOST`
+|`cmdb_ci_linux_server`
+|===
+
+Read the Dynatrace column as a *spec versus instance* model. Every Spark
+workload controller — Worker Deployment, Master StatefulSet, History
+Deployment, and, elsewhere, a DaemonSet or CronJob — is one
+`CLOUD_APPLICATION`. Every pod those controllers create is a
+`CLOUD_APPLICATION_INSTANCE` of that application. Davis problems about a
+workload therefore carry `dt.entity.cloud_application`. Problems about a
+specific sandbox carry `dt.entity.cloud_application_instance`. The first
+identity survives a crash. The second is the crash.
+
+ServiceNow then has two imports of the same world. KVA watches the Kubernetes
+API and creates the `cmdb_ci_kubernetes_*` rows, including ReplicaSets that
+Dynatrace never named. SGO-Dynatrace imports Smartscape entities and IRE-merges
+them onto those rows when names match, storing the Dynatrace entity id in
+`sys_object_source`. The merge is why a `CLOUD_APPLICATION` for
+`spark-worker-lab2` and a KVA Deployment named `spark-worker-lab2` become one
+CI. It is also why a pod that existed only for forty seconds may appear in
+Dynatrace, never make it through SGC, and already be gone from the API when
+KVA next syncs.
+
+Above the Kubernetes classes sits the CSDM model from Stage 1. Apache Spark is
+the business service. Spark Worker, Spark Master, and Spark History Server are
+service instances. They are not Kubernetes objects. They are joined to
+Kubernetes CIs by tag-based Service Mapping on
+`servicenow.com/service-instance`, which reads `cmdb_key_value` and records
+membership in `svc_ci_assoc`. If that tag is on the Deployment and the
+StatefulSet, the service instance is tied to the declared band. If it is only
+on pods, the service map's membership churns with the ephemeral band: rows
+appear and vanish as fast as pods do, and an incident that has to walk
+`svc_ci_assoc` from a pod CI will fail whenever the pod CI is missing.
+
+That is the story this chapter is for. Kubernetes runs Spark by holding a
+durable specification and instantiating disposable pods from it. Dynatrace
+already distinguishes those two layers as `CLOUD_APPLICATION` and
+`CLOUD_APPLICATION_INSTANCE`. ServiceNow can represent both, but the CMDB and
+Event Management cannot keep up with the instance layer. The next time we
+talk about binding an event to a CI, the candidate is the workload in the
+declared band — the Spark Worker Deployment, the Spark Master StatefulSet —
+not the pod that happened to emit the log line.
 
 
-Spark can run in one of two modes: *Client Mode* or *Cluster Mode*.
-In client mode, the client-side application is a standalone application that can run on a workstation or a mobile . In some cases, like this one, the "workstation" may also be a host. In all these cases, the client-side application is not managed by ServiceNow's CMDB. In the case of a true workstation, the workstation is not managed in ServiceNow's CMdb. 
+== Log Event Management 
 
-The client then communicates with the Spark Master running as a service and the executors running on the Spark Workers. The Spark Master and the workers run on the service-side. The executors on the workers run jobs and constitute the heart of the application. 
-
-== Log Event Management Reference Implementation
-
-This chapter documents the high-level architecture of a reference implementation of the Log to Incident process. In this implementation we use **Dynatrace** as the observability platform and **ServiceNow** as the ITSM & Event Management platform used to observe and manage an Apache Spark implementation. <<fig-log-to-incident-dataflow>>, below, illustrates the end-to-end flow log messages from the Spark application through Dynatrace to ServiceNow. This is a for phase process that starts with Spark writing to an application log file; Dynatrace then ingests and processes a log line, deciding which ones are critical issues (Problems) and then notifies ServiceNow of critical issue. ServiceNow ingest the issue (event) and creates an alert and incident mapping bot to appropriate CIs. ServiceNow then notifies the support team of the CI assigned to the incident.
+This chapter documents the high-level architecture of the Log to Incident process using using **Dynatrace** as the observability platform and **ServiceNow** as the ITSM & Event Management platform. To flesh out the reference architecture we use  Apache Spark as the subject application being observed and managed. <<fig-log-to-incident-dataflow>>, below, illustrates the end-to-end flow. Log messages from the Spark application flow through Dynatrace to ServiceNow. This is a three phase process that starts with Spark writing to an application log file; Dynatrace then ingests and processes a log line, deciding which ones are critical issues (Problems) and then notifies ServiceNow of critical issue. ServiceNow ingest the issue (event) and creates an alert and incident mapping bot to appropriate CIs. ServiceNow then notifies the support team of the CI assigned to the incident.
 
 [.figure-indent]
 [[fig-log-to-incident-dataflow]]
 .Log to Incident data flow
 image::log-to-incident-dataflow.svg[Log to Incident data flow,width=33%,align=center]
 
+Critical to event management in ServiceNow is the CMdb, especially the services defined in the CSDM. The definition of services in the CSDM and discovery of the CI model in the CMdb guides the event and incident management processes. Properly setting up the CMdb is required prior to the first log record being written and constitutes a phase unto itself. 
 
-In ServiceNow, operational issues are managed at the incident level The support group of the CI assigned to an alert or incident is the group that will be notified when an issues arises. If the wrong CI (with an inappropriate support group) is assigned to the incident it will take a longer time to notify the right support team.  This makes assigning a CI to an incident critical to the process. For application log messages, the assigned CI should be the service instance of the application instance emitting the log message. Finding the right CI at runtime to assign to a log message does not happen automatically. It needs to be designed into the CMdb model of the application.
+In ServiceNow, operational issues are managed at the incident level The assignment group of the CI assigned to an alert or incident is the group that will be notified when an issues arises. This makes assigning a CI to an incident critical to the process. For application log messages, the assigned CI should be the service instance of the application instance emitting the log message. Finding the right CI at runtime to assign to a log message does not happen automatically. It needs to be designed into the CMdb model of the application.
 
 Designing the CMdb model for the application is another phase in the process. It needs to be done before the application ever runs. The table below enumerates all the major steps required to configure the Log to Incident flow and the touches on some of the key design issues for the step.
 
-[[tbl-log-to-incident-phases]]
-.Log to Incident configuration phases
-[cols="10%,20%,70%",options="header"]
-|===
-|Phase |Layer | Design Goals
 
-|Phase 1
-|ServiceNow Modeling
-a|- We need to understand the relationships in the CMdb model and how they relate to runtime components so that at the time a log message (event) is ingested by ServiceNow, we can eventually assign the correct CI to the incident. This in turns understanding the runtime CIs define by Dynatrace and how they relate to the rest of the CMdb model.
+=== ServiceNow Modeling - Stage 1
+We need to understand the relationships in the CMdb model and how they relate to runtime components so that at the time a log message (event) is ingested by ServiceNow, we can eventually assign the correct CI to the incident. This in turns understanding the runtime CIs define by Dynatrace and how they relate to the rest of the CMdb model.
 
-|Phase 2
-|Spark Application
-a|
-* *Log file generation:* Where and how does Spark generate the log files and how does Dynatrace's OneAgent extract useful metadata from them to send to Dynatrace proper?
+=== Spark Application - Stage 2
 
-|Phase 3
-|OneAgent
-a|
-* *Log file ingestion:* How does OneAgent ingest the log data and extract useful metadata from the log files and context  and send them to Dynatrace? 
+Application teams need to work with the Observability on how to model their application and where the log files are emitted so they can be ingested by Dynatrace.
 
-|Phase 4
-|Dynatrace
-a|
-* **Log Routing:** How does Dynatrace route the log messages to the appropriate OpenPipeline?
-* *Log Processing:* How does Dynatrace process the data and metadata sent from OneAgent? 
-* *Critical issue determination:* How does Dynatrace determine which log messages are critical and create a Dynatrace problem that should be sent to ServiceNow (as an event)? 
-* *Problem notification:* How does Dynatrace send the Problem (as an event) to ServiceNow?
+==== Application modeling
+Application teams must model their applications. Much of the modeling is done in ServiceNow. This can be done either by the application team, Enterprise Architecture team, or the CMdb/CSDM team. For container-based applications, application teams will need to tag their containers in the applications deployment descriptors. 
 
-|Phase 5
-|ServiceNow
-a|
-* *Event Ingestion:* How does ServiceNow ingest an event from Dynatrace? 
-* *Alert Creation:* How and when does it create an alert for the event and what CI does it assign to the alert? 
-* *Incident Creation:* When an incident is created, how does ServiceNow identify the correct CI to bind to the incident? 
+* What tags need to be set on the containers?
+* What do those tags map to in the CMdb model?
 
-|===
+==== Log file generation
+The application team and the Observability team must work together to decide where and how how the application generates the log files.
 
-Client and Cluster Mode configuration is <<ch-client-mode,Client and Cluster Mode Use Cases>>. ServiceNow Event Management remains <<Phase 4 — ServiceNow,Phase 4>>.
+* Where are the logs stored for which applications?
+* How does the application team configure the application to emit the logs to the desired location? 
+
+=== Dynatrace (Stage 3)
+Dynatrace's OneAgent utility, reads in the log files and sends them to Dynatrace (proper) to processes them. 
+
+==== Log file ingestion
+Once the teams determine where the log files are emitted, Dynatrace's OneAgent will ingest the log data and send them to Dynatrace (proper) to process them.
+
+* How does Dynatrace's OneAgent know where the logs are?
+* What metadata is derived from the log file locations?
+* Where does OneAgent then send the log data?
+
+==== Log Routing
+We will need to specify how Dynatrace will route the log messages to the appropriate OpenPipeline which will provide the bulk of the processing. 
+
+
+==== Event Processing
+Each log entry is viewed as an event. The event.name, event.type, and dt.source_entity are import attributes that decide if two events are the same. We must decide how these attributes are set for de-duplication.
+
+==== Log Processing
+Log processing manipulates the log messages (Dynatrace Events) and marshals the data to store in Grail and then send to ServiceNow. .
+
+* What data and meta-data we need to extract from an event (log message)?
+* What metadata is needed to store in Grail?
+* What metadata is needed to send to ServiceNow?
+
+
+==== Problem Processing
+An event can be promoted to a problem and then sent to ServiceNow. This gives rise to the following questions:
+
+* What is the criticality of the event and should we promote it to a problem?
+* If we promote the event to a problem, do we create a new problem or add it to an existing problem?
+* What metadata do we need to associate to the problem and send to ServiceNow?
+* How will ServiceNow prioritize the ServiceNow event and alert corresponding to the problem?
+
+==== Problem Notification
+Once we have established marshaled the  log messages that are critical we need to specify how Dynatrace sends a Problem for the log message to ServiceNow. 
+
+==== Event Storage
+Once any problems are created, Dynatrace will optionally store the events in the Grail database. 
+
+* What events should be stored in Grail? 
+
+=== ServiceNow (Stage 4)
+
+As Dynatrace sends problems to ServiceNow, we transition from observability to event and incident management. In ServiceNow, Dynatrace problems are mapped to ServiceNow events and alerts.
+
+==== Event Ingestion
+The Dynatrace Service Graph Connector will define how ServiceNow defines the endpoint to receive events.
+
+==== Event Creation
+Once an invent is ingested we need to specify how ServiceNow creates the event record. This brings to the for a number of questions: Should we reuse an existing event record (i.e. deduplication ) or create a new one? What data and metadata does it need to create the event record? What should we use as the message key?
+
+==== Alert Creation
+Once an event is created, we need to associate it with an alert. 
+How and when does it create an alert for the event and what CI does it assign to the alert? 
+
+==== Incident Creation
+When an incident is created, how does ServiceNow identify the correct CI to bind to the incident? 
+
+Client and Cluster Mode configuration is <<ch-client-mode,Client and Cluster Mode Use Cases>>. ServiceNow Event Management remains <<Stage 3 — ServiceNow,Stage 3>>.
 
 ---
 
 [#step-0-cmdb-model]
-== Phase 1 — ServiceNow Modeling
+== Stage 1 — ServiceNow Modeling
 
 The first Phase in the process is to model the application in ServiceNow. It needs to happen even before the application ever runs. The ServiceNow modeling is the data foundation of the Log to Incident process. It consists of the CSDM hierarchy and the pattern-specific CMDB components. We need to do this for the Service-side and the Client-side components. 
 
@@ -203,7 +965,7 @@ In these models, some CIs (of components) are automatically discovered by Servic
 We first examine the CSDM model that is common to both the client and service-side applications.
 In the client-side scenario we have both a client and service-side application. As such we examine the service-side model next and then the client-side model after that. 
 
-==== Common CSDM Model
+=== Common CSDM Model
 
 The CSDM is part of the overall ServiceNow model for an application. It models how an application fits within the enterprise. It is a hierarchy of CIs that starts with the service instance, which models the application instance. Associated with the service instance at a lower  (conceptual) level are the CIs that represent the application's Kubernetes components. The Business Application (cmdb_ci_service) represents the business' view of the application - i.e. what more generalized, business oriented, service does it provide. In this case, it is an Apache Spark service that data scientists and engineers use to perform data analytics and machine learning. There could be other instances of the Spark Master service in the enterprise. Lastly, the Business Application represents the overall functional capability area. In this case, it is Data and Analytics. There could be other technologies used in the enterprise aside from Apache Spark (e.g. Snowflake), which would get their own Business Service and still fall under the Data and Analytics Business Application.
 
@@ -213,7 +975,7 @@ The CSDM is part of the overall ServiceNow model for an application. It models h
 .Spark CSDM Model
 image::spark-servicenow-model-csdm.svg[Spark CSDM Model,width=100%,align=center]
 
-There is a service instance each of the materialized Spark services: the Spark Master, the Spark Workers, and the Spark History Server. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. The Spark History Server is a built-in observability component that provides debugging and monitoring capabilities for Spark. The forth service instance is a synthetic service instance that represents all Spark clients that talk directly to a the Spark Workers without a using a Spark Master. We will discuss this further in the <<Spark Client-Side Model>> section.
+There is a service instance each of the materialized Spark services: the Spark Master, the Spark Workers, and the Spark History Server. The Spark Master is the central point of control for the Spark application. The Spark Workers are the nodes that do the actual work of the application. The Spark History Server is a built-in observability component that provides debugging and monitoring capabilities for Spark. The forth service instance is a synthetic service instance that represents all Spark clients that talk directly to a the Spark Workers without a using a Spark Master. We will discuss this further in the <<Client-side Model>> section.
 
 You must manually create each one of the CSDM CIs in ServiceNow. To simplify the tedium of creating the CSDM CIs, we have used a tool to create the CIs based on a YAML specification. While the tool is beyond the scope of this document we share the YAML specification in <<list-spark-csdm-model>>, below. It illustrates most of the key CI attributes needed for the Spark application.
 
@@ -264,7 +1026,7 @@ service_instances:
 
 === Service-Side Model
 
-The Service-side model used in Spark cluster mode, shows the logical relationships between CSDM service instances, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for pod-scoped (server side)logs. One of the main outcomes of this model is to be able to map service-side alerts to a reasonable CI and incidents to a service instance CI for more timely communication to the appropriate support team.
+The Service-side model used in Spark cluster mode shows the logical relationships between CSDM service instances, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for **service-side** logs. Log alerts bind the **service instance**, not the pod. Pods remain in the CMDB for topology; `k8s-pod-name` is a fallback lookup to the SI via `svc_ci_assoc` when `sn-service_instance` is missing.
 
 <<fig-spark-servicenow-model-service-side>> illustrates the Service-side model of the Spark Master. The other Spark services, e.g. Spark Workers and the Spark History Server, would have avery similar CMdb models.
 
@@ -313,26 +1075,28 @@ The table below enumerates the different CMDB objects in the Service-side scenar
 
 |===
 
-To be able to correlate a critical log message to the appropriate service instance, we need to use tag-based service mapping to correlate the Kubernetes pod to the service instance. This correlation is accomplished by setting the `servicenow.com/service-instance` tag in the template for the Kubernetes pod. The tag value is the **display name** of the service instance with spaces written as hyphens (e.g. `Spark Master` → `Spark-Master`) to comply with Kubernetes label characters set (i.e. no spaces or parentheses). Docker labels have no such restriction and carry the display name verbatim. As an example, the tag is shown in <<list-spark-master-pod-template>>, below, for the Spark Master StatefulSet pod template.
+To be able to correlate a critical log message to the appropriate service instance, we tag the **workload controller** and the **pod template** with `servicenow.com/service-instance` (see <<ch-kubernetes-architecture,Kubernetes Architecture>>). Kubernetes does not copy controller labels onto pods, so both places are required. The tag value is the **display name** of the service instance with spaces written as hyphens (e.g. `Spark Master` → `Spark-Master`). SGC 1.15.0 has **no Kubernetes Workload** data source; Deployment/StatefulSet CIs come from horizontal discovery (KVA); SOS/`correlation_id` for `CLOUD_APPLICATION` is usually empty — name lookup is required.
 
 [.figure-indent]
 [[list-spark-master-pod-template]]
-.Spark Master StatefulSet pod template labels
+.Spark Master StatefulSet — controller and pod-template labels
 [source,yaml]
 ----
-template:
-  metadata:
-    labels:
-      app: spark-master
-      app.kubernetes.io/name: spark-master
-      app.kubernetes.io/instance: brooks-lab
-      app.kubernetes.io/component: master
-      app.kubernetes.io/part-of: apache-spark
-      app.kubernetes.io/managed-by: ansible
-      servicenow.com/service-instance: Spark-Master
+metadata:
+  name: spark-master
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark-master
+    servicenow.com/service-instance: Spark-Master
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spark-master
+        servicenow.com/service-instance: Spark-Master
 ----
 
-Tag discovery will take the `servicenow.com/service-instance` label and correlate the service instance for Spark-Master to pod. This introduces a service map relationship in the `svc_ci_assoc` table and not a CMdb relationship in `cmdb_ci_rel`. Each time Kubernetes creates such a pod, the KVA (Kubernetes Visibility Agent) Informer notifies ServiceNow to create a new pod CI, and the label is copied to `cmdb_key_value` on that pod CI. Tag-based Service Mapping then matches the tag value against the population rule configured for the service instance and records the membership in the **`svc_ci_assoc`** table.
+Tag discovery writes `servicenow.com/service-instance` to `cmdb_key_value` on the **controller** CI (from `metadata.labels`) and on each **pod** CI (from the template). Tag-based Service Mapping matches the tag value against the population rule and records membership in **`svc_ci_assoc`**. Log alerts use the OpenPipeline `sn-service_instance` stamp as the primary bind; `svc_ci_assoc` is the fallback.
 
 === Client-side Model
 
@@ -361,56 +1125,46 @@ The service instance YAML specification for the Spark Client is shown below.
       - Spark Master
 ----
 
-Now, given the Spark Client service instance how do we map a log message on the client device to the Spark Client service instance? This is done by creating a custom device entity in Dynatrace that represents the Spark Client. This custom device entity must then be included in any log problems sent as events to ServiceNow from Dynatrace's OneClient agent on the device to Dynatrace's OpenPipeline.
+Now, given the Spark Client service instance, how do we map a log message on the client device to that CI? There is no Kubernetes label. The OneAgent custom log source tails `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` and stamps `service_instance`; OpenPipeline maps that to `sn-service_instance` = `Spark-Client`. ServiceNow enrich binds the log alert to the Spark Client service instance and overwrites the HOST SOS. A Dynatrace CUSTOM_DEVICE named “Spark Client” is **historical** — it is not the current bind.
 
 [#step-0-pod-labels]
-==== Kubernetes Pod CIs
-In this section we drill down into the details of how Kubernetes Pod CIs are created and how they are correlated to the service instance. The pod tags are labels that are set on the pod manifest. These labels are then used to create the Kubernetes Pod CIs. Pod manifest labels are the single source of truth for tag-based Service Mapping on Spark workloads.
+==== Kubernetes workload labels
 
-Tag-based Service Mapping matches workload CIs to a service instance using **`cmdb_key_value`** rows copied from these pod labels. The ServiceNow label uses the vendor-domain prefix `servicenow.com/`. There is no hard standard for the key name; this implementation uses the single key listed in the table below.
+Pods remain in the CMDB, but **log alerts no longer use the pod as `cmdb_ci`**. Labels belong on the **controller** (`metadata.labels` → durable Deployment/StatefulSet CI) **and** on the pod template (copied onto each pod). See <<ch-kubernetes-architecture,Why the same labels appear on the controller and on the template>>.
+
+Tag-based Service Mapping matches workload CIs to a service instance using **`cmdb_key_value`** rows copied from those labels. The ServiceNow label uses the vendor-domain prefix `servicenow.com/`. This implementation uses the single key listed below.
 
 [[tbl-servicenow-pod-label-keys]]
-.ServiceNow pod label keys for tag-based Service Mapping
+.ServiceNow label keys for tag-based Service Mapping
 [cols="32%,68%",options="header"]
 |===
 |Key|Role
 
 |`servicenow.com/service-instance`
-|The only tag filter. Value equals the service instance **display name** (for example `Spark-Master` in the Kubernetes label character set, or `Elasticsearch` verbatim on Docker). Tag-based Service Mapping uses this to record matching workloads as members of that service instance in `svc_ci_assoc`.
+|The only tag filter. Value equals the service instance **display name** (for example `Spark-Master` in the Kubernetes label character set). Tag-based Service Mapping records matching **controller** CIs (and pods, from the template) as members of that service instance in `svc_ci_assoc`.
 |===
 
 The `servicenow.com/service-instance` tag is required on every workload that belongs to a tag-mapped service instance; no other ServiceNow tags (environment, location) are used. The tag value must match the display name of the service instance CI (spaces written as hyphens for Kubernetes labels). This is a naming contract that the teams need to keep in mind: renaming a service instance requires updating the workload labels and the tag population rule together.
 
-<<list-spark-worker-pod-template>> illustrates the pod template for the Spark Worker.
+<<list-spark-worker-pod-template>> illustrates the Spark Worker Deployment controller and pod-template labels.
 
 [.figure-indent]
 [[list-spark-worker-pod-template]]
-.Spark Worker Pod Template
+.Spark Worker Deployment — controller and pod-template labels
 [source,yaml]
 ----
-apiVersion: v1
-kind: Pod
 metadata:
-  name: spark-worker-lab1-0
+  name: spark-worker-lab1
+  namespace: spark
   labels:
-    servicenow.com/service-instance: Spark-Worker
     app.kubernetes.io/name: spark-worker
+    servicenow.com/service-instance: Spark-Worker
 spec:
-  containers:
-    - name: spark-worker
-      env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-      volumeMounts:
-        - name: app-logs
-          mountPath: /opt/spark/logs
-          subPathExpr: $(POD_NAME)
-  volumes:
-    - name: app-logs
-      persistentVolumeClaim:
-        claimName: spark-logs-pvc
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spark-worker
+        servicenow.com/service-instance: Spark-Worker
 ----
 
 [#step-0-tag-based-membership]
@@ -418,7 +1172,7 @@ spec:
 
 Getting a pod (or container) associated with its service instance is a meeting of two halves that are configured independently and joined by ServiceNow:
 
-. **The workload side.** The deployment manifests carry the `servicenow.com/service-instance` label (single source of truth). KVA (Kubernetes) or the Docker discovery sync copies the label into `cmdb_key_value` on the workload CI. This happens continuously as workloads come and go — no per-pod automation is involved.
+. **The workload side.** The Deployment/StatefulSet manifests carry `servicenow.com/service-instance` on the **controller** and on the **pod template**. KVA copies those labels into `cmdb_key_value` on the controller CI and on each pod CI.
 . **The service side.** When the CSDM specification is deployed (`csdm/deploy.yml`), every service instance with `service_mapping: tags` gets a **tag population rule**: the deploy calls the Service Mapping Operations REST API (`/populate_tags`), which invokes `SMServiceByTagsUtils.updateServiceFromTagsList()` against the service instance sys_id with the single tag predicate `servicenow.com/service-instance = <display name>`.
 
 ServiceNow's tag-based Service Mapping engine then evaluates the population rule against `cmdb_key_value` and records each matching workload CI as a member of the service instance in the **`svc_ci_assoc`** table (Service CI Association). This membership — not a CMDB relationship — is what incident automation traverses.
@@ -439,12 +1193,17 @@ Two design rules follow from this model:
 |Hosts
 |HOST
 |cmdb_ci_linux_server
-|Fallback when log tails on host and pod entity unavailable
+|Infra alert CI for host CPU (SOS). Not the log alert CI.
 
 |Kubernetes Pod
 |CLOUD_APPLICATION_INSTANCE
 |cmdb_ci_kubernetes_pod
-|Preferred alert/event CI for pod-scoped logs
+|Topology / fallback `k8s-pod-name` lookup — **not** the log alert CI
+
+|Kubernetes workload (KVA; not SGC 1.15.0)
+|CLOUD_APPLICATION
+|cmdb_ci_kubernetes_deployment / statefulset
+|Infra alert CI for OOTB workload problems; SOS usually empty — bind by name
 
 |Process Groups
 |PROCESS_GROUP
@@ -463,14 +1222,14 @@ Configure on the ServiceNow instance:
 
 * Service Graph Connector for Dynatrace Observability (i.e.the scoped app 'sn_dynatrace_integ')
 * Inbound event listener: POST /api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
-* Scheduled SGC discovery imports for hosts, Kubernetes pods, and process groups covering the cluster namespace
+* Scheduled SGC discovery imports for hosts and process groups. Kubernetes **workload** CIs come from KVA / horizontal discovery (SGC 1.15.0 has no Workload data source).
 
 ==== Dynatrace — management zone
 
 Place hosts, Kubernetes cluster entities, and pods that run the application in a **management zone** dedicated to the integration (for example *Application Observability*). The **alerting profile** for ServiceNow problem notifications must scope to that management zone so only in-scope problems are forwarded.
 
 
-== Spark Application - Phase 2
+== Spark Application - Stage 2
 
 The development and operation teams need to configure how the Spark application is deployed and how it is logging. This is done in two areas. One area is to specify the association between the Spark execution context and the CSDM service instance for the Spark application. The other area is to configure the Spark application logging. Both configurations depend on which Spark mode is being used: Cluster Mode or Client Mode.
 
@@ -480,30 +1239,32 @@ Service instance association is done in two significantly different ways dependi
 
 ==== Cluster Mode
 
-In cluster mode, the Spark application is running in a Kubernetes pod. The pod needs to be manually associated with it's corresponding service instance. This is done by setting the `servicenow.com/service-instance` label in the pod template. The label value is the **display name** of the service instance. The service instance display name is the same as the service instance identifier. For example, the Spark Master service instance has the display name `Spark-Master`.
-
+In cluster mode, associate each Spark workload with its CSDM service instance by setting `servicenow.com/service-instance` on the **controller** (`metadata.labels`) **and** on the **pod template**. Kubernetes does not copy controller labels onto pods. The label value is the service instance **display name** in the Kubernetes label character set (for example `Spark Master` → `Spark-Master`). OpenPipeline maps the running pod-name prefix (`spark-master-*`, `spark-worker-*`, `spark-history-*`) to `sn-service_instance`.
 
 [.figure-indent]
 [[list-spark-master-pod-template2]]
-.Spark Master StatefulSet pod template labels
+.Spark Master StatefulSet — controller and pod-template labels
 [source,yaml]
 ----
-template:
-  metadata:
-    labels:
-      app: spark-master
-      app.kubernetes.io/name: spark-master
-      app.kubernetes.io/instance: brooks-lab
-      app.kubernetes.io/component: master
-      app.kubernetes.io/part-of: apache-spark
-      app.kubernetes.io/managed-by: ansible
-      servicenow.com/service-instance: Spark-Master
+metadata:
+  name: spark-master
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark-master
+    servicenow.com/service-instance: Spark-Master
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spark-master
+        servicenow.com/service-instance: Spark-Master
 ----
 
 ==== Client Mode
 
-In client mode, the Spark application is running on a client device. ????
+In client mode the Spark Driver runs on a workstation (or a host used as a workstation). There is no Kubernetes label. The custom log source tails `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` and stamps `service_instance`; OpenPipeline maps that to `sn-service_instance` = `Spark-Client`.
 
+[[step-1-log-emission]]
 === Log File Generation
 
 In either mode, the Spark application will generate log files using Log4j2. However, where those log files are written is significantly different. For cluster mode, the log files are written to the container stdout. This is the container best practice. For client mode, where the Spark driver is generating the logs, the logs are written to a file under `/mnt/spark/client-logs/`.
@@ -603,16 +1364,15 @@ appender.rolling.strategy.max = 10
 OneAgent will then need to be configured to harvest the log files under the directory `/mnt/spark/client-logs/*/`, where the subdirectory is the log directory for the Spark driver.
 
 [[ch-client-mode]]
-[[ch-cluster-mode]]
 == Dynatrace
 
-This chapter walks the Log to Incident reference path for **both** Spark modes that share one OpenPipeline (`spark-lab-client-log-alerts / spark-lab-cluster-log-alerts`), one alerting profile / SGO webhook, and the same ServiceNow Event Management automation in <<Phase 4 — ServiceNow,Phase 4>>:
+This chapter walks the Log to Incident reference path for **both** Spark modes. Cluster Container Output uses OpenPipeline **`k8s-short-log4j2-log-alerts`**. Client file tails under `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` use **`standalone-short-log4j2-log-alerts`**. They share one alerting profile / SGO webhook and the same ServiceNow Event Management automation in <<Stage 3 — ServiceNow,Stage 3>>.
 
 Within each phase subsection below, Dynatrace- and mode-independent material comes first, then **Cluster Mode**, then **Client Mode**.
 
 [[step-2-dynatrace]]
 [[step-2-dynatrace-cluster]]
-=== Phase 2 — OneAgent
+=== Stage 2 — OneAgent
 
 OneAgent is Dynatrace's single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. For Log to Incident it either collects container stdout/stderr (Cluster Mode) or tails files under `/mnt/spark/client-logs/` (Client Mode) and sends each entry with contextual metadata to Dynatrace.
 
@@ -622,8 +1382,9 @@ We need to tell OneAgent how to find the log stream and what contextual metadata
 
 The log metadata is the key metadata fields that we need to extract from the log lines or the log context. This depends on what fields are required, the available log context, the available fields in a log line, Dynatrace's ability to parse the log context, and the OpenPipeline's ability to enrich or parse further.
 
-OneAgent provides a limited set of default metadata fields (raw line, log level, log source). Mode-specific enrichment then stamps the `spark.*` attributes used for ServiceNow bind.
+OneAgent provides a limited set of default metadata fields (raw line, log level, log source). OpenPipeline then stamps the **`sn-*`** dash keys used for ServiceNow bind. OpenPipeline **cannot** look up Dynatrace entities by name; it stamps `k8s-pod-name` / `k8s-workload-name` (and `sn-service_instance`) so ServiceNow can bind.
 
+[[ch-cluster-mode]]
 ==== Cluster Mode
 
 OneAgent on each Kubernetes node collects container stdout/stderr when DynaKube enables the Log module. Cluster Mode application logs do **not** use a custom log source path pattern for `/mnt/spark/logs`.
@@ -671,9 +1432,9 @@ Repo: `observability/dynatrace/dynakube/dynakube.yaml.j2`.
 |OneAgent / Kubernetes enrichment
 |e.g. `spark-master-0` (pod `metadata.name`)
 
-|`spark.mode` / `k8s.pod.name`
-|OpenPipeline (not custom log source)
-|Set in processing from `k8s.pod.name` (below)
+|`sn-service_instance`
+|OpenPipeline (pod-name prefix)
+|`Spark-Master` / `Spark-Worker` / `Spark-History-Server`
 
 |Entity context
 |OneAgent Log module
@@ -686,9 +1447,9 @@ The key requirements for Client Mode are that:
 
 - We need to know the log level in order to determine which issues are critical or not.
 - We need to mark the stream as Client Mode and capture the driver **instance** differentiator.
-- We need a service instance bind key (`service_instance`) for ServiceNow.
+- We need a service instance bind key (`service_instance` on the custom source, mapped to `sn-service_instance`) for ServiceNow.
 
-The custom log source below stamps the Client Mode `spark.*` attributes from the path pattern.
+The custom log source below stamps the Client driver instance and `service_instance` from the path pattern (`SPARK_DRIVER_INSTANCE` is the directory under `/mnt/spark/client-logs/`).
 
 [[lst-custom-log-sources]]
 .Custom Log Source Configuration (Client Mode paths only)
@@ -699,25 +1460,15 @@ The custom log source below stamps the Client Mode `spark.*` attributes from the
   "scope": "environment",
   "value": {
     "enabled": true,
-    "config-item-title": "{{ dt_sn_spark_log_custom_source_name }}",
+    "config-item-title": "{{ dt_l2i_standalone_custom_source_name }}",
     "custom-log-source": {
       "type": "LOG_PATH_PATTERN",
       "values-and-enrichment": [
         {
           "path": "/mnt/spark/client-logs/*/spark-app.log",
           "enrichment": [
-            { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.mode", "value": "Client" },
-            { "type": "attribute", "key": "spark.driver.instance", "value": "${1}" },
-            { "type": "attribute", "key": "service_instance", "value": "Spark-Client" }
-          ]
-        },
-        {
-          "path": "/mnt/spark/client-logs/*/spark-app-*.log",
-          "enrichment": [
-            { "type": "attribute", "key": "spark.log.path", "value": "${0}" },
-            { "type": "attribute", "key": "spark.mode", "value": "Client" },
-            { "type": "attribute", "key": "spark.driver.instance", "value": "${1}" },
+            { "type": "attribute", "key": "log.path", "value": "${0}" },
+            { "type": "attribute", "key": "log.driver.instance", "value": "${1}" },
             { "type": "attribute", "key": "service_instance", "value": "Spark-Client" }
           ]
         }
@@ -744,29 +1495,26 @@ Given the above template, OneAgent will extract the following metadata fields an
 |`log.source`
 |Registered path under `/mnt/spark/client-logs/…` from OneAgent
 
-|`spark.log.path`
+|`log.path`
 |Literal file path on the node set from log source `${0}`
 
-|`spark.mode`
-|The literal string `Client` set in the log source template
-
-|`spark.driver.instance`
-|Driver directory under `/mnt/spark/client-logs/` (`par-a`, PID, …) set from log source `${1}`
+|`log.driver.instance`
+|Driver directory under `/mnt/spark/client-logs/` (`par-a`, PID, …) set from log source `${1}` (`SPARK_DRIVER_INSTANCE`)
 
 |`service_instance`
-|The literal string `Spark-Client` for the service instance bind key set in the log source template
+|`Spark-Client`; the standalone pipeline maps this to `sn-service_instance`
 |===
 
-=== Phase 3 — Dynatrace
+=== Stage 3 — Dynatrace
 
-Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow. Client file tails and Cluster Container Output share the same OpenPipeline, routing object, storage processors, alerting profile, and webhook.
+Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow. Client file tails and Cluster Container Output use **two** pipelines (`standalone-short-log4j2-log-alerts` and `k8s-short-log4j2-log-alerts`) and share the alerting profile and webhook.
 
 ==== Log Routing
 
-To route the logs to the designated OpenPipeline for Spark log entries, we configure the Logs Routing object.
+To route the logs to the designated OpenPipeline, we configure the Logs Routing object with **two** entries.
 
 [[lst-spark-log-routing]]
-.Spark OpenPipeline logs routing
+.OpenPipeline logs routing
 [source,json]
 ----
 {
@@ -777,20 +1525,23 @@ To route the logs to the designated OpenPipeline for Spark log entries, we confi
       {
         "enabled": true,
         "pipelineType": "custom",
-        "pipelineId": "vu9U3hXa3q0AAAABA...zIxOb7vVN4V2t6t",
-        "matcher": "matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"Container Output\")",
-        "description": "Spark Lab log alerts (Client file + Cluster Container Output)"
+        "pipelineId": "<standalone-short-log4j2-log-alerts object id>",
+        "matcher": "matchesValue(log.source, \"/mnt/spark/client-logs/*\")",
+        "description": "Standalone short Log4j2 (Client file tail)"
+      },
+      {
+        "enabled": true,
+        "pipelineType": "custom",
+        "pipelineId": "<k8s-short-log4j2-log-alerts object id>",
+        "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"spark\")",
+        "description": "K8s short Log4j2 (Cluster Container Output)"
       }
     ]
   }
 }
 ----
 
-Where:
-
-- `pipelineId` is the ID of the Spark log processing OpenPipeline
-
-This rule routes Client file tails (`/mnt/spark/client-logs/*`) and Cluster Container Output (`log.source` = `Container Output`) to the shared Spark log processing OpenPipeline.
+Ideally, all application log files would use a single pipeline. This is not possible given the way Kubernetes and standalone log files are processed. Then next best approach is would divide applications into classes based on their log files requirements. For example, self-developed Kubernetes application and third-party Java applications, where we could specify log file format standards for each class. For now, we will use two pipelines for just Spark Observability.
 
 ==== OpenPipeline processing
 
@@ -800,18 +1551,18 @@ The Spark log processing OpenPipeline has three stages of processing:
 . **Davis** - where the log entries are matched to a Davis processor to generate a Davis event that is ultimately converted to a problem and forwarded to ServiceNow.
 . **Grail** - where the Davis events are stored in the Grail bucket.
 
-The template for the Spark OpenPipeline is shown below. Notice the last three stages are placeholders. We will define them as we touch on each processing stage.
+The templates for the two OpenPipelines share the same three stages. `customId` is `k8s-short-log4j2-log-alerts` or `standalone-short-log4j2-log-alerts`.
 
 [[lst-spark-open-pipeline]]
-.Spark OpenPipeline Configuration
+.OpenPipeline skeleton (K8s and standalone)
 [source,json]
 ----
 {
   "schemaId": "builtin:openpipeline.logs.pipelines",
   "scope": "environment",
   "value": {
-    "displayName": "Spark Lab - log alerts",
-    "customId": "spark-lab-client-log-alerts / spark-lab-cluster-log-alerts",
+    "displayName": "K8s short Log4j2 log alerts",
+    "customId": "k8s-short-log4j2-log-alerts",
     "routing": "routable",
     "groupRole": "memberPipeline",
     "processing": {},
@@ -823,17 +1574,14 @@ The template for the Spark OpenPipeline is shown below. Notice the last three st
 
 ===== Processors
 
-Shared processors stamp the OpenPipeline customId and parse the Log4j short class and line (`Class:Line`) from `content` for Grail and Davis `unique_identifier`. Mode-specific processors then enrich Cluster Container Output or Client file-tail records.
+Processors stamp **dash-key** `sn-*` fields for ServiceNow TBAC and parse the Log4j short `Class:Line` into `sn-log-signature`. OpenPipeline **cannot** look up entities by name.
 
-. **`tag-pipeline-custom-id`** — stamps the OpenPipeline customId in a `pipeline` field on every log record for Grail filtering.
-
-. **`extract-log4j-class-line`** — parses the Log4j short class and line (`Class:Line`) from the `content` field.
-
-The Java class and line number uniquely identify the source of a log entry. For log entries that represent error conditions the class and line number form part of an error signature that we can use to identify errors that likely have the same root cause. Combined with mode information, we use the class name and line number (`class:line`) as the unique identifier for the log entry. This is used to correlate the log entry to a ServiceNow incident.
+. **`tag-pipeline-custom-id`** — stamps `sn-pipeline` (the pipeline customId) and `sn-environment` on every record.
+. **`extract-log4j-class-line`** — parses `Class:Line` into `sn-log-class`, `sn-log-line`, `sn-log-signature`; sets `sn-impact` / `sn-urgency` (ERROR=2/2, WARN=3/3).
 
 ====== Cluster Mode
 
-On entry from Container Output, Kubernetes enrichment already supplies `k8s.pod.name`. Cluster logs are routed to the dedicated **Cluster** OpenPipeline (`spark-lab-cluster-log-alerts`); Davis stamps `k8s.pod.name` into the problem for ServiceNow bind.
+Container Output already supplies `k8s.pod.name`. Pipeline **`k8s-short-log4j2-log-alerts`** maps the pod-name prefix to `sn-service_instance` and adds dash aliases (`k8s-pod-name`, `k8s-workload-name`, …).
 
 [[tbl-openpipeline-entry-fields-cluster]]
 .OpenPipeline entry fields (Cluster Mode)
@@ -847,72 +1595,18 @@ On entry from Container Output, Kubernetes enrichment already supplies `k8s.pod.
 |k8s.pod.name
 |Kubernetes pod name (e.g. `spark-master-0`)
 
-|spark.mode
-|`Cluster` (from `enrich-cluster-from-k8s`)
-
-|k8s.pod.name
-|`toString(k8s.pod.name)` (from pipeline; SN bind key)
-
-|service_instance
-|unset
+|sn-service_instance
+|`Spark-Master` / `Spark-Worker` / `Spark-History-Server` from pod-name prefix
 
 |dt.source_entity
-|OneAgent Log module entity context (CAI/PGI when associated). SN binds via `k8s.pod.name`, not HOST file-tail
+|Often HOST or CAI. SN bind is `sn-service_instance`, not the pod CI
 |===
 
-Cluster-relevant processors:
-
-. Routing (not a processing processor) sends Container Output in namespace `spark` to **Spark Lab - Cluster log alerts**. Davis requires `k8s.pod.name` and stamps it onto the problem.
-
-[[lst-openpipeline-processing-cluster]]
-.Spark OpenPipeline processing processors (Cluster Mode)
-[source,json]
-----
-{
-    "processing": {
-      "processors": [
-        {
-          "id": "tag-pipeline-custom-id",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Convention: stamp OpenPipeline customId on every log record for easy Grail filtering",
-          "matcher": "true",
-          "fieldsAdd": {
-            "fields": [
-              { "name": "pipeline", "value": "{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}" }
-            ]
-          }
-        },
-        {
-          "id": "enrich-cluster-from-k8s",
-          "type": "dql",
-          "enabled": true,
-          "description": "Cluster: Container Output → spark.mode + k8s.pod.name from k8s.pod.name",
-          "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"spark\") AND matchesValue(k8s.pod.name, \"spark-*\") AND isNull(spark.mode)",
-          "dql": {
-            "script": "fieldsAdd spark.mode = \"Cluster\", k8s.pod.name = toString(k8s.pod.name)"
-          }
-        },
-        {
-          "id": "extract-log4j-class-line",
-          "type": "dql",
-          "enabled": true,
-          "description": "Parse Log4j short class and line (Class:Line) for Grail and Davis unique_identifier",
-          "matcher": "true",
-          "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD\""
-          }
-        }
-      ]
-    }
-}
-----
-
-`k8s.pod.name` carries the Kubernetes pod name for the ServiceNow `svc_ci_assoc` membership lookup to the service instance. OpenPipeline does **not** bake CAI entity ids at apply time.
+Cluster processors (template `k8s-short-log4j2-openpipeline.json.j2`): `tag-pipeline-custom-id`, `extract-log4j-class-line`, `derive-sn-service-instance-from-pod`, `alias-k8s-dash-keys`.
 
 ====== Client Mode
 
-The OneAgent custom log source in <<lst-custom-log-sources>> already sets `spark.*` variables prior to entry of the pipeline. In addition to the standard Dynatrace fields like `content`, `loglevel`, and `log.source`, the available fields on entry to the pipeline processors are:
+The custom log source already sets `service_instance` and `log.driver.instance`. Pipeline **`standalone-short-log4j2-log-alerts`** maps `service_instance` → `sn-service_instance`.
 
 [[tbl-openpipeline-entry-fields]]
 .OpenPipeline entry fields (Client Mode)
@@ -920,85 +1614,20 @@ The OneAgent custom log source in <<lst-custom-log-sources>> already sets `spark
 |===
 |Field Name|Client Mode
 
-|spark.mode
-|`Client` (from custom source)
-
-|spark.driver.instance
-|path segment under `/mnt/spark/client-logs/`
-
-|spark.instance
-|`<host.name>:<driver-instance>` (composed in pipeline)
+|log.driver.instance
+|Path segment under `/mnt/spark/client-logs/` (`SPARK_DRIVER_INSTANCE`)
 
 |service_instance
-|`Spark-Client` (from custom source / pipeline; SN SI bind)
+|`Spark-Client` (custom source)
+
+|sn-service_instance
+|Mapped from `service_instance` in the pipeline
 
 |dt.source_entity
-|HOST (OneAgent file tail; in MZ). SN binds via `service_instance`, not HOST
+|HOST (OneAgent file tail). SN binds via `sn-service_instance`, not HOST
 |===
 
-Client-relevant processors:
-
-. **`compose-client-instance`** — defines `spark.instance` from `host.name` and `spark.driver.instance`.
-
-. **`ensure-client-service-instance`** — sets `service_instance=Spark-Client` when missing so ServiceNow can bind the service instance.
-
-[[lst-openpipeline-processing]]
-.Spark OpenPipeline processing processors (Client Mode)
-[source,json]
-----
-{
-    "processing": {
-      "processors": [
-        {
-          "id": "tag-pipeline-custom-id",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Convention: stamp OpenPipeline customId on every log record for easy Grail filtering",
-          "matcher": "true",
-          "fieldsAdd": {
-            "fields": [
-              { "name": "pipeline", "value": "{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}" }
-            ]
-          }
-        },
-        {
-          "id": "compose-client-instance",
-          "type": "dql",
-          "enabled": true,
-          "description": "Client: compose spark.instance from host.name + spark.driver.instance",
-          "matcher": "spark.mode == \"Client\" AND isNotNull(spark.driver.instance)",
-          "dql": {
-            "script": "fieldsAdd spark.instance = concat(toString(coalesce(host.name, \"unknown\")), \":\", toString(spark.driver.instance))"
-          }
-        },
-        {
-          "id": "ensure-client-service-instance",
-          "type": "fieldsAdd",
-          "enabled": true,
-          "description": "Client: K8s-sanitized service instance display name for ServiceNow bind (dt.source_entity left as OneAgent HOST)",
-          "matcher": "spark.mode == \"Client\" AND isNull(service_instance)",
-          "fieldsAdd": {
-            "fields": [
-              { "name": "service_instance", "value": "Spark-Client" }
-            ]
-          }
-        },
-        {
-          "id": "extract-log4j-class-line",
-          "type": "dql",
-          "enabled": true,
-          "description": "Parse Log4j short class and line (Class:Line) on all Spark lines for Grail and Davis unique_identifier",
-          "matcher": "true",
-          "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:spark.log.level SPACE{1,} LD:spark.log.class ':' INT:spark.log.line LD\""
-          }
-        }
-      ]
-    }
-}
-----
-
-`service_instance` carries the K8s-sanitized service instance display name (`Spark-Client` for **Spark Client**) that ServiceNow uses to bind the Client service instance; Davis leaves `dt.source_entity` as the OneAgent HOST.
+Client processors (template `standalone-short-log4j2-openpipeline.json.j2`): `tag-pipeline-custom-id`, `compose-log-instance`, `extract-log4j-class-line` (includes the `service_instance` → `sn-service_instance` map).
 
 ===== Davis
 
@@ -1021,6 +1650,82 @@ If the matcher condition is met, the Davis processor will create a Davis problem
 . the event's timestamp being within the `dt.davis.event_timeout` window of the existing Davis problem
 . the event's `dt.source_entity` being the same as the existing problem's entity or topologically close in Smartscape as in process to host relationships or closely related services
 
+====== Event Type 
+
+Davis events are created with an `event.type` property. The `event.type` property is used to determine if the event should be created as a new problem or grouped into an existing problem. The `event.type` property is also used to determine Dynatrace's severity of the problem. The allowed values for `event.type` are shown in <<tbl-dynatrace-event-types>>.
+
+[[tbl-dynatrace-event-types]]
+.Dynatrace Davis `event.type` values (Events API v2 / OpenPipeline)
+[cols="15%,15%,7%,60%",options="header"]
+|===
+|Event Type Name |Event Type ID (`event.type`) |Create Problem | Description and Usage
+
+|Availability event
+|`AVAILABILITY{US}EVENT`
+|Yes
+|High-severity outage / unavailability class. Opens a problem with severity bucket *Availability* (alerting profile `AVAILABILITY`, webhook `ProblemSeverity` typically `AVAILABILITY`). Use for custom “entity/service down” signals.
+
+|Error event
+|`ERROR{US}EVENT`
+|Yes
+|Generic *error* class (custom error event). Opens a problem with severity bucket *Error* (profile `ERRORS`, webhook typically `ERROR`). Prefer for application/runtime failures and critical log lines (e.g. Log4j WARN/ERROR → problem). Merge allowed by default; set `dt.davis.is{US}merging{US}allowed=false` when you need isolated problems.
+
+|Performance event
+|`PERFORMANCE{US}EVENT`
+|Yes
+|Slowdown / degraded-performance class. Opens a problem with severity bucket *Performance* / Slowdown (profile `PERFORMANCE`, webhook typically `PERFORMANCE`). Use for latency, response-time, or throughput degradation signals.
+
+|Resource contention event
+|`RESOURCE{US}CONTENTION{US}EVENT`
+|Yes
+|Resource-pressure class (CPU, memory, disk, network contention). Opens a problem with severity bucket *Resource* (profile `RESOURCE{US}CONTENTION`, webhook typically `RESOURCE{US}CONTENTION`). Use for custom resource saturation events (OOTB host/K8s anomalies often land here too).
+
+|Custom alert
+|`CUSTOM{US}ALERT`
+|Yes
+|User-defined threshold / metric-style alert class. Opens a problem with severity bucket *Custom* (profile `CUSTOM{US}ALERT`, webhook typically `CUSTOM{US}ALERT`). Prefer for “queue depth / custom metric breached” style alerts. Merge *disallowed* by default.
+
+|Warning
+|`WARNING`
+|No
+|Warning / near-term risk.  Use to annotate risk without notifying via problem profiles.
+
+|Custom info
+|`CUSTOM{US}INFO`
+|No
+|Informational marker (e.g. load test start).  Use for operational context correlated into later problems.
+
+|Custom annotation
+|`CUSTOM{US}ANNOTATION`
+|No
+|Highlights an interesting time window for triage.  Use for third-party annotations on entities/timelines.
+
+|Custom configuration
+|`CUSTOM{US}CONFIGURATION`
+|No
+|Reports a configuration change.  Use for change-correlation context.
+
+|Custom deployment
+|`CUSTOM{US}DEPLOYMENT`
+|No
+|Reports a software deployment (version, owner, etc.).  Use for CI/CD → Davis change correlation.
+
+|Marked for termination
+|`MARKED{US}FOR{US}TERMINATION`
+|No
+|Planned shutdown / decommission of an entity.  suppresses availability alerting for a period (about 60 minutes) so intentional takedowns do not raise false outages. Use before graceful host/process removal.
+|===
+
+
+The `event.type` property must be set to one of the codes in the above table, otherwise the event will not be created as a problem. The second half of the table are types that do not create a problem. For critical log events we must choose one of the types that will create a problem. That leaves us with two choices. We could use the `ERROR_EVENT` type or the `CUSTOM{US}ALERT` type. The `ERROR_EVENT` type looks more appropriate for log events and so we will use that.
+
+====== Event Name
+
+
+====== Source Entity
+
+The `dt.source_entity` property is used to determine the source of the event. 
+
 ====== Davis Configuration for Spark
 
 You should consult application development and operations teams on analysis of log message severity and root cause equivalence classes of log messages. For the purpose of this reference implementation, we need to make some assumptions. We define a unique error signature as being the class name and line number of a critical log entry. For now, we assume a critical error is a log message with a severity of WARN or ERROR. We use WARNs merely for convenience as they are more likely to be generated.
@@ -1029,241 +1734,115 @@ Furthermore, we assume that the same error signature across pods and/or client i
 
 ===== Tag Contract
 
-The tag contract is a set of tags that are used to identify the problem and help ServiceNow group related ServiceNow alerts together. The tags are:
+These are **dash** keys. Dots (`sn.event_kind`) would be walked as a JSON path in ServiceNow TBAC.
 
 [[tbl-tag-contract]]
 .Tag Contract
-[cols="15%,15%,70%",options="header"]
+[cols="22%,15%,63%",options="header"]
 |===
 |Attribute|Usage|Description
 
-|sn.event_kind
-|Used
-|Describes the kind of the event. For critical log events it will be CRITICAL_LOG_EVENT. Other events will be noted different, e.g. CPU_EVENT for CPU issues
+|`sn-event_kind`
+|Mandatory
+|`CRITICAL_LOG_EVENT` or `CPU_EVENT`
 
-|sn.environment
-|Used
-|The environment name for the DT problems. Alerts from different environments should not be grouped together.
+|`sn-environment`
+|Mandatory
+|TBAC partition; alerts from different environments must not merge
 
-|sn.service_instance
-|Used
-|The K8s compliant name of the service instance that we want assigned to the CI of an incident generated from this event.
+|`sn-service_instance`
+|Mandatory
+|CSDM service instance display name in the Kubernetes label charset (`Spark-Master`, `Spark-Client`, …)
 
-|sn.pipeline
+|`sn-pipeline`
 |Convenience
-|The name of the OpenPipeline that processed the event. This is for convenience purposes to identify the OpenPipeline that processed the event in ServiceNow.
+|OpenPipeline customId
 
-|sn.log.signature
-|Used
-|The signature of the log entry consisting of the class name and line number as: `{class name}:{line number}`. This is used to identify the log entry and is used to group related log entries together. We assume that different critical errors with the same error signature likely have the same root cause.
+|`sn-log-signature`
+|Mandatory
+|`{sn-log-class}:{sn-log-line}` — incident correlation key
 
-|sn.log.class 
+|`sn-log-class` / `sn-log-line`
 |Convenience
-|The class name of the log entry used as a convenience to filter log entries by class name.
+|Parsed short Log4j2 call site
 
-|sn.log.line
-|Convenience
-|The line number of the log entry used as a convenience to filter log entries by line number.
+|`sn-impact` / `sn-urgency`
+|Mandatory
+|ITSM 1–3 (ERROR 2/2, WARN 3/3)
 
-|k8s.pod.name
-|Used
-|The name of the Kubernetes pod that the log entry was generated from. This is used to identify the pod that the log entry was generated from.
-
+|`k8s-pod-name` / `k8s-workload-name`
+|K8s
+|Dash aliases of platform `k8s.*` keys for TBAC-safe lookup
 |===
 
-Since different critical errors may likely have different root causes, we want to create a Davis problem (and ServiceNow incident) for each different critical error. To arrange this we need to ensure that the tuple `(event.name, event.type, dt.source_entity)` is unique for each critical error. Tuple uniqueness will result in a new Davis problem being created for each critical error. The main component over which we have some control is `event.name`. To ensure uniqueness for different error signatures, we will define `event.name` in terms of the error's (log entries) class name and line number.
-
-We will define `event.name` as:
-
-[.text-center]
-`Critical log.level error at {spark.log.class}:{spark.log.line}`
-
-The Davis processors would group events, i.e. different error signatures, into a single Davis problem. At least for now we want to avoid this. To do so requires setting the `dt.davis.is_merging_allowed` property to `false`. The net result is that we will only get one Davis problem for each unique error signature across all pods or clients. This may not be ideal for different dispersed clusters, but probably the best we can do at this time.
-
-We could put `{spark.mode}` in the `event.name` to group errors by mode, but if the error signature was the same across modes, we would still want to have a single Davis event as the root cause would likely be the same.
-
-Once the metadata fields are defined in the processors, we create Davis problems for "critical" log entries with a log level of WARN or ERROR. Separate Davis processors match Cluster Mode (`spark.mode == "Cluster"`) and Client Mode (`spark.mode == "Client"`). A shared fail-visible processor raises when `spark.mode` is missing on either Container Output or a Client file path.
-
-[[lst-openpipeline-davis-enrichment-missing]]
-.Spark OpenPipeline Davis processor — enrichment missing (shared)
-[source,json]
-----
-{
-  "id": "spark-enrichment-missing-davis",
-  "type": "davis",
-  "enabled": true,
-  "description": "Fail-visible: WARN/ERROR without spark.mode (not Client file nor Cluster Container Output enrichment)",
-  "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(spark.mode) AND (matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source, \"Container Output\"))",
-  "davis": {
-    "properties": [
-      { "key": "event.type", "value": "ERROR_EVENT" },
-      { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
-      { "key": "event.name", "value": "Spark log missing spark.mode enrichment on {log.source}" },
-      {
-        "key": "event.description",
-        "value": "Log enrichment did not set spark.mode for {log.source} spark.event_kind=CRITICAL_LOG_EVENT: {content}"
-      },
-      { "key": "event.unique_identifier", "value": "enrichment-missing|{log.source}" },
-      { "key": "pipeline", "value": "{pipeline}" },
-      { "key": "dt.davis.is_merging_allowed", "value": "false" },
-      { "key": "dt.davis.event_timeout", "value": "15m" }
-    ]
-  }
-}
-----
+`event.name` is `Critical {loglevel} at {sn-log-class}:{sn-log-line}`. `event.unique_identifier` is `{sn-environment}|{sn-service_instance}|…{sn-log-signature}`. **`dt.davis.is_merging_allowed=false`** so Davis does not HOST-bundle unrelated signatures. A host metric event for CPU is a **separate** configuration: threshold 50%, `eventType=RESOURCE`, `sn-event_kind=CPU_EVENT`, `sn-impact=2` / `sn-urgency=2`. OOTB K8s anomaly settings (CPU ~40%, memory ~50%) **cannot** stamp `sn-*`; ServiceNow enrich maps `ProblemSeverity`.
 
 ====== Cluster Mode
 
 [[tbl-davis-properties-cluster]]
-.Davis Properties (Cluster Mode)
-[cols="20%,80%",options="header"]
+.Davis Properties (K8s short Log4j2)
+[cols="28%,72%",options="header"]
 |===
 |Property Name|Description
 
 |`event.type`
-|`ERROR_EVENT` (Dynatrace Settings API fixed enum)
+|`ERROR_EVENT`
 
-|`spark.event_kind`
-|`CRITICAL_LOG_EVENT` (ServiceNow remaps `em_event.type` / `em_alert.type`)
+|`sn-event_kind`
+|`CRITICAL_LOG_EVENT`
 
 |`event.name`
-|`Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}`
-
-|`event.description`
-|includes class:line, `k8s.pod.name=`, and `{content}` for SN bind
-
-|`dt.source_entity`
-|Log-module entity context when present (CAI/PGI). SN prefers `k8s.pod.name` over HOST
-
-|`k8s.pod.name`
-|Pod name (stamped into description + properties)
+|`Critical {loglevel} at {sn-log-class}:{sn-log-line}`
 
 |`event.unique_identifier`
-|`Spark Cluster Critical {loglevel} error {spark.log.class}:{spark.log.line}`
+|`{sn-environment}\|{sn-service_instance}\|K8s Critical {loglevel} {sn-log-signature}`
 
-|`pipeline`
-|`spark-lab-client-log-alerts / spark-lab-cluster-log-alerts`
+|`sn-service_instance`
+|From pod-name prefix
 
 |`dt.davis.is_merging_allowed`
 |`false`
 
-|`dt.davis.event_timeout`
-|`15m`
+|`sn-pipeline`
+|`k8s-short-log4j2-log-alerts`
 |===
 
-[[lst-openpipeline-davis-cluster]]
-.Spark OpenPipeline Davis processors (Cluster Mode)
-[source,json]
-----
-{
-    "davis": {
-      "processors": [
-        {
-          "id": "spark-cluster-warn-error-davis",
-          "type": "davis",
-          "enabled": true,
-          "description": "Cluster WARN/ERROR from Container Output; stamp k8s.pod.name for SN",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Cluster\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line) AND isNotNull(k8s.pod.name)",
-          "davis": {
-            "properties": [
-              { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
-              {
-                "key": "event.description",
-                "value": "Spark Cluster critical {loglevel} error at {spark.log.class}:{spark.log.line} on {k8s.pod.name} spark.event_kind=CRITICAL_LOG_EVENT k8s.pod.name={k8s.pod.name}: {content}"
-              },
-              { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "k8s.pod.name", "value": "{k8s.pod.name}" },
-              { "key": "event.unique_identifier", "value": "Spark Cluster Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
-              { "key": "pipeline", "value": "{pipeline}" },
-              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" }
-            ]
-          }
-        }
-      ]
-    }
-}
-----
+Davis processor id: `k8s-short-log4j2-warn-error-davis` (matcher requires `k8s.pod.name` and `sn-log-class` / `sn-log-line`). Fail-visible: `k8s-short-log4j2-missing-pod-name-davis`.
 
 ====== Client Mode
 
 [[tbl-davis-properties]]
-.Davis Properties (Client Mode)
-[cols="20%,80%",options="header"]
+.Davis Properties (standalone short Log4j2)
+[cols="28%,72%",options="header"]
 |===
 |Property Name|Description
 
 |`event.type`
-|`ERROR_EVENT` (Dynatrace Settings API fixed enum)
+|`ERROR_EVENT`
 
-|`spark.event_kind`
-|`CRITICAL_LOG_EVENT` (lab semantic label; ServiceNow remaps `em_event.type` / `em_alert.type`)
+|`sn-event_kind`
+|`CRITICAL_LOG_EVENT`
 
 |`event.name`
-|`Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}`
-
-|`event.description`
-|includes `{spark.log.class}:{spark.log.line}`, path, and `service_instance=` for SN bind
-
-|`dt.source_entity`
-|HOST (OneAgent file tail; in MZ). SN binds via `service_instance`, not HOST
-
-|`service_instance`
-|`Spark-Client` (stamped into description + properties)
+|`Critical {loglevel} at {sn-log-class}:{sn-log-line}`
 
 |`event.unique_identifier`
-|`Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}`
+|`{sn-environment}\|{sn-service_instance}\|Standalone Critical {loglevel} {sn-log-signature}`
 
-|`pipeline`
-|`spark-lab-client-log-alerts / spark-lab-cluster-log-alerts` (OpenPipeline customId; stamped in processing)
+|`sn-service_instance`
+|Mapped from custom-source `service_instance`
 
 |`dt.davis.is_merging_allowed`
-|`false` to prevent merging of multiple Davis events into the same problem
+|`false`
 
-|`dt.davis.event_timeout`
-|`15m` (unused while merging is disabled)
-
+|`sn-pipeline`
+|`standalone-short-log4j2-log-alerts`
 |===
 
-[[lst-openpipeline-davis]]
-.Spark OpenPipeline Davis processors (Client Mode)
-[source,json]
-----
-{
-    "davis": {
-      "processors": [
-        {
-          "id": "spark-client-warn-error-davis",
-          "type": "davis",
-          "enabled": true,
-          "description": "Client WARN/ERROR → ERROR_EVENT (DT enum); spark.event_kind=CRITICAL_LOG_EVENT; stamp service_instance; leave HOST as dt.source_entity",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND spark.mode == \"Client\" AND isNotNull(spark.log.class) AND isNotNull(spark.log.line)",
-          "davis": {
-            "properties": [
-              { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "spark.event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "event.name", "value": "Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}" },
-              {
-                "key": "event.description",
-                "value": "Spark Client critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path} spark.event_kind=CRITICAL_LOG_EVENT service_instance={service_instance}: {content}"
-              },
-              { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "service_instance", "value": "{service_instance}" },
-              { "key": "event.unique_identifier", "value": "Spark Client Critical {loglevel} error {spark.log.class}:{spark.log.line}" },
-              { "key": "pipeline", "value": "{pipeline}" },
-              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" }
-            ]
-          }
-        }
-      ]
-    }
-}
-----
+Davis processor id: `standalone-short-log4j2-warn-error-davis`. Fail-visible: `standalone-short-log4j2-missing-service-instance-davis`. CUSTOM_DEVICE “Spark Client” is **historical** — the bind is `sn-service_instance`, not a custom device entity.
 
 Once a Davis problem is created the problem is forwarded to ServiceNow via the alerting profile in <<lst-alerting-profile>>.
+
 
 ===== Storage
 
@@ -1289,23 +1868,27 @@ After the problems are created, Dynatrace stores all of the *log records* in the
 }
 ----
 
-==== Alerting
+==== Dynatrace Alerting
 
 To emit a Davis problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format. Client and Cluster Mode share the same alerting profile and brooks-lab webhook.
 
 ===== Alerting Profile
 
-The alerting profile couples a management zone to a set of severity level and event filters on the problems. Matching problems will be emitted to ServiceNow. The full alerting profile template is shown below.
+A Dynatrace alerting profile couples a management zone to a set of severity levels and event filters on the problems. Dynatrace will emit those problems that match levels and filters to ServiceNow. 
+
+The full alerting profile template is shown below.
+
+
 
 [[lst-alerting-profile]]
 .Alerting profile for Spark Observability to ServiceNow
 [source,json]
 ----
 {
-  "schemaId": "builtin:alerting.profile",
-  "scope": "environment",
+  "objectId": "...",
   "value": {
-    "name": "Application Observability - ServiceNow",
+    "name": "Spark Observability - ServiceNow brooks-lab",
+    "managementZone": "....",
     "severityRules": [
       { "severityLevel": "AVAILABILITY", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
       { "severityLevel": "ERRORS", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
@@ -1313,11 +1896,12 @@ The alerting profile couples a management zone to a set of severity level and ev
       { "severityLevel": "RESOURCE_CONTENTION", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" },
       { "severityLevel": "CUSTOM_ALERT", "delayInMinutes": 0, "tagFilterIncludeMode": "NONE" }
     ],
-    "eventFilters": [],
-    "managementZone": "<Spark Observability - MANAGMENT ZONE OBJECT-ID>"
+    "eventFilters": []
   }
 }
 ----
+
+OpenPipeline stamps Davis events as event.type = ERROR_EVENT for both WARN and ERROR log lines (K8s and standalone pipelines). That produces Dynatrace problems whose ProblemSeverity is ERROR, which matches the alerting profile’s ERRORS severity rule (and is what gets notified to ServiceNow).
 
 Note that the alerting profile management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have a `dt.source_entity` in the Spark Observability management zone. This means that the impacted entities (hosts for OneAgent file tails and CPU, and Kubernetes workloads for Container Output) must be in the Spark Observability management zone, too.
 
@@ -1348,7 +1932,39 @@ Impacted entities for Client Mode Davis problems are typically the OneAgent **HO
 
 ==== Problem notification payload template
 
-The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. **`ProblemDetailsJSON.rankedEvents[]`** carries the OpenPipeline Davis properties from the Davis processors (`event.description`, entity ids, severity). Those ranked events are the **problem specification** that flows into ServiceNow **`em_event.description`** (via **`ProblemDetailsText`**) and into **`em_event.additional_info`**.
+The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. The body is **`ProblemDetailsJSON` + `ImpactedEntities`**. Attributes ServiceNow uses live in **`rankedEvents[0].customProperties`** (and as tokens in `event.description`). Use **dash keys** wherever TBAC or a Glide condition would treat `.` as a JSON path walk. Script Includes read dotted platform keys with bracket access (`customProperties['k8s.workload.name']`), then copy a dash alias.
+
+[[tbl-payload-attributes-by-context]]
+.Payload attributes by context
+[cols="22%,22%,28%,28%",options="header"]
+|===
+|Context |Who can stamp |Attributes SN uses |Alert CI lookup
+
+|K8s / standalone short Log4j2
+|OpenPipeline Davis (`is_merging_allowed=false`)
+|`sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline`, `sn-impact`, `sn-urgency`; K8s also `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`
+|**Service instance** (enrich overwrites HOST/pod SOS)
+
+|Host CPU metric event
+|Metric event `eventTemplate.metadata`
+|`sn-event_kind=CPU_EVENT`, `sn-environment`, `sn-impact=2`, `sn-urgency=2`
+|HOST via SOS
+
+|OOTB K8s workload
+|DT metric dimensions (cannot add OpenPipeline metadata)
+|`k8s.workload.name` / kind / namespace; SN copies `k8s-workload-name`
+|Deployment (or kind table) by **name**. SGC 1.15.0 has no Workload SOS
+
+|OOTB K8s pod / CAI
+|DT
+|`k8s.pod.name`; SN copies `k8s-pod-name`
+|Pod CI by name (**not** used for log incidents)
+
+|OOTB host `CPU_SATURATED`
+|None (no metadata schema)
+|`ProblemSeverity` only
+|HOST SOS; enrich fills `sn-*` from severity
+|===
 
 .Problem notification payload (SGC)
 [#spec-dt-webhook-payload-json]
@@ -1382,11 +1998,11 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
 {
   "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
   "ProblemID": "-9876543210987654321",
-  "ProblemTitle": "Spark critical ERROR error at TaskSetManager:270",
+  "ProblemTitle": "Critical ERROR at TaskSetManager:270",
   "ProblemSeverity": "ERROR",
   "ProblemImpact": "INFRASTRUCTURE",
   "ProblemDetailsJSON": {
-    "displayName": "Spark critical ERROR error at TaskSetManager:270",
+    "displayName": "Critical ERROR at TaskSetManager:270",
     "problemId": "-9876543210987654321",
     "rankedEvents": [
       {
@@ -1394,14 +2010,14 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
         "entityName": "spark-master-0",
         "eventType": "ERROR_EVENT",
         "severityLevel": "ERROR",
-        "title": "Spark critical ERROR error at TaskSetManager:270",
-        "eventDescription": "Spark Cluster critical ERROR error at TaskSetManager:270 on spark-master-0 spark.event_kind=CRITICAL_LOG_EVENT k8s.pod.name=spark-master-0: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
+        "title": "Critical ERROR at TaskSetManager:270",
+        "eventDescription": "K8s short Log4j2 critical ERROR at TaskSetManager:270 on spark-master-0 sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Master: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
       }
     ],
     "startTime": 1719502426000,
     "endTime": -1
   },
-  "ProblemDetailsText": "Spark Cluster critical ERROR error at TaskSetManager:270 on spark-master-0 spark.event_kind=CRITICAL_LOG_EVENT k8s.pod.name=spark-master-0:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: spark-master-0",
+  "ProblemDetailsText": "K8s short Log4j2 critical ERROR at TaskSetManager:270 on spark-master-0 sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Master:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: spark-master-0",
   "ImpactedEntities": [
     {
       "entityId": "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890",
@@ -1417,7 +2033,7 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
 }
 ----
 
-ServiceNow **`ResolveApplicationService`** binds via `k8s.pod.name` → pod CI by name → `svc_ci_assoc` service instance membership (ignores HOST when the pod identifier is present).
+ServiceNow enrich binds via `sn-service_instance` → service instance (overwrites HOST/pod SOS).
 
 ===== Client Mode
 
@@ -1428,11 +2044,11 @@ ServiceNow **`ResolveApplicationService`** binds via `k8s.pod.name` → pod CI b
 {
   "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
   "ProblemID": "-9876543210987654321",
-  "ProblemTitle": "Spark critical ERROR error at TaskSetManager:270",
+  "ProblemTitle": "Critical ERROR at TaskSetManager:270",
   "ProblemSeverity": "ERROR",
   "ProblemImpact": "INFRASTRUCTURE",
   "ProblemDetailsJSON": {
-    "displayName": "Spark critical ERROR error at TaskSetManager:270",
+    "displayName": "Critical ERROR at TaskSetManager:270",
     "problemId": "-9876543210987654321",
     "rankedEvents": [
       {
@@ -1440,14 +2056,14 @@ ServiceNow **`ResolveApplicationService`** binds via `k8s.pod.name` → pod CI b
         "entityName": "Lab3",
         "eventType": "ERROR_EVENT",
         "severityLevel": "ERROR",
-        "title": "Spark critical ERROR error at TaskSetManager:270",
-        "eventDescription": "Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
+        "title": "Critical ERROR at TaskSetManager:270",
+        "eventDescription": "Standalone short Log4j2 critical ERROR at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
       }
     ],
     "startTime": 1719502426000,
     "endTime": -1
   },
-  "ProblemDetailsText": "Spark Client critical ERROR error at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log spark.event_kind=CRITICAL_LOG_EVENT service_instance=Spark-Client:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: Lab3",
+  "ProblemDetailsText": "Standalone short Log4j2 critical ERROR at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Client:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: Lab3",
   "ImpactedEntities": [
     {
       "entityId": "HOST-A1B2C3D4E5F67890",
@@ -1465,7 +2081,52 @@ ServiceNow **`ResolveApplicationService`** binds via `k8s.pod.name` → pod CI b
 
 ---
 
-== Phase 4 — ServiceNow
+== Stage 3 — ServiceNow
+
+The following decisions are the contract between Dynatrace and ServiceNow Event Management for this implementation. They are the same rules listed under <<tbl-l2i-design-decisions-process,Design considerations>>.
+
+[[tbl-l2i-design-decisions-phase4]]
+.Log to Incident design decisions (ServiceNow)
+[cols="22%,40%,38%",options="header"]
+|===
+|Decision |Current rule |Why
+
+|Dash keys, not dots
+|`sn-log-signature`, `sn-service_instance`, `sn-impact`, `k8s-workload-name`
+|TBAC / Glide conditions walk `additional_info` on `.`. A key named `k8s.workload.name` is treated as a JSON path, not one property.
+
+|Dynatrace owns initial impact/urgency
+|OpenPipeline and metric-event metadata stamp `sn-impact` / `sn-urgency`. OOTB Davis/K8s cannot; SN enrich maps `ProblemSeverity`.
+|Alert `severity` (EM 1–5) and incident `priority` (Data Lookup) are **different** numbers.
+
+|Log alert CI = service instance
+|`CRITICAL_LOG_EVENT` / `sn-service_instance` → `cmdb_ci` is the CSDM service instance. Enrich **overwrites** SGO HOST/pod SOS.
+|Operators assign from the SI, not Lab3. Incident CI is the same SI.
+
+|Infra alert CI = HOST or K8s controller
+|CPU → HOST via SOS. Workload problems → Deployment (etc.) from `k8s-workload-name`.
+|SGC 1.15.0 has no Workload data source; name lookup is required.
+
+|One problem → many events
+|SGO emits **one `em_event` per ImpactedEntity** for the same `message_key` (ProblemID).
+|HOST + pod + workload rows can share one alert. That is connector fan-out, not Client vs Cluster.
+
+|Do not merge L2I Davis events
+|`dt.davis.is_merging_allowed=false` on log OpenPipeline
+|Prevents HOST-bundling a Master WARN with Lab3.
+
+|Create path
+|AMR + Flow action **Create incident from Alert** → `EvtMgmtIncidentHandler` → `EvtMgmtCustomIncidentPopulator`. Interim: BR `em-alert-create-log-incident`. AMR stays **inactive** until that Flow is published.
+|OOTB Create Incident subflow **skips** the populator.
+
+|Correlate incidents by SI + Class:Line
+|Short description `Critical log event — {sn-log-signature}`
+|Not `Event Log WARN`. Repeats bump urgency; Data Lookup sets priority.
+
+|TBAC partition
+|`sn-environment` + `sn-service_instance` + `sn-log-signature`
+|Stops cross-environment and cross-SI merge.
+|===
 
 ServiceNow Event Management is a three stage process. First, event data is received from external sources, like Dynatrace and an event is created. If the message key of the candidate event matches an existing event, the candidate event is considered a duplicate event, and it will get combined with the earlier event. Then, an event is either promoted to an alert or grouped into an existing alert. Alerts then optionally be promoted to an incident or grouped with an existing incident. Once an incident is created a support team is notified. 
 
@@ -1473,7 +2134,7 @@ In a sense, creating the incident is the goal of event management. The incident 
 
 At each step in the process there is an opportunity to increase the signal to noise ratio. For example, in the first step, we can deduplicate events from the same source and time window. In the second step, we can group related events into a single alert. In the third step, we can group related alerts into a single incident.
 
-==== Event Management
+=== Event Management
 
 Once an event payload is received, the first step is to create an event object in ServiceNow. The table below shows how the webhook fields map to the event object fields.
 
@@ -1496,25 +2157,25 @@ Once an event payload is received, the first step is to create an event object i
 |ProblemTitle
 
 |severity
-|Mapped from ProblemSeverity (ERROR → 2 Major typical; WARN → 3 Minor if applicable)
+|Mapped from ProblemSeverity: `ERROR` → **Major (2)**; `RESOURCE_CONTENTION` → **Warning (4)** (not Minor/3)
 
 |type
-|ERROR or derived from ProblemDetailsJSON ranked event type
+|SGO copies the Dynatrace event enum (`ERROR_EVENT`, `RESOURCE_CONTENTION`, `CPU_SATURATED`). `sn-event_kind` is the L2I semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`)
 
 |node
-|ImpactedEntity display name (pod name when CLOUD_APPLICATION_INSTANCE)
+|After enrich: `sn-service_instance` stamp for logs; otherwise ImpactedEntity display name
 
 |resource
-|Log file path or workload.pod_name parsed from ProblemDetailsText or additional_info
+|After enrich: `sn-service_instance:<stamp>` for logs; `k8s-workload-name:<name>` for workload problems
 
 |cmdb_ci
-|sys_object_source.target_sys_id for entityId in ImpactedEntities
+|SOS first (`sys_object_source`, name=`SGO-Dynatrace`, id=entityId). Enrich then overwrites logs to the service instance; empty-CI workload → `k8s-workload-name`
 
 |cmdb_ci_type
-|cmdb_ci_kubernetes_pod when entity is CLOUD_APPLICATION_INSTANCE; cmdb_ci_appl for PROCESS_GROUP; cmdb_ci_linux_server for HOST fallback
+|Service instance for logs; `cmdb_ci_kubernetes_deployment` (or kind table) for `CLOUD_APPLICATION`; `cmdb_ci_linux_server` for HOST
 
 |additional_info
-|JSON: ProblemURL, Tags, ImpactedEntities, full ProblemDetailsJSON, PID
+|JSON: ProblemURL, Tags, ImpactedEntities, full ProblemDetailsJSON (`rankedEvents[0].customProperties` holds `sn-*`)
 
 |time_of_event
 |Problem start time from ProblemDetailsJSON
@@ -1523,50 +2184,49 @@ Once an event payload is received, the first step is to create an event object i
 |PID when mapped
 |===
 
-By design, the SGC seeds the CI of the event from Dynatrace's entityId. For our critical log entries Dynatrace set the dt.source_entity to a cloud application instance or the custom device for Spark clients. For example, "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890". Then a application oriented (e.g. Spark) Business Rule (BR) overrides the to Spark Client AS (client logs) or pod CI (service logs), else leaves the HOST/empty bind.
+By design, SGO seeds `cmdb_ci` from Dynatrace `entityId` via `sys_object_source`. That first bind is often HOST (file tail) or a fan-out ImpactedEntity. Enrich then overwrites **log** events to the service instance (`sn-service_instance`). Infra events keep HOST SOS or bind a Kubernetes controller from `k8s-workload-name`.
 
-After that a 
-==== CI binding procedure
+=== CI binding procedure
 
-. Listener receives POST at inbound_event?source=SGO-Dynatrace.
-. Parser extracts entityId from ImpactedEntities[0] or ProblemDetailsJSON.rankedEvents[0].
-. Query sys_object_source: name=SGO-Dynatrace, id=<entityId>.
-. Set em_event.cmdb_ci and em_event.cmdb_ci_type from the matched row.
+. Listener receives POST at `inbound_event?source=SGO-Dynatrace`.
+. SGO SOS: `sys_object_source` where `name=SGO-Dynatrace` and `id=<Dynatrace entityId>` → initial `cmdb_ci`.
+. If the event is a log (`sn-event_kind=CRITICAL_LOG_EVENT` or `sn-service_instance` present): **overwrite** `cmdb_ci` to the service instance (replaces HOST/pod SOS).
+. Else if `k8s-workload-name` is present: bind Deployment / StatefulSet / CronJob / Job by kind and name.
+. Else if `k8s-pod-name` is present **and** this is not a log event: bind `cmdb_ci_kubernetes_pod` by name.
+. Else leave the HOST SOS bind.
 
-==== Entity type to CMDB class
+=== Entity type to CMDB class
 
 [[tbl-entity-prefix-to-cmdb]]
-.Dynatrace entityId prefix to CMDB class
+.Dynatrace entity to CMDB class (after enrich)
 [cols="35%,30%,35%",options="header"]
 |===
-|Dynatrace entityId prefix |CMDB class |When to expect
+|Dynatrace / stamp |CMDB class |When to expect
 
-|CLOUD_APPLICATION_INSTANCE
-|cmdb_ci_kubernetes_pod
-|OpenPipeline resolved pod entity (preferred for K8s log paths)
+|`sn-service_instance` (log)
+|`cmdb_ci_service_discovered` / `cmdb_ci_service_by_tags`
+|CRITICAL_LOG_EVENT — overwrites SOS
 
-|PROCESS_GROUP
-|cmdb_ci_appl
-|Log tied to JVM process when pod lookup unavailable
+|`CLOUD_APPLICATION` / `k8s-workload-name`
+|`cmdb_ci_kubernetes_deployment` (or StatefulSet / CronJob / Job)
+|OOTB K8s resource; name lookup (SGC 1.15.0 has no Workload SOS)
 
-|HOST
-|cmdb_ci_linux_server
-|Last resort — file tailed on node without pod enrichment
+|`CLOUD_APPLICATION_INSTANCE` / `k8s-pod-name`
+|`cmdb_ci_kubernetes_pod`
+|Non-log CAI problems only
+
+|`HOST`
+|`cmdb_ci_linux_server`
+|Host CPU metric; SOS when no overwrite
 |===
 
-Prerequisites for pod binding:
+=== Alert Management
 
-* SGC Kubernetes Pod import includes pods in the application namespace.
-* Pod name in Dynatrace matches Kubernetes metadata.name.
-* IRE merge aligns KVA-discovered pod CIs with SGC-imported entities when both exist.
-* sys_object_source row exists before the webhook arrives (account for import schedule lag).
+SGO groups events that share a `message_key` (`ProblemID`) into one alert. If Dynatrace omitted a message key, Event Management would generate one from Source, Node, Type, Resource, and Metric Name — the ProblemID from the webhook should always populate `message_key`, so that fallback is unused here. Duplicate events for the same ProblemID join the existing alert (including SGO fan-out rows for HOST + CAI + workload).
 
-==== Alert Management
+Log alert text / short description is **`Critical log event — Class:Line`** (`sn-log-signature`). SOS still does the first CI bind; enrich then overwrites **log** alerts to the service instance. Do not use application-oriented rules that force Spark Client AS or a pod CI as the current design.
 
-see if there is an existing event with the same message key. If there was no message key, ServiceNow generates a message key from the Source, Node, Type, Resource, and Metric Name fields. The message key (Problem ID) should always be populated by Dynatrace. If the event is a duplicate, it will get grouped into the alert of the existing event. If the duplicate 
-
-
-==== Description and alert text
+=== Description and alert text
 
 [[tbl-description-and-alert-text]]
 .Required description and alert text fields
@@ -1575,19 +2235,19 @@ see if there is an existing event with the same message key. If there was no mes
 |Field |Required content
 
 |em_event.description
-|Line 1: log level and message body from content; Line 2: log.source path; optional ProblemURL appended
+|OpenPipeline `event.description` (log line plus `sn-*` tokens); optional ProblemURL appended
 
 |em_alert.description
-|Same as em_event.description (copied by alert rule or inherited on alert create)
+|Same as em_event.description (copied by the alert rule)
 
 |em_alert.resource
-|Pod name or full log file path
+|Logs: `sn-service_instance:<stamp>`. Infra: `k8s-workload-name:<name>` or HOST
 
 |em_alert.cmdb_ci
-|Same infrastructure CI as em_event.cmdb_ci
+|Logs: service instance (after enrich). Infra: HOST or K8s controller
 |===
 
-==== SGC and Event Management configuration
+=== SGC and Event Management configuration
 
 [[tbl-sgc-em-configuration]]
 .SGC and Event Management configuration components
@@ -1596,80 +2256,145 @@ see if there is an existing event with the same message key. If there was no mes
 |Component |Specification
 
 |sa_event_field_mapping
-|ProblemDetailsText → description; ProblemTitle → message; ProblemID → message_key; severity mapping for ERROR and WARN
+|ProblemDetailsText → description; ProblemTitle → message; ProblemID → message_key; `ERROR` → Major (2); `RESOURCE_CONTENTION` → Warning (4)
 
 |EM event rule
-|Mark events Ready when severity and cmdb_ci are populated; optional script normalizes description from additional_info if connector mapping is insufficient
+|Mark events Ready when `source=SGO-Dynatrace` and `severity<=3`. Do not require `cmdb_ci` first — enrich sets SI on logs.
 
 |EM alert rule
-|Create alert from Ready events; copy cmdb_ci and description from event; require cmdb_ci for incident automation
+|Create alert from Ready events; copy `cmdb_ci` and description from event. Enrich on the alert overwrites HOST/pod SOS for logs.
 
 |ACL on cmdb_key_value
-|Roles that run incident scripts must read tags on pod CIs (see install documentation for tag ACL requirements)
+|Roles that run incident scripts must read tags on workload CIs (see install documentation for tag ACL requirements)
 |===
 
-[#step-4-sn-dynatrace]
-==== Application and Dynatrace (???? 5)
+=== Create incident bound to service instance
 
-At Phase 5 the **Observability engineer** typically performs **verification**, not new Dynatrace or application configuration:
+Incidents are created through **`EvtMgmtIncidentHandler.createIncidentNoUpdate`** → **`EvtMgmtCustomIncidentPopulator`** (the same path as Flow action **Create incident from Alert**). The interim business rule `em-alert-create-log-incident` calls that handler with `autoOpen=false` while the L2I AMR is inactive. Do **not** insert `incident` rows from a custom GlideRecord in a business rule — that skips the populator and leaves `em_alert.incident` unset.
 
-. After a test problem fires, confirm **`em_event.source=SGO-Dynatrace`** and **`em_event.cmdb_ci`** is populated (service instance via `k8s.pod.name` for Cluster; Spark Client AS via `service_instance` for Client).
-. If Cluster **`cmdb_ci`** remains empty or a Linux server, return to <<step-2-dynatrace-cluster,Phase 2 — OneAgent (Cluster)>> / <<lst-openpipeline-processing-cluster,Cluster OpenPipeline processors>> and verify **`k8s.pod.name`** from `k8s.pod.name` on Container Output, then the entity bind rules.
-. Confirm **`sys_object_source`** contains a row with **`name=SGO-Dynatrace`** and **`id=<entityId>`** from the webhook **before** the event arrives (SGC scheduled import lag is a common root cause of empty CI).
-. Deploy or verify the generic entity bind business rules (<<step-5-br-k8s-pod,entity bind business rules>>) so `ResolveApplicationService` can bind from `service_instance` / `k8s.pod.name`.
+The populator sets **`incident.cmdb_ci`** to the service instance, writes **`em_alert.incident`**, and correlates by SI + `Critical log event — {sn-log-signature}`.
 
-**No ServiceNow-side changes** are required on the monitored **application** (the Java/Spark/Python workload). **No additional Dynatrace** configuration is required at Phase 5 if <<ch-client-mode,Client and Cluster Mode>> Dynatrace phases are correct.
+=== Severity policy
 
-Cluster Mode prefers OneAgent Log-module entity context (CAI/PGI) on Container Output; ServiceNow still binds service instance via **`k8s.pod.name`** (pod CI → `svc_ci_assoc`), not HOST file-tail.
-
----
-
-==== Create incident bound to service instance
-
-==== Severity policy
+Event Management **`severity`** (1–5) and ITSM **`sn-impact` / `sn-urgency`** (1–3) are different numbers. This instance maps Dynatrace `ERROR` → EM **Major (2)** and `RESOURCE_CONTENTION` → EM **Warning (4)** (not Minor/3). OpenPipeline stamps log ERROR as `sn-impact=2` / `sn-urgency=2` and WARN as 3/3. The populator copies those onto the incident; Data Lookup computes **priority**. The create gate is `severity<=3`, so Warning (4) CPU/K8s alerts get `sn-*` but no incident.
 
 [[tbl-severity-policy]]
-.Automatic incident severity policy by environment
-[cols="40%,60%",options="header"]
+.Severity, impact, and priority
+[cols="28%,36%,36%",options="header"]
 |===
-|Environment |Automatic incident when
+|Field |Who sets it |This instance
 
-|Non-production / test
-|ERROR and WARN (simplifies validation when ERROR signals are hard to trigger)
+|`em_event.severity` / `em_alert.severity`
+|SGO from `ProblemSeverity`
+|ERROR → Major (2); RESOURCE_CONTENTION → Warning (4)
 
-|Production
-|ERROR only; WARN remains at alert level or creates a lower-priority task per ITSM policy
+|`sn-impact` / `sn-urgency`
+|OpenPipeline or enrich from `ProblemSeverity`
+|Log ERROR 2/2; WARN 3/3; host CPU 2/2
+
+|`incident.impact` / `incident.urgency`
+|`EvtMgmtCustomIncidentPopulator`
+|Copied from `sn-*`; repeats bump urgency
+
+|`incident.priority`
+|ServiceNow Data Lookup (impact × urgency)
+|Not set in L2I code
 |===
 
-Incidents must set **incident.cmdb_ci** to **cmdb_ci_service_discovered** (service instance), not the infrastructure CI on the alert.
+[[fig-priority-stack]]
+.Priority stack
+[graphviz, priority_stack]
+----
+digraph priority_stack {
+  graph [rankdir=TB splines=true nodesep=0.35 fontname="Noto Sans" fontsize=12]
+  node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=11]
+  edge [fontname="Noto Sans" fontsize=10]
 
-==== Layer model
+  DT [label="Dynatrace ProblemSeverity"]
+  EM [label="EM severity (1–5)\nERROR→2 Major\nRESOURCE_CONTENTION→4 Warning"]
+  SN [label="sn-impact / sn-urgency (1–3)"]
+  INC [label="incident.impact / urgency"]
+  PRI [label="Data Lookup priority"]
+
+  DT -> EM
+  DT -> SN
+  SN -> INC -> PRI
+}
+----
+
+=== Layer model
+
+Event, alert, and incident do **not** all share the same infrastructure CI. Logs bind the service instance at every layer. Infra alerts bind HOST or the Kubernetes **controller** (see <<ch-kubernetes-architecture,Kubernetes Architecture>> — pods are the ephemeral band). The incident CI for logs is always the service instance.
 
 [[tbl-em-layer-model]]
 .Event Management layer model and cmdb_ci classes
-[cols="20%,25%,55%",options="header"]
+[cols="22%,28%,50%",options="header"]
 |===
 |Layer |Table |cmdb_ci class
 
-|Event
-|em_event
-|Infrastructure: cmdb_ci_kubernetes_pod, cmdb_ci_appl, or cmdb_ci_linux_server
+|Event / Alert (log)
+|`em_event` / `em_alert`
+|Service instance (`cmdb_ci_service_discovered` / `cmdb_ci_service_by_tags`)
 
-|Alert
-|em_alert
-|Same infrastructure CI as the source event
+|Event / Alert (host CPU)
+|`em_event` / `em_alert`
+|HOST (`cmdb_ci_linux_server`)
 
-|Incident
-|incident
-|cmdb_ci_service_discovered (service instance)
+|Event / Alert (K8s resource)
+|`em_event` / `em_alert`
+|Workload controller (`cmdb_ci_kubernetes_deployment`, StatefulSet, CronJob, …)
+
+|Incident (log)
+|`incident`
+|Same service instance as the log alert
 |===
 
+[[fig-em-layer-ci]]
+.Event vs alert vs incident CI
+[graphviz, em_layer_ci]
+----
+digraph em_layer_ci {
+  graph [rankdir=TB splines=true nodesep=0.4 ranksep=0.45 fontname="Noto Sans" fontsize=12]
+  node [shape=box style="rounded,filled" fontname="Noto Sans" fontsize=11]
+  edge [fontname="Noto Sans" fontsize=10]
+
+  subgraph cluster_log {
+    label="Log (CRITICAL_LOG_EVENT)"
+    color="#5b8def"
+    style=filled
+    fillcolor="#e8f0fe"
+    L1 [label="em_event → SI"]
+    L2 [label="em_alert → SI"]
+    L3 [label="incident → SI"]
+    L1 -> L2 -> L3
+  }
+  subgraph cluster_cpu {
+    label="Host CPU"
+    color="#c9a227"
+    style=filled
+    fillcolor="#fff8e1"
+    C1 [label="em_event → HOST"]
+    C2 [label="em_alert → HOST"]
+    C3 [label="no incident\n(Warning)"]
+    C1 -> C2 -> C3
+  }
+  subgraph cluster_wl {
+    label="K8s workload CPU"
+    color="#2e7d32"
+    style=filled
+    fillcolor="#c8e6c9"
+    W1 [label="em_event → Deployment"]
+    W2 [label="em_alert → Deployment"]
+    W3 [label="no incident\n(Warning)"]
+    W1 -> W2 -> W3
+  }
+}
+----
+
 [#step-5-incident-correlation]
-==== Incident correlation
+=== Incident correlation
 
-Incident correlation defines how enriched alerts map to **`incident.cmdb_ci`**. The business rule **`em-alert-create-k8s-log-incident`** tries the **Client-side** log path first, then the **Service-side** `svc_ci_assoc` membership lookup.
-
-The comparison table summarizes alert CI versus incident CI for each pattern. Full algorithms follow in the adjacent subsections.
+Incident correlation defines how enriched alerts map to **`incident.cmdb_ci`**. For logs, event, alert, and incident all use the **service instance**. Short description is **`Critical log event — {sn-log-signature}`**. Client and Cluster correlate the same way (SI + Class:Line). Repeats bump **urgency**; **priority** is ServiceNow Data Lookup (impact × urgency). The create gate remains `severity<=3`, so Warning CPU/K8s resource alerts do not create incidents.
 
 [[tbl-incident-correlation-patterns]]
 .Incident correlation patterns — alert CI vs service instance
@@ -1677,22 +2402,26 @@ The comparison table summarizes alert CI versus incident CI for each pattern. Fu
 |===
 |Pattern |Alert CI |incident.cmdb_ci resolution
 
-|Service-side
-|`cmdb_ci_kubernetes_pod` (preferred) or HOST fallback
-|<<step-5-service-side,Spark Service-Side Log Pattern>> — `svc_ci_assoc` membership lookup from pod CI
+|Log (Cluster or Client)
+|Service instance (`sn-service_instance`)
+|Same SI; correlate by SI + `Critical log event — {sn-log-signature}`
 
-|Client-side
-|HOST or empty (acceptable)
-|<<step-5-client-side,Spark Client-Side Log Pattern>> — `/client-logs/` → Spark Client AS
+|K8s workload resource
+|Deployment / StatefulSet / CronJob (`k8s-workload-name`)
+|No incident while EM severity is Warning
+
+|Host CPU
+|HOST via SOS
+|No incident while EM severity is Warning
 |===
 
 [#step-5-service-side]
-===== Service-side
+==== Service-side
 
-The **Spark Service-Side Log Pattern** resolves service instances by looking up the alert's pod CI in the **`svc_ci_assoc`** membership table maintained by tag-based Service Mapping (see <<step-0-tag-based-membership,Tag-Based Service Mapping and svc_ci_assoc>>). A membership row associating the pod CI with a `cmdb_ci_service_discovered` service instance **must** exist before the problem fires.
+Cluster logs stamp `sn-service_instance` from the pod-name prefix (`spark-master*` → `Spark-Master`, and likewise Worker / History Server). Enrich overwrites SGO HOST/pod SOS so the alert CI is already the service instance. The populator copies that SI onto the incident and correlates by signature. `svc_ci_assoc` remains the fallback when the stamp is missing (controller or pod CI → service instance). See <<ch-kubernetes-architecture,Kubernetes Architecture>> for why the bind target is the workload/SI, not the pod.
 
 [[fig-incident-correlation-service-side]]
-.Incident correlation — Spark Service-Side Log Pattern
+.Incident correlation — Cluster log
 [graphviz, Incident_Application_Service_correlation_Service_Side]
 ----
 digraph incident_correlation {
@@ -1700,28 +2429,25 @@ digraph incident_correlation {
   node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=13]
   edge [fontname="Noto Sans" fontsize=12]
 
-  ALERT [label="em_alert.cmdb_ci\n(cmdb_ci_kubernetes_pod)"]
-  REL [label="svc_ci_assoc\n(tag-based Service Mapping)"]
-  AS [label="cmdb_ci_service_discovered\nservice instance"]
-  INC [label="incident.cmdb_ci"]
+  STAMP [label="sn-service_instance\nSpark-Master"]
+  ALERT [label="em_alert.cmdb_ci\n(service instance)"]
+  INC [label="incident.cmdb_ci\n(same SI)"]
 
-  ALERT -> REL -> AS -> INC
+  STAMP -> ALERT -> INC
 }
 ----
 
-. `K8sLogPodCiBind` sets `em_event.cmdb_ci` and `em_alert.cmdb_ci` to the **pod CI** whose `name` matches the log path segment (Phase 5).
-. Query `svc_ci_assoc` where `ci_id` = pod CI sys_id and `service_id` is a `cmdb_ci_service_discovered`.
-. Set `incident.cmdb_ci` = the associated service instance sys_id.
-
-**Out of scope:** host CI binding without pod rebind, process group CI, `cmdb_rel_ci` ownership edges (none are created in this model).
+. Enrich reads `sn-service_instance` and sets `em_event.cmdb_ci` / `em_alert.cmdb_ci` to that service instance.
+. Populator sets `incident.cmdb_ci` to the same SI and short description `Critical log event — {sn-log-signature}`.
+. An open incident with that SI + short description is reused; urgency is bumped.
 
 [#step-5-client-side]
-===== Client-side
+==== Client-side
 
-The **Spark Client-Side Log Pattern** maps log paths to a single logical service instance. Client-mode driver logs **do not** correspond to a `cmdb_ci_kubernetes_pod`; incident automation **must not** depend on alert CI or `svc_ci_assoc` membership.
+Client-mode driver logs are not a Kubernetes pod. The standalone pipeline maps custom-source `service_instance` → `sn-service_instance` (`Spark-Client`). Enrich and the populator then follow the same SI + Class:Line path as Cluster. Do **not** depend on `svc_ci_assoc` or a pod CI.
 
 [[fig-incident-correlation-client-side]]
-.Incident correlation — Spark Client-Side Log Pattern
+.Incident correlation — Client log
 [graphviz, Incident_Application_Service_correlation_Client_Side]
 ----
 digraph spark_client_incident {
@@ -1729,26 +2455,20 @@ digraph spark_client_incident {
   node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=13]
   edge [fontname="Noto Sans" fontsize=12]
 
-  LOG [label="/mnt/spark/client-logs/\n<instance>/spark-app.log"]
-  ALERT [label="em_alert\n(cmdb_ci may be HOST)"]
-  RES [label="ResolveApplicationService\nresolveFromSparkClientLogPath()"]
-  AS [label="cmdb_ci_service_discovered\nSpark Client"]
+  STAMP [label="sn-service_instance\nSpark-Client"]
+  ALERT [label="em_alert.cmdb_ci\nSpark Client"]
   INC [label="incident.cmdb_ci"]
 
-  LOG -> ALERT [style=dashed label="description / resource"]
-  ALERT -> RES -> AS -> INC
+  STAMP -> ALERT -> INC
 }
 ----
 
-. Scan `em_alert.description`, `resource`, and `node` for the substring `/client-logs/`.
-. Look up service instance **`Spark Client`** by **`name`** (see <<csdm-identifier-field-mapping,CSDM identifier lookup>>).
-. Set **`incident.cmdb_ci`** to that service instance sys_id.
-. **`K8sLogPodCiBind`** skips path segment `Spark-Client` when parsing pod names.
-
 [#csdm-identifier-field-mapping]
-==== CSDM identifier lookup
+=== CSDM identifier lookup
 
-CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key embedded in log paths and optional Dynatrace tags. The table below shows which CMDB fields are reliable for incident lookup on optimizincdemo1.
+The **primary** log bind is the OpenPipeline stamp **`sn-service_instance`**, matched to the service instance **`name`** (Kubernetes label charset, for example `Spark-Master`). Path matching and `/client-logs/` are fallbacks when that stamp is missing.
+
+CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key. The table below shows which CMDB fields are reliable for lookup.
 
 [[tbl-csdm-identifier-lookup]]
 .CSDM identifier lookup fields on service instance
@@ -1756,45 +2476,66 @@ CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key embedded in lo
 |===
 |Purpose |Mechanism |Queryable field on `cmdb_ci_service_discovered`
 
+|Primary log bind
+|`sn-service_instance` stamp → SI display name
+| **`name`** (for example `Spark Master` / lookup via sanitized `Spark-Master`)
+
+|Fallback when the stamp is missing
+|Workload or pod CI → **`svc_ci_assoc`** membership
+|Tag-based Service Mapping on `servicenow.com/service-instance`
+
 |Manual / logical AS documentation
-| CSDM display name **Spark Client** → stamp `service_instance=Spark-Client`
-| **`identifier`** column — often **not populated** on optimizincdemo1
+|CSDM `identifier` in the spec
+| **`identifier`** column — often **not populated** on the instance
 
-|Display / incident lookup
-| CSDM **`name`** (e.g. `Spark Client`)
-| **`name`** — reliable for `resolveFromSparkClientLogPath()`
-
-|Tag-based membership
-| `servicenow.com/service-instance` = display name (K8s/Docker workloads only)
-| Not applicable to Spark Client — the client is not a managed CI; binding uses the log-path contract
+|Client when `sn-service_instance` is absent
+|Standalone custom-source `service_instance` mapped to `sn-service_instance`
+| **`name`** = **Spark Client**
 |===
 
-Spark Client AS **must** have `service_status=operational` (promoted by `csdm/deploy.yml` → `ensure_host_as_operational.yml`).
-
-[[lst-verify-spark-client-as]]
-.Verify Spark Client service instance operational status
-[source,bash]
-----
-cd ansible
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_client_as.yml \
-  -e @../vars/secrets.yaml
-----
+The Spark Client service instance **must** have `service_status=operational` so Event Management will assign to it.
 
 [#known-limitation-davis-bundling]
-==== Davis event identity vs problem merge
+=== Davis event identity vs problem merge
 
-Dynatrace can appear to “bundle” unrelated log lines when **`event.name`** does not include the intended split key. Reports with the same **`event.name` + `event.type` + `dt.source_entity`** refresh one Davis event; **`event.unique_identifier` alone does not split that identity**.
+Davis identity for a log event is the tuple `(event.name, event.type, dt.source_entity)`. Reports with the same tuple **refresh one Davis event**; `event.unique_identifier` alone does not split that identity. If merge is left on (`dt.davis.is_merging_allowed=true`), Davis can also fold nearby events into one **problem** when `dt.source_entity` is the same HOST or is topologically close in Smartscape — which is how a Master WARN and a Lab3 host problem historically became “Multiple infrastructure problems.”
 
 **Lab approach:**
 
-* Custom log source sets **`spark.mode`**, **`spark.driver.instance`** or **`k8s.pod.name`**, **`service_instance`** (Client), and **`spark.log.path`**. OpenPipeline parses **`spark.log.class` / `spark.log.line`**.
-* Davis **`event.name`** / **`event.unique_identifier`** use **`{spark.mode}` + class:line** so each call site is a distinct event on the OneAgent **HOST** `dt.source_entity`.
-* **`dt.davis.is_merging_allowed=false`** so different class:line events are not HOST-bundled; same class:line across drivers already shares one event via `event.name`.
-* ServiceNow binds Client alerts via `/client-logs/` or Davis **`Client error at …`** text to service instance **Spark Client**; Cluster alerts use the pod's `svc_ci_assoc` membership.
+* OpenPipeline stamps dash keys: `sn-log-class`, `sn-log-line`, `sn-log-signature`, `sn-event_kind`, `sn-environment`, `sn-service_instance`.
+* `event.name` is `Critical {loglevel} at {sn-log-class}:{sn-log-line}` so each call site is a distinct Davis event.
+* `event.unique_identifier` is `{sn-environment}|{sn-service_instance}|…{sn-log-signature}` so the same Class:Line in a different environment or service instance does not share identity.
+* **`dt.davis.is_merging_allowed=false`** so Davis does not HOST-bundle unrelated signatures.
 
-Worker→multi-client cascading failures remain a topology case; this pipeline does not force-correlate unrelated History Server vs Driver call sites beyond what Davis merge decides.
+**SGO fan-out is not Client vs Cluster.** One Dynatrace problem still produces **one `em_event` per ImpactedEntity** for the same `message_key` (ProblemID). A Master log problem can therefore arrive as HOST + CAI + `CLOUD_APPLICATION` rows. That is connector fan-out. Enrich binds the **log** rows to the service instance; leftover HOST rows on the same `message_key` are not Client-mode logs.
 
-==== ServiceNow incident automation specification
+[[fig-sgo-fanout]]
+.One Davis problem to N events to one alert
+[graphviz, sgo_problem_fanout]
+----
+digraph sgo_fanout {
+  graph [rankdir=LR splines=true nodesep=0.45 fontname="Noto Sans" fontsize=12]
+  node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=11]
+  edge [fontname="Noto Sans" fontsize=10]
+
+  P [label="Davis problem\n(ProblemID)"]
+  E1 [label="em_event HOST"]
+  E2 [label="em_event CAI / pod"]
+  E3 [label="em_event CLOUD_APPLICATION"]
+  A [label="em_alert\n(same message_key)"]
+  SI [label="enrich: log → SI\n(sn-service_instance)"]
+
+  P -> E1
+  P -> E2
+  P -> E3
+  E1 -> A
+  E2 -> A
+  E3 -> A
+  A -> SI
+}
+----
+
+=== ServiceNow incident automation specification
 
 [[tbl-sn-incident-automation-spec]]
 .ServiceNow incident automation components
@@ -1803,39 +2544,36 @@ Worker→multi-client cascading failures remain a topology case; this pipeline d
 |Component |Specification
 
 |Script Include: `ResolveApplicationService`
-|Service-Side: `svc_ci_assoc` membership from pod CI to service instance (tag-based Service Mapping). Spark client: `resolveFromSparkClientLogPath()` when alert text contains `/client-logs/` → service instance **Spark Client**
+|`enrichSgoRecord` / `applyLogServiceInstanceBinding` / `applyK8sTagCiBinding`. Log `cmdb_ci` = service instance from `sn-service_instance`. Infra: HOST SOS or controller CI from `k8s-workload-name`.
 
-|Script Include: `K8sLogPodCiBind`
-|Rebind `em_event` / `em_alert` from initial SGO HOST binding to `cmdb_ci_kubernetes_pod` when log path segment matches a discovered pod `name`; **skip** segment `Spark-Client`; propagate binding to alerts sharing `message_key`
+|Script Include: `EvtMgmtCustomIncidentPopulator`
+|Incident CI = service instance; correlate SI + `Critical log event — {sn-log-signature}`; apply `sn-impact` / `sn-urgency`
 
-|EM event rule
-|Mark Spark log events **Ready** when `source=SGO-Dynatrace`, severity matches policy, and `cmdb_ci` is set
+|Script Include: `L2IIncidentFromAlert`
+|Calls `EvtMgmtIncidentHandler.createIncidentNoUpdate(alert, false)` (`autoOpen=false`)
 
-|EM alert rule
-|Create alert from Ready events; copy `cmdb_ci`, `description`, `resource`, `node` from event
+|Business rule: `em-event-enrich-sgo`
+|Before insert/update on `em_event`; order **100**; `source=SGO-Dynatrace`
 
-|Business rule: `em-event-bind-k8s-log-pod-ci`
-|**Before** insert/update on `em_event`; order **5000**; enriches `cmdb_ci`, `resource`, `message_key` via `K8sLogPodCiBind` (must run before EM Ready/alert rules persist the row)
+|Business rule: `em-alert-enrich-sgo`
+|Before insert/update on `em_alert`; order **5000**; `source=SGO-Dynatrace`
 
-|Business rule: `em-event-propagate-k8s-log-pod-ci`
-|**After** insert/update on `em_event`; order **5005**; copies pod binding from event to related `em_alert` rows sharing `message_key` (runs after the event row is saved)
+|Business rule: `em-alert-create-log-incident`
+|After insert/update on `em_alert`; order **5020**; `source=SGO-Dynatrace^severity<=3^incidentISEMPTY`
 
-|Business rule: `em-alert-bind-k8s-log-pod-ci`
-|**Before** insert/update on `em_alert`; order **5010**; same pod/path enrichment when alert is created or updated directly (covers SGC webhook path that skips a separate bind on the event)
+|TBAC
+|Definition **L2I short Log4j2 SI + signature** on dash keys `sn-environment`, `sn-service_instance`, `sn-log-signature`
 
-|Business rule: `em-alert-create-k8s-log-incident`
-|**After** insert/update on `em_alert`; order **5020**; tries Spark-Client path first, else Service-Side `svc_ci_assoc` lookup; creates or correlates incident, sets **`em_alert.incident`**
+|AMR
+|**L2I Create Incident CRITICAL_LOG_EVENT** stays **inactive** until a published Flow uses action **Create incident from Alert**. Keep OOTB `SGO-Dynatrace` AMR inactive (that subflow skips the populator).
 
-|Severity filter
-|Non-prod: `em_alert.severity <= 3` (ERROR and WARN); Production: `em_alert.severity = 2` (ERROR only)
-
-|Duplicate suppression
-|Correlate open incidents by service instance + short description prefix `Event Log`; use `ProblemID` / `message_key` for event lifecycle
+|Create gate
+|`em_alert.severity <= 3` (Warning CPU/K8s resource alerts do not create incidents)
 |===
 
-==== Business rule order and rationale
+=== Business rule order and rationale
 
-Business rules on `em_event` and `em_alert` run in **order** within the same **when** phase (`before` or `after`). Lower order runs first.
+Business rules on `em_event` and `em_alert` run in **order** within the same **when** phase (`before` or `after`). Lower order runs first. Enrich must run before create so the 5020 shim sees the service instance and `sn-*` stamps. `autoOpen=false` on the handler while the L2I AMR is inactive.
 
 [[tbl-business-rule-order]]
 .Business rule order on em_event and em_alert
@@ -1843,24 +2581,22 @@ Business rules on `em_event` and `em_alert` run in **order** within the same **w
 |===
 |Order |Rule |Why this position
 
-|5000 |`em-event-bind-k8s-log-pod-ci` (before) |Parse log path and set `cmdb_ci` / `resource` / `message_key` **before** the row is written. EM event rules that mark the event Ready and copy fields to alerts depend on these values being present on insert.
+|100 |`em-event-enrich-sgo` (before insert/update) |Stamp `sn-impact` / `sn-urgency`; log → service instance; else K8s dash-key CI. Runs before EM Ready copies fields to the alert.
 
-|5005 |`em-event-propagate-k8s-log-pod-ci` (after) |After the event is saved, push binding to sibling `em_alert` rows. Must be **after** (not before) because it updates **other** records.
+|5000 |`em-alert-enrich-sgo` (before insert/update) |Same on the alert — SGO may copy a HOST event onto the alert after the event enrich ran.
 
-|5010 |`em-alert-bind-k8s-log-pod-ci` (before) |Same enrichment for alerts created or updated by the SGC webhook / EM alert rule without going through a separate event bind cycle.
-
-|5020 |`em-alert-create-k8s-log-incident` (before) |Needs enriched `resource` and log-path context from 5000/5010 in the **same** transaction. Creates the incident and sets `em_alert.incident` before the alert row is committed. Using **after** + `current.update()` was unreliable for REST-driven updates.
+|5020 |`em-alert-create-log-incident` (after insert/update) |`EvtMgmtIncidentHandler.createIncidentNoUpdate(alert, false)` → populator. After-insert so `alert.sys_id` exists. Filter `source=SGO-Dynatrace^severity<=3^incidentISEMPTY`.
 |===
 
-==== Alert to incident linkage (`em_alert.incident`)
+=== Alert to incident linkage (`em_alert.incident`)
 
 On **optimizincdemo1**, Event Management links an alert to its incident through **`em_alert.incident`** (reference to the incident record). That field populates the incident **Alerts** tab. Some instances expose the same reference as `em_alert.task`; this build uses **`incident` only** — do not reference `task`.
 
-Creating an incident with `GlideRecord('incident').insert()` alone does **not** set this link — automation must assign `current.incident = <incident_sys_id>` on the alert in the **before** business rule.
+Creating an incident with `GlideRecord('incident').insert()` alone does **not** set this link. The handler writes **`em_alert.incident`**. `em_alert.task` may stay empty; do not require it.
 
-Incident short description format: **`Event Log WARN`** or **`Event Log ERROR`** (parsed from alert description).
+Incident short description format: **`Critical log event — {sn-log-signature}`** (for example `Critical log event — TaskSetManager:270`). Correlation reuses an open incident with the same service instance and that short description; repeats bump **urgency**.
 
-==== Problem and alert lifecycle (OPEN / RESOLVED)
+=== Problem and alert lifecycle (OPEN / RESOLVED)
 
 Spark/Log4j does **not** emit explicit “clear” or “recovery” log lines for this use case. Closure is driven by **Dynatrace problem lifecycle**, not application log content:
 
@@ -1874,307 +2610,342 @@ Spark/Log4j does **not** emit explicit “clear” or “recovery” log lines f
 Verify RESOLVED handling: `em_event` where `source=SGO-Dynatrace` and `resolution_code` is set after problems clear; linked `em_alert.state` should move to **Closed** when EM auto-close rules are configured.
 
 
-==== OpenPipeline and custom-source attributes (generic Log4j pattern)
+=== OpenPipeline and custom-source attributes (generic Log4j pattern)
 
-Attributes added by automation (not Spark-specific semantics):
+Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` and `standalone-short-log4j2-log-alerts`). Keys that ServiceNow TBAC or a Glide condition would walk as a JSON path use **dashes**, not dots.
 
 [[tbl-openpipeline-custom-source-attributes]]
 .OpenPipeline and custom log source attributes
 |===
 |Attribute |Source |Purpose
 
-|`spark.log.path` |Custom log source enrichment (`${0}`) |Literal file path of the log line
+|`sn-log-class` / `sn-log-line`
+|OpenPipeline parse of short Log4j2 `Class:Line`
+|Call-site identity
 
-|`spark.mode` |Custom log source |`Client` or `Cluster`
+|`sn-log-signature`
+|`{sn-log-class}:{sn-log-line}`
+|Incident short description and correlation key
 
-|`k8s.pod.name` |Cluster path segment |Must equal `cmdb_ci_kubernetes_pod.name`
+|`sn-event_kind`
+|Davis processor
+|`CRITICAL_LOG_EVENT` (logs) or `CPU_EVENT` (host metric)
 
-|`spark.instance` |Client OpenPipeline |`<host.name>:<driver-instance>` under `/mnt/spark/client-logs/`
+|`sn-environment`
+|OpenPipeline `tag-pipeline-custom-id`
+|TBAC partition (no cross-environment merge)
 
-|`service_instance` |Client custom source / OpenPipeline |K8s-sanitized service instance display name (`Spark-Client`) for SN bind
+|`sn-service_instance`
+|K8s: pod-name prefix → `Spark-Master` / `Spark-Worker` / `Spark-History-Server`. Standalone: custom-source `service_instance` mapped to this key
+|Primary log bind to the CSDM service instance
 
-|`event.type` |OpenPipeline Davis / metric event template |`ERROR_EVENT` (Spark log); `CUSTOM_ALERT` (host CPU metric) — Dynatrace enum
+|`sn-pipeline`
+|OpenPipeline customId
+|Which pipeline processed the line
 
-|`spark.event_kind` |OpenPipeline Davis / metric event template |`CRITICAL_LOG_EVENT` (Spark log); `CPU_EVENT` (host CPU metric)
+|`sn-impact` / `sn-urgency`
+|OpenPipeline (ERROR=2/2, WARN=3/3) or SN enrich from `ProblemSeverity`
+|ITSM 1–3; not EM `severity`
 
-|`em_event.type` / `em_alert.type` |ServiceNow `ResolveApplicationService.applySparkEventTypeRename` |Remapped to `CRITICAL_LOG_EVENT` / `CPU_EVENT` from `spark.event_kind` (built-in `CPU_SATURATED` unchanged)
+|`k8s-pod-name` / `k8s-workload-name` / `k8s-workload-kind`
+|Dash aliases of platform `k8s.pod.name` / `k8s.workload.*`
+|TBAC-safe; workload CI lookup when the event is not a log
 
-|`event.name` |OpenPipeline Davis |`Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}`
+|`service_instance`
+|Standalone OneAgent custom log source
+|Mapped to `sn-service_instance` in the standalone pipeline
 
-|`event.unique_identifier` |OpenPipeline Davis |`Spark Client|Cluster Critical {loglevel} error {spark.log.class}:{spark.log.line}`
+|`event.type`
+|Davis
+|Dynatrace enum (`ERROR_EVENT`, `RESOURCE_CONTENTION`, …)
 
-|`event.description` |OpenPipeline Davis |includes path plus `service_instance=` or `k8s.pod.name=` and `{content}`
+|`event.name`
+|Davis
+|`Critical {loglevel} at {sn-log-class}:{sn-log-line}`
+
+|`event.unique_identifier`
+|Davis
+|`{sn-environment}\|{sn-service_instance}\|…{sn-log-signature}`
+
+|`dt.davis.is_merging_allowed`
+|Davis
+|`false` for L2I logs
 |===
 
-The Pod **Kubernetes label** (`servicenow.com/service-instance`) is the CMDB/service-mapping contract — not a Dynatrace tag. See <<step-0-pod-labels,pod labels>>.
+The Kubernetes label `servicenow.com/service-instance` is the CMDB/service-mapping contract on the **controller** and the pod template — not a Dynatrace tag. See <<step-0-pod-labels,workload labels>>.
 
-NOTE: Cluster/Client Davis problems keep OneAgent **HOST** as `dt.source_entity` inside the Spark Observability management zone. ServiceNow **`ResolveApplicationService`** binds Cluster alerts via **`k8s.pod.name`** (pod CI → `svc_ci_assoc` AS) and Client alerts via **`service_instance`** to service instance **Spark Client**, ignoring HOST for those paths.
+NOTE: Cluster/Client Davis problems often keep OneAgent **HOST** as `dt.source_entity`. ServiceNow enrich overwrites log `cmdb_ci` to the service instance from `sn-service_instance`.
 
 [#step-5-em-rules]
-==== Event Management rules (manual configuration)
+=== Event Management rules (manual configuration)
 
 Configure under **Event Management → Rules**:
 
 [[tbl-em-rules]]
-.Event Management rules for SGO-Dynatrace Spark logs
+.Event Management rules for SGO-Dynatrace
 [cols="25%,75%",options="header"]
 |===
 |Rule |Condition and action
 
-|Event rule (K8s application logs)
-|**When:** `em_event` insert/update; **Filter:** `source=SGO-Dynatrace^severity<=3^cmdb_ciISNOTEMPTY`; **Action:** set state to **Ready** (or use existing Ready rule scoped to SGO-Dynatrace)
+|Event rule
+|**When:** `em_event` insert/update; **Filter:** `source=SGO-Dynatrace^severity<=3`; **Action:** set state to **Ready**. Do **not** require `cmdb_ciISNOTEMPTY` — log events become Ready with an SI `cmdb_ci` after enrich, or enrich sets it on the alert. Infra events may be HOST or a K8s controller CI.
 
-|Alert rule (K8s application logs)
-|**When:** Ready event; **Filter:** `source=SGO-Dynatrace`; **Action:** create/update alert; copy `cmdb_ci`, `description`, `resource`, `node`, `message_key` from event
+|Alert rule
+|**When:** Ready event; **Filter:** `source=SGO-Dynatrace`; **Action:** create/update alert; copy `cmdb_ci`, `description`, `resource`, `node`, `message_key` from event. Enrich on the alert overwrites HOST/pod SOS for logs.
 |===
 
-Scope Spark-specific business rules with **`source=SGO-Dynatrace`** so legacy **`source=Dynatrace`** events are unaffected during connector migration (see <<legacy-sgo-coexistence,Legacy and SGO-Dynatrace coexistence>>).
+[[legacy-sgo-coexistence]]
+Scope Spark-specific business rules with **`source=SGO-Dynatrace`** so legacy **`source=Dynatrace`** events are unaffected during connector migration.
 
-==== Script Includes
+=== Script Includes
 
-Deploy from `servicenow/integrations/incident/`. Global scope, **Active** = true. Ansible: `ansible/playbooks/servicenow/incident/deploy.yml`.
+Deploy from `servicenow/integrations/incident/`. Global scope, **Active** = true.
 
-Each Script Include below summarizes **purpose**, **inputs**, **outputs / side effects**, and how it fits the business rules. Source of truth is the `.si.js` file in the repository.
+Each Script Include below summarizes **purpose**, **inputs**, **outputs / side effects**, and how it fits the business rules. Source of truth is the `.si.js` file in the repository. `getCustomProperty` reads `additional_info` JSON with **bracket** keys (`customProperties['k8s.workload.name']`); never Glide-dot-walk dotted names.
 
-===== ResolveApplicationService
+==== ResolveApplicationService
 
-**Purpose:** Resolve **`cmdb_ci_service_discovered`** (service instance) sys_id for incident binding.
+**Purpose:** Enrich SGO-Dynatrace events/alerts and resolve the CSDM **service instance** for log binding.
 
 **Methods:**
 
-* `resolveFromInfrastructureCi(ciSysId)` — **Spark Service-Side Log Pattern.** Queries **`svc_ci_assoc`** where `ci_id` = pod CI and `service_id` is a `cmdb_ci_service_discovered` (membership maintained by tag-based Service Mapping). Returns the service instance sys_id or `null`.
-* `resolveFromSparkClientLogPath(text)` — **Spark Client-Side Log Pattern.** When `text` contains `/client-logs/`, looks up service instance **Spark Client** by `identifier=Spark-Client`, then fallback **`name=Spark Client`**.
+* `enrichSgoRecord(gr)` — Stamp `sn-impact` / `sn-urgency` (from OpenPipeline or mapped `ProblemSeverity`); copy dash aliases (`k8s-workload-name`, `k8s-pod-name`, …). Then `applyLogServiceInstanceBinding` (logs) or `applyK8sTagCiBinding` (infra).
+* `applyLogServiceInstanceBinding(gr)` — For `CRITICAL_LOG_EVENT` / `sn-service_instance`, overwrite `cmdb_ci` to the service instance; set `node` / `resource` to `sn-service_instance:<stamp>`.
+* `applyK8sTagCiBinding(gr, keys)` — When `cmdb_ci` is empty: Deployment/StatefulSet/CronJob/Job by `k8s-workload-name` (and kind), else pod by `k8s-pod-name`.
+* `extractSnImpact` / `extractSnUrgency` / `extractLogSignature` / `extractK8s*` — Read dash keys first, then dotted platform keys.
+* `getCustomProperty(gr, keys)` — JSON.parse `additional_info` and ranked `customProperties`; try each key in order.
+* `resolveServiceInstanceForIncident(gr)` — Primary: stamped `sn-service_instance` → SI `name`. Fallback: `svc_ci_assoc` from a workload/pod CI.
 
-**Inputs:** Workload CI sys_id (Service-side) or alert description/resource text (Client-side).
+**Inputs:** `em_event` or `em_alert` GlideRecord (`source=SGO-Dynatrace`).
 
-**Outputs:** service instance sys_id for `incident.cmdb_ci`; no CMDB writes.
-
-**Side effects:** None (read-only GlideRecord queries).
+**Outputs:** Mutated `cmdb_ci`, `node`, `resource`, and `additional_info` stamps on the current row.
 
 Source: `servicenow/integrations/incident/ResolveApplicationService.si.js`
 
-===== K8sLogPodCiBind
+==== EvtMgmtCustomIncidentPopulator
 
-**Purpose:** Rebind **`em_event`** and **`em_alert`** from HOST or empty CI to **`cmdb_ci_kubernetes_pod`** when the log path directory segment matches a discovered pod name (OpenPipeline often leaves problems on HOST).
+**Purpose:** Product hook called by `EvtMgmtIncidentHandler` (Flow action **Create incident from Alert**, or the interim create BR). Sets **`incident.cmdb_ci`** to the service instance; correlates an open incident with the same SI + short description **`Critical log event — {sn-log-signature}`**; copies `sn-impact` / `sn-urgency` (repeats bump urgency).
 
-**Methods:**
+**Inputs:** `em_alert` and the in-flight `incident` task.
 
-* `resolvePodName(description, resource, node)` — Scans concatenated fields for `/…/logs/<segment>/`; skips `Spark-Client` and wildcards; verifies pod exists in CMDB.
-* `applyPodBinding(gr)` — Sets `cmdb_ci`, `node`, `resource`, `message_key` prefix `K8sLog-{pod}-`, and `message` to `Event Log WARN/ERROR` when generic. Returns `true` on success. Caller must `update()`.
-* `propagateEventToAlerts(eventGr)` — Copies pod binding from event to related alerts sharing `message_key`.
+**Outputs:** `true` to continue insert; `false` to abort (correlated, or L2I log with no SI). Always writes **`em_alert.incident`** when a row is linked or created.
 
-**Inputs:** `em_event` or `em_alert` GlideRecord.
+Source: `servicenow/integrations/incident/EvtMgmtCustomIncidentPopulator.si.js`
 
-**Outputs:** Mutated fields on current row; optional `em_alert.update()` on related rows.
+==== L2IIncidentFromAlert
 
-Source: `servicenow/integrations/incident/K8sLogPodCiBind.si.js`
+**Purpose:** Handler helper. Calls `EvtMgmtIncidentHandler.createIncidentNoUpdate(alert, false)` so the populator runs without requiring an active AMR (`autoOpen=false`).
+
+**Inputs:** `em_alert` GlideRecord.
+
+**Outputs:** Incident sys_id when linked or created.
+
+Source: `servicenow/integrations/incident/L2IIncidentFromAlert.si.js`
 
 [#step-5-br-k8s-pod]
-==== Business rules (prescriptive configuration)
+=== Business rules (prescriptive configuration)
 
-Create under **System Definition → Business Rules**. All three run **After** insert and update. Filter conditions must include **`source=SGO-Dynatrace`** so legacy connectors are not modified.
+Create under **System Definition → Business Rules**. Filter conditions must include **`source=SGO-Dynatrace`** so legacy connectors are not modified. Orders and when-clauses are in <<tbl-business-rule-order>>.
 
 [[tbl-business-rules-prescriptive]]
 .Prescriptive K8s log business rules
-[cols="20%,15%,15%,50%",options="header"]
+[cols="5%,5%,20%,30%,40%",options="header"]
 |===
-|Name |Table |Order |Filter condition
+| Order | When | Name | Filter | Responsibility
 
-|`em-event-bind-k8s-log-pod-ci` |`em_event` |5000 |`source=SGO-Dynatrace`
+| 100 
+| before 
+| `em-event-enrich-sgo` 
+| `source=SGO-Dynatrace` 
+| Stamp `sn-impact`/`sn-urgency`; log → service instance; else K8s dash-key CI 
 
-|`em-alert-bind-k8s-log-pod-ci` |`em_alert` |5010 |`source=SGO-Dynatrace`
+| 5000 
+| before 
+| `em-alert-enrich-sgo` 
+| `source=SGO-Dynatrace` 
+| Same on the alert (SGO may copy a HOST event onto the alert)
 
-|`em-alert-create-k8s-log-incident` |`em_alert` |5100 |`source=SGO-Dynatrace^severity<=3`
+| 5020 
+| after 
+| `em-alert-create-log-incident` 
+| `source=SGO-Dynatrace^severity<=3^incidentISEMPTY` 
+| `EvtMgmtIncidentHandler.createIncidentNoUpdate(alert, false)`
+
 |===
 
-===== em-event-bind-k8s-log-pod-ci
+=== Deployment Summary
 
-[[lst-br-em-event-bind]]
-.Business rule script — em-event-bind-k8s-log-pod-ci
-[source,javascript]
-----
-(function executeRule(current, previous /*null on insert*/) {
-  var binder = new K8sLogPodCiBind();
-  if (!binder.applyPodBinding(current)) {
-    return;
-  }
+[[tbl-deployment-summary]]
+.Deployment Summary
+[cols="20%,80%",options="header"]
+|===
+| Kind | Configuration / template to implement
 
-  current.update();
-  binder.propagateEventToAlerts(current);
-})(current, previous);
-----
+| Dynatrace OpenPipeline (K8s logs) 
+| Pipeline template equivalent to `k8s-short-log4j2-log-alerts`: parse short Log4j2; stamp `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-impact`/`sn-urgency`; dash aliases `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`; **`dt.davis.is_merging_allowed=false`**; unique_identifier = env\|SI\|signature 
 
-===== em-alert-bind-k8s-log-pod-ci
+| Dynatrace OpenPipeline (standalone / client logs) | Same contract as `standalone-short-log4j2-log-alerts`; map custom-source `service_instance` → `sn-service_instance` 
 
-[[lst-br-em-alert-bind]]
-.Business rule script — em-alert-bind-k8s-log-pod-ci
-[source,javascript]
-----
-(function executeRule(current, previous /*null on insert*/) {
-  var binder = new K8sLogPodCiBind();
-  if (!binder.applyPodBinding(current)) {
-    return;
-  }
+| Dynatrace host metric event 
+| Template: CPU above lab threshold (50%), `eventType=RESOURCE`, `sn-event_kind=CPU_EVENT`, `sn-impact=2`, `sn-urgency=2`
 
-  current.update();
-})(current, previous);
-----
+| Dynatrace K8s anomaly settings | Lab-tuned percent rules (CPU ~40%, memory ~50%, short observation windows). OOTB schema **cannot** stamp `sn-*
 
-===== em-alert-create-k8s-log-incident
+| Dynatrace problem notification | Payload template `ProblemDetailsJSON` + `ImpactedEntities` (attributes SN reads live in `rankedEvents[0].customProperties`) 
 
-Creates or correlates an incident on the service instance, then sets **`current.task`** so the alert appears on the incident **Alerts** tab.
+| K8s workload manifests | Controller labels `servicenow.com/service-instance` (and app labels) on Deployment/StatefulSet so CMDB `cmdb_key_value` lands on the **controller** CI 
 
-[[lst-br-em-alert-create-incident]]
-.Business rule script — em-alert-create-k8s-log-incident
-[source,javascript]
-----
-(function executeRule(current, previous /*null on insert*/) {
-  if (current.source.toString() !== 'SGO-Dynatrace') {
-    return;
-  }
+| ServiceNow Script Includes | `ResolveApplicationService` (`enrichSgoRecord`, `applyLogServiceInstanceBinding`, `getCustomProperty` bracket reads); `EvtMgmtCustomIncidentPopulator`; `L2IIncidentFromAlert` 
 
-  if (!current.task.nil()) {
-    return;
-  }
+| ServiceNow business rules | `em-event-enrich-sgo` (before, 100); `em-alert-enrich-sgo` (before, 5000); `em-alert-create-log-incident` (after, 5020) 
 
-  var severity = parseInt(current.severity, 10);
-  if (isNaN(severity) || severity > 3) {
-    return;
-  }
+| ServiceNow TBAC | Definition **L2I short Log4j2 SI + signature** on dash keys `sn-environment`, `sn-service_instance`, `sn-log-signature` 
 
-  var desc = current.description.toString();
-  if (
-    desc.indexOf('Spark ') === -1 &&
-    desc.indexOf('spark-app.log') === -1 &&
-    desc.indexOf('/mnt/spark/logs/') === -1
-  ) {
-    return;
-  }
+| ServiceNow AMR | **L2I Create Incident CRITICAL_LOG_EVENT** inactive until a published Flow uses action **Create incident from Alert**. Keep OOTB `SGO-Dynatrace` AMR inactive
+|===
 
-  if (current.cmdb_ci.nil()) {
-    return;
-  }
 
-  var resolver = new ResolveApplicationService();
-  var asSysId = resolver.resolveFromInfrastructureCi(current.cmdb_ci.toString());
-  if (!asSysId) {
-    return;
-  }
+=== Example resolution
 
-  var levelMatch = desc.match(/\b(ERROR|WARN)\b/);
-  var logLevel = levelMatch
-    ? levelMatch[1]
-    : severity <= 2
-      ? 'ERROR'
-      : 'WARN';
-  var shortDesc = 'Event Log ' + logLevel;
-  var shortDescPrefix = 'Event Log';
+Three patterns share the same `ProblemID` / `message_key` path. They differ in which CI enrich leaves on the alert, and whether an incident is created (`severity<=3`).
 
-  function linkAlertToIncident(incSysId) {
-    var alertGr = new GlideRecord('em_alert');
-    if (!alertGr.get(current.sys_id)) {
-      return;
-    }
-    alertGr.task = incSysId;
-    alertGr.setWorkflow(false);
-    alertGr.update();
-  }
-
-  var backfillInc = new GlideRecord('incident');
-  backfillInc.addQuery('active', true);
-  backfillInc.addQuery('short_description', 'STARTSWITH', shortDescPrefix);
-  backfillInc.addEncodedQuery('cmdb_ciISEMPTY');
-  backfillInc.orderBy('sys_created_on');
-  backfillInc.setLimit(1);
-  backfillInc.query();
-  if (backfillInc.next()) {
-    backfillInc.cmdb_ci = asSysId;
-    backfillInc.short_description = shortDesc;
-    backfillInc.work_notes =
-      'Set Configuration item from alert ' +
-      current.number +
-      ' (service instance resolved from pod CI).';
-    backfillInc.update();
-    linkAlertToIncident(backfillInc.sys_id);
-    return;
-  }
-
-  var openInc = new GlideRecord('incident');
-  openInc.addQuery('cmdb_ci', asSysId);
-  openInc.addQuery('active', true);
-  openInc.addQuery('short_description', 'STARTSWITH', shortDescPrefix);
-  openInc.setLimit(1);
-  openInc.query();
-  if (openInc.next()) {
-    openInc.work_notes =
-      'Correlated alert ' +
-      current.number +
-      ': ' +
-      current.description.toString().substring(0, 500);
-    openInc.update();
-    linkAlertToIncident(openInc.sys_id);
-    return;
-  }
-
-  var inc = new GlideRecord('incident');
-  inc.initialize();
-  inc.cmdb_ci = asSysId;
-  inc.short_description = shortDesc;
-  inc.description = current.description;
-  inc.severity = current.severity;
-  inc.impact = 2;
-  inc.urgency = 2;
-  inc.caller_id = gs.getUserID();
-  inc.comments = 'Auto-created from Event Management alert ' + current.number;
-  inc.work_notes = 'Source alert: ' + current.number;
-  var incSysId = inc.insert();
-  linkAlertToIncident(incSysId);
-})(current, previous);
-----
-
-==== Ansible deployment
-
-[[lst-ansible-incident-deploy]]
-.Deploy Log-to-Incident ServiceNow automation
-[source,bash]
-----
-cd ansible
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml \
-  -e @../vars/secrets.yaml
-----
-
-Playbook path: `ansible/playbooks/servicenow/incident/deploy.yml`. Source files: `servicenow/integrations/incident/*.js`.
-
-==== Example resolution (Kubernetes worker pod)
-
-[[tbl-example-resolution-worker-pod]]
-.Example resolution path for a Kubernetes worker pod log
+[[tbl-example-resolution-log]]
+.Example — log event (Spark Master)
 [cols="25%,75%",options="header"]
 |===
 |Phase |Record / relationship
 
 |Problem
-|Davis problem; impacted entity CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890
+|Davis `ERROR_EVENT`; `sn-event_kind=CRITICAL_LOG_EVENT`; `sn-service_instance=Spark-Master`; `sn-log-signature=TaskSetManager:270`
 
 |Event
-|em_event; cmdb_ci → cmdb_ci_kubernetes_pod myapp-worker-7d4f9b-xk2lm
+|`em_event`; SGO may bind HOST or pod first; enrich overwrites `cmdb_ci` → service instance **Spark Master**; `node` / `resource` = `sn-service_instance:Spark-Master`
 
 |Alert
-|em_alert; same pod CI; description contains full ERROR log line
-
-|Tag on pod CI
-|cmdb_key_value: servicenow.com/service-instance=Myapp-Worker-Zone-A
-
-|SM membership
-|svc_ci_assoc: pod CI is a member of service instance Myapp Worker Zone A (tag-based Service Mapping)
+|`em_alert`; same service instance; short description **`Critical log event — TaskSetManager:270`**
 
 |Incident
-|incident.cmdb_ci → service instance Myapp Worker Zone A (via Service-Side svc_ci_assoc lookup)
+|`incident.cmdb_ci` → the same **Spark Master** service instance (populator; correlate by SI + signature)
 |===
 
-==== Application and Dynatrace (Phase 5)
+A Client log is the same pattern with `sn-service_instance=Spark-Client` and service instance **Spark Client**.
 
-No configuration on the application or Dynatrace side. Dynatrace problem tags (Project, Environment) do not replace CSDM tags on pod CIs for incident binding.
+[[tbl-example-resolution-workload-cpu]]
+.Example — Kubernetes workload CPU
+[cols="25%,75%",options="header"]
+|===
+|Phase |Record / relationship
 
----
+|Problem
+|OOTB K8s resource; `ImpactedEntities[0].type=CLOUD_APPLICATION`; `k8s-workload-name=spark-worker-lab1`
+
+|Event / Alert
+|`cmdb_ci` → `cmdb_ci_kubernetes_deployment` **spark-worker-lab1** (name lookup; SGC 1.15.0 has no Workload SOS)
+
+|Incident
+|None while EM severity is **Warning (4)** (`severity<=3` create gate)
+|===
+
+[[tbl-example-resolution-host-cpu]]
+.Example — host CPU
+[cols="25%,75%",options="header"]
+|===
+|Phase |Record / relationship
+
+|Problem
+|Host metric event; `sn-event_kind=CPU_EVENT`; `sn-impact=2` / `sn-urgency=2`
+
+|Event / Alert
+|`cmdb_ci` → HOST (**lab1** or **lab2**) via SGO SOS
+
+|Incident
+|None while EM severity is **Warning (4)**
+|===
+
+== Appendix A - Definitions
+
+[[tbl-acronyms]]
+.Acronyms
+[cols="8%,22%,70%",options="header"]
+|===
+|Acronym |Full Form|Definition
+
+|ITIL
+|Information Technology Infrastructure Library
+|A framework for IT service management that provides a common approach to managing IT services and align IT services with broader business goals. 
+
+|SGO
+|Service Graph Observability
+|Out-of-the-box ServiceNow app/connector (SGO-Dynatrace) pulling Dynatrace topology, hosts, and service
+
+|SOS
+|Service Operations System
+|The enterprise event/CI processing and routing engine that maps ingested Dynatrace payloads into CSDM classes and applies custom ServiceNow enrichments.
+
+|TBAC
+|Tag-Based Alert Clustering
+|A ServiceNow Event Management feature that groups related em_alert records when they share configured tag/key values from the alert payload.
+
+
+
+|===
+
+== Appendix B - Dynatrace
+
+=== Severity levels 
+
+Here is the Dynatrace model as documented for **custom/OpenPipeline Davis `event.type`** values (Events API / semantic dictionary), and how they relate to **alerting-profile `severityLevel`** and webhook **`ProblemSeverity`**.
+
+===== Allowed `event.type` values (what you may set)
+
+From the https://docs.dynatrace.com/docs/semantic-dictionary/model/davis[Davis semantic dictionary] / https://docs.dynatrace.com/docs/dynatrace-api/environment-api/events-v2/post-event[Events API v2]
+
+[[tbl-dynatrace-event-types]]
+.Dynatrace Event Types and Severities
+[cols="15%,15%,20%,20%,20%",options="header"]
+|===
+
+| Event Type ID `event.type` | Opens a problem? | Event Type Name | Alerting Profile `severityLevel` | Typical webhook `ProblemSeverity` 
+| `AVAILABILITY_EVENT` | Yes | Availability | `AVAILABILITY` | `AVAILABILITY`
+| `ERROR_EVENT` | Yes | Error | `ERRORS` | `ERROR`
+| `PERFORMANCE_EVENT` | Yes | Slowdown | `PERFORMANCE` | `PERFORMANCE`
+| `RESOURCE_CONTENTION_EVENT` | Yes | Resource | `RESOURCE_CONTENTION` | `RESOURCE_CONTENTION`
+| `CUSTOM_ALERT` | Yes | Custom | `CUSTOM_ALERT` | `CUSTOM_ALERT`
+| `WARNING` | **No** (info-class) | Warning | *(none — no problem)* | *(no problem notification)*
+| `CUSTOM_INFO` | **No** | Info | *(none)* | *(none)*
+| `CUSTOM_ANNOTATION` | **No** | Info | *(none)* | *(none)*
+| `CUSTOM_CONFIGURATION` | **No** | Info | *(none)* | *(none)*
+| `CUSTOM_DEPLOYMENT` | **No** | Info | *(none)* | *(none)*
+| `MARKED_FOR_TERMINATION` | **No** (info-class) | Info | *(none)* | *(none)*
+
+|===
+
+Sources: https://docs.dynatrace.com/docs/dynatrace-intelligence/root-cause-analysis/event-analysis-and-correlation/event-categories[Event categories], https://docs.dynatrace.com/docs/dynatrace-api/environment-api/settings/schemas/builtin-alerting-profile[alerting.profile schema].
+
+==== Profile-only severity (usually not an OpenPipeline `event.type` you pick)
+
+| Alerting-profile `severityLevel` | Typical origin | Webhook `ProblemSeverity` |
+|---|---|---|
+| `MONITORING_UNAVAILABLE` | Platform “monitoring unavailable” events | `MONITORING_UNAVAILABLE` |
+
+That bucket exists on profiles; it is not one of the generic custom `event.type` enums above.
+
+==== Spelling quirks (important)
+
+- Profile API uses **`ERRORS`** (plural).
+- Webhook / problem field is usually **`ERROR`** (singular).
+- Same idea for the ERROR class; names are not identical strings.
+
+==== How matching works
+
+1. You set **`event.type`** (e.g. `ERROR_EVENT`).
+2. Davis assigns an **event category / problem severity bucket** (Error → problem severity `ERROR`).
+3. Alerting profile matches that bucket via **`severityLevel: ERRORS`**.
+4. Problem notification substitutes **`{ProblemSeverity}`** from the problem (e.g. `ERROR`).
+
+Your Spark log path: `ERROR_EVENT` → problem `ERROR` → profile `ERRORS` → webhook `ProblemSeverity: ERROR`.
+
+==== Not the same as numeric `event.severity` 1–5
+
+There is also a newer ITIL-style **`event.severity` (1–5)**. That is a different scale from classic profile buckets (`AVAILABILITY` / `ERRORS` / …). Your OpenPipeline does **not** set that; classic problem severity for L2I comes from **`event.type` → ERROR class**.
 

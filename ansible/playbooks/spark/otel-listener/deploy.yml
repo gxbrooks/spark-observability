@@ -5,7 +5,7 @@
 # referenced by ansible/roles/spark/templates/spark-defaults.conf.j2 (spark.jars).
 # Application data stays on /mnt/spark/data; runtime JARs use /mnt/spark/jars.
 #
-# Client mode (run-chapters.sh on a workstation): uses the repo path in
+# Client mode (bin/run-chapters.sh on a workstation): uses the repo path in
 # spark/conf/spark-defaults.conf (generated from SPARK_OTEL_LISTENER_JAR in
 # spark_client_env.sh). build_jar.yml copies target/*.jar to that path; deploy
 # here does NOT update the workstation copy unless you re-run build locally.

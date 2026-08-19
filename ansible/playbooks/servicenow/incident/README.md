@@ -7,6 +7,17 @@ K8s dash-key CI for infra) →
 **EvtMgmtIncidentHandler** / **EvtMgmtCustomIncidentPopulator**
 (incident CI = **service instance**).
 
+## Event Management layers (who creates what)
+
+| Layer | Who | Creates? | Filter guidance |
+| ----- | --- | -------- | --------------- |
+| Ingest | SGO webhook | **`em_event`** insert/update (`message_key` = ProblemID) | n/a |
+| Event rule (manual EM UI) | EM | Does **not** create the event. Marks events **Ready** | `source=SGO-Dynatrace` only — include Warning (4) and OK/clear (5) so alerts open **and** close |
+| Alert rule (manual EM UI) | EM | **Creates/updates `em_alert`**; closes on clear updates | `source=SGO-Dynatrace` |
+| Create BR / AMR | L2I | **Creates/correlates `incident`** | `severity<=3` (Critical/Major/Minor only) |
+
+Do **not** put `severity<=3` on the Event → Ready rule. That blocks RESOLVED/OK clears from reaching alert processing and also prevents Warning infra events from becoming alerts. `severity<=3` is the **incident promotion** gate only (create BR + reserved AMR).
+
 ## Create path (AMR + Create incident from Alert)
 
 Target: AMR **L2I Create Incident CRITICAL_LOG_EVENT** → Flow action
@@ -15,10 +26,12 @@ Target: AMR **L2I Create Incident CRITICAL_LOG_EVENT** → Flow action
 
 Interim: BR `em-alert-create-log-incident` (after insert/update) calls
 `EvtMgmtIncidentHandler.createIncidentNoUpdate(alert, false)` — same
-populator path as the Flow action. `autoOpen=false` is required while the
-L2I AMR is inactive (`autoOpen=true` demands a matching `em_alert_rule`).
-AMR stays **inactive** to avoid the OOTB Create Incident subflow (skips populator).
-Deactivate the BR when an admin publishes the Flow and activates the AMR.
+populator path as the Flow action. Filter
+`source=SGO-Dynatrace^severity<=3^incidentISEMPTY`. `autoOpen=false` is
+required while the L2I AMR is inactive (`autoOpen=true` demands a matching
+`em_alert_rule`). AMR stays **inactive** to avoid the OOTB Create Incident
+subflow (skips populator). Deactivate the BR when an admin publishes the
+Flow and activates the AMR.
 
 ## Why dash keys (`sn-log-signature`) not dots (`sn.log.signature`)
 
@@ -44,7 +57,7 @@ the path segment atomic while remaining readable.
 | `EvtMgmtCustomIncidentPopulator` | L2I: incident CI = SI; correlate by SI + `sn-log-signature` |
 | `L2IIncidentFromAlert` | Helper → `EvtMgmtIncidentHandler` (job / reprocess) |
 | BR `em-event-enrich-sgo` / `em-alert-enrich-sgo` | Before insert/update: stamp `sn-impact`/`sn-urgency`; log CI = service instance; else K8s dash-key CI |
-| BR `em-alert-create-log-incident` | Shim → `EvtMgmtIncidentHandler.createIncidentNoUpdate` |
+| BR `em-alert-create-log-incident` | Shim → `EvtMgmtIncidentHandler.createIncidentNoUpdate`; filter `severity<=3` (incident gate only) |
 | TBAC `L2I short Log4j2 SI + signature` | Groups on `sn-environment` + `sn-service_instance` + `sn-log-signature` |
 | AMR `L2I Create Incident CRITICAL_LOG_EVENT` | **Inactive** (activate with published Create-incident-from-Alert Flow) |
 | OOTB `Create Incident for Primary Alert` / `SGO-Dynatrace` | **Inactive** |
@@ -67,7 +80,7 @@ the path segment atomic while remaining readable.
 | `k8s-cronjob-name` / `k8s-job-name` | CronJob / Job CI lookup when those dimensions are present |
 | `k8s.pod.name` | Platform dotted key (JSON bracket in SI; do not put in TBAC keys) |
 
-**Alert severity vs incident priority (current, not redesigned):** `em_alert.severity` is SGO’s 1–5 map of Dynatrace `ProblemSeverity` (this instance: `ERROR`→Major/2, `RESOURCE_CONTENTION`→Warning/4). `incident.priority` is OOTB Data Lookup from `incident.impact` × `incident.urgency`, which the populator copies from `sn-*`. Create BR still requires `severity<=3`. See `servicenow/docs/Log_to_Incident/SGO-Dynatrace_Enhancements.md` for the mapping table and per-context payload attributes.
+**Alert severity vs incident priority (current, not redesigned):** `em_alert.severity` is SGO’s 1–5 map of Dynatrace `ProblemSeverity` (this instance: `ERROR`→Major/2, `RESOURCE_CONTENTION`→Warning/4). `incident.priority` is OOTB Data Lookup from `incident.impact` × `incident.urgency`, which the populator copies from `sn-*`. **Only** the create BR / AMR require `severity<=3` (Warning alerts may exist; they do not auto-incident). See `servicenow/docs/Log_to_Incident/SGO-Dynatrace_Enhancements.md` for the mapping table and per-context payload attributes.
 
 Standalone custom log source still stamps OneAgent `service_instance`; OpenPipeline maps it to `sn-service_instance`.
 

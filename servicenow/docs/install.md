@@ -1010,7 +1010,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/deploy.yml -e @../var
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 
 # 6. Generate load + validate events
-cd ../spark/apps/data-analysis-book && ./run-chapters.sh -a
+cd ../spark/apps/data-analysis-book && ./bin/run-chapters.sh -a
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/test.yml -e @../vars/secrets.yaml
 ```
 

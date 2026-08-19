@@ -321,7 +321,7 @@ check_batch_apps() {
     local apps_dir="${root_dir}/spark/apps/data-analysis-book/"
     
     if [ -d "$apps_dir" ]; then
-        local app_count=$(find "$apps_dir" -maxdepth 1 -name "Chapter_*.py" 2>/dev/null | wc -l)
+        local app_count=$(find "$apps_dir" -path '*/chapters/Chapter_*.py' 2>/dev/null | wc -l)
         if [ $app_count -gt 0 ]; then
             report_check "pass" "Batch applications directory exists with $app_count Chapter_*.py files"
             

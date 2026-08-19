@@ -2,7 +2,7 @@
 
 **Instance:** optimizincdemo1  
 **Dynatrace tenant:** pdt20158  
-**Date:** 2026-08-14 (Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR; sn-impact enrich; K8s dash-key CI)  
+**Date:** 2026-08-18 (EM Ready vs incident `severity<=3` gate; Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR; sn-impact enrich; K8s dash-key CI)  
 **Scope:** short Log4j2 application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
 
 This note is the **design of record** for the lab Log-to-Incident path, plus product / configuration gaps for Dynatrace and ServiceNow account teams. Historical dead-ends (CUSTOM_DEVICE, `spark.*` bind/pipeline attributes, unified pipelines) are marked **Historical** only where they still explain a gap.
@@ -47,7 +47,18 @@ These are **three different numbers**. This lab does **not** yet calculate alert
 | **`incident.impact` / `incident.urgency`** | `EvtMgmtCustomIncidentPopulator.applySnPriorityToTask` | Copies `sn-impact`/`sn-urgency` from the alert. Repeat alerts for the same SI+`sn-log-signature` **bump urgency** toward 1 (and take the more severe impact). |
 | **`incident.priority`** | ServiceNow **Data Lookup** (`incident` Priority lookup, impact × urgency) | Not set in L2I code. Example: impact 3 + urgency 1 → priority 3. Changing this mapping is a later task. |
 
-Create-incident gate is still `severity<=3` on the shim BR, so Warning (4) CPU/K8s alerts get `sn-*` but **no incident** until that policy is revisited.
+**Create-incident gate** is `severity<=3` on the create BR / reserved AMR only, so Warning (4) CPU/K8s alerts get `sn-*` and may remain as alerts but **no incident** until that policy is revisited.
+
+### Event Management: Ready vs incident gate
+
+| Layer | Who | Filter | Purpose |
+| ----- | --- | ------ | ------- |
+| Ingest | SGO webhook | n/a | Creates/updates `em_event` (`message_key` = ProblemID). RESOLVED posts update the same row (`notifyClosedProblems`). |
+| **Event rule** (manual) | EM | `source=SGO-Dynatrace` (**all** severities) | Mark **Ready**. Must include Warning (4) and OK/clear (5) so alerts open and close. |
+| **Alert rule** (manual) | EM | `source=SGO-Dynatrace` | Create/update/close `em_alert` from Ready events. |
+| **Create BR / AMR** | L2I | `severity<=3` (+ other create filters) | Promote alert → incident. |
+
+Do **not** put `severity<=3` on the Event → Ready rule. That blocks clears (often severity **OK / 5**) from reaching alert close processing, and blocks Warning events from becoming alerts at all.
 
 ### Initial `sn-impact` / `sn-urgency` mapping (tunable)
 
@@ -95,9 +106,11 @@ Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.
 | Layer | Behavior |
 | ----- | -------- |
 | **OpenPipeline tags** | `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline` (+ `k8s.pod.name`) in Davis custom properties and description tokens. |
+| **EM Event rule** | Manual: `source=SGO-Dynatrace` → Ready (include Warning and OK/clear). **Not** `severity<=3`. |
+| **EM Alert rule** | Manual: Ready → create/update/close `em_alert` by `message_key`. |
 | **TBAC** | Definition **L2I short Log4j2 SI + signature** exact-matches those customProperties keys so alerts share a group only within the same env + SI + Class:Line. |
 | **Alert CI** | **Log** (`CRITICAL_LOG_EVENT` / `sn-service_instance`): **service instance** (enrich overwrites SGO HOST/pod SOS). **Infra** (CPU / K8s workload): HOST via SOS, or `cmdb_ci_kubernetes_*` from `k8s-workload-name`. |
-| **Incident create** | Target: AMR + Flow action **Create incident from Alert**. Interim: BR shim → `EvtMgmtIncidentHandler.createIncident`. AMR reserved **inactive** (OOTB Create Incident subflow skips populator). |
+| **Incident create** | Target: AMR + Flow action **Create incident from Alert**. Interim: BR shim → `EvtMgmtIncidentHandler.createIncident`. Filter **`severity<=3`** (incident gate). AMR reserved **inactive** (OOTB Create Incident subflow skips populator). |
 | **Incident CI** | `EvtMgmtCustomIncidentPopulator` sets **service instance**; correlates open incidents by SI + `Critical log event — Class:Line`. |
 | **assignment_group** | Not set in L2I (hold). Best practice when enabled: copy CI `support_group` → incident `assignment_group`. |
 | **Bind BRs** | **Purged.** Do not republish. Enrich BRs stamp `sn-*` and K8s dash-key CI only. |
@@ -154,7 +167,7 @@ OpenPipeline **Processing cannot look up entities by name**. Lab **does not** ba
 | Check | Result |
 | ----- | ------ |
 | Promote | `2026-08-03T14:31:46Z` |
-| Stress `run-parallel-all.sh` | exit 0 |
+| Stress `bin/run-stress.sh` | exit 0 |
 | First audit (all SGO since promote) | 13 events, **0 null `cmdb_ci`**; 12 HOST (CPU / `CUSTOM_ALERT`, `spark.event_kind=CPU_EVENT`) + 1 Cluster log (`spark.pod_identifier` → Spark Master AS) |
 | Client path | bind via `spark.service_instance:Spark-Client` → service instance **Spark Client** (`resource` = `spark.service_instance:Spark-Client`) |
 
@@ -196,8 +209,8 @@ Lab custom creator for comparison:
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Name      | `em-alert-create-log-incident` (formerly `em-alert-create-k8s-log-incident`)                                                                                                                                               |
 | Table     | `sys_script` (Business Rule on `em_alert`)                                                                                                                                                                                 |
-| Filter    | `source=SGO-Dynatrace^severity<=3`                                                                                                                                                                                         |
-| Order     | `5020` (runs after bind BR `5010`)                                                                                                                                                                                         |
+| Filter    | `source=SGO-Dynatrace^severity<=3^incidentISEMPTY` (incident promotion only; Event → Ready must **not** use `severity<=3`)                                                                                                  |
+| Order     | `5020` (runs after enrich BR `5000`)                                                                                                                                                                                       |
 | Sys id    | *(re-resolved after rename — look up by name)*                                                                                                                                                                             |
 | Deep link | Search `sys_script` name `em-alert-create-log-incident` on optimizincdemo1                                                                                                                                                 |
 

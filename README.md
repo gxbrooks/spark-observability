@@ -68,7 +68,7 @@ ansible-playbook -i inventory.yml playbooks/observability/install.yml
 ### Run Spark Applications
 ```bash
 # Direct execution (recommended)
-python3 spark/apps/Chapter_03.py
+python3 spark/apps/data-analysis-book/chapters/Chapter_03.py
 
 # Interactive development
 cd spark/ispark && ./launch_ipython.sh
@@ -114,7 +114,7 @@ generate-contexts --vars-dir ./vars -f
 ### Running Tests
 ```bash
 # Test Spark event flow
-python3 spark/apps/Chapter_03.py
+python3 spark/apps/data-analysis-book/chapters/Chapter_03.py
 
 # Check observability platform status
 ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/status.yml

@@ -71,8 +71,9 @@ export PYSPARK_DRIVER_PYTHON_OPTS=""
 source venv/bin/activate
 
 # Run a Spark application
-python spark/apps/data-analysis-book/Chapter_03.py
-python spark/apps/data-analysis-book/Chapter_07.py
+python spark/apps/data-analysis-book/chapters/Chapter_03.py
+python spark/apps/data-analysis-book/chapters/Chapter_07.py
+# or: ./spark/apps/data-analysis-book/bin/run-chapters.sh 03 07
 
 # Deactivate when done
 deactivate
@@ -171,7 +172,7 @@ spark-submit \
   --deploy-mode cluster \
   --conf spark.kubernetes.container.image=spark:4.0.1 \
   --conf spark.kubernetes.namespace=spark \
-  spark/apps/data-analysis-book/Chapter_07.py
+  spark/apps/data-analysis-book/chapters/Chapter_07.py
 ```
 
 **How It Works:**
@@ -187,12 +188,8 @@ spark-submit \
 spark/
 ├── apps/                              # Batch Spark applications
 │   ├── data-analysis-book/            # Example applications by chapter
-│   │   ├── Chapter_03.py              # Basic DataFrame operations
-│   │   ├── Chapter_04.py              # SQL and transformations
-│   │   ├── Chapter_05.py              # Data aggregations
-│   │   ├── Chapter_06.py              # Joins and data enrichment
-│   │   ├── Chapter_07.py              # Advanced operations
-│   │   └── ...                        # More chapters
+│   │   ├── bin/                       # run-chapters.sh, run-stress.sh, wait-chapters.sh
+│   │   └── chapters/                  # Chapter_03.py … Chapter_10.py
 │   ├── gsod/                          # GSOD data processing examples
 │   └── spark-warehouse/               # Spark SQL warehouse directory
 ├── conf/                              # Client configuration
@@ -313,7 +310,8 @@ Use the assertion script to verify your environment:
 
 ## Example Applications
 
-The `apps/data-analysis-book/` directory contains example Spark applications:
+The `apps/data-analysis-book/` directory contains example Spark applications
+(`chapters/Chapter_*.py`; run via `bin/run-chapters.sh` or `bin/run-stress.sh`):
 
 - **Chapter_03.py**: DataFrame basics and word count analysis
 - **Chapter_04.py**: SQL queries and transformations

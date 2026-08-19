@@ -177,7 +177,7 @@ source venv/bin/activate
 source vars/contexts/spark-client/spark_env.sh
 
 # 5. Test Spark
-python spark/apps/Chapter_03.py
+python spark/apps/data-analysis-book/chapters/Chapter_03.py
 ```
 
 ### Updating Environment Variables

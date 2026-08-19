@@ -138,7 +138,7 @@ Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab3)
 * Init container alone runs as root (`runAsUser: 0`) only to create and chown the pod directory.
 * Log files must be **`spark:spark`** (mode **`664`**) so group members (Elastic Agent, operators) can read without root.
 
-**Chapter / client-mode drivers** (`run-chapters.sh`):
+**Chapter / client-mode drivers** (`bin/run-chapters.sh`):
 
 * Write to `/mnt/spark/logs/<hostname>-chapter/`; developers need membership in group **`spark`**.
 
