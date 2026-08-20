@@ -92,18 +92,13 @@ processors:
           - set(resource.attributes["operation.type"], Split(attributes["span.kind"], ".")[1]) where attributes["span.kind"] != nil
 
 exporters:
-# BEGIN DYNATRACE_OTEL_EXPORTER
-otlphttp/dynatrace:
-  endpoint: "https://pdt20158.live.dynatrace.com/api/v2/otlp"
-  headers:
-    Authorization: "Api-Token ${DT_INGEST_TOKEN}"
-# END DYNATRACE_OTEL_EXPORTER
-  # BEGIN DYNATRACE_OTEL_EXPORTER
+  # Nested under exporters. A top-level otlphttp/dynatrace key (from a
+  # mis-indented blockinfile merge) makes the collector refuse to start:
+  # "'otelcol.configSettings' has invalid keys: otlphttp/dynatrace".
   otlphttp/dynatrace:
     endpoint: "https://pdt20158.live.dynatrace.com/api/v2/otlp"
     headers:
       Authorization: "Api-Token ${DT_INGEST_TOKEN}"
-  # END DYNATRACE_OTEL_EXPORTER
   elasticsearch/traces:
     endpoints:
       - https://es01:9200

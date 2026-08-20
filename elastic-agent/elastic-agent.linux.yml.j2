@@ -16,6 +16,24 @@ inputs:
       - metricsets:
           - filesystem
         data_stream.dataset: system.filesystem
+        # Skip pseudo/container/session mounts. Statfs on docker netns (nsfs),
+        # gvfs/portal (fuse*), and snap squashfs logs "permission denied" as
+        # ERROR and floods Elastic Agent + Dynatrace log ingest.
+        filesystem.ignore_types:
+          - sysfs
+          - proc
+          - nsfs
+          - cgroup
+          - cgroup2
+          - overlay
+          - tmpfs
+          - devtmpfs
+          - autofs
+          - squashfs
+          - fuse
+          - fuse.gvfsd-fuse
+          - fuse.portal
+          - fuse.snapfuse
       - metricsets:
           - load
         data_stream.dataset: system.load

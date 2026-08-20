@@ -906,7 +906,7 @@ We will need to specify how Dynatrace will route the log messages to the appropr
 
 
 ==== Event Processing
-Each log entry is viewed as an event. The event.name, event.type, and dt.source_entity are import attributes that decide if two events are the same. We must decide how these attributes are set for de-duplication.
+Each log entry is viewed as an event. The event.name, event.type, and dt.source_entity are important attributes that decide if two events are the same. We must decide how these attributes are set for de-duplication.
 
 ==== Log Processing
 Log processing manipulates the log messages (Dynatrace Events) and marshals the data to store in Grail and then send to ServiceNow. .
@@ -1724,7 +1724,7 @@ The `event.type` property must be set to one of the codes in the above table, ot
 
 ====== Source Entity
 
-The `dt.source_entity` property is used to determine the source of the event. 
+The `dt.source_entity` property is the entity that represents the source of the event.  
 
 ====== Davis Configuration for Spark
 

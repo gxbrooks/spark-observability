@@ -106,7 +106,9 @@ services:
       xpack.http.ssl.certificate_authorities: "certs/ca/ca.crt"
       # CA_CERT for scripts that may be run inside the container (esapi, kapi, etc.)
       CA_CERT: ${CA_CERT}
-      TZ: ${TZ}    
+      TZ: ${TZ}
+      # OneAgent process-group tag (matches CSDM service instance display name).
+      DT_TAGS: "[servicenow.com/service-instance]Elasticsearch"    
     # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
     deploy:
       resources:
@@ -202,7 +204,8 @@ services:
       XPACK_REPORTING_ENCRYPTIONKEY: ${EB_ENCRYPTION_KEY}
       SERVER_PUBLICBASEURL: "http://${KB_HOST}:${KB_PORT}"
       NODE_OPTIONS: "--max-old-space-size=1536"
-      TZ: ${TZ}    
+      TZ: ${TZ}
+      DT_TAGS: "[servicenow.com/service-instance]Kibana"    
     mem_limit: 2147483648
     logging: *default-logging
     depends_on:
@@ -253,7 +256,8 @@ services:
       # GF_INSTALL_PLUGINS: "marcusolsson-dynamictext-panel"  # Disabled due to permission issues
       # Grafana should not need the CA cert
       CA_CERT: "${CA_CERT}"
-      TZ: ${TZ}    
+      TZ: ${TZ}
+      DT_TAGS: "[servicenow.com/service-instance]Grafana"
     deploy:
         resources:
           limits:
@@ -332,6 +336,7 @@ services:
       ES_PASSWORD: "${ES_PASSWORD}"
       CA_CERT: ${CA_CERT}
       DT_INGEST_TOKEN: "${DT_INGEST_TOKEN}"
+      DT_TAGS: "[servicenow.com/service-instance]OpenTelemetry Collector"
     deploy:
       resources:
         limits:
@@ -344,10 +349,8 @@ services:
       init-index:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      # contrib 0.148+ images have no wget/curl; host start.yml probes :13133 instead.
+      disable: true
     logging: *default-logging
 
   # Prometheus remote write adapter: receives Prometheus remote write and indexes to Elasticsearch
@@ -432,6 +435,7 @@ services:
       KUBERNETES_API_SERVER: "${KUBERNETES_API_SERVER}"
       CA_CERT: ${CA_CERT}
       TZ: ${TZ}
+      DT_TAGS: "[servicenow.com/service-instance]Prometheus"
     deploy:
       resources:
         limits:
@@ -473,6 +477,7 @@ services:
       ES_PASSWORD: "${ES_PASSWORD}"
       CA_CERT: ${CA_CERT}
       TZ: ${TZ}
+      DT_TAGS: "[servicenow.com/service-instance]Grafana Tempo"
     deploy:
       resources:
         limits:
@@ -529,6 +534,7 @@ services:
       # TODO: environment variables to include time zone. 
       TZ: ${TZ}
       LS_JAVA_OPTS: "-Xms1g -Xmx1500m"
+      DT_TAGS: "[servicenow.com/service-instance]Logstash"
     restart: unless-stopped
     deploy:
       resources:

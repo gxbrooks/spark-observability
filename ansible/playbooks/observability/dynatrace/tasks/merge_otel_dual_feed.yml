@@ -10,17 +10,22 @@
     msg: "Skipping Dynatrace OTel exporter merge: DT_INGEST_TOKEN is empty."
   when: (dt_ingest_token_resolved | default('') | trim) == ''
 
-- name: Insert Dynatrace exporter block
-  ansible.builtin.blockinfile:
+# blockinfile insertafter "exporters:" previously wrote otlphttp/dynatrace at
+# column 0, which the collector treats as an invalid top-level key and crash-loops.
+- name: Remove invalid top-level Dynatrace OTLP exporter (must nest under exporters)
+  ansible.builtin.replace:
     path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
-    marker: "# {mark} DYNATRACE_OTEL_EXPORTER"
-    insertafter: "^exporters:"
-    block: |2
-      otlphttp/dynatrace:
-        endpoint: "{{ dt_api_url_resolved }}/v2/otlp"
-        headers:
-          Authorization: "Api-Token ${DT_INGEST_TOKEN}"
+    regexp: '(?ms)^# BEGIN DYNATRACE_OTEL_EXPORTER\r?\n^otlphttp/dynatrace:.*?\r?\n^# END DYNATRACE_OTEL_EXPORTER\r?\n'
+    replace: ''
   delegate_to: localhost
+  when: (dt_ingest_token_resolved | default('') | trim) != ''
+
+- name: Assert Dynatrace OTLP exporter is nested under exporters
+  ansible.builtin.command:
+    cmd: grep -E '^[[:space:]]+otlphttp/dynatrace:' "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+  delegate_to: localhost
+  register: dt_otel_exporter_nested
+  changed_when: false
   when: (dt_ingest_token_resolved | default('') | trim) != ''
 
 - name: Ensure traces pipeline exports to Dynatrace

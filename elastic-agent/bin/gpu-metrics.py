@@ -8,22 +8,32 @@ metrics.
 from __future__ import annotations
 
 import datetime
+import errno
 import gzip
 import json
 import pathlib
 import re
 import sys
+import time
 from typing import Dict, Optional
 
 SYSFS_ROOT = pathlib.Path("/sys/class/drm")
 AMD_VENDOR_ID = "0x1002"
 
 
-def read_text(path: pathlib.Path) -> Optional[str]:
-    try:
-        return path.read_text().strip()
-    except FileNotFoundError:
-        return None
+def read_text(path: pathlib.Path, attempts: int = 3) -> Optional[str]:
+    """Read a sysfs attribute, retrying EBUSY (AMDGPU can race with the driver)."""
+    for attempt in range(attempts):
+        try:
+            return path.read_text().strip()
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            if exc.errno == errno.EBUSY and attempt + 1 < attempts:
+                time.sleep(0.05 * (attempt + 1))
+                continue
+            return None
+    return None
 
 
 def read_float(path: pathlib.Path, scale: float = 1.0) -> Optional[float]:
