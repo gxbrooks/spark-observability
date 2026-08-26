@@ -40,7 +40,7 @@ Application WARN on /mnt/spark/logs/spark-client/lab3/spark-app.log:
 dt.davis.event_timeout: 15m
 dt.source_entity: HOST-D8207A117616460E
 event.name: Application log WARN on spark-client-lab3
-event.type: ERROR_EVENT
+event.type: CUSTOM_ALERT
 ```
 
 **Bundled event 2 — service-side:**
@@ -52,7 +52,7 @@ Application WARN on /mnt/spark/logs/spark-master-0/spark-app.log:
 dt.davis.event_timeout: 15m
 dt.source_entity: HOST-D8207A117616460E
 event.name: Application log WARN on spark-master-0
-event.type: ERROR_EVENT
+event.type: CUSTOM_ALERT
 ```
 
 **Legacy child alert:** Alert0014496 (Dynatrace) at the same timestamp → **INC0013902** on **lab3** host CI (“Multiple infrastructure problems”), not Spark Client AS.

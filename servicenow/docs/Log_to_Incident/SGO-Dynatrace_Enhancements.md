@@ -13,19 +13,20 @@ This note is the **design of record** for the lab Log-to-Incident path, plus pro
 
 ## 0. Current design of record (2026-08-10 — sn-* dash tags + handler create path)
 
-### Attribute basename: `sn-*` (solution-specific; dashes, not dots)
+### Attribute basename: `sn-*` (solution-specific; **all kebab**)
 
 Dots in attribute names break ServiceNow TBAC nested-path walks into
-`additional_info` JSON. Use dashes so
-`…customProperties.sn-log-signature` is one path segment.
+`additional_info` JSON. Prefer **all kebab** (`sn-service-instance`) so
+`…customProperties.sn-log-signature` is one path segment. Avoid mixed
+forms (`sn-service_instance`) and dots (`sn.service_instance`).
 
 | Attribute | Role |
 | --------- | ---- |
 | `sn-log-class` / `sn-log-line` | Parsed short Log4j2 `Class:Line` (OpenPipeline) |
 | `sn-log-signature` | `Class:Line` clustering / incident short description |
-| `sn-event_kind` | SN semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`) |
+| `sn-event-kind` | SN semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`) |
 | `sn-environment` | Environment partition (no cross-env grouping) |
-| `sn-service_instance` | Service instance clustering / resolve key |
+| `sn-service-instance` | Service instance clustering / resolve key |
 | `sn-pipeline` | OpenPipeline customId stamp |
 | `sn-impact` | SN incident impact (1/2/3). DT stamps where it can (OpenPipeline, metric events); SN enrich maps ProblemSeverity otherwise |
 | `sn-urgency` | SN incident urgency (1/2/3). Correlated repeats bump toward 1; SN Data Lookup calculates **priority** from impact × urgency |
@@ -34,7 +35,7 @@ Dots in attribute names break ServiceNow TBAC nested-path walks into
 | `k8s-workload-kind` | `deployment` / `statefulset` / `daemonset` / `cronjob` / `job` |
 | `k8s-cronjob-name` / `k8s-job-name` | CronJob / Job execution CI lookup |
 | `k8s.pod.name` | Platform dotted key (still stamped; SN reads via JSON bracket, never TBAC dot-walk) |
-| `service_instance` | Standalone OneAgent custom-source stamp (mapped → `sn-service_instance`) |
+| `service_instance` | Standalone OneAgent custom-source stamp (mapped → `sn-service-instance`) |
 
 ### How alert severity and incident priority are computed today
 
@@ -66,7 +67,7 @@ Do **not** put `severity<=3` on the Event → Ready rule. That blocks clears (of
 | ------ | --------- | ---------- |
 | OpenPipeline log ERROR | 2 | 2 |
 | OpenPipeline log WARN | 3 | 3 |
-| Host CPU metric event (`sn-event_kind=CPU_EVENT`) | 2 | 2 |
+| Host CPU metric event (`sn-event-kind=CPU_EVENT`) | 2 | 2 |
 | `ProblemSeverity=AVAILABILITY` (OOTB, SN enrich) | 1 | 2 |
 | `ProblemSeverity=ERROR` | 2 | 2 |
 | `ProblemSeverity=RESOURCE_CONTENTION` | 2 | 2 |
@@ -80,8 +81,8 @@ Dynatrace problem notification body is still `ProblemDetailsJSON` + `ImpactedEnt
 
 | Context | Who can stamp | Required / used attributes | Alert CI lookup |
 | ------- | ------------- | -------------------------- | --------------- |
-| **K8s / Standalone short Log4j2** | OpenPipeline Davis (`dt.davis.is_merging_allowed=false`) | `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline`, `sn-impact`, `sn-urgency`; K8s also `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`, `k8s-namespace-name` | **Alert CI = service instance** (enrich overwrites HOST/pod SOS). Incident CI = same SI |
-| **Host CPU metric event** | Metric event `eventTemplate.metadata` | `sn-event_kind=CPU_EVENT`, `sn-environment`, `sn-impact=2`, `sn-urgency=2` | HOST via SGO SOS (`ImpactedEntities[0].type=HOST`) |
+| **K8s / Standalone short Log4j2** | OpenPipeline Davis (`dt.davis.is_merging_allowed=false`) | `sn-event-kind`, `sn-log-signature`, `sn-environment`, `sn-service-instance`, `sn-pipeline`, `sn-impact`, `sn-urgency`; K8s also `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`, `k8s-namespace-name` | **Alert CI = service instance** (enrich overwrites HOST/pod SOS). Incident CI = same SI |
+| **Host CPU metric event** | Metric event `eventTemplate.metadata` | `sn-event-kind=CPU_EVENT`, `sn-environment`, `sn-impact=2`, `sn-urgency=2` | HOST via SGO SOS (`ImpactedEntities[0].type=HOST`) |
 | **OOTB K8s workload** (CPU close to limits, etc.) | DT metric dimensions on the problem; **cannot** add OpenPipeline metadata | Platform: `k8s.workload.name`, `k8s.workload.kind`, `k8s.namespace.name`, `k8s.cluster.name`; `ImpactedEntities[0].type=CLOUD_APPLICATION`, `name=<workload>`. SN enrich copies `k8s-workload-name` / `k8s-workload-kind` | Deployment (or kind table) by **name** (`k8s-workload-name` or entity name). SGC 1.15.0 has no Workload data source — SOS/`correlation_id` usually empty |
 | **OOTB K8s pod / CAI** | DT | `k8s.pod.name` (platform); SN copies `k8s-pod-name` | `cmdb_ci_kubernetes_pod` by name |
 | **OOTB CronJob / Job** | DT when those dimensions exist | `k8s.cronjob.name` / `k8s.job.name`; SN copies `k8s-cronjob-name` / `k8s-job-name` | `cmdb_ci_kubernetes_cron_job` / `cmdb_ci_kubernetes_job` by name |
@@ -89,7 +90,7 @@ Dynatrace problem notification body is still `ProblemDetailsJSON` + `ImpactedEnt
 
 **Dotted-lookup rule:** never put `k8s.workload.name` in a TBAC `additional_info_key` or a `sys_script` filter condition. Use `k8s-workload-name`. JSON.parse + bracket access in `ResolveApplicationService.getCustomProperty` is safe.
 
-**Why both `event.type` and `sn-event_kind`?** Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). `sn-event_kind` carries the ServiceNow UI type; `ResolveApplicationService.applyLogEventTypeRename` remaps `em_event.type` / `em_alert.type`. Built-in `CPU_SATURATED` is left unchanged.
+**Why both `event.type` and `sn-event-kind`?** Dynatrace Settings API constrains Davis `event.type` to a fixed enum (`ERROR_EVENT`, `CUSTOM_ALERT`, …). `sn-event-kind` carries the ServiceNow UI type; `ResolveApplicationService.applyLogEventTypeRename` remaps `em_event.type` / `em_alert.type`. Built-in `CPU_SATURATED` is left unchanged.
 
 ### End-to-end contract
 
@@ -97,7 +98,7 @@ Dynatrace problem notification body is still `ProblemDetailsJSON` + `ImpactedEnt
 | ------- | ------------ | --------------- | ------------ | -------- | ----------- |
 | **Standalone App with short Log4j2 logs** | RollingFile under lab path (`/mnt/spark/client-logs/…`) | Custom log source stamps `service_instance` | `standalone-short-log4j2-log-alerts` | HOST (ImpactedEntity) | Service instance from `service_instance` |
 | **K8s App with short Log4j2 logs** | Console → container stdout | DynaKube `logMonitoring: {}` → `Container Output` + `k8s.pod.name` | `k8s-short-log4j2-log-alerts` | Pod CI | Service instance via pod → `svc_ci_assoc` |
-| **Host CPU** | Metric event | Host OneAgent | `sn-event_kind=CPU_EVENT` on metric template | HOST | (CPU path; not log SI correlation) |
+| **Host CPU** | Metric event | Host OneAgent | `sn-event-kind=CPU_EVENT` on metric template | HOST | (CPU path; not log SI correlation) |
 
 Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.j2`, `l2i-openpipeline-routing-entries.json.j2`, `dynakube.yaml.j2`.
 
@@ -105,11 +106,11 @@ Specs: `standalone-short-log4j2-*.json.j2`, `k8s-short-log4j2-openpipeline.json.
 
 | Layer | Behavior |
 | ----- | -------- |
-| **OpenPipeline tags** | `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline` (+ `k8s.pod.name`) in Davis custom properties and description tokens. |
+| **OpenPipeline tags** | `sn-event-kind`, `sn-log-signature`, `sn-environment`, `sn-service-instance`, `sn-pipeline` (+ `k8s.pod.name`) in Davis custom properties and description tokens. |
 | **EM Event rule** | Manual: `source=SGO-Dynatrace` → Ready (include Warning and OK/clear). **Not** `severity<=3`. |
 | **EM Alert rule** | Manual: Ready → create/update/close `em_alert` by `message_key`. |
 | **TBAC** | Definition **L2I short Log4j2 SI + signature** exact-matches those customProperties keys so alerts share a group only within the same env + SI + Class:Line. |
-| **Alert CI** | **Log** (`CRITICAL_LOG_EVENT` / `sn-service_instance`): **service instance** (enrich overwrites SGO HOST/pod SOS). **Infra** (CPU / K8s workload): HOST via SOS, or `cmdb_ci_kubernetes_*` from `k8s-workload-name`. |
+| **Alert CI** | **Log** (`CRITICAL_LOG_EVENT` / `sn-service-instance`): **service instance** (enrich overwrites SGO HOST/pod SOS). **Infra** (CPU / K8s workload): HOST via SOS, or `cmdb_ci_kubernetes_*` from `k8s-workload-name`. |
 | **Incident create** | Target: AMR + Flow action **Create incident from Alert**. Interim: BR shim → `EvtMgmtIncidentHandler.createIncident`. Filter **`severity<=3`** (incident gate). AMR reserved **inactive** (OOTB Create Incident subflow skips populator). |
 | **Incident CI** | `EvtMgmtCustomIncidentPopulator` sets **service instance**; correlates open incidents by SI + `Critical log event — Class:Line`. |
 | **assignment_group** | Not set in L2I (hold). Best practice when enabled: copy CI `support_group` → incident `assignment_group`. |
@@ -227,7 +228,7 @@ Lab custom creator for comparison:
 You do **not** register a BR inside an AMR. Options that *are* supported:
 
 1. **Keep OOTB AMR off** for lab; use `em-alert-create-log-incident` (handler shim) for log-to-incident until a published Create-incident-from-Alert Flow owns create.
-2. **Narrow OOTB AMR filter** so it only covers standard SGO classes you want OOTB to handle (e.g. host CPU), and **exclude** Spark log / `ERROR_EVENT` (or require `cmdb_ci` class service instance).
+2. **Narrow OOTB AMR filter** so it only covers standard SGO classes you want OOTB to handle (e.g. host CPU), and **exclude** Spark log / `CUSTOM_ALERT` with `sn-event-kind=CRITICAL_LOG_EVENT` (or require `cmdb_ci` class service instance).
 3. **Replace** OOTB create with a **custom AMR** whose filter requires `cmdb_ciISNOTEMPTY` (and ideally service instance class) — optionally use `EvtMgmtCustomIncidentPopulator` for field mapping.
 4. Do **not** run OOTB AMR **and** `em-alert-create-log-incident` together for the same alerts (dual creators).
 
@@ -501,7 +502,7 @@ Log-to-Incident BRs should **not** own host CPU. Standard SGO should.
 | Alert class         | Example signal                                      | CI bind                            | Incident create                                              |
 | ------------------- | --------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------ |
 | Infra / host        | `CPU_SATURATED`, host `CUSTOM_ALERT` / `CPU_EVENT`  | Generic bind → HOST CI             | Narrowed **infra AMR** (re-enable OOTB or clone) when ready  |
-| Spark / K8s app log | `ERROR_EVENT` + `spark.event_kind=CRITICAL_LOG_EVENT` | Generic bind → service instance | `em-alert-create-log-incident` (or log AMR with CI required) |
+| Spark / K8s app log | `CUSTOM_ALERT` + `sn-event-kind=CRITICAL_LOG_EVENT` | Generic bind → service instance | `em-alert-create-log-incident` (or log AMR with CI required) |
 
 **Minimal way to narrow (lab):**
 
@@ -565,4 +566,4 @@ To see a live problem’s entity: **Problems** → open problem → **Impacted e
 4. **DT:** Confirm CAI / workload MZ membership behavior for Kubernetes entities used with Container Output log streams.
 5. **DT:** OpenPipeline **native** pod-name → entity lookup (Processing cannot do live entity enrichment today). Cluster stdout path reduces but does not remove the need for SN-side `spark.pod_identifier` bind.
 6. **SN:** Document why Table API updates to `incident.cmdb_ci` may no-op while GlideRecord in a BR succeeds.
-7. **SN SGO:** How `em_alert.resource` is chosen for Davis log `ERROR_EVENT` (bind key vs log file path vs entity id).
+7. **SN SGO:** How `em_alert.resource` is chosen for Davis log `CUSTOM_ALERT` (bind key vs log file path vs entity id).

@@ -118,7 +118,7 @@ Template: `observability/dynatrace/integrations/spark-openpipeline-log-alerts-pi
 | **Pipeline name** | `Spark Lab - log alerts` |
 | **Client Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Client"` |
 | **Cluster Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Cluster"` |
-| **Event type** | `ERROR_EVENT` |
+| **Event type** | `CUSTOM_ALERT` |
 | **Event name** | Client: `Client application log {loglevel} on {host}:{driver}`; Cluster: `Cluster application log {loglevel} on {spark.pod_name}` |
 | **Routing** | Prepended route: `/mnt/spark/logs/*` OR `/mnt/spark/client-logs/*` → this pipeline (before `Metric Route`). |
 | **Processing** | Trust OneAgent enrichment (`spark.mode`, `spark.driver.instance` / `spark.pod_name`); compose Client `spark.instance`; bind Client CUSTOM_DEVICE; parse Log4j class:line. |

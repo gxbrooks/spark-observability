@@ -61,7 +61,7 @@ sn_l2i_process_pending_job_period_seconds: "60"
 sn_l2i_tbac_definition_name: L2I short Log4j2 SI + signature
 sn_l2i_tbac_definition_description: >-
   Group L2I CRITICAL_LOG_EVENT alerts that share sn-environment,
-  sn-service_instance, and sn-log-signature (prevents cross-environment merge).
+  sn-service-instance, and sn-log-signature (prevents cross-environment merge).
 # TBAC time_difference is minutes on this instance (see peer definitions).
 sn_l2i_tbac_time_difference_seconds: "15"
 sn_l2i_tbac_alert_filter: descriptionLIKECRITICAL_LOG_EVENT
@@ -71,8 +71,8 @@ sn_l2i_tbac_tags:
   - name: L2I exact match sn-environment
     key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-environment"
     description: L2I environment partition (lab/prod)
-  - name: L2I exact match sn-service_instance
-    key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-service_instance"
+  - name: L2I exact match sn-service-instance
+    key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-service-instance"
     description: L2I service instance clustering key
   - name: L2I exact match sn-log-signature
     key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-log-signature"

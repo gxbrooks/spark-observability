@@ -26,6 +26,7 @@ Gary Brooks <gxbrooks@gmail.com>
 // draw.io SVG embeds + asciidoctor-diagram Graphviz PNGs share images/ (gitignored)
 :imagesdir: images
 :imagesoutdir: images
+:xrefstyle: basic
 :us: {zwsp}_
 :dash: {zwsp}-
 
@@ -88,60 +89,6 @@ Many systems have both *service-side* components (clustered services, pods, long
 
 Log to Incident must still hand both scenarios, even when the client is not a managed CI in the CMDB. 
 
-=== Design considerations
-
-The following decisions are the contract between the observability platform and the ITSM platform for this implementation. Stage 3 repeats the same rules under <<tbl-l2i-design-decisions-phase4,Log to Incident design decisions (ServiceNow)>>.
-
-[[tbl-l2i-design-decisions-process]]
-.Log to Incident design decisions
-[cols="22%,40%,38%",options="header"]
-|===
-|Decision |Current rule |Why
-
-|Dash keys, not dots
-|`sn-log-signature`, `sn-service_instance`, `sn-impact`, `k8s-workload-name`
-|TBAC / Glide conditions walk `additional_info` on `.`. A key named `k8s.workload.name` is treated as a JSON path, not one property.
-
-|Dynatrace owns initial impact/urgency
-|OpenPipeline and metric-event metadata stamp `sn-impact` / `sn-urgency`. OOTB Davis/K8s cannot; SN enrich maps `ProblemSeverity`.
-|Alert `severity` (EM 1–5) and incident `priority` (Data Lookup) are **different** numbers.
-
-|Log alert CI = service instance
-|`CRITICAL_LOG_EVENT` / `sn-service_instance` → `cmdb_ci` is the CSDM service instance. Enrich **overwrites** SGO HOST/pod SOS.
-|Operators assign from the SI, not Lab3. Incident CI is the same SI.
-
-|Infra alert CI = HOST or K8s controller
-|CPU → HOST via SOS. Workload problems → Deployment (etc.) from `k8s-workload-name`.
-|SGC 1.15.0 has no Workload data source; name lookup is required.
-
-|One problem → many events
-|SGO emits **one `em_event` per ImpactedEntity** for the same `message_key` (ProblemID).
-|HOST + pod + workload rows can share one alert. That is connector fan-out, not Client vs Cluster.
-
-|Do not merge L2I Davis events
-|`dt.davis.is_merging_allowed=false` on log OpenPipeline
-|Prevents HOST-bundling a Master WARN with Lab3.
-
-|Create path
-|AMR + Flow action **Create incident from Alert** → `EvtMgmtIncidentHandler` → `EvtMgmtCustomIncidentPopulator`. Interim: BR `em-alert-create-log-incident`. AMR stays **inactive** until that Flow is published.
-|OOTB Create Incident subflow **skips** the populator.
-
-|Correlate incidents by SI + Class:Line
-|Short description `Critical log event — {sn-log-signature}`
-|Not `Event Log WARN`. Repeats bump urgency; Data Lookup sets priority.
-
-|TBAC partition
-|`sn-environment` + `sn-service_instance` + `sn-log-signature`
-|Stops cross-environment and cross-SI merge.
-|===
-
-Specific observability platforms (e.g. Dynatrace or Elastic Stack) and specific ITSM platforms (e.g. ServiceNow or Remedy) will have specific requirements for implementing the Log to Incident observability process. However, there are the several design considerations that span the different platforms. These include: 
-
-* Which log messages are considered salient and should be turned into an incident?
-* How to model the (service-side) application in the CMdb?
-* How to model clients in the CMdb?
-* What information must an event, whether from a client or a service, include to determine the CI to map to an incident?
-
 === Platform implementations
 
 Subsequent chapters describe how to implement the Log to Incident process on specific observability and service management platforms. To design and configure such systems, we need to have a specific application in mind that we will use to illustrate the process. For historical reasons, we will use Apache Spark as the application. Apache Spark is a sophisticated data and analytics platform that runs on Kubernetes and has both client and and service use cases. Information on Apache Spark is available at https://spark.apache.org/docs/latest/index.html[Apache Spark Documentation].
@@ -181,7 +128,7 @@ The Master, Workers, and History Server are the **service-side** workloads. Thei
 |Kubernetes workload / pod / HOST (SGO may fan out one problem to several `ImpactedEntities`)
 
 |ServiceNow service instance
-|`Spark-Master` / `Spark-Worker` / `Spark-History-Server` from the OpenPipeline pod-name prefix → `sn-service_instance`
+|`Spark-Master` / `Spark-Worker` / `Spark-History-Server` from the OpenPipeline pod-name prefix → `sn-service-instance`
 
 |Log alert CI
 |That **service instance** (enrich overwrites HOST/pod SOS)
@@ -209,7 +156,7 @@ image::spark-client-mode-architecture.svg[Spark Client Architecture,width=75%,al
 |HOST (OneAgent file tail). A CUSTOM_DEVICE “Spark Client” is historical — not the bind.
 
 |ServiceNow service instance
-|`Spark-Client` from the custom-source `service_instance` stamp → `sn-service_instance`
+|`Spark-Client` from the custom-source `service_instance` stamp → `sn-service-instance`
 
 |Log alert CI
 |**Spark Client** service instance (enrich overwrites HOST SOS)
@@ -1026,7 +973,7 @@ service_instances:
 
 === Service-Side Model
 
-The Service-side model used in Spark cluster mode shows the logical relationships between CSDM service instances, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for **service-side** logs. Log alerts bind the **service instance**, not the pod. Pods remain in the CMDB for topology; `k8s-pod-name` is a fallback lookup to the SI via `svc_ci_assoc` when `sn-service_instance` is missing.
+The Service-side model used in Spark cluster mode shows the logical relationships between CSDM service instances, Kubernetes-discovered CIs, SGC-imported entities, and Event Management bindings for **service-side** logs. Log alerts bind the **service instance**, not the pod. Pods remain in the CMDB for topology; `k8s-pod-name` is a fallback lookup to the SI via `svc_ci_assoc` when `sn-service-instance` is missing.
 
 <<fig-spark-servicenow-model-service-side>> illustrates the Service-side model of the Spark Master. The other Spark services, e.g. Spark Workers and the Spark History Server, would have avery similar CMdb models.
 
@@ -1096,7 +1043,7 @@ spec:
         servicenow.com/service-instance: Spark-Master
 ----
 
-Tag discovery writes `servicenow.com/service-instance` to `cmdb_key_value` on the **controller** CI (from `metadata.labels`) and on each **pod** CI (from the template). Tag-based Service Mapping matches the tag value against the population rule and records membership in **`svc_ci_assoc`**. Log alerts use the OpenPipeline `sn-service_instance` stamp as the primary bind; `svc_ci_assoc` is the fallback.
+Tag discovery writes `servicenow.com/service-instance` to `cmdb_key_value` on the **controller** CI (from `metadata.labels`) and on each **pod** CI (from the template). Tag-based Service Mapping matches the tag value against the population rule and records membership in **`svc_ci_assoc`**. Log alerts use the OpenPipeline `sn-service-instance` stamp as the primary bind; `svc_ci_assoc` is the fallback.
 
 === Client-side Model
 
@@ -1125,7 +1072,7 @@ The service instance YAML specification for the Spark Client is shown below.
       - Spark Master
 ----
 
-Now, given the Spark Client service instance, how do we map a log message on the client device to that CI? There is no Kubernetes label. The OneAgent custom log source tails `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` and stamps `service_instance`; OpenPipeline maps that to `sn-service_instance` = `Spark-Client`. ServiceNow enrich binds the log alert to the Spark Client service instance and overwrites the HOST SOS. A Dynatrace CUSTOM_DEVICE named “Spark Client” is **historical** — it is not the current bind.
+Now, given the Spark Client service instance, how do we map a log message on the client device to that CI? There is no Kubernetes label. The OneAgent custom log source tails `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` and stamps `service_instance`; OpenPipeline maps that to `sn-service-instance` = `Spark-Client`. ServiceNow enrich binds the log alert to the Spark Client service instance and overwrites the HOST SOS. A Dynatrace CUSTOM_DEVICE named “Spark Client” is **historical** — it is not the current bind.
 
 [#step-0-pod-labels]
 ==== Kubernetes workload labels
@@ -1239,7 +1186,7 @@ Service instance association is done in two significantly different ways dependi
 
 ==== Cluster Mode
 
-In cluster mode, associate each Spark workload with its CSDM service instance by setting `servicenow.com/service-instance` on the **controller** (`metadata.labels`) **and** on the **pod template**. Kubernetes does not copy controller labels onto pods. The label value is the service instance **display name** in the Kubernetes label character set (for example `Spark Master` → `Spark-Master`). OpenPipeline maps the running pod-name prefix (`spark-master-*`, `spark-worker-*`, `spark-history-*`) to `sn-service_instance`.
+In cluster mode, associate each Spark workload with its CSDM service instance by setting `servicenow.com/service-instance` on the **controller** (`metadata.labels`) **and** on the **pod template**. Kubernetes does not copy controller labels onto pods. The label value is the service instance **display name** in the Kubernetes label character set (for example `Spark Master` → `Spark-Master`). OpenPipeline maps the running pod-name prefix (`spark-master-*`, `spark-worker-*`, `spark-history-*`) to `sn-service-instance`.
 
 [.figure-indent]
 [[list-spark-master-pod-template2]]
@@ -1262,7 +1209,7 @@ spec:
 
 ==== Client Mode
 
-In client mode the Spark Driver runs on a workstation (or a host used as a workstation). There is no Kubernetes label. The custom log source tails `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` and stamps `service_instance`; OpenPipeline maps that to `sn-service_instance` = `Spark-Client`.
+In client mode the Spark Driver runs on a workstation (or a host used as a workstation). There is no Kubernetes label. The custom log source tails `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` and stamps `service_instance`; OpenPipeline maps that to `sn-service-instance` = `Spark-Client`.
 
 [[step-1-log-emission]]
 === Log File Generation
@@ -1366,13 +1313,650 @@ OneAgent will then need to be configured to harvest the log files under the dire
 [[ch-client-mode]]
 == Dynatrace
 
-This chapter walks the Log to Incident reference path for **both** Spark modes. Cluster Container Output uses OpenPipeline **`k8s-short-log4j2-log-alerts`**. Client file tails under `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` use **`standalone-short-log4j2-log-alerts`**. They share one alerting profile / SGO webhook and the same ServiceNow Event Management automation in <<Stage 3 — ServiceNow,Stage 3>>.
+This section describes the steps to send logs from an application to Dynatrace and then the steps to send the problems to ServiceNow and store the events in the Grail bucket. Before we being this detailed process, we need to begin with the payload that will be sent to ServiceNow.
+
+=== Problem Payload
+
+The problem notification payload that is sent to ServiceNow contingent on an event matching a Davis watcher clause in one one of the Davis processors. Once an event matches a watcher clause, Davis will create a problem. Depending on the alerting profile, Davis may associate multiple events to the problem. Eventually, Davis will send the problem to ServiceNow to create an event in ServiceNow. The payload is sent to ServiceNow via the SGO webhook. This is a different webhook than older, legacy webhook supported by ServiceNow.  <<spec-dt-webhook-payload-json>> shows the top-level schema of the problem notification payload. 
+
+.Problem notification payload (SGC)
+[#spec-dt-webhook-payload-json]
+[source,json]
+-----
+{
+  "ConnectionId": "<connections_alias_sys_id>",
+  "ImpactedEntities": {ImpactedEntities},
+  "ImpactedEntity": "{ImpactedEntity}",
+  "PID": "{PID}",
+  "ProblemDetailsJSON": {ProblemDetailsJSON},
+  "ProblemDetailsText": "{ProblemDetailsText}",
+  "ProblemID": "{ProblemID}",
+  "ProblemImpact": "{ProblemImpact}",
+  "ProblemSeverity": "{ProblemSeverity}",
+  "ProblemTitle": "{ProblemTitle}",
+  "ProblemURL": "{ProblemURL}",
+  "State": "{State}",
+  "Tags": "{Tags}"
+}
+-----
+
+The placeholder values of the form `{<placeholder>}` are replaced with runtime values determined by Dynatrace. If a placeholder value is in double quotes, the value will be a string. Those placeholder values without double quotes will be a nested JSON structure. 
+
+Dynatrace and application developers can influence how Dynatrace derives some of the values in a problem field. xref:tbl-problem-notification-payload-fields[xrefstyle=full] describes how Dynatrace fills in these placeholder values. The table also indicates which fields a developer may influence.
+
+[[tbl-problem-notification-payload-fields]]
+.Problem notification payload template fields
+[cols="18%,12%,70%",options="header"]
+|===
+|Field Name|Source |Value of the field
+
+|`ProblemID`
+|Dynatrace
+|The human-readable display id of the problem, like `P-260729`. Dynatrace assigns this value. 
+
+|`PID`
+|Dynatrace
+|Dynatrace assigns this field to an internal unique problem system for use in APIs and URLs.
+
+|`ProblemTitle`
+|Influenceable
+|Dynatrace derives this short problem title primarily from the Davis event's `event.name` attribute. When multiple events are associated with (merged into) one problem, Davis builds it from those event names.
+
+|`ProblemSeverity`
+|Influenceable
+|Dynatrace computes the problem severity class, e.g., `CUSTOM_ALERT`, from `event.type` on the events in the problem. For multi-event problems, Dynatrace aggregates to the problem's severity class. See <<tbl-dynatrace-event-types>> for the full list of allowed event.type values. 
+
+|`ProblemImpact`
+|Influenceable
+|Dynatrace derives the Problem's impact tier, for example `APPLICATION`, from the Smartscape layer of the impacted entities. These entities come from the Davis event's `dt.source_entity` and the related topology.  For a full list of the tiers and related entities see <<tbl-impact-tiers>>. 
+
+|`ProblemURL`
+|Dynatrace
+|Dynatrace sets this field to a deep link to the problem in the Dynatrace UI. Dynatrace builds this from the tenant base URL and the problem id.
+
+|`State`
+|Dynatrace
+|Dynatrace sets this from the problem lifecycle (`OPEN` or `RESOLVED`) at send time (problem still open vs closed). 
+
+|`Tags`
+|Influenceable
+|Dynatrace sets the tags to a comma-separated tags  of the form `<tag>:<value>` from tags stamped on the impacted entities. Software and Dynatrace developers can stamp tags on an entity through OneAgent, the Dynatrace UI, the Dynatrace API, and container deployment descriptors.   Dynatrace derives the list by collecting tags defined on the problem’s impacted monitored entities. It is not a top-level OpenPipeline field on the Davis event. 
+
+|`ImpactedEntity`
+|Influenceable
+|Dynatrace sets the impacted entity to a summary string of impacted entity's name. Dynatrace derives it by formatting the display names of the same entities that populate `ImpactedEntities` (typically a comma-separated name list).
+
+|`ImpactedEntities`
+|Influenceable
+|Dynatrace sets impacted entities to a JSON array of the impacted entities. Each element of the array is an object with the fields `type`, `name`, and `entity`. Dynatrace derives the array from the problem’s impacted-entity set: the Davis event’s source and related entities (`dt.source_entity`) plus Smartscape relationships Davis uses when expanding impact.
+
+|`ProblemDetailsText`
+|Influenceable
+|Human-readable problem details including root-cause narrative. Dynatrace generates this text from the problem’s event details—chiefly `event.description` and related event text such as `event.name` Custom properties appear when included in those templates.
+
+|`ProblemDetailsJSON`
+|Influenceable
+|Dynatrace sets this to the JSON object representing the full problem as per the **Problems API v1** schema. This object includes custom properties that an OpenPipeline can stamp on the Davis events in the problem. This provides a key extension mechanism for OpenPipeline developers to add custom properties to the problem. See <<section-problem-details-json>> for details.
+
+|===
+
+[[section-problem-details-json]]
+==== Problem Details JSON
+
+The `ProblemDetailsJSON` field is a nested JSON structure that contains a lot of information about the problem. It is the same JSON structure that is used to create a problem within Dynatrace.  `ProblemDetailsJSON` contains summary information, details about the impacted entities, and about entity tags, the events grouped into the problem, and custom properties of the events. The custom properties provide a key mechanism to pass additional information to ServiceNow.
+
+The top-level shape of `ProblemDetailsJSON` (Problems API v1) is shown in <<spec-dt-problem-details-json>>, below. Nested arrays and objects such as `tagsOfAffectedEntities` are summarized here and described in later subsections.
+
+
+[[section-event-type]]
+==== Problem Severity
+
+Severity is a categorization of events and problems into seven categories. The categories are based on qualitative charateristic of the monitor generating the event or problem. For example, a performance oriented monitor would have a sevreity of "PERFORMANCE". Some performnance monitors could have higher or lower importance (aka severity) than a different class of severity, like ERROR. The importance of a monitor really depends on what the monitor is monitoring. Even so, the you can order the severity categories by decreasing level of severity. <<tbl-dynatrace-severity-levels>> shows the seven severity categories ordered by decreasaing level of severity.
+
+[[tbl-dynatrace-severity-levels]]
+.Dynatrace Problem Severity Levels
+[cols="8%,15%,77%",options="header"]
+|===
+| Severity +
+Level | Severity Level +
+Code | Description
+| 1
+| `MONITORING{US}UNAVAILABLE`
+| Widespread monitoring interruption: the majority of installed OneAgents lose their connection with the Dynatrace server. This usually shows up as a lack of visibility for both availability and performance monitoring.
+| 2
+| `AVAILABILITY`
+| High-severity incidents within the environment, such as a complete outage or unavailability of servers or processes.
+| 3
+| `ERROR`
+| Increased error rates or other error-related incidents that interfere with the regular operation of the environment. Alerting profiles match this class as `ERRORS` (plural); problem and webhook fields usually use `ERROR` (singular).
+| 4
+| `PERFORMANCE`
+| Slowdown: a decrease in performance of an operational service or application. Less severe than error or availability events, but still indicates potential service-performance issues.
+| 5
+| `RESOURCE{US}CONTENTION`
+| Resource contention. Typical examples include CPU saturation and memory saturation.
+| 6
+| `CUSTOM{US}ALERT`
+| Custom alerts for user-defined thresholds (any Dynatrace metric) or OpenPipeline Davis events of this class. Like other problem-opening severities, they can be controlled by Dynatrace Intelligence and alerted on.
+| 7
+| `INFO`
+| Informational or warning-class events that do not result in creation of a new problem on their own—for example important deployments, configuration changes, administrative events (such as automatic VM migration), and `WARNING` event types. These do not indicate an abnormal situation by themselves and are not sent as problem alerts.
+|===
+
+A problem's severity is determined by the severity of the Davis events that are grouped into the problem. The severity of a Davis event is determined by the `event.type` property of the event. Event types are mapped into severity levels. For problem severities,  <<tbl-event-type-severity-mapping>> shows the mapping of event types to problem severities.
+
+Dynatrace developers can influence the severity of the events within a problem, which in turn influencest the severity of the problem. TDeveloers do this by setting the custom property `event.type` on each Davis event to one of the allowed event types. There is a wide range of event types. <<section-event-type-full-catalog>> lists every event type on the tenant. Many of these are set in out-of-the-box alerting profiles. WIthin a Davis processor, only a subset of event types are allowed. <<tbl-openpipeline-event-type-guidance>> summarizes those events types that a developer can set in an OpenPipeline.
+
+[[tbl-openpipeline-event-type-guidance]]
+.Dynatrace Davis Event Types (OpenPipeline / custom ingest)
+[cols="15%,15%,7%,60%",options="header"]
+|===
+|Event Type Name |Allowed Event Types|Create Problem|Description and Usage
+
+|Availability event
+|`AVAILABILITY{US}EVENT`
+|Yes
+|High-severity outage / unavailability class. Opens a problem with severity bucket *Availability* (alerting profile `AVAILABILITY`, webhook `ProblemSeverity` typically `AVAILABILITY`). Use for custom “entity/service down” signals.
+
+|Error event
+|`ERROR{US}EVENT`
+|Yes
+|Generic *error* class (custom error event). Opens a problem with severity bucket *Error* (profile `ERRORS`, webhook typically `ERROR`). Prefer for application/runtime failures. Merge allowed by default; set `dt.davis.is{US}merging{US}allowed=false` when you need isolated problems.
+
+|Performance event
+|`PERFORMANCE{US}EVENT`
+|Yes
+|Slowdown / degraded-performance class. Opens a problem with severity bucket *Performance* / Slowdown (profile `PERFORMANCE`, webhook typically `PERFORMANCE`). Use for latency, response-time, or throughput degradation signals.
+
+|Resource contention event
+|`RESOURCE{US}CONTENTION{US}EVENT`
+|Yes
+|Resource-pressure class (CPU, memory, disk, network contention). Opens a problem with severity bucket *Resource* (profile `RESOURCE{US}CONTENTION`, webhook typically `RESOURCE{US}CONTENTION`). Use for custom resource saturation events (OOTB host/K8s anomalies often land here too).
+
+|Custom alert
+|`CUSTOM{US}ALERT`
+|Yes
+|User-defined threshold / metric-style alert class. Opens a problem with severity bucket *Custom* (profile `CUSTOM{US}ALERT`, webhook typically `CUSTOM{US}ALERT`). Prefer for “queue depth / custom metric breached” style alerts and for OpenPipeline log-extracted Davis events (Dynatrace tutorial default). Merge *disallowed* by default.
+
+|Warning
+|`WARNING`
+|No
+|Warning / near-term risk.  Use to annotate risk without notifying via problem profiles.
+
+|Custom info
+|`CUSTOM{US}INFO`
+|No
+|Informational marker (e.g. load test start).  Use for operational context correlated into later problems.
+
+|Custom annotation
+|`CUSTOM{US}ANNOTATION`
+|No
+|Highlights an interesting time window for triage.  Use for third-party annotations on entities/timelines.
+
+|Custom configuration
+|`CUSTOM{US}CONFIGURATION`
+|No
+|Reports a configuration change.  Use for change-correlation context.
+
+|Custom deployment
+|`CUSTOM{US}DEPLOYMENT`
+|No
+|Reports a software deployment (version, owner, etc.).  Use for CI/CD → Davis change correlation.
+
+|Marked for termination
+|`MARKED{US}FOR{US}TERMINATION`
+|No
+|Planned shutdown / decommission of an entity.  suppresses availability alerting for a period (about 60 minutes) so intentional takedowns do not raise false outages. Use before graceful host/process removal.
+|===
+
+The `event.type` property must be set to one of the codes in the above table.As you can see from the table, event types are partially an event category (type) and partially a hierarchy of severity levels. It is not suited for indicating to ServiceNow a graduated (high, medium, low) level of severity. _We will alternative means to communicate severity to ServiceNow in a problem._
+
+However, we still must set event.type within Dynatrace. Dynatrace recommends setting `event.type` for logs to "CUSTOM{US}ALERT" or to 'ERROR_EVENT'. Even within Dynatrace there is not an established best practice. For using "CUSTOM{US}ALERT" see https://docs.dynatrace.com/docs/analyze-explore-automate/logs/lma-use-cases/lma-alert-log-based-events#extract-davis-event[Extracting Davis Events from Logs]. For using `ERROR_EVENT` see https://docs.dynatrace.com/docs/analyze-explore-automate/logs/lma-use-cases/lma-detect-problems-with-logs[Detecting Problems with Logs] or https://dynatrace.github.io/obslab-log-problem-detection/getting-started/[Problem Detection with Logs]. In our case we will use "CUSTOM{US}ALERT". 
+
+To further complicate matters, while problem severities are derived from `event.type`, they are not always spelled the same. <<tbl-event-type-severity-mapping>> shows the mapping of the allowed event types to problem severities, for those event types that create a problem.
+
+
+[[tbl-event-type-severity-mapping]]
+.Dynatrace Event Types and Severities
+[cols="25%,25%,25%,25%",options="header",width=60%]
+|===
+
+| Event Type Name | Event Type +
+ `event.type` | Alerting Profile +
+ `severityLevel` | Webhook Payload +
+ `ProblemSeverity`
+| Availability | `AVAILABILITY_EVENT` | `AVAILABILITY` | `AVAILABILITY`
+| Error | `ERROR_EVENT` | `ERRORS` | `ERROR`
+| Slowdown | `PERFORMANCE_EVENT` | `PERFORMANCE` | `PERFORMANCE`
+| Resource | `RESOURCE_CONTENTION_EVENT` | `RESOURCE_CONTENTION` | `RESOURCE_CONTENTION`
+| Custom | `CUSTOM_ALERT` | `CUSTOM_ALERT` | `CUSTOM_ALERT`
+
+|===
+
+See https://docs.dynatrace.com/docs/dynatrace-intelligence/root-cause-analysis/event-analysis-and-correlation/event-categories[Event categories] and https://docs.dynatrace.com/docs/dynatrace-api/environment-api/settings/schemas/builtin-alerting-profile[alerting.profile schema]. for more details.
+
+
+[[section-problem-impact-tier]]
+==== Impact Tier
+
+The impact tier is the Smartscape layer of the entity that is impacted by the problem.
+
+
+[[tbl-impact-tiers]]
+.Problem Impact Tiers
+[cols="18%,82%",options="header"]
+|===
+|Smartscape Tier|Description
+
+|`APPLICATION`
+|The Smartscape layer entities that denote the objects that implement the User-facing  components. Representative entity types include `APPLICATION` (RUM web application), `MOBILE_APPLICATION`, and `CUSTOM_APPLICATION`. Synthetic front ends (`SYNTHETIC_TEST`, `HTTP_CHECK`) may also surface here when they are the impacted entities.
+
+|`SERVICE`
+|The Smartscape layer entities that denote the objects that implement services. Representative Dynatrace entities include `SERVICE` (monitored service / call endpoint in Smartscape).
+
+|`INFRASTRUCTURE`
+|The Smartscape layer entities that denote the objects that implement applications and services. Representative Dynatrace entity types include `HOST`, `HOST_GROUP`, `PROCESS_GROUP`, `PROCESS_GROUP_INSTANCE`, `DISK`, `NETWORK_INTERFACE`, `CONTAINER_GROUP`, `CONTAINER_GROUP_INSTANCE`, `CUSTOM_DEVICE`, `KUBERNETES_CLUSTER`, `KUBERNETES_NODE`, `CLOUD_APPLICATION_NAMESPACE`, `CLOUD_APPLICATION` (workload controller), `CLOUD_APPLICATION_INSTANCE` (pod), and `KUBERNETES_SERVICE`. 
+|===
+
+Lab Client file-tail and host CPU problems typically land here (`HOST`); Cluster Mode workload/pod problems typically land here (`CLOUD_APPLICATION` / `CLOUD_APPLICATION_INSTANCE`).
+
+==== Problem Details
+
+The `ProblemDetailsJSON` field is a nested JSON structure that contains the full representation of the problem. It uses the Dynatrace V2 problem API schema to represent the problem. The `ProblemDetailsJSON` field contains a lot of information about the problem including summary information, details about the impacted entities, and about entity tags, the events grouped into the problem, and custom properties of the events. _The custom properties provide a key mechanism to pass additional information to ServiceNow._ The <<spec-dt-problem-details-json>> shows the top-level structure of `ProblemDetailsJSON`.
+
+.ProblemDetailsJSON top-level structure (SGC / Problems API v1)
+[#spec-dt-problem-details-json]
+[source,json]
+-----
+{
+  "id": "{id}",
+  "startTime": {startTime},
+  "endTime": {endTime},
+  "displayName": "{displayName}",
+  "impactLevel": "{impactLevel}",
+  "status": "{status}",
+  "severityLevel": "{severityLevel}",
+  "commentCount": {commentCount},
+  "tagsOfAffectedEntities": [ {tagsOfAffectedEntities} ],
+  "rankedEvents": [ {rankedEvents} ],
+  "rankedImpacts": [ {rankedImpacts} ],
+  "affectedCounts": {affectedCounts},
+  "recoveredCounts": {recoveredCounts},
+  "hasRootCause": {hasRootCause}
+}
+-----
+
+<<tbl-problem-details-json-fields>> describes how Dynatrace populates these top-level fields. Complex nested structures and arrays (`tagsOfAffectedEntities`, `rankedEvents`, `rankedImpacts`, `affectedCounts`, `recoveredCounts`) are outlined only at this level and detailed in subsequent subsections. 
+
+[[tbl-problem-details-json-fields]]
+.ProblemDetailsJSON top-level fields
+[cols="18%,12%,70%",options="header"]
+|===
+|Field Name|Source |Value of the field
+
+|`id`
+|Dynatrace
+|Dynatrace assigns an internal unique problem system id in the same family as the webhook payload's `PID`.
+
+|`startTime`
+|Dynatrace
+|Dynatrace sets the problem's start time to the start time of the earliest contributing event in `rankedEvents`. The start time is expressed as a Unix epoch millisecond timestamp.
+
+|`endTime`
+|Dynatrace
+|Dynatrace sets the problem's end time to the end time of the latest contributing event in `rankedEvents`. The end time is expressed as a Unix epoch millisecond timestamp. If the problem is still open, the end time is set to `-1`.
+
+|`displayName`
+|Dynatrace
+|Dynatrace sets the display name to a human-readable problem id display name in the same family as the parent `ProblemID`, e.g. `P-26082165`.
+
+|`impactLevel`
+|Influenceable
+|Dynatrace sets the impact tier of the problem. It uses the same derivation as the webhook payload's `ProblemImpact`. See <<section-problem-impact-tier>> for the different impact tiers.
+
+|`status`
+|Dynatrace
+|Dynatrace sets the problem's lifecycle status to `OPEN` or `CLOSED` at the time the problem is serialized. It is similar to the webhook's payload field `State`.
+
+|`severityLevel`
+|Influenceable
+|Problem severity class (e.g. `ERROR`, `CUSTOM_ALERT`). Same derivation as webhook `ProblemSeverity` from `event.type` on events in the problem. See <<tbl-dynatrace-event-types>>.
+
+|`commentCount`
+|Dynatrace
+|Dynatrace counts the number of comments on the problem in Dynatrace and sets this field to the count.
+
+|`tagsOfAffectedEntities`
+|Influenceable
+|Dynatrace sets the tags to a JSON array of the distinct union of entity tags on impacted entities. The nested tag objects are described in <<section-tags-of-affected-entities>>.
+
+|`rankedEvents`
+|Influenceable
+|Dynatrace sets the ranked events to a JSON array of all the Davis events merged into the problem. Dynatrace builds this from the problem’s ranked event list. _Developers can  influence the nested event custom properties field by setting the custom properties in an OpenPipeline._ See <<section-ranked-events>> for details.
+
+|`rankedImpacts`
+|Dynatrace
+|Dynatrace sets ranked impacts to a JSON array summarizing the severity type and impact tier  of the entities of the impacted entities in the problem. See <<section-ranked-impacts>> for details.
+
+|`affectedCounts`
+|Dynatrace
+|Dynatrace counts the total number of entities involved in the problem per impact tier and sets the affected counts to a structure of the counts per impact tier. Dynatrace computes these counts from the problem’s impact analysis. See <<tbl-impact-tiers>> for the impact tiers.
+
+|`recoveredCounts`
+|Dynatrace
+|Dynatrace counts the the number of entries with open events in the problem per impact tier. Dynatrace then sets this field to a structure with an open count for each impact tier. Object counting recovered entities by impact tier (same keys as `affectedCounts`). Dynatrace updates these as entities recover / the problem closes. Object shape is described subsequently.
+
+|`hasRootCause`
+|Dynatrace
+|Dynatrace sets this Boolean indicating depending on whether Davis identified a root-cause entity for the problem. Dynatrace sets this from problem analysis; not stamped from OpenPipeline.
+|===
+
+[[section-ranked-events]]
+==== Ranked Events
+
+The `rankedEvents` field is a JSON array of the Davis events that Dynatrace Davis' engine grouped into a problem. The Davis engine processes candidate events and groups them into problems if several criteria are met. 
+
+NOTE: Need to define the criteria either here or in a separate section. Also need to define the merge criteria and the ranking criteria.
+
+As with the enclosing ProblemDetailsJSON object, each ranked-event element uses the Problems API v1 schema. <<spec-dt-ranked-event-json>> shows the schema of one event. There can be one or more events in a problem. 
+
+.Event Schema
+[#spec-dt-ranked-event-json]
+[source,json]
+-----
+{
+  "startTime": {startTime},
+  "endTime": {endTime},
+  "entityId": "{entityId}",
+  "entityName": "{entityName}",
+  "severityLevel": "{severityLevel}",
+  "impactLevel": "{impactLevel}",
+  "eventType": "{eventType}",
+  "status": "{status}",
+  "severities": [ {severities} ],
+  "isRootCause": {isRootCause},
+  "annotationDescription": "{annotationDescription}",
+  "correlationId": "{correlationId}",
+  "customProperties": {customProperties}
+}
+-----
+
+<<tbl-ranked-event-fields>> describes how Dynatrace populates each of these fields. The nested `customProperties` object is the Davis' processor key extension point.
+
+[[tbl-ranked-event-fields]]
+.Ranked event fields
+[cols="15%,15%,70%",options="header"]
+|===
+|Field Name|Source |Value of the field
+
+|`startTime`
+|Dynatrace
+|Dynatrace sets the event start time to the timestamp of the first matching Davis event report. The start time is expressed as a Unix epoch millisecond timestamp.
+
+|`endTime`
+|Dynatrace
+|Dynatrace sets the event end time to the timestamp when the event closed (last refresh plus `dt.davis.event_timeout`). The end time is expressed as a Unix epoch millisecond timestamp. If the event is still open, Dynatrace sets this field to `-1`.
+
+|`entityId`
+|Influenceable
+|Dynatrace uses the value of `dt.source_entity` to determine the entity's id. If the value of `dt.davis.is_entity_remapping_allowed` is false, then the value of `entityId` will be the same as the value of `dt.source_entity`. If the value is `true`, Davis may pick a more preferable entity to be the focus of the event.
+
+|`entityName`
+|Influenceable
+|Dynatrace will set the entity's name to whichever entity is selected for `entityId`. 
+
+|`severityLevel`
+|Influenceable
+|Dynatrace sets the event severity class (for example `ERROR`) from the Davis event's `event.type`. See <<section-event-type>> for more details.
+
+|`impactLevel`
+|Influenceable
+|Dynatrace sets the impact tier from the Smartscape layer of `entityId`. Same derivation as the webhook payload's `ProblemImpact`. See <<section-problem-impact-tier>>. Log file events will typically result in an impact level of `INFRASTRUCTURE`.
+
+|`eventType`
+|Influenceable
+|Dynatrace copies the Davis event's `event.type` (for example `CUSTOM_ALERT`). OpenPipeline stamps this on the Davis processor. See <<tbl-dynatrace-event-types>>.
+
+|`status`
+|Dynatrace
+|Dynatrace sets the event lifecycle status to `OPEN` or `CLOSED` at the time the problem is serialized.
+
+|`severities`
+|Dynatrace
+|Dynatrace sets this to a JSON array of per-sample severity records for metric-style events. For OpenPipeline log events the array is typically empty.
+
+|`isRootCause`
+|Dynatrace
+|Dynatrace sets this Boolean according to whether Davis identified this event as a root-cause contributor. Log events with merge disabled are usually `false`.
+
+|`annotationDescription`
+|Influenceable
+|Dynatrace sets this to the Davis event's `event.description`. OpenPipeline composes that description from the log line plus the `sn-*` tokens. ServiceNow also uses this text when building `ProblemDetailsText`.
+
+|`correlationId`
+|Dynatrace
+|Dynatrace assigns an opaque correlation id that ties event reports for this Davis event together. Dynatrace generates this value; it is not an OpenPipeline field.
+
+|`customProperties`
+|Influenceable
+|Dynatrace sets this to a JSON structure of key/value pairs stamped on the Davis event in an OpenPipeline. This provides a key mechanism for OpenPipeline developers to add custom properties to the Dynatrace event and then send them to ServiceNow to be incorported into a ServiceNow event.  <<tbl-tag-contract>>). ServiceNow enrich and the incident populator read **`rankedEvents[0].customProperties`**.
+|===
+
+
+[[section-custom-properties]]
+==== Custom Properties
+
+
+For an OpenPipeline *Davis event* template, Dynatrace treats properties as the event’s metadata. For an OpenPipeline *Davis event* template, Dynatrace treats properties as the event’s metadata. Technically, the pipeline's custom properties schema only requires a non-empty properties list; in practice a small set is
+*required for a useful Davis event*, and another set of properties are *strongly recommended*.
+
+In addition, the custom properties are used to pass additional information to event management systems, like ServiceNow. 
+
+See https://docs.dynatrace.com/docs/semantic-dictionary/model/davis[Davis semantic dictionary],
+https://docs.dynatrace.com/docs/analyze-explore-automate/logs/lma-use-cases/lma-alert-log-based-events[Set up alerts based on events extracted from logs],
+and https://docs.dynatrace.com/docs/dynatrace-api/environment-api/events-v2/post-event[Events API v2 — POST an event].
+
+===== Required Properties
+
+[[tbl-davis-event-properties-required]]
+.Identity and severity (treat as required)
+[cols="28%,72%",options="header"]
+|===
+| Property | Why
+
+| `event.type`
+| Required for custom/OpenPipeline events. Sets the event class and therefore the event’s `severityLevel`. Must be an allowed enum value (`CUSTOM{US}ALERT`, `ERROR{US}EVENT`, and so on).
+
+| `event.name`
+| Human-readable title. Part of Davis *identity*: reports with the same `event.name`, `event.type`, and `dt.source{US}entity` refresh one Davis event. Official log-to-Davis tutorials always set it.
+
+| `dt.source{US}entity`
+| Entity the event attaches to (baseline for problem `entityId` / RCA). Tutorials typically set `{dt.source{US}entity}` so the event stays on topology. If missing or invalid, Dynatrace often maps to the environment entity. Legacy field; prefer `dt.smartscape{US}source.id` where you use 3rd-generation Smartscape.
+
+|===
+
+Comparable Events API ingest minimum: required `eventType` and `title` (≈ `event.name`); associate an entity with `entitySelector` when not supplied in properties.
+
+===== Strongly Recommended Properties
+
+[[tbl-davis-event-properties-recommended]]
+.Strongly recommended
+[cols="28%,72%",options="header"]
+|===
+| Property | Why
+
+| `event.description`
+| Longer human-readable text on the event/problem. Official tutorials always set it. Useful for triage detail and for tokens consumed by downstream integrations.
+
+| `dt.davis.event{US}timeout` +
+`dt.davis.timeout` +
+ dt.event.timeout` (classic)
+| Keep-alive window. Default is *15 minutes*; maximum is *6 hours*. If the source does not refresh within the timeout, Dynatrace closes the event and related problems.
+
+|===
+
+===== Optional Properties
+
+[[tbl-davis-event-properties-behavioral]]
+.Often set (behavior control; not mandatory)
+[cols="33%,67%",options="header"]
+|===
+| Property | Role
+
+| `dt.davis.is{US}merging{US}allowed` +
+`dt.event.allow{US}davis{US}merge`
+| Allow (`true`) or forbid (`false`) merging this event into a larger problem. For `CUSTOM{US}ALERT`, merging is disallowed by default.
+
+| `dt.davis.is{US}entity{US}remapping{US}allowed` +
+`dt.event.allow{US}entity{US}remapping`
+| Allow remapping the attach entity from event metadata, or keep the configured / `dt.source{US}entity` target.
+
+| `dt.davis.preferred{US}entity{US}type`
+| Preferred classic entity type when remapping is enabled.
+
+| `event.unique{US}identifier`
+| Extra split key so the same extraction config does not collapse distinct instances (classic log events often use a content-based placeholder). Complements `event.name` / `event.type` / `dt.source{US}entity` identity.
+
+| `dt.event.correlation{US}tag`
+| Fine-grained correlation together with name, entity, and provider.
+
+| `dt.event.suppress{US}problem`
+| Store and visualize the event but do not raise a problem.
+
+| `dt.event.is{US}rootcause{US}relevant`
+| Include or exclude the event from root-cause analysis.
+
+|===
+
+===== Optional Properties
+
+[[tbl-davis-event-properties-optional]]
+.Optional Properties
+[cols="28%,72%",options="header"]
+|===
+| Property | Role
+
+| Any non-`dt.*` keys +
+ (and extra `dt.entity.*`)
+| Custom metadata. OpenPipeline can remap log fields into these. Useful for integrations (for example ServiceNow `sn-*` tags). *Not* required by Dynatrace.
+
+|===
+
+.Practical OpenPipeline minimum
+****
+Matches Dynatrace’s log-to-Davis tutorial:
+
+`event.type` + `event.name` + `event.description` + `dt.source{US}entity`
+
+Add timeout, merge, remapping, and/or `event.unique{US}identifier` when you care about lifecycle and problem splitting.
+****
+
+[[section-ranked-impacts]]
+==== Ranked Impacts
+
+
+
+
+[[section-tags-of-affected-entities]]
+==== Tags Of Affected Entities
+
+
+
+[NOTE ]
+====
+This chapter walks the Log to Incident reference path for **both** Spark modes. 
+
+Cluster Container Output uses OpenPipeline **`k8s-short-log4j2-log-alerts`**. Client file tails under `/mnt/spark/client-logs/<SPARK_DRIVER_INSTANCE>/` use **`standalone-short-log4j2-log-alerts`**. They share one alerting profile / SGO webhook and the same ServiceNow Event Management automation in <<Stage 3 — ServiceNow,Stage 3>>.
 
 Within each phase subsection below, Dynatrace- and mode-independent material comes first, then **Cluster Mode**, then **Client Mode**.
+====
+
+=== ServiceNow Integration
+
+
+In the previous sections, we have exhaustively defined all the information about events and problems that are sent to ServiceNow. We next need to identify what key information ServiceNow needs to create alerts and in turn incidents. Then we can determine whether the information is consistently available in the problem payload or if there is additional information that we need to send to ServiceNow.
+
+==== Service Instance Tagging
+The ideal CI to associate to a a log message alert is the service instance of the application. The question is, given the information available in the problem payload: How can we derive the service instance from the information available?
+
+The `dt.source_entity` is the entity that is sent to ServiceNow as the impacted entity. Form the impacted entity, ServiceNow will attempt to lookup the corresponding CI in the CMDB. For application logs, the `dt.source_entity` is (by default)the HOST entity on which the OneAgent resides. For container logs, it is the PROCESS_GROUP_INSTANCE of the container. In the former case, there is now way to derive the service instance from the HOST entity. In the latter case, it is possible to derive the service instance from the PROCESS_GROUP_INSTANCE, but the approach is somewhat problematic and because of the rate of change of the PROCESS_GROUP_INSTANCE, it is not a reliable.
+
+A more direct and reliable approach is to tag the events in the problem with the service instance of the application. This is done by setting the `sn-service-instance` custom property on the Davis event. This property is then read by the ServiceNow event management automation and used to set the CI on the incident.
+
+
+==== Tag-Based Alert Correlation
+
+ServiceNow provides an alert grouping mechanism (TBAC) that correlates alerts based on tags. For log-based alerts, alerts assigned to the same service instance with the same error signature can reasonably be grouped together. It might be that you could reasonably group together log-based alerts with the same error signature across service instances. However, this is too strong a statement at this time.
+
+ Log-based alerts are characterized by the log signature. This is done by setting the `sn-log-signature` custom property on the Davis event. This property is then read by the ServiceNow event management automation and used to correlate the alerts.
+
+==== Alert Grouping
+
+
+
+==== Environment Tagging
+
+
+
+
+
+
+The following decisions are the contract between the observability platform and the ITSM platform for this implementation. Stage 3 repeats the same rules under <<tbl-l2i-design-decisions-phase4,Log to Incident design decisions (ServiceNow)>>.
+
+[[tbl-l2i-design-decisions-process]]
+.Log to Incident design decisions
+[cols="22%,40%,38%",options="header"]
+|===
+|Decision |Current rule |Why
+
+|Dash keys, not dots
+|`sn-log-signature`, `sn-service-instance`, `sn-impact`, `k8s-workload-name`
+|TBAC / Glide conditions walk `additional_info` on `.`. A key named `k8s.workload.name` is treated as a JSON path, not one property.
+
+|Dynatrace owns initial impact/urgency
+|OpenPipeline and metric-event metadata stamp `sn-impact` / `sn-urgency`. OOTB Davis/K8s cannot; SN enrich maps `ProblemSeverity`.
+|Alert `severity` (EM 1–5) and incident `priority` (Data Lookup) are **different** numbers.
+
+|Log alert CI = service instance
+|`CRITICAL_LOG_EVENT` / `sn-service-instance` → `cmdb_ci` is the CSDM service instance. Enrich **overwrites** SGO HOST/pod SOS.
+|Operators assign from the SI, not Lab3. Incident CI is the same SI.
+
+|Infra alert CI = HOST or K8s controller
+|CPU → HOST via SOS. Workload problems → Deployment (etc.) from `k8s-workload-name`.
+|SGC 1.15.0 has no Workload data source; name lookup is required.
+
+|One problem → many events
+|SGO emits **one `em_event` per ImpactedEntity** for the same `message_key` (ProblemID).
+|HOST + pod + workload rows can share one alert. That is connector fan-out, not Client vs Cluster.
+
+|Do not merge L2I Davis events
+|`dt.davis.is_merging_allowed=false` on log OpenPipeline
+|Prevents HOST-bundling a Master WARN with Lab3.
+
+|Create path
+|AMR + Flow action **Create incident from Alert** → `EvtMgmtIncidentHandler` → `EvtMgmtCustomIncidentPopulator`. Interim: BR `em-alert-create-log-incident`. AMR stays **inactive** until that Flow is published.
+|OOTB Create Incident subflow **skips** the populator.
+
+|Correlate incidents by SI + Class:Line
+|Short description `Critical log event — {sn-log-signature}`
+|Not `Event Log WARN`. Repeats bump urgency; Data Lookup sets priority.
+
+|TBAC partition
+|`sn-environment` + `sn-service-instance` + `sn-log-signature`
+|Stops cross-environment and cross-SI merge.
+|===
+
+Specific observability platforms (e.g. Dynatrace or Elastic Stack) and specific ITSM platforms (e.g. ServiceNow or Remedy) will have specific requirements for implementing the Log to Incident observability process. However, there are the several design considerations that span the different platforms. These include: 
+
+* Which log messages are considered salient and should be turned into an incident?
+* How to model the (service-side) application in the CMdb?
+* How to model clients in the CMdb?
+* What information must an event, whether from a client or a service, include to determine the CI to map to an incident?
+
 
 [[step-2-dynatrace]]
 [[step-2-dynatrace-cluster]]
-=== Stage 2 — OneAgent
+=== OneAgent
 
 OneAgent is Dynatrace's single, unified data-collection agent that runs on each host. It performs full-stack monitoring of hosts, containers, and applications. For Log to Incident it either collects container stdout/stderr (Cluster Mode) or tails files under `/mnt/spark/client-logs/` (Client Mode) and sends each entry with contextual metadata to Dynatrace.
 
@@ -1382,7 +1966,7 @@ We need to tell OneAgent how to find the log stream and what contextual metadata
 
 The log metadata is the key metadata fields that we need to extract from the log lines or the log context. This depends on what fields are required, the available log context, the available fields in a log line, Dynatrace's ability to parse the log context, and the OpenPipeline's ability to enrich or parse further.
 
-OneAgent provides a limited set of default metadata fields (raw line, log level, log source). OpenPipeline then stamps the **`sn-*`** dash keys used for ServiceNow bind. OpenPipeline **cannot** look up Dynatrace entities by name; it stamps `k8s-pod-name` / `k8s-workload-name` (and `sn-service_instance`) so ServiceNow can bind.
+OneAgent provides a limited set of default metadata fields (raw line, log level, log source). OpenPipeline then stamps the **`sn-*`** dash keys used for ServiceNow bind. OpenPipeline **cannot** look up Dynatrace entities by name; it stamps `k8s-pod-name` / `k8s-workload-name` (and `sn-service-instance`) so ServiceNow can bind.
 
 [[ch-cluster-mode]]
 ==== Cluster Mode
@@ -1432,7 +2016,7 @@ Repo: `observability/dynatrace/dynakube/dynakube.yaml.j2`.
 |OneAgent / Kubernetes enrichment
 |e.g. `spark-master-0` (pod `metadata.name`)
 
-|`sn-service_instance`
+|`sn-service-instance`
 |OpenPipeline (pod-name prefix)
 |`Spark-Master` / `Spark-Worker` / `Spark-History-Server`
 
@@ -1447,7 +2031,7 @@ The key requirements for Client Mode are that:
 
 - We need to know the log level in order to determine which issues are critical or not.
 - We need to mark the stream as Client Mode and capture the driver **instance** differentiator.
-- We need a service instance bind key (`service_instance` on the custom source, mapped to `sn-service_instance`) for ServiceNow.
+- We need a service instance bind key (`service_instance` on the custom source, mapped to `sn-service-instance`) for ServiceNow.
 
 The custom log source below stamps the Client driver instance and `service_instance` from the path pattern (`SPARK_DRIVER_INSTANCE` is the directory under `/mnt/spark/client-logs/`).
 
@@ -1502,14 +2086,16 @@ Given the above template, OneAgent will extract the following metadata fields an
 |Driver directory under `/mnt/spark/client-logs/` (`par-a`, PID, …) set from log source `${1}` (`SPARK_DRIVER_INSTANCE`)
 
 |`service_instance`
-|`Spark-Client`; the standalone pipeline maps this to `sn-service_instance`
+|`Spark-Client`; the standalone pipeline maps this to `sn-service-instance`
 |===
 
-=== Stage 3 — Dynatrace
+==== Next Steps
 
-Once the logs are sent to Dynatrace, they must be routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow. Client file tails and Cluster Container Output use **two** pipelines (`standalone-short-log4j2-log-alerts` and `k8s-short-log4j2-log-alerts`) and share the alerting profile and webhook.
+The next is to send the logs to the Dynatrace SaaS platform.There they will go through a router that will route the logs to the appropriate OpenPipeline.
 
-==== Log Routing
+Once the logs are sent to Dynatrace in , they are routed to an OpenPipeline that processes the log entry. During the pipeline some log entries may be further processed then dropped, converted to problems, or stored in the Grail bucket. Those events converted to a problem are then forwarded to ServiceNow. Client file tails and Cluster Container Output use **two** pipelines (`standalone-short-log4j2-log-alerts` and `k8s-short-log4j2-log-alerts`) and share the alerting profile and webhook.
+
+=== Log Routing
 
 To route the logs to the designated OpenPipeline, we configure the Logs Routing object with **two** entries.
 
@@ -1543,7 +2129,7 @@ To route the logs to the designated OpenPipeline, we configure the Logs Routing 
 
 Ideally, all application log files would use a single pipeline. This is not possible given the way Kubernetes and standalone log files are processed. Then next best approach is would divide applications into classes based on their log files requirements. For example, self-developed Kubernetes application and third-party Java applications, where we could specify log file format standards for each class. For now, we will use two pipelines for just Spark Observability.
 
-==== OpenPipeline processing
+=== OpenPipeline processing
 
 The Spark log processing OpenPipeline has three stages of processing:
 
@@ -1572,16 +2158,16 @@ The templates for the two OpenPipelines share the same three stages. `customId` 
 }
 ----
 
-===== Processors
+==== Processors
 
 Processors stamp **dash-key** `sn-*` fields for ServiceNow TBAC and parse the Log4j short `Class:Line` into `sn-log-signature`. OpenPipeline **cannot** look up entities by name.
 
 . **`tag-pipeline-custom-id`** — stamps `sn-pipeline` (the pipeline customId) and `sn-environment` on every record.
 . **`extract-log4j-class-line`** — parses `Class:Line` into `sn-log-class`, `sn-log-line`, `sn-log-signature`; sets `sn-impact` / `sn-urgency` (ERROR=2/2, WARN=3/3).
 
-====== Cluster Mode
+===== Cluster Mode
 
-Container Output already supplies `k8s.pod.name`. Pipeline **`k8s-short-log4j2-log-alerts`** maps the pod-name prefix to `sn-service_instance` and adds dash aliases (`k8s-pod-name`, `k8s-workload-name`, …).
+Container Output already supplies `k8s.pod.name`. Pipeline **`k8s-short-log4j2-log-alerts`** maps the pod-name prefix to `sn-service-instance` and adds dash aliases (`k8s-pod-name`, `k8s-workload-name`, …).
 
 [[tbl-openpipeline-entry-fields-cluster]]
 .OpenPipeline entry fields (Cluster Mode)
@@ -1595,18 +2181,18 @@ Container Output already supplies `k8s.pod.name`. Pipeline **`k8s-short-log4j2-l
 |k8s.pod.name
 |Kubernetes pod name (e.g. `spark-master-0`)
 
-|sn-service_instance
+|sn-service-instance
 |`Spark-Master` / `Spark-Worker` / `Spark-History-Server` from pod-name prefix
 
 |dt.source_entity
-|Often HOST or CAI. SN bind is `sn-service_instance`, not the pod CI
+|Often HOST or CAI. SN bind is `sn-service-instance`, not the pod CI
 |===
 
 Cluster processors (template `k8s-short-log4j2-openpipeline.json.j2`): `tag-pipeline-custom-id`, `extract-log4j-class-line`, `derive-sn-service-instance-from-pod`, `alias-k8s-dash-keys`.
 
-====== Client Mode
+===== Client Mode
 
-The custom log source already sets `service_instance` and `log.driver.instance`. Pipeline **`standalone-short-log4j2-log-alerts`** maps `service_instance` → `sn-service_instance`.
+The custom log source already sets `service_instance` and `log.driver.instance`. Pipeline **`standalone-short-log4j2-log-alerts`** maps `service_instance` → `sn-service-instance`.
 
 [[tbl-openpipeline-entry-fields]]
 .OpenPipeline entry fields (Client Mode)
@@ -1620,20 +2206,20 @@ The custom log source already sets `service_instance` and `log.driver.instance`.
 |service_instance
 |`Spark-Client` (custom source)
 
-|sn-service_instance
+|sn-service-instance
 |Mapped from `service_instance` in the pipeline
 
 |dt.source_entity
-|HOST (OneAgent file tail). SN binds via `sn-service_instance`, not HOST
+|HOST (OneAgent file tail). SN binds via `sn-service-instance`, not HOST
 |===
 
-Client processors (template `standalone-short-log4j2-openpipeline.json.j2`): `tag-pipeline-custom-id`, `compose-log-instance`, `extract-log4j-class-line` (includes the `service_instance` → `sn-service_instance` map).
+Client processors (template `standalone-short-log4j2-openpipeline.json.j2`): `tag-pipeline-custom-id`, `compose-log-instance`, `extract-log4j-class-line` (includes the `service_instance` → `sn-service-instance` map).
 
-===== Davis
+==== Davis
 
 Davis processing enables communication of critical issues to ServiceNow and provides opportunities to reduce noise or increase the strength of the signals sent to ServiceNow. Noise is reduced by eliding potential events that match an existing Davis event. Signal strength is increased by creating a Davis problem and grouping events that have the same root cause into a single Davis problem. We discuss how Davis processors work and then how we define the processors for handling Spark log entries.
 
-====== Davis Processing
+===== Davis Processing
 
 The Davis processors create Davis events or if a pipeline candidate's identity matches an existing Davis event, it will update the existing event. Davis defines identity as the tuple:
 [.text-center]
@@ -1645,96 +2231,69 @@ Once a Davis event is created, the Davis processor may create or update a Davis 
 
 If the matcher condition is met, the Davis processor will create a Davis problem or group the event into an existing Davis problem. Grouping is dependent on the problem's:
 
-. the matcher condition is met
-. `dt.davis.is_merging_allowed` property is set to `true`
-. the event's timestamp being within the `dt.davis.event_timeout` window of the existing Davis problem
-. the event's `dt.source_entity` being the same as the existing problem's entity or topologically close in Smartscape as in process to host relationships or closely related services
+. The matcher condition is met
+. The `dt.davis.is_merging_allowed` property is set to `true`
+. The event's timestamp is within the `dt.davis.event_timeout` window of the existing Davis problem
+. The event's `dt.source_entity` is the same as the existing problem's entity or topologically close in Smartscape as in process to host relationships or closely related services
 
-====== Event Type 
 
-Davis events are created with an `event.type` property. The `event.type` property is used to determine if the event should be created as a new problem or grouped into an existing problem. The `event.type` property is also used to determine Dynatrace's severity of the problem. The allowed values for `event.type` are shown in <<tbl-dynatrace-event-types>>.
+The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. The body is **`ProblemDetailsJSON` + `ImpactedEntities`**. Attributes ServiceNow uses live in **`rankedEvents[0].customProperties`** (and as tokens in `event.description`). Use **dash keys** wherever TBAC or a Glide condition would treat `.` as a JSON path walk. Script Includes read dotted platform keys with bracket access (`customProperties['k8s.workload.name']`), then copy a dash alias.
 
-[[tbl-dynatrace-event-types]]
-.Dynatrace Davis `event.type` values (Events API v2 / OpenPipeline)
-[cols="15%,15%,7%,60%",options="header"]
+[[tbl-payload-attributes-by-context]]
+.Payload attributes by context
+[cols="22%,22%,28%,28%",options="header"]
 |===
-|Event Type Name |Event Type ID (`event.type`) |Create Problem | Description and Usage
+|Context |Who can stamp |Attributes SN uses |Alert CI lookup
 
-|Availability event
-|`AVAILABILITY{US}EVENT`
-|Yes
-|High-severity outage / unavailability class. Opens a problem with severity bucket *Availability* (alerting profile `AVAILABILITY`, webhook `ProblemSeverity` typically `AVAILABILITY`). Use for custom “entity/service down” signals.
+|K8s / standalone short Log4j2
+|OpenPipeline Davis (`is_merging_allowed=false`)
+|`sn-event-kind`, `sn-log-signature`, `sn-environment`, `sn-service-instance`, `sn-pipeline`, `sn-impact`, `sn-urgency`; K8s also `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`
+|**Service instance** (enrich overwrites HOST/pod SOS)
 
-|Error event
-|`ERROR{US}EVENT`
-|Yes
-|Generic *error* class (custom error event). Opens a problem with severity bucket *Error* (profile `ERRORS`, webhook typically `ERROR`). Prefer for application/runtime failures and critical log lines (e.g. Log4j WARN/ERROR → problem). Merge allowed by default; set `dt.davis.is{US}merging{US}allowed=false` when you need isolated problems.
+|Host CPU metric event
+|Metric event `eventTemplate.metadata`
+|`sn-event-kind=CPU_EVENT`, `sn-environment`, `sn-impact=2`, `sn-urgency=2`
+|HOST via SOS
 
-|Performance event
-|`PERFORMANCE{US}EVENT`
-|Yes
-|Slowdown / degraded-performance class. Opens a problem with severity bucket *Performance* / Slowdown (profile `PERFORMANCE`, webhook typically `PERFORMANCE`). Use for latency, response-time, or throughput degradation signals.
+|OOTB K8s workload
+|DT metric dimensions (cannot add OpenPipeline metadata)
+|`k8s.workload.name` / kind / namespace; SN copies `k8s-workload-name`
+|Deployment (or kind table) by **name**. SGC 1.15.0 has no Workload SOS
 
-|Resource contention event
-|`RESOURCE{US}CONTENTION{US}EVENT`
-|Yes
-|Resource-pressure class (CPU, memory, disk, network contention). Opens a problem with severity bucket *Resource* (profile `RESOURCE{US}CONTENTION`, webhook typically `RESOURCE{US}CONTENTION`). Use for custom resource saturation events (OOTB host/K8s anomalies often land here too).
+|OOTB K8s pod / CAI
+|DT
+|`k8s.pod.name`; SN copies `k8s-pod-name`
+|Pod CI by name (**not** used for log incidents)
 
-|Custom alert
-|`CUSTOM{US}ALERT`
-|Yes
-|User-defined threshold / metric-style alert class. Opens a problem with severity bucket *Custom* (profile `CUSTOM{US}ALERT`, webhook typically `CUSTOM{US}ALERT`). Prefer for “queue depth / custom metric breached” style alerts. Merge *disallowed* by default.
-
-|Warning
-|`WARNING`
-|No
-|Warning / near-term risk.  Use to annotate risk without notifying via problem profiles.
-
-|Custom info
-|`CUSTOM{US}INFO`
-|No
-|Informational marker (e.g. load test start).  Use for operational context correlated into later problems.
-
-|Custom annotation
-|`CUSTOM{US}ANNOTATION`
-|No
-|Highlights an interesting time window for triage.  Use for third-party annotations on entities/timelines.
-
-|Custom configuration
-|`CUSTOM{US}CONFIGURATION`
-|No
-|Reports a configuration change.  Use for change-correlation context.
-
-|Custom deployment
-|`CUSTOM{US}DEPLOYMENT`
-|No
-|Reports a software deployment (version, owner, etc.).  Use for CI/CD → Davis change correlation.
-
-|Marked for termination
-|`MARKED{US}FOR{US}TERMINATION`
-|No
-|Planned shutdown / decommission of an entity.  suppresses availability alerting for a period (about 60 minutes) so intentional takedowns do not raise false outages. Use before graceful host/process removal.
+|OOTB host `CPU_SATURATED`
+|None (no metadata schema)
+|`ProblemSeverity` only
+|HOST SOS; enrich fills `sn-*` from severity
 |===
 
 
-The `event.type` property must be set to one of the codes in the above table, otherwise the event will not be created as a problem. The second half of the table are types that do not create a problem. For critical log events we must choose one of the types that will create a problem. That leaves us with two choices. We could use the `ERROR_EVENT` type or the `CUSTOM{US}ALERT` type. The `ERROR_EVENT` type looks more appropriate for log events and so we will use that.
 
 ====== Event Name
+The `event.name` property should be a stable, human-readable event-class title and not contain any instance specific data of the event. Instance specific data would include data like the service instance name, pod name, or client instance name. Instance specific data should be placed in the `event.description` property.
 
+Put the entity on dt.source_entity, the split key on event.unique_identifier, and the operator narrative on event.description. Current L2I (`Critical {loglevel} at {class}:{line}`) is a valid compromise because class:line is a bounded failure class when dt.source_entity is too coarse (HOST).
 
 ====== Source Entity
 
 The `dt.source_entity` property is the entity that represents the source of the event.  
 
-====== Davis Configuration for Spark
+====== Description
 
-You should consult application development and operations teams on analysis of log message severity and root cause equivalence classes of log messages. For the purpose of this reference implementation, we need to make some assumptions. We define a unique error signature as being the class name and line number of a critical log entry. For now, we assume a critical error is a log message with a severity of WARN or ERROR. We use WARNs merely for convenience as they are more likely to be generated.
+Instance specific data would include data like the service instance name, pod name, or client instance name. Instance specific data should be placed in the `event.description` property.
 
-Furthermore, we assume that the same error signature across pods and/or client instances does *not* necessarily have the same root cause. For example, in an enterprise getting the same error around the same time across clusters in different regions likely does not have the same root cause. Granted, having the same error signature across pods in the same region likely does have the same root cause. Also, we assume that different error signatures within the same pod or client do not necessarily have the same root cause. However, Davis *does not* have the fidelity to define event by root cause and differentiate between different remote or local clusters or clients.
+====== Unique Identifier
+The `event.unique_identifier` property is a unique identifier for the event. The `event.unique_identifier` property is used to determine if the event is a duplicate of an existing event. The `event.unique_identifier` property is also used to determine if the event should be created as a new problem or grouped into an existing problem.
+
 
 ===== Tag Contract
 
-These are **dash** keys. Dots (`sn.event_kind`) would be walked as a JSON path in ServiceNow TBAC.
+All custom properites of an event are sent to ServiceNow. For those properties used by ServiceNow, we will prefix the property with `sn-` and then use kebab-case (dashes only — no underscores inside the name). For example, the service instance of the application will be sent to ServiceNow as `sn-service-instance`. This is necessary as ServiceNow will interpret any properties with a dot (.) in the name as a JSON path. Since properties are a flat structure this would cause ServiceNow to fail.
+
 
 [[tbl-tag-contract]]
 .Tag Contract
@@ -1742,7 +2301,7 @@ These are **dash** keys. Dots (`sn.event_kind`) would be walked as a JSON path i
 |===
 |Attribute|Usage|Description
 
-|`sn-event_kind`
+|`sn-event-kind`
 |Mandatory
 |`CRITICAL_LOG_EVENT` or `CPU_EVENT`
 
@@ -1750,7 +2309,7 @@ These are **dash** keys. Dots (`sn.event_kind`) would be walked as a JSON path i
 |Mandatory
 |TBAC partition; alerts from different environments must not merge
 
-|`sn-service_instance`
+|`sn-service-instance`
 |Mandatory
 |CSDM service instance display name in the Kubernetes label charset (`Spark-Master`, `Spark-Client`, …)
 
@@ -1775,7 +2334,7 @@ These are **dash** keys. Dots (`sn.event_kind`) would be walked as a JSON path i
 |Dash aliases of platform `k8s.*` keys for TBAC-safe lookup
 |===
 
-`event.name` is `Critical {loglevel} at {sn-log-class}:{sn-log-line}`. `event.unique_identifier` is `{sn-environment}|{sn-service_instance}|…{sn-log-signature}`. **`dt.davis.is_merging_allowed=false`** so Davis does not HOST-bundle unrelated signatures. A host metric event for CPU is a **separate** configuration: threshold 50%, `eventType=RESOURCE`, `sn-event_kind=CPU_EVENT`, `sn-impact=2` / `sn-urgency=2`. OOTB K8s anomaly settings (CPU ~40%, memory ~50%) **cannot** stamp `sn-*`; ServiceNow enrich maps `ProblemSeverity`.
+`event.name` is `Critical {loglevel} at {sn-log-class}:{sn-log-line}`. `event.unique_identifier` is `{sn-environment}|{sn-service-instance}|…{sn-log-signature}`. **`dt.davis.is_merging_allowed=false`** so Davis does not HOST-bundle unrelated signatures. A host metric event for CPU is a **separate** configuration: threshold 50%, `eventType=RESOURCE`, `sn-event-kind=CPU_EVENT`, `sn-impact=2` / `sn-urgency=2`. OOTB K8s anomaly settings (CPU ~40%, memory ~50%) **cannot** stamp `sn-*`; ServiceNow enrich maps `ProblemSeverity`.
 
 ====== Cluster Mode
 
@@ -1786,18 +2345,18 @@ These are **dash** keys. Dots (`sn.event_kind`) would be walked as a JSON path i
 |Property Name|Description
 
 |`event.type`
-|`ERROR_EVENT`
+|`CUSTOM_ALERT`
 
-|`sn-event_kind`
+|`sn-event-kind`
 |`CRITICAL_LOG_EVENT`
 
 |`event.name`
 |`Critical {loglevel} at {sn-log-class}:{sn-log-line}`
 
 |`event.unique_identifier`
-|`{sn-environment}\|{sn-service_instance}\|K8s Critical {loglevel} {sn-log-signature}`
+|`{sn-environment}\|{sn-service-instance}\|K8s Critical {loglevel} {sn-log-signature}`
 
-|`sn-service_instance`
+|`sn-service-instance`
 |From pod-name prefix
 
 |`dt.davis.is_merging_allowed`
@@ -1818,18 +2377,18 @@ Davis processor id: `k8s-short-log4j2-warn-error-davis` (matcher requires `k8s.p
 |Property Name|Description
 
 |`event.type`
-|`ERROR_EVENT`
+|`CUSTOM_ALERT`
 
-|`sn-event_kind`
+|`sn-event-kind`
 |`CRITICAL_LOG_EVENT`
 
 |`event.name`
 |`Critical {loglevel} at {sn-log-class}:{sn-log-line}`
 
 |`event.unique_identifier`
-|`{sn-environment}\|{sn-service_instance}\|Standalone Critical {loglevel} {sn-log-signature}`
+|`{sn-environment}\|{sn-service-instance}\|Standalone Critical {loglevel} {sn-log-signature}`
 
-|`sn-service_instance`
+|`sn-service-instance`
 |Mapped from custom-source `service_instance`
 
 |`dt.davis.is_merging_allowed`
@@ -1839,12 +2398,12 @@ Davis processor id: `k8s-short-log4j2-warn-error-davis` (matcher requires `k8s.p
 |`standalone-short-log4j2-log-alerts`
 |===
 
-Davis processor id: `standalone-short-log4j2-warn-error-davis`. Fail-visible: `standalone-short-log4j2-missing-service-instance-davis`. CUSTOM_DEVICE “Spark Client” is **historical** — the bind is `sn-service_instance`, not a custom device entity.
+Davis processor id: `standalone-short-log4j2-warn-error-davis`. Fail-visible: `standalone-short-log4j2-missing-service-instance-davis`. CUSTOM_DEVICE “Spark Client” is **historical** — the bind is `sn-service-instance`, not a custom device entity.
 
 Once a Davis problem is created the problem is forwarded to ServiceNow via the alerting profile in <<lst-alerting-profile>>.
 
 
-===== Storage
+==== Event Storage
 
 After the problems are created, Dynatrace stores all of the *log records* in the default_logs bucket (storage processors below). The same bucket assignment applies to Client and Cluster Mode records that traverse this pipeline.
 
@@ -1868,11 +2427,12 @@ After the problems are created, Dynatrace stores all of the *log records* in the
 }
 ----
 
-==== Dynatrace Alerting
+=== Problem Alerting
 
 To emit a Davis problem to ServiceNow we have to create an alerting profile and associate it with the webhook endpoint in ServiceNow designed to receive the problem from Dynatrace. We also have to specify the webhook payload format. Client and Cluster Mode share the same alerting profile and brooks-lab webhook.
 
-===== Alerting Profile
+
+==== Alerting Profile
 
 A Dynatrace alerting profile couples a management zone to a set of severity levels and event filters on the problems. Dynatrace will emit those problems that match levels and filters to ServiceNow. 
 
@@ -1901,7 +2461,10 @@ The full alerting profile template is shown below.
 }
 ----
 
-OpenPipeline stamps Davis events as event.type = ERROR_EVENT for both WARN and ERROR log lines (K8s and standalone pipelines). That produces Dynatrace problems whose ProblemSeverity is ERROR, which matches the alerting profile’s ERRORS severity rule (and is what gets notified to ServiceNow).
+IMPORTANT: OpenPipeline stamped Davis events as event.type = CUSTOM_ALERT for both WARN and ERROR log lines (K8s and standalone pipelines). That produces Dynatrace problems whose ProblemSeverity is CUSTOM_ALERT, which matches the alerting profile’s CUSTOM_ALERT severity rule (and is what gets notified to ServiceNow).
+
+
+OpenPipeline stamps Davis events as event.type = CUSTOM_ALERT for both WARN and ERROR log lines (K8s and standalone pipelines). That produces Dynatrace problems whose ProblemSeverity is CUSTOM_ALERT, which matches the alerting profile’s CUSTOM_ALERT severity rule (and is what gets notified to ServiceNow).
 
 Note that the alerting profile management zone is set to the Spark Observability management zone. This is important as the alerting profile will now filter out any problems that do not have a `dt.source_entity` in the Spark Observability management zone. This means that the impacted entities (hosts for OneAgent file tails and CPU, and Kubernetes workloads for Container Output) must be in the Spark Observability management zone, too.
 
@@ -1932,61 +2495,6 @@ Impacted entities for Client Mode Davis problems are typically the OneAgent **HO
 
 ==== Problem notification payload template
 
-The template in <<spec-dt-webhook-payload-json,Problem notification payload specification>> is substituted by Dynatrace at send time. The body is **`ProblemDetailsJSON` + `ImpactedEntities`**. Attributes ServiceNow uses live in **`rankedEvents[0].customProperties`** (and as tokens in `event.description`). Use **dash keys** wherever TBAC or a Glide condition would treat `.` as a JSON path walk. Script Includes read dotted platform keys with bracket access (`customProperties['k8s.workload.name']`), then copy a dash alias.
-
-[[tbl-payload-attributes-by-context]]
-.Payload attributes by context
-[cols="22%,22%,28%,28%",options="header"]
-|===
-|Context |Who can stamp |Attributes SN uses |Alert CI lookup
-
-|K8s / standalone short Log4j2
-|OpenPipeline Davis (`is_merging_allowed=false`)
-|`sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-pipeline`, `sn-impact`, `sn-urgency`; K8s also `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`
-|**Service instance** (enrich overwrites HOST/pod SOS)
-
-|Host CPU metric event
-|Metric event `eventTemplate.metadata`
-|`sn-event_kind=CPU_EVENT`, `sn-environment`, `sn-impact=2`, `sn-urgency=2`
-|HOST via SOS
-
-|OOTB K8s workload
-|DT metric dimensions (cannot add OpenPipeline metadata)
-|`k8s.workload.name` / kind / namespace; SN copies `k8s-workload-name`
-|Deployment (or kind table) by **name**. SGC 1.15.0 has no Workload SOS
-
-|OOTB K8s pod / CAI
-|DT
-|`k8s.pod.name`; SN copies `k8s-pod-name`
-|Pod CI by name (**not** used for log incidents)
-
-|OOTB host `CPU_SATURATED`
-|None (no metadata schema)
-|`ProblemSeverity` only
-|HOST SOS; enrich fills `sn-*` from severity
-|===
-
-.Problem notification payload (SGC)
-[#spec-dt-webhook-payload-json]
-[source,json]
-----
-{
-  "ConnectionId": "<sgc-connection-sys-id>",
-  "ProblemID": "{ProblemID}",
-  "ProblemTitle": "{ProblemTitle}",
-  "ProblemSeverity": "{ProblemSeverity}",
-  "ProblemImpact": "{ProblemImpact}",
-  "ProblemDetailsJSON": {ProblemDetailsJSON},
-  "ProblemDetailsText": "{ProblemDetailsText}",
-  "ImpactedEntities": {ImpactedEntities},
-  "ImpactedEntity": "{ImpactedEntity}",
-  "ProblemURL": "{ProblemURL}",
-  "State": "{State}",
-  "Tags": "{Tags}",
-  "PID": "{PID}"
-}
-----
-
 
 
 ===== Cluster Mode
@@ -1999,7 +2507,7 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
   "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
   "ProblemID": "-9876543210987654321",
   "ProblemTitle": "Critical ERROR at TaskSetManager:270",
-  "ProblemSeverity": "ERROR",
+  "ProblemSeverity": "CUSTOM_ALERT",
   "ProblemImpact": "INFRASTRUCTURE",
   "ProblemDetailsJSON": {
     "displayName": "Critical ERROR at TaskSetManager:270",
@@ -2008,16 +2516,16 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
       {
         "entityId": "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890",
         "entityName": "spark-master-0",
-        "eventType": "ERROR_EVENT",
-        "severityLevel": "ERROR",
+        "eventType": "CUSTOM_ALERT",
+        "severityLevel": "CUSTOM_ALERT",
         "title": "Critical ERROR at TaskSetManager:270",
-        "eventDescription": "K8s short Log4j2 critical ERROR at TaskSetManager:270 on spark-master-0 sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Master: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
+        "eventDescription": "K8s short Log4j2 critical ERROR at TaskSetManager:270 on spark-master-0 sn-event-kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service-instance=Spark-Master: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
       }
     ],
     "startTime": 1719502426000,
     "endTime": -1
   },
-  "ProblemDetailsText": "K8s short Log4j2 critical ERROR at TaskSetManager:270 on spark-master-0 sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Master:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: spark-master-0",
+  "ProblemDetailsText": "K8s short Log4j2 critical ERROR at TaskSetManager:270 on spark-master-0 sn-event-kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service-instance=Spark-Master:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: spark-master-0",
   "ImpactedEntities": [
     {
       "entityId": "CLOUD_APPLICATION_INSTANCE-A1B2C3D4E5F67890",
@@ -2033,7 +2541,7 @@ The template in <<spec-dt-webhook-payload-json,Problem notification payload spec
 }
 ----
 
-ServiceNow enrich binds via `sn-service_instance` → service instance (overwrites HOST/pod SOS).
+ServiceNow enrich binds via `sn-service-instance` → service instance (overwrites HOST/pod SOS).
 
 ===== Client Mode
 
@@ -2045,7 +2553,7 @@ ServiceNow enrich binds via `sn-service_instance` → service instance (overwrit
   "ConnectionId": "a1b2c3d4e5f678901234567890abcdef0",
   "ProblemID": "-9876543210987654321",
   "ProblemTitle": "Critical ERROR at TaskSetManager:270",
-  "ProblemSeverity": "ERROR",
+  "ProblemSeverity": "CUSTOM_ALERT",
   "ProblemImpact": "INFRASTRUCTURE",
   "ProblemDetailsJSON": {
     "displayName": "Critical ERROR at TaskSetManager:270",
@@ -2054,16 +2562,16 @@ ServiceNow enrich binds via `sn-service_instance` → service instance (overwrit
       {
         "entityId": "HOST-A1B2C3D4E5F67890",
         "entityName": "Lab3",
-        "eventType": "ERROR_EVENT",
-        "severityLevel": "ERROR",
+        "eventType": "CUSTOM_ALERT",
+        "severityLevel": "CUSTOM_ALERT",
         "title": "Critical ERROR at TaskSetManager:270",
-        "eventDescription": "Standalone short Log4j2 critical ERROR at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
+        "eventDescription": "Standalone short Log4j2 critical ERROR at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log sn-event-kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service-instance=Spark-Client: 2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job"
       }
     ],
     "startTime": 1719502426000,
     "endTime": -1
   },
-  "ProblemDetailsText": "Standalone short Log4j2 critical ERROR at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service_instance=Spark-Client:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: Lab3",
+  "ProblemDetailsText": "Standalone short Log4j2 critical ERROR at TaskSetManager:270 in /mnt/spark/client-logs/par-a/spark-app.log sn-event-kind=CRITICAL_LOG_EVENT sn-log-signature=TaskSetManager:270 sn-service-instance=Spark-Client:\n2026-07-20 12:40:29 ERROR TaskSetManager:270 - Task 0 in stage 0.0 failed 4 times; aborting job\n\n1 impacted entity: Lab3",
   "ImpactedEntities": [
     {
       "entityId": "HOST-A1B2C3D4E5F67890",
@@ -2092,7 +2600,7 @@ The following decisions are the contract between Dynatrace and ServiceNow Event 
 |Decision |Current rule |Why
 
 |Dash keys, not dots
-|`sn-log-signature`, `sn-service_instance`, `sn-impact`, `k8s-workload-name`
+|`sn-log-signature`, `sn-service-instance`, `sn-impact`, `k8s-workload-name`
 |TBAC / Glide conditions walk `additional_info` on `.`. A key named `k8s.workload.name` is treated as a JSON path, not one property.
 
 |Dynatrace owns initial impact/urgency
@@ -2100,7 +2608,7 @@ The following decisions are the contract between Dynatrace and ServiceNow Event 
 |Alert `severity` (EM 1–5) and incident `priority` (Data Lookup) are **different** numbers.
 
 |Log alert CI = service instance
-|`CRITICAL_LOG_EVENT` / `sn-service_instance` → `cmdb_ci` is the CSDM service instance. Enrich **overwrites** SGO HOST/pod SOS.
+|`CRITICAL_LOG_EVENT` / `sn-service-instance` → `cmdb_ci` is the CSDM service instance. Enrich **overwrites** SGO HOST/pod SOS.
 |Operators assign from the SI, not Lab3. Incident CI is the same SI.
 
 |Infra alert CI = HOST or K8s controller
@@ -2124,7 +2632,7 @@ The following decisions are the contract between Dynatrace and ServiceNow Event 
 |Not `Event Log WARN`. Repeats bump urgency; Data Lookup sets priority.
 
 |TBAC partition
-|`sn-environment` + `sn-service_instance` + `sn-log-signature`
+|`sn-environment` + `sn-service-instance` + `sn-log-signature`
 |Stops cross-environment and cross-SI merge.
 |===
 
@@ -2140,7 +2648,7 @@ Once an event payload is received, the first step is to create an event object i
 
 [[tbl-em-event-field-mapping]]
 .Webhook payload to em_event field mapping
-[cols="25%,75%",options="header"]
+[cols="12%,88%",options="header"]
 |===
 |em_event field |Population
 
@@ -2157,16 +2665,16 @@ Once an event payload is received, the first step is to create an event object i
 |ProblemTitle
 
 |severity
-|Mapped from ProblemSeverity: `ERROR` → **Major (2)**; `RESOURCE_CONTENTION` → **Warning (4)** (not Minor/3)
+|Mapped from ProblemSeverity: `CUSTOM_ALERT` (log path) and `ERROR` → SGO numeric severity; `RESOURCE_CONTENTION` → **Warning (4)** (not Minor/3)
 
 |type
-|SGO copies the Dynatrace event enum (`ERROR_EVENT`, `RESOURCE_CONTENTION`, `CPU_SATURATED`). `sn-event_kind` is the L2I semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`)
+|SGO copies the Dynatrace event enum (`CUSTOM_ALERT`, `RESOURCE_CONTENTION`, `CPU_SATURATED`). `sn-event-kind` is the L2I semantic type (`CRITICAL_LOG_EVENT` / `CPU_EVENT`)
 
 |node
-|After enrich: `sn-service_instance` stamp for logs; otherwise ImpactedEntity display name
+|After enrich: `sn-service-instance` stamp for logs; otherwise ImpactedEntity display name
 
 |resource
-|After enrich: `sn-service_instance:<stamp>` for logs; `k8s-workload-name:<name>` for workload problems
+|After enrich: `sn-service-instance:<stamp>` for logs; `k8s-workload-name:<name>` for workload problems
 
 |cmdb_ci
 |SOS first (`sys_object_source`, name=`SGO-Dynatrace`, id=entityId). Enrich then overwrites logs to the service instance; empty-CI workload → `k8s-workload-name`
@@ -2184,13 +2692,13 @@ Once an event payload is received, the first step is to create an event object i
 |PID when mapped
 |===
 
-By design, SGO seeds `cmdb_ci` from Dynatrace `entityId` via `sys_object_source`. That first bind is often HOST (file tail) or a fan-out ImpactedEntity. Enrich then overwrites **log** events to the service instance (`sn-service_instance`). Infra events keep HOST SOS or bind a Kubernetes controller from `k8s-workload-name`.
+By design, SGO seeds `cmdb_ci` from Dynatrace `entityId` via `sys_object_source`. That first bind is often HOST (file tail) or a fan-out ImpactedEntity. Enrich then overwrites **log** events to the service instance (`sn-service-instance`). Infra events keep HOST SOS or bind a Kubernetes controller from `k8s-workload-name`.
 
 === CI binding procedure
 
 . Listener receives POST at `inbound_event?source=SGO-Dynatrace`.
 . SGO SOS: `sys_object_source` where `name=SGO-Dynatrace` and `id=<Dynatrace entityId>` → initial `cmdb_ci`.
-. If the event is a log (`sn-event_kind=CRITICAL_LOG_EVENT` or `sn-service_instance` present): **overwrite** `cmdb_ci` to the service instance (replaces HOST/pod SOS).
+. If the event is a log (`sn-event-kind=CRITICAL_LOG_EVENT` or `sn-service-instance` present): **overwrite** `cmdb_ci` to the service instance (replaces HOST/pod SOS).
 . Else if `k8s-workload-name` is present: bind Deployment / StatefulSet / CronJob / Job by kind and name.
 . Else if `k8s-pod-name` is present **and** this is not a log event: bind `cmdb_ci_kubernetes_pod` by name.
 . Else leave the HOST SOS bind.
@@ -2203,7 +2711,7 @@ By design, SGO seeds `cmdb_ci` from Dynatrace `entityId` via `sys_object_source`
 |===
 |Dynatrace / stamp |CMDB class |When to expect
 
-|`sn-service_instance` (log)
+|`sn-service-instance` (log)
 |`cmdb_ci_service_discovered` / `cmdb_ci_service_by_tags`
 |CRITICAL_LOG_EVENT — overwrites SOS
 
@@ -2241,7 +2749,7 @@ Log alert text / short description is **`Critical log event — Class:Line`** (`
 |Same as em_event.description (copied by the alert rule)
 
 |em_alert.resource
-|Logs: `sn-service_instance:<stamp>`. Infra: `k8s-workload-name:<name>` or HOST
+|Logs: `sn-service-instance:<stamp>`. Infra: `k8s-workload-name:<name>` or HOST
 
 |em_alert.cmdb_ci
 |Logs: service instance (after enrich). Infra: HOST or K8s controller
@@ -2276,7 +2784,7 @@ The populator sets **`incident.cmdb_ci`** to the service instance, writes **`em_
 
 === Severity policy
 
-Event Management **`severity`** (1–5) and ITSM **`sn-impact` / `sn-urgency`** (1–3) are different numbers. This instance maps Dynatrace `ERROR` → EM **Major (2)** and `RESOURCE_CONTENTION` → EM **Warning (4)** (not Minor/3). OpenPipeline stamps log ERROR as `sn-impact=2` / `sn-urgency=2` and WARN as 3/3. The populator copies those onto the incident; Data Lookup computes **priority**. The create gate is `severity<=3`, so Warning (4) CPU/K8s alerts get `sn-*` but no incident.
+Event Management **`severity`** (1–5) and ITSM **`sn-impact` / `sn-urgency`** (1–3) are different numbers. Log Davis events use `event.type=CUSTOM_ALERT`, so webhook `ProblemSeverity` is **`CUSTOM_ALERT`**. This instance also maps Dynatrace `ERROR` → EM **Major (2)** and `RESOURCE_CONTENTION` → EM **Warning (4)** (not Minor/3) when those severities appear. OpenPipeline stamps log ERROR as `sn-impact=2` / `sn-urgency=2` and WARN as 3/3 (independent of ProblemSeverity). The populator copies those onto the incident; Data Lookup computes **priority**. The create gate is `severity<=3`, so Warning (4) CPU/K8s alerts get `sn-*` but no incident.
 
 [[tbl-severity-policy]]
 .Severity, impact, and priority
@@ -2286,7 +2794,7 @@ Event Management **`severity`** (1–5) and ITSM **`sn-impact` / `sn-urgency`** 
 
 |`em_event.severity` / `em_alert.severity`
 |SGO from `ProblemSeverity`
-|ERROR → Major (2); RESOURCE_CONTENTION → Warning (4)
+|ERROR / CUSTOM_ALERT → SGO numeric; RESOURCE_CONTENTION → Warning (4)
 
 |`sn-impact` / `sn-urgency`
 |OpenPipeline or enrich from `ProblemSeverity`
@@ -2403,7 +2911,7 @@ Incident correlation defines how enriched alerts map to **`incident.cmdb_ci`**. 
 |Pattern |Alert CI |incident.cmdb_ci resolution
 
 |Log (Cluster or Client)
-|Service instance (`sn-service_instance`)
+|Service instance (`sn-service-instance`)
 |Same SI; correlate by SI + `Critical log event — {sn-log-signature}`
 
 |K8s workload resource
@@ -2418,7 +2926,7 @@ Incident correlation defines how enriched alerts map to **`incident.cmdb_ci`**. 
 [#step-5-service-side]
 ==== Service-side
 
-Cluster logs stamp `sn-service_instance` from the pod-name prefix (`spark-master*` → `Spark-Master`, and likewise Worker / History Server). Enrich overwrites SGO HOST/pod SOS so the alert CI is already the service instance. The populator copies that SI onto the incident and correlates by signature. `svc_ci_assoc` remains the fallback when the stamp is missing (controller or pod CI → service instance). See <<ch-kubernetes-architecture,Kubernetes Architecture>> for why the bind target is the workload/SI, not the pod.
+Cluster logs stamp `sn-service-instance` from the pod-name prefix (`spark-master*` → `Spark-Master`, and likewise Worker / History Server). Enrich overwrites SGO HOST/pod SOS so the alert CI is already the service instance. The populator copies that SI onto the incident and correlates by signature. `svc_ci_assoc` remains the fallback when the stamp is missing (controller or pod CI → service instance). See <<ch-kubernetes-architecture,Kubernetes Architecture>> for why the bind target is the workload/SI, not the pod.
 
 [[fig-incident-correlation-service-side]]
 .Incident correlation — Cluster log
@@ -2429,7 +2937,7 @@ digraph incident_correlation {
   node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=13]
   edge [fontname="Noto Sans" fontsize=12]
 
-  STAMP [label="sn-service_instance\nSpark-Master"]
+  STAMP [label="sn-service-instance\nSpark-Master"]
   ALERT [label="em_alert.cmdb_ci\n(service instance)"]
   INC [label="incident.cmdb_ci\n(same SI)"]
 
@@ -2437,14 +2945,14 @@ digraph incident_correlation {
 }
 ----
 
-. Enrich reads `sn-service_instance` and sets `em_event.cmdb_ci` / `em_alert.cmdb_ci` to that service instance.
+. Enrich reads `sn-service-instance` and sets `em_event.cmdb_ci` / `em_alert.cmdb_ci` to that service instance.
 . Populator sets `incident.cmdb_ci` to the same SI and short description `Critical log event — {sn-log-signature}`.
 . An open incident with that SI + short description is reused; urgency is bumped.
 
 [#step-5-client-side]
 ==== Client-side
 
-Client-mode driver logs are not a Kubernetes pod. The standalone pipeline maps custom-source `service_instance` → `sn-service_instance` (`Spark-Client`). Enrich and the populator then follow the same SI + Class:Line path as Cluster. Do **not** depend on `svc_ci_assoc` or a pod CI.
+Client-mode driver logs are not a Kubernetes pod. The standalone pipeline maps custom-source `service_instance` → `sn-service-instance` (`Spark-Client`). Enrich and the populator then follow the same SI + Class:Line path as Cluster. Do **not** depend on `svc_ci_assoc` or a pod CI.
 
 [[fig-incident-correlation-client-side]]
 .Incident correlation — Client log
@@ -2455,7 +2963,7 @@ digraph spark_client_incident {
   node [shape=box style="rounded,filled" fillcolor="#f8f8f8" fontname="Noto Sans" fontsize=13]
   edge [fontname="Noto Sans" fontsize=12]
 
-  STAMP [label="sn-service_instance\nSpark-Client"]
+  STAMP [label="sn-service-instance\nSpark-Client"]
   ALERT [label="em_alert.cmdb_ci\nSpark Client"]
   INC [label="incident.cmdb_ci"]
 
@@ -2466,7 +2974,7 @@ digraph spark_client_incident {
 [#csdm-identifier-field-mapping]
 === CSDM identifier lookup
 
-The **primary** log bind is the OpenPipeline stamp **`sn-service_instance`**, matched to the service instance **`name`** (Kubernetes label charset, for example `Spark-Master`). Path matching and `/client-logs/` are fallbacks when that stamp is missing.
+The **primary** log bind is the OpenPipeline stamp **`sn-service-instance`**, matched to the service instance **`name`** (Kubernetes label charset, for example `Spark-Master`). Path matching and `/client-logs/` are fallbacks when that stamp is missing.
 
 CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key. The table below shows which CMDB fields are reliable for lookup.
 
@@ -2477,7 +2985,7 @@ CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key. The table bel
 |Purpose |Mechanism |Queryable field on `cmdb_ci_service_discovered`
 
 |Primary log bind
-|`sn-service_instance` stamp → SI display name
+|`sn-service-instance` stamp → SI display name
 | **`name`** (for example `Spark Master` / lookup via sanitized `Spark-Master`)
 
 |Fallback when the stamp is missing
@@ -2488,8 +2996,8 @@ CSDM **`identifier`** in `*.csdm.yaml` is the logical machine key. The table bel
 |CSDM `identifier` in the spec
 | **`identifier`** column — often **not populated** on the instance
 
-|Client when `sn-service_instance` is absent
-|Standalone custom-source `service_instance` mapped to `sn-service_instance`
+|Client when `sn-service-instance` is absent
+|Standalone custom-source `service_instance` mapped to `sn-service-instance`
 | **`name`** = **Spark Client**
 |===
 
@@ -2502,9 +3010,9 @@ Davis identity for a log event is the tuple `(event.name, event.type, dt.source_
 
 **Lab approach:**
 
-* OpenPipeline stamps dash keys: `sn-log-class`, `sn-log-line`, `sn-log-signature`, `sn-event_kind`, `sn-environment`, `sn-service_instance`.
+* OpenPipeline stamps dash keys: `sn-log-class`, `sn-log-line`, `sn-log-signature`, `sn-event-kind`, `sn-environment`, `sn-service-instance`.
 * `event.name` is `Critical {loglevel} at {sn-log-class}:{sn-log-line}` so each call site is a distinct Davis event.
-* `event.unique_identifier` is `{sn-environment}|{sn-service_instance}|…{sn-log-signature}` so the same Class:Line in a different environment or service instance does not share identity.
+* `event.unique_identifier` is `{sn-environment}|{sn-service-instance}|…{sn-log-signature}` so the same Class:Line in a different environment or service instance does not share identity.
 * **`dt.davis.is_merging_allowed=false`** so Davis does not HOST-bundle unrelated signatures.
 
 **SGO fan-out is not Client vs Cluster.** One Dynatrace problem still produces **one `em_event` per ImpactedEntity** for the same `message_key` (ProblemID). A Master log problem can therefore arrive as HOST + CAI + `CLOUD_APPLICATION` rows. That is connector fan-out. Enrich binds the **log** rows to the service instance; leftover HOST rows on the same `message_key` are not Client-mode logs.
@@ -2523,7 +3031,7 @@ digraph sgo_fanout {
   E2 [label="em_event CAI / pod"]
   E3 [label="em_event CLOUD_APPLICATION"]
   A [label="em_alert\n(same message_key)"]
-  SI [label="enrich: log → SI\n(sn-service_instance)"]
+  SI [label="enrich: log → SI\n(sn-service-instance)"]
 
   P -> E1
   P -> E2
@@ -2544,7 +3052,7 @@ digraph sgo_fanout {
 |Component |Specification
 
 |Script Include: `ResolveApplicationService`
-|`enrichSgoRecord` / `applyLogServiceInstanceBinding` / `applyK8sTagCiBinding`. Log `cmdb_ci` = service instance from `sn-service_instance`. Infra: HOST SOS or controller CI from `k8s-workload-name`.
+|`enrichSgoRecord` / `applyLogServiceInstanceBinding` / `applyK8sTagCiBinding`. Log `cmdb_ci` = service instance from `sn-service-instance`. Infra: HOST SOS or controller CI from `k8s-workload-name`.
 
 |Script Include: `EvtMgmtCustomIncidentPopulator`
 |Incident CI = service instance; correlate SI + `Critical log event — {sn-log-signature}`; apply `sn-impact` / `sn-urgency`
@@ -2562,7 +3070,7 @@ digraph sgo_fanout {
 |After insert/update on `em_alert`; order **5020**; `source=SGO-Dynatrace^severity<=3^incidentISEMPTY`
 
 |TBAC
-|Definition **L2I short Log4j2 SI + signature** on dash keys `sn-environment`, `sn-service_instance`, `sn-log-signature`
+|Definition **L2I short Log4j2 SI + signature** on dash keys `sn-environment`, `sn-service-instance`, `sn-log-signature`
 
 |AMR
 |**L2I Create Incident CRITICAL_LOG_EVENT** stays **inactive** until a published Flow uses action **Create incident from Alert**. Keep OOTB `SGO-Dynatrace` AMR inactive (that subflow skips the populator).
@@ -2612,7 +3120,7 @@ Verify RESOLVED handling: `em_event` where `source=SGO-Dynatrace` and `resolutio
 
 === OpenPipeline and custom-source attributes (generic Log4j pattern)
 
-Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` and `standalone-short-log4j2-log-alerts`). Keys that ServiceNow TBAC or a Glide condition would walk as a JSON path use **dashes**, not dots.
+Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` and `standalone-short-log4j2-log-alerts`). ServiceNow-facing keys use **all kebab** (`sn-service-instance`, `sn-event-kind`) — no dots and no underscores inside the `sn-*` name (see <<tbl-tag-contract,Tag Contract>>).
 
 [[tbl-openpipeline-custom-source-attributes]]
 .OpenPipeline and custom log source attributes
@@ -2627,7 +3135,7 @@ Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` 
 |`{sn-log-class}:{sn-log-line}`
 |Incident short description and correlation key
 
-|`sn-event_kind`
+|`sn-event-kind`
 |Davis processor
 |`CRITICAL_LOG_EVENT` (logs) or `CPU_EVENT` (host metric)
 
@@ -2635,7 +3143,7 @@ Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` 
 |OpenPipeline `tag-pipeline-custom-id`
 |TBAC partition (no cross-environment merge)
 
-|`sn-service_instance`
+|`sn-service-instance`
 |K8s: pod-name prefix → `Spark-Master` / `Spark-Worker` / `Spark-History-Server`. Standalone: custom-source `service_instance` mapped to this key
 |Primary log bind to the CSDM service instance
 
@@ -2653,11 +3161,11 @@ Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` 
 
 |`service_instance`
 |Standalone OneAgent custom log source
-|Mapped to `sn-service_instance` in the standalone pipeline
+|Mapped to `sn-service-instance` in the standalone pipeline
 
 |`event.type`
 |Davis
-|Dynatrace enum (`ERROR_EVENT`, `RESOURCE_CONTENTION`, …)
+|Dynatrace enum (`CUSTOM_ALERT`, `RESOURCE_CONTENTION`, …)
 
 |`event.name`
 |Davis
@@ -2665,7 +3173,7 @@ Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` 
 
 |`event.unique_identifier`
 |Davis
-|`{sn-environment}\|{sn-service_instance}\|…{sn-log-signature}`
+|`{sn-environment}\|{sn-service-instance}\|…{sn-log-signature}`
 
 |`dt.davis.is_merging_allowed`
 |Davis
@@ -2674,7 +3182,7 @@ Attributes stamped by the OpenPipeline templates (`k8s-short-log4j2-log-alerts` 
 
 The Kubernetes label `servicenow.com/service-instance` is the CMDB/service-mapping contract on the **controller** and the pod template — not a Dynatrace tag. See <<step-0-pod-labels,workload labels>>.
 
-NOTE: Cluster/Client Davis problems often keep OneAgent **HOST** as `dt.source_entity`. ServiceNow enrich overwrites log `cmdb_ci` to the service instance from `sn-service_instance`.
+NOTE: Cluster/Client Davis problems often keep OneAgent **HOST** as `dt.source_entity`. ServiceNow enrich overwrites log `cmdb_ci` to the service instance from `sn-service-instance`.
 
 [#step-5-em-rules]
 === Event Management rules (manual configuration)
@@ -2710,11 +3218,11 @@ Each Script Include below summarizes **purpose**, **inputs**, **outputs / side e
 **Methods:**
 
 * `enrichSgoRecord(gr)` — Stamp `sn-impact` / `sn-urgency` (from OpenPipeline or mapped `ProblemSeverity`); copy dash aliases (`k8s-workload-name`, `k8s-pod-name`, …). Then `applyLogServiceInstanceBinding` (logs) or `applyK8sTagCiBinding` (infra).
-* `applyLogServiceInstanceBinding(gr)` — For `CRITICAL_LOG_EVENT` / `sn-service_instance`, overwrite `cmdb_ci` to the service instance; set `node` / `resource` to `sn-service_instance:<stamp>`.
+* `applyLogServiceInstanceBinding(gr)` — For `CRITICAL_LOG_EVENT` / `sn-service-instance`, overwrite `cmdb_ci` to the service instance; set `node` / `resource` to `sn-service-instance:<stamp>`.
 * `applyK8sTagCiBinding(gr, keys)` — When `cmdb_ci` is empty: Deployment/StatefulSet/CronJob/Job by `k8s-workload-name` (and kind), else pod by `k8s-pod-name`.
 * `extractSnImpact` / `extractSnUrgency` / `extractLogSignature` / `extractK8s*` — Read dash keys first, then dotted platform keys.
 * `getCustomProperty(gr, keys)` — JSON.parse `additional_info` and ranked `customProperties`; try each key in order.
-* `resolveServiceInstanceForIncident(gr)` — Primary: stamped `sn-service_instance` → SI `name`. Fallback: `svc_ci_assoc` from a workload/pod CI.
+* `resolveServiceInstanceForIncident(gr)` — Primary: stamped `sn-service-instance` → SI `name`. Fallback: `svc_ci_assoc` from a workload/pod CI.
 
 **Inputs:** `em_event` or `em_alert` GlideRecord (`source=SGO-Dynatrace`).
 
@@ -2782,12 +3290,12 @@ Create under **System Definition → Business Rules**. Filter conditions must in
 | Kind | Configuration / template to implement
 
 | Dynatrace OpenPipeline (K8s logs) 
-| Pipeline template equivalent to `k8s-short-log4j2-log-alerts`: parse short Log4j2; stamp `sn-event_kind`, `sn-log-signature`, `sn-environment`, `sn-service_instance`, `sn-impact`/`sn-urgency`; dash aliases `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`; **`dt.davis.is_merging_allowed=false`**; unique_identifier = env\|SI\|signature 
+| Pipeline template equivalent to `k8s-short-log4j2-log-alerts`: parse short Log4j2; stamp `sn-event-kind`, `sn-log-signature`, `sn-environment`, `sn-service-instance`, `sn-impact`/`sn-urgency`; dash aliases `k8s-pod-name`, `k8s-workload-name`, `k8s-workload-kind`; **`dt.davis.is_merging_allowed=false`**; unique_identifier = env\|SI\|signature 
 
-| Dynatrace OpenPipeline (standalone / client logs) | Same contract as `standalone-short-log4j2-log-alerts`; map custom-source `service_instance` → `sn-service_instance` 
+| Dynatrace OpenPipeline (standalone / client logs) | Same contract as `standalone-short-log4j2-log-alerts`; map custom-source `service_instance` → `sn-service-instance` 
 
 | Dynatrace host metric event 
-| Template: CPU above lab threshold (50%), `eventType=RESOURCE`, `sn-event_kind=CPU_EVENT`, `sn-impact=2`, `sn-urgency=2`
+| Template: CPU above lab threshold (50%), `eventType=RESOURCE`, `sn-event-kind=CPU_EVENT`, `sn-impact=2`, `sn-urgency=2`
 
 | Dynatrace K8s anomaly settings | Lab-tuned percent rules (CPU ~40%, memory ~50%, short observation windows). OOTB schema **cannot** stamp `sn-*
 
@@ -2799,7 +3307,7 @@ Create under **System Definition → Business Rules**. Filter conditions must in
 
 | ServiceNow business rules | `em-event-enrich-sgo` (before, 100); `em-alert-enrich-sgo` (before, 5000); `em-alert-create-log-incident` (after, 5020) 
 
-| ServiceNow TBAC | Definition **L2I short Log4j2 SI + signature** on dash keys `sn-environment`, `sn-service_instance`, `sn-log-signature` 
+| ServiceNow TBAC | Definition **L2I short Log4j2 SI + signature** on dash keys `sn-environment`, `sn-service-instance`, `sn-log-signature` 
 
 | ServiceNow AMR | **L2I Create Incident CRITICAL_LOG_EVENT** inactive until a published Flow uses action **Create incident from Alert**. Keep OOTB `SGO-Dynatrace` AMR inactive
 |===
@@ -2816,10 +3324,10 @@ Three patterns share the same `ProblemID` / `message_key` path. They differ in w
 |Phase |Record / relationship
 
 |Problem
-|Davis `ERROR_EVENT`; `sn-event_kind=CRITICAL_LOG_EVENT`; `sn-service_instance=Spark-Master`; `sn-log-signature=TaskSetManager:270`
+|Davis `CUSTOM_ALERT`; `sn-event-kind=CRITICAL_LOG_EVENT`; `sn-service-instance=Spark-Master`; `sn-log-signature=TaskSetManager:270`
 
 |Event
-|`em_event`; SGO may bind HOST or pod first; enrich overwrites `cmdb_ci` → service instance **Spark Master**; `node` / `resource` = `sn-service_instance:Spark-Master`
+|`em_event`; SGO may bind HOST or pod first; enrich overwrites `cmdb_ci` → service instance **Spark Master**; `node` / `resource` = `sn-service-instance:Spark-Master`
 
 |Alert
 |`em_alert`; same service instance; short description **`Critical log event — TaskSetManager:270`**
@@ -2828,7 +3336,7 @@ Three patterns share the same `ProblemID` / `message_key` path. They differ in w
 |`incident.cmdb_ci` → the same **Spark Master** service instance (populator; correlate by SI + signature)
 |===
 
-A Client log is the same pattern with `sn-service_instance=Spark-Client` and service instance **Spark Client**.
+A Client log is the same pattern with `sn-service-instance=Spark-Client` and service instance **Spark Client**.
 
 [[tbl-example-resolution-workload-cpu]]
 .Example — Kubernetes workload CPU
@@ -2853,7 +3361,7 @@ A Client log is the same pattern with `sn-service_instance=Spark-Client` and ser
 |Phase |Record / relationship
 
 |Problem
-|Host metric event; `sn-event_kind=CPU_EVENT`; `sn-impact=2` / `sn-urgency=2`
+|Host metric event; `sn-event-kind=CPU_EVENT`; `sn-impact=2` / `sn-urgency=2`
 
 |Event / Alert
 |`cmdb_ci` → HOST (**lab1** or **lab2**) via SGO SOS
@@ -2870,9 +3378,25 @@ A Client log is the same pattern with `sn-service_instance=Spark-Client` and ser
 |===
 |Acronym |Full Form|Definition
 
+|
+|Affected entities
+|A broader set of entities associated with a problem and derived from an impacted entity. Typically, these are API entities where anomalies were detected.
+
+|
+|Impacted Entity
+|A monitored Smartscape entity that is experiencing degradation as indicated by the monitoring point and associated with a problem. 
+
+|
+|Impacted Entities
+|Entities suffering degradation due to the problem (often the set shown as “impacted” in the UI and in notifications).
+
 |ITIL
 |Information Technology Infrastructure Library
 |A framework for IT service management that provides a common approach to managing IT services and align IT services with broader business goals. 
+
+|
+|Root-cause entity
+|The entity that the Davis analysis engine identified as the root cause of the problem. It may be null. 
 
 |SGO
 |Service Graph Observability
@@ -2886,66 +3410,196 @@ A Client log is the same pattern with `sn-service_instance=Spark-Client` and ser
 |Tag-Based Alert Clustering
 |A ServiceNow Event Management feature that groups related em_alert records when they share configured tag/key values from the alert payload.
 
-
-
 |===
 
 == Appendix B - Dynatrace
 
-=== Severity levels 
+=== Severity levels
 
-Here is the Dynatrace model as documented for **custom/OpenPipeline Davis `event.type`** values (Events API / semantic dictionary), and how they relate to **alerting-profile `severityLevel`** and webhook **`ProblemSeverity`**.
+Dynatrace Davis event and problem **`severityLevel`** values (most to least severe), from
+https://docs.dynatrace.com/docs/dynatrace-intelligence/root-cause-analysis/event-analysis-and-correlation/event-categories[Event categories]
+and Events API v2 event-type metadata.
 
-===== Allowed `event.type` values (what you may set)
+[[tbl-dynatrace-severity-levels]]
+.Dynatrace Severity Levels
+[cols="30%,70%",options="header"]
+|===
+| Severity Level | Description
 
-From the https://docs.dynatrace.com/docs/semantic-dictionary/model/davis[Davis semantic dictionary] / https://docs.dynatrace.com/docs/dynatrace-api/environment-api/events-v2/post-event[Events API v2]
+| `MONITORING{US}UNAVAILABLE`
+| Widespread monitoring interruption: most OneAgents lose connection with the Dynatrace server, so availability and performance visibility drop.
+
+| `AVAILABILITY`
+| High-severity incidents such as complete outage or unavailability of servers or processes.
+
+| `ERROR`
+| Increased error rates or other error-related incidents that interfere with regular operation.
+
+| `PERFORMANCE`
+| Slowdown: decreased performance of an operational service or application (less severe than error or availability).
+
+| `RESOURCE{US}CONTENTION`
+| Resource pressure such as CPU or memory saturation.
+
+| `CUSTOM{US}ALERT`
+| User-defined threshold / custom alert (any metric or OpenPipeline Davis event of this class).
+
+| `INFO`
+| Informational or warning-class events that do not open a problem on their own (deployments, configuration changes, administrative events, and `WARNING` event types).
+
+|===
+
+[[section-event-type-full-catalog]]
+=== Event Types
+
+Full catalog of Dynatrace Davis `eventType` values and their associated `severityLevel`,
+from Events API v2 (`GET /api/v2/eventTypes`) on tenant **pdt20158** (118 types).
+Built-in detector types and OpenPipeline/ingest-assignable types are included.
+See also https://docs.dynatrace.com/docs/dynatrace-api/environment-api/events-v2/get-event-types[Events API v2 — GET all event types]
+and https://docs.dynatrace.com/docs/dynatrace-intelligence/root-cause-analysis/event-analysis-and-correlation/event-categories[Event categories].
 
 [[tbl-dynatrace-event-types]]
-.Dynatrace Event Types and Severities
-[cols="15%,15%,20%,20%,20%",options="header"]
+.Dynatrace Event Types and Severity Levels (pdt20158)
+[cols="40%,25%,35%",options="header"]
 |===
 
-| Event Type ID `event.type` | Opens a problem? | Event Type Name | Alerting Profile `severityLevel` | Typical webhook `ProblemSeverity` 
-| `AVAILABILITY_EVENT` | Yes | Availability | `AVAILABILITY` | `AVAILABILITY`
-| `ERROR_EVENT` | Yes | Error | `ERRORS` | `ERROR`
-| `PERFORMANCE_EVENT` | Yes | Slowdown | `PERFORMANCE` | `PERFORMANCE`
-| `RESOURCE_CONTENTION_EVENT` | Yes | Resource | `RESOURCE_CONTENTION` | `RESOURCE_CONTENTION`
-| `CUSTOM_ALERT` | Yes | Custom | `CUSTOM_ALERT` | `CUSTOM_ALERT`
-| `WARNING` | **No** (info-class) | Warning | *(none — no problem)* | *(no problem notification)*
-| `CUSTOM_INFO` | **No** | Info | *(none)* | *(none)*
-| `CUSTOM_ANNOTATION` | **No** | Info | *(none)* | *(none)*
-| `CUSTOM_CONFIGURATION` | **No** | Info | *(none)* | *(none)*
-| `CUSTOM_DEPLOYMENT` | **No** | Info | *(none)* | *(none)*
-| `MARKED_FOR_TERMINATION` | **No** (info-class) | Info | *(none)* | *(none)*
+| EventType | Severity Level | Display Name
+| `APPLICATION{US}ERROR{US}RATE{US}INCREASED` | `ERROR` | JavaScript error rate increase
+| `APPLICATION{US}JS{US}FRAMEWORK{US}DETECTED` | `INFO` | JavaScript framework change
+| `APPLICATION{US}OVERLOAD{US}PREVENTION` | `INFO` | Application overload prevention
+| `APPLICATION{US}SLOWDOWN` | `PERFORMANCE` | Application slowdown
+| `APPLICATION{US}UNEXPECTED{US}HIGH{US}LOAD` | `RESOURCE{US}CONTENTION` | Application high traffic
+| `APPLICATION{US}UNEXPECTED{US}LOW{US}LOAD` | `AVAILABILITY` | Application low traffic
+| `AVAILABILITY{US}EVENT` | `AVAILABILITY` | Availability event
+| `AWS{US}LAMBDA{US}HIGH{US}ERROR{US}RATE` | `ERROR` | Lambda high error rate
+| `CUSTOM{US}ALERT` | `CUSTOM{US}ALERT` | Custom alert
+| `CUSTOM{US}ANNOTATION` | `INFO` | Custom annotation
+| `CUSTOM{US}APPLICATION{US}ERROR{US}RATE{US}INCREASED` | `ERROR` | Custom application error rate increase
+| `CUSTOM{US}APPLICATION{US}OVERLOAD{US}PREVENTION` | `INFO` | Custom application overload prevention
+| `CUSTOM{US}APPLICATION{US}SLOWDOWN` | `PERFORMANCE` | Custom application slowdown
+| `CUSTOM{US}APPLICATION{US}UNEXPECTED{US}HIGH{US}LOAD` | `RESOURCE{US}CONTENTION` | Custom application high load
+| `CUSTOM{US}APPLICATION{US}UNEXPECTED{US}LOW{US}LOAD` | `AVAILABILITY` | Custom application low load
+| `CUSTOM{US}APP{US}CRASH{US}RATE{US}INCREASED` | `ERROR` | Custom application crash rate increase
+| `CUSTOM{US}CONFIGURATION` | `INFO` | Configuration change
+| `CUSTOM{US}DEPLOYMENT` | `INFO` | Custom deployment
+| `CUSTOM{US}INFO` | `INFO` | Custom info
+| `DATABASE{US}CONNECTION{US}FAILURE` | `ERROR` | Failed database connects
+| `DEPLOYMENT{US}CHANGED{US}CHANGE` | `INFO` | Deployment changed
+| `DEPLOYMENT{US}CHANGED{US}NEW` | `INFO` | New deployment
+| `DEPLOYMENT{US}CHANGED{US}REMOVED` | `INFO` | Deployment removed
+| `EC2{US}HIGH{US}CPU` | `RESOURCE{US}CONTENTION` | AWS CPU saturation
+| `ELB{US}HIGH{US}BACKEND{US}ERROR{US}RATE` | `ERROR` | Load balancer backend error rate
+| `ELB{US}HIGH{US}FRONTEND{US}ERROR{US}RATE` | `INFO` | Load balancer frontend error rate
+| `ELB{US}HIGH{US}UNHEALTHY{US}HOST{US}RATE` | `INFO` | Load balancer unhealthy host rate
+| `ERROR{US}EVENT` | `ERROR` | Error event
+| `ESXI{US}GUEST{US}CPU{US}LIMIT{US}REACHED` | `RESOURCE{US}CONTENTION` | ESXi guest CPU saturation
+| `ESXI{US}HOST{US}CONNECTION{US}FAILED` | `INFO` | ESXi connection failed
+| `ESXI{US}HOST{US}CONNECTION{US}LOST` | `INFO` | ESXi connection lost
+| `ESXI{US}HOST{US}CPU{US}SATURATION` | `RESOURCE{US}CONTENTION` | ESXi host CPU saturation
+| `ESXI{US}HOST{US}DATASTORE{US}LOW{US}DISK{US}SPACE` | `RESOURCE{US}CONTENTION` | ESXi low datastore space
+| `ESXI{US}HOST{US}DISK{US}QUEUE{US}SLOW` | `RESOURCE{US}CONTENTION` | ESXi I/O commands queued
+| `ESXI{US}HOST{US}DISK{US}SLOW` | `RESOURCE{US}CONTENTION` | ESXi slow disk
+| `ESXI{US}HOST{US}MAINTENANCE` | `INFO` | ESXi maintenance
+| `ESXI{US}HOST{US}MEMORY{US}SATURATION` | `RESOURCE{US}CONTENTION` | ESXi host memory saturation
+| `ESXI{US}HOST{US}NETWORK{US}PROBLEMS` | `ERROR` | ESXi network problems
+| `ESXI{US}HOST{US}NO{US}CONNECTION` | `INFO` | ESXi no connection
+| `ESXI{US}HOST{US}OVERLOADED{US}STORAGE` | `RESOURCE{US}CONTENTION` | ESXi overloaded storage
+| `ESXI{US}HOST{US}SHUTDOWN` | `INFO` | ESXi shutdown
+| `ESXI{US}HOST{US}UP` | `INFO` | ESXi start
+| `ESXI{US}HOST{US}VM{US}MOTION{US}ARRIVED` | `INFO` | VM migrated to this ESXi
+| `ESXI{US}HOST{US}VM{US}MOTION{US}LEFT` | `INFO` | VM migrated from this ESXi
+| `ESXI{US}HOST{US}VM{US}STARTED` | `INFO` | ESXi host VM started
+| `ESXI{US}VM{US}DISCONNECTED` | `INFO` | ESXi VM disconnected
+| `ESXI{US}VM{US}IMPACT{US}HOST{US}CPU{US}SATURATION` | `RESOURCE{US}CONTENTION` | ESXi VM impact host CPU saturation
+| `ESXI{US}VM{US}IMPACT{US}HOST{US}MEMORY{US}SATURATION` | `RESOURCE{US}CONTENTION` | ESXi VM impact host memory saturation
+| `ESXI{US}VM{US}MOTION` | `INFO` | ESXi VM motion
+| `ESXI{US}VM{US}POWER{US}OFF` | `INFO` | ESXi VM power off
+| `ESXI{US}VM{US}SHUTDOWN` | `INFO` | ESXi VM shutdown
+| `ESXI{US}VM{US}START` | `INFO` | ESXi VM start
+| `EXTERNAL{US}SYNTHETIC{US}TEST{US}OUTAGE` | `AVAILABILITY` | Third-party monitor outage
+| `EXTERNAL{US}SYNTHETIC{US}TEST{US}SLOWDOWN` | `PERFORMANCE` | Third-party monitor slowdown
+| `HOST{US}LOG{US}AVAILABILITY` | `AVAILABILITY` | Host availability log
+| `HOST{US}LOG{US}ERROR` | `ERROR` | Host error log
+| `HOST{US}LOG{US}MATCHED` | `INFO` | Host info log
+| `HOST{US}LOG{US}PERFORMANCE` | `PERFORMANCE` | Host performance log
+| `HTTP{US}CHECK{US}GLOBAL{US}OUTAGE` | `AVAILABILITY` | Http monitor global outage
+| `HTTP{US}CHECK{US}LOCAL{US}OUTAGE` | `AVAILABILITY` | Http monitor local outage
+| `HTTP{US}CHECK{US}TEST{US}LOCATION{US}SLOWDOWN` | `PERFORMANCE` | Http monitor slowdown
+| `MARKED{US}FOR{US}TERMINATION` | `INFO` | Marked for termination
+| `MOBILE{US}APPLICATION{US}ERROR{US}RATE{US}INCREASED` | `ERROR` | Mobile app error rate increase
+| `MOBILE{US}APPLICATION{US}OVERLOAD{US}PREVENTION` | `INFO` | Mobile app overload prevention
+| `MOBILE{US}APPLICATION{US}SLOWDOWN` | `PERFORMANCE` | Mobile app slowdown
+| `MOBILE{US}APPLICATION{US}UNEXPECTED{US}HIGH{US}LOAD` | `RESOURCE{US}CONTENTION` | Mobile app unexpected high usage
+| `MOBILE{US}APPLICATION{US}UNEXPECTED{US}LOW{US}LOAD` | `AVAILABILITY` | Mobile app unexpected low usage
+| `MOBILE{US}APP{US}CRASH{US}RATE{US}INCREASED` | `ERROR` | Mobile app crash rate increase
+| `MONITORING{US}UNAVAILABLE` | `MONITORING{US}UNAVAILABLE` | Monitoring unavailable
+| `MULTI{US}PROTOCOL{US}GLOBAL{US}OUTAGE` | `AVAILABILITY` | Network availability monitor global outage
+| `MULTI{US}PROTOCOL{US}LOCAL{US}OUTAGE` | `AVAILABILITY` | Network availability monitor local outage
+| `MULTI{US}PROTOCOL{US}LOCATION{US}SLOWDOWN` | `PERFORMANCE` | Network availability monitor slowdown
+| `OSI{US}DISK{US}LOW{US}INODES` | `RESOURCE{US}CONTENTION` | Low number of inodes available
+| `OSI{US}GRACEFULLY{US}SHUTDOWN` | `AVAILABILITY` | Host gracefully shutdown
+| `OSI{US}HIGH{US}CPU` | `RESOURCE{US}CONTENTION` | CPU saturation
+| `OSI{US}HIGH{US}MEMORY` | `RESOURCE{US}CONTENTION` | Memory saturation
+| `OSI{US}LOW{US}DISK{US}SPACE` | `RESOURCE{US}CONTENTION` | Low disk space
+| `OSI{US}NIC{US}DROPPED{US}PACKETS{US}HIGH` | `ERROR` | High rate of dropped packets
+| `OSI{US}NIC{US}ERRORS{US}HIGH` | `ERROR` | High number of network errors
+| `OSI{US}NIC{US}UTILIZATION{US}HIGH` | `RESOURCE{US}CONTENTION` | High network utilization
+| `OSI{US}SLOW{US}DISK` | `RESOURCE{US}CONTENTION` | Slow disk
+| `OSI{US}UNEXPECTEDLY{US}UNAVAILABLE` | `AVAILABILITY` | Host or monitoring unavailable
+| `PERFORMANCE{US}EVENT` | `PERFORMANCE` | Performance event
+| `PGI{US}CRASHED{US}INFO` | `INFO` | Process crashed
+| `PGI{US}LOG{US}AVAILABILITY` | `AVAILABILITY` | Process availability log
+| `PGI{US}LOG{US}ERROR` | `ERROR` | Process error log
+| `PGI{US}LOG{US}MATCHED` | `INFO` | Process info log
+| `PGI{US}LOG{US}PERFORMANCE` | `PERFORMANCE` | Process performance log
+| `PGI{US}MEMDUMP` | `INFO` | Process memory dump
+| `PGI{US}MYSQL{US}SLOW{US}QUERIES{US}RATE{US}HIGH` | `PERFORMANCE` | High rate of slow queries
+| `PGI{US}UNAVAILABLE` | `AVAILABILITY` | Process unavailable
+| `PG{US}LOW{US}INSTANCE{US}COUNT` | `AVAILABILITY` | Process group low instance count
+| `PROCESS{US}HIGH{US}GC{US}ACTIVITY` | `RESOURCE{US}CONTENTION` | Long garbage-collection time
+| `PROCESS{US}MEMORY{US}RESOURCE{US}EXHAUSTED` | `RESOURCE{US}CONTENTION` | Memory resources exhausted
+| `PROCESS{US}NA{US}HIGH{US}CONN{US}FAIL{US}RATE` | `ERROR` | Connectivity problem
+| `PROCESS{US}NA{US}HIGH{US}LOSS{US}RATE` | `ERROR` | Network problem
+| `PROCESS{US}RESTART` | `INFO` | Process restart
+| `PROCESS{US}THREADS{US}RESOURCE{US}EXHAUSTED` | `RESOURCE{US}CONTENTION` | Threads resources exhausted
+| `RDS{US}AZ{US}FAILOVER{US}COMPLETED` | `INFO` | RDS failover completed
+| `RDS{US}AZ{US}FAILOVER{US}STARTED` | `INFO` | RDS failover started
+| `RDS{US}BACKUP{US}COMPLETED` | `INFO` | RDS backup completed
+| `RDS{US}BACKUP{US}STARTED` | `INFO` | RDS backup started
+| `RDS{US}HIGH{US}CPU` | `RESOURCE{US}CONTENTION` | RDS CPU saturation
+| `RDS{US}HIGH{US}LATENCY` | `RESOURCE{US}CONTENTION` | High RDS latency
+| `RDS{US}LOW{US}STORAGE{US}SPACE` | `RESOURCE{US}CONTENTION` | Low RDS storage space
+| `RDS{US}RESTART` | `INFO` | RDS restart
+| `RDS{US}RESTART{US}SEQUENCE` | `ERROR` | RDS restart sequence
+| `RESOURCE{US}CONTENTION{US}EVENT` | `RESOURCE{US}CONTENTION` | Resource contention
+| `SERVICE{US}ERROR{US}RATE{US}INCREASED` | `ERROR` | Service failure rate increase
+| `SERVICE{US}SLOWDOWN` | `PERFORMANCE` | Service response time degradation
+| `SERVICE{US}UNEXPECTED{US}HIGH{US}LOAD` | `RESOURCE{US}CONTENTION` | Unexpected high service load
+| `SERVICE{US}UNEXPECTED{US}LOW{US}LOAD` | `AVAILABILITY` | Unexpected low service load
+| `SYNTHETIC{US}GLOBAL{US}OUTAGE` | `AVAILABILITY` | Browser monitor global outage
+| `SYNTHETIC{US}LOCAL{US}OUTAGE` | `AVAILABILITY` | Browser monitor local outage
+| `SYNTHETIC{US}NODE{US}OUTAGE` | `AVAILABILITY` | Synthetic ActiveGate outage
+| `SYNTHETIC{US}PRIVATE{US}LOCATION{US}OUTAGE` | `AVAILABILITY` | Synthetic private location outage
+| `SYNTHETIC{US}TEST{US}LOCATION{US}SLOWDOWN` | `PERFORMANCE` | Browser monitor slowdown
+| `WARNING` | `INFO` | Warning
 
 |===
-
-Sources: https://docs.dynatrace.com/docs/dynatrace-intelligence/root-cause-analysis/event-analysis-and-correlation/event-categories[Event categories], https://docs.dynatrace.com/docs/dynatrace-api/environment-api/settings/schemas/builtin-alerting-profile[alerting.profile schema].
-
-==== Profile-only severity (usually not an OpenPipeline `event.type` you pick)
-
-| Alerting-profile `severityLevel` | Typical origin | Webhook `ProblemSeverity` |
-|---|---|---|
-| `MONITORING_UNAVAILABLE` | Platform “monitoring unavailable” events | `MONITORING_UNAVAILABLE` |
-
-That bucket exists on profiles; it is not one of the generic custom `event.type` enums above.
 
 ==== Spelling quirks (important)
 
-- Profile API uses **`ERRORS`** (plural).
-- Webhook / problem field is usually **`ERROR`** (singular).
-- Same idea for the ERROR class; names are not identical strings.
+- Profile API uses **`ERRORS`** (plural) for the Error class.
+- Webhook / problem field is usually **`ERROR`** (singular) for that class.
+- For Custom alerts, profile and webhook both use **`CUSTOM{US}ALERT`** (same string).
 
 ==== How matching works
 
-1. You set **`event.type`** (e.g. `ERROR_EVENT`).
-2. Davis assigns an **event category / problem severity bucket** (Error → problem severity `ERROR`).
-3. Alerting profile matches that bucket via **`severityLevel: ERRORS`**.
-4. Problem notification substitutes **`{ProblemSeverity}`** from the problem (e.g. `ERROR`).
+1. You set **`event.type`** (e.g. `CUSTOM{US}ALERT`) for OpenPipeline/custom events, or Dynatrace sets a built-in `eventType`.
+2. Davis assigns the type's **`severityLevel`** (e.g. Custom → `CUSTOM{US}ALERT`).
+3. Alerting profile matches that bucket via **`severityLevel`** (Error class uses profile `ERRORS`).
+4. Problem notification substitutes **`{ProblemSeverity}`** from the problem.
 
-Your Spark log path: `ERROR_EVENT` → problem `ERROR` → profile `ERRORS` → webhook `ProblemSeverity: ERROR`.
+Your Spark log path: `CUSTOM{US}ALERT` → problem `CUSTOM{US}ALERT` → profile `CUSTOM{US}ALERT` → webhook `ProblemSeverity: CUSTOM{US}ALERT`.
 
 ==== Not the same as numeric `event.severity` 1–5
 
-There is also a newer ITIL-style **`event.severity` (1–5)**. That is a different scale from classic profile buckets (`AVAILABILITY` / `ERRORS` / …). Your OpenPipeline does **not** set that; classic problem severity for L2I comes from **`event.type` → ERROR class**.
-
+There is also a newer ITIL-style **`event.severity` (1–5)**. That is a different scale from classic profile buckets (`AVAILABILITY` / `ERRORS` / `CUSTOM{US}ALERT` / …). Your OpenPipeline does **not** set that; classic problem severity for L2I log events comes from **`event.type` → CUSTOM{US}ALERT class**.

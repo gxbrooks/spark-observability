@@ -33,13 +33,20 @@ required while the L2I AMR is inactive (`autoOpen=true` demands a matching
 subflow (skips populator). Deactivate the BR when an admin publishes the
 Flow and activates the AMR.
 
-## Why dash keys (`sn-log-signature`) not dots (`sn.log.signature`)
+## Why all-kebab `sn-*` keys (`sn-service-instance`, not `sn-service_instance`)
 
 TBAC reads `additional_info` via a **dot-path** into JSON, e.g.
 `ProblemDetailsJSON.rankedEvents[0].customProperties.sn-log-signature`.
-Each `.` is a nested-object step. Flat Davis keys that themselves contain
-dots (e.g. `sn.log.signature`) cannot be resolved by that walk. Dashes keep
-the path segment atomic while remaining readable.
+Each `.` is a nested-object step, so **dots in the property name break TBAC**.
+
+Lab convention for Dynatrace custom event properties that ServiceNow reads:
+
+| Form | Verdict |
+|------|---------|
+| `sn.service_instance` | Don't (dots) |
+| `sn-service-instance` | Prefer (all kebab) |
+| `sn_service_instance` | Avoid here (all-snake not our standard) |
+| `sn-service_instance` | Avoid (mixed `-` and `_`) |
 
 ## Playbooks
 
@@ -53,12 +60,12 @@ the path segment atomic while remaining readable.
 
 | Name | Role |
 | ---- | ---- |
-| `ResolveApplicationService` | SI resolve helpers (`sn-service_instance`, `k8s-workload-name`, …); `enrichSgoRecord` |
+| `ResolveApplicationService` | SI resolve helpers (`sn-service-instance`, `k8s-workload-name`, …); `enrichSgoRecord` |
 | `EvtMgmtCustomIncidentPopulator` | L2I: incident CI = SI; correlate by SI + `sn-log-signature` |
 | `L2IIncidentFromAlert` | Helper → `EvtMgmtIncidentHandler` (job / reprocess) |
 | BR `em-event-enrich-sgo` / `em-alert-enrich-sgo` | Before insert/update: stamp `sn-impact`/`sn-urgency`; log CI = service instance; else K8s dash-key CI |
 | BR `em-alert-create-log-incident` | Shim → `EvtMgmtIncidentHandler.createIncidentNoUpdate`; filter `severity<=3` (incident gate only) |
-| TBAC `L2I short Log4j2 SI + signature` | Groups on `sn-environment` + `sn-service_instance` + `sn-log-signature` |
+| TBAC `L2I short Log4j2 SI + signature` | Groups on `sn-environment` + `sn-service-instance` + `sn-log-signature` |
 | AMR `L2I Create Incident CRITICAL_LOG_EVENT` | **Inactive** (activate with published Create-incident-from-Alert Flow) |
 | OOTB `Create Incident for Primary Alert` / `SGO-Dynatrace` | **Inactive** |
 
@@ -66,11 +73,11 @@ the path segment atomic while remaining readable.
 
 | Tag | Purpose |
 | --- | ------- |
-| `sn-event_kind=CRITICAL_LOG_EVENT` | Gate for incident create |
+| `sn-event-kind=CRITICAL_LOG_EVENT` | Gate for incident create |
 | `sn-log-signature` | Class:Line clustering / incident short description |
 | `sn-log-class` / `sn-log-line` | Parsed parts |
 | `sn-environment` | Partition (no cross-env grouping) |
-| `sn-service_instance` | Service instance clustering / resolve key |
+| `sn-service-instance` | Service instance clustering / resolve key |
 | `sn-pipeline` | OpenPipeline customId |
 | `sn-impact` | Incident impact (1=High, 2=Medium, 3=Low). DT stamps logs/CPU; SN enrich maps OOTB `ProblemSeverity` |
 | `sn-urgency` | Incident urgency (same scale). Repeats of the same SI+signature bump urgency. SN **Data Lookup** calculates **priority** from impact × urgency (not set in L2I code) |
@@ -82,7 +89,7 @@ the path segment atomic while remaining readable.
 
 **Alert severity vs incident priority (current, not redesigned):** `em_alert.severity` is SGO’s 1–5 map of Dynatrace `ProblemSeverity` (this instance: `ERROR`→Major/2, `RESOURCE_CONTENTION`→Warning/4). `incident.priority` is OOTB Data Lookup from `incident.impact` × `incident.urgency`, which the populator copies from `sn-*`. **Only** the create BR / AMR require `severity<=3` (Warning alerts may exist; they do not auto-incident). See `servicenow/docs/Log_to_Incident/SGO-Dynatrace_Enhancements.md` for the mapping table and per-context payload attributes.
 
-Standalone custom log source still stamps OneAgent `service_instance`; OpenPipeline maps it to `sn-service_instance`.
+Standalone custom log source still stamps OneAgent `service_instance`; OpenPipeline maps it to `sn-service-instance`.
 
 ## Usage
 

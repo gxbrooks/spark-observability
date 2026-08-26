@@ -41,10 +41,10 @@
           "id": "extract-log4j-class-line",
           "type": "dql",
           "enabled": true,
-          "description": "Parse Class:Line; map custom-source service_instance → sn-service_instance",
+          "description": "Parse Class:Line; map custom-source service_instance → sn-service-instance",
           "matcher": "true",
           "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-service_instance` = toString(coalesce(service_instance, \"\"))\n| fieldsAdd `sn-impact` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")\n| fieldsAdd `sn-urgency` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")"
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-service-instance` = toString(coalesce(service_instance, \"\"))\n| fieldsAdd `sn-impact` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")\n| fieldsAdd `sn-urgency` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")"
           }
         }
       ]
@@ -55,32 +55,32 @@
           "id": "standalone-short-log4j2-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Standalone short Log4j2 WARN/ERROR → ERROR_EVENT; sn-* L2I tags",
+          "description": "Standalone short Log4j2 WARN/ERROR → CUSTOM_ALERT; sn-* L2I tags",
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(`sn-log-class`) AND isNotNull(`sn-log-line`) AND isNotNull(service_instance)",
           "davis": {
             "properties": [
-              { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "sn-event_kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "event.type", "value": "CUSTOM_ALERT" },
+              { "key": "event.name", "value": "Critical {loglevel} at {sn-log-class}:{sn-log-line}" },
+              {
+                "key": "event.description",
+                "value": "Standalone short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} in {log.path} sn-event-kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service-instance={sn-service-instance} sn-pipeline={sn-pipeline} sn-impact={sn-impact} sn-urgency={sn-urgency}: {content}"
+              },
+              {
+                "key": "event.unique_identifier",
+                "value": "{sn-environment}|{sn-service-instance}|Standalone Critical {loglevel} {sn-log-signature}"
+              },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" },
+              { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-log-class", "value": "{sn-log-class}" },
               { "key": "sn-log-line", "value": "{sn-log-line}" },
               { "key": "sn-log-signature", "value": "{sn-log-signature}" },
               { "key": "sn-environment", "value": "{sn-environment}" },
-              { "key": "sn-service_instance", "value": "{sn-service_instance}" },
+              { "key": "sn-service-instance", "value": "{sn-service-instance}" },
               { "key": "sn-pipeline", "value": "{sn-pipeline}" },
               { "key": "sn-impact", "value": "{sn-impact}" },
-              { "key": "sn-urgency", "value": "{sn-urgency}" },
-              { "key": "event.name", "value": "Critical {loglevel} at {sn-log-class}:{sn-log-line}" },
-              {
-                "key": "event.description",
-                "value": "Standalone short Log4j2 critical {loglevel} at {sn-log-class}:{sn-log-line} in {log.path} sn-event_kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service_instance={sn-service_instance} sn-pipeline={sn-pipeline} sn-impact={sn-impact} sn-urgency={sn-urgency}: {content}"
-              },
-              { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              {
-                "key": "event.unique_identifier",
-                "value": "{sn-environment}|{sn-service_instance}|Standalone Critical {loglevel} {sn-log-signature}"
-              },
-              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" }
+              { "key": "sn-urgency", "value": "{sn-urgency}" }
             ]
           }
         },
@@ -92,20 +92,20 @@
           "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(service_instance)",
           "davis": {
             "properties": [
-              { "key": "event.type", "value": "ERROR_EVENT" },
-              { "key": "sn-event_kind", "value": "CRITICAL_LOG_EVENT" },
-              { "key": "sn-environment", "value": "{sn-environment}" },
-              { "key": "sn-pipeline", "value": "{sn-pipeline}" },
-              { "key": "sn-impact", "value": "3" },
-              { "key": "sn-urgency", "value": "3" },
+              { "key": "event.type", "value": "CUSTOM_ALERT" },
               { "key": "event.name", "value": "Standalone log missing service_instance on {log.source}" },
               {
                 "key": "event.description",
-                "value": "Custom log source did not set service_instance for {log.source} sn-event_kind=CRITICAL_LOG_EVENT sn-environment={sn-environment} sn-impact=3 sn-urgency=3: {content}"
+                "value": "Custom log source did not set service_instance for {log.source} sn-event-kind=CRITICAL_LOG_EVENT sn-environment={sn-environment} sn-impact=3 sn-urgency=3: {content}"
               },
               { "key": "event.unique_identifier", "value": "{sn-environment}|enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" }
+              { "key": "dt.davis.event_timeout", "value": "15m" },
+              { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "sn-environment", "value": "{sn-environment}" },
+              { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "sn-impact", "value": "3" },
+              { "key": "sn-urgency", "value": "3" }
             ]
           }
         }

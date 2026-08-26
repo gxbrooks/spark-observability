@@ -176,7 +176,7 @@ The **Davis processor** in the Spark log alerts pipeline matches **WARN** or **E
 |----------|-------|
 | **Matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND (spark.mode == "Client" OR spark.mode == "Cluster") AND class/line present` |
 | **Davis processor** | `spark-warn-error-davis` |
-| `event.type` | `ERROR_EVENT` |
+| `event.type` | `CUSTOM_ALERT` |
 | `event.name` | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
 | `event.description` | `Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path}: {content}` |
 | `event.unique_identifier` | `Spark Critical {loglevel} error {spark.log.class}:{spark.log.line}` |
@@ -210,7 +210,7 @@ Legacy (inactive for routed logs): `spark-error-log-event.json.j2` → `builtin:
 
 ### What happens
 
-The first matching Davis event opens a **problem** in management zone **Spark Observability**. The alerting profile forwards **ERROR** severity (and other configured severities) immediately to the ServiceNow webhook. **`davisMerge`** is not used on the log path — each qualifying log line can contribute to problem lifecycle within the `15m` event timeout window.
+The first matching Davis event opens a **problem** in management zone **Spark Observability**. The alerting profile forwards **CUSTOM_ALERT** severity (and other configured severities) immediately to the ServiceNow webhook. **`davisMerge`** is not used on the log path — each qualifying log line can contribute to problem lifecycle within the `15m` event timeout window.
 
 ### Configurations
 
@@ -258,7 +258,7 @@ Dynatrace substitutes placeholders at send time:
   "ConnectionId": "<SGC-connection-sys-id>",
   "ProblemID": "-260729",
   "ProblemTitle": "Spark log alert",
-  "ProblemSeverity": "ERROR",
+  "ProblemSeverity": "CUSTOM_ALERT",
   "ProblemImpact": "INFRASTRUCTURE",
   "State": "OPEN",
   "ImpactedEntity": "Lab2",
@@ -274,8 +274,8 @@ Dynatrace substitutes placeholders at send time:
     "rankedEvents": [
       {
         "entityId": "HOST-A3921C1DA2349805",
-        "eventType": "ERROR",
-        "severityLevel": "ERROR"
+        "eventType": "CUSTOM_ALERT",
+        "severityLevel": "CUSTOM_ALERT"
       }
     ]
   },
@@ -290,7 +290,7 @@ Dynatrace substitutes placeholders at send time:
 |---------------|---------|----------|
 | `ProblemID` | `-260729` | `em_event.message_key` (dedup OPEN/RESOLVED) |
 | `ProblemTitle` | `Spark log alert` | `description` / `message` |
-| `ProblemSeverity` | `ERROR` | `severity` (mapped to numeric, typically **2**) |
+| `ProblemSeverity` | `CUSTOM_ALERT` | `severity` (mapped to numeric by SGO) |
 | `ImpactedEntity` | `Lab2` | `node` |
 | `ImpactedEntities[].entityId` | `HOST-A3921C1DA2349805` | **`cmdb_ci` lookup** via `sys_object_source` |
 | `ProblemDetailsJSON.rankedEvents[].entityId` | `HOST-A3921C1DA2349805` | Fallback CI binding parse path |
@@ -320,7 +320,7 @@ The **SGO-Dynatrace** Event Management listener creates or updates **`em_event`*
 | `source` | `SGO-Dynatrace` |
 | `message_key` | `-260729` (from `ProblemID`) |
 | `description` | `OPEN Problem P-260729 in environment pdt20158\nProblem detected at: 19:32 (UTC) …\n1 impacted infrastructure component\nHost Lab2` |
-| `severity` | `2` (Major — ERROR-class problem) |
+| `severity` | SGO-mapped from `CUSTOM_ALERT` problem severity |
 | `state` | `Processed` / `Ready` |
 | `node` | `Lab2` |
 | `resource` | Log source or sub-component when mapped (often log path or entity name) |

@@ -17,7 +17,7 @@ Canonical process narrative, diagrams, and step-by-step automation live in [Log_
 | **ServiceNow incident CI** | Same service instance **Spark Client** (propagate) | Same **service instance** (propagate) |
 | **CMDB bridge used for incident** | Text → AS **by name** (no membership lookup) | Path → pod → **`svc_ci_assoc`** → AS (done at event bind) |
 
-Shared path: OpenPipeline Davis `ERROR_EVENT` → Dynatrace Problem → ServiceNow Event Management (`em_event` / `em_alert`) → business rules → `incident`.
+Shared path: OpenPipeline Davis `CUSTOM_ALERT` → Dynatrace Problem → ServiceNow Event Management (`em_event` / `em_alert`) → business rules → `incident`.
 
 ---
 

@@ -703,14 +703,25 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse sn-service_instance from description / additional_info JSON.
-   * Legacy: sn.service_instance, l2i.service_instance, bare service_instance.
+   * Parse sn-service-instance from description / additional_info JSON.
+   * Legacy: sn-service_instance (mixed), sn.service_instance, l2i.service_instance,
+   * bare service_instance.
    */
   extractServiceInstance: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
     var m = blob.match(
-      /(?:^|[\s,{;])sn-service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      /(?:^|[\s,{;])sn-service-instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
     );
+    if (!m) {
+      m = blob.match(
+        /["']sn-service-instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(
+        /(?:^|[\s,{;])sn-service_instance\s*[=:]\s*([A-Za-z0-9][\w.-]*)/i
+      );
+    }
     if (!m) {
       m = blob.match(
         /["']sn-service_instance["']\s*:\s*["']([A-Za-z0-9][\w.-]*)["']/i
@@ -916,14 +927,22 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Parse sn-event_kind from description / additional_info.
-   * Dynatrace keeps event.type as a fixed enum; sn-event_kind carries the
+   * Parse sn-event-kind from description / additional_info.
+   * Dynatrace keeps event.type as a fixed enum; sn-event-kind carries the
    * ServiceNow semantic type (CRITICAL_LOG_EVENT / CPU_EVENT).
-   * Legacy: sn.event_kind, log.event_kind.
+   * Legacy: sn-event_kind (mixed), sn.event_kind, log.event_kind.
    */
   extractLogEventKind: function (gr) {
     var blob = this.collectSparkLookupBlob(gr);
-    var m = blob.match(/sn-event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    var m = blob.match(/sn-event-kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    if (!m) {
+      m = blob.match(
+        /["']sn-event-kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
+      );
+    }
+    if (!m) {
+      m = blob.match(/sn-event_kind\s*[=:]\s*([A-Za-z0-9_]+)/i);
+    }
     if (!m) {
       m = blob.match(
         /["']sn-event_kind["']\s*:\s*["']([A-Za-z0-9_]+)["']/i
@@ -1094,7 +1113,7 @@ ResolveApplicationService.prototype = {
 
   /**
    * Remap em_event.type / em_alert.type from Dynatrace enum values to
-   * sn-event_kind (CRITICAL_LOG_EVENT / CPU_EVENT). Leaves CPU_SATURATED alone.
+   * sn-event-kind (CRITICAL_LOG_EVENT / CPU_EVENT). Leaves CPU_SATURATED alone.
    */
   applyLogEventTypeRename: function (gr) {
     if (!gr || !gr.isValidField('type')) {
@@ -1122,7 +1141,7 @@ ResolveApplicationService.prototype = {
       gr.type = next;
       this.appendProcessingNote(
         gr,
-        'em-entity-bind: type ' + current + ' → ' + next + ' (sn-event_kind rename)'
+        'em-entity-bind: type ' + current + ' → ' + next + ' (sn-event-kind rename)'
       );
     }
   },
@@ -1256,7 +1275,9 @@ ResolveApplicationService.prototype = {
       return true;
     }
     var blob = this.collectSparkLookupBlob(gr);
-    return blob.indexOf('sn-event_kind=CRITICAL_LOG_EVENT') !== -1 ||
+    return blob.indexOf('sn-event-kind=CRITICAL_LOG_EVENT') !== -1 ||
+      blob.indexOf('"sn-event-kind":"CRITICAL_LOG_EVENT"') !== -1 ||
+      blob.indexOf('sn-event_kind=CRITICAL_LOG_EVENT') !== -1 ||
       blob.indexOf('"sn-event_kind":"CRITICAL_LOG_EVENT"') !== -1 ||
       blob.indexOf('sn.event_kind=CRITICAL_LOG_EVENT') !== -1 ||
       blob.indexOf('"sn.event_kind":"CRITICAL_LOG_EVENT"') !== -1 ||
@@ -1686,7 +1707,7 @@ ResolveApplicationService.prototype = {
    *   1. Guarantee sn-impact / sn-urgency (DT stamps win; else ProblemSeverity
    *      / EM severity mapping).
    *   2. Copy dotted K8s platform keys to dash aliases (TBAC-safe).
-   *   3. CRITICAL_LOG_EVENT / sn-service_instance: cmdb_ci = service
+   *   3. CRITICAL_LOG_EVENT / sn-service-instance: cmdb_ci = service
    *      instance (overwrites SGO HOST/pod SOS bind).
    *   4. Else if cmdb_ci is empty, bind from k8s-workload-name /
    *      k8s-pod-name / k8s-cronjob-name / k8s-job-name.
@@ -1808,7 +1829,7 @@ ResolveApplicationService.prototype = {
     }
     if (si.stamp) {
       gr.node = si.stamp;
-      gr.resource = 'sn-service_instance:' + si.stamp;
+      gr.resource = 'sn-service-instance:' + si.stamp;
     }
     return true;
   },
