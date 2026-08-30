@@ -15,7 +15,7 @@
     sn_discovery_range_name: brooks-lab-subnet
   tasks:
     - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: common/regenerate_context.yml
+      ansible.builtin.include_tasks: tasks/regenerate-context.yml
 
     - name: Ensure deploy context directory exists
       ansible.builtin.file:

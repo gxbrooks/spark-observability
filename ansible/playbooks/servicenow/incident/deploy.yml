@@ -68,14 +68,15 @@
       ansible.builtin.debug:
         msg: >-
           L2I path: sn-* tags + metric_name=Log-Error:{signature} +
-          group_by metric_name,cmdb_ci. TBAC '{{ sn_l2i_tbac_definition_name }}'
-          active={{ sn_l2i_tbac_active }}. Enrich BRs
+          group_by metric_name,cmdb_ci. TBAC '{{ sn_l2i_tbac_def_body.name }}'
+          active={{ sn_l2i_tbac_def_body.active }}. Enrich BRs
           '{{ sn_l2i_enrich_event_br_name }}' /
           '{{ sn_l2i_enrich_alert_br_name }}'.
           Create BR '{{ sn_incident_em_alert_br_name }}' active={{ sn_l2i_create_br_active }}.
-          AMR '{{ sn_sgo_ootb_amr_name }}' active={{ sn_sgo_amr_active }}
+          AMR '{{ sn_sgo_ootb_amr_name }}' active={{ sn_sgo_amr_body.active }}
           (OOTB Create Incident subflow).
-          Correlation rule '{{ sn_l2i_corr_rule_name }}'.
-          Group Alert AMR '{{ sn_l2i_ootb_primary_amr_name }}' active={{ sn_l2i_ootb_primary_amr_active }}.
+          Correlation rule '{{ sn_l2i_corr_body.name }}'.
+          Group Alert AMR '{{ sn_l2i_ootb_primary_amr_name }}'
+          active={{ sn_l2i_primary_amr_body.active }}.
           OOTB '{{ sn_ootb_ci_in_change_window_rule_name }}' kept active;
-          extension rule '{{ sn_affected_ci_maint_rule_name }}' for task_ci.
+          extension rule '{{ sn_affected_ci_maint_rule_body.name }}' for task_ci.

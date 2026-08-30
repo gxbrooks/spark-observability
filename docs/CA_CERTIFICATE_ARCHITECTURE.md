@@ -244,7 +244,7 @@ All playbooks follow this pattern:
 - **install.yml**: Initial installation and configuration
 - **start.yml**: Start services (validates prerequisites)
 - **stop.yml**: Stop services gracefully
-- **diagnose.yml** (or **status.yml**): Check service health
+- **diagnose.yml**: Check service health
 - **uninstall.yml**: Remove services and cleanup
 
 ### Observability Stack Playbooks

@@ -11,6 +11,14 @@
     - name: Ensure Dynatrace Operator and webhook are running with valid certs
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ensure_operator_webhook.yml"
 
+    - name: Activate cluster in Dynatrace Kubernetes app
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
+
+    - name: Apply OOTB Kubernetes monitoring settings (enabled)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_k8s_monitoring_settings.yml"
+      vars:
+        dt_k8s_mon_mode: enabled
+
 - name: Dynatrace start/status (Kubernetes-managed OneAgent)
   hosts: kubernetes_master:kubernetes_workers:observability
   gather_facts: false
@@ -18,9 +26,6 @@
     - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
-    - name: Activate cluster in Dynatrace Kubernetes app
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
-
     - name: Check host OneAgent service status (informational)
       ansible.builtin.command: systemctl is-active oneagent
       register: oneagent_status

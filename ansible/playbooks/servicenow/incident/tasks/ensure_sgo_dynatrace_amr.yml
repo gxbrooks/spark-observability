@@ -1,11 +1,12 @@
 ---
 # Activate OOTB SGO-Dynatrace AMR for log and metric alerts.
-# Keep product subflow "SGO-Dynatrace Alert Subflow". Tighten the filter so
-# create waits for grouping (with evt_mgmt.avoid_int_enabled) and skips
-# Secondaries and maintenance windows.
+# Payload: servicenow/integrations/incident/em_alert_management_rule_sgo_dynatrace.json.j2
+- name: Load SGO-Dynatrace AMR representation
+  ansible.builtin.set_fact:
+    sn_sgo_amr_body: "{{ lookup('template', sn_incident_integrations_dir + '/em_alert_management_rule_sgo_dynatrace.json.j2') | from_json }}"
 
 - name: Look up OOTB SGO-Dynatrace Alert Management Rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_management_rule
     sn_rest_query: "sysparm_query=sys_id={{ sn_sgo_ootb_amr_sys_id }}^ORname={{ sn_sgo_ootb_amr_name | urlencode }}&sysparm_fields=sys_id,name,active,alert_filter&sysparm_limit=5"
@@ -17,21 +18,12 @@
     fail_msg: OOTB AMR '{{ sn_sgo_ootb_amr_name }}' not found.
 
 - name: Patch OOTB SGO-Dynatrace AMR filter and activate
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_alert_management_rule
     sn_rest_sys_id: "{{ item.sys_id }}"
-    sn_rest_body:
-      active: "{{ sn_sgo_amr_active | default('true') }}"
-      alert_filter: "{{ sn_sgo_amr_filter }}"
-      automatic_execution_setting: "{{ sn_sgo_amr_automatic_execution_setting | default('1') }}"
-      multiple_alert_rules: "2"
-      description: >-
-        SGO-Dynatrace log and metric incident create. Non-secondary,
-        not in maintenance, CI bound, severity<=3. Action: OOTB Create
-        Incident subflow (customer-like; not SGO-Dynatrace Alert Subflow).
-        Alert changes to filter.
+    sn_rest_body: "{{ sn_sgo_amr_body }}"
   loop: "{{ sn_rest_json.result | default([]) }}"
   when:
     - sn_rest_status | default(0) == 200

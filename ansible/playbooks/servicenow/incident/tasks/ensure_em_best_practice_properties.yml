@@ -7,7 +7,7 @@
   vars:
     sn_sysprop_item:
       name: evt_mgmt.avoid_int_enabled
-      value: "{{ sn_l2i_avoid_int_enabled | default('true') }}"
+      value: "true"
       description: >-
         Enable Avoid Incidents on Secondary alerts and wait for Grouping
         job to be executed. AMR filter must still exclude Secondaries.
@@ -17,7 +17,7 @@
   vars:
     sn_sysprop_item:
       name: sn_em_ai.evt_mgmt.disable_lists_auto_refresh
-      value: "{{ sn_l2i_disable_lists_auto_refresh | default('true') }}"
+      value: "true"
       description: >-
         Disable auto-refresh of alerts list; alerts will update in
         Workspace only when user does so manually.

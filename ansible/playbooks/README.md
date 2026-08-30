@@ -26,7 +26,7 @@ ansible-playbook -i inventory.yml playbooks/deploy.yml
 
 **Prerequisites:** `install.yml` (or equivalent) completed.
 
-**Hadoop / HDFS:** The Hadoop import is tagged `hadoop`. If `kubectl apply` errors because existing StatefulSets cannot be updated in place, run `ansible-playbook ... playbooks/deploy.yml --skip-tags hadoop` after fixing or removing the old `hdfs-namenode` StatefulSet, or run `playbooks/k8s/hadoop/deploy_hadoop.yml` alone when the cluster is clean.
+**Hadoop / HDFS:** The Hadoop import is tagged `hadoop`. If `kubectl apply` errors because existing StatefulSets cannot be updated in place, run `ansible-playbook ... playbooks/deploy.yml --skip-tags hadoop` after fixing or removing the old `hdfs-namenode` StatefulSet, or run `playbooks/k8s/hadoop/deploy.yml` alone when the cluster is clean.
 
 ### `start.yml` — Start runtime services
 Starts NFS, Kubernetes, Docker on Lab3, observability Compose stack, Elastic Agent refresh, and Spark pods.
@@ -46,7 +46,7 @@ cd ansible
 ansible-playbook -i inventory.yml playbooks/diagnose.yml
 ```
 
-Lightweight checks remain available under each component (e.g. `spark/status.yml`, `observability/status.yml`, `elastic-agent/status.yml`).
+Component diagnose playbooks remain available under each module (for example `spark/diagnose.yml`, `observability/diagnose.yml`, `elastic-agent/diagnose.yml`, `k8s/hadoop/diagnose.yml`).
 
 ### `test.yml` — Subsystem behavior tests
 Runs `k8s/test.yml` (scheduler smoke + Spark/HDFS pod listing), `observability/test.yml` (Elasticsearch + index freshness), then `spark/test.yml` (TCP checks to master and HDFS, then PySpark smoke and HDFS I/O). Observability is placed before Spark so a down Spark master does not skip Elasticsearch checks. Use tags to run a subset, e.g. `--tags k8s`, `--tags spark`, `--tags observability`, or combine `--tags k8s,spark` if Elasticsearch is red but you still want cluster/Spark probes.
@@ -107,13 +107,13 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 - `start.yml` - Start Kubernetes services
 - `stop.yml` - Stop Kubernetes services
 - `diagnose.yml` - Cluster troubleshooting and health
-- `reset_k8s.yml` - Reset cluster (special utility - wipes all data)
+- `tasks/reset-k8s.yml` - Reset cluster (destructive; wipes all data)
 
 ### Observability (`observability/`)
 - `install.yml` - Install observability platform
 - `start.yml` - Start observability services
 - `stop.yml` - Stop observability services
-- `status.yml` - Check observability services
+- `diagnose.yml` - Check observability services
 - `uninstall.yml` - Remove observability platform
 
 ### Spark (`spark/`)
@@ -121,7 +121,7 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 - `undeploy.yml` - Remove Spark from Kubernetes
 - `start.yml` - Start Spark components
 - `stop.yml` - Stop Spark components
-- `status.yml` - Check Spark cluster status
+- `diagnose.yml` - Check Spark cluster status
 
 ### CS224N (`CS224N/`)
 - `deploy.yml` - Stage CS224N artifacts and redeploy Jupyter with cs224n bootstrap
@@ -132,7 +132,7 @@ For fine-grained control, use component-specific playbooks in subdirectories:
 - `uninstall.yml` - Remove Elastic Agent
 - `start.yml` - Start Elastic Agent service
 - `stop.yml` - Stop Elastic Agent service
-- `status.yml` - Check Elastic Agent status
+- `diagnose.yml` - Check Elastic Agent status
 
 ## Infrastructure Overview
 

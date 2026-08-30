@@ -12,18 +12,18 @@
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
-    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/store_apps.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/servicenow/integrations/sgc/store_apps.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     # ----- Component versions (installed vs pinned vs latest) -----------------
     - name: Check Store application and plugin versions
-      ansible.builtin.include_tasks: common/check_store_apps.yml
+      ansible.builtin.include_tasks: tasks/check-store-apps.yml
 
     - name: Resolve Dynatrace API
       ansible.builtin.include_tasks: sources/dynatrace/tasks/resolve_dt_api.yml
 
     - name: Validate platform, dependency, and RTE compatibility
-      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      ansible.builtin.include_tasks: tasks/validate-compatibility.yml
 
     - name: Report version pinning and update availability
       ansible.builtin.debug:
@@ -35,7 +35,7 @@
           | latest known: {{ item.latest_version if item.latest_version | length > 0
                              else 'unreadable (sys_store_app requires elevated role)' }}
           | update available: {{ item.update_available if item.update_available | length > 0 else 'unknown' }}
-          {{ '| ACTION: align installed version with pin (sgc/common/store_apps.yml)'
+          {{ '| ACTION: align installed version with pin (servicenow/integrations/sgc/store_apps.yml)'
              if item.installed and item.pinned_version | length > 0
                 and item.installed_version != item.pinned_version else '' }}
       loop: "{{ sn_store_app_status }}"
@@ -47,7 +47,7 @@
       ansible.builtin.include_tasks: sources/dynatrace/tasks/check_sgc_prerequisites.yml
 
     - name: List brooks-lab Linux server CIs (Discovery authoritative)
-      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
       vars:
         sn_rest_table: cmdb_ci_linux_server
         sn_rest_query: "sysparm_query=location.name={{ sn_lab_location_name | urlencode }}&sysparm_fields=name,host_name,discovery_source,sys_id&sysparm_limit=10"

@@ -6,6 +6,11 @@
     - "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/../../../../vars/secrets.yaml"
   tasks:
+    - name: Apply OOTB Kubernetes monitoring settings (disabled)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_k8s_monitoring_settings.yml"
+      vars:
+        dt_k8s_mon_mode: disabled
+
     - name: Scale Dynatrace Operator deployment to zero
       ansible.builtin.command: kubectl -n dynatrace scale deployment dynatrace-operator --replicas=0
       register: operator_scale

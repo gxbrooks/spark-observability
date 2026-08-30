@@ -1,0 +1,82 @@
+---
+# Reset the Kubernetes cluster and remove configurations.
+# Usage: ansible-playbook -i inventory.yml playbooks/k8s/tasks/reset-k8s.yml
+
+- name: Reset Kubernetes cluster
+  hosts: spark_kubernetes:&linux
+  become: true
+  tasks:
+    - name: Display warning message
+      debug:
+        msg: "WARNING: This will reset your Kubernetes cluster and delete all configuration!"
+
+    - name: Reset Kubernetes on all nodes
+      command: kubeadm reset -f
+
+    # Clean up files for control user
+    - name: Remove control user .kube directory
+      file:
+        path: "/home/{{ k8s_control_user | default(lookup('env', 'USER')) }}/.kube"
+        state: absent
+
+    # Clean up files for ansible user (service account)
+    - name: Remove ansible user .kube directory
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: absent
+      become_user: "{{ ansible_user }}"
+
+    - name: Remove ansible user kubernetes directory
+      file:
+        path: "/home/{{ ansible_user }}/kubernetes"
+        state: absent
+      become_user: "{{ ansible_user }}"
+
+    # Clean up system files
+    - name: Remove CNI configuration
+      file:
+        path: /etc/cni/net.d
+        state: absent
+
+    - name: Stop and disable kubelet
+      systemd:
+        name: kubelet
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Stop and disable containerd
+      systemd:
+        name: containerd
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Remove Kubernetes configuration
+      file:
+        path: /etc/kubernetes
+        state: absent
+
+    - name: Clean iptables rules
+      shell: |
+        iptables -F
+        iptables -t nat -F
+        iptables -t mangle -F
+        iptables -X
+      ignore_errors: yes
+
+    - name: Remove kubernetes modules configuration
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/modules-load.d/k8s.conf
+        - /etc/sysctl.d/k8s.conf
+      ignore_errors: yes
+
+    - name: Remove Kubernetes hosts entry
+      blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBERNETES MASTER HOSTNAME"
+        state: absent
+      ignore_errors: yes

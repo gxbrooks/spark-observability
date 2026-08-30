@@ -301,7 +301,7 @@ Certificates follow a dual-path architecture to support both Elasticsearch's nat
 
 Kubernetes API server certificates are managed separately:
 - **Location**: `/etc/kubernetes/pki/` on Kubernetes master node
-- **Regeneration**: See `ansible/playbooks/k8s/regenerate_k8s_certs.yml`
+- **Regeneration**: See `ansible/playbooks/k8s/tasks/regenerate-k8s-certs.yml`
 - **SANs**: Includes cluster IPs, service names, and node hostnames
 
 ---

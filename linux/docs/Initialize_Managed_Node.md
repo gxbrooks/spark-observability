@@ -70,7 +70,7 @@ ansible -i ansible/inventory.yml Lab1 -m shell -a "sudo -l"
 **Step 8: Join Lab1 to Kubernetes Cluster**
 ```bash
 # Run the Kubernetes setup playbook on the new worker
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start_k8s.yml --limit Lab1
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start.yml --limit Lab1
 ```
 
 **Step 9: Verify Kubernetes Node Status**

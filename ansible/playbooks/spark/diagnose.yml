@@ -161,7 +161,7 @@
         set -euo pipefail
         cd "{{ playbook_dir | dirname | dirname | dirname }}"
         source vars/contexts/spark_client_env.sh
-        exec ./venv/bin/python3 "{{ playbook_dir }}/files/spark_diagnose_smoke.py"
+        exec ./venv/bin/python3 "{{ playbook_dir | dirname | dirname | dirname }}/spark/scripts/spark_diagnose_smoke.py"
       args:
         executable: /bin/bash
       register: spark_smoke

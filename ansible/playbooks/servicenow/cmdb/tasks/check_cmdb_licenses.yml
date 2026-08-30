@@ -35,7 +35,7 @@
     label: "{{ item.item.id }}"
 
 - name: Wait for CMDB license activation progress
-  ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/sgc/common/poll_cicd_progress.yml"
+  ansible.builtin.include_tasks: "{{ sn_servicenow_playbooks_dir }}/sgc/tasks/poll-cicd-progress.yml"
   vars:
     sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
   loop: "{{ sn_cmdb_license_activate.results }}"

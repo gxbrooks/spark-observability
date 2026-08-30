@@ -20,7 +20,7 @@
          | map('trim') | reject('equalto', '') | list }}
 
 - name: Query CMDB Docker container CIs synced by this playbook for host
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_docker_container
     sn_rest_query: >-
@@ -45,7 +45,7 @@
   when: sn_docker_stale_cis | default([]) | length > 0
   block:
     - name: Delete relationships for stale Docker container CI
-      ansible.builtin.include_tasks: "{{ sn_csdm_tasks_dir }}/delete_cmdb_relationships_for_ci.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/delete-cmdb-relationships-for-ci.yml"
       vars:
         sn_csdm_ci_sys_id: "{{ stale_ci.sys_id }}"
       loop: "{{ sn_docker_stale_cis }}"
@@ -54,7 +54,7 @@
         label: "{{ stale_ci.name | default(stale_ci.sys_id) }}"
 
     - name: Delete stale Docker container CI
-      ansible.builtin.include_tasks: "{{ sn_csdm_tasks_dir }}/delete_cmdb_record.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/delete-cmdb-record.yml"
       vars:
         sn_csdm_table: cmdb_ci_docker_container
         sn_csdm_ci_sys_id: "{{ stale_ci.sys_id }}"

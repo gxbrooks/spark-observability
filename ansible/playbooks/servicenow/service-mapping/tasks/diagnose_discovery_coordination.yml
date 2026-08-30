@@ -15,7 +15,7 @@
   when: sn_csdm_disc_deploy_ctx is succeeded
 
 - name: Look up Discovery schedule when context missing
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: discovery_schedule
     sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_fields=sys_id&sysparm_limit=1"
@@ -29,7 +29,7 @@
     - sn_rest_json.result | default([]) | length > 0
 
 - name: Query recent horizontal discovery_status runs
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: discovery_status
     sn_rest_query: "sysparm_query=dscheduler={{ sn_csdm_disc_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=number,state,started,completed,progress,sys_created_on,sys_updated_on&sysparm_limit=5"
@@ -42,7 +42,7 @@
   when: sn_csdm_disc_schedule_sys_id | default('') | length > 0
 
 - name: Query application services with active Service Mapping sessions
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_ci_service_discovered
     sn_rest_query: "sysparm_query=process_status=2^ORservice_status=requirements&sysparm_fields=name,sys_id,process_status,service_status,sys_updated_on,last_discovered&sysparm_limit=100"

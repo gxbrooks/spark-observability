@@ -142,7 +142,7 @@ Kubernetes Cluster (Both Driver & Executors)    NFS Server (Lab3)
 
 * Write to `/mnt/spark/logs/<hostname>-chapter/`; developers need membership in group **`spark`**.
 
-**Remediation:** `ansible/playbooks/spark/tasks/fix_spark_log_ownership.yml` on **`nfs_servers`** after changing pod UID or when legacy root-owned `spark-app.log` files exist.
+**Ownership:** Spark pods run as UID/GID 185 (`spark:spark`). New log files inherit that ownership from the pod `securityContext`. Do not keep a one-time chown playbook in Git.
 
 ## Log Collection Strategy
 

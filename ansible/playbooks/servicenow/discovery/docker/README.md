@@ -31,10 +31,4 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml
 
 `discover.yml` syncs running containers, writes **`servicenow.com/*`** and **`com.docker.compose.*`** labels to **`cmdb_key_value`** (required for tag-based Service Mapping), retires container CIs whose `container_id` is no longer running, and deduplicates multiple CMDB rows that share the same container **name** on a host when only one matching container is running.
 
-Retire stale containers and deduplicate by name (same cleanup steps as `discover.yml`, without upsert or label sync):
-
-```bash
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/cleanup.yml -e @../vars/secrets.yaml
-```
-
 Tag-based SM instance configuration: [servicenow/docs/Tag_Based_Service_Mapping.md](../../../../servicenow/docs/Tag_Based_Service_Mapping.md).

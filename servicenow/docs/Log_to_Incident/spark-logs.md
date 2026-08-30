@@ -426,7 +426,7 @@ Chapter **05** sets `spark.sparkContext.setLogLevel("WARN")` — useful for driv
 
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/verify_spark_client_as.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/incident/test.yml \
   -e @../vars/secrets.yaml
 ```
 

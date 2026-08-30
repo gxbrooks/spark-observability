@@ -1026,9 +1026,7 @@ ansible-playbook -i inventory.yml \
 | Inbound URL | `source=SGO-Dynatrace` | `source=dynatrace&sys_id=712a39811…` |
 | Alerting profile | Spark Observability MZ only | (Demo 1 profile separate) |
 
-Brooks-lab playbooks **add** parallel Dynatrace objects; they do **not** modify Demo 1 connector configuration by default.
-
-**Optional:** `events/deploy.yml` can disable the Demo 1 problem notification when `-e sn_disable_demo1_problem_notification=true` is passed. That flag sets **`enabled: false`** on the entire **`ServiceNow Demo 1 - Optimiz`** notification (all problems matching the Demo 1 alerting profile — not Spark-only). Re-enable with `events/enable_demo1.yml`.
+Brooks-lab playbooks **add** parallel Dynatrace objects; they do **not** modify Demo 1 connector configuration.
 
 ---
 

@@ -1,11 +1,11 @@
 ---
 # SGC install — required ServiceNow Store applications and plugins
-# (manifest: common/store_apps.yml → sn_store_apps).
+# (manifest: servicenow/integrations/sgc/store_apps.yml → sn_store_apps).
 #
 # Idempotent and on-needed:
 #   - Components already installed (per sys_scope) are skipped.
 #   - When something needs installing, a bootstrap preflight
-#     (common/check_cicd_bootstrap.yml) verifies the CI/CD tooling exists and
+#     (tasks/check-cicd-bootstrap.yml) verifies the CI/CD tooling exists and
 #     the automation user holds sn_cicd.sys_ci_automation, and fails fast with
 #     the exact missing manual step otherwise (servicenow/docs/install.md §7 "Bootstrap
 #     sequence"). Re-run after each bootstrap step — completed work is skipped.
@@ -26,14 +26,13 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
 #     -e @../vars/secrets.yaml -e sn_sgc_app_mode=reinstall
 #
-#   # Reset — purge corrupt RTE metadata + SGO discovery data (no admin UI)
+#   # Reset — purge corrupt RTE metadata (no admin UI)
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml \
 #     -e @../vars/secrets.yaml -e sn_sgc_app_mode=reset
 #
 # Extra variables:
 #   sn_sgc_app_mode — install (default) | repair | reinstall | reset
 #   sn_sgc_maintain_scopes — scopes to repair/reinstall (default: [sn_dynatrace_integ])
-#   sn_sgc_reset_purge_data — when reset, delete SGO CMDB/object_source rows (default: true)
 
 - name: Install ServiceNow Store applications and plugins for Dynatrace SGC
   hosts: localhost
@@ -43,11 +42,10 @@
     sn_sgc_app_mode: install
     sn_sgc_maintain_scopes:
       - sn_dynatrace_integ
-    sn_sgc_reset_purge_data: true
   vars_files:
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
-    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/store_apps.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/servicenow/integrations/sgc/store_apps.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     - name: Validate sn_sgc_app_mode
@@ -59,35 +57,28 @@
           {{ sn_sgc_app_mode }}).
 
     - name: Check current component state
-      ansible.builtin.include_tasks: common/check_store_apps.yml
+      ansible.builtin.include_tasks: tasks/check-store-apps.yml
 
     - name: Validate platform, dependency, and RTE compatibility
-      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      ansible.builtin.include_tasks: tasks/validate-compatibility.yml
       when: sn_sgc_app_mode != 'reset'
 
     # ----- Reset mode (automated rebuild without admin uninstall UI) ------
     - name: Report reset mode start
       ansible.builtin.debug:
         msg: >-
-          Mode reset: purge corrupt SGO-Dynatrace RTE metadata{{
-          ' and SGO discovery data' if sn_sgc_reset_purge_data | bool else ''
-          }}. Full Store app uninstall is not available via API for the
+          Mode reset: purge corrupt SGO-Dynatrace RTE metadata.
+          Full Store app uninstall is not available via API for the
           automation user — this removes the corrupt table rows that cause
           Import Log NPEs without retaining damaged metadata.
       when: sn_sgc_app_mode == 'reset'
 
     - name: Purge orphaned RTE field mappings for SGO-Dynatrace feeds
-      ansible.builtin.include_tasks: common/purge_corrupt_rte.yml
+      ansible.builtin.include_tasks: tasks/purge-corrupt-rte.yml
       when: sn_sgc_app_mode == 'reset'
 
-    - name: Purge SGO-Dynatrace CMDB and object-source rows
-      ansible.builtin.include_tasks: common/purge_sgc_data.yml
-      when:
-        - sn_sgc_app_mode == 'reset'
-        - sn_sgc_reset_purge_data | bool
-
     - name: Re-validate compatibility after reset
-      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      ansible.builtin.include_tasks: tasks/validate-compatibility.yml
       when: sn_sgc_app_mode == 'reset'
 
     - name: Assert reset cleared orphaned RTE references
@@ -124,7 +115,7 @@
       when: sn_sgc_app_mode in ['repair', 'reinstall']
 
     - name: Repair or reinstall scoped Store apps via App Manager API
-      ansible.builtin.include_tasks: common/maintain_store_app.yml
+      ansible.builtin.include_tasks: tasks/maintain-store-app.yml
       loop: "{{ sn_apps_to_maintain | default([]) }}"
       loop_control:
         loop_var: sn_app
@@ -138,11 +129,11 @@
       when: sn_sgc_app_mode in ['repair', 'reinstall']
 
     - name: Re-check component state after maintain
-      ansible.builtin.include_tasks: common/check_store_apps.yml
+      ansible.builtin.include_tasks: tasks/check-store-apps.yml
       when: sn_sgc_app_mode in ['repair', 'reinstall']
 
     - name: Re-validate compatibility after maintain
-      ansible.builtin.include_tasks: common/validate_compatibility.yml
+      ansible.builtin.include_tasks: tasks/validate-compatibility.yml
       when: sn_sgc_app_mode in ['repair', 'reinstall']
 
     - name: Assert maintain mode completed without failures
@@ -181,7 +172,7 @@
 
         # Bootstrap preflight — only when there is something to install (on-needed).
         - name: Check CI/CD bootstrap prerequisites
-          ansible.builtin.include_tasks: common/check_cicd_bootstrap.yml
+          ansible.builtin.include_tasks: tasks/check-cicd-bootstrap.yml
           when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
 
         - name: Warn on pinned-version drift (not auto-upgraded)
@@ -189,7 +180,7 @@
             msg: >-
               {{ item.scope }}: installed v{{ item.installed_version }} differs from pinned
               v{{ item.pinned_version }}. Review and either update the pin in
-              sgc/common/store_apps.yml or upgrade the app deliberately —
+              servicenow/integrations/sgc/store_apps.yml or upgrade the app deliberately —
               this playbook does not upgrade apps on a shared instance.
           loop: >-
             {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
@@ -201,7 +192,7 @@
           when: item.installed_version != item.pinned_version
 
         - name: Install missing Store apps via CI/CD App Repo API (manifest order)
-          ansible.builtin.include_tasks: common/install_store_app.yml
+          ansible.builtin.include_tasks: tasks/install-store-app.yml
           loop: "{{ sn_apps_missing }}"
           loop_control:
             loop_var: sn_app
@@ -247,7 +238,7 @@
             label: "{{ item.item.scope }}"
 
         - name: Wait for plugin activation to complete
-          ansible.builtin.include_tasks: common/poll_cicd_progress.yml
+          ansible.builtin.include_tasks: tasks/poll-cicd-progress.yml
           vars:
             sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
           loop: "{{ sn_plugin_activations.results | default([]) }}"
@@ -264,7 +255,7 @@
           when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
 
         - name: Re-check component state after installs
-          ansible.builtin.include_tasks: common/check_store_apps.yml
+          ansible.builtin.include_tasks: tasks/check-store-apps.yml
           when: (sn_apps_missing | length > 0) or (sn_plugins_to_activate | length > 0)
 
         - name: Assert all required Store applications are installed

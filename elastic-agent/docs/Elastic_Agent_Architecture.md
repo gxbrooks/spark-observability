@@ -615,7 +615,7 @@ ansible-playbook playbooks/elastic-agent/install.yml -l Lab1,Lab2
 
 **Step 2: Verify Status**
 ```bash
-ansible-playbook playbooks/elastic-agent/status.yml
+ansible-playbook playbooks/elastic-agent/diagnose.yml
 ```
 
 **Expected Output:**

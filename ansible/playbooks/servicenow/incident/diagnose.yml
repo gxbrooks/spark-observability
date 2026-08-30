@@ -21,7 +21,7 @@
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/sgc/sources/dynatrace/tasks/check_sgc_prerequisites.yml"
 
     - name: Query open SGO-Dynatrace alerts
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: em_alert
         sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^state=Open^ORDERBYDESCsys_created_on&sysparm_fields=number,state,severity,node,resource,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,task,task.number,sys_created_on&sysparm_limit=15"
@@ -31,7 +31,7 @@
         var: sn_rest_json.result
 
     - name: Query specific alert when spark_alert_number is set
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: em_alert
         sn_rest_query: "sysparm_query=number={{ spark_alert_number_filter }}&sysparm_fields=number,sys_id,source,state,severity,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,task,task.number,sys_created_on,message_key,description,node,resource&sysparm_limit=1"
@@ -43,7 +43,7 @@
       when: spark_alert_number_filter | length > 0
 
     - name: Find incidents referencing target alert
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: incident
         sn_rest_query: "sysparm_query=commentsLIKE{{ spark_alert_number_filter }}^ORwork_notesLIKE{{ spark_alert_number_filter }}&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,state,active,sys_created_on,comments&sysparm_limit=5"
@@ -55,7 +55,7 @@
       when: spark_alert_number_filter | length > 0
 
     - name: Query Spark log incidents (48h)
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: incident
         sn_rest_query: "sysparm_query=short_descriptionSTARTSWITHCritical%20log%20event^sys_created_on>javascript:gs.hoursAgo(48)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci,cmdb_ci.name,cmdb_ci.sys_class_name,state,active,sys_created_on&sysparm_limit=10"
@@ -65,7 +65,7 @@
         var: sn_rest_json.result
 
     - name: Query legacy Dynatrace-sourced alerts (non-SGC)
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: em_alert
         sn_rest_query: "sysparm_query=source=Dynatrace^sys_created_on>javascript:gs.hoursAgo(168)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,description,sys_created_on&sysparm_limit=5"
@@ -75,7 +75,7 @@
         var: sn_rest_json.result
 
     - name: Query deployed Spark log business rules
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: sys_script
         sn_rest_query: "sysparm_query=nameINem-event-enrich-sgo,em-alert-enrich-sgo,em-alert-create-log-incident&sysparm_fields=name,collection,when,order,action_insert,action_update,active,filter_condition&sysparm_limit=10"
@@ -85,7 +85,7 @@
         var: sn_rest_json.result
 
     - name: Verify ResolveApplicationService Script Include
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/common/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
       vars:
         sn_rest_table: sys_script_include
         sn_rest_query: "sysparm_query=name=ResolveApplicationService&sysparm_fields=name,active&sysparm_limit=1"
@@ -93,3 +93,9 @@
     - name: ResolveApplicationService Script Include
       ansible.builtin.debug:
         var: sn_rest_json.result
+
+    - name: Test log incident bindings
+      ansible.builtin.include_tasks: tasks/test_log_incident_bindings.yml
+
+    - name: Test spark-client application service bindings
+      ansible.builtin.include_tasks: tasks/test_spark_client_as.yml

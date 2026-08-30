@@ -14,7 +14,7 @@
     sn_host_cmdb_name: "{{ sn_host_csdm_entry.host | lower }}"
 
 - name: Look up linux server CI for {{ sn_host_cmdb_name }}
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_linux_server
     sn_rest_query: >-
@@ -26,7 +26,7 @@
   when: sn_rest_json.result | default([]) | length == 0
 
 - name: Upsert host servicenow.com labels for {{ sn_as_identifier }}
-  ansible.builtin.include_tasks: ../../common/sync_cmdb_kv_labels.yml
+  ansible.builtin.include_tasks: ../sync-cmdb-kv-labels.yml
   vars:
     sn_kv_ci_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
     sn_kv_labels: "{{ sn_servicenow_workload_labels }}"

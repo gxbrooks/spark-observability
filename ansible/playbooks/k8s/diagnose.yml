@@ -1,5 +1,5 @@
 ---
-# diagnose_k8s.yml - Diagnose Kubernetes cluster and node health
+# Diagnose Kubernetes cluster and node health.
 # This playbook checks the health of Kubernetes components and provides diagnostics
 
 - name: Diagnose Kubernetes cluster health
@@ -61,7 +61,7 @@
           {% endfor %}
           
           To fix, run:
-          ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+          ansible-playbook -i inventory.yml playbooks/k8s/tasks/regenerate-k8s-certs.yml
           
           Or to regenerate just the missing client certificate:
           kubeadm init phase certs apiserver-kubelet-client
@@ -86,7 +86,7 @@
 
     - name: Display CNI plugin status
       debug:
-        msg: "CNI plugins: {{ 'INSTALLED' if cni_bin_check.stat.exists else 'MISSING - Run install_k8s.yml to install' }}"
+        msg: "CNI plugins: {{ 'INSTALLED' if cni_bin_check.stat.exists else 'MISSING - Run playbooks/k8s/install.yml to install' }}"
 
     - name: Check CNI configuration directory
       stat:

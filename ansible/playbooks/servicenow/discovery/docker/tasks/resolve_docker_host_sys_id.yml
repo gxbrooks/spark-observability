@@ -3,7 +3,7 @@
 # Input: sn_docker_host
 
 - name: "Look up Linux server CI for {{ sn_docker_host.cmdb_host_name }}"
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_linux_server
     sn_rest_query: "sysparm_query=name={{ sn_docker_host.cmdb_host_name | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=1"

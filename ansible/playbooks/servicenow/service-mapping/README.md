@@ -23,8 +23,9 @@
 | Path | Purpose |
 |------|---------|
 | `tasks/deploy_sm_rest_api.yml` | Install/update Scripted REST API |
-| `files/sm_*.js` | Operation scripts (`discover`, `populate_tags`, `ensure_tag_categories`) |
-| `common/ensure_tag_categories.yml` | Default CI tag categories via REST |
+| `servicenow/integrations/service-mapping/sm_*.js` | Operation scripts (`discover`, `populate_tags`, `ensure_tag_categories`) |
+| `tasks/ensure-tag-categories.yml` | Apply `servicenow/integrations/service-mapping/tag_categories.yml` via REST |
+| `servicenow/integrations/service-mapping/store_apps.yml` | Desired Store app / plugin list |
 | `tasks/diagnose_*.yml` | Coordination / enrichment diagnostics |
 
 ## Roles (Zurich)

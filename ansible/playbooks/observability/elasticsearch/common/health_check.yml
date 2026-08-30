@@ -15,5 +15,8 @@
     observability_dir: "/home/ansible/ops/observability"
     observability_env_file: "{{ observability_dir }}/.env"
   tasks:
+    - name: Resolve ES password from host .env
+      ansible.builtin.include_tasks: resolve_es_password.yml
+
     - name: Run shared health checks
       ansible.builtin.include_tasks: health_check_tasks.yml

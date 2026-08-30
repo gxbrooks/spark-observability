@@ -1,6 +1,7 @@
 ---
-# install_k8s.yml - Installs and initializes a Kubernetes cluster for Spark
-# Can also be used to recreate kubeconfig files after network changes with: ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml --tags=kubeconfig
+# Install and initialize a Kubernetes cluster for Spark.
+# Recreate kubeconfig after network changes:
+#   ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
 
 - name: Install and Initialize Kubernetes
   hosts: spark_kubernetes:&linux
@@ -576,7 +577,7 @@
           Certificate SANs: {{ cert_sans.stdout }}
           (Note: This check is case-insensitive, so differences in capitalization should not cause this error)
           
-          You must run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/regenerate_k8s_certs.yml' 
+          You must run 'ansible-playbook -i inventory.yml playbooks/k8s/tasks/regenerate-k8s-certs.yml' 
           to regenerate the certificates with the correct hostname.
       when:
         - inventory_hostname == groups['kubernetes_master'][0]
@@ -691,7 +692,7 @@
         
     - name: Display certificate validation status
       debug:
-        msg: "Certificate validation: {{ 'SUCCESS - Certificates are properly configured for the current hostname' if 'Verification: OK' in cert_validation.stdout else 'FAILED - Certificate hostname mismatch detected. You MUST run regenerate_k8s_certs.yml to fix this issue.' }}"
+        msg: "Certificate validation: {{ 'SUCCESS - Certificates are properly configured for the current hostname' if 'Verification: OK' in cert_validation.stdout else 'FAILED - Certificate hostname mismatch detected. You MUST run playbooks/k8s/tasks/regenerate-k8s-certs.yml to fix this issue.' }}"
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - "'kubeconfig' in ansible_run_tags"
@@ -700,7 +701,7 @@
         
     - name: Provide next steps if connection fails
       debug:
-        msg: "If connection failed or certificate validation failed, run the regenerate_k8s_certs.yml playbook to fix certificate issues."
+        msg: "If connection failed or certificate validation failed, run playbooks/k8s/tasks/regenerate-k8s-certs.yml to fix certificate issues."
       when: 
         - inventory_hostname == groups['kubernetes_master'][0]
         - "'kubeconfig' in ansible_run_tags"
@@ -725,8 +726,8 @@
         - inventory_hostname == groups['kubernetes_master'][0]
         - node_status is defined and node_status.stdout_lines is defined
 
-    # Copy admin.conf to all nodes: playbooks/deploy.yml imports provision_admin_kubeconfig.yml, or run:
-    #   ansible-playbook -i inventory.yml playbooks/k8s/provision_admin_kubeconfig.yml
+    # Copy admin.conf to all nodes: playbooks/deploy.yml imports provision-admin-kubeconfig.yml, or run:
+    #   ansible-playbook -i inventory.yml playbooks/k8s/tasks/provision-admin-kubeconfig.yml
 
   handlers:
     - name: Restart kubelet

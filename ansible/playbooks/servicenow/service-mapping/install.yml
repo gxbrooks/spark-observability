@@ -34,7 +34,7 @@
   vars_files:
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - common/vars.yml
-    - common/store_apps.yml
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/servicenow/integrations/service-mapping/store_apps.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     - name: Validate sn_sm_app_mode
@@ -45,7 +45,7 @@
           sn_sm_app_mode must be install, repair, or reinstall (got {{ sn_sm_app_mode }}).
 
     - name: Check current component state
-      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_store_apps.yml"
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/check-store-apps.yml"
 
     - name: Select scoped apps to repair or reinstall
       ansible.builtin.set_fact:
@@ -65,7 +65,7 @@
       when: sn_sm_app_mode in ['repair', 'reinstall']
 
     - name: Repair or reinstall scoped Store apps via App Manager API
-      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/maintain_store_app.yml"
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/maintain-store-app.yml"
       vars:
         sn_sgc_app_mode: "{{ sn_sm_app_mode }}"
       loop: "{{ sn_apps_to_maintain | default([]) }}"
@@ -81,7 +81,7 @@
       when: sn_sm_app_mode in ['repair', 'reinstall']
 
     - name: Re-check component state after maintain
-      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_store_apps.yml"
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/check-store-apps.yml"
       when: sn_sm_app_mode in ['repair', 'reinstall']
 
     - name: Assert maintain mode completed without failures
@@ -109,14 +109,14 @@
                  | rejectattr('installed') | list }}
 
         - name: Check CI/CD bootstrap prerequisites
-          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_cicd_bootstrap.yml"
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/check-cicd-bootstrap.yml"
           when: >-
             (sn_apps_missing | length > 0)
             or (sn_sm_ensure_store_apps | bool)
             or (sn_plugins_to_activate | length > 0)
 
         - name: Install missing Store apps via CI/CD App Repo API (manifest order)
-          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/install_store_app.yml"
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/install-store-app.yml"
           loop: "{{ sn_apps_missing }}"
           loop_control:
             loop_var: sn_app
@@ -126,7 +126,7 @@
             - sn_apps_missing | length > 0
 
         - name: Ensure all manifest Store apps via CI/CD App Repo API
-          ansible.builtin.include_tasks: common/ensure_store_apps.yml
+          ansible.builtin.include_tasks: tasks/ensure-store-apps.yml
           loop: "{{ sn_store_apps_all }}"
           loop_control:
             loop_var: sn_app
@@ -184,7 +184,7 @@
           when: sn_sm_plugin_activations.results is defined
 
         - name: Wait for plugin activation to complete
-          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/poll_cicd_progress.yml"
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/poll-cicd-progress.yml"
           vars:
             sn_cicd_progress_url: "{{ item.json.result.links.progress.url }}"
           loop: "{{ sn_sm_plugin_activations.results | default([]) }}"
@@ -204,7 +204,7 @@
             or (sn_plugins_to_activate | length > 0)
 
         - name: Re-check component state after installs
-          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/common/check_store_apps.yml"
+          ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/check-store-apps.yml"
           when: >-
             (sn_apps_missing | length > 0)
             or (sn_sm_ensure_store_apps | bool)
@@ -223,5 +223,5 @@
             success_msg: All required Service Mapping Store applications are installed.
 
     - name: Verify Service Mapping admin roles exist
-      ansible.builtin.include_tasks: common/check_sm_roles.yml
+      ansible.builtin.include_tasks: tasks/check-sm-roles.yml
       when: sn_sm_app_mode == 'install'

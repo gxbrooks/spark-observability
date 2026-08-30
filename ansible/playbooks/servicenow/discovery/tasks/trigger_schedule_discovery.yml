@@ -20,7 +20,7 @@
   when: sn_discovery_rest_operation_uri | default('') | length == 0
 
 - name: Look up schedule by name when context missing
-  ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/common/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/tasks/sn-rest-get.yml"
   vars:
     sn_rest_table: discovery_schedule
     sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_limit=1"
@@ -39,7 +39,7 @@
   when: sn_schedule_sys_id | default('') | length == 0
 
 - name: Snapshot latest discovery_status before trigger
-  ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/common/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/tasks/sn-rest-get.yml"
   vars:
     sn_rest_table: discovery_status
     sn_rest_query: "sysparm_query=dscheduler={{ sn_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=number,state,sys_created_on&sysparm_limit=1"
@@ -85,7 +85,7 @@
   when: sn_discover_rest.status | default(0) | int == 202
 
 - name: Check for new discovery_status after trigger
-  ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/common/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_playbooks_dir }}/tasks/sn-rest-get.yml"
   vars:
     sn_rest_table: discovery_status
     sn_rest_query: "sysparm_query=dscheduler={{ sn_schedule_sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=number,state,sys_created_on,started,completed&sysparm_limit=1"

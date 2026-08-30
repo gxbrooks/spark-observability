@@ -17,11 +17,11 @@
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/regenerate-context.yml"
 
     - name: Deploy Service Mapping Operations REST API
       ansible.builtin.include_tasks: tasks/deploy_sm_rest_api.yml
 
     - name: Ensure default CI tag categories
-      ansible.builtin.include_tasks: common/ensure_tag_categories.yml
+      ansible.builtin.include_tasks: tasks/ensure-tag-categories.yml
       when: sn_sm_configure_tag_categories | default(true) | bool

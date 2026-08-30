@@ -2,13 +2,13 @@
 # Set cmn_location + cluster CI location for one K8S_CLUSTERS registry entry.
 
 - name: "Look up cmn_location {{ sn_k8s_cluster.location }}"
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmn_location
     sn_rest_query: "sysparm_query=name={{ sn_k8s_cluster.location | urlencode }}&sysparm_limit=1"
 
 - name: "Create cmn_location {{ sn_k8s_cluster.location }} when missing"
-  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: ../sn-rest-mutate.yml
   vars:
     sn_rest_method: post
     sn_rest_table: cmn_location
@@ -20,7 +20,7 @@
   when: sn_rest_json.result | default([]) | length == 0
 
 - name: "Refresh cmn_location {{ sn_k8s_cluster.location }}"
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmn_location
     sn_rest_query: "sysparm_query=name={{ sn_k8s_cluster.location | urlencode }}&sysparm_limit=1"
@@ -37,7 +37,7 @@
     sn_k8s_target_location_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
 
 - name: "Look up cluster CI {{ sn_k8s_cluster.name }}"
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_kubernetes_cluster
     sn_rest_query: >-
@@ -50,7 +50,7 @@
   when: sn_rest_json.result | default([]) | length == 0
 
 - name: "Set location on cluster CI {{ sn_k8s_cluster.name }}"
-  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: ../sn-rest-mutate.yml
   vars:
     sn_rest_method: patch
     sn_rest_table: cmdb_ci_kubernetes_cluster

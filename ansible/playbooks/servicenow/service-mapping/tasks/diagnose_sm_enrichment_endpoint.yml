@@ -5,11 +5,11 @@
 - name: Resolve endpoint sys_id
   ansible.builtin.set_fact:
     sn_csdm_ep_sys_id: >-
-      {{ item.child.sys_id if item.child is defined and item.child is mapping
-         else item['child.sys_id'] | default('') }}
+      {{ item.child.value if (item.child is defined and item.child is mapping)
+         else (item['child.sys_id'] | default(item.child | default(''))) }}
 
 - name: Query endpoint CI details
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_ci_endpoint
     sn_rest_query: "sysparm_query=sys_id={{ sn_csdm_ep_sys_id }}&sysparm_fields=name,port,host,ip_address&sysparm_limit=1"
@@ -37,7 +37,7 @@
     - sn_csdm_ep_port | default('') != 'None'
 
 - name: Query TCP listener CI on endpoint port (cmdb_tcp from horizontal Discovery)
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_tcp
     sn_rest_query: "sysparm_query=port={{ sn_csdm_ep_port }}&sysparm_fields=port,ip,process,computer&sysparm_limit=5"

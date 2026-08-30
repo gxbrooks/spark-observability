@@ -13,7 +13,6 @@ observability/
 ├── diagnose.yml            # Orchestrator: full platform diagnostics
 ├── uninstall.yml           # Orchestrator: remove everything
 ├── install.yml             # Alias for deploy.yml
-├── status.yml              # DEPRECATED → diagnose.yml
 ├── elasticsearch/
 │   ├── deploy.yml          # Sync ES config files
 │   ├── start.yml           # Start ES + wait healthy
@@ -127,7 +126,9 @@ All observability services run on the **observability** host group (Lab3). Run f
 - Do **not** call `POST /_license/start_basic` on this cluster if you rely on Watcher — use **Trial** or a **paid** license JSON (`PUT /_license`), or reset data (below).
 - `init-index.sh` Step 4 attempts `POST /_license/start_trial` when the cluster is on Basic. Trial is **once per cluster** (same persisted node data); if it was already consumed, wipe volumes and redeploy.
 
-When the trial expires, reset for a new trial (destroys Elasticsearch/Kibana Docker volumes):
+When the trial expires (about once a month), confirm with the operator first,
+then reset for a new trial. Dropping Elasticsearch/Kibana Docker volume state
+is expected:
 
 ```bash
 ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true

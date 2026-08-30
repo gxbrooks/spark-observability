@@ -1,0 +1,21 @@
+---
+# Assert spark-client Davis alerts and Spark Client incidents are queryable.
+- name: Query spark-client Davis alerts
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
+  vars:
+    sn_rest_table: em_alert
+    sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^descriptionLIKEApplication%20log%20WARN%20on%20spark-client^ORDERBYDESCsys_created_on&sysparm_fields=number,description,incident,cmdb_ci&sysparm_limit=5"
+
+- name: Show spark-client Davis alerts
+  ansible.builtin.debug:
+    msg: "spark-client Davis alerts: {{ sn_rest_json.result | default([]) }}"
+
+- name: Query Spark Client incidents (24h)
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
+  vars:
+    sn_rest_table: incident
+    sn_rest_query: "sysparm_query=cmdb_ci=fce8e70f87bd03103507b886dabb35d2^sys_created_on>javascript:gs.hoursAgo(24)^ORDERBYDESCsys_created_on&sysparm_fields=number,short_description,cmdb_ci.name,active&sysparm_limit=5"
+
+- name: Show Spark Client incidents
+  ansible.builtin.debug:
+    msg: "Spark Client incidents (24h): {{ sn_rest_json.result | default([]) }}"

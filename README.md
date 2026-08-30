@@ -55,7 +55,7 @@ spark-observability/
 ```bash
 # 1. Deploy infrastructure
 cd ansible
-ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml
+ansible-playbook -i inventory.yml playbooks/k8s/install.yml
 ansible-playbook -i inventory.yml playbooks/nfs/install_nfs.yml
 
 # 2. Deploy Spark
@@ -117,7 +117,7 @@ generate-contexts --vars-dir ./vars -f
 python3 spark/apps/data-analysis-book/chapters/Chapter_03.py
 
 # Check observability platform status
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/status.yml
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/diagnose.yml
 ```
 
 ## 📋 Architecture

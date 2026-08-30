@@ -30,38 +30,6 @@
     dt_l2i_standalone_custom_source_object_id: "{{ dt_upsert_found_id }}"
   run_once: true
 
-- name: List custom log sources to disable legacy Spark Lab titles
-  ansible.builtin.uri:
-    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:logmonitoring.custom-log-source-settings&fields=objectId,value&pageSize=200"
-    method: GET
-    headers:
-      Authorization: "Api-Token {{ dt_api_token_resolved }}"
-    status_code: [200]
-  register: dt_l2i_custom_sources_all
-  delegate_to: localhost
-  run_once: true
-
-- name: Disable legacy Spark Lab custom log source titles
-  ansible.builtin.uri:
-    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ item.objectId }}"
-    method: PUT
-    headers:
-      Authorization: "Api-Token {{ dt_api_token_resolved }}"
-      Content-Type: application/json
-    body_format: json
-    body:
-      schemaId: builtin:logmonitoring.custom-log-source-settings
-      value: "{{ item.value | combine({'enabled': false}, recursive=True) }}"
-    status_code: [200, 204]
-  loop: "{{ dt_l2i_custom_sources_all.json['items'] | default([]) }}"
-  when:
-    - item.value['config-item-title'] | default('') in [
-        'Spark Lab - application log files'
-      ]
-    - item.objectId != (dt_l2i_standalone_custom_source_object_id | default(''))
-  delegate_to: localhost
-  run_once: true
-
 - name: Show Standalone custom log source state
   ansible.builtin.debug:
     msg: >-

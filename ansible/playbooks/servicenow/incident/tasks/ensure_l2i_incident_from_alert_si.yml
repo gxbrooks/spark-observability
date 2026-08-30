@@ -10,7 +10,7 @@
       script: "{{ lookup('file', sn_incident_integrations_dir + '/L2IIncidentFromAlert.si.js') }}"
 
 - name: Look up L2IIncidentFromAlert
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_script_include
     sn_rest_query: "sysparm_query=name=L2IIncidentFromAlert^sys_scope=global&sysparm_limit=1"
@@ -21,7 +21,7 @@
     sn_l2i_incident_si_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Update L2IIncidentFromAlert
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_script_include
@@ -30,7 +30,7 @@
   when: sn_l2i_incident_si_exists | bool
 
 - name: Create L2IIncidentFromAlert
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_script_include

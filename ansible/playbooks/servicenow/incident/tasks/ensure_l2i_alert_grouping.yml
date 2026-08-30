@@ -7,8 +7,8 @@
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
   vars:
     sn_sysprop_item:
-      name: "{{ sn_l2i_group_by_fields_property }}"
-      value: "{{ sn_l2i_group_by_fields_value }}"
+      name: sa_analytics.agg.group_alert_with_same_group_by_fields
+      value: metric_name,cmdb_ci
       description: >-
         Extra AND for job-based alert grouping. L2I log metric_name is
         Log-Error:{sn-log-signature}; same CI + same signature group,
@@ -23,7 +23,7 @@
       description: Enable scheduled-job alert grouping (Automated, CMDB, Text)
 
 - name: Confirm TAG_BASED is not in group_logic_order
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_properties
     sn_rest_query: "sysparm_query=name=sa_analytics.agg.query.group_logic_order&sysparm_fields=sys_id,name,value&sysparm_limit=1"

@@ -2,7 +2,7 @@
 # Deploy global-scoped Scripted REST API for Service Mapping operations.
 
 - name: Look up Service Mapping Operations REST API definition
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_definition
     sn_rest_query: "sysparm_query=name={{ sn_sm_rest_api_name | urlencode }}&sysparm_fields=sys_id,name,base_uri,active&sysparm_limit=1"
@@ -25,7 +25,7 @@
     - sn_sm_rest_base_uri is match('/api/now/')
 
 - name: Create Service Mapping Operations REST API definition
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_ws_definition
@@ -46,7 +46,7 @@
     - sn_rest_status in [200, 201]
 
 - name: Refresh Service Mapping REST API base URI
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_definition
     sn_rest_query: "sysparm_query=sys_id={{ sn_sm_rest_ws_sys_id }}&sysparm_fields=base_uri&sysparm_limit=1"
@@ -64,7 +64,7 @@
     sn_sm_rest_discover_script: "{{ lookup('file', sn_sm_files_dir + '/sm_discover_service.js') }}"
 
 - name: Look up Service Mapping discover REST operation
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-
@@ -76,7 +76,7 @@
     sn_sm_discover_op_rows: "{{ sn_rest_json.result | default([]) }}"
 
 - name: Create Service Mapping discover REST operation
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_ws_operation
@@ -92,7 +92,7 @@
   when: sn_sm_discover_op_rows | length == 0
 
 - name: Update Service Mapping discover REST operation script
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_ws_operation
@@ -105,7 +105,7 @@
     - sn_sm_discover_op_rows[0].operation_script | default('') != sn_sm_rest_discover_script
 
 - name: Refresh Service Mapping discover operation URI
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-
@@ -122,7 +122,7 @@
     sn_sm_rest_populate_tags_script: "{{ lookup('file', sn_sm_files_dir + '/sm_populate_tag_list.js') }}"
 
 - name: Look up Service Mapping populate_tags REST operation
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-
@@ -134,7 +134,7 @@
     sn_sm_populate_tags_op_rows: "{{ sn_rest_json.result | default([]) }}"
 
 - name: Create Service Mapping populate_tags REST operation
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_ws_operation
@@ -150,7 +150,7 @@
   when: sn_sm_populate_tags_op_rows | length == 0
 
 - name: Update Service Mapping populate_tags REST operation script
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_ws_operation
@@ -163,7 +163,7 @@
     - sn_sm_populate_tags_op_rows[0].operation_script | default('') != sn_sm_rest_populate_tags_script
 
 - name: Refresh Service Mapping populate_tags operation URI
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-
@@ -180,7 +180,7 @@
     sn_sm_rest_ensure_tag_categories_script: "{{ lookup('file', sn_sm_files_dir + '/sm_ensure_tag_categories.js') }}"
 
 - name: Look up Service Mapping ensure_tag_categories REST operation
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-
@@ -192,7 +192,7 @@
     sn_sm_ensure_tag_categories_op_rows: "{{ sn_rest_json.result | default([]) }}"
 
 - name: Create Service Mapping ensure_tag_categories REST operation
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_ws_operation
@@ -208,7 +208,7 @@
   when: sn_sm_ensure_tag_categories_op_rows | length == 0
 
 - name: Update Service Mapping ensure_tag_categories REST operation script
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_ws_operation
@@ -221,7 +221,7 @@
     - sn_sm_ensure_tag_categories_op_rows[0].operation_script | default('') != sn_sm_rest_ensure_tag_categories_script
 
 - name: Refresh Service Mapping ensure_tag_categories operation URI
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-

@@ -5,6 +5,7 @@
 #   ansible-playbook -i inventory.yml playbooks/spark/test.yml
 #
 # Order: TCP checks (fail fast) → PySpark smoke → PySpark HDFS I/O.
+# HDFS NameNode NodePort is on Lab3 (hdfs://Lab3.lan:30900).
 # When the Standalone master is down, PySpark can throw a misleading
 # "MetricsSystem.getServletHandlers" error; we probe the master port first.
 
@@ -108,9 +109,10 @@
           - hdfs_nn_tcp is succeeded
         fail_msg: >-
           HDFS namenode is not accepting TCP at {{ hdfs_nn_host }}:{{ hdfs_nn_port }}.
+          Expected the NameNode NodePort on Lab3 (hdfs://Lab3.lan:30900).
           PySpark smoke passed; HDFS IO test was not run.
-          Check hdfs namespace pods and
-          ansible-playbook -i inventory.yml playbooks/k8s/diagnose.yml
+          Check hdfs namespace pods on Lab3 and
+          ansible-playbook -i inventory.yml playbooks/k8s/hadoop/diagnose.yml
       when: hdfs_nn_host | length > 0
 
     - name: Run HDFS write/read assertion script

@@ -17,7 +17,7 @@
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
 
     - name: Query em_event in last 2 hours
-      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
       vars:
         sn_rest_table: em_event
         sn_rest_query: >-

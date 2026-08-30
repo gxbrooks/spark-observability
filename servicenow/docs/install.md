@@ -275,7 +275,7 @@ Regenerate context files after editing:
 
 ```bash
 generate-contexts --vars-dir ./vars service-now
-# or: ansible-playbook ... discovery/common/regenerate_context.yml
+# or: ansible-playbook ... discovery/tasks/regenerate-context.yml
 ```
 
 Generated outputs: `vars/contexts/servicenow_ansible_vars.yml` (includes
@@ -657,7 +657,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.ym
   -e @../vars/secrets.yaml
 ```
 
-The tag category is created automatically by **`service-mapping/deploy.yml`** (also run at the start of **`csdm/deploy.yml`**) via **`service-mapping/common/ensure_tag_categories.yml`**; the tag key variable is **`sn_csdm_tag_key_service_instance`** in **`service-mapping/common/vars.yml`**.
+The tag category is created automatically by **`service-mapping/deploy.yml`** (also run at the start of **`csdm/deploy.yml`**) via **`service-mapping/tasks/ensure-tag-categories.yml`**; the tag key variable is **`sn_csdm_tag_key_service_instance`** in **`service-mapping/common/vars.yml`**.
 
 **Manual fallback** (when deploy output shows tag category errors):
 
@@ -756,7 +756,7 @@ on a bare instance the **plugin activation must precede the role grant**. On
 granted up front** and the sequence collapses to steps 3–4.
 
 `sgc/install.yml` runs a bootstrap preflight
-(`sgc/common/check_cicd_bootstrap.yml`) whenever components need installing:
+(`sgc/tasks/check-cicd-bootstrap.yml`) whenever components need installing:
 it checks that the role record exists and that the automation user holds it,
 and **fails fast naming the exact missing manual step**. The interleaving is
 therefore just *run → perform the reported step → re-run* — the playbook is
@@ -790,7 +790,7 @@ idempotent and skips completed work.
 ### Required Store applications and plugins (install order)
 
 The authoritative manifest — names, scopes, install order, and **pinned
-versions** — is `**sgc/common/store_apps.yml`** (`sn_store_apps`; sgc-local
+versions** — is `**servicenow/integrations/sgc/store_apps.yml`** (`sn_store_apps`; sgc-local
 because only the sgc playbooks consume it). `sgc/install.yml` consumes it;
 `sgc/diagnose.yml` reports installed vs pinned vs latest versions. Update pins
 there after a deliberate upgrade.
@@ -914,12 +914,8 @@ App Manager repair/reinstall fails preprocessing with `id: null`.
 
 **Reset mode (automated alternative):** When lab data may be discarded,
 `reset` deletes orphaned `sys_rte_eb_field_mapping` rows across all
-SGO-Dynatrace RTE feeds (the NPE root cause) and optionally purges CMDB /
-`sys_object_source` rows with `discovery_source=SGO-Dynatrace`. The scoped app
-stays installed; run `sources/dynatrace/deploy.yml` and
-`sources/dynatrace/start.yml` afterward.
-
-Set `sn_sgc_reset_purge_data=false` to skip CMDB / object-source deletion.
+SGO-Dynatrace RTE feeds (the NPE root cause). The scoped app stays installed;
+run `sources/dynatrace/deploy.yml` and `sources/dynatrace/start.yml` afterward.
 
 **Limits:** Repair/reinstall use the App Manager API, not
 `/api/sn_cicd/app_repo/install` (which rejects an already-installed version).
@@ -930,7 +926,7 @@ Observability - Dynatrace → Repair** with a full **admin** account (steps 1–
 below), then continue with steps 4–5.
 
 **Version compatibility:** `diagnose.yml` and `install.yml` call
-`common/validate_compatibility.yml`, which checks:
+`tasks/validate-compatibility.yml`, which checks:
 
 - ServiceNow platform family (from `glide.war`) against Store compatibilities
 - Installed dependency versions against `sn_dynatrace_integ` Store-declared
@@ -938,7 +934,7 @@ dependencies (currently `sn_cmdb_int_util:2.25.0`, `sn_cmdb_ci_class:1.83.0`
 for v1.15.0)
 - Orphaned RTE field mappings on **SGO-Dynatrace Hosts** (transform NPE root cause)
 
-Pins in `sgc/common/store_apps.yml` match the Store dependency matrix for
+Pins in `servicenow/integrations/sgc/store_apps.yml` match the Store dependency matrix for
 v1.15.0.
 
 **After repair — run import (steps 4–5):**
@@ -1035,7 +1031,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 | `SN_DT_LEGACY_CONNECTOR_SYS_ID`                    | `vars/variables.yaml` (service-now)                 | Pre-existing legacy EM push connector (`712a39811…`) used until SGC is installed |
 | `SN_URL`, `SN_INSTANCE_SHORT_NAME`                 | `vars/variables.yaml` (service-now)                 | Instance identity                                                                |
 | `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE` | `vars/variables.yaml` (dynatrace-ansible) / secrets | Dynatrace side                                                                   |
-| `sn_store_apps`                                    | `sgc/common/store_apps.yml` (sgc-local)             | App/plugin manifest: scopes, install order, pinned versions                      |
+| `sn_store_apps`                                    | `servicenow/integrations/sgc/store_apps.yml` (sgc-local)             | App/plugin manifest: scopes, install order, pinned versions                      |
 
 
 Package `sys_id`s are **not** configuration and are not needed — `install.yml`

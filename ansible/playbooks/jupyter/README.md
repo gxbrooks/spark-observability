@@ -8,13 +8,13 @@ JupyterHub provides a web-based notebook environment with PySpark pre-configured
 
 ## Playbooks
 
-### `deploy_jupyter.yml` - Deploy JupyterHub
+### `deploy.yml` - Deploy JupyterHub
 
 Deploys JupyterHub on Kubernetes with PySpark integration.
 
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyter.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/deploy.yml
 ```
 
 **What it does:**
@@ -28,31 +28,40 @@ ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyter.yml
 - Spark deployed and running (`deploy_spark.yml`)
 - NFS mounts configured on cluster nodes
 
-### `start_jupyter.yml` - Start JupyterHub
+### `start.yml` - Start JupyterHub
 
 Starts the JupyterHub service by scaling the deployment to 1 replica.
 
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/jupyter/start_jupyter.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/start.yml
 ```
 
-### `stop_jupyter.yml` - Stop JupyterHub
+### `stop.yml` - Stop JupyterHub
 
 Stops JupyterHub by scaling the deployment to 0 replicas.
 
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/jupyter/stop_jupyter.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/stop.yml
 ```
 
-### `status_jupyter.yml` - Check Status
+### `diagnose.yml` - Diagnose JupyterHub
 
-Checks the status of JupyterHub deployment, pods, and service.
+Reports JupyterHub deployment, pods, service, and recent logs.
 
 ```bash
 cd ansible
-ansible-playbook -i inventory.yml playbooks/jupyter/status_jupyter.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/diagnose.yml
+```
+
+### `tasks/deploy-jupyterhub-helm.yml` - Optional Helm deploy
+
+Alternate multi-user Helm install. Values live in `jupyter/jupyterhub-values.yaml.j2`.
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml playbooks/jupyter/tasks/deploy-jupyterhub-helm.yml
 ```
 
 ## Access JupyterHub
@@ -207,7 +216,7 @@ Observability Stack (GaryPC-WSL)
 ### Updating JupyterHub Configuration
 
 1. Edit the deployment template: `ansible/roles/spark/templates/jupyterhub-deployment.yaml.j2`
-2. Redeploy: `ansible-playbook -i inventory.yml playbooks/jupyter/deploy_jupyter.yml`
+2. Redeploy: `ansible-playbook -i inventory.yml playbooks/jupyter/deploy.yml`
 
 ### Updating Spark Configuration
 
@@ -220,8 +229,8 @@ kubectl create configmap spark-defaults-conf \
   -n spark --dry-run=client -o yaml | kubectl apply -f -
 
 # Restart JupyterHub to pick up changes
-ansible-playbook -i inventory.yml playbooks/jupyter/stop_jupyter.yml
-ansible-playbook -i inventory.yml playbooks/jupyter/start_jupyter.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/stop.yml
+ansible-playbook -i inventory.yml playbooks/jupyter/start.yml
 ```
 
 ## Multi-User Setup

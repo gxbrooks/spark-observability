@@ -15,10 +15,10 @@
       description: >-
         KVA Informer leaves location empty on child Kubernetes CIs; inherit from cluster CI
         (location set by k8s/deploy.yml from vars/variables.yaml cluster-to-location map).
-      script: "{{ lookup('file', playbook_dir + '/files/k8s_inherit_location_from_cluster.br.js') }}"
+      script: "{{ lookup('file', sn_discovery_integrations_dir + '/k8s_inherit_location_from_cluster.br.js') }}"
 
 - name: Look up K8s location inheritance business rule
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: sys_script
     sn_rest_query: "sysparm_query=name={{ sn_k8s_location_br_name | urlencode }}&sysparm_limit=1"
@@ -29,7 +29,7 @@
     sn_k8s_location_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Create K8s location inheritance business rule
-  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: ../sn-rest-mutate.yml
   vars:
     sn_rest_method: post
     sn_rest_table: sys_script
@@ -37,7 +37,7 @@
   when: not sn_k8s_location_br_exists | bool
 
 - name: Update K8s location inheritance business rule
-  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: ../sn-rest-mutate.yml
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_script

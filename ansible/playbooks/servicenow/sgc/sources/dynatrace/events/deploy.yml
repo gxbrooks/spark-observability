@@ -37,9 +37,3 @@
 
     - name: Apply brooks-lab problem notification webhook to ServiceNow
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_dt_problem_notification.yml"
-
-    - name: Optionally disable Demo 1 problem notification (opt-in — avoids duplicate Dynatrace-source alerts on shared tenant)
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/disable_demo1_problem_notification.yml"
-      when:
-        - sn_sgc_scope_present | default(false) | bool
-        - sn_disable_demo1_problem_notification | default(false) | bool

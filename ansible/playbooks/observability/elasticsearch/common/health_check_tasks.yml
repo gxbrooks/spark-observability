@@ -21,7 +21,16 @@
     fail_msg: |
       Elasticsearch HTTP API did not return HTTP 200 for _cluster/health.
       HTTP status={{ es_health.status | default('n/a') }}; message={{ es_health.msg | default('n/a') }}.
-      {% if es_health.status | default(0) | int in [401, 403] %}Check ES_PASSWORD in {{ observability_env_file }}.
+      {% set es_err_reason = (es_health.json.error.reason | default('')) %}
+      {% if 'license is non-compliant' in es_err_reason %}
+      License: {{ es_err_reason }}.
+      The lab trial expires about once a month. Do not call start_basic if Watcher is required.
+      After confirming with the operator (dropping ES state is expected), reset:
+        ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
+        ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
+        ansible-playbook -i inventory.yml playbooks/observability/start.yml
+      Or apply a paid license via PUT /_license.
+      {% elif es_health.status | default(0) | int in [401, 403] %}Check ES_PASSWORD in {{ observability_env_file }}.
       {% elif es_health.status | default(0) | int <= 0 %}No response: check es01 container, port 9200, TLS, DNS.
       {% endif %}
     success_msg: "Elasticsearch _cluster/health returned HTTP 200"

@@ -3,7 +3,7 @@
 # Input: item (cmdb_ci_service_discovered row)
 
 - name: Query Depends on endpoint CIs for application service
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_rel_ci
     sn_rest_query: "sysparm_query=parent={{ item.sys_id }}^type.name={{ sn_sm_rel_depends | urlencode }}^child.sys_class_name=cmdb_ci_endpoint&sysparm_fields=child.sys_id,child.name&sysparm_limit=10"

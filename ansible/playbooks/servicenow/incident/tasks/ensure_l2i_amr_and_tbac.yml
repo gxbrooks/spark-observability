@@ -1,28 +1,18 @@
 ---
-# L2I enterprise path:
-#   - Keep L2I CRITICAL_LOG_EVENT AMR inactive (SGO-Dynatrace AMR is the create path)
-#   - Upsert Tag-Based Alert Clustering tags + definition (inactive unless enabled)
-
-- name: Build L2I CRITICAL_LOG_EVENT AMR body
+# Keep reserved L2I AMR inactive; upsert TBAC definition (inactive).
+# Payloads:
+#   em_alert_management_rule_l2i_create.json.j2
+#   sn_em_tbac_l2i_definition.json
+#   l2i_tbac_tags.yml
+- name: Load L2I AMR representation
   ansible.builtin.set_fact:
-    sn_l2i_amr_body:
-      name: "{{ sn_l2i_amr_name }}"
-      active: "{{ sn_l2i_amr_active | default('false') }}"
-      type: incident
-      order: "{{ sn_l2i_amr_order }}"
-      automatic_execution_setting: "1"
-      multiple_alert_rules: "1"
-      description: >-
-        L2I: reserved AMR for CRITICAL_LOG_EVENT. Keep inactive until a published
-        Flow uses action Create incident from Alert (EvtMgmtIncidentHandler).
-        Interim create path: BR em-alert-create-log-incident → same handler.
-      alert_filter: "{{ sn_l2i_amr_filter }}"
+    sn_l2i_amr_body: "{{ lookup('template', sn_incident_integrations_dir + '/em_alert_management_rule_l2i_create.json.j2') | from_json }}"
 
 - name: Look up L2I AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_management_rule
-    sn_rest_query: "sysparm_query=name={{ sn_l2i_amr_name | urlencode }}&sysparm_limit=1"
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_amr_body.name | urlencode }}&sysparm_limit=1"
 
 - name: Record L2I AMR state
   ansible.builtin.set_fact:
@@ -30,7 +20,7 @@
     sn_l2i_amr_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Create L2I AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: em_alert_management_rule
@@ -38,7 +28,7 @@
   when: not sn_l2i_amr_exists | bool
 
 - name: Update L2I AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_alert_management_rule
@@ -47,10 +37,10 @@
   when: sn_l2i_amr_exists | bool
 
 - name: Capture L2I AMR sys_id after create
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_management_rule
-    sn_rest_query: "sysparm_query=name={{ sn_l2i_amr_name | urlencode }}&sysparm_limit=1"
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_amr_body.name | urlencode }}&sysparm_limit=1"
   when: not sn_l2i_amr_exists | bool
 
 - name: Set L2I AMR sys_id after create
@@ -62,6 +52,10 @@
   ansible.builtin.include_tasks: ensure_l2i_amr_create_incident_action.yml
   when: sn_l2i_amr_sys_id | default('') | length > 0
 
+- name: Load L2I TBAC tags
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_tags: "{{ lookup('file', sn_incident_integrations_dir + '/l2i_tbac_tags.yml') | from_yaml }}"
+
 - name: Upsert L2I TBAC clustering tags
   ansible.builtin.include_tasks: upsert_l2i_tbac_tag.yml
   vars:
@@ -72,11 +66,15 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: Load L2I TBAC definition representation
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_def_body: "{{ lookup('file', sn_incident_integrations_dir + '/sn_em_tbac_l2i_definition.json') | from_json }}"
+
 - name: Look up L2I TBAC definition
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sn_em_tbac_alert_clustering_definitions
-    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_definition_name | urlencode }}&sysparm_limit=1"
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_def_body.name | urlencode }}&sysparm_limit=1"
 
 - name: Record L2I TBAC definition state
   ansible.builtin.set_fact:
@@ -84,24 +82,18 @@
     sn_l2i_tbac_def_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Create L2I TBAC definition
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sn_em_tbac_alert_clustering_definitions
-    sn_rest_body:
-      name: "{{ sn_l2i_tbac_definition_name }}"
-      active: "{{ sn_l2i_tbac_active | default('false') }}"
-      description: "{{ sn_l2i_tbac_definition_description }}"
-      time_difference: "{{ sn_l2i_tbac_time_difference_seconds }}"
-      alert_filter: "{{ sn_l2i_tbac_alert_filter }}"
-      grouping_method: "1"
+    sn_rest_body: "{{ sn_l2i_tbac_def_body }}"
   when: not sn_l2i_tbac_def_exists | bool
 
 - name: Capture new L2I TBAC definition sys_id
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sn_em_tbac_alert_clustering_definitions
-    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_definition_name | urlencode }}&sysparm_limit=1"
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_def_body.name | urlencode }}&sysparm_limit=1"
   when: not sn_l2i_tbac_def_exists | bool
 
 - name: Set L2I TBAC definition sys_id after create
@@ -110,16 +102,12 @@
   when: not sn_l2i_tbac_def_exists | bool
 
 - name: Update L2I TBAC definition
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sn_em_tbac_alert_clustering_definitions
     sn_rest_sys_id: "{{ sn_l2i_tbac_def_sys_id }}"
-    sn_rest_body:
-      active: "{{ sn_l2i_tbac_active | default('false') }}"
-      description: "{{ sn_l2i_tbac_definition_description }}"
-      time_difference: "{{ sn_l2i_tbac_time_difference_seconds }}"
-      alert_filter: "{{ sn_l2i_tbac_alert_filter }}"
+    sn_rest_body: "{{ sn_l2i_tbac_def_body }}"
   when:
     - sn_l2i_tbac_def_exists | bool
     - sn_l2i_tbac_def_sys_id | length > 0
@@ -128,10 +116,10 @@
   ansible.builtin.include_tasks: ensure_l2i_tbac_m2m.yml
   when:
     - sn_l2i_tbac_def_sys_id | default('') | length > 0
-    - sn_l2i_tbac_active | default('false') | bool
+    - sn_l2i_tbac_def_body.active | default('false') | bool
 
 - name: Look up generated L2I TBAC correlation rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_correlation_rule
     sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_correlation_rule_name | urlencode }}&sysparm_fields=sys_id,name,active&sysparm_limit=5"
@@ -141,14 +129,14 @@
     sn_l2i_tbac_corr_rules: "{{ sn_rest_json.result | default([]) }}"
 
 - name: Deactivate generated L2I TBAC correlation rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_alert_correlation_rule
     sn_rest_sys_id: "{{ item.sys_id }}"
     sn_rest_body:
-      active: "{{ sn_l2i_tbac_active | default('false') }}"
+      active: "{{ sn_l2i_tbac_def_body.active | default('false') }}"
   loop: "{{ sn_l2i_tbac_corr_rules }}"
   when:
-    - (sn_l2i_tbac_active | default('false') | bool) == false
+    - (sn_l2i_tbac_def_body.active | default('false') | bool) == false
     - item.active | default('') in ['true', '1', true, 1]

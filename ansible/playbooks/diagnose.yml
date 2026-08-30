@@ -69,10 +69,11 @@
           Review task output above. Quick K8s check:
             kubectl get pods -n spark
             kubectl get svc -n spark
-          Component quick checks still available, e.g.:
-            playbooks/spark/status.yml
-            playbooks/observability/status.yml
-            playbooks/elastic-agent/status.yml
+          Component diagnose playbooks remain available, e.g.:
+            playbooks/spark/diagnose.yml
+            playbooks/observability/diagnose.yml
+            playbooks/elastic-agent/diagnose.yml
+            playbooks/k8s/hadoop/diagnose.yml
           Behavior tests:
             playbooks/test.yml
           ================================================

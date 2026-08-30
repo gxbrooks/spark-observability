@@ -19,7 +19,7 @@
       script: "{{ lookup('file', sn_integrations_dir + '/sgc/sgc_inherit_location_from_host.br.js') }}"
 
 - name: Look up SGC location inheritance business rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_script
     sn_rest_query: "sysparm_query=name={{ sn_sgc_location_br_name | urlencode }}&sysparm_limit=1"
@@ -30,7 +30,7 @@
     sn_sgc_location_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Create SGC location inheritance business rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_script
@@ -38,7 +38,7 @@
   when: not sn_sgc_location_br_exists | bool
 
 - name: Update SGC location inheritance business rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_script

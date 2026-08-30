@@ -1,0 +1,7 @@
+{
+  "active": "true",
+  "alert_filter": "source=SGO-Dynatrace^maintenance=false^incidentISEMPTY^severity<={{ sn_incident_max_severity }}^correlation_group!=Secondary^parentISEMPTY^cmdb_ciISNOTEMPTY",
+  "automatic_execution_setting": "1",
+  "multiple_alert_rules": "2",
+  "description": "SGO-Dynatrace log and metric incident create. Non-secondary, not in maintenance, CI bound, severity<=3. Action: OOTB Create Incident subflow (customer-like; not SGO-Dynatrace Alert Subflow). Alert changes to filter."
+}

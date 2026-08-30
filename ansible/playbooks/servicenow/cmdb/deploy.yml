@@ -25,7 +25,7 @@
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/regenerate_context.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/regenerate-context.yml"
 
     - name: Require ServiceNow API credentials
       ansible.builtin.assert:

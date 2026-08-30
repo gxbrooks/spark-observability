@@ -352,7 +352,7 @@ Ansible still defines **`DT_TENANT_URL`**, **`DT_API_URL`**, tokens, and partiti
 4. Deploy workloads so Discovery and KVA see current labels.
 5. Run **`csdm/deploy.yml`** to create or update Service Instances in the CMDB; for tag-based services it also sets the tag population rule (via the `/populate_tags` Scripted REST API) and triggers membership recalculation.
 6. Run native discovery; run **`discovery/k8s/sync_pod_labels.yml`** when needed.
-7. Ensure the **Service Instance** tag category exists (**`service-mapping/common/ensure_tag_categories.yml`**) — [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md).
+7. Ensure the **Service Instance** tag category exists (**`service-mapping/tasks/ensure-tag-categories.yml`**) — [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md).
 8. Run **`compare.yml`** and review **`DT_SN_Model_Comparison_Report.json`** for drift.
 
 ---

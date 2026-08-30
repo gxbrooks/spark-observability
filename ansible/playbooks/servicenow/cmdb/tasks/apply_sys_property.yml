@@ -42,7 +42,7 @@
   when: sn_sysprop_current_value | lower == sn_sysprop_item.value | lower
 
 - name: "Create sys_property {{ sn_sysprop_item.name }}"
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_properties
@@ -56,7 +56,7 @@
     - sn_sysprop_row | length == 0
 
 - name: "Update sys_property {{ sn_sysprop_item.name }}"
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_properties

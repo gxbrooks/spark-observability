@@ -27,7 +27,7 @@
              | map('trim') | reject('equalto', '') | list }}
 
 - name: Query Docker container CIs on host for duplicate-name scan
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_docker_container
     sn_rest_query: >-

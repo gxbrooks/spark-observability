@@ -3,7 +3,7 @@
 # Probes cmdb_ci_endpoint host linkage and cmdb_ci_tcp on declared entry ports.
 
 - name: Query application services in Requirements status
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_ci_service_discovered
     sn_rest_query: "sysparm_query=service_status=requirements&sysparm_fields=name,sys_id,service_status,process_status&sysparm_limit=100"

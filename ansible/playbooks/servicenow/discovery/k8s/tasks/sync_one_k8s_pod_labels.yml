@@ -3,7 +3,7 @@
 # Input: sn_k8s_pod (pod object from kubectl json), sn_k8s_cluster_name
 
 - name: Look up CMDB pod CI for {{ sn_k8s_pod.metadata.name }}
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_kubernetes_pod
     sn_rest_query: >-
@@ -22,7 +22,7 @@
     - sn_rest_json.result | default([]) | length == 0
 
 - name: Upsert servicenow.com label {{ label_item.key }} on pod {{ sn_k8s_pod.metadata.name }}
-  ansible.builtin.include_tasks: ../../common/ensure_cmdb_key_value.yml
+  ansible.builtin.include_tasks: ../ensure-cmdb-key-value.yml
   vars:
     sn_kv_ci_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
     sn_kv_key: "{{ label_item.key }}"

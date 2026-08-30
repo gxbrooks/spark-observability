@@ -2,13 +2,10 @@
 # IRE / host identity diagnostics — duplicate host CIs and discovery-source alignment.
 
 - name: Query lab-related computer CIs for merge analysis
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_ci_computer
-    sn_rest_query: >-
-      sysparm_query=nameSTARTSWITHlab^ORname=lab1^ORname=lab2^ORname=lab3
-      &sysparm_fields=name,host_name,discovery_source,sys_class_name,sys_id,location
-      &sysparm_limit=100
+    sn_rest_query: "sysparm_query=nameSTARTSWITHlab^ORname=lab1^ORname=lab2^ORname=lab3&sysparm_fields=name,host_name,discovery_source,sys_class_name,sys_id,location&sysparm_limit=100"
 
 - name: List matched host CIs
   ansible.builtin.debug:

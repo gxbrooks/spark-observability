@@ -8,6 +8,14 @@
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/observability/diagnose.yml
+#
+# If elasticsearch/diagnose.yml fails with a license-non-compliant 403 (trial
+# expires about monthly), confirm with the operator, then:
+#   ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
+#   ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
+#   ansible-playbook -i inventory.yml playbooks/observability/start.yml
+# Dropping ES state is expected. Do not call start_basic if Watcher is required.
+# Do not use --limit observability here; resolve_platform.yml needs localhost.
 
 - import_playbook: common/resolve_platform.yml
 

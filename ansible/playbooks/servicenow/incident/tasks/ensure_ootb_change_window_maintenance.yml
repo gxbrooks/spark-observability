@@ -4,7 +4,7 @@
 # is inside planned start/end. Do not replace its ImpactManager script.
 # Affected CIs (task_ci) are handled by Affected CIs in Change Window.
 - name: Look up OOTB CI in Change Window maintenance rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_maintenance_rule
     sn_rest_query: "sysparm_query=name={{ sn_ootb_ci_in_change_window_rule_name | urlencode }}&sysparm_limit=1"
@@ -24,7 +24,7 @@
   when: not sn_ootb_maint_rule_exists | bool
 
 - name: Activate OOTB CI in Change Window maintenance rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_maintenance_rule

@@ -22,7 +22,7 @@
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_script
     sn_rest_query: "sysparm_query=name={{ sn_incident_em_alert_br_name | urlencode }}&sysparm_limit=1"
@@ -33,7 +33,7 @@
     sn_incident_em_alert_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Create em_alert create incident business rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: sys_script
@@ -41,7 +41,7 @@
   when: not sn_incident_em_alert_br_exists | bool
 
 - name: Update em_alert create incident business rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_script

@@ -28,22 +28,38 @@
         owner: ansible
         group: ansible
 
-    - name: Read Elasticsearch password from observability .env
-      ansible.builtin.shell: |
-        awk -F= '/^ES_PASSWORD=/{print substr($0, index($0,$2)); exit}' "{{ observability_env_file }}"
-      register: es_password_from_env
-      changed_when: false
-      failed_when: false
+    - name: Resolve ES password from host .env
+      ansible.builtin.include_tasks: common/resolve_es_password.yml
 
-    - name: Resolve ES password for API apply
-      ansible.builtin.set_fact:
-        ES_PASSWORD: >-
-          {{ (es_password_from_env.stdout | default('') | trim | length > 0)
-             | ternary(es_password_from_env.stdout | trim, ES_PASSWORD | default('') | trim) }}
+    - name: Probe Elasticsearch before live ILM apply
+      ansible.builtin.uri:
+        url: "https://{{ es_probe_host | default('localhost') }}:9200/_cluster/health"
+        method: GET
+        user: elastic
+        password: "{{ ES_PASSWORD }}"
+        validate_certs: false
+        force_basic_auth: true
+        timeout: 10
+        status_code: [200, 401, 403]
+      register: es_ilm_probe
+      failed_when: false
+      when: ES_PASSWORD | default('') | length > 0
 
     - name: Apply spark-log-metrics ILM fix on live cluster
       ansible.builtin.include_tasks: common/spark_log_metrics_ilm_tasks.yml
-      when: ES_PASSWORD | default('') | length > 0
+      when:
+        - ES_PASSWORD | default('') | length > 0
+        - es_ilm_probe.status | default(0) | int == 200
+
+    - name: Skip ILM apply when Elasticsearch is not ready
+      ansible.builtin.debug:
+        msg: >-
+          Skipped live ILM apply — Elasticsearch is not reachable
+          (HTTP {{ es_ilm_probe.status | default('n/a') }}).
+          start.yml / init-index.sh applies ILM after the cluster is up.
+      when:
+        - ES_PASSWORD | default('') | length > 0
+        - es_ilm_probe.status | default(0) | int != 200
 
     - name: Skip ILM apply when ES password is unavailable
       ansible.builtin.debug:

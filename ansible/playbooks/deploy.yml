@@ -28,10 +28,10 @@
           ================================================
 
 # Ensure workers have /etc/kubernetes/admin.conf for kubectl debugging (idempotent).
-- import_playbook: k8s/provision_admin_kubeconfig.yml
+- import_playbook: k8s/tasks/provision-admin-kubeconfig.yml
 
 # Tag `hadoop`: skip with --skip-tags hadoop if HDFS StatefulSets already exist and kubectl apply conflicts
-- import_playbook: k8s/hadoop/deploy_hadoop.yml
+- import_playbook: k8s/hadoop/deploy.yml
   tags: [hadoop]
 
 - import_playbook: observability/deploy.yml
@@ -42,7 +42,7 @@
 
 - import_playbook: spark/deploy.yml
 
-- import_playbook: jupyter/deploy_jupyter.yml
+- import_playbook: jupyter/deploy.yml
 
 - import_playbook: servicenow/deploy.yml
   tags: [servicenow]

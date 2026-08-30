@@ -4,10 +4,10 @@
 
 - name: "Read REST operation script {{ sn_discovery_rest_op.script_file }}"
   ansible.builtin.set_fact:
-    sn_discovery_rest_op_script: "{{ lookup('file', playbook_dir + '/files/' + sn_discovery_rest_op.script_file) }}"
+    sn_discovery_rest_op_script: "{{ lookup('file', sn_discovery_integrations_dir + '/' + sn_discovery_rest_op.script_file) }}"
 
 - name: "Look up REST operation {{ sn_discovery_rest_op.relative_path }}"
-  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: sn-rest-get.yml
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-
@@ -15,7 +15,7 @@
       sn_discovery_rest_op.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri,operation_script&sysparm_limit=1
 
 - name: "Create REST operation {{ sn_discovery_rest_op.relative_path }}"
-  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: sn-rest-mutate.yml
   vars:
     sn_rest_method: post
     sn_rest_table: sys_ws_operation
@@ -31,7 +31,7 @@
   when: sn_rest_json.result | default([]) | length == 0
 
 - name: "Update REST operation script {{ sn_discovery_rest_op.relative_path }}"
-  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: sn-rest-mutate.yml
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_ws_operation
@@ -44,7 +44,7 @@
     - sn_rest_json.result[0].operation_script | default('') != sn_discovery_rest_op_script
 
 - name: "Refresh REST operation {{ sn_discovery_rest_op.relative_path }}"
-  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: sn-rest-get.yml
   vars:
     sn_rest_table: sys_ws_operation
     sn_rest_query: >-

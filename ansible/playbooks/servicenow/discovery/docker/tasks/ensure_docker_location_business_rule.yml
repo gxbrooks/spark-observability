@@ -14,10 +14,10 @@
       description: >-
         Docker Discovery leaves location empty; inherit from parent Linux server CI
         (DOCKER_HOSTS registry in vars/variables.yaml).
-      script: "{{ lookup('file', playbook_dir + '/files/docker_inherit_location_from_host.br.js') }}"
+      script: "{{ lookup('file', sn_discovery_integrations_dir + '/docker_inherit_location_from_host.br.js') }}"
 
 - name: Look up Docker location inheritance business rule
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: sys_script
     sn_rest_query: "sysparm_query=name={{ sn_docker_location_br_name | urlencode }}&sysparm_limit=1"
@@ -28,7 +28,7 @@
     sn_docker_location_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
 - name: Create Docker location inheritance business rule
-  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: ../sn-rest-mutate.yml
   vars:
     sn_rest_method: post
     sn_rest_table: sys_script
@@ -36,7 +36,7 @@
   when: not sn_docker_location_br_exists | bool
 
 - name: Update Docker location inheritance business rule
-  ansible.builtin.include_tasks: ../../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: ../sn-rest-mutate.yml
   vars:
     sn_rest_method: patch
     sn_rest_table: sys_script

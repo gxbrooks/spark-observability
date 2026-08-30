@@ -3,7 +3,7 @@
 # SGO-Dynatrace Alert Subflow (that subflow exists only with Dynatrace SGC).
 
 - name: Look up OOTB Create Incident subflow
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_hub_flow
     sn_rest_query: "sysparm_query=name={{ sn_l2i_create_incident_subflow_name | urlencode }}^sys_id={{ sn_l2i_create_incident_subflow_sys_id }}&sysparm_fields=sys_id,name&sysparm_limit=1"
@@ -17,7 +17,7 @@
       ({{ sn_l2i_create_incident_subflow_sys_id }}) not found.
 
 - name: Look up all SGO-Dynatrace AMR flow actions
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_man_m2m_rule_flow
     sn_rest_query: "sysparm_query=management_rule={{ sn_sgo_ootb_amr_sys_id }}&sysparm_fields=sys_id,sub_flow,active,execution&sysparm_limit=20"
@@ -27,7 +27,7 @@
     sn_sgo_amr_actions: "{{ sn_rest_json.result | default([]) }}"
 
 - name: Deactivate non-Create-Incident actions on SGO-Dynatrace AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_alert_man_m2m_rule_flow
@@ -42,7 +42,7 @@
     - item.active | default('') in ['true', '1', true, 1]
 
 - name: Look up Create Incident action on SGO-Dynatrace AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_man_m2m_rule_flow
     sn_rest_query: "sysparm_query=management_rule={{ sn_sgo_ootb_amr_sys_id }}^sub_flow={{ sn_l2i_create_incident_subflow_sys_id }}&sysparm_fields=sys_id,sub_flow,active&sysparm_limit=5"
@@ -52,7 +52,7 @@
     sn_sgo_create_incident_action: "{{ sn_rest_json.result | default([]) }}"
 
 - name: Attach OOTB Create Incident subflow to SGO-Dynatrace AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: em_alert_man_m2m_rule_flow
@@ -65,7 +65,7 @@
   when: (sn_sgo_create_incident_action | default([]) | length) == 0
 
 - name: Activate existing Create Incident action on SGO-Dynatrace AMR
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_alert_man_m2m_rule_flow

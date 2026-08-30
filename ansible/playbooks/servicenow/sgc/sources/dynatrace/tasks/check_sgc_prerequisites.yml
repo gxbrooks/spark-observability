@@ -1,7 +1,7 @@
 ---
 # Verify Service Graph Connector for Observability – Dynatrace is installed and reachable.
 - name: Query scoped application for Dynatrace SGC
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_scope
     sn_rest_query: "sysparm_query=scope={{ sn_sgc_app_scope }}&sysparm_fields=scope,name,sys_id&sysparm_limit=1"
@@ -12,7 +12,7 @@
   run_once: true
 
 - name: Query CMDB records sourced from Dynatrace SGC
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: cmdb_ci
     sn_rest_query: "sysparm_query=discovery_source={{ sn_sgc_discovery_source | urlencode }}&sysparm_fields=name,discovery_source,sys_class_name,sys_id&sysparm_limit=5"
@@ -23,7 +23,7 @@
   run_once: true
 
 - name: Query sys_object_source for Dynatrace entity keys (event CI binding)
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sys_object_source
     sn_rest_query: "sysparm_query=name={{ sn_sgc_discovery_source | urlencode }}&sysparm_fields=name,id,target_table,target_sys_id,sys_created_on&sysparm_limit=5"
@@ -42,7 +42,7 @@
         sys_object_source rows (name={{ sn_sgc_discovery_source }}): sample={{ sn_sgc_object_source_count }}
       {% if not sn_sgc_scope_present | bool %}
       ACTION: Run playbooks/servicenow/sgc/install.yml (installs the
-      sgc/common/store_apps.yml manifest in order; skips apps already installed). Manual fallback:
+      servicenow/integrations/sgc/store_apps.yml manifest in order; skips apps already installed). Manual fallback:
       servicenow/docs/install.md §7. Then complete Guided Setup under Dynatrace
       Observability → Setup.
       {% endif %}

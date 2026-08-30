@@ -1,23 +1,35 @@
 ---
-# Ensure brooks-lab MID Server is Up and validated (Discovery will not dispatch probes otherwise).
+# Ensure brooks-lab MID Server is validated and able to serve Discovery.
 # Sets sn_mid_validation_changed when validated was flipped via API (caller should restart MID).
+#
+# ecc_agent status "Upgrade Failed" is not fatal when the MID is validated and its
+# reported version matches the pinned installer build. ServiceNow leaves that
+# status set after a skipped/stale auto-upgrade even while the agent is current.
 
 - name: Initialize MID validation flags
   ansible.builtin.set_fact:
     sn_mid_validation_changed: false
 
 - name: Look up brooks-lab MID Server in ecc_agent
-  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: sn-rest-get.yml
   vars:
     sn_rest_table: ecc_agent
     sn_rest_query: >-
-      sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=name,status,validated,sys_id&sysparm_limit=1
+      sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=name,status,validated,version,sys_id,unresolved_issues&sysparm_limit=1
 
 - name: Record MID registration facts
   ansible.builtin.set_fact:
     sn_mid_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
     sn_mid_status: "{{ sn_rest_json.result[0].status | default('') }}"
     sn_mid_validated: "{{ sn_rest_json.result[0].validated | default('') | string }}"
+    sn_mid_version: "{{ sn_rest_json.result[0].version | default('') }}"
+    sn_mid_unresolved_issues: "{{ sn_rest_json.result[0].unresolved_issues | default('') }}"
+    sn_mid_version_matches_installer: >-
+      {{
+        (sn_mid_installer_deb_url | default('') | length == 0)
+        or (sn_rest_json.result[0].version | default('') | length > 0
+            and (sn_rest_json.result[0].version | default('')) in (sn_mid_installer_deb_url | default('')))
+      }}
   when: sn_rest_json.result | default([]) | length > 0
 
 - name: Fail when MID is not registered
@@ -28,13 +40,34 @@
       UI: {{ sn_url }}/ecc_agent_list.do
   when: sn_rest_json.result | default([]) | length == 0
 
-- name: Fail when MID is not Up
+- name: Accept Upgrade Failed when MID is validated and on the pinned build
+  ansible.builtin.debug:
+    msg: |
+      MID {{ sn_mid_server_name }} status=Upgrade Failed, validated={{ sn_mid_validated }},
+      version={{ sn_mid_version }} (matches pinned SN_MID_INSTALLER_DEB_URL).
+      Treat as ready for Discovery; ServiceNow did not clear the upgrade status.
+      UI: {{ sn_url }}/ecc_agent.do?sys_id={{ sn_mid_sys_id }}
+  when:
+    - sn_mid_status == 'Upgrade Failed'
+    - sn_mid_validated == 'true'
+    - sn_mid_version_matches_installer | bool
+
+- name: Fail when MID cannot serve Discovery
   ansible.builtin.fail:
     msg: |
-      MID Server {{ sn_mid_server_name }} status={{ sn_mid_status }} (expect Up).
+      MID Server {{ sn_mid_server_name }} status={{ sn_mid_status }} version={{ sn_mid_version }}
+      (expect Up, or Upgrade Failed while validated and on the pinned installer build).
       Run start.yml on Lab3 or check MID Server > Issues in ServiceNow.
       UI: {{ sn_url }}/ecc_agent.do?sys_id={{ sn_mid_sys_id }}
-  when: sn_mid_status != 'Up'
+  when: >-
+    not (
+      sn_mid_status == 'Up'
+      or (
+        sn_mid_status == 'Upgrade Failed'
+        and sn_mid_validated == 'true'
+        and (sn_mid_version_matches_installer | bool)
+      )
+    )
 
 - name: Validate MID Server when not yet validated
   ansible.builtin.uri:

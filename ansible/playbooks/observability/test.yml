@@ -6,6 +6,13 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/observability/test.yml
 # Tags: test, observability
+#
+# If elasticsearch/test.yml fails with a license-non-compliant 403 (trial expires
+# about monthly), confirm with the operator, then:
+#   ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
+#   ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
+#   ansible-playbook -i inventory.yml playbooks/observability/start.yml
+# Dropping ES state is expected. Do not call start_basic if Watcher is required.
 
 - import_playbook: elasticsearch/test.yml
 - import_playbook: logstash/test.yml

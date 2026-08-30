@@ -1,7 +1,8 @@
 ---
 # ServiceNow mid-linux-installer .deb declares Depends: glibc (RHEL package name).
 # Ubuntu provides glibc via libc6, which leaves agent broken in dpkg and blocks apt.
-# Build and install a local glibc metapackage from files/glibc-control (idempotent).
+# Build and install a local glibc metapackage from
+# servicenow/integrations/discovery/glibc-control (idempotent).
 # Uses dpkg-deb (not equivs) so this works when apt is already broken by agent.
 
 - name: Check if glibc metapackage is already installed
@@ -21,7 +22,7 @@
 
 - name: Copy glibc-control into metapackage DEBIAN directory
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/files/glibc-control"
+    src: "{{ sn_discovery_integrations_dir }}/glibc-control"
     dest: /tmp/glibc-metapkg/DEBIAN/control
     mode: "0644"
   become: true

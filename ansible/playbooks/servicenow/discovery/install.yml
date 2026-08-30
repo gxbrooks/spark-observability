@@ -12,7 +12,7 @@
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: common/regenerate_context.yml
+      ansible.builtin.include_tasks: tasks/regenerate-context.yml
 
     - name: Ensure vars directory exists
       ansible.builtin.file:

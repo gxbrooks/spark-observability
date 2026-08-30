@@ -1,0 +1,10 @@
+{
+  "name": "L2I Create Incident CRITICAL_LOG_EVENT",
+  "active": "false",
+  "type": "incident",
+  "order": "50",
+  "automatic_execution_setting": "1",
+  "multiple_alert_rules": "1",
+  "description": "L2I: reserved AMR for CRITICAL_LOG_EVENT. Keep inactive until a published Flow uses action Create incident from Alert (EvtMgmtIncidentHandler).",
+  "alert_filter": "maintenance=false^incidentISEMPTY^severity<={{ sn_incident_max_severity }}^descriptionLIKECRITICAL_LOG_EVENT^source=SGO-Dynatrace^correlation_group!=Secondary"
+}

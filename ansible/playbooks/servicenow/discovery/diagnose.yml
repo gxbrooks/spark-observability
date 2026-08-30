@@ -12,7 +12,7 @@
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: common/regenerate_context.yml
+      ansible.builtin.include_tasks: tasks/regenerate-context.yml
 
     - name: Test API authentication
       ansible.builtin.uri:
@@ -81,7 +81,7 @@
 
     - name: Look up MID Server registration in ServiceNow
       ansible.builtin.uri:
-        url: "{{ sn_url }}/api/now/table/ecc_agent?sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=name,status,validated,ip_address,version,sys_id&sysparm_limit=1"
+        url: "{{ sn_url }}/api/now/table/ecc_agent?sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=name,status,validated,ip_address,version,sys_id,unresolved_issues&sysparm_limit=1"
         method: GET
         user: "{{ sn_user }}"
         password: "{{ sn_password }}"
@@ -101,6 +101,7 @@
         sn_mid_sn_ip: "{{ sn_mid_registration.json.result[0].ip_address | default('') }}"
         sn_mid_sn_version: "{{ sn_mid_registration.json.result[0].version | default('') }}"
         sn_mid_sn_sys_id: "{{ sn_mid_registration.json.result[0].sys_id | default('') }}"
+        sn_mid_sn_unresolved: "{{ sn_mid_registration.json.result[0].unresolved_issues | default('') }}"
       when: sn_auth_test.status == 200
 
     - name: Record MID registration unavailable
@@ -114,6 +115,7 @@
         msg: >-
           {{ sn_mid_server_name }}:
           {{ 'REGISTERED status=' ~ sn_mid_sn_status ~ ' validated=' ~ sn_mid_sn_validated
+             ~ ' version=' ~ sn_mid_sn_version
              if sn_mid_registered | default(false)
              else 'NOT REGISTERED in ecc_agent (install MID on Lab3 or check name/credentials)' }}
 
@@ -375,7 +377,7 @@
           {% endfor %}
 
           MID Server {{ sn_mid_server_name }}:
-          - ServiceNow ecc_agent: {{ 'REGISTERED (' ~ hostvars['localhost'].sn_mid_sn_status ~ ', validated=' ~ hostvars['localhost'].sn_mid_sn_validated ~ ')' if hostvars['localhost'].sn_mid_registered | default(false) else 'NOT REGISTERED' }}
+          - ServiceNow ecc_agent: {{ 'REGISTERED (' ~ hostvars['localhost'].sn_mid_sn_status ~ ', validated=' ~ hostvars['localhost'].sn_mid_sn_validated ~ ', version=' ~ hostvars['localhost'].sn_mid_sn_version ~ ')' if hostvars['localhost'].sn_mid_registered | default(false) else 'NOT REGISTERED' }}
           - Lab3 install: {{ 'installed, service ' ~ hostvars['Lab3'].sn_mid_host_service if hostvars['Lab3'].sn_mid_host_installed | default(false) else 'NOT INSTALLED' }}
           - MID credentials in secrets: SN_MID_USER={{ 'set' if sn_mid_user | length > 0 else 'MISSING' }}, SN_MID_PASSWORD={{ 'set' if sn_mid_password | length > 0 else 'MISSING' }}
 

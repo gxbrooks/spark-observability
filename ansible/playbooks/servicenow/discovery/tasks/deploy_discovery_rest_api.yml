@@ -5,7 +5,7 @@
 # Requires: web_service_admin (create sys_ws_*), discovery_admin (script calls Discovery API).
 
 - name: Look up Discovery Operations REST API definition
-  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: sn-rest-get.yml
   vars:
     sn_rest_table: sys_ws_definition
     sn_rest_query: >-
@@ -17,51 +17,8 @@
     sn_discovery_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
   when: sn_rest_json.result | default([]) | length > 0
 
-- name: Look up legacy REST API definition names
-  ansible.builtin.uri:
-    url: >-
-      {{ sn_url }}/api/now/table/sys_ws_definition?sysparm_query=name={{ item | urlencode
-      }}&sysparm_fields=sys_id,name,base_uri&sysparm_limit=1
-    method: GET
-    user: "{{ sn_user }}"
-    password: "{{ sn_password }}"
-    force_basic_auth: true
-    headers: "{{ sn_api_headers }}"
-    status_code: [200]
-    return_content: true
-  register: sn_legacy_rest_api_lookups
-  loop: "{{ sn_discovery_rest_api_legacy_names }}"
-  loop_control:
-    label: "{{ item }}"
-  no_log: true
-  when: sn_discovery_rest_ws_sys_id | default('') | length == 0
-
-- name: Adopt legacy REST API definition
-  ansible.builtin.set_fact:
-    sn_discovery_rest_ws_sys_id: "{{ item.json.result[0].sys_id }}"
-    sn_discovery_rest_base_uri: "{{ item.json.result[0].base_uri }}"
-    sn_discovery_rest_legacy_name: "{{ item.item }}"
-  loop: "{{ sn_legacy_rest_api_lookups.results | default([]) }}"
-  when:
-    - sn_discovery_rest_ws_sys_id | default('') | length == 0
-    - item.json.result | default([]) | length > 0
-  loop_control:
-    label: "{{ item.item | default('legacy') }}"
-
-- name: Rename legacy REST API definition to current name
-  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
-  vars:
-    sn_rest_method: patch
-    sn_rest_table: sys_ws_definition
-    sn_rest_sys_id: "{{ sn_discovery_rest_ws_sys_id }}"
-    sn_rest_body:
-      name: "{{ sn_discovery_rest_api_name }}"
-      short_description: >-
-        Trigger Discovery schedule runs and Quick Discovery (Ansible / REST automation).
-  when: sn_discovery_rest_legacy_name | default('') | length > 0
-
 - name: Create Discovery Operations REST API definition
-  ansible.builtin.include_tasks: ../common/sn_rest_mutate.yml
+  ansible.builtin.include_tasks: sn-rest-mutate.yml
   vars:
     sn_rest_method: post
     sn_rest_table: sys_ws_definition
@@ -83,7 +40,7 @@
     - sn_rest_record.sys_id | length > 0
 
 - name: Refresh Discovery Operations REST API definition lookup
-  ansible.builtin.include_tasks: ../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: sn-rest-get.yml
   vars:
     sn_rest_table: sys_ws_definition
     sn_rest_query: >-

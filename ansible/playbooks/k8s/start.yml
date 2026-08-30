@@ -1,5 +1,5 @@
 ---
-# start_k8s.yml - Starts Kubernetes services and ensures they are running
+# Start Kubernetes services and ensure they are running.
 
 - name: Start Kubernetes services
   hosts: spark_kubernetes:&linux
@@ -21,7 +21,7 @@
 
     - name: Fail if swap is enabled
       fail:
-        msg: "Swap is enabled on this system. Kubernetes requires swap to be disabled. Run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml' to disable swap."
+        msg: "Swap is enabled on this system. Kubernetes requires swap to be disabled. Run 'ansible-playbook -i inventory.yml playbooks/k8s/install.yml' to disable swap."
       when: swap_status.stdout != ""
 
     # === Certificate Validation ===
@@ -64,7 +64,7 @@
           {% endfor %}
           
           To regenerate certificates, run:
-          ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+          ansible-playbook -i inventory.yml playbooks/k8s/tasks/regenerate-k8s-certs.yml
           
           Or to regenerate just the missing client certificate:
           kubeadm init phase certs apiserver-kubelet-client
@@ -280,7 +280,7 @@
 
     - name: Fail if CNI plugins are missing
       fail:
-        msg: "CNI plugins are not installed. Run 'ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml' to install them."
+        msg: "CNI plugins are not installed. Run 'ansible-playbook -i inventory.yml playbooks/k8s/install.yml' to install them."
       when: 
         - is_worker_node
         - not cni_bin_dir.stat.exists

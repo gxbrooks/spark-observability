@@ -22,7 +22,7 @@
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Regenerate service-now context when stale
-      ansible.builtin.include_tasks: common/regenerate_context.yml
+      ansible.builtin.include_tasks: tasks/regenerate-context.yml
 
     - name: Ensure MID Server is validated for Discovery
       ansible.builtin.include_tasks: tasks/validate_mid_server.yml
@@ -103,7 +103,7 @@
       when: sn_discovery_rest_operation_uri | default('') | length == 0
 
     - name: Look up schedule by name when context missing
-      ansible.builtin.include_tasks: common/sn_rest_get.yml
+      ansible.builtin.include_tasks: tasks/sn-rest-get.yml
       vars:
         sn_rest_table: discovery_schedule
         sn_rest_query: "sysparm_query=name={{ sn_discovery_schedule_name | urlencode }}&sysparm_limit=1"

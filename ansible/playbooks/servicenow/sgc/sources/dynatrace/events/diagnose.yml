@@ -43,7 +43,7 @@
         or 'spark lab' in (item.value.summary | default('') | lower)
 
     - name: Query recent ServiceNow em_event rows (Dynatrace sources)
-      ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
       vars:
         sn_rest_table: em_event
         sn_rest_query: "sysparm_query=sourceIN{{ sn_sgc_event_source }},{{ sn_dt_legacy_event_source }}^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,message,sys_created_on,cmdb_ci&sysparm_limit=10"

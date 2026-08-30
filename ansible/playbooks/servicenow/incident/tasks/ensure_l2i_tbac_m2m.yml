@@ -3,7 +3,7 @@
 # Unlink any other tags still attached (e.g. legacy l2i.* / log.signature names).
 
 - name: Collect L2I TBAC tag sys_ids
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sn_em_tbac_alert_clustering_tags
     sn_rest_query: "sysparm_query=nameIN{{ sn_l2i_tbac_tags | map(attribute='name') | join(',') | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=20"
@@ -20,7 +20,7 @@
     label: "{{ item.name }}"
 
 - name: List all m2m links for L2I TBAC definition
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: sn_em_tbac_alert_clustering_definitions_tags_m2m
     sn_rest_query: "sysparm_query=alert_clustering_definition={{ sn_l2i_tbac_def_sys_id }}&sysparm_fields=sys_id,alert_clustering_tag&sysparm_limit=50"

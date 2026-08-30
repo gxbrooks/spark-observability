@@ -8,16 +8,18 @@ Automates installation of the ServiceNow Store applications required for the
 
 | Path | Purpose |
 | ---- | ------- |
-| `install.yml` | Install required Store apps + plugins (`common/store_apps.yml`) via CI/CD App Repo Install (by scope) / plugin activation |
+| `install.yml` | Install required Store apps + plugins (`servicenow/integrations/sgc/store_apps.yml`) via CI/CD App Repo Install (by scope) / plugin activation |
 | `deploy.yml` | Instance-side SGC validation gate (cross-source) |
 | `diagnose.yml` | Component versions (installed vs pinned vs latest), SGC state, CMDB merge state |
-| `common/` | Shared vars and reusable tasks (`check_store_apps.yml`, `poll_cicd_progress.yml`) |
+| `common/` | Shared variables (`vars.yml`) |
+| `tasks/` | Store-app install, CI/CD poll, compatibility, and RTE repair task playbooks |
 | `sources/dynatrace/` | All Dynatrace-specific configuration for the SGC and events |
 | `sources/dynatrace/deploy.yml` | Automated SGC topology configuration (MZ scoping, scoped properties, schedule activation) |
 | `sources/dynatrace/start.yml` | Queue Execute Now on SGO-Dynatrace Hosts and monitor import cascade |
 | `sources/dynatrace/docs/deploy.md` | Manual deployment steps (connection_admin grant, UI fallbacks) |
 | `sources/dynatrace/events/` | Dynatrace → ServiceNow event playbooks (deploy / diagnose / test) |
-| `sources/dynatrace/tasks/`, `files/` | Dynatrace task fragments and JSON payload templates |
+| `sources/dynatrace/tasks/` | Dynatrace task fragments |
+| `servicenow/integrations/sgc/` | SGC business-rule scripts |
 
 Future SGC or event **sources** (e.g. another APM) get their own directory
 under `sources/`. CMDB-specific configuration beyond the SGC (none today)
@@ -34,8 +36,8 @@ Per `standards/automation.md`:
   readable by the automation user), the playbook emits an informational message
   that the action is being redone.
 - **Version pinning** — required apps and pinned versions live in
-  `common/store_apps.yml` (`sn_store_apps`; local to sgc because only these
-  playbooks consume it). `diagnose.yml` reports installed vs pinned vs
+  `servicenow/integrations/sgc/store_apps.yml` (`sn_store_apps`).
+  `diagnose.yml` reports installed vs pinned vs
   latest-available versions. `install.yml` warns on pin drift but does not
   upgrade apps on the shared instance.
 
@@ -48,12 +50,12 @@ a missing variable fails the play. Secrets: `vars/secrets.yaml` → `servicenow:
 
 Key context variables: `SN_URL`, `SN_DT_LEGACY_CONNECTOR_SYS_ID`,
 `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
-(`sn_store_apps`) is sgc-local in `common/store_apps.yml`.
+(`sn_store_apps`) is `servicenow/integrations/sgc/store_apps.yml`.
 
 Webhook credentials for the SGO-Dynatrace cutover live in `vars/secrets.yaml`
 under `servicenow.SN_DT_WEBHOOK_USER` / `SN_DT_WEBHOOK_PASSWORD` (written on
 first `events/deploy.yml` after SGC install). `events/deploy.yml` updates only
-the brooks-lab Dynatrace problem notification — not Demo 1 (`712a39811…`).
+the brooks-lab Dynatrace problem notification.
 
 ## Playbooks
 
@@ -96,7 +98,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 - `install.yml` automation path requires `admin_brooks_lab` to have
   **`sn_cicd.sys_ci_automation`** (CI/CD App Repo Install + plugin activation).
   When components need installing, a bootstrap preflight
-  (`common/check_cicd_bootstrap.yml`) checks that the role record exists
+  (`tasks/check-cicd-bootstrap.yml`) checks that the role record exists
   (i.e. the CI/CD tooling is on the instance) and that the automation user
   holds it, and fails fast naming the exact missing manual step. Perform the
   step and re-run — completed work is skipped. The role can only be granted

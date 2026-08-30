@@ -2,6 +2,12 @@
 # Test Elasticsearch health and data freshness.
 # Standalone: ansible-playbook -i inventory.yml playbooks/observability/elasticsearch/test.yml
 # Or imported from the top-level test.yml.
+#
+# License 403 (trial expired, about monthly): confirm with the operator, then
+#   playbooks/observability/stop.yml -e delete_volumes=true
+#   playbooks/observability/deploy.yml
+#   playbooks/observability/start.yml
+# Dropping ES/Kibana volume state is expected. Do not call start_basic if Watcher is required.
 
 - name: Test Elasticsearch
   hosts: observability
@@ -15,6 +21,9 @@
     observability_dir: "/home/ansible/ops/observability"
     observability_env_file: "{{ observability_dir }}/.env"
   tasks:
+    - name: Resolve ES password from host .env
+      ansible.builtin.include_tasks: common/resolve_es_password.yml
+
     - name: Run shared health checks
       ansible.builtin.include_tasks: common/health_check_tasks.yml
 

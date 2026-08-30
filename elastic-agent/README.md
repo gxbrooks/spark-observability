@@ -31,7 +31,7 @@ ansible-playbook playbooks/elastic-agent/install.yml -l Lab1,Lab2
 ansible-playbook playbooks/elastic-agent/install.yml -l Lab2
 
 # Check status
-ansible-playbook playbooks/elastic-agent/status.yml
+ansible-playbook playbooks/elastic-agent/diagnose.yml
 ```
 
 ## Architecture
@@ -251,7 +251,7 @@ ansible Lab1,Lab2 -m shell -a "sudo /opt/Elastic/Agent/elastic-agent status"
 - `ansible/playbooks/elastic-agent/install.yml` - Installation playbook
 - `ansible/playbooks/elastic-agent/start.yml` - Start agent service
 - `ansible/playbooks/elastic-agent/stop.yml` - Stop agent service
-- `ansible/playbooks/elastic-agent/status.yml` - Check agent status
+- `ansible/playbooks/elastic-agent/diagnose.yml` - Check agent status
 - `ansible/host_vars/Lab1.yml` - Lab1-specific variables
 - `ansible/host_vars/Lab2.yml` - Lab2-specific variables
 

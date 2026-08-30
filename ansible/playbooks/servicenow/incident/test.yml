@@ -1,0 +1,21 @@
+---
+# Test Log-to-Incident CI bindings and spark-client incidents.
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/test.yml -e @../vars/secrets.yaml
+
+- name: Test Log-to-Incident bindings
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+    - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
+  tasks:
+    - name: Test log incident bindings
+      ansible.builtin.include_tasks: tasks/test_log_incident_bindings.yml
+
+    - name: Test spark-client application service bindings
+      ansible.builtin.include_tasks: tasks/test_spark_client_as.yml

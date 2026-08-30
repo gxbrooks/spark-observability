@@ -69,7 +69,7 @@ Required role: **`service_mapping_admin`** on Zurich ( **`sm_admin`** is often a
 
 ## Tag Categories to create
 
-One category covers all workloads in this lab (created automatically by `ansible/playbooks/servicenow/service-mapping/common/ensure_tag_categories.yml`; key variable `sn_csdm_tag_key_service_instance` in `service-mapping/common/vars.yml`):
+One category covers all workloads in this lab (created automatically by `ansible/playbooks/servicenow/service-mapping/tasks/ensure-tag-categories.yml`; key variable `sn_csdm_tag_key_service_instance` in `service-mapping/common/vars.yml`):
 
 | Tag Category (display name) | Label key to include | Used for |
 |----------------------------|------------------------|----------|

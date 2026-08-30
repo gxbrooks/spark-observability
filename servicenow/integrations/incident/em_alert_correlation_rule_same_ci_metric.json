@@ -1,0 +1,12 @@
+{
+  "name": "L2I Same CI and metric_name",
+  "active": "true",
+  "advanced": "true",
+  "generate_virtual_alerts": "false",
+  "order": "20",
+  "time_difference": "60",
+  "relationship_type": "2",
+  "table": "em_alert",
+  "advanced_filter": "source=SGO-Dynatrace^metric_nameISNOTEMPTY",
+  "description": "L2I rule-based: Open SGO-Dynatrace alerts with the same CI and the same metric_name (Log-Error:{signature}) join as Primary/Secondary. Empty metric_name is not grouped here."
+}

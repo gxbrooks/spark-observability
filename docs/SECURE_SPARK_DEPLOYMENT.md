@@ -51,7 +51,7 @@ This will:
 
 During the initial Kubernetes setup, certificates are created automatically with:
 ```bash
-ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/install.yml
 ```
 
 ### After Hostname or Network Changes
@@ -62,13 +62,13 @@ If your cluster's hostname or network configuration changes, regenerate certific
 # Step 1: Update your inventory.yml with current hostnames/IPs
 
 # Step 2: Regenerate certificates with proper hostnames
-ansible-playbook -i inventory.yml ansible/playbooks/k8s/regenerate_k8s_certs.yml
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/tasks/regenerate-k8s-certs.yml
 
 # Step 3: Update kubeconfig files with new certificates 
-ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml --tags=kubeconfig
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/install.yml --tags=kubeconfig
 
 # Step 4: Restart Kubernetes services
-ansible-playbook -i inventory.yml ansible/playbooks/k8s/start_k8s.yml
+ansible-playbook -i inventory.yml ansible/playbooks/k8s/start.yml
 ```
 
 The certificate regeneration process:
@@ -96,7 +96,7 @@ The solution uses the following approach for certificate management:
 4. Hostname validation is automatically verified during installation and certificate regeneration
 5. **Case-insensitive hostname matching** ensures certificates work with different hostname capitalizations
 6. Both original and lowercase versions of each hostname are included in certificate SANs
-7. When network configurations change, `regenerate_k8s_certs.yml` creates new certificates with correct hostnames
+7. When network configurations change, `regenerate-k8s-certs.yml` creates new certificates with correct hostnames
 8. Group permissions ensure both development and runtime users have access
 9. Certificate validation is automatically tested during setup to detect potential issues
 
@@ -147,13 +147,13 @@ If you encounter certificate problems:
 3. Regenerate certificates with the correct hostname:
    ```bash
    # The regeneration playbook will include both original and lowercase variants of all hostnames
-   ansible-playbook -i inventory.yml ansible/playbooks/k8s/regenerate_k8s_certs.yml
+   ansible-playbook -i inventory.yml ansible/playbooks/k8s/tasks/regenerate-k8s-certs.yml
    
    # Update kubeconfig files with the new certificates
-   ansible-playbook -i inventory.yml ansible/playbooks/k8s/install_k8s.yml --tags=kubeconfig
+   ansible-playbook -i inventory.yml ansible/playbooks/k8s/install.yml --tags=kubeconfig
    
    # Restart Kubernetes services
-   ansible-playbook -i inventory.yml ansible/playbooks/k8s/start_k8s.yml
+   ansible-playbook -i inventory.yml ansible/playbooks/k8s/start.yml
    ```
 
 4. Validate that kubeconfig is properly configured with certificate validation:

@@ -12,7 +12,8 @@ sn_api_headers:
   Content-Type: application/json
 
 sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
-sn_discovery_common_dir: "{{ sn_servicenow_playbooks_dir }}/discovery/common"
+sn_repo_root: "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}"
+sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/ansible/playbooks/servicenow/discovery/tasks"
 
 # CMDB 360 (legacy name: Multisource CMDB) — see ServiceNow docs / CMDB 360 Properties UI.
 sn_cmdb_itom_discovery_license_plugin: com.snc.itom.discovery.license

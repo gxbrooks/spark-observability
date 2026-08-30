@@ -2,7 +2,7 @@
 # Collect running containers on a DOCKER_HOSTS entry and upsert cmdb_ci_docker_container rows.
 
 - name: "Resolve CMDB host CI for {{ sn_docker_host.cmdb_host_name }}"
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmdb_ci_linux_server
     sn_rest_query: "sysparm_query=name={{ sn_docker_host.cmdb_host_name | urlencode }}&sysparm_fields=sys_id,name,location,location.name&sysparm_limit=1"
@@ -19,7 +19,7 @@
     sn_docker_host_location_sys_id: "{{ sn_rest_json.result[0].location.value | default(sn_rest_json.result[0].location | default('')) }}"
 
 - name: "Look up cmn_location {{ sn_docker_host.location }} when host has no location"
-  ansible.builtin.include_tasks: ../../common/sn_rest_get.yml
+  ansible.builtin.include_tasks: ../sn-rest-get.yml
   vars:
     sn_rest_table: cmn_location
     sn_rest_query: "sysparm_query=name={{ sn_docker_host.location | urlencode }}&sysparm_limit=1"
@@ -106,13 +106,8 @@
 
 - name: Retire stale Docker container CIs on host
   ansible.builtin.include_tasks: cleanup_stale_container_cis.yml
-  vars:
-    sn_csdm_tasks_dir: "{{ sn_discovery_common_dir | default(playbook_dir ~ '/../common') }}"
-
 - name: Retire duplicate Docker container CIs by name on host
   ansible.builtin.include_tasks: cleanup_duplicate_docker_cis_by_name.yml
-  vars:
-    sn_csdm_tasks_dir: "{{ sn_discovery_common_dir | default(playbook_dir ~ '/../common') }}"
 
 - name: "Docker sync summary for {{ sn_docker_host.name }}"
   ansible.builtin.debug:

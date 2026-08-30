@@ -55,11 +55,8 @@ cd ansible
 ansible-playbook -i inventory.yml playbooks/observability/dynatrace/deploy.yml \
   -e @../vars/secrets.yaml --tags partitioning
 
-# OOTB Kubernetes monitoring (clusters / namespaces / nodes / workloads / volumes)
-ansible-playbook -i inventory.yml playbooks/observability/dynatrace/k8s_monitoring_start.yml \
-  -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/observability/dynatrace/k8s_monitoring_stop.yml \
-  -e @../vars/secrets.yaml
+# OOTB Kubernetes monitoring is enabled by dynatrace/start.yml and
+# disabled by dynatrace/stop.yml (clusters / namespaces / nodes / workloads / volumes)
 
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
   -e @../vars/secrets.yaml

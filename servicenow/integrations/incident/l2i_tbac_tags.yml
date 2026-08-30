@@ -1,0 +1,9 @@
+- name: L2I exact match sn-environment
+  key: ProblemDetailsJSON.rankedEvents[0].customProperties.sn-environment
+  description: L2I environment partition (lab/prod)
+- name: L2I exact match sn-service-instance
+  key: ProblemDetailsJSON.rankedEvents[0].customProperties.sn-service-instance
+  description: L2I service instance clustering key
+- name: L2I exact match sn-log-signature
+  key: ProblemDetailsJSON.rankedEvents[0].customProperties.sn-log-signature
+  description: L2I Log4j Class:Line signature

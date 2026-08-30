@@ -483,7 +483,7 @@ cd spark-observability
 ./linux/verify_id_consistency.sh
 
 # 4. Deploy Kubernetes and Spark
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start_k8s.yml --limit Lab3
+ansible-playbook -i ansible/inventory.yml ansible/playbooks/k8s/start.yml --limit Lab3
 ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/deploy.yml --limit Lab3
 ```
 

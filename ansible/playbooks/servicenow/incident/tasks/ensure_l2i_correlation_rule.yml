@@ -1,39 +1,28 @@
 ---
 # Rule-based grouping for <CI>|<signature>: same cmdb_ci and same metric_name.
-# Real Primary so AMR SGO-Dynatrace (is not Secondary) can ticket the SGO alert.
-# Empty metric_name is skipped (host CPU stays out of this rule).
+# Payload: em_alert_correlation_rule_same_ci_metric.json + em_corr_same_ci_metric.js
+- name: Load L2I correlation rule representation
+  ansible.builtin.set_fact:
+    sn_l2i_corr_body: >-
+      {{
+        lookup('file', sn_incident_integrations_dir + '/em_alert_correlation_rule_same_ci_metric.json')
+        | from_json
+        | combine({'script': lookup('file', sn_incident_integrations_dir + '/em_corr_same_ci_metric.js')})
+      }}
 
 - name: Look up L2I Same CI + metric_name correlation rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert_correlation_rule
-    sn_rest_query: "sysparm_query=name={{ sn_l2i_corr_rule_name | urlencode }}&sysparm_limit=1"
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_corr_body.name | urlencode }}&sysparm_limit=1"
 
 - name: Record L2I correlation rule state
   ansible.builtin.set_fact:
     sn_l2i_corr_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
     sn_l2i_corr_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
 
-- name: Build L2I correlation rule body
-  ansible.builtin.set_fact:
-    sn_l2i_corr_body:
-      name: "{{ sn_l2i_corr_rule_name }}"
-      active: "true"
-      advanced: "true"
-      generate_virtual_alerts: "false"
-      order: "{{ sn_l2i_corr_rule_order | default('20') }}"
-      time_difference: "60"
-      relationship_type: "2"
-      table: em_alert
-      advanced_filter: "source=SGO-Dynatrace^metric_nameISNOTEMPTY"
-      description: >-
-        L2I rule-based: Open SGO-Dynatrace alerts with the same CI and the
-        same metric_name (Log-Error:{signature}) join as Primary/Secondary.
-        Empty metric_name is not grouped here.
-      script: "{{ lookup('file', sn_incident_integrations_dir + '/em_corr_same_ci_metric.js') }}"
-
 - name: Create L2I correlation rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: post
     sn_rest_table: em_alert_correlation_rule
@@ -41,7 +30,7 @@
   when: not sn_l2i_corr_exists | bool
 
 - name: Update L2I correlation rule
-  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
     sn_rest_table: em_alert_correlation_rule

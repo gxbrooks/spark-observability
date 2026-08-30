@@ -41,7 +41,7 @@ ansible-playbook -i inventory.yml playbooks/start.yml
 
 4. Certificate management (after hostname/network changes):
 ```bash
-ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+ansible-playbook -i inventory.yml playbooks/k8s/tasks/regenerate-k8s-certs.yml
 ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
 ```
 
@@ -226,19 +226,19 @@ The project includes a set of Ansible playbooks for managing Kubernetes clusters
 ```bash
 # Initial setup: Install and set up Kubernetes
 cd ansible
-ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml
+ansible-playbook -i inventory.yml playbooks/k8s/install.yml
 
 # After hostname or network changes:
 # 1. First regenerate certificates with current hostnames
-ansible-playbook -i inventory.yml playbooks/k8s/regenerate_k8s_certs.yml
+ansible-playbook -i inventory.yml playbooks/k8s/tasks/regenerate-k8s-certs.yml
 # 2. Then recreate kubeconfig files to use the new certificates
-ansible-playbook -i inventory.yml playbooks/k8s/install_k8s.yml --tags=kubeconfig
+ansible-playbook -i inventory.yml playbooks/k8s/install.yml --tags=kubeconfig
 
 # Check Kubernetes cluster status
-ansible-playbook -i inventory.yml playbooks/k8s/status_k8s.yml
+ansible-playbook -i inventory.yml playbooks/k8s/diagnose.yml
 
 # Start/Stop Kubernetes services
-ansible-playbook -i inventory.yml playbooks/k8s/start_k8s.yml
+ansible-playbook -i inventory.yml playbooks/k8s/start.yml
 ansible-playbook -i inventory.yml playbooks/k8s/stop_k8s.yml
 
 # Generate a new join token for worker nodes
@@ -246,9 +246,9 @@ ansible-playbook -i inventory.yml playbooks/k8s/create_join_token.yml
 ```
 
 > **Security Note:** The Kubernetes configuration enforces strict TLS certificate validation. When hostnames or network configurations change, always run the playbooks in this exact order:
-> 1. `regenerate_k8s_certs.yml` - Creates new certificates with the current hostnames (includes case-insensitive hostname matching)
-> 2. `install_k8s.yml --tags=kubeconfig` - Creates kubeconfig files with the new certificates
-> 3. `start_k8s.yml` - Restarts services with the new configuration
+> 1. `tasks/regenerate-k8s-certs.yml` - Creates new certificates with the current hostnames (includes case-insensitive hostname matching)
+> 2. `install.yml --tags=kubeconfig` - Creates kubeconfig files with the new certificates
+> 3. `start.yml` - Restarts services with the new configuration
 >
 > The playbooks automatically handle hostname case sensitivity by including both original and lowercase variants of all hostnames in the certificates.
 

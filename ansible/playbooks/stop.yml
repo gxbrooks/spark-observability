@@ -43,11 +43,11 @@
 
           ================================================
 
-- import_playbook: jupyter/stop_jupyter.yml
+- import_playbook: jupyter/stop.yml
 
 - import_playbook: spark/stop.yml
 
-- import_playbook: k8s/hadoop/stop_hadoop.yml
+- import_playbook: k8s/hadoop/stop.yml
 
 - name: Remove K8s Prometheus exporters from cluster
   hosts: kubernetes_master

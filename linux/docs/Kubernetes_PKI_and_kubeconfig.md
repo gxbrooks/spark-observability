@@ -18,8 +18,8 @@
 ## Automation in this repo
 
 - **Ansible** `playbooks/k8s/install.yml` (tags `kubeconfig`) builds `~/.kube/config` for the control-plane users using **`admin.crt` / `admin.key`** and **`ca.crt`**.
-- **Ansible** `playbooks/k8s/provision_admin_kubeconfig.yml` copies **`/etc/kubernetes/admin.conf`** to **every** node in `k8s_nodes` so **`kubectl --kubeconfig=/etc/kubernetes/admin.conf`** works on workers for break-glass debugging.
-- **`regenerate_k8s_certs.yml`** updates certs on the **control plane**; re-run **`install.yml --tags kubeconfig`** and refresh local `~/.kube/config` (or rely on **`linux/sync_devops_kubeconfig.sh`** after updating env vars).
+- **Ansible** `playbooks/k8s/tasks/provision-admin-kubeconfig.yml` copies **`/etc/kubernetes/admin.conf`** to **every** node in `k8s_nodes` so **`kubectl --kubeconfig=/etc/kubernetes/admin.conf`** works on workers for break-glass debugging.
+- **`playbooks/k8s/tasks/regenerate-k8s-certs.yml`** updates certs on the **control plane**; re-run **`playbooks/k8s/install.yml --tags kubeconfig`** and refresh local `~/.kube/config` (or rely on **`linux/sync_devops_kubeconfig.sh`** after updating env vars).
 
 ## Devops shell sync (no playbook ordering dependency)
 

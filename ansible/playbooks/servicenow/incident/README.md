@@ -56,8 +56,8 @@ Lab convention for Dynatrace custom event properties that ServiceNow reads:
 | Playbook | Purpose |
 | -------- | ------- |
 | `deploy.yml` | Upsert Script Includes, enrich BRs, grouping properties, SGO-Dynatrace AMR |
-| `verify_log_incident_bindings.yml` | Assert recent SGO-Dynatrace events/alerts |
-| `diagnose.yml` | Open SGO-Dynatrace alerts, log incidents; optional alert↔incident lookup |
+| `test.yml` | Assert recent SGO-Dynatrace events/alerts and spark-client incidents |
+| `diagnose.yml` | Open SGO-Dynatrace alerts, log incidents; includes all `test.yml` checks |
 
 ## Active artifacts (after deploy)
 
@@ -108,12 +108,18 @@ the product path. Deploy re-asserts it **active**. It only marks
 4. `cmdb_ci` is populated.
 
 It does **not** mark Affected CIs (`task_ci`). Deploy upserts the extension
-rule **Affected CIs in Change Window** (`table=task_ci`, `ci_field=ci_item`,
+rule from
+`servicenow/integrations/incident/em_maintenance_rule_affected_cis.json`
+(**Affected CIs in Change Window**: `table=task_ci`, `ci_field=ci_item`,
 planned window + Scheduled/Implement). That is the product gap, not a
 lab-specific rule. Advanced `findCisInMaint()` scripts are easy to drop
 (wrong return type). The Maintenance Calculator job must be running
 (~1 min). Proof is `em_impact_maint_ci.ci_id` (not `ci`). AMR filters
 already require `maintenance=false`.
+
+One-time cleanups (for example, deactivating a leftover rule named
+**L2I Affected CIs in Change Window**) belong in this directory's `tmp/`
+play, not in `deploy.yml`. Git ignores `tmp/`.
 
 The stress driver (`run-stress.sh -cr MINUTES`) creates a **Standard** change,
 walks New → Scheduled → Implement (`work_start` set), and moves to **Review**
