@@ -1,0 +1,45 @@
+---
+# Virtual Automated/Tag/CMDB groups use source=Group Alert. The SGO AMR
+# does not match those rows. Activate the filtered OOTB Primary Alert AMR
+# so one incident is created on the virtual Primary. Leave empty-filter
+# copies inactive.
+
+- name: Look up Create Incident for Primary Alert AMRs
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_management_rule
+    sn_rest_query: "sysparm_query=sys_id={{ sn_l2i_ootb_primary_amr_sys_id }}^ORname={{ sn_l2i_ootb_primary_amr_name | urlencode }}&sysparm_fields=sys_id,name,active,alert_filter&sysparm_limit=10"
+
+- name: Record Primary Alert AMR rows
+  ansible.builtin.set_fact:
+    sn_l2i_primary_amr_rows: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Activate filtered Create Incident for Primary Alert
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_management_rule
+    sn_rest_sys_id: "{{ sn_l2i_ootb_primary_amr_sys_id }}"
+    sn_rest_body:
+      active: "{{ sn_l2i_ootb_primary_amr_active | default('true') }}"
+      alert_filter: "{{ sn_l2i_ootb_primary_amr_filter }}"
+      automatic_execution_setting: "1"
+      description: >-
+        Virtual Group Alert Primary only. Maintenance-savvy.
+        Does not ticket SGO-Dynatrace connector alerts.
+
+- name: Collect extra Primary Alert AMR copies that are active
+  ansible.builtin.set_fact:
+    sn_l2i_primary_amr_extras: "{{ sn_l2i_primary_amr_rows | rejectattr('sys_id', 'equalto', sn_l2i_ootb_primary_amr_sys_id) | list }}"
+
+- name: Deactivate extra Create Incident for Primary Alert copies
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_management_rule
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      active: "false"
+  loop: "{{ sn_l2i_primary_amr_extras }}"
+  when:
+    - item.active | default('') in ['true', '1', true, 1]

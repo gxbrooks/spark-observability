@@ -1,0 +1,44 @@
+---
+# Job-based grouping: require matching metric_name AND cmdb_ci so Automated
+# does not bucket every log on the same service instance. Keep aggregation
+# enabled (PATTERN still runs); TAG_BASED is not added to group_logic_order.
+
+- name: Apply Automated group-by fields (metric_name + cmdb_ci)
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: "{{ sn_l2i_group_by_fields_property }}"
+      value: "{{ sn_l2i_group_by_fields_value }}"
+      description: >-
+        Extra AND for job-based alert grouping. L2I log metric_name is
+        Log-Error:{sn-log-signature}; same CI + same signature group,
+        different signatures stay apart.
+
+- name: Keep alert aggregation enabled
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: sa_analytics.aggregation_enabled
+      value: "true"
+      description: Enable scheduled-job alert grouping (Automated, CMDB, Text)
+
+- name: Confirm TAG_BASED is not in group_logic_order
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_properties
+    sn_rest_query: "sysparm_query=name=sa_analytics.agg.query.group_logic_order&sysparm_fields=sys_id,name,value&sysparm_limit=1"
+
+- name: Record current group_logic_order
+  ansible.builtin.set_fact:
+    sn_l2i_group_logic_order: "{{ (sn_rest_json.result | default([]))[0].value | default('') }}"
+
+- name: Strip TAG_BASED from group_logic_order
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: sa_analytics.agg.query.group_logic_order
+      value: "{{ (sn_l2i_group_logic_order.split(',') | map('trim') | reject('equalto', 'TAG_BASED') | list) | join(',') }}"
+      description: Alert grouping method order (TAG_BASED omitted for L2I)
+  when:
+    - sn_l2i_group_logic_order | length > 0
+    - "'TAG_BASED' in sn_l2i_group_logic_order"

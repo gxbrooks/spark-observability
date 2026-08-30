@@ -1274,6 +1274,10 @@ ResolveApplicationService.prototype = {
     if (gr.type && gr.type.toString() === 'CRITICAL_LOG_EVENT') {
       return true;
     }
+    if (gr.isValidField('metric_name') &&
+        String(gr.metric_name || '').indexOf('Log-Error:') === 0) {
+      return true;
+    }
     var blob = this.collectSparkLookupBlob(gr);
     return blob.indexOf('sn-event-kind=CRITICAL_LOG_EVENT') !== -1 ||
       blob.indexOf('"sn-event-kind":"CRITICAL_LOG_EVENT"') !== -1 ||
@@ -1709,7 +1713,9 @@ ResolveApplicationService.prototype = {
    *   2. Copy dotted K8s platform keys to dash aliases (TBAC-safe).
    *   3. CRITICAL_LOG_EVENT / sn-service-instance: cmdb_ci = service
    *      instance (overwrites SGO HOST/pod SOS bind).
-   *   4. Else if cmdb_ci is empty, bind from k8s-workload-name /
+   *   4. CRITICAL_LOG_EVENT: metric_name = Log-Error:{sn-log-signature}
+   *      so Automated grouping can key on metric_name + CI.
+   *   5. Else if cmdb_ci is empty, bind from k8s-workload-name /
    *      k8s-pod-name / k8s-cronjob-name / k8s-job-name.
    */
   enrichSgoRecord: function (gr) {
@@ -1778,6 +1784,8 @@ ResolveApplicationService.prototype = {
         job: job,
       });
     }
+    this.applyLogMetricName(gr);
+    this.keepDurableLogSignal(gr);
 
     var ciNote = 'cmdb_ci empty';
     if (gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil()) {
@@ -1830,6 +1838,96 @@ ResolveApplicationService.prototype = {
     if (si.stamp) {
       gr.node = si.stamp;
       gr.resource = 'sn-service-instance:' + si.stamp;
+    }
+    return true;
+  },
+
+  /**
+   * Log problems are durable ITSM work: Dynatrace may time out and POST
+   * RESOLVED, but EM must not close the event/alert (or resolve the
+   * incident). Rewrite Clear/OK/Closing on log records to Major + New.
+   * Also remaps SGO's CUSTOM_ALERT → OK (5) so AMR severity<=3 can ticket.
+   */
+  isDurableLogRecord: function (gr) {
+    if (this.isL2iCriticalLogAlert(gr)) {
+      return true;
+    }
+    if (!gr) {
+      return false;
+    }
+    if (String(gr.type || '') !== 'CUSTOM_ALERT') {
+      return false;
+    }
+    var blob = this.collectSparkLookupBlob(gr);
+    return blob.indexOf('CRITICAL_LOG_EVENT') !== -1 ||
+      blob.indexOf('Critical WARN') !== -1 ||
+      blob.indexOf('Critical ERROR') !== -1 ||
+      blob.indexOf('sn-log-signature') !== -1;
+  },
+
+  keepDurableLogSignal: function (gr) {
+    if (!this.isDurableLogRecord(gr)) {
+      return false;
+    }
+    var sev = '';
+    if (gr.isValidField('severity') && !gr.severity.nil()) {
+      sev = String(gr.severity);
+    }
+    var blob = this.collectSparkLookupBlob(gr);
+    var resolved =
+      /["']State["']\s*:\s*["']RESOLVED["']/i.test(blob) ||
+      blob.indexOf('RESOLVED Custom Alert') !== -1 ||
+      blob.indexOf('RESOLVED Problem') !== -1;
+    var closing = false;
+    if (gr.isValidField('resolution_state') && !gr.resolution_state.nil()) {
+      closing = String(gr.resolution_state) === 'Closing';
+    }
+    var isClear = sev === '0' || sev === 'Clear' || sev === 'clear';
+    var isOk = sev === '5' || sev === 'OK' || sev === 'Ok';
+    if (!(isClear || isOk || closing || resolved)) {
+      return false;
+    }
+    if (gr.isValidField('resolution_state')) {
+      gr.resolution_state = 'New';
+    }
+    if (gr.isValidField('severity')) {
+      gr.severity = '2';
+    }
+    if (gr.isValidField('state')) {
+      var st = String(gr.state);
+      if (st === '4' || st === 'Closed' || st === 'closed') {
+        gr.state = '1';
+      }
+    }
+    this.appendProcessingNote(
+      gr,
+      'sgo-enrich: durable log — kept Open/Major (Dynatrace close ignored)'
+    );
+    return true;
+  },
+
+  /**
+   * Log alerts have no native metric. Stamp metric_name as
+   * Log-Error:{Class:Line} so sa_analytics.agg.group_alert_with_same_group_by_fields
+   * (metric_name,cmdb_ci) groups same signature on the same SI and not every
+   * log on that CI.
+   */
+  applyLogMetricName: function (gr) {
+    if (!gr || !gr.isValidField('metric_name')) {
+      return false;
+    }
+    if (!this.isL2iCriticalLogAlert(gr)) {
+      return false;
+    }
+    var sig = this.extractLogSignature(gr);
+    if (!sig) {
+      return false;
+    }
+    var next = 'Log-Error:' + sig;
+    var current = String(gr.metric_name || '');
+    if (current !== next) {
+      gr.metric_name = next;
+      this.appendProcessingNote(gr, 'sgo-enrich: metric_name → ' + next);
     }
     return true;
   },

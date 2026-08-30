@@ -6,9 +6,10 @@
 # --parallel is how many copies of run-chapters.sh to start at once.
 #
 # Usage:
-#   ./bin/run-stress.sh [-p N] [-i N] [--log-dir DIR] [-a] [chapter ...]
+#   ./bin/run-stress.sh [-p N] [-i N] [--log-dir DIR] [-cr MINUTES] [-a] [chapter ...]
 #   ./bin/run-stress.sh --parallel 4 --iteration 3
 #   ./bin/run-stress.sh -p 2 -i 1 08 09
+#   ./bin/run-stress.sh -p 3 -i 2 -cr 60
 #
 # Defaults: -p 1 -i 1, all chapters under ../chapters if none listed.
 #
@@ -22,10 +23,12 @@ APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CHAPTERS_DIR="${APP_DIR}/chapters"
 RUN_CHAPTERS="${SCRIPT_DIR}/run-chapters.sh"
 
+CREATE_CHANGE="${SCRIPT_DIR}/create-sn-change-window.py"
+
 usage() {
-  echo "Usage: $0 [--parallel|-p N] [--iteration|-i N] [--log-dir DIR] [-a] [chapter ...]" >&2
+  echo "Usage: $0 [--parallel|-p N] [--iteration|-i N] [--log-dir DIR] [--change-record|-cr MINUTES] [-a] [chapter ...]" >&2
   echo "       $0 --parallel 4 --iteration 3" >&2
-  echo "       $0 -p 2 -i 1 03 04 08" >&2
+  echo "       $0 -p 3 -i 2 -cr 60" >&2
 }
 
 normalize_chapter() {
@@ -66,6 +69,7 @@ PARALLEL=1
 ITERATIONS=1
 LOG=""
 ALL_CHAPTERS=false
+CHANGE_MINUTES=""
 CHAPTER_ARGS=()
 FORWARD_ARGS=()
 
@@ -96,6 +100,15 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       LOG="$2"
+      shift 2
+      ;;
+    -cr|--change-record)
+      if [ $# -lt 2 ]; then
+        echo "Error: --change-record requires a duration in minutes." >&2
+        usage
+        exit 1
+      fi
+      CHANGE_MINUTES="$2"
       shift 2
       ;;
     -a|--all)
@@ -166,12 +179,42 @@ if [ ${#CHAPTER_ARGS[@]} -eq 0 ]; then
   exit 1
 fi
 
+if [ -n "${CHANGE_MINUTES}" ] && ! [[ "${CHANGE_MINUTES}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Error: --change-record must be a positive integer of minutes (got '${CHANGE_MINUTES}')." >&2
+  exit 1
+fi
+
 if [ -z "${LOG}" ]; then
   LOG="/tmp/chapter-run-p${PARALLEL}-i${ITERATIONS}-$(date +%Y%m%d-%H%M%S)"
 fi
 
 mkdir -p "${LOG}"
 echo "${LOG}" > /tmp/latest-chapter-run-dir.txt
+
+CHANGE_CLOSER_PID=""
+close_change_window() {
+  if [ -z "${CHANGE_MINUTES}" ]; then
+    return 0
+  fi
+  if [ -n "${CHANGE_CLOSER_PID}" ]; then
+    kill "${CHANGE_CLOSER_PID}" 2>/dev/null || true
+    CHANGE_CLOSER_PID=""
+  fi
+  echo "Closing ServiceNow change window (Review)..."
+  python3 "${CREATE_CHANGE}" --close --log-dir "${LOG}" || true
+}
+
+if [ -n "${CHANGE_MINUTES}" ]; then
+  echo "Opening ServiceNow Standard change (Implement) for ${CHANGE_MINUTES} minutes..."
+  python3 "${CREATE_CHANGE}" --minutes "${CHANGE_MINUTES}" --log-dir "${LOG}"
+  trap close_change_window EXIT
+  (
+    sleep $((CHANGE_MINUTES * 60))
+    echo "Change window elapsed; moving change to Review..."
+    python3 "${CREATE_CHANGE}" --close --log-dir "${LOG}" || true
+  ) &
+  CHANGE_CLOSER_PID="$!"
+fi
 
 INSTANCES=()
 for ((n = 1; n <= PARALLEL; n++)); do

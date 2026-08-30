@@ -1,0 +1,23 @@
+---
+# Event Management properties that must sit in front of AMRs:
+#   - wait for the grouping job before evaluating create-incident rules
+#   - do not auto-refresh Workspace alert lists
+- name: Enable wait for grouping job before AMR incident create
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: evt_mgmt.avoid_int_enabled
+      value: "{{ sn_l2i_avoid_int_enabled | default('true') }}"
+      description: >-
+        Enable Avoid Incidents on Secondary alerts and wait for Grouping
+        job to be executed. AMR filter must still exclude Secondaries.
+
+- name: Disable Workspace alert-list auto-refresh
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply_sys_property.yml"
+  vars:
+    sn_sysprop_item:
+      name: sn_em_ai.evt_mgmt.disable_lists_auto_refresh
+      value: "{{ sn_l2i_disable_lists_auto_refresh | default('true') }}"
+      description: >-
+        Disable auto-refresh of alerts list; alerts will update in
+        Workspace only when user does so manually.

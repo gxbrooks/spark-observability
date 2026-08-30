@@ -1,0 +1,78 @@
+---
+# Customer-like create path: OOTB "Create Incident" subflow, not the
+# SGO-Dynatrace Alert Subflow (that subflow exists only with Dynatrace SGC).
+
+- name: Look up OOTB Create Incident subflow
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: sys_hub_flow
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_create_incident_subflow_name | urlencode }}^sys_id={{ sn_l2i_create_incident_subflow_sys_id }}&sysparm_fields=sys_id,name&sysparm_limit=1"
+
+- name: Fail when Create Incident subflow is missing
+  ansible.builtin.assert:
+    that:
+      - (sn_rest_json.result | default([]) | length) > 0
+    fail_msg: >-
+      OOTB subflow '{{ sn_l2i_create_incident_subflow_name }}'
+      ({{ sn_l2i_create_incident_subflow_sys_id }}) not found.
+
+- name: Look up all SGO-Dynatrace AMR flow actions
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_query: "sysparm_query=management_rule={{ sn_sgo_ootb_amr_sys_id }}&sysparm_fields=sys_id,sub_flow,active,execution&sysparm_limit=20"
+
+- name: Record SGO AMR flow actions
+  ansible.builtin.set_fact:
+    sn_sgo_amr_actions: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Deactivate non-Create-Incident actions on SGO-Dynatrace AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_sgo_action_subflow: "{{ (item.sub_flow.value | default(item.sub_flow)) | string }}"
+    sn_rest_body:
+      active: "false"
+  loop: "{{ sn_sgo_amr_actions }}"
+  when:
+    - item.sys_id | default('') | length > 0
+    - sn_sgo_action_subflow != (sn_l2i_create_incident_subflow_sys_id | string)
+    - item.active | default('') in ['true', '1', true, 1]
+
+- name: Look up Create Incident action on SGO-Dynatrace AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_query: "sysparm_query=management_rule={{ sn_sgo_ootb_amr_sys_id }}^sub_flow={{ sn_l2i_create_incident_subflow_sys_id }}&sysparm_fields=sys_id,sub_flow,active&sysparm_limit=5"
+
+- name: Record Create Incident action state
+  ansible.builtin.set_fact:
+    sn_sgo_create_incident_action: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Attach OOTB Create Incident subflow to SGO-Dynatrace AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_body:
+      management_rule: "{{ sn_sgo_ootb_amr_sys_id }}"
+      sub_flow: "{{ sn_l2i_create_incident_subflow_sys_id }}"
+      active: "true"
+      execution: "1"
+      executions_limit: "1"
+  when: (sn_sgo_create_incident_action | default([]) | length) == 0
+
+- name: Activate existing Create Incident action on SGO-Dynatrace AMR
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_man_m2m_rule_flow
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      active: "true"
+      execution: "1"
+      executions_limit: "1"
+  loop: "{{ sn_sgo_create_incident_action | default([]) }}"
+  when: item.active | default('') not in ['true', '1', true, 1]

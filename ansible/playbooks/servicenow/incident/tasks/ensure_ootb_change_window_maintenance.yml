@@ -1,0 +1,37 @@
+---
+# OOTB Event Management change-window maintenance. The product rule only
+# marks change.cmdb_ci when the change is Scheduled or Implement and now
+# is inside planned start/end. Do not replace its ImpactManager script.
+# Affected CIs (task_ci) are handled by Affected CIs in Change Window.
+- name: Look up OOTB CI in Change Window maintenance rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_maintenance_rule
+    sn_rest_query: "sysparm_query=name={{ sn_ootb_ci_in_change_window_rule_name | urlencode }}&sysparm_limit=1"
+
+- name: Record OOTB CI in Change Window rule state
+  ansible.builtin.set_fact:
+    sn_ootb_maint_rule_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_ootb_maint_rule_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_ootb_maint_rule_active: "{{ sn_rest_json.result[0].active | default('') | string | lower }}"
+
+- name: Warn when OOTB CI in Change Window rule is missing
+  ansible.builtin.debug:
+    msg: >-
+      OOTB maintenance rule '{{ sn_ootb_ci_in_change_window_rule_name }}'
+      was not found. Event Management will not mark change.cmdb_ci during
+      Scheduled/Implement windows until that rule exists.
+  when: not sn_ootb_maint_rule_exists | bool
+
+- name: Activate OOTB CI in Change Window maintenance rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_maintenance_rule
+    sn_rest_sys_id: "{{ sn_ootb_maint_rule_sys_id }}"
+    sn_rest_body:
+      active: "true"
+  when:
+    - sn_ootb_maint_rule_exists | bool
+    - sn_ootb_maint_rule_sys_id | length > 0
+    - sn_ootb_maint_rule_active != "true"

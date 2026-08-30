@@ -17,10 +17,8 @@
       order: "{{ sn_incident_em_alert_br_order }}"
       filter_condition: "source=SGO-Dynatrace^severity<={{ sn_incident_max_severity }}^incidentISEMPTY"
       description: >-
-        Incident promotion gate (severity<=3): EvtMgmtIncidentHandler.createIncidentNoUpdate(alert,false)
-        → EvtMgmtCustomIncidentPopulator (same as Create incident from Alert).
-        autoOpen=false while AMR inactive. Not an Event→Ready filter.
-        Remove when published Flow owns create.
+        RETIRED. Incident create is AMR SGO-Dynatrace (non-secondary, not
+        in maintenance). Keep this BR inactive.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_create_log_incident.br.js') }}"
 
 - name: Look up em_alert create incident business rule

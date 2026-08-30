@@ -22,7 +22,7 @@ sn_incident_em_alert_br_order: "5020"
 
 # Lab: create incidents for Critical/Major/Minor (EM severity 1–3).
 # Warning (4) and OK (5) stay on the alert path (enrich + close) but do not
-# auto-create incidents. Put this gate on the create BR / AMR only — never on
+# auto-create incidents. Put this gate on the SGO-Dynatrace AMR only — never on
 # the manual EM Event → Ready rule (clears often arrive as severity=5).
 sn_incident_max_severity: "3"
 
@@ -33,12 +33,21 @@ sn_incident_max_severity: "3"
 sn_l2i_em_event_rule_filter: "source=SGO-Dynatrace"
 sn_l2i_em_alert_rule_filter: "source=SGO-Dynatrace"
 
-# OOTB SGO-Dynatrace Alert Management Rule (must stay inactive for L2I).
+# OOTB SGO-Dynatrace Alert Management Rule — create path for log and metric.
+# Action is the product Create Incident subflow (customer-like, no SGC subflow).
 sn_sgo_ootb_amr_name: SGO-Dynatrace
 sn_sgo_ootb_amr_sys_id: 7f5e284e07032010b1306a77c4a93523
+sn_sgo_amr_active: "true"
+sn_sgo_amr_automatic_execution_setting: "1"
+sn_sgo_amr_filter: "source=SGO-Dynatrace^maintenance=false^incidentISEMPTY^severity<={{ sn_incident_max_severity }}^correlation_group!=Secondary^parentISEMPTY^cmdb_ciISNOTEMPTY"
+sn_sgo_dt_alert_subflow_sys_id: 21b17cce07032010b1306a77c4a93506
 
-# OOTB primary-alert incident AMR (copies pod CI onto Group Alert incidents).
+# OOTB Group Alert (virtual Primary) incident AMR.
+# Connector-scoped SGO AMR will not ticket source=Group Alert.
 sn_l2i_ootb_primary_amr_name: Create Incident for Primary Alert
+sn_l2i_ootb_primary_amr_sys_id: ca7568539f533300b9a491aec32e7040
+sn_l2i_ootb_primary_amr_active: "true"
+sn_l2i_ootb_primary_amr_filter: "source=Group Alert^maintenance=false^incidentISEMPTY"
 
 # L2I AMR — reserved for Create incident from Alert → EvtMgmtIncidentHandler.
 # OOTB "Create Incident" subflow does NOT call the handler/populator; keep inactive
@@ -55,13 +64,21 @@ sn_l2i_process_pending_job_name: L2IProcessPendingAlerts
 # sysauto_script run_period is seconds.
 sn_l2i_process_pending_job_period_seconds: "60"
 
-# Tag-Based Alert Clustering (env + SI + signature).
-# Dash keys (not dots): TBAC splits additional_info_key on "." as a nested path
-# walk into JSON; flat Davis keys like sn.log.signature break that walk.
+# Tag-Based Alert Clustering (kept in repo, inactive). Log grouping is now
+# Automated field grouping on metric_name + cmdb_ci (Log-Error:{signature}).
+sn_l2i_tbac_active: "false"
 sn_l2i_tbac_definition_name: L2I short Log4j2 SI + signature
+sn_l2i_tbac_correlation_rule_name: "[Tag Based] L2I short Log4j2 SI + signature"
 sn_l2i_tbac_definition_description: >-
-  Group L2I CRITICAL_LOG_EVENT alerts that share sn-environment,
-  sn-service-instance, and sn-log-signature (prevents cross-environment merge).
+  INACTIVE. Log grouping uses metric_name=Log-Error:{sn-log-signature} plus
+  cmdb_ci via sa_analytics.agg.group_alert_with_same_group_by_fields.
+  Former TBAC keys: sn-environment, sn-service-instance, sn-log-signature.
+
+# Rule-based grouping: same CI + same metric_name (Log-Error:{signature}).
+sn_l2i_corr_rule_name: L2I Same CI and metric_name
+sn_l2i_corr_rule_order: "20"
+sn_l2i_group_by_fields_property: sa_analytics.agg.group_alert_with_same_group_by_fields
+sn_l2i_group_by_fields_value: metric_name,cmdb_ci
 # TBAC time_difference is minutes on this instance (see peer definitions).
 sn_l2i_tbac_time_difference_seconds: "15"
 sn_l2i_tbac_alert_filter: descriptionLIKECRITICAL_LOG_EVENT
@@ -78,5 +95,22 @@ sn_l2i_tbac_tags:
     key: "{{ sn_l2i_tbac_custom_props_prefix }}.sn-log-signature"
     description: L2I Log4j Class:Line signature
 
-# Create BR is AMR shim → EvtMgmtIncidentHandler until a published Flow owns create.
-sn_l2i_create_br_active: "true"
+# Create BR retired: OOTB AMR SGO-Dynatrace owns incident create.
+sn_l2i_create_br_active: "false"
+
+# Event Management properties (Alert Correlation / Event Management Properties).
+sn_l2i_avoid_int_enabled: "true"
+sn_l2i_disable_lists_auto_refresh: "true"
+
+# OOTB "CI in Change Window" marks only change.cmdb_ci. Extension rule
+# "Affected CIs in Change Window" covers task_ci (not OOTB; not lab-named).
+sn_ootb_ci_in_change_window_rule_name: CI in Change Window
+sn_affected_ci_maint_rule_name: Affected CIs in Change Window
+sn_affected_ci_maint_rule_legacy_name: L2I Affected CIs in Change Window
+sn_affected_ci_maint_table: task_ci
+sn_affected_ci_maint_ci_field: ci_item
+# Scheduled (-2) / Implement (-1) only. Date javascript is for the calculator.
+sn_affected_ci_maint_filter: >-
+  task.sys_class_name=change_request^task.approval=approved^task.on_hold=false^task.stateIN-2,-1^task.start_date<=javascript:gs.nowNoTZ()^task.end_date>=javascript:gs.nowNoTZ()
+# Back-compat for playbook summary / older task names.
+sn_l2i_affected_ci_maint_rule_name: "{{ sn_affected_ci_maint_rule_name }}"

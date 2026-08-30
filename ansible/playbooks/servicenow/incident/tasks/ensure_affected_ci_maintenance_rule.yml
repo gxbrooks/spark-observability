@@ -1,0 +1,95 @@
+---
+# Extension of OOTB "CI in Change Window". That rule only marks
+# change.cmdb_ci. This rule marks Affected CIs (task_ci.ci_item) for the
+# same Scheduled/Implement planned window. Non-advanced — advanced
+# findCisInMaint() return types are dropped by the calculator.
+- name: Look up Affected CIs maintenance rule (current name)
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_maintenance_rule
+    sn_rest_query: "sysparm_query=name={{ sn_affected_ci_maint_rule_name | urlencode }}&sysparm_limit=1"
+
+- name: Record current-name rule state
+  ansible.builtin.set_fact:
+    sn_affected_ci_maint_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_affected_ci_maint_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Look up legacy L2I-named maintenance rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_maintenance_rule
+    sn_rest_query: "sysparm_query=name={{ sn_affected_ci_maint_rule_legacy_name | urlencode }}&sysparm_limit=1"
+  when: not sn_affected_ci_maint_exists | bool
+
+- name: Record legacy rule as the row to rename
+  ansible.builtin.set_fact:
+    sn_affected_ci_maint_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_affected_ci_maint_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+  when:
+    - not (sn_affected_ci_maint_exists | bool)
+    - sn_rest_json is defined
+
+- name: Look up leftover legacy rule when current name already exists
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_get.yml"
+  vars:
+    sn_rest_table: em_maintenance_rule
+    sn_rest_query: "sysparm_query=name={{ sn_affected_ci_maint_rule_legacy_name | urlencode }}&sysparm_limit=1"
+  when: sn_affected_ci_maint_exists | bool
+
+- name: Record leftover legacy rule sys_id
+  ansible.builtin.set_fact:
+    sn_affected_ci_maint_legacy_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+  when:
+    - sn_affected_ci_maint_exists | bool
+    - sn_rest_json is defined
+    - (sn_rest_json.result | default([]) | length) > 0
+    - (sn_rest_json.result[0].sys_id | default('')) != (sn_affected_ci_maint_sys_id | default(''))
+
+- name: Build Affected CIs maintenance rule body
+  ansible.builtin.set_fact:
+    sn_affected_ci_maint_rule_body:
+      name: "{{ sn_affected_ci_maint_rule_name }}"
+      active: "true"
+      advanced: "false"
+      include_apps: "true"
+      table: "{{ sn_affected_ci_maint_table }}"
+      ci_field: "{{ sn_affected_ci_maint_ci_field }}"
+      filter: "{{ sn_affected_ci_maint_filter }}"
+      script: ""
+      description: >-
+        Extension of OOTB CI in Change Window. Marks Affected CIs
+        (task_ci.ci_item) when the change is approved, not on hold,
+        Scheduled or Implement, and now is inside the planned start/end
+        window. The Maintenance Calculator unmarks when those conditions
+        no longer hold. Proof is em_impact_maint_ci.ci_id.
+
+- name: Create Affected CIs maintenance rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: em_maintenance_rule
+    sn_rest_body: "{{ sn_affected_ci_maint_rule_body }}"
+  when: not sn_affected_ci_maint_exists | bool
+
+- name: Update Affected CIs maintenance rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_maintenance_rule
+    sn_rest_sys_id: "{{ sn_affected_ci_maint_sys_id }}"
+    sn_rest_body: "{{ sn_affected_ci_maint_rule_body }}"
+  when:
+    - sn_affected_ci_maint_exists | bool
+    - sn_affected_ci_maint_sys_id | length > 0
+
+- name: Deactivate leftover L2I-named duplicate
+  ansible.builtin.include_tasks: "{{ sn_discovery_common_dir }}/sn_rest_mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_maintenance_rule
+    sn_rest_sys_id: "{{ sn_affected_ci_maint_legacy_sys_id }}"
+    sn_rest_body:
+      active: "false"
+  when:
+    - sn_affected_ci_maint_legacy_sys_id is defined
+    - sn_affected_ci_maint_legacy_sys_id | length > 0

@@ -18,6 +18,8 @@
       description: >-
         Stamp sn-impact/sn-urgency (DT or ProblemSeverity mapping). Log events
         bind the service instance; infra events bind K8s dash-key CIs.
+        Durable logs: rewrite Clear/OK/Closing to Major so DT RESOLVED
+        does not close the event.
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_event_enrich_sgo.br.js') }}"
 
 - name: Look up em_event enrich SGO business rule
@@ -62,7 +64,8 @@
       filter_condition: source=SGO-Dynatrace
       description: >-
         Stamp sn-impact/sn-urgency. Log alerts bind the service instance;
-        infra alerts bind K8s dash-key CIs. Runs before create shim (5020).
+        infra alerts bind K8s dash-key CIs. Durable logs stay Open/Major.
+        Runs before create shim (5020).
       script: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_enrich_sgo.br.js') }}"
 
 - name: Look up em_alert enrich SGO business rule
