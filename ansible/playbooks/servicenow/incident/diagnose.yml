@@ -97,5 +97,8 @@
     - name: Test log incident bindings
       ansible.builtin.include_tasks: tasks/test_log_incident_bindings.yml
 
+    - name: Test alert grouping (message_key, metric_name, metric_class, durability)
+      ansible.builtin.include_tasks: tasks/test_alert_grouping.yml
+
     - name: Test spark-client application service bindings
       ansible.builtin.include_tasks: tasks/test_spark_client_as.yml

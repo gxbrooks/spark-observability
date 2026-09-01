@@ -31,12 +31,13 @@
       "dealertingSamples": 3
     },
     "eventTemplate": {
-      "title": "Host ({dims:dt.entity.host}) CPU above 50%",
-      "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 50%. sn-event-kind=CPU_EVENT sn-environment={{ dt_l2i_environment }} sn-impact=2 sn-urgency=2",
-      "eventType": "RESOURCE",
-      "davisMerge": true,
+      "title": "Host CPU above 50%",
+      "description": "Host CPU usage in management zone {{ dt_management_zone_resolved }} exceeded 50%. sn-event-kind=CPU_EVENT sn-metric-class=cpu sn-environment={{ dt_l2i_environment }} sn-impact=2 sn-urgency=2",
+      "eventType": "CUSTOM_ALERT",
+      "davisMerge": false,
       "metadata": [
         { "metadataKey": "sn-event-kind", "metadataValue": "CPU_EVENT" },
+        { "metadataKey": "sn-metric-class", "metadataValue": "cpu" },
         { "metadataKey": "sn-environment", "metadataValue": "{{ dt_l2i_environment }}" },
         { "metadataKey": "sn-impact", "metadataValue": "2" },
         { "metadataKey": "sn-urgency", "metadataValue": "2" }

@@ -1,0 +1,184 @@
+---
+# Regression assertions for the alert-grouping overhaul (req 1/2/5/6).
+# Used by test.yml and diagnose.yml.
+
+- name: Detect SGC installation
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/sgc/sources/dynatrace/tasks/check_sgc_prerequisites.yml"
+
+- name: Query recent SGO-Dynatrace em_event rows (grouping regression)
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
+  vars:
+    sn_rest_table: em_event
+    sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,type,metric_name,message_key,cmdb_ci,additional_info&sysparm_limit=200"
+
+- name: Save em_event grouping-check results
+  ansible.builtin.set_fact:
+    sn_grouping_check_events: "{{ sn_rest_json.result | default([]) }}"
+  when: sn_rest_status | default(0) == 200
+
+- name: Find events where message_key equals metric_name (req 1 violation)
+  ansible.builtin.set_fact:
+    sn_message_key_violations: >-
+      {{ (sn_message_key_violations | default([]))
+         + ([item.number] if ((item.metric_name | default('')) != ''
+                               and (item.message_key | default('__unset__')) == item.metric_name)
+            else []) }}
+  loop: "{{ sn_grouping_check_events }}"
+  loop_control:
+    label: "{{ item.number | default('') }}"
+  when:
+    - sn_rest_status | default(0) == 200
+    - sn_grouping_check_events | length > 0
+
+- name: Assert message_key is present and is never used as the grouping key (req 1)
+  ansible.builtin.assert:
+    that:
+      - >-
+        sn_grouping_check_events | rejectattr('message_key', 'defined') | list | length == 0
+      - >-
+        sn_grouping_check_events | selectattr('message_key', 'equalto', '') | list | length == 0
+      - (sn_message_key_violations | default([]) | length) == 0
+    fail_msg: >-
+      Some {{ sn_sgc_event_source }} em_event rows either lack message_key or have
+      message_key equal to metric_name ({{ sn_message_key_violations | default([]) }}) —
+      message_key must stay the Dynatrace ProblemID (problem/event identity), never
+      an equivalence-class grouping key.
+    success_msg: >-
+      message_key present and distinct from metric_name on all
+      {{ sn_grouping_check_events | length }} recent {{ sn_sgc_event_source }} event(s).
+  when:
+    - sn_rest_status | default(0) == 200
+    - sn_grouping_check_events | length > 0
+
+- name: Assert no recent SGO-Dynatrace em_event has an empty metric_name (req 2)
+  ansible.builtin.assert:
+    that:
+      - >-
+        sn_grouping_check_events
+        | selectattr('metric_name', 'defined') | selectattr('metric_name', 'equalto', '')
+        | list | length == 0
+    fail_msg: >-
+      Some {{ sn_sgc_event_source }} em_event rows have empty metric_name — the
+      ResolveApplicationService applyMetricClassAndFallbackMetricName backfill
+      (ResolveApplicationService.si.js) should guarantee every alert type gets a
+      non-empty metric_name, closing the empty-metric grouping hole.
+    success_msg: >-
+      No empty metric_name among {{ sn_grouping_check_events | length }} recent
+      {{ sn_sgc_event_source }} event(s).
+  when:
+    - sn_rest_status | default(0) == 200
+    - sn_grouping_check_events | length > 0
+
+- name: Assert CPU-family events carry sn-metric-class=cpu (req 3/4)
+  # Note: em_alert/em_event.type is not used here — it reads back as an
+  # internal reference id outside the enrichment BR that stamps it, so
+  # 'type equals CPU_SATURATED' is not reliably comparable via REST or in
+  # later-stage scripts. metric_name is the reliable signal: our own custom
+  # metric event always reports builtin:host.cpu.usage, and native Davis
+  # CPU_SATURATED problems get backfilled to DT-ProblemType:CPU_SATURATED by
+  # ResolveApplicationService.si.js#applyMetricClassAndFallbackMetricName.
+  ansible.builtin.assert:
+    that:
+      - >-
+        sn_grouping_check_events
+        | selectattr('metric_name', 'defined')
+        | selectattr('metric_name', 'in', ['builtin:host.cpu.usage'])
+        | rejectattr('additional_info', 'search', 'sn-metric-class')
+        | list | length == 0
+      - >-
+        sn_grouping_check_events
+        | selectattr('metric_name', 'defined')
+        | selectattr('metric_name', 'match', '^DT-ProblemType:CPU')
+        | rejectattr('additional_info', 'search', 'sn-metric-class')
+        | list | length == 0
+    fail_msg: >-
+      A builtin:host.cpu.usage or DT-ProblemType:CPU* event is missing the
+      sn-metric-class stamp needed for metric_class TBAC clustering.
+    success_msg: "CPU-family events carry sn-metric-class where expected."
+  when:
+    - sn_rest_status | default(0) == 200
+    - >-
+      (sn_grouping_check_events | selectattr('metric_name', 'defined') | selectattr('metric_name', 'equalto', 'builtin:host.cpu.usage') | list | length > 0)
+      or (sn_grouping_check_events | selectattr('metric_name', 'defined') | selectattr('metric_name', 'match', '^DT-ProblemType:CPU') | list | length > 0)
+
+- name: Query recent durable log em_alert rows (req 5 durability check)
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
+  vars:
+    sn_rest_table: em_alert
+    sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^metric_nameSTARTSWITHLog-Error:^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,state,severity,resolution_state,incident,incident.active,cmdb_ci,metric_name,correlation_group&sysparm_limit=200"
+
+- name: Save durable log alert results
+  ansible.builtin.set_fact:
+    sn_durable_log_alerts: "{{ sn_rest_json.result | default([]) }}"
+  when: sn_rest_status | default(0) == 200
+
+- name: Find log alerts closed while their incident is still active (req 5 violation)
+  # Note: sn-rest-get.yml's dot-walked field (incident.active) comes back from
+  # ServiceNow's Table API as a flat key literally named "incident.active", not
+  # a nested attribute — Jinja's dotted attribute/selectattr syntax would try
+  # (and fail) to walk item.incident.active as nested lookups, so this uses
+  # explicit bracket subscript access instead. state is matched against both
+  # the numeric choice value and display value, mirroring the same defensive
+  # check already used in ResolveApplicationService.si.js#keepDurableLogSignal.
+  ansible.builtin.set_fact:
+    sn_durable_log_violations: >-
+      {{ (sn_durable_log_violations | default([]))
+         + ([item.number] if ((item['incident.active'] | default('') in ['true', 'True', true, '1', 1])
+                               and ((item.state | default('')) in ['4', 'Closed', 'closed']))
+            else []) }}
+  loop: "{{ sn_durable_log_alerts | default([]) }}"
+  loop_control:
+    label: "{{ item.number | default('') }}"
+  when:
+    - sn_rest_status | default(0) == 200
+    - sn_durable_log_alerts | length > 0
+
+- name: Assert durable log alerts stay open while their incident is active (req 5)
+  ansible.builtin.assert:
+    that:
+      - (sn_durable_log_violations | default([]) | length) == 0
+    fail_msg: >-
+      Log alert(s) {{ sn_durable_log_violations | default([]) }} are Closed
+      while their linked incident is still active — a Dynatrace
+      Clear/OK/RESOLVED must not close a durable log alert; only closing the
+      incident should. See keepDurableLogSignal in ResolveApplicationService.si.js.
+    success_msg: >-
+      {{ sn_durable_log_alerts | length }} recent log alert(s) checked; none
+      closed while their incident is still active.
+  when:
+    - sn_rest_status | default(0) == 200
+    - sn_durable_log_alerts | length > 0
+
+- name: Build signature+CI keys for open log alerts with an incident (req 6)
+  ansible.builtin.set_fact:
+    sn_log_alert_sig_keys: >-
+      {{ (sn_log_alert_sig_keys | default([]))
+         + [{'key': (item.cmdb_ci ~ '|' ~ item.metric_name), 'incident': (item.incident | default(''))}] }}
+  loop: "{{ sn_durable_log_alerts | default([]) }}"
+  loop_control:
+    label: "{{ item.number | default('') }}"
+  when:
+    - sn_rest_status | default(0) == 200
+    - (item.state | default('')) not in ['4', 'Closed', 'closed']
+    - (item.incident | default('')) != ''
+    - (item.cmdb_ci | default('')) != ''
+    - (item.metric_name | default('')) != ''
+
+- name: Assert repeat log alerts on the same signature+CI share one incident (req 6)
+  ansible.builtin.assert:
+    that:
+      - >-
+        sn_log_alert_sig_keys | default([]) | groupby('key')
+        | map('last') | map('map', attribute='incident') | map('unique')
+        | map('length') | select('gt', 1) | list | length == 0
+    fail_msg: >-
+      Two or more open log alerts share the same signature (metric_name) and CI
+      but link to different incidents — repeat alerts should join the
+      already-open incident (em_corr_same_ci_metric.js open-incident branch),
+      not spawn a new one.
+    success_msg: >-
+      No signature+CI group with repeat log alerts is split across multiple
+      incidents.
+  when:
+    - sn_rest_status | default(0) == 200
+    - (sn_log_alert_sig_keys | default([]) | length) > 1

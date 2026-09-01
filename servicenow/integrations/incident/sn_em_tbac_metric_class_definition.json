@@ -1,0 +1,8 @@
+{
+  "name": "L2I metric_class CPU cluster",
+  "active": "true",
+  "description": "Clusters SGO-Dynatrace CPU-family alerts (custom CPU metric event + native Davis CPU_SATURATED / CPU Saturation / CPU usage close to limits) that share the same sn-metric-cluster tag (metric_class:cmdb_ci), stamped by ResolveApplicationService.si.js#applyMetricClassAndFallbackMetricName. RESOURCE_CONTENTION is not yet classified as CPU — pending review of the tenant Infrastructure Anomaly Detection settings, see observability/dynatrace/docs/Partitioning_and_Tagging.md.",
+  "time_difference": "60",
+  "alert_filter": "source=SGO-Dynatrace",
+  "grouping_method": "1"
+}

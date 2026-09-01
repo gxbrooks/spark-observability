@@ -1,0 +1,95 @@
+---
+# CPU-family clustering via metric_class (req 4): TBAC definition + tag +
+# m2m link + sync of the product-generated correlation rule's active flag.
+# Payloads: sn_em_tbac_metric_class_definition.json + metric_class_tbac_tags.yml
+# Reuses the generic upsert_l2i_tbac_tag.yml / ensure_l2i_tbac_m2m*.yml
+# task helpers (TBAC-generic despite the "l2i" name — first written for logs).
+
+- name: Load metric_class TBAC tags
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_tags: "{{ lookup('file', sn_incident_integrations_dir + '/metric_class_tbac_tags.yml') | from_yaml }}"
+
+- name: Upsert metric_class TBAC clustering tags
+  ansible.builtin.include_tasks: upsert_l2i_tbac_tag.yml
+  vars:
+    sn_l2i_tbac_tag_name: "{{ item.name }}"
+    sn_l2i_tbac_tag_key: "{{ item.key }}"
+    sn_l2i_tbac_tag_description: "{{ item.description }}"
+  loop: "{{ sn_l2i_tbac_tags }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Load metric_class TBAC definition representation
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_def_body: "{{ lookup('file', sn_incident_integrations_dir + '/sn_em_tbac_metric_class_definition.json') | from_json }}"
+
+- name: Look up metric_class TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_def_body.name | urlencode }}&sysparm_limit=1"
+
+- name: Record metric_class TBAC definition state
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_def_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_tbac_def_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+
+- name: Create metric_class TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_body: "{{ sn_l2i_tbac_def_body }}"
+  when: not sn_l2i_tbac_def_exists | bool
+
+- name: Capture new metric_class TBAC definition sys_id
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_def_body.name | urlencode }}&sysparm_limit=1"
+  when: not sn_l2i_tbac_def_exists | bool
+
+- name: Set metric_class TBAC definition sys_id after create
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_def_sys_id: "{{ sn_rest_json.result[0].sys_id | default(sn_l2i_tbac_def_sys_id) }}"
+  when: not sn_l2i_tbac_def_exists | bool
+
+- name: Update metric_class TBAC definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sn_em_tbac_alert_clustering_definitions
+    sn_rest_sys_id: "{{ sn_l2i_tbac_def_sys_id }}"
+    sn_rest_body: "{{ sn_l2i_tbac_def_body }}"
+  when:
+    - sn_l2i_tbac_def_exists | bool
+    - sn_l2i_tbac_def_sys_id | length > 0
+
+- name: Link metric_class TBAC tags to definition (m2m)
+  ansible.builtin.include_tasks: ensure_l2i_tbac_m2m.yml
+  when:
+    - sn_l2i_tbac_def_sys_id | default('') | length > 0
+    - sn_l2i_tbac_def_body.active | default('false') | bool
+
+- name: Look up generated metric_class TBAC correlation rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: em_alert_correlation_rule
+    sn_rest_query: "sysparm_query=name={{ sn_metric_class_tbac_correlation_rule_name | urlencode }}&sysparm_fields=sys_id,name,active&sysparm_limit=5"
+
+- name: Record generated metric_class TBAC correlation rules
+  ansible.builtin.set_fact:
+    sn_metric_class_tbac_corr_rules: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Sync generated metric_class TBAC correlation rule active flag
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_correlation_rule
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      active: "{{ sn_l2i_tbac_def_body.active | default('false') }}"
+  loop: "{{ sn_metric_class_tbac_corr_rules }}"
+  when: >-
+    (item.active | default('') in ['true', '1', true, 1])
+    != (sn_l2i_tbac_def_body.active | default('false') | bool)

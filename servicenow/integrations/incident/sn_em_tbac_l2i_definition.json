@@ -1,8 +1,8 @@
 {
   "name": "L2I short Log4j2 SI + signature",
-  "active": "false",
-  "description": "INACTIVE. Log grouping uses metric_name=Log-Error:{sn-log-signature} plus cmdb_ci via sa_analytics.agg.group_alert_with_same_group_by_fields. Former TBAC keys: sn-environment, sn-service-instance, sn-log-signature.",
-  "time_difference": "15",
-  "alert_filter": "descriptionLIKECRITICAL_LOG_EVENT",
+  "active": "true",
+  "description": "Clusters SGO-Dynatrace log alerts (Log-Error:{Class:Line} signatures) that share the same sn-log-cluster tag (metric_name:cmdb_ci), stamped by ResolveApplicationService.si.js#applyLogMetricName. Replaces the Advanced Correlation Rule approach (em_alert_correlation_rule 'L2I Same CI and metric_name', now inactive) which never fired on this ServiceNow instance regardless of configuration — verified zero alerts anywhere on the instance have ever been correlated by any of the 20 configured Advanced Correlation Rules. The req 6 'join an already-open incident with no time limit' behavior is handled separately by ResolveApplicationService.si.js#applyOpenIncidentJoin, since TBAC clustering itself is time-windowed and not incident-state-aware.",
+  "time_difference": "60",
+  "alert_filter": "source=SGO-Dynatrace^descriptionLIKECRITICAL_LOG_EVENT",
   "grouping_method": "1"
 }

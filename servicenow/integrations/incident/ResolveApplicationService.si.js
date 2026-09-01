@@ -1785,6 +1785,8 @@ ResolveApplicationService.prototype = {
       });
     }
     this.applyLogMetricName(gr);
+    this.applyOpenIncidentJoin(gr);
+    this.applyMetricClassAndFallbackMetricName(gr);
     this.keepDurableLogSignal(gr);
 
     var ciNote = 'cmdb_ci empty';
@@ -1910,7 +1912,9 @@ ResolveApplicationService.prototype = {
    * Log alerts have no native metric. Stamp metric_name as
    * Log-Error:{Class:Line} so sa_analytics.agg.group_alert_with_same_group_by_fields
    * (metric_name,cmdb_ci) groups same signature on the same SI and not every
-   * log on that CI.
+   * log on that CI. Also stamps sn-log-cluster = metric_name:cmdb_ci, the
+   * composite key the metric_class-style log TBAC definition clusters on
+   * (req 5) — see sn_em_tbac_l2i_definition.json / l2i_tbac_tags.yml.
    */
   applyLogMetricName: function (gr) {
     if (!gr || !gr.isValidField('metric_name')) {
@@ -1928,6 +1932,148 @@ ResolveApplicationService.prototype = {
     if (current !== next) {
       gr.metric_name = next;
       this.appendProcessingNote(gr, 'sgo-enrich: metric_name → ' + next);
+    }
+    var ci =
+      gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil() ? gr.cmdb_ci.toString() : '';
+    if (ci) {
+      this.stampCustomProperties(gr, { 'sn-log-cluster': next + ':' + ci });
+    }
+    return true;
+  },
+
+  /**
+   * req 6: if an OPEN incident already exists for this signature+CI, join it
+   * directly — no time limit — by setting parent/correlation_group/incident
+   * ourselves, mirroring what the correlation engine would do. This bypasses
+   * the Advanced Correlation Rule framework, which does not fire on this
+   * ServiceNow instance regardless of configuration (verified: zero alerts
+   * anywhere on the instance have ever been correlated by any of the 20
+   * configured Advanced Correlation Rules — see incident/README.md). Only
+   * fires before insert, so the AMR create-incident filter
+   * (parentISEMPTY^correlation_group!=Secondary) correctly skips this alert
+   * once parent is set here, and no duplicate incident gets created.
+   */
+  applyOpenIncidentJoin: function (gr) {
+    if (!gr || String(gr.source) !== 'SGO-Dynatrace') {
+      return false;
+    }
+    if (!this.isL2iCriticalLogAlert(gr)) {
+      return false;
+    }
+    var metric = String(gr.metric_name || '');
+    var ci =
+      gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil() ? gr.cmdb_ci.toString() : '';
+    if (!metric || !ci) {
+      return false;
+    }
+    if (gr.isValidField('parent') && !gr.parent.nil()) {
+      return false; // already grouped
+    }
+
+    var openPrimary = new GlideRecord('em_alert');
+    openPrimary.addQuery('cmdb_ci', ci);
+    openPrimary.addQuery('metric_name', metric);
+    openPrimary.addQuery('source', 'SGO-Dynatrace');
+    openPrimary.addNotNullQuery('incident');
+    openPrimary.addQuery('incident.active', true);
+    openPrimary.orderByDesc('sys_created_on');
+    openPrimary.setLimit(1);
+    openPrimary.query();
+    if (!openPrimary.next()) {
+      return false;
+    }
+    var incidentId = openPrimary.getValue('incident');
+    if (!incidentId) {
+      return false;
+    }
+
+    gr.parent = openPrimary.getUniqueValue();
+    gr.correlation_group = '2'; // Secondary (em_alert.correlation_group sys_choice)
+    if (gr.isValidField('incident')) {
+      gr.incident = incidentId;
+    }
+    this.appendProcessingNote(
+      gr,
+      'sgo-enrich: joined open incident ' +
+        incidentId +
+        ' via ' +
+        openPrimary.getUniqueValue() +
+        ' (req 6 — no time limit while incident stays active)'
+    );
+    return true;
+  },
+
+  /**
+   * Problem title/type → metric_class pattern table (req 4). Extend this list
+   * as new base-metric problem types are identified (memory, disk, ...).
+   * RESOURCE_CONTENTION is intentionally NOT matched yet: it is a generic
+   * Dynatrace category (CPU, memory, or disk contention), and classifying it
+   * as CPU is pending inspection of the tenant's Infrastructure Anomaly
+   * Detection settings — see observability/dynatrace/docs/Partitioning_and_Tagging.md.
+   */
+  metricClassPatterns: [
+    { re: /CPU\s*Saturation/i, metricClass: 'cpu', label: 'CPU_Saturation' },
+    { re: /CPU\s*usage\s*close\s*to\s*limits/i, metricClass: 'cpu', label: 'CPU_Near_Limit' },
+    { re: /CPU\s*above\s*\d+%/i, metricClass: 'cpu', label: 'CPU_Threshold' },
+  ],
+
+  classifyMetricClass: function (gr) {
+    if (!gr) {
+      return null;
+    }
+    if (String(gr.type || '') === 'CPU_SATURATED') {
+      return { metricClass: 'cpu', label: 'CPU_SATURATED' };
+    }
+    var blob =
+      (gr.description ? gr.description.toString() : '') +
+      ' ' +
+      (gr.short_description ? gr.short_description.toString() : '');
+    for (var i = 0; i < this.metricClassPatterns.length; i++) {
+      var p = this.metricClassPatterns[i];
+      if (p.re.test(blob)) {
+        return { metricClass: p.metricClass, label: p.label };
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Any SGO-Dynatrace alert still missing metric_name (native Davis problems
+   * carry no metric-event details) gets a stable, CI-independent metric_name
+   * backfilled from its classification — structurally closes the
+   * empty-metric_name grouping hole (req 2) for every alert type, not just
+   * logs. When classified, also stamps sn-metric-class and a composite
+   * sn-metric-cluster = "<metric_class>:<cmdb_ci>" tag so the metric_class
+   * TBAC definition clusters same-class alerts per host/CI (req 4) without
+   * depending on TBAC's multi-tag AND semantics. Never touches metric_name
+   * when Dynatrace already supplied one (logs, or our own custom CPU event).
+   */
+  applyMetricClassAndFallbackMetricName: function (gr) {
+    if (!gr || !gr.isValidField('metric_name')) {
+      return false;
+    }
+    if (this.isL2iCriticalLogAlert(gr)) {
+      return false; // logs own their metric_name via applyLogMetricName
+    }
+    var classification = this.classifyMetricClass(gr);
+    var current = String(gr.metric_name || '');
+    if (!current) {
+      var next = classification
+        ? 'DT-ProblemType:' + classification.label
+        : 'DT-ProblemType:Unclassified';
+      gr.metric_name = next;
+      this.appendProcessingNote(gr, 'sgo-enrich: metric_name (backfill) → ' + next);
+    }
+    if (classification) {
+      var kv = { 'sn-metric-class': classification.metricClass };
+      var ci =
+        gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil()
+          ? gr.cmdb_ci.toString()
+          : '';
+      if (ci) {
+        kv['sn-metric-cluster'] = classification.metricClass + ':' + ci;
+      }
+      this.stampCustomProperties(gr, kv);
     }
     return true;
   },

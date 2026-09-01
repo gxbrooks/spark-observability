@@ -128,7 +128,7 @@
   ansible.builtin.set_fact:
     sn_l2i_tbac_corr_rules: "{{ sn_rest_json.result | default([]) }}"
 
-- name: Deactivate generated L2I TBAC correlation rule
+- name: Sync generated L2I TBAC correlation rule active flag
   ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
   vars:
     sn_rest_method: patch
@@ -137,6 +137,6 @@
     sn_rest_body:
       active: "{{ sn_l2i_tbac_def_body.active | default('false') }}"
   loop: "{{ sn_l2i_tbac_corr_rules }}"
-  when:
-    - (sn_l2i_tbac_def_body.active | default('false') | bool) == false
-    - item.active | default('') in ['true', '1', true, 1]
+  when: >-
+    (item.active | default('') in ['true', '1', true, 1])
+    != (sn_l2i_tbac_def_body.active | default('false') | bool)

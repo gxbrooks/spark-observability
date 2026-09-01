@@ -17,7 +17,15 @@ sn_incident_si_name: ResolveApplicationService
 sn_l2i_enrich_event_br_name: em-event-enrich-sgo
 sn_l2i_enrich_event_br_order: "100"
 sn_l2i_enrich_alert_br_name: em-alert-enrich-sgo
-sn_l2i_enrich_alert_br_order: "5000"
+# Must run before ServiceNow's own order-100 em_alert before-BRs (Calculate
+# correlation rule, TBAC Tag Normalization BR, Populate TBAC Reasoning, Add
+# message key if missing) — those evaluate the alert's fields as they stand
+# at that order, so our metric_name/cmdb_ci/sn-metric-class backfill has to
+# land first or correlation and TBAC clustering both evaluate stale (empty)
+# data. Previously 5000 (after those OOTB rules), which is why neither the
+# L2I correlation rule nor the metric_class TBAC ever actually correlated
+# anything on this instance.
+sn_l2i_enrich_alert_br_order: "90"
 sn_incident_em_alert_br_name: em-alert-create-log-incident
 sn_incident_em_alert_br_order: "5020"
 
@@ -36,6 +44,7 @@ sn_ootb_ci_in_change_window_rule_name: CI in Change Window
 
 # Product-generated TBAC correlation rule name (lookup only).
 sn_l2i_tbac_correlation_rule_name: "[Tag Based] L2I short Log4j2 SI + signature"
+sn_metric_class_tbac_correlation_rule_name: "[Tag Based] L2I metric_class CPU cluster"
 
 # Create BR retired: OOTB AMR SGO-Dynatrace owns incident create.
 sn_l2i_create_br_active: "false"

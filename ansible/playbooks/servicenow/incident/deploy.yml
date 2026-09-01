@@ -40,7 +40,14 @@
     - name: Ensure reserved L2I AMR stays inactive; keep TBAC definition
       ansible.builtin.include_tasks: tasks/ensure_l2i_amr_and_tbac.yml
 
-    - name: Ensure Automated grouping keys on metric_name + CI
+    - name: Capture log TBAC definition state before metric_class TBAC reuses the same fact names
+      ansible.builtin.set_fact:
+        sn_log_tbac_def_body: "{{ sn_l2i_tbac_def_body }}"
+
+    - name: Ensure metric_class TBAC definition (CPU-family clustering)
+      ansible.builtin.include_tasks: tasks/ensure_metric_class_tbac.yml
+
+    - name: Ensure Automated grouping keys on metric_name + CI (+ TAG_BASED for metric_class TBAC)
       ansible.builtin.include_tasks: tasks/ensure_l2i_alert_grouping.yml
 
     - name: Apply Event Management grouping/incident best-practice properties
@@ -68,8 +75,10 @@
       ansible.builtin.debug:
         msg: >-
           L2I path: sn-* tags + metric_name=Log-Error:{signature} +
-          group_by metric_name,cmdb_ci. TBAC '{{ sn_l2i_tbac_def_body.name }}'
-          active={{ sn_l2i_tbac_def_body.active }}. Enrich BRs
+          group_by metric_name,cmdb_ci. Log TBAC '{{ sn_log_tbac_def_body.name }}'
+          active={{ sn_log_tbac_def_body.active }}. metric_class TBAC
+          '{{ sn_l2i_tbac_def_body.name }}' active={{ sn_l2i_tbac_def_body.active }}
+          clusters CPU-family alerts via sn-metric-cluster. Enrich BRs
           '{{ sn_l2i_enrich_event_br_name }}' /
           '{{ sn_l2i_enrich_alert_br_name }}'.
           Create BR '{{ sn_incident_em_alert_br_name }}' active={{ sn_l2i_create_br_active }}.

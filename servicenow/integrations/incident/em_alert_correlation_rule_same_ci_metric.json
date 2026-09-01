@@ -1,12 +1,12 @@
 {
   "name": "L2I Same CI and metric_name",
-  "active": "true",
+  "active": "false",
   "advanced": "true",
   "generate_virtual_alerts": "false",
   "order": "20",
   "time_difference": "60",
   "relationship_type": "2",
   "table": "em_alert",
-  "advanced_filter": "source=SGO-Dynatrace^metric_nameISNOTEMPTY",
-  "description": "L2I rule-based: Open SGO-Dynatrace alerts with the same CI and the same metric_name (Log-Error:{signature}) join as Primary/Secondary. Empty metric_name is not grouped here."
+  "advanced_filter": "source=SGO-Dynatrace^metric_nameSTARTSWITHLog-Error:",
+  "description": "SUPERSEDED / kept inactive for reference. Advanced Correlation Rules do not fire on this ServiceNow instance regardless of configuration: verified zero alerts anywhere on the instance have ever been correlated by any of the 20 configured rules (this one included), even after fixing the script's return format (must be JSON.stringify(result), confirmed via ServiceNow community docs), the correlation_group value format (numeric choice, not the literal string 'Primary'/'Secondary'), and the enrichment business-rule ordering (moved em-alert-enrich-sgo from order 5000 to order 90, ahead of the platform's own order-100 'Calculate correlation rule' BR). Log alert grouping now uses the sn_em_tbac_l2i_definition.json TBAC definition (metric_class-style, proven to work) plus ResolveApplicationService.si.js#applyOpenIncidentJoin for the open-incident-join behavior this rule's script used to attempt."
 }

@@ -27,7 +27,7 @@ sequenceDiagram
   alt ERROR log line
     DT->>LE: DQL matcher (log event)
     LE->>Davis: Custom ERROR event (davisMerge=false)
-  else Host CPU > 80%
+  else Host CPU > 50%
     DT->>LE: Static metric threshold
     LE->>Davis: CUSTOM_ALERT event (davisMerge=false)
   end
@@ -60,7 +60,7 @@ sequenceDiagram
 | Custom log source | `builtin:logmonitoring.custom-log-source-settings` | **`Spark Lab - application log files`** | OneAgent tails `/mnt/spark/logs/*/spark-app.log*` for Grail ingest. |
 | **OpenPipeline log alerts** | `builtin:openpipeline.logs.pipelines` | **`Spark Lab - log alerts`** | **Primary** Davis event extraction for ERROR/WARN Spark logs (required when logs route through custom OpenPipeline). |
 | **Log event (classic)** | `builtin:logmonitoring.log-events` | **`Spark Lab - ERROR and WARN log lines`** | Legacy matcher; kept for idempotency but **does not fire** when logs bypass the classic pipeline (see below). |
-| Metric event | `builtin:anomaly-detection.metric-events` | `Spark Lab - Host CPU above 80%` | Fires when `builtin:host.cpu.usage` AVG > 80% (3-sample window). |
+| Metric event | `builtin:anomaly-detection.metric-events` | `Spark Lab - Host CPU above 50%` | Fires when `builtin:host.cpu.usage` AVG > 50% (3-sample window). `eventType=CUSTOM_ALERT`, `davisMerge=false` (each breach opens its own problem), tagged `sn-metric-class=cpu`. |
 | Alerting profile | `builtin:alerting.profile` | `Spark Observability - ServiceNow brooks-lab` | Forwards problems in the Spark Observability MZ. |
 | Problem notification | `builtin:problem.notifications` | `ServiceNow brooks-lab - Spark Observability` | Webhook to ServiceNow inbound events API. |
 
@@ -152,15 +152,17 @@ During `./run-chapters.sh`, chapters emit log4j **WARN** and occasional **ERROR*
 
 ## Host CPU metric monitor (companion path)
 
-Template: `ansible/playbooks/servicenow/sgc/sources/dynatrace/files/spark-cpu-metric-event.json.j2`
+Template: `observability/dynatrace/integrations/spark-cpu-metric-event.json.j2`
 
 | Field | Value |
 | ----- | ----- |
 | **Metric** | `builtin:host.cpu.usage` (AVG) |
-| **Threshold** | Static **> 80%** |
+| **Threshold** | Static **> 50%** |
 | **Samples** | `violatingSamples: 1`, `samples: 3`, `dealertingSamples: 3` |
 | **Event type** | `CUSTOM_ALERT` |
-| **Title** | `Host ({dims:dt.entity.host}) CPU above 80%` |
+| **davisMerge** | `false` — each threshold breach opens its own problem/ProblemID instead of merging into an existing open one |
+| **Title** | `Host CPU above 50%` (CI-independent — the affected host is carried via `ImpactedEntity`/`entityId`, not the title, so repeat alerts on different hosts read as the same alert type) |
+| **Tags** | `sn-event-kind=CPU_EVENT`, `sn-metric-class=cpu` (metric_class TBAC clustering, see [incident/README.md](../../../ansible/playbooks/servicenow/incident/README.md)) |
 
 Chapter runs sustain CPU on Lab1/Lab2/Lab3 hosts in the Spark Observability management zone, producing **CUSTOM_ALERT** problems forwarded on the same webhook path.
 
@@ -273,7 +275,7 @@ If step 3 fails (import lag, hostname mismatch such as `lab1` vs `Lab1`), the ev
 | `ERROR` | 2 (Major) | **Spark ERROR log event** |
 | `PERFORMANCE` | 3 (Minor) | — |
 | `RESOURCE_CONTENTION` | 3 (Minor) | — |
-| `CUSTOM_ALERT` | 3–4 (Minor / Warning) | **Host CPU > 80%** |
+| `CUSTOM_ALERT` | 3–4 (Minor / Warning) | **Host CPU > 50%** |
 
 Exact numbers depend on SGC field mapping version; use Event Management → All Events to confirm on the tenant.
 
@@ -341,7 +343,7 @@ For brooks-lab chapter traffic:
 | Detector | Typical impacted entity | Notes |
 | -------- | ----------------------- | ----- |
 | Spark ERROR log event | Often **host** or **process** tied to the log source | Log path may surface as resource on the event |
-| Host CPU > 80% | **`HOST-…`** | Host-level problem; container/process may not appear in impacted list |
+| Host CPU > 50% | **`HOST-…`** | Host-level problem; container/process may not appear in impacted list |
 
 Problems are scoped by alerting profile to management zone **Spark Observability** before the webhook fires.
 
@@ -977,7 +979,8 @@ Related list URLs:
 | Object | Navigation |
 | ------ | ---------- |
 | **`Spark Lab - ERROR log lines`** | [Log events list](https://pdt20158.live.dynatrace.com/ui/settings/builtin:logmonitoring.log-events) or **Settings Classic** → **Log monitoring** → **Log events** |
-| **`Spark Lab - Host CPU above 80%`** | [Metric events list](https://pdt20158.live.dynatrace.com/ui/settings/builtin:anomaly-detection.metric-events) or **Settings Classic** → **Anomaly detection** → **Metric events** |
+| **`Spark Lab - Host CPU above 50%`** | [Metric events list](https://pdt20158.live.dynatrace.com/ui/settings/builtin:anomaly-detection.metric-events) or **Settings Classic** → **Anomaly detection** → **Metric events** |
+| Native Davis infra checks (**CPU Saturation**, **CPU usage close to limits**, `RESOURCE_CONTENTION`) | [Infrastructure hosts anomaly detection](https://pdt20158.live.dynatrace.com/ui/settings/builtin:anomaly-detection.infrastructure-hosts) or **Settings Classic** → **Anomaly detection** → **Infrastructure** → **Hosts** |
 
 ### Problems (runtime view)
 
@@ -999,7 +1002,7 @@ Related list URLs:
 **Dynatrace UI**
 
 - Settings → Log monitoring → Log events → **`Spark Lab - ERROR log lines`**
-- Settings → Anomaly detection → Metric events → **`Spark Lab - Host CPU above 80%`**
+- Settings → Anomaly detection → Metric events → **`Spark Lab - Host CPU above 50%`**
 - Problems → filter management zone **Spark Observability**
 
 **ServiceNow UI**
