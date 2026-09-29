@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Open or close a ServiceNow change window for Chapter_*.py stress.
 
-OOTB "CI in Change Window" only marks change.cmdb_ci when the change is
-Scheduled or Implement and now is inside planned start/end. Normal model
-blocks New → Implement from REST (assignment-group approval). Standard
-walks New → Scheduled → Implement.
+OOTB "CI in Change Window" marks change.cmdb_ci when the change is approved,
+not on hold, in Scheduled or Implement (not New), and now is inside the
+planned start/end window OR the actual work_start/work_end window. The lab
+extension "Affected CIs in Change Window" applies the same gates to
+task_ci.ci_item. Normal model blocks New → Implement from REST
+(assignment-group approval). Standard walks New → Scheduled → Implement
+(work_start set on Implement).
 
   create-sn-change-window.py --minutes 60 --log-dir DIR
   create-sn-change-window.py --close --log-dir DIR

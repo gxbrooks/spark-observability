@@ -99,23 +99,25 @@ Standalone custom log source still stamps OneAgent `service_instance`; OpenPipel
 ## Change-window maintenance (OOTB + Affected CIs)
 
 OOTB **CI in Change Window** (`ImpactManager.getCisInActiveChangeWindow()`) is
-the product path. Deploy re-asserts it **active**. It only marks
-`change.cmdb_ci` when **all** of these are true:
+the product path. Deploy re-asserts it **active**. It marks only
+`change.cmdb_ci`. ServiceNow Event Management describes the OOTB gates as:
 
-1. Change state is **Scheduled** (−2) or **Implement** (−1). **New is not enough.**
+1. Change state is **Scheduled** (`-2`) or **Implement** (`-1`). **New (`-5`)
+   does not qualify** (OOTB does not mark the primary CI in New).
 2. `approval=approved`, not on hold.
-3. Now is between planned `start_date` and `end_date`.
+3. Now is inside the **planned** `start_date`…`end_date` window **or** the
+   **actual** `work_start`…`work_end` window (open-ended while `work_end` is
+   empty after Implement sets `work_start`).
 4. `cmdb_ci` is populated.
 
-It does **not** mark Affected CIs (`task_ci`). Deploy upserts the extension
-rule from
+It does **not** mark Affected CIs (`task_ci`). That is a product gap; industry
+practice is a second non-advanced rule on `task_ci` / `ci_item`. Deploy upserts
 `servicenow/integrations/incident/em_maintenance_rule_affected_cis.json`
-(**Affected CIs in Change Window**: `table=task_ci`, `ci_field=ci_item`,
-planned window + Scheduled/Implement). That is the product gap, not a
-lab-specific rule. Advanced `findCisInMaint()` scripts are easy to drop
-(wrong return type). The Maintenance Calculator job must be running
-(~1 min). Proof is `em_impact_maint_ci.ci_id` (not `ci`). AMR filters
-already require `maintenance=false`.
+(**Affected CIs in Change Window**) with the **same** approval / hold /
+Scheduled/Implement / planned-**or**-actual time gates. Advanced `findCisInMaint()` scripts are easy
+to drop (wrong return type). The Maintenance Calculator job must be running
+(~1 min). Proof is `em_impact_maint_ci.ci_id` (not `ci`). AMR filters already
+require `maintenance=false`.
 
 One-time cleanups (for example, deactivating a leftover rule named
 **L2I Affected CIs in Change Window**) belong in this directory's `tmp/`

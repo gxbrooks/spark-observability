@@ -1,8 +1,9 @@
 ---
 # Extension of OOTB "CI in Change Window". That rule only marks
-# change.cmdb_ci. This rule marks Affected CIs (task_ci.ci_item) for the
-# same Scheduled/Implement planned window. Non-advanced — advanced
-# findCisInMaint() return types are dropped by the calculator.
+# change.cmdb_ci. This rule marks Affected CIs (task_ci.ci_item) with the
+# same OOTB gates: approved, not on hold, Scheduled/Implement (-2/-1; not
+# New/-5), and planned start/end OR actual work_start/work_end. Non-advanced —
+# advanced findCisInMaint() return types are dropped by the calculator.
 - name: Load Affected CIs maintenance rule representation
   ansible.builtin.set_fact:
     sn_affected_ci_maint_rule_body: "{{ lookup('file', sn_incident_integrations_dir + '/em_maintenance_rule_affected_cis.json') | from_json }}"

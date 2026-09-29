@@ -1,8 +1,9 @@
 ---
 # OOTB Event Management change-window maintenance. The product rule only
-# marks change.cmdb_ci when the change is Scheduled or Implement and now
-# is inside planned start/end. Do not replace its ImpactManager script.
-# Affected CIs (task_ci) are handled by Affected CIs in Change Window.
+# marks change.cmdb_ci. OOTB gates: approved, not on hold, Scheduled/
+# Implement (-2/-1; not New), and planned start/end OR actual work_start/work_end.
+# Do not replace its ImpactManager script. Affected CIs (task_ci) are
+# handled by Affected CIs in Change Window.
 - name: Look up OOTB CI in Change Window maintenance rule
   ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
   vars:

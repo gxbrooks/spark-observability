@@ -5,7 +5,7 @@
   "include_apps": "true",
   "table": "task_ci",
   "ci_field": "ci_item",
-  "filter": "task.sys_class_name=change_request^task.approval=approved^task.on_hold=false^task.stateIN-2,-1^task.start_date<=javascript:gs.nowNoTZ()^task.end_date>=javascript:gs.nowNoTZ()",
+  "filter": "task.sys_class_name=change_request^task.approval=approved^task.on_hold=false^task.stateIN-2,-1^task.start_date<=javascript:gs.nowNoTZ()^task.end_date>=javascript:gs.nowNoTZ()^NQtask.sys_class_name=change_request^task.approval=approved^task.on_hold=false^task.stateIN-2,-1^task.work_startISNOTEMPTY^task.work_start<=javascript:gs.nowNoTZ()^task.work_endISEMPTY^NQtask.sys_class_name=change_request^task.approval=approved^task.on_hold=false^task.stateIN-2,-1^task.work_startISNOTEMPTY^task.work_start<=javascript:gs.nowNoTZ()^task.work_end>=javascript:gs.nowNoTZ()",
   "script": "",
-  "description": "Extension of OOTB CI in Change Window. Marks Affected CIs (task_ci.ci_item) when the change is approved, not on hold, Scheduled or Implement, and now is inside the planned start/end window. The Maintenance Calculator unmarks when those conditions no longer hold. Proof is em_impact_maint_ci.ci_id."
+  "description": "Extension of OOTB CI in Change Window for Affected CIs (task_ci.ci_item). Mirrors OOTB ImpactManager gates observed on this instance: approved, not on hold, state Scheduled/Implement (-2/-1) — not New (-5), and now inside the planned start/end window OR the actual work_start/work_end window (open-ended while work_end is empty). Proof: em_impact_maint_ci.ci_id."
 }
