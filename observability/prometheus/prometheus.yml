@@ -209,6 +209,52 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_node_name]
         target_label: node
 
+  # Spark Worker metrics (native Prometheus sink on the Worker's Jetty server,
+  # :8081/metrics/prometheus -- see spark.metrics.conf.worker.sink.prometheusServlet.*
+  # in ansible/roles/spark/templates/spark-defaults.conf.j2). Uses the K8s API
+  # server's pod-proxy path (same pattern as kube-state-metrics above) because
+  # Prometheus runs outside the cluster on Lab3 and cannot reach pod overlay
+  # IPs (10.244.x.x) -- Worker pods do not use hostNetwork, unlike node-exporter.
+  - job_name: 'spark-workers'
+    scheme: https
+    tls_config:
+      ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
+      cert_file: '/etc/ssl/certs/kubernetes/client.crt'
+      key_file: '/etc/ssl/certs/kubernetes/client.key'
+      insecure_skip_verify: false
+    kubernetes_sd_configs:
+      - role: pod
+        api_server: 'https://__KUBERNETES_API_SERVER__:6443'
+        tls_config:
+          ca_file: '/etc/ssl/certs/kubernetes/ca.crt'
+          cert_file: '/etc/ssl/certs/kubernetes/client.crt'
+          key_file: '/etc/ssl/certs/kubernetes/client.key'
+          insecure_skip_verify: false
+        namespaces:
+          names: ['spark']
+    relabel_configs:
+      # Only scrape spark-worker pods, not master/history/client
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: spark-worker
+      - target_label: __address__
+        replacement: '__KUBERNETES_API_SERVER__:6443'
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_name]
+        regex: (.+);(.+)
+        target_label: __metrics_path__
+        # Trailing slash required: Spark's servlet redirects the bare path to
+        # this canonical form, and the K8s API server's pod-proxy subresource
+        # does not follow redirects from the proxied backend (returns 400).
+        replacement: /api/v1/namespaces/$1/pods/$2:8081/proxy/metrics/prometheus/
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: kubernetes_pod_name
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: kubernetes_node
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: kubernetes_namespace
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:

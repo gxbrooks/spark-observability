@@ -72,6 +72,23 @@
           "azureToServicePropagation": false,
           "azureToPGPropagation": false
         }
+      },
+      {
+        "enabled": true,
+        "type": "ME",
+        "attributeRule": {
+          "entityType": "SERVICE",
+          "conditions": [
+            {
+              "key": "HOST_GROUP_NAME",
+              "operator": "EQUALS",
+              "stringValue": "{{ DT_HOST_GROUP }}",
+              "caseSensitive": false
+            }
+          ],
+          "serviceToHostPropagation": false,
+          "serviceToPGPropagation": false
+        }
       }
     ]
   }
