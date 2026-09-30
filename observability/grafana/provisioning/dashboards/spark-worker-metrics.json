@@ -1,0 +1,191 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["spark", "worker", "metrics"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Spark Worker Metrics",
+  "uid": "spark-worker-metrics",
+  "version": 1,
+  "panels": [
+    {
+      "type": "text",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "mode": "markdown",
+        "content": "## Spark Worker Metrics (first cut)\nCluster-aggregate golden signals for the Worker pool, sourced from Spark's native Prometheus sink (`:8081/metrics/prometheus`) via Prometheus -> OTel Collector -> Elasticsearch (`metrics-kubernetes-default`, job `spark-workers`). Elasticsearch analogue of the Dynatrace **Spark Worker Metrics** dashboard -- same panels, same aggregation choice (cluster-wide sum, not per-worker), for the same reason: this is the overview tile, per-worker drilldown is a natural next refinement."
+      }
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": { "mode": "none" },
+            "axisCenteredZero": true
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 3 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "30s", "min_doc_count": "0" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "metrics_worker_coresUsed_Value" }
+          ],
+          "query": "_index:metrics-kubernetes-default* AND scrape_job:spark-workers AND _exists_:metrics_worker_coresUsed_Value",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": "used"
+        },
+        {
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "30s", "min_doc_count": "0" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "metrics_worker_coresFree_Value" },
+            { "id": "2", "type": "bucket_script", "pipelineAgg": "1", "settings": { "script": "params._value != null ? params._value * -1 : null" } }
+          ],
+          "query": "_index:metrics-kubernetes-default* AND scrape_job:spark-workers AND _exists_:metrics_worker_coresFree_Value",
+          "refId": "B",
+          "timeField": "@timestamp",
+          "alias": "free"
+        }
+      ],
+      "title": "Core Allocation Across Worker Pool",
+      "description": "Envelope graph: used (positive) vs. free (negative) CPU cores, summed across all 16 workers.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": { "mode": "none" },
+            "axisCenteredZero": true
+          },
+          "unit": "decmbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 3 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "30s", "min_doc_count": "0" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "metrics_worker_memUsed_MB_Value" }
+          ],
+          "query": "_index:metrics-kubernetes-default* AND scrape_job:spark-workers AND _exists_:metrics_worker_memUsed_MB_Value",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": "used"
+        },
+        {
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "30s", "min_doc_count": "0" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "metrics_worker_memFree_MB_Value" },
+            { "id": "2", "type": "bucket_script", "pipelineAgg": "1", "settings": { "script": "params._value != null ? params._value * -1 : null" } }
+          ],
+          "query": "_index:metrics-kubernetes-default* AND scrape_job:spark-workers AND _exists_:metrics_worker_memFree_MB_Value",
+          "refId": "B",
+          "timeField": "@timestamp",
+          "alias": "free"
+        }
+      ],
+      "title": "Memory Allocation Across Worker Pool",
+      "description": "Envelope graph: used (positive) vs. free (negative) memory, summed across all 16 workers.",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": { "mode": "none" }
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "targets": [
+        {
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "30s", "min_doc_count": "0" } }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "spark-elasticsearch" },
+          "metrics": [
+            { "id": "1", "type": "sum", "field": "metrics_worker_executors_Value" }
+          ],
+          "query": "_index:metrics-kubernetes-default* AND scrape_job:spark-workers AND _exists_:metrics_worker_executors_Value",
+          "refId": "A",
+          "timeField": "@timestamp",
+          "alias": "executors"
+        }
+      ],
+      "title": "Active Executors Across Worker Pool",
+      "type": "timeseries"
+    }
+  ]
+}
