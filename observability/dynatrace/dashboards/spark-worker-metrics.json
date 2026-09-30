@@ -1,0 +1,52 @@
+{
+  "annotations": [],
+  "importedWithCode": false,
+  "settings": {
+    "defaultTimeframe": {
+      "enabled": true,
+      "value": { "from": "now()-2h", "to": "now()" }
+    }
+  },
+  "layouts": {
+    "1": { "x": 0, "y": 0, "w": 24, "h": 3 },
+    "2": { "x": 0, "y": 3, "w": 12, "h": 8 },
+    "3": { "x": 12, "y": 3, "w": 12, "h": 8 },
+    "4": { "x": 0, "y": 11, "w": 12, "h": 8 }
+  },
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "## Spark Worker Metrics (first cut)\nCluster-aggregate golden signals for the Worker pool, sourced from Spark's native Prometheus sink (`:8081/metrics/prometheus`) via the existing Prometheus -> OTel Collector -> Dynatrace pipeline (see `observability/prometheus/prometheus.yml`, job `spark-workers`). All 16 worker pods (lab1 + lab2) are summed here; per-worker drilldown by `kubernetes_pod_name` is a natural next refinement, along with computed utilization percentages once cross-series DQL arithmetic is validated. Metric unit metadata is not settable for OTLP-ingested metrics via the classic API, so axes currently show raw values (cores as count, memory in MB)."
+    },
+    "2": {
+      "type": "data",
+      "title": "Core Allocation Across Worker Pool",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries {used=sum(metrics_worker_coresUsed_Value), free=sum(metrics_worker_coresFree_Value)}\n| fieldsAdd free = free[] * -1",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "3": {
+      "type": "data",
+      "title": "Memory Allocation Across Worker Pool (MB)",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries {used=sum(metrics_worker_memUsed_MB_Value), free=sum(metrics_worker_memFree_MB_Value)}\n| fieldsAdd free = free[] * -1",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "4": {
+      "type": "data",
+      "title": "Active Executors Across Worker Pool",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries executors=sum(metrics_worker_executors_Value)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    }
+  }
+}
