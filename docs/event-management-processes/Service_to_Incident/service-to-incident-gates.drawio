@@ -1,0 +1,129 @@
+<mxfile host="Electron" agent="spark-observability">
+  <diagram name="service-to-incident-gates" id="service-to-incident-gates">
+    <mxGraphModel dx="1003" dy="1235" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="780" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="cluster-k8s" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#003366;fillColor=#EEF6FF;fontStyle=1;fontSize=11;startSize=28;container=0;" value="Kubernetes (tag source of truth)" vertex="1">
+          <mxGeometry height="120" width="220" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="k8s-label" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFF;container=0;" value="Pod label&#10;servicenow.com/service-instance&#10;= Spark-Worker" vertex="1">
+          <mxGeometry height="60" width="200" x="50" y="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cluster-dt" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#660066;fillColor=#FAF0FF;fontStyle=1;fontSize=11;startSize=28;container=0;" value="Dynatrace" vertex="1">
+          <mxGeometry height="500" width="330" x="330" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="dt-pgi" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="PROCESS_GROUP_INSTANCE&#10;(OneAgent, k8s label -&gt; Environment tag)" vertex="1">
+          <mxGeometry height="50" width="290" x="350" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="dt-service" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="SERVICE-* (Worker :8081)&#10;inherits the same tag" vertex="1">
+          <mxGeometry height="50" width="290" x="350" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="dt-otel" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="Worker metrics (Prometheus scrape)&#10;dimension servicenow_com_service_instance" vertex="1">
+          <mxGeometry height="50" width="290" x="350" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="gate1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontStyle=1;fontSize=10;container=0;" value="GATE 1 — Management Zone&#10;SERVICE rule + HOST_GROUP_NAME&#10;(pgToServicePropagation precondition&#10;requires its own PROCESS_GROUP/SERVICE rule)" vertex="1">
+          <mxGeometry height="60" width="290" x="350" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="gate2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontStyle=1;fontSize=10;container=0;" value="GATE 2 — Alerting Profile&#10;severityLevel=PERFORMANCE, scoped to&#10;the same management zone" vertex="1">
+          <mxGeometry height="50" width="290" x="350" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="dt-notif" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;fontSize=11;container=0;" value="Problem notification (webhook)&#10;ServiceNow brooks-lab - Spark Observability" vertex="1">
+          <mxGeometry height="50" width="290" x="350" y="450" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cluster-em" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#CC6600;fillColor=#FFF8F0;fontStyle=1;fontSize=11;startSize=28;container=0;" value="ServiceNow Event/Incident Mgmt" vertex="1">
+          <mxGeometry height="340" width="280" x="710" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ev" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="em_event" vertex="1">
+          <mxGeometry height="40" width="240" x="730" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="al" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="em_alert&#10;cmdb_ci -&gt; HOST/PGI-derived CI" vertex="1">
+          <mxGeometry height="50" width="240" x="730" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="gate3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontStyle=1;fontSize=10;container=0;" value="GATE 3 — Alert-to-CI resolution&#10;ResolveApplicationService.si.js binds&#10;cmdb_ci directly; never reads the&#10;Service Instance association below" vertex="1">
+          <mxGeometry height="60" width="240" x="730" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="inc" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE8CC;container=0;" value="incident&#10;cmdb_ci = same CI as the alert" vertex="1">
+          <mxGeometry height="50" width="240" x="730" y="310" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cluster-csdm" parent="1" style="swimlane;rounded=1;dashed=1;dashPattern=8 4;strokeColor=#006600;fillColor=#F0FFF4;fontStyle=1;fontSize=11;startSize=28;container=0;" value="CSDM (CI &lt;-&gt; Service Instance)" vertex="1">
+          <mxGeometry height="200" width="330" x="330" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="gate4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontStyle=1;fontSize=10;container=0;" value="GATE 4 — Tag-based Service Mapping&#10;sm_populate_tag_list.js reads the same&#10;k8s label; writes svc_ci_assoc" vertex="1">
+          <mxGeometry height="60" width="290" x="350" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="ci" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DDEEFF;container=0;" value="cmdb_ci_kubernetes_pod (or host CI)&#10;-- the alert's cmdb_ci --" vertex="1">
+          <mxGeometry height="50" width="290" x="350" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="svc" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F8EC;container=0;" value="Spark Worker&#10;cmdb_ci_service_by_tags&#10;(the Service Instance CI)" vertex="1">
+          <mxGeometry height="60" width="240" x="770" y="620" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" edge="1" parent="1" source="k8s-label" target="dt-pgi" style="endArrow=classic;html=1;strokeWidth=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="dt-pgi" target="dt-service" style="endArrow=classic;html=1;strokeWidth=1;" value="propagates to nested SERVICE">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2b" edge="1" parent="1" source="k8s-label" target="dt-otel" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;exitX=1;exitY=0.85;exitDx=0;exitDy=0;" value="pod label -&gt; Prometheus label -&gt; OTel dimension">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="300" y="245" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="dt-service" target="gate1" style="endArrow=classic;html=1;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="gate1" target="gate2" style="endArrow=classic;html=1;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="gate2" target="dt-notif" style="endArrow=classic;html=1;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="dt-notif" target="ev" style="endArrow=classic;html=1;strokeColor=#CC6600;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="ev" target="al" style="endArrow=classic;html=1;strokeColor=#CC6600;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="al" target="gate3" style="endArrow=classic;html=1;strokeColor=#CC6600;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="gate3" target="inc" style="endArrow=classic;html=1;strokeColor=#CC6600;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="gate3" target="ci" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;exitX=0;exitY=0.7;entryX=1;entryY=0.3;" value="binds to">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="dt-pgi" target="gate4" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;exitX=0;exitY=0.8;entryX=0.5;entryY=0;" value="entity tag read by">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="gate4" target="ci" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="gate4" target="svc" style="endArrow=classic;html=1;strokeColor=#660066;strokeWidth=1;" value="writes svc_ci_assoc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="ci" target="svc" style="endArrow=none;html=1;strokeColor=#006600;strokeWidth=2;dashed=1;" value="member of (ownership/reporting only)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="note" parent="1" style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontColor=#990000;container=0;" value="The orange path (alert -&gt; CI) and the green path&#10;(CI -&gt; Service Instance) are independent.&#10;An alert never looks up the Service Instance;&#10;the Service Instance never gates the alert." vertex="1">
+          <mxGeometry height="60" width="330" x="710" y="700" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
