@@ -707,7 +707,7 @@ pre.rouge {
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>3. Alert-to-CI resolution</strong></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Once a problem does reach ServiceNow as an <code>em_event</code>, <code>ResolveApplicationService.si.js</code> resolves <code>em_alert.cmdb_ci</code> directly from the event payload (host, pod, or process-group identity). It <strong>never</strong> consults the CSDM Service Instance association described in <a href="#ci-vs-service-instance">How the CI relates to the Service Instance</a>. A <code>SERVICE-*</code>-scoped problem lands on the same host/pod CI an infrastructure alert would — there is no code path that binds an alert to a Service Instance CI.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Once a problem does reach ServiceNow as an <code>em_event</code>, <code>ResolveApplicationService.si.js</code> resolves <code>em_alert.cmdb_ci</code> directly from the event&#8217;s <code>ImpactedEntities[].type</code> (<code>HOST</code>, <code>PROCESS_GROUP_INSTANCE</code>, etc.). Empirically verified this session: a real <code>SERVICE_RESPONSE_TIME_DEGRADED</code> problem produced <code>ImpactedEntities[].type = "SERVICE"</code> — a type the resolver has never had to handle before, since no alert source produced it until this session&#8217;s work — and the alert landed with <strong><code>cmdb_ci</code> empty</strong>, not merely on the wrong CI. Because the OOTB incident-creation AMR requires a bound CI, no incident was created either. This is not just a missing Service Instance lookup (see <a href="#ci-vs-service-instance">How the CI relates to the Service Instance</a>); it is a genuine gap in the resolver for this entity type.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>4. Detection sensitivity</strong></p></td>
@@ -777,14 +777,33 @@ pre.rouge {
 <h2 id="_status_on_this_implementation">5. Status on this implementation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>As of this writing, Gates 1 and 2 are implemented and verified against the live Dynatrace tenant (management-zone rule + alerting profile scope). Gate 3 reflects existing, unchanged behavior from Log to Incident — no code path binds a Service Instance to an alert. Gate 4&#8217;s tag propagation is verified for Workers via both the entity-tag and metric-dimension paths. Gate 4 has not yet produced a live, end-to-end response-time alert in ServiceNow; see the companion test results for current status.</p>
+<p>All four gates have now been exercised end-to-end against the live tenant with a real, deliberately-triggered <code>SERVICE_RESPONSE_TIME_DEGRADED</code> problem on the Spark Master service (<code>P-26091493</code>):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Gate 1 (management zone)</strong> — the entity correctly carried <code>managementZones: ["Spark Observability"]</code>.</p>
+</li>
+<li>
+<p><strong>Gate 2 (alerting profile)</strong> — the problem&#8217;s <code>problemFilters</code> included "Spark Observability - ServiceNow brooks-lab", confirming the profile matched.</p>
+</li>
+<li>
+<p><strong>Gate 3 (alert-to-CI resolution)</strong> — the resulting <code>em_alert</code> (Alert0017223) landed with <code>cmdb_ci</code> empty and no incident, exactly as Gate 3 predicts for an <code>ImpactedEntities[].type = "SERVICE"</code> payload. This is now the confirmed, concrete blocker to seeing a <strong>usable</strong> incident from a native service-level problem — the notification pipeline works, but the resolver needs a <code>SERVICE</code> branch (and, ultimately, a Dynatrace-Service-derived CMDB CI to resolve <strong>to</strong>, which itself depends on the SGC Services import actually landing CIs — see the SGC MID Server blocker noted elsewhere in this repo&#8217;s history).</p>
+</li>
+<li>
+<p><strong>Gate 4 (detection sensitivity)</strong> — <code>auto</code> mode produced no anomaly under a real ~36-minute high-load run (measured response times stayed under 20ms even under heavy concurrent Spark computation); <code>fixed</code> mode with a threshold set below the observed real range reliably fired within minutes.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Tag propagation (the k8s label reaching both Dynatrace entity tags and OTel metric dimensions) is verified for Workers.</p>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-09-30 16:15:18 -0500
+Last updated 2026-09-30 17:11:43 -0500
 </div>
 </div>
 </body>

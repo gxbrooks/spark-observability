@@ -34,7 +34,7 @@ Log to Incident's alert-to-CI binding was designed and verified against infrastr
 |The profile that forwards problems to the ServiceNow webhook (`spark-alerting-profile.json.j2`) filters by management zone. Gate 1 is a hard prerequisite for Gate 2: a problem on an entity outside the zone is invisible to the profile regardless of severity.
 
 |**3. Alert-to-CI resolution**
-|Once a problem does reach ServiceNow as an `em_event`, `ResolveApplicationService.si.js` resolves `em_alert.cmdb_ci` directly from the event payload (host, pod, or process-group identity). It **never** consults the CSDM Service Instance association described in <<ci-vs-service-instance>>. A `SERVICE-*`-scoped problem lands on the same host/pod CI an infrastructure alert would — there is no code path that binds an alert to a Service Instance CI.
+|Once a problem does reach ServiceNow as an `em_event`, `ResolveApplicationService.si.js` resolves `em_alert.cmdb_ci` directly from the event's `ImpactedEntities[].type` (`HOST`, `PROCESS_GROUP_INSTANCE`, etc.). Empirically verified this session: a real `SERVICE_RESPONSE_TIME_DEGRADED` problem produced `ImpactedEntities[].type = "SERVICE"` — a type the resolver has never had to handle before, since no alert source produced it until this session's work — and the alert landed with **`cmdb_ci` empty**, not merely on the wrong CI. Because the OOTB incident-creation AMR requires a bound CI, no incident was created either. This is not just a missing Service Instance lookup (see <<ci-vs-service-instance>>); it is a genuine gap in the resolver for this entity type.
 
 |**4. Detection sensitivity**
 |Dynatrace's default response-time detection is adaptive-baseline (`auto` mode): it compares live response time against a rolling historical baseline. A newly-discovered service has no baseline, so a short load burst produces no anomaly even though the detector is correctly configured. Either let real traffic accumulate first, or switch to `fixed` thresholds for a deterministic test.
@@ -73,4 +73,11 @@ image::service-to-incident-gates.svg[Tag flow and the four gates,width=100%,alig
 
 == Status on this implementation
 
-As of this writing, Gates 1 and 2 are implemented and verified against the live Dynatrace tenant (management-zone rule + alerting profile scope). Gate 3 reflects existing, unchanged behavior from Log to Incident — no code path binds a Service Instance to an alert. Gate 4's tag propagation is verified for Workers via both the entity-tag and metric-dimension paths. Gate 4 has not yet produced a live, end-to-end response-time alert in ServiceNow; see the companion test results for current status.
+All four gates have now been exercised end-to-end against the live tenant with a real, deliberately-triggered `SERVICE_RESPONSE_TIME_DEGRADED` problem on the Spark Master service (`P-26091493`):
+
+* **Gate 1 (management zone)** — the entity correctly carried `managementZones: ["Spark Observability"]`.
+* **Gate 2 (alerting profile)** — the problem's `problemFilters` included "Spark Observability - ServiceNow brooks-lab", confirming the profile matched.
+* **Gate 3 (alert-to-CI resolution)** — the resulting `em_alert` (Alert0017223) landed with `cmdb_ci` empty and no incident, exactly as Gate 3 predicts for an `ImpactedEntities[].type = "SERVICE"` payload. This is now the confirmed, concrete blocker to seeing a *usable* incident from a native service-level problem — the notification pipeline works, but the resolver needs a `SERVICE` branch (and, ultimately, a Dynatrace-Service-derived CMDB CI to resolve *to*, which itself depends on the SGC Services import actually landing CIs — see the SGC MID Server blocker noted elsewhere in this repo's history).
+* **Gate 4 (detection sensitivity)** — `auto` mode produced no anomaly under a real ~36-minute high-load run (measured response times stayed under 20ms even under heavy concurrent Spark computation); `fixed` mode with a threshold set below the observed real range reliably fired within minutes.
+
+Tag propagation (the k8s label reaching both Dynatrace entity tags and OTel metric dimensions) is verified for Workers.

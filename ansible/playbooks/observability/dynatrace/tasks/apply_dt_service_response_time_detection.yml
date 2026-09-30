@@ -5,13 +5,17 @@
 # rather than to individual SERVICE entities: SERVICE ids are ephemeral
 # (regenerated when OneAgent rediscovers a service after inactivity), so a
 # HOST_GROUP scope is the durable IaC match key and it also covers services
-# not yet discovered. Values mirror this tenant's environment-scope default
-# (verified via GET .../settings/objects?schemaIds=builtin:anomaly-detection.services)
-# so applying this does not change detection behavior — it makes the policy
-# explicit and durable instead of an implicit, editable-by-anyone default.
+# not yet discovered. responseTime uses fixed (not auto/adaptive-baseline)
+# thresholds deliberately: auto mode needs historical data a newly-discovered
+# service does not have, so a short test burst produces no anomaly even when
+# correctly configured (verified empirically this session). Fixed thresholds
+# (20ms all-requests / 50ms slowest-10%, >=3 req/min for 1 minute) are tight
+# relative to this environment's observed idle response times (2-6ms) so a
+# real load-driven slowdown trips them without requiring a baseline.
 # builtin:anomaly-detection.services is single-object-per-scope, so this
 # object fully replaces the inherited default for services in this host
-# group; the spec mirrors failureRate too so that does not regress.
+# group; the spec mirrors failureRate too so that does not regress (values
+# there still match this tenant's prior environment-scope default).
 
 - name: Resolve Dynatrace API credentials
   ansible.builtin.include_tasks: resolve_dt_api.yml

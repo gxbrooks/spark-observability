@@ -4,20 +4,19 @@
   "value": {
     "responseTime": {
       "enabled": true,
-      "detectionMode": "auto",
-      "autoDetection": {
+      "detectionMode": "fixed",
+      "fixedDetection": {
         "responseTimeAll": {
-          "degradationMilliseconds": 100.0,
-          "degradationPercent": 50.0
+          "degradationMilliseconds": 2.0
         },
         "responseTimeSlowest": {
-          "slowestDegradationMilliseconds": 1000.0,
-          "slowestDegradationPercent": 100.0
+          "slowestDegradationMilliseconds": 5.0
         },
         "overAlertingProtection": {
-          "requestsPerMinute": 10.0,
+          "requestsPerMinute": 3.0,
           "minutesAbnormalState": 1
-        }
+        },
+        "sensitivity": "high"
       }
     },
     "failureRate": {
