@@ -86,6 +86,13 @@
           tags: [partitioning]
       tags: [partitioning]
 
+    - name: Apply Spark service response-time anomaly detection
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/tasks/apply_dt_service_response_time_detection.yml"
+        apply:
+          tags: [partitioning, service_response_time]
+      tags: [partitioning, service_response_time]
+
     - name: Merge Dynatrace exporter into OTel collector config
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/merge_otel_dual_feed.yml"
       tags: [otel_dual_feed]
