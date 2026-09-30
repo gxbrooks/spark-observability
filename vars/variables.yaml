@@ -464,7 +464,13 @@ ES_BIN_DIR:
 
 LICENSE:
   section: Elasticsearch
-  value: trial
+  # basic (not trial): a self-generated trial license expires after 30 days
+  # and then rejects nearly every request with security_exception ("current
+  # license is non-compliant for [security]") -- confirmed live on this
+  # instance, uptime matched the ~30-day trial window almost exactly. Basic
+  # does not expire and still covers the security features this stack uses
+  # (native realm auth, TLS) -- nothing here needs a paid trial-only feature.
+  value: basic
   contexts: [observability]
 
 EB_ENCRYPTION_KEY:

@@ -109,11 +109,16 @@ services:
       TZ: ${TZ}
       # OneAgent process-group tag (matches CSDM service instance display name).
       DT_TAGS: "[servicenow.com/service-instance]Elasticsearch"    
-    # ES_MEM_LIMIT=1GB is too tight. Let's see where it floats...    
+    # 4g was also too tight: confirmed live via `docker stats` sitting at
+    # 3.8GiB/4GiB (94.9%) continuously, with the JVM's auto-sized heap (~50%
+    # of container memory) permanently pinning the parent circuit breaker
+    # near its ~1.8-1.9GB ceiling -- every request, including plain GETs like
+    # _cluster/health, was failing with circuit_breaking_exception (429).
+    # Host has ~15GB available at last check; 8g leaves comfortable headroom.
     deploy:
       resources:
         limits:
-          memory: 4g
+          memory: 8g
     ulimits:
       memlock:
         soft: -1
