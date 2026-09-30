@@ -110,6 +110,118 @@
          else '— not authorized; set Management Zone in Guided Setup (see ../docs/deploy.md)' }}
   when: sn_sgc_conn_patch is not skipped
 
+# ----- Service types to ingest (gates which Dynatrace SERVICE entities import) -
+# SGO-Dynatrace Services is already an active child import (cascades with
+# Hosts), but service_types_to_ingest on the connection row is a separate
+# allow-list of Dynatrace serviceType values; entities outside it never get
+# requested from Dynatrace even though the child import is active. Confirmed
+# empirically via the Dynatrace Entities API: every OneAgent-detected service
+# in this environment (Spark Master UI, History Server) reports
+# serviceType=WEB_REQUEST_SERVICE, which was missing from the existing
+# CUSTOM_SERVICE/DATABASE_SERVICE/WEB_SERVICE allow-list.
+- name: Compute current service_types_to_ingest list
+  ansible.builtin.set_fact:
+    sn_sgc_service_types_current: >-
+      {{ (sn_sgc_conn_current.service_types_to_ingest | default(''))
+         .split(',') | map('trim') | reject('equalto', '') | list }}
+  run_once: true
+
+- name: Compute desired service_types_to_ingest list
+  ansible.builtin.set_fact:
+    sn_sgc_service_types_desired: >-
+      {{ (sn_sgc_service_types_current + ['WEB_REQUEST_SERVICE']) | unique }}
+  run_once: true
+
+- name: Report service_types_to_ingest already includes WEB_REQUEST_SERVICE
+  ansible.builtin.debug:
+    msg: >-
+      service_types_to_ingest already includes WEB_REQUEST_SERVICE
+      ({{ sn_sgc_conn_current.service_types_to_ingest }}) — no update needed.
+  when: (sn_sgc_service_types_desired | sort) == (sn_sgc_service_types_current | sort)
+
+- name: Update service_types_to_ingest to include WEB_REQUEST_SERVICE
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_dynatrace_integ_connections/{{ sn_sgc_conn_current.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      service_types_to_ingest: "{{ sn_sgc_service_types_desired | join(',') }}"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sgc_service_types_patch
+  when: (sn_sgc_service_types_desired | sort) != (sn_sgc_service_types_current | sort)
+  delegate_to: localhost
+  run_once: true
+
+- name: Report service_types_to_ingest update outcome
+  ansible.builtin.debug:
+    msg: >-
+      service_types_to_ingest update: HTTP {{ sn_sgc_service_types_patch.status }}
+      {{ ('— now ' ~ (sn_sgc_service_types_desired | join(',')))
+         if sn_sgc_service_types_patch.status == 200
+         else '— not authorized; update via Guided Setup (see ../docs/deploy.md)' }}
+  when: sn_sgc_service_types_patch is not skipped
+
+# ----- Ensure Services scheduled import is active (defends against drift) -----
+- name: Read SGO-Dynatrace Services scheduled import
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?sysparm_query=name=SGO-Dynatrace%20Services&sysparm_fields=sys_id,name,active&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_services_sched
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record Services scheduled import row
+  ansible.builtin.set_fact:
+    sn_sgc_services_sched_row: "{{ sn_sgc_services_sched.json.result | default([]) | first | default({}) }}"
+  run_once: true
+
+- name: Report Services scheduled import already active
+  ansible.builtin.debug:
+    msg: "Scheduled import 'SGO-Dynatrace Services' already active — no update needed."
+  when: sn_sgc_services_sched_row.active | default('') == 'true'
+
+- name: Activate SGO-Dynatrace Services scheduled import
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ sn_sgc_services_sched_row.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      active: "true"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sgc_services_sched_patch
+  when:
+    - sn_sgc_services_sched_row.sys_id is defined
+    - sn_sgc_services_sched_row.active | default('') != 'true'
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report Services scheduled import activation outcome
+  ansible.builtin.debug:
+    msg: >-
+      Services scheduled import activation: HTTP {{ sn_sgc_services_sched_patch.status }}
+      {{ '— SGO-Dynatrace Services active' if sn_sgc_services_sched_patch.status == 200
+         else '— not authorized; activate in the UI (see ../docs/deploy.md)' }}
+  when: sn_sgc_services_sched_patch is not skipped
+
 # ----- Scoped properties (sn_dynatrace_integ.management_zone_*) ---------------
 - name: Read scoped management-zone properties
   ansible.builtin.uri:
@@ -333,6 +445,8 @@
         management zone: {{ dt_management_zone_resolved }} (id {{ dt_mz_id }})
         connection row status: {{ sn_sgc_conn_current.status | default('unknown') }}
         Hosts scheduled import: {{ 'active' if (sn_sgc_sched_row.active | default('') == 'true' or (sn_sgc_sched_patch.status | default(0)) == 200) else 'NOT active' }}
+        Services scheduled import: {{ 'active' if (sn_sgc_services_sched_row.active | default('') == 'true' or (sn_sgc_services_sched_patch.status | default(0)) == 200) else 'NOT active' }}
+        service_types_to_ingest: {{ sn_sgc_service_types_desired | default(sn_sgc_service_types_current | default([])) | join(',') }}
         payload template: {{
           'present' if (sn_sgc_payload_tpl.status | default(0) | int == 200
             and (sn_sgc_payload_tpl.json.result | default([]) | length > 0))
