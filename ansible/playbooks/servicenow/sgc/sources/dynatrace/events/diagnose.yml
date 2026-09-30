@@ -14,11 +14,17 @@
     - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
+    - name: Resolve observability Dynatrace tasks directory
+      ansible.builtin.set_fact:
+        dt_observability_tasks_dir: >-
+          {{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/ansible/playbooks/observability/dynatrace
+      run_once: true
+
     - name: Check SGC and sys_object_source rows
       ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
 
     - name: Resolve Dynatrace API
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/resolve_dt_api.yml"
+      ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/resolve_dt_api.yml"
 
     - name: List brooks-lab Dynatrace settings objects
       ansible.builtin.uri:

@@ -1,6 +1,6 @@
 # Dynatrace specifications (observability module)
 
-Dynatrace **configuration** for this repository lives under `observability/dynatrace/` — co-located with the observability stack but **outside** `ansible/`. Playbooks in `ansible/playbooks/observability/dynatrace/` and ServiceNow SGC Dynatrace tasks apply these specifications to the tenant named by `DT_TENANT_URL` / `DT_API_URL` in `vars/variables.yaml`.
+Dynatrace **configuration** for this repository lives under `observability/dynatrace/` — co-located with the observability stack but **outside** `ansible/`. Playbooks in `ansible/playbooks/observability/dynatrace/` apply these specifications to the tenant named by `DT_TENANT_URL` / `DT_API_URL` in `vars/variables.yaml`. The ServiceNow SGC Dynatrace event flow (`ansible/playbooks/servicenow/sgc/sources/dynatrace/events/`) triggers these same tasks rather than owning its own copy — only genuinely ServiceNow-side glue (SGC connection/credential rows, webhook auth, CMDB CI bindings) lives under `servicenow/sgc/`.
 
 ## Layout
 

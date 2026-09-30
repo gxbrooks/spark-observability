@@ -6,12 +6,15 @@
   ansible.builtin.include_tasks: apply_dt_alerting_profile.yml
   when: dt_alerting_profile_object_id is not defined or (dt_alerting_profile_object_id | string | trim) == ''
 
+# These two reach back into the SGC playbook tree (playbook_dir is the caller's
+# events/ dir, e.g. servicenow/sgc/sources/dynatrace/events/) because the
+# credential/connection lookup is ServiceNow-side, not Dynatrace-side.
 - name: Resolve SGC ConnectionId for webhook payload
-  ansible.builtin.include_tasks: resolve_sgc_connection_alias.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/resolve_sgc_connection_alias.yml"
   when: sn_sgc_scope_present | default(false) | bool
 
 - name: Provision brooks-lab SGO-Dynatrace webhook credentials
-  ansible.builtin.include_tasks: ensure_sn_dt_webhook_auth.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/ensure_sn_dt_webhook_auth.yml"
   when: sn_sgc_scope_present | default(false) | bool
 
 - name: Set ServiceNow inbound event URL (SGC when installed, else legacy)

@@ -15,12 +15,18 @@
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/servicenow/integrations/sgc/store_apps.yml"
     - "{{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
+    - name: Resolve observability Dynatrace tasks directory
+      ansible.builtin.set_fact:
+        dt_observability_tasks_dir: >-
+          {{ playbook_dir | regex_replace('/ansible/playbooks/.*$', '') }}/ansible/playbooks/observability/dynatrace
+      run_once: true
+
     # ----- Component versions (installed vs pinned vs latest) -----------------
     - name: Check Store application and plugin versions
       ansible.builtin.include_tasks: tasks/check-store-apps.yml
 
     - name: Resolve Dynatrace API
-      ansible.builtin.include_tasks: sources/dynatrace/tasks/resolve_dt_api.yml
+      ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/resolve_dt_api.yml"
 
     - name: Validate platform, dependency, and RTE compatibility
       ansible.builtin.include_tasks: tasks/validate-compatibility.yml
