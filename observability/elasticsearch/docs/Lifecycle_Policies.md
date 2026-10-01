@@ -253,6 +253,41 @@ Buckets:
 
 See `/observability/grafana/docs/Derivative_Metric_Calculation.md` for detailed examples.
 
+## Known Issue: First-Write Race on Fresh Clusters
+
+On a freshly-wiped cluster, `otel-collector`'s Prometheus `remote_write` receiver
+retries continuously and can successfully write the very first
+`metrics-kubernetes-*` document within seconds of Elasticsearch becoming
+healthy — before `init-index.sh` (STEP 7.10) has had a chance to `PUT` the
+custom `kubernetes-metrics` index template. Elasticsearch's x-pack-installed
+built-in `metrics` template (pattern `metrics-*-*`, priority 100) then wins by
+default, auto-creating the data stream with the generic `metrics` ILM policy
+instead of `kubernetes-metrics-downsampled`. Once a data stream's first
+backing index is created, a template applied afterward does **not**
+retroactively change it — only new rollovers/backing indices pick up a newly
+matching template.
+
+Observed and fixed once (2026-10-01): `kubernetes-metrics.template.json`'s
+priority was raised from 210 to 500 (defensive — all other built-in Elastic
+templates seen on this cluster are priority <= 210, but headroom avoids
+re-litigating this every time a new x-pack template version ships), and the
+data stream was deleted and allowed to recreate once the corrected,
+higher-priority template was confirmed in place:
+
+```bash
+esapi DELETE /_data_stream/metrics-kubernetes-default
+# wait for the next Prometheus scrape/remote_write cycle (~30s) to recreate it
+esapi GET /metrics-kubernetes-default/_ilm/explain   # confirm policy: kubernetes-metrics-downsampled
+```
+
+Other data streams observed unaffected by this race (their source pipelines
+only send data when an actual application event occurs — a Spark chapter
+run, an OTel trace — so by the time any real data landed, `init-index.sh` had
+already finished creating the matching custom template). If a future reset
+shows the same symptom on a different stream, the fix is the same: confirm
+the custom template exists and has a comfortably higher priority than any
+overlapping built-in template, then delete and let the data stream recreate.
+
 ## Troubleshooting
 
 ### Downsampling Not Occurring

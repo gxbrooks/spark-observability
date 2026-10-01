@@ -464,13 +464,18 @@ ES_BIN_DIR:
 
 LICENSE:
   section: Elasticsearch
-  # basic (not trial): a self-generated trial license expires after 30 days
-  # and then rejects nearly every request with security_exception ("current
-  # license is non-compliant for [security]") -- confirmed live on this
-  # instance, uptime matched the ~30-day trial window almost exactly. Basic
-  # does not expire and still covers the security features this stack uses
-  # (native realm auth, TLS) -- nothing here needs a paid trial-only feature.
-  value: basic
+  # trial, not basic: init-index.sh's own STEP 4 explains why -- this stack
+  # relies on Watcher (batch-match-join, application-events-metrics,
+  # watcher-history-cleanup), and Watcher *actions* do not execute on Basic,
+  # only Trial or a paid license. A prior session incorrectly set this to
+  # basic after diagnosing an EXPIRED trial as "the bug" -- the real issue
+  # was just that trial licenses expire after 30 days with no renewal
+  # automation, not that trial itself was wrong. init-index.sh already
+  # self-heals by calling POST _license/start_trial when eligible (STEP 4),
+  # which only succeeds once per cluster lifetime -- after that, the fix is
+  # the same lab reset documented in Lifecycle_Policies.md (wipe esdata,
+  # redeploy) rather than silently downgrading to basic and losing Watcher.
+  value: trial
   contexts: [observability]
 
 EB_ENCRYPTION_KEY:
