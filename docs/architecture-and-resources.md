@@ -31,14 +31,14 @@ Configured in `[observability/docker-compose.yml](../observability/docker-compos
 
 | Service                | Memory limit | CPU limit | Notes                                                           |
 | ---------------------- | ------------ | --------- | --------------------------------------------------------------- |
-| Elasticsearch (`es01`) | 4 GiB        | —         | JVM heap auto-sizes to ~50 % of container limit                 |
+| Elasticsearch (`es01`) | 8 GiB        | —         | JVM heap auto-sizes to ~50 % of container limit. Raised from 4 GiB (2026-10): confirmed live via `docker stats` sitting at 94.9% of the 4 GiB limit continuously, pinning the parent circuit breaker near its ~1.8 GB ceiling and failing nearly every query with `circuit_breaking_exception` (429), including plain `GET`s. |
 | Kibana                 | 2 GiB        | —         | `NODE_OPTIONS --max-old-space-size=1536`                        |
 | Grafana                | 2 GiB        | —         |                                                                 |
 | Prometheus             | 3 GiB        | 0.5       | Local TSDB 15 d retention; primary store is ES via remote write |
 | Tempo                  | 2 GiB        | 0.4       | Trace backend (local filesystem)                                |
 | Logstash               | 2 GiB        | —         |                                                                 |
 | OTel Collector         | 1 GiB        | —         | Reservation 384 MiB                                             |
-| **Subtotal**           | **16 GiB**   | **1.3**   |                                                                 |
+| **Subtotal**           | **20 GiB**   | **1.3**   |                                                                 |
 
 
 Init containers (`init-certs`, `set-kibana-password`, `init-index`) are short-lived and do not count toward steady-state budget.
@@ -82,26 +82,53 @@ Static pods managed by kubelet on Lab3.
 | NFS server (kernel)                       | 0.5 GiB     | Exports `/srv/nfs/spark/*`; see `[ansible/playbooks/nfs/](../ansible/playbooks/nfs/)` |
 | Elastic Agent                             | 0.5 GiB     | Systemd service; config at `[elastic-agent/](../elastic-agent/)`                      |
 | Dynatrace OneAgent                        | 0.5–1 GiB   | Host/process/K8s instrumentation; `[ansible/playbooks/observability/dynatrace/](../ansible/playbooks/observability/dynatrace/)` |
-| ServiceNow MID Server (JVM)             | 4–6 GiB     | Native systemd on Lab3; Discovery bridge to `[optimizincdemo1.service-now.com](https://optimizincdemo1.service-now.com/)`; `[ansible/playbooks/servicenow/discovery/](../ansible/playbooks/servicenow/discovery/)` |
+| ServiceNow MID Server (JVM)             | 4–6 GiB     | Native systemd on Lab3; Discovery bridge to `[optimizincdemo1.service-now.com](https://optimizincdemo1.service-now.com/)`; `[ansible/playbooks/servicenow/discovery/](../ansible/playbooks/servicenow/discovery/)`. Both registered MID Servers showed Down / Upgrade Failed as of 2026-09-30 (confirmed via `ecc_agent`) — budgeted capacity, not necessarily current consumption; needs host-level attention separate from this allocation review. |
 | OS, Docker engine, kubelet, sshd, logging | 3 GiB       |                                                                                       |
 | **Subtotal**                              | **~9 GiB**  |                                                                                       |
 
 
-### 2.5 Lab3 rollup
+### 2.5 Lab3 doubles as an interactive desktop (GaryPC) — not accounted for below until 2026-10
+
+Lab3.lan is also the user's native Ubuntu workstation (hostname alias `GaryPC`), used interactively alongside everything else in this document. **Every prior revision of this document budgeted the full 64 GB as if it were a dedicated, headless server — the kind of assumption that held under the earlier Windows/WSL setup, where Windows desktop applications ran outside the WSL VM's memory cgroup entirely.** On native Ubuntu there is no such isolation: desktop applications and lab services share one memory pool.
+
+Live process-RSS sample (2026-10-01, `ps -eo rss,comm`, summed by process name):
+
+| Process group | RSS |
+| --- | --- |
+| `chrome` | ~25.0 GiB |
+| `cursor` (IDE) | ~10.0 GiB |
+| `claude-desktop` | ~2.2 GiB |
+| `node` (IDE/app language-server helpers) | ~1.3 GiB |
+| `gnome-system-monitor`, `soffice.bin`, `x-terminal-emulator`, `drawio`, `tsserver`, `sublime_text`, `Xorg` | ~2.9 GiB combined |
+| **Desktop/interactive subtotal** | **~41.4 GiB** |
+
+At the same sample, `free -h` showed **890 MiB genuinely free** (`total: 60 GiB, used: 48 GiB, buff/cache: 13 GiB, available: 12 GiB`) — the host was relying almost entirely on reclaimable page cache for headroom, not free memory. This is the same host where Elasticsearch's circuit breaker was found permanently pinned (see §2.1) and where a prior session noted "most all of the metrics being fed into Grafana are down" before that root cause was diagnosed.
+
+**Practical implication:** the effective, realistic budget available to lab services is **total RAM minus a desktop reserve**, not total RAM minus zero. Using the sample above as a rough desktop reserve (~40 GiB with a browser and IDE open), the *realistic* lab-service budget on this hardware is closer to **~20 GiB**, not the ~60 GiB implied by hardware alone.
+
+### 2.6 Lab3 rollup
 
 
-| Category                       | Memory (limits) |
-| ------------------------------ | --------------- |
-| Docker Compose (Observability) | 16 GiB          |
-| K8s control plane              | 4 GiB           |
-| K8s workloads (limits)         | 16 GiB          |
-| Native services + OS (+ MID)   | 9 GiB           |
-| **Total allocated**            | **45 GiB**      |
-| **Hardware**                   | **64 GiB**      |
-| **Headroom**                   | **~19 GiB**     |
+| Category                                    | Memory (limits) |
+| -------------------------------------------- | --------------- |
+| Docker Compose (Observability)               | 20 GiB          |
+| K8s control plane                            | 4 GiB           |
+| K8s workloads (limits)                       | 16 GiB          |
+| Native services + OS (+ MID)                 | 9 GiB           |
+| **Total allocated (server-side, as before)** | **49 GiB**      |
+| **Hardware**                                 | **64 GiB**      |
+| **Headroom assuming a dedicated server**     | **~15 GiB**     |
+| **Observed desktop/interactive use (§2.5)**  | **~41 GiB**     |
+| **Realistic combined headroom**              | **~–26 GiB (deficit)** |
 
 
-Headroom covers page cache, Elasticsearch segment merges, and burst allocation. CPU (32 logical) is well within budget.
+The server-side allocations (limits, not steady-state usage — actual container usage observed the same day was only ~10 GiB against the 20 GiB Docker Compose limit) are not, by themselves, the problem; nothing here looks obviously oversized for what it does. The gap is that this document never previously budgeted for the desktop workload that is, in practice, the single largest consumer on the box. Recommendations, in order of effort:
+
+1. **Cheapest — operational habit:** avoid running a stress test (or anything ES/Spark-heavy) while a heavy browser/IDE session is also open on Lab3, or close some Chrome tabs first. No code change.
+2. **Moderate — right-size limits to steady-state, not peak:** several Docker Compose limits (Kibana 2 GiB, Grafana 2 GiB, Tempo 2 GiB) are 4–30x their observed actual usage; tightening them recovers a few GiB of *limit* headroom without touching real consumption, reducing how much any one container could spike into contention with the desktop session. Not done in this pass — flagged here rather than changed preemptively, since none of the existing limits caused a problem on their own (`ES` was the only one that had), and tightening limits on containers that occasionally need to burst (e.g., Kibana during initial migration) can trade one failure mode for another.
+3. **Most durable — reduce the sharing, not the budgeting:** move the always-on Docker Compose stack (or the K8s control plane) to hardware that is not also someone's interactive desktop. Out of scope for this pass; noted as the actual fix if this keeps recurring.
+
+CPU (32 logical) was not found to be under similar pressure — Chrome/Cursor are memory-heavy, not CPU-heavy, at idle-to-light use.
 
 ---
 
