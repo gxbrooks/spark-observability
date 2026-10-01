@@ -11,12 +11,13 @@
     "1": { "x": 0, "y": 0, "w": 24, "h": 3 },
     "2": { "x": 0, "y": 3, "w": 12, "h": 8 },
     "3": { "x": 12, "y": 3, "w": 12, "h": 8 },
-    "4": { "x": 0, "y": 11, "w": 12, "h": 8 }
+    "4": { "x": 0, "y": 11, "w": 12, "h": 8 },
+    "5": { "x": 12, "y": 11, "w": 12, "h": 8 }
   },
   "tiles": {
     "1": {
       "type": "markdown",
-      "content": "## Spark Worker Metrics (first cut)\nCluster-aggregate golden signals for the Worker pool, sourced from Spark's native Prometheus sink (`:8081/metrics/prometheus`) via the existing Prometheus -> OTel Collector -> Dynatrace pipeline (see `observability/prometheus/prometheus.yml`, job `spark-workers`). All 16 worker pods (lab1 + lab2) are summed here; per-worker drilldown by `kubernetes_pod_name` is a natural next refinement, along with computed utilization percentages once cross-series DQL arithmetic is validated. Metric unit metadata is not settable for OTLP-ingested metrics via the classic API, so axes currently show raw values (cores as count, memory in MB)."
+      "content": "## Spark Worker Metrics (first cut)\nCluster-aggregate golden signals for the Worker pool, sourced from Spark's native Prometheus sink (`:8081/metrics/prometheus`) via the existing Prometheus -> OTel Collector -> Dynatrace pipeline (see `observability/prometheus/prometheus.yml`, job `spark-workers`). All 16 worker pods (lab1 + lab2) are summed/averaged here; per-worker drilldown by `kubernetes_pod_name` is a natural next refinement, along with computed utilization percentages once cross-series DQL arithmetic is validated. Metric unit metadata is not settable for OTLP-ingested metrics via the classic API, so most axes show raw values (cores as count, memory in MB).\n\n**Metrics Endpoint Response Time** (bottom-right) is Prometheus's own `scrape_duration_seconds` -- how long it actually took to fetch `/metrics/prometheus` from each worker, via the K8s API-server proxy. Unlike Dynatrace's native Service response-time tracking on the Master/History UI pages (which stayed flat under heavy Spark load in testing), this *does* show real degradation: ~2.3x average, ~20x worst-case, during a real stress test vs. idle (2026-10-01 sample)."
     },
     "2": {
       "type": "data",
@@ -44,6 +45,16 @@
       "visualization": "lineChart",
       "subType": "dql-builder-metrics",
       "query": "timeseries executors=sum(metrics_worker_executors_Value)",
+      "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
+      "visualizationSettings": { "autoSelectVisualization": false },
+      "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
+    },
+    "5": {
+      "type": "data",
+      "title": "Metrics Endpoint Response Time Across Worker Pool",
+      "visualization": "lineChart",
+      "subType": "dql-builder-metrics",
+      "query": "timeseries {avg=avg(scrape_duration_seconds), max=max(scrape_duration_seconds)}, filter: {scrape_job == \"spark-workers\"}",
       "querySettings": { "enableSampling": false, "maxResultRecords": 1000, "maxResultMegaBytes": 1 },
       "visualizationSettings": { "autoSelectVisualization": false },
       "davis": { "enabled": false, "davisVisualization": { "isAvailable": true } }
