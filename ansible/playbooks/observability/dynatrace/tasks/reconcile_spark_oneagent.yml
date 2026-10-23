@@ -53,7 +53,27 @@
     - spark-worker-lab2
   register: spark_worker_rollout_wait
   changed_when: false
+  # Don't hard-fail: a rollout can legitimately be stuck waiting on a dependency
+  # (e.g. the spark-defaults-conf ConfigMap) that a later step in deploy.yml creates.
+  # Aborting here would skip the rest of deploy.yml, including the fix.
+  failed_when: false
   when: spark_ns_check.rc == 0
+
+- name: Warn if a Spark worker rollout did not complete
+  ansible.builtin.debug:
+    msg: >-
+      Rollout for deployment/{{ item.item }} did not finish within the timeout
+      (rc={{ item.rc }}). It may be waiting on a resource created later in deploy.yml
+      (e.g. spark-defaults-conf) — re-run deploy.yml, or check `kubectl describe pod`
+      in the spark namespace if it is still stuck afterward.
+  loop: "{{ spark_worker_rollout_wait.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - spark_worker_rollout_wait is defined
+    - not spark_worker_rollout_wait.skipped | default(false)
+    - item.rc is defined
+    - item.rc != 0
 
 - name: Collect Spark pods with LD_PRELOAD set
   ansible.builtin.shell: |

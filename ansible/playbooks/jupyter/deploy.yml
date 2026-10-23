@@ -22,7 +22,8 @@
     jupyter_access_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
   vars_files:
     - "{{ playbook_dir | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
-  
+    - "{{ playbook_dir | dirname | dirname }}/roles/spark/vars/main.yml"
+
   pre_tasks:
     - name: Display deployment information
       debug:

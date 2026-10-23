@@ -312,11 +312,24 @@
         mode: '0755'
 
     # === Containerd Setup ===
+    # Check for an already-active containerd CRI runtime before touching packages.
+    # On hosts that also run Docker (e.g. Lab3), Docker's containerd.io package provides
+    # an equally valid CRI runtime but file-conflicts with the plain "containerd" package —
+    # installing "containerd" there makes apt remove containerd.io *and* docker-ce as a
+    # dependency side effect. Skip the install whenever containerd is already serving CRI,
+    # regardless of which package provides it, so reruns stay idempotent and don't evict Docker.
+    - name: Check for an already-active containerd runtime
+      command: systemctl is-active containerd
+      register: containerd_active_check
+      changed_when: false
+      failed_when: false
+
     - name: Install containerd
       apt:
         name: containerd
         state: present
         update_cache: yes
+      when: containerd_active_check.rc != 0
 
     - name: Create containerd config directory
       file:
@@ -334,11 +347,12 @@
         path: /etc/containerd/config.toml
         regexp: 'SystemdCgroup = false'
         replace: 'SystemdCgroup = true'
+      notify: Restart containerd
 
-    - name: Restart containerd
+    - name: Ensure containerd is started and enabled
       systemd:
         name: containerd
-        state: restarted
+        state: started
         enabled: yes
 
     # === Initialize Kubernetes Cluster ===
@@ -735,3 +749,8 @@
         name: kubelet
         state: restarted
         daemon_reload: yes
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
