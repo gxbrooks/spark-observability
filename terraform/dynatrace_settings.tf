@@ -23,18 +23,18 @@ locals {
   dt_mz_dir           = "${path.module}/../observability/dynatrace/management-zones/spark-observability"
 
   management_zone = jsondecode(templatefile("${local.dt_mz_dir}/management-zone.json", {
-    DT_MANAGEMENT_ZONE    = var.dt_management_zone_name
-    DT_HOST_GROUP         = var.dt_host_group
-    K8S_DYNATRACE_CLUSTER = var.k8s_dynatrace_cluster
+    DT_MANAGEMENT_ZONE    = var.DT_MANAGEMENT_ZONE
+    DT_HOST_GROUP         = var.DT_HOST_GROUP
+    K8S_DYNATRACE_CLUSTER = local.k8s_dynatrace_cluster
   }))
 
   auto_tags = jsondecode(templatefile("${local.dt_mz_dir}/auto-tags.json.j2", {
-    DT_HOST_GROUP         = var.dt_host_group
-    K8S_DYNATRACE_CLUSTER = var.k8s_dynatrace_cluster
+    DT_HOST_GROUP         = var.DT_HOST_GROUP
+    K8S_DYNATRACE_CLUSTER = local.k8s_dynatrace_cluster
     tags = [
       { key = "Project", value = "spark-observability" },
-      { key = "Environment", value = var.dt_environment },
-      { key = "OwnedBy", value = var.dt_owned_by },
+      { key = "Environment", value = var.DT_ENVIRONMENT },
+      { key = "OwnedBy", value = var.DT_OWNED_BY },
     ]
   }))
 
@@ -44,9 +44,9 @@ locals {
   }))
 
   cpu_metric_event = jsondecode(templatefile("${local.dt_integrations_dir}/spark-cpu-metric-event.json.j2", {
-    DT_HOST_GROUP                  = var.dt_host_group
-    dt_l2i_environment             = var.dt_environment
-    dt_management_zone_resolved    = var.dt_management_zone_name
+    DT_HOST_GROUP                  = var.DT_HOST_GROUP
+    dt_l2i_environment             = var.DT_ENVIRONMENT
+    dt_management_zone_resolved    = var.DT_MANAGEMENT_ZONE
     dt_sn_cpu_metric_event_summary = "Spark Lab - Host CPU above 50%"
   }))
 
@@ -64,13 +64,13 @@ locals {
   standalone_openpipeline = jsondecode(templatefile("${local.dt_integrations_dir}/standalone-short-log4j2-openpipeline.json.j2", {
     dt_l2i_standalone_openpipeline_display_name = "Standalone short Log4j2 - log alerts"
     dt_l2i_standalone_openpipeline_custom_id    = "standalone-short-log4j2-log-alerts"
-    dt_l2i_environment                          = var.dt_environment
+    dt_l2i_environment                          = var.DT_ENVIRONMENT
   }))
 
   k8s_openpipeline = jsondecode(templatefile("${local.dt_integrations_dir}/k8s-short-log4j2-openpipeline.json.j2", {
     dt_l2i_k8s_openpipeline_display_name = "K8s short Log4j2 - log alerts"
     dt_l2i_k8s_openpipeline_custom_id    = "k8s-short-log4j2-log-alerts"
-    dt_l2i_environment                   = var.dt_environment
+    dt_l2i_environment                   = var.DT_ENVIRONMENT
   }))
 
   service_response_time = jsondecode(templatefile("${local.dt_integrations_dir}/spark-service-response-time-anomaly-detection.json.j2", {

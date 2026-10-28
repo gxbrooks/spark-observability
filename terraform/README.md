@@ -49,19 +49,39 @@ decision rather than done automatically.
   current live value. Ansible resolves this dynamically via an entities
   query; a real implementation should do the same here via a Dynatrace
   entities data source instead of a fixed value.
-- Variable *values* (`dt_management_zone_name`, tag values, summary
-  strings, etc.) are Terraform variable defaults in `variables.tf` right
-  now, sourced by hand from the live tenant and `vars/contexts/dynatrace_ansible_vars.yml`
-  for this proof of concept — not yet pulled from one shared source with
-  Ansible's own variable resolution. Worth unifying before this goes further.
+- Per-resource free-text values (tag names, alert/event summary strings,
+  openpipeline display names/custom IDs, log-path patterns) are still
+  inline in `dynatrace_settings.tf`'s `templatefile()` calls rather than
+  pulled from `variables.yaml` -- only the broader tenant-partitioning
+  values (host group, management zone, environment, owner, cluster
+  registry, API URL/token) are centrally sourced so far. Worth extending
+  the `dynatrace-terraform` context's variable tags to cover the rest.
 
 ## Usage
+
+Variable *values* (`DT_HOST_GROUP`, `DT_MANAGEMENT_ZONE`, `K8S_CLUSTERS`,
+etc.) come from the same `vars/variables.yaml` Ansible uses, not
+hand-maintained here -- regenerate after editing it:
+
+```bash
+generate-contexts --vars-dir ../vars dynatrace-terraform -f
+```
+
+That writes `../vars/contexts/dynatrace_terraform.auto.tfvars.json`
+(gitignored, like every other generated context file -- it carries
+DT_API_TOKEN in plaintext, same as `dynatrace_ansible_vars.yml` already
+does). The `terraform_vars` writer that produces it lives in the sibling
+`context-variables` project (`context_variables.generate.write_terraform_vars`),
+alongside `ansible_vars`, `shell_env`, etc.
 
 ```bash
 cd terraform
 terraform init
-cp terraform.tfvars.example terraform.tfvars   # fill in dt_api_token
-terraform plan
+terraform plan -var-file=../vars/contexts/dynatrace_terraform.auto.tfvars.json
 ```
 
-`terraform.tfvars` holds the live API token — gitignored, never commit it.
+Variable names here match `vars/variables.yaml` exactly (`DT_HOST_GROUP`,
+not `dt_host_group`) rather than conventional Terraform lower_snake_case
+-- every context-variables writer passes keys through unchanged, so this
+keeps the Terraform side a direct match instead of needing a rename/mapping
+layer to stay in sync.

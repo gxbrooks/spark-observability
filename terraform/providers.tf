@@ -10,6 +10,6 @@ terraform {
 }
 
 provider "dynatrace" {
-  dt_env_url   = var.dt_api_url
-  dt_api_token = var.dt_api_token
+  dt_env_url   = var.DT_API_URL
+  dt_api_token = var.DT_API_TOKEN
 }

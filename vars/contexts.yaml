@@ -2,7 +2,7 @@
 #
 # Each context:
 #   name:        unique identifier (must match contexts: tags in variables.yaml)
-#   type:        docker-env | shell_env | toml | configmap | ansible_vars | systemd_env
+#   type:        docker-env | shell_env | toml | configmap | ansible_vars | systemd_env | terraform_vars
 #   output:      filename under vars/contexts/ (flattened; no subdirectories)
 #   description: purpose (environment-agnostic)
 #
@@ -34,6 +34,11 @@ contexts:
     type: ansible_vars
     output: dynatrace_ansible_vars.yml
     description: Ansible variables for Dynatrace observability playbooks
+
+  - name: dynatrace-terraform
+    type: terraform_vars
+    output: dynatrace_terraform.auto.tfvars.json
+    description: Terraform variables for Dynatrace Settings 2.0 resources (terraform/dynatrace_settings.tf)
 
   - name: elastic-observability-ansible
     type: ansible_vars

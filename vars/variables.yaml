@@ -35,7 +35,7 @@ K8S_CLUSTERS:
       location_full_name: Braden Cloud Demo
       environment: azure
       cloud_provider: azure
-  contexts: [service-now, dynatrace-ansible]
+  contexts: [service-now, dynatrace-ansible, dynatrace-terraform]
 
 K8S_NAMESPACE:
   section: Kubernetes cluster registry
@@ -287,17 +287,17 @@ DT_TENANT_URL:
 DT_API_URL:
   section: Dynatrace tenant
   value: https://pdt20158.live.dynatrace.com/api
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, dynatrace-terraform]
 
 DT_HOST_GROUP:
   section: Dynatrace partitioning
   value: spark-observability
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, dynatrace-terraform]
 
 DT_MANAGEMENT_ZONE:
   section: Dynatrace partitioning
   value: Spark Observability
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, dynatrace-terraform]
 
 # Folder name under observability/dynatrace/management-zones/ (not the DT display name).
 DT_MANAGEMENT_ZONE_SLUG:
@@ -308,12 +308,12 @@ DT_MANAGEMENT_ZONE_SLUG:
 DT_ENVIRONMENT:
   section: Dynatrace partitioning
   value: lab
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, dynatrace-terraform]
 
 DT_OWNED_BY:
   section: Dynatrace partitioning
   value: gbrooks
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, dynatrace-terraform]
 
 DT_TOKEN_ADMIN_TOKEN:
   section: Dynatrace API tokens
@@ -339,7 +339,7 @@ DT_OPERATOR_TOKEN:
 DT_API_TOKEN:
   section: Dynatrace API tokens
   value: ""
-  contexts: [dynatrace-ansible, devops]
+  contexts: [dynatrace-ansible, devops, dynatrace-terraform]
   secret: true
   required: false
 
