@@ -2,7 +2,7 @@
   "schemaId": "builtin:management-zones",
   "scope": "environment",
   "value": {
-    "name": "{{ DT_MANAGEMENT_ZONE }}",
+    "name": "${DT_MANAGEMENT_ZONE}",
     "rules": [
       {
         "enabled": true,
@@ -13,7 +13,7 @@
             {
               "key": "HOST_GROUP_NAME",
               "operator": "EQUALS",
-              "stringValue": "{{ DT_HOST_GROUP }}",
+              "stringValue": "${DT_HOST_GROUP}",
               "caseSensitive": false
             }
           ],
@@ -36,7 +36,7 @@
             {
               "key": "KUBERNETES_CLUSTER_NAME",
               "operator": "EQUALS",
-              "stringValue": "{{ K8S_DYNATRACE_CLUSTER }}",
+              "stringValue": "${K8S_DYNATRACE_CLUSTER}",
               "caseSensitive": false
             }
           ],
@@ -82,7 +82,7 @@
             {
               "key": "HOST_GROUP_NAME",
               "operator": "EQUALS",
-              "stringValue": "{{ DT_HOST_GROUP }}",
+              "stringValue": "${DT_HOST_GROUP}",
               "caseSensitive": false
             }
           ],

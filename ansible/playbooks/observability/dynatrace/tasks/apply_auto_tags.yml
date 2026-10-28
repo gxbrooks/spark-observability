@@ -14,14 +14,19 @@
   run_once: true
 
 - name: Render automatic tags payload from specification
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_auto_tags_file }}"
     dest: /tmp/spark-observability-tags.json
     mode: "0644"
   vars:
     K8S_DYNATRACE_CLUSTER: "{{ k8s_dynatrace_cluster_name }}"
-    DT_ENVIRONMENT: "{{ dt_environment_resolved }}"
-    DT_OWNED_BY: "{{ dt_owned_by_resolved }}"
+    tags:
+      - key: Project
+        value: spark-observability
+      - key: Environment
+        value: "{{ dt_environment_resolved }}"
+      - key: OwnedBy
+        value: "{{ dt_owned_by_resolved }}"
   delegate_to: localhost
   run_once: true
 

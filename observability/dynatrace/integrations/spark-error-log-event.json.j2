@@ -3,7 +3,7 @@
   "scope": "environment",
   "value": {
     "enabled": false,
-    "summary": "{{ dt_sn_spark_error_log_event_summary }}",
+    "summary": "${dt_sn_spark_error_log_event_summary}",
     "query": "(matchesValue(content, \"* ERROR *\") OR matchesValue(content, \"* WARN *\") OR loglevel == \"ERROR\" OR loglevel == \"WARN\") AND (matchesValue(log.source, \"/mnt/spark/logs/*\") OR matchesValue(log.source.path, \"/mnt/spark/logs/*\") OR matchesValue(log.source, \"/mnt/spark/client-logs/*\") OR matchesValue(log.source.path, \"/mnt/spark/client-logs/*\"))",
     "eventTemplate": {
       "title": "Spark log alert on {log.source}",

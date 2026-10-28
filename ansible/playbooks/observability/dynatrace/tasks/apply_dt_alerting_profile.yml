@@ -38,7 +38,7 @@
   run_once: true
 
 - name: Render Spark lab alerting profile payload
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/spark-alerting-profile.json.j2"
     dest: /tmp/spark-alerting-profile.json
     mode: "0644"

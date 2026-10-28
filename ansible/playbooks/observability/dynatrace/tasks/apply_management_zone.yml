@@ -13,7 +13,7 @@
   run_once: true
 
 - name: Render management zone payload from specification
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_mz_settings_file }}"
     dest: /tmp/spark-observability-zone.json
     mode: "0644"

@@ -3,7 +3,7 @@
 # Payload: servicenow/integrations/incident/em_alert_management_rule_sgo_dynatrace.json.j2
 - name: Load SGO-Dynatrace AMR representation
   ansible.builtin.set_fact:
-    sn_sgo_amr_body: "{{ lookup('template', sn_incident_integrations_dir + '/em_alert_management_rule_sgo_dynatrace.json.j2') | from_json }}"
+    sn_sgo_amr_body: "{{ lookup('tf_template', sn_incident_integrations_dir + '/em_alert_management_rule_sgo_dynatrace.json.j2') | from_json }}"
 
 - name: Look up OOTB SGO-Dynatrace Alert Management Rule
   ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"

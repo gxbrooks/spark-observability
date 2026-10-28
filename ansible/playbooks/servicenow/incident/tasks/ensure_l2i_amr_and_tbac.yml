@@ -6,7 +6,7 @@
 #   l2i_tbac_tags.yml
 - name: Load L2I AMR representation
   ansible.builtin.set_fact:
-    sn_l2i_amr_body: "{{ lookup('template', sn_incident_integrations_dir + '/em_alert_management_rule_l2i_create.json.j2') | from_json }}"
+    sn_l2i_amr_body: "{{ lookup('tf_template', sn_incident_integrations_dir + '/em_alert_management_rule_l2i_create.json.j2') | from_json }}"
 
 - name: Look up L2I AMR
   ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"

@@ -10,7 +10,7 @@
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
 
 - name: Render Standalone short Log4j2 custom log source
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/standalone-short-log4j2-custom-source.json.j2"
     dest: /tmp/standalone-short-log4j2-custom-source.json
     mode: "0644"

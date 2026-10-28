@@ -2,8 +2,8 @@
   "schemaId": "builtin:openpipeline.logs.pipelines",
   "scope": "environment",
   "value": {
-    "displayName": "{{ dt_l2i_k8s_openpipeline_display_name }}",
-    "customId": "{{ dt_l2i_k8s_openpipeline_custom_id }}",
+    "displayName": "${dt_l2i_k8s_openpipeline_display_name}",
+    "customId": "${dt_l2i_k8s_openpipeline_custom_id}",
     "routing": "routable",
     "groupRole": "memberPipeline",
     "processing": {
@@ -18,11 +18,11 @@
             "fields": [
               {
                 "name": "sn-pipeline",
-                "value": "{{ dt_l2i_k8s_openpipeline_custom_id | mandatory }}"
+                "value": "${dt_l2i_k8s_openpipeline_custom_id}"
               },
               {
                 "name": "sn-environment",
-                "value": "{{ dt_l2i_environment | mandatory }}"
+                "value": "${dt_l2i_environment}"
               }
             ]
           }

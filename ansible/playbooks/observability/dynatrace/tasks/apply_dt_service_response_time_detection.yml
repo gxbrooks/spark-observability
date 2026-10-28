@@ -52,7 +52,7 @@
   run_once: true
 
 - name: Render service response-time anomaly detection payload
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/spark-service-response-time-anomaly-detection.json.j2"
     dest: /tmp/spark-service-response-time-anomaly-detection.json
     mode: "0644"

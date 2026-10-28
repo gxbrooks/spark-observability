@@ -11,7 +11,7 @@
     dt_owned_by_resolved: "{{ (DT_OWNED_BY.value if (DT_OWNED_BY is mapping and 'value' in DT_OWNED_BY) else DT_OWNED_BY) | default('gbrooks') }}"
 
 - name: Render Dynakube CR
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_dynakube_dir }}/dynakube.yaml.j2"
     dest: /tmp/dynakube.yaml
     mode: "0644"

@@ -15,7 +15,7 @@
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
 
 - name: Render Standalone short Log4j2 OpenPipeline
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/standalone-short-log4j2-openpipeline.json.j2"
     dest: /tmp/standalone-short-log4j2-openpipeline.json
     mode: "0644"
@@ -38,7 +38,7 @@
   run_once: true
 
 - name: Render K8s short Log4j2 OpenPipeline
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/k8s-short-log4j2-openpipeline.json.j2"
     dest: /tmp/k8s-short-log4j2-openpipeline.json
     mode: "0644"
@@ -61,7 +61,7 @@
   run_once: true
 
 - name: Render L2I OpenPipeline routing entries
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/l2i-openpipeline-routing-entries.json.j2"
     dest: /tmp/l2i-openpipeline-routing-entries.json
     mode: "0644"

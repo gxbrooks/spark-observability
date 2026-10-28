@@ -2,8 +2,8 @@
   "schemaId": "builtin:openpipeline.logs.pipelines",
   "scope": "environment",
   "value": {
-    "displayName": "{{ dt_sn_spark_openpipeline_pipeline_display_name }}",
-    "customId": "{{ dt_sn_spark_openpipeline_pipeline_custom_id }}",
+    "displayName": "${dt_sn_spark_openpipeline_pipeline_display_name}",
+    "customId": "${dt_sn_spark_openpipeline_pipeline_custom_id}",
     "routing": "routable",
     "groupRole": "memberPipeline",
     "processing": {
@@ -18,7 +18,7 @@
             "fields": [
               {
                 "name": "pipeline",
-                "value": "{{ dt_sn_spark_openpipeline_pipeline_custom_id | mandatory }}"
+                "value": "${dt_sn_spark_openpipeline_pipeline_custom_id}"
               }
             ]
           }

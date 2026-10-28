@@ -1,20 +1,17 @@
 [
-{% for tag in [
-  {"key": "Project", "value": "spark-observability"},
-  {"key": "Environment", "value": DT_ENVIRONMENT},
-  {"key": "OwnedBy", "value": DT_OWNED_BY}
-] %}
+%{ for i, tag in tags }
+%{ if i > 0 },%{ endif }
   {
     "schemaId": "builtin:tags.auto-tagging",
     "scope": "environment",
     "value": {
-      "name": "{{ tag.key }}",
+      "name": "${tag.key}",
       "description": "Spark observability (Ansible deploy)",
       "rules": [
         {
           "enabled": true,
           "type": "ME",
-          "valueFormat": "{{ tag.value }}",
+          "valueFormat": "${tag.value}",
           "valueNormalization": "Leave text as-is",
           "attributeRule": {
             "entityType": "HOST",
@@ -22,7 +19,7 @@
               {
                 "key": "HOST_GROUP_NAME",
                 "operator": "EQUALS",
-                "stringValue": "{{ DT_HOST_GROUP }}",
+                "stringValue": "${DT_HOST_GROUP}",
                 "caseSensitive": false
               }
             ],
@@ -38,7 +35,7 @@
         {
           "enabled": true,
           "type": "ME",
-          "valueFormat": "{{ tag.value }}",
+          "valueFormat": "${tag.value}",
           "valueNormalization": "Leave text as-is",
           "attributeRule": {
             "entityType": "PROCESS_GROUP",
@@ -46,7 +43,7 @@
               {
                 "key": "HOST_GROUP_NAME",
                 "operator": "EQUALS",
-                "stringValue": "{{ DT_HOST_GROUP }}",
+                "stringValue": "${DT_HOST_GROUP}",
                 "caseSensitive": false
               }
             ],
@@ -62,12 +59,12 @@
         {
           "enabled": true,
           "type": "SELECTOR",
-          "valueFormat": "{{ tag.value }}",
+          "valueFormat": "${tag.value}",
           "valueNormalization": "Leave text as-is",
-          "entitySelector": "type(KUBERNETES_CLUSTER),entityName.equals(\"{{ K8S_DYNATRACE_CLUSTER }}\")"
+          "entitySelector": "type(KUBERNETES_CLUSTER),entityName.equals(\"${K8S_DYNATRACE_CLUSTER}\")"
         }
       ]
     }
-  }{{ "," if not loop.last else "" }}
-{% endfor %}
+  }
+%{ endfor }
 ]

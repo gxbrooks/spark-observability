@@ -6,7 +6,7 @@
   ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../observability/dynatrace/common/resolve_dt_spec_paths.yml"
 
 - name: Render CPU metric event payload
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/spark-cpu-metric-event.json.j2"
     dest: /tmp/spark-cpu-metric-event.json
     mode: "0644"
@@ -14,7 +14,7 @@
   run_once: true
 
 - name: Render Spark ERROR log event payload
-  ansible.builtin.template:
+  tf_template:
     src: "{{ dt_integrations_dir }}/spark-error-log-event.json.j2"
     dest: /tmp/spark-error-log-event.json
     mode: "0644"
