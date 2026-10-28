@@ -29,6 +29,15 @@
   delay: 6
   until: dynakube_crd.rc == 0
 
+- name: Wait for dynatrace-webhook deployment to be ready
+  ansible.builtin.command: kubectl -n dynatrace rollout status deployment/dynatrace-webhook --timeout=120s
+  changed_when: false
+  # On a from-scratch install the Operator Helm release just finished
+  # installing moments earlier; applying the Dynakube CR immediately
+  # races the webhook pod's startup -- "connect: connection refused" to
+  # dynatrace-webhook.dynatrace.svc because it isn't actually serving yet,
+  # even though the CRD itself (checked above) already exists.
+
 - name: Apply Dynakube CR
   ansible.builtin.command: kubectl apply -f /tmp/dynakube.yaml
 
@@ -51,6 +60,13 @@
   register: dynakube_activegate_version
   changed_when: false
   failed_when: false
+  until: (dynakube_activegate_version.stdout | default('') | trim) != ''
+  retries: 15
+  delay: 6
+  # The statefulset rollout above can report done slightly before the
+  # Operator's reconciliation loop finishes writing .status.activeGate
+  # back onto the Dynakube CR -- reading it immediately after rollout can
+  # catch that gap and see an empty string on a from-scratch install.
 
 - name: Assert ActiveGate version is compatible with new Kubernetes UI
   ansible.builtin.assert:

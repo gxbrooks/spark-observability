@@ -1,24 +1,59 @@
 ---
 # Uninstall NFS server and clients
 # Usage: ansible-playbook -i inventory.yml playbooks/nfs/uninstall.yml
+#
+# Clients unmount BEFORE the server stops: a client with a hard NFS mount
+# (the default) that tries to unmount after its server is already gone
+# blocks forever in uninterruptible kernel sleep (D state) waiting on an
+# RPC reply that will never arrive -- not killable, not timeout-bound.
+# Reordering avoids that; the lazy+force unmount below is extra insurance
+# for a leftover busy mount even in the correct order.
+- name: Uninstall NFS Clients
+  hosts: kubernetes_master:kubernetes_workers:!nfs_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Unmount all NFS shares (lazy + force; server may already be unresponsive)
+      command: umount -l -f -a -t nfs,nfs4
+      ignore_errors: yes
+
+    - name: Remove NFS client packages (Debian/Ubuntu)
+      apt:
+        name:
+          - nfs-common
+        state: absent
+        purge: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Remove NFS client packages (RHEL/CentOS)
+      yum:
+        name:
+          - nfs-utils
+        state: absent
+      when: ansible_os_family == "RedHat"
+
+    - name: Display client uninstall completion
+      debug:
+        msg: "NFS client uninstalled from {{ inventory_hostname }}"
 
 - name: Uninstall NFS Server
   hosts: nfs_servers
   become: true
   gather_facts: true
-  
+
   tasks:
     - name: Stop NFS server
       systemd:
         name: nfs-server
         state: stopped
       ignore_errors: yes
-    
+
     - name: Remove NFS exports configuration
       file:
         path: /etc/exports
         state: absent
-    
+
     - name: Remove NFS server packages (Debian/Ubuntu)
       apt:
         name:
@@ -27,44 +62,15 @@
         state: absent
         purge: yes
       when: ansible_os_family == "Debian"
-    
+
     - name: Remove NFS server packages (RHEL/CentOS)
       yum:
         name:
           - nfs-utils
         state: absent
       when: ansible_os_family == "RedHat"
-    
+
     - name: Display server uninstall completion
       debug:
         msg: "NFS server uninstalled from {{ inventory_hostname }}"
-
-- name: Uninstall NFS Clients
-  hosts: kubernetes_master:kubernetes_workers:!nfs_servers
-  become: true
-  gather_facts: true
-  
-  tasks:
-    - name: Unmount all NFS shares
-      command: umount -a -t nfs,nfs4
-      ignore_errors: yes
-    
-    - name: Remove NFS client packages (Debian/Ubuntu)
-      apt:
-        name:
-          - nfs-common
-        state: absent
-        purge: yes
-      when: ansible_os_family == "Debian"
-    
-    - name: Remove NFS client packages (RHEL/CentOS)
-      yum:
-        name:
-          - nfs-utils
-        state: absent
-      when: ansible_os_family == "RedHat"
-    
-    - name: Display client uninstall completion
-      debug:
-        msg: "NFS client uninstalled from {{ inventory_hostname }}"
 

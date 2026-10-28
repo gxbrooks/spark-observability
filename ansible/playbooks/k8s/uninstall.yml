@@ -216,17 +216,17 @@
       ignore_errors: yes
 
     # === Clean up repositories ===
-    - name: Check if Kubernetes repository exists
-      stat:
-        path: /etc/apt/sources.list.d/kubernetes.list
-      register: k8s_repo_exists
-
+    # A plain file removal, not ansible.builtin.apt_repository: that module
+    # triggers its own apt cache refresh as part of removing the source,
+    # and a transient apt failure there (ignore_errors was masking it)
+    # left kubernetes.list in place while the keyring below still got
+    # deleted -- an orphaned repo entry pointing at a now-missing keyring,
+    # which breaks `apt update` (NO_PUBKEY) for the whole host afterward,
+    # not just Kubernetes. Direct file removal has no such side effect.
     - name: Remove Kubernetes repository
-      apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+      file:
+        path: /etc/apt/sources.list.d/kubernetes.list
         state: absent
-        filename: kubernetes
-      when: k8s_repo_exists.stat.exists
       ignore_errors: yes
 
     - name: Remove Kubernetes keyring
@@ -255,9 +255,16 @@
       changed_when: false
       ignore_errors: yes
 
-    - name: Autoremove unused packages
+    # autoremove: yes was here and is deliberately removed -- apt's
+    # dependency graph has no way to know that ca-certificates, curl, etc.
+    # (pulled in as dependencies of the Kubernetes apt repo) are still
+    # needed by the rest of this shared host. A prior run of this exact
+    # step purged ca-certificates, which broke apt's own HTTPS repo access
+    # for every subsequent apt operation on the host, including re-running
+    # install.yml. autoclean (stale .deb files only, not installed
+    # packages) carries none of that risk, so it stays.
+    - name: Autoclean apt package cache
       apt:
-        autoremove: yes
         autoclean: yes
       ignore_errors: yes
 

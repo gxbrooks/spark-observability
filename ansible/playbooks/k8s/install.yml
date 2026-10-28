@@ -78,7 +78,15 @@
         value: "{{ item.value }}"
         state: present
         sysctl_set: yes
-        reload: yes
+        # No reload: yes. sysctl_set already applies each value live via
+        # `sysctl -w`; reload additionally runs `sysctl -p /etc/sysctl.conf`,
+        # which reloads the WHOLE file -- including any stale, non-project
+        # entries already in it. Found live: a leftover
+        # `net.ipv4.conf.cni0.rp_filter` line (predates this project,
+        # presumably from an earlier manual Flannel setup) makes that reload
+        # fail outright on a clean host, before cni0 exists -- i.e. on every
+        # from-scratch install. Persistence for these specific keys is
+        # handled by the next task writing /etc/sysctl.d/k8s.conf directly.
       loop:
         - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
         - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
@@ -349,6 +357,88 @@
         replace: 'SystemdCgroup = true'
       notify: Restart containerd
 
+    - name: Ensure containerd's CRI plugin is enabled (required by kubelet)
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: '^disabled_plugins\s*=\s*\["cri"\]\s*$'
+        replace: 'disabled_plugins = []'
+      notify: Restart containerd
+      # On Lab3, which runs both Docker and the Kubernetes control plane
+      # off one shared containerd, "Generate default containerd
+      # configuration" above is a no-op (creates: already satisfied by
+      # Docker's own install, which runs first in install.yml) -- and
+      # containerd.io's default config.toml disables the CRI plugin,
+      # since plain Docker doesn't need it. Without this, kubeadm init
+      # fails preflight with "container runtime is not running" /
+      # "Unimplemented desc = unknown service runtime.v1.RuntimeService"
+      # on every from-scratch install where Docker was installed first.
+
+    - name: Configure containerd to treat the local Docker registry as insecure (HTTP)
+      vars:
+        k8s_registry_host: "{{ k8s_master_host }}:5000"
+      block:
+        - name: Create containerd certs.d directory for the local registry
+          file:
+            path: "/etc/containerd/certs.d/{{ k8s_registry_host }}"
+            state: directory
+            mode: '0755'
+
+        - name: Write insecure-registry host config
+          copy:
+            dest: "/etc/containerd/certs.d/{{ k8s_registry_host }}/hosts.toml"
+            mode: '0644'
+            content: |
+              server = "http://{{ k8s_registry_host }}"
+
+              [host."http://{{ k8s_registry_host }}"]
+                capabilities = ["pull", "resolve", "push"]
+          notify: Restart containerd
+
+        - name: Check whether containerd's registry config_path already covers certs.d
+          command: grep -c /etc/containerd/certs.d /etc/containerd/config.toml
+          register: certsd_already_configured
+          changed_when: false
+          failed_when: false
+          # Some hosts' config.toml is `containerd config default`'s
+          # minimal output (no [plugins...registry] section at all --
+          # confirmed on Lab3); others already carry a fully expanded
+          # config with that section present and already pointed at
+          # certs.d (confirmed on Lab1/Lab2, pre-dating this task).
+          # Blindly appending a second
+          # [plugins.'io.containerd.cri.v1.images'.registry] table is
+          # invalid TOML when one already exists -- containerd then
+          # fails to start at all. Only append when the path is
+          # genuinely missing; never touch a file that already has it.
+
+        - name: Point containerd's CRI image registry at the certs.d directory
+          blockinfile:
+            path: /etc/containerd/config.toml
+            marker: "# {mark} ANSIBLE MANAGED BLOCK -- registry config_path"
+            block: |
+              [plugins.'io.containerd.cri.v1.images'.registry]
+                config_path = '/etc/containerd/certs.d'
+          when: (certsd_already_configured.stdout | default('0') | int) == 0
+          notify: Restart containerd
+          # `containerd config default` on this containerd (v2.x) emits a
+          # minimal config.toml with almost everything commented out and
+          # relying on built-in defaults -- there is no existing
+          # [plugins...registry] section to edit, and the built-in default
+          # for config_path is '' (disabled), so certs.d/ above is never
+          # consulted without this. Section/key names here are
+          # containerd-2.x-specific (`io.containerd.cri.v1.images`, not the
+          # 1.x `io.containerd.grpc.v1.cri`) -- confirmed against this
+          # host's actual `containerd config dump` output, not assumed.
+      # docker/install.yml (runs before this, same host) creates the local
+      # image registry (registry:2) plain HTTP, no TLS -- but nothing
+      # persists that as containerd config, so it only ever worked here
+      # because someone configured it by hand on the host at some point in
+      # the past, outside Ansible. k8s/uninstall.yml wipes /etc/containerd
+      # entirely, which erases that undocumented manual step along with
+      # everything else -- so on a from-scratch install every image pull
+      # from the registry fails with "server gave HTTP response to HTTPS
+      # client" until this exists. Applies to every spark_kubernetes host,
+      # not just the one running the registry -- Lab1/Lab2 pull from it too.
+
     - name: Ensure containerd is started and enabled
       systemd:
         name: containerd
@@ -466,20 +556,28 @@
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
       tags: [kubeconfig]
 
-    - name: Get client certificate data (kubernetes-admin identity)
+    # kubeadm stopped writing standalone admin.crt/admin.key under
+    # /etc/kubernetes/pki/ around v1.24 -- the kubernetes-admin client
+    # cert/key are only generated ephemerally and embedded directly in
+    # /etc/kubernetes/admin.conf's kubeconfig YAML now. Read them from
+    # there instead; they're already base64 in that file, same shape
+    # `slurp` would have given us from a standalone file, so nothing
+    # downstream that consumes client_cert_data.content / .content needs
+    # to change.
+    - name: Get admin.conf (contains the kubernetes-admin client cert/key)
       slurp:
-        src: /etc/kubernetes/pki/admin.crt
-      register: client_cert_data
-      when: 
+        src: /etc/kubernetes/admin.conf
+      register: admin_conf_raw
+      when:
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
       tags: [kubeconfig]
 
-    - name: Get client key data (kubernetes-admin identity)
-      slurp:
-        src: /etc/kubernetes/pki/admin.key
-      register: client_key_data
-      when: 
+    - name: Extract client certificate/key data from admin.conf (kubernetes-admin identity)
+      set_fact:
+        client_cert_data: "{{ {'content': (admin_conf_raw.content | b64decode | from_yaml).users[0].user['client-certificate-data']} }}"
+        client_key_data: "{{ {'content': (admin_conf_raw.content | b64decode | from_yaml).users[0].user['client-key-data']} }}"
+      when:
         - inventory_hostname == groups['kubernetes_master'][0]
         - k8s_config_check.stat.exists | default(false) or kubeadm_init.rc is defined and kubeadm_init.rc == 0
       tags: [kubeconfig]

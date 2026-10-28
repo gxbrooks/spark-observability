@@ -50,7 +50,20 @@
       group:
         name: docker
         state: absent
-    
+
+    - name: Unmount any leftover overlay2/container mounts under /var/lib/docker
+      ansible.builtin.shell: |
+        set -e
+        for m in $(awk '$2 ~ "^/var/lib/docker" {print $2}' /proc/mounts | sort -r); do
+          umount -l "$m"
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+      # A stopped daemon can still leave per-container overlay2 mounts behind
+      # (e.g. if it was killed mid-operation rather than shut down cleanly);
+      # rmtree below fails with "Device or resource busy" otherwise.
+
     - name: Remove Docker data directory
       file:
         path: /var/lib/docker

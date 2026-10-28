@@ -18,6 +18,7 @@
       environment:
         KUBECONFIG: "{{ kubeconfig }}"
       register: jupyter_pod_name
+      when: jupyter_pods.stdout | length > 0
       changed_when: false
 
     - name: Remove CS224N env and kernel from running Jupyter pod
