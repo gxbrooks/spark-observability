@@ -18,13 +18,12 @@ document; decoded with `jsondecode()` and handed straight to
 
 Validated 2026-10-28 against the live tenant: `terraform plan` succeeds,
 and after `terraform import` of the 11 objects Ansible already created,
-plan shows `0 to add, 0 to destroy`. The 5 "to change" entries are the
-live API omitting default-`false` boolean fields in its GET response that
-the template includes explicitly — not a real divergence, confirmed by
-inspecting the diff (every changed field is `+ field = false` where the
-template already states `false`). Applying would just re-assert the same
-values. Not yet applied — that's a live write, left for an explicit
-decision rather than done automatically.
+plan showed `0 to add, 0 to destroy`, 5 "to change" (the live API
+omitting default-`false` boolean fields in its GET response that the
+template includes explicitly — not a real divergence, confirmed by
+inspecting the diff). Applied those 5 on 2026-10-28; `terraform plan`
+immediately after reports **"No changes. Your infrastructure matches the
+configuration."** — full proof, not just a plan-time claim.
 
 ## Not yet covered
 
