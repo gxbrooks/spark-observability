@@ -52,6 +52,15 @@ data "kubernetes_resource" "oneagent_csi_daemonset" {
   }
 }
 
+data "kubernetes_resource" "activegate" {
+  api_version = "apps/v1"
+  kind        = "StatefulSet"
+  metadata {
+    name      = "dynakube-activegate"
+    namespace = "dynatrace"
+  }
+}
+
 data "kubernetes_resource" "dynakube" {
   api_version = "dynatrace.com/v1beta6"
   kind        = "DynaKube"
@@ -79,6 +88,13 @@ output "dynatrace_diagnose" {
     webhook = {
       desired_replicas = data.kubernetes_resource.webhook_deployment.object.spec.replicas
       ready_replicas   = coalesce(try(data.kubernetes_resource.webhook_deployment.object.status.readyReplicas, null), 0)
+    }
+    activegate = {
+      # StatefulSet status has no per-container restart count (that's a
+      # Pod-level field, not aggregated up) -- ready_replicas is enough
+      # to catch "crash-looping, never becomes ready" from here.
+      desired_replicas = data.kubernetes_resource.activegate.object.spec.replicas
+      ready_replicas   = coalesce(try(data.kubernetes_resource.activegate.object.status.readyReplicas, null), 0)
     }
     oneagent = {
       desired = data.kubernetes_resource.oneagent_daemonset.object.status.desiredNumberScheduled
