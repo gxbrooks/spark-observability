@@ -51,6 +51,24 @@ variable "K8S_CLUSTERS" {
   type        = list(any)
 }
 
+variable "DT_OPERATOR_TOKEN" {
+  description = "Dynatrace API token for the Operator (Dynakube secret apiToken)"
+  type        = string
+  sensitive   = true
+}
+
+variable "DT_INGEST_TOKEN" {
+  description = "Dynatrace API token for metric/log ingest (Dynakube secret dataIngestToken)"
+  type        = string
+  sensitive   = true
+}
+
+variable "kubeconfig_path" {
+  description = "Path to the admin kubeconfig for the target cluster"
+  type        = string
+  default     = "~/.kube/config"
+}
+
 variable "dt_spark_hostgroup_entity_id" {
   description = <<-EOT
     Dynatrace HOST_GROUP entity ID for DT_HOST_GROUP, e.g. HOST_GROUP-xxxxxxxx.

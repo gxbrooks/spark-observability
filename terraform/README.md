@@ -25,13 +25,31 @@ inspecting the diff). Applied those 5 on 2026-10-28; `terraform plan`
 immediately after reports **"No changes. Your infrastructure matches the
 configuration."** — full proof, not just a plan-time claim.
 
+`dynatrace_k8s.tf` — the Dynatrace Operator (`helm_release`, same chart
+repo Ansible's `deploy_operator.yml` adds), the Dynakube token `Secret`,
+and the DynaKube CR itself (`kubectl_manifest`, reading `dynakube.yaml.j2`
+via `templatefile()` -- the same file Ansible's `apply_dynakube.yml`
+renders). Uses `kubectl_manifest` (community `gavinbunney/kubectl`
+provider) rather than the official `kubernetes_manifest` resource:
+the latter needs the CRD already in its provider schema at plan time,
+which breaks when the CRD is installed by the same apply's
+`helm_release` (`installCRD=true`) -- a known chicken-and-egg problem for
+exactly this pattern.
+
+Also validated against the live cluster: all three resources imported
+from the Operator/Dynakube Ansible already deployed, plan showed
+`0 to add, 3 to change` (import-metadata artifacts -- `helm_release`
+not capturing `repository`/`create_namespace` on import, the Secret's
+`wait_for_service_account_token` provider default, and the DynaKube CR's
+server-managed `.status` subresource appearing to "disappear" in the
+diff). That last one wasn't taken on faith: a `kubectl apply
+--dry-run=server` with the exact rendered manifest confirmed the live
+status data (tenant UUID, OneAgent pod info, ActiveGate endpoints) comes
+back fully intact -- status isn't touched by a normal apply/PATCH, so
+the diff is a display artifact, not a real mutation. Not yet applied.
+
 ## Not yet covered
 
-- **DynaKube CR** (`dynakube.yaml.j2`) — a Kubernetes object, not a
-  Dynatrace tenant setting. Needs the `kubernetes`/`helm` providers
-  (Operator via `helm_release`, CR via `kubernetes_manifest` +
-  `yamldecode(templatefile(...))`), not `dynatrace_generic_setting`.
-  Same shared-file principle applies, different provider.
 - **l2i-openpipeline-routing-entries.json.j2** — Ansible merges these
   entries into an *existing* routing list rather than creating/replacing
   a whole object. Doesn't map to a single resource; needs either a
@@ -55,6 +73,35 @@ configuration."** — full proof, not just a plan-time claim.
   values (host group, management zone, environment, owner, cluster
   registry, API URL/token) are centrally sourced so far. Worth extending
   the `dynatrace-terraform` context's variable tags to cover the rest.
+
+## Working on this with Claude Code
+
+`terraform apply` needs an explicit Bash permission rule to run
+autonomously under Claude Code's auto mode -- the harness's own
+auto-mode safety classifier blocks it by default as a broad category
+(apply is the step that actually mutates real infrastructure, unlike the
+always-read-only `plan`), separately from whatever a given change
+actually does. `.claude/settings.local.json` in this repo already grants
+it:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(terraform apply:*)"
+    ]
+  }
+}
+```
+
+That file is intentionally **not gitignored** here, despite the `.local`
+naming convention usually implying a personal, untracked override --
+anyone doing Terraform work on this project will hit the same block, so
+the permission is checked in rather than left for each contributor to
+rediscover and reconstruct. If you're setting this up fresh (the file's
+missing, or you're in a different checkout), see the
+`terraform-ansible-template-port` session memory or just recreate the
+JSON above.
 
 ## Usage
 
