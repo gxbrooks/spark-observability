@@ -46,7 +46,59 @@ diff). That last one wasn't taken on faith: a `kubectl apply
 --dry-run=server` with the exact rendered manifest confirmed the live
 status data (tenant UUID, OneAgent pod info, ActiveGate endpoints) comes
 back fully intact -- status isn't touched by a normal apply/PATCH, so
-the diff is a display artifact, not a real mutation. Not yet applied.
+the diff is a display artifact, not a real mutation. Applied 2026-10-30;
+plan immediately after: "No changes. Your infrastructure matches the
+configuration."
+
+`dynatrace_lifecycle.tf` + `diagnostics.tf` -- stop/start/diagnose for
+this slice, driven by one variable (`dynatrace_running`) rather than a
+verb, since Terraform's model is "apply toward a desired state," not
+"run this action." Mirrors
+`ansible/playbooks/observability/dynatrace/stop.yml` and
+`tasks/ensure_operator_webhook.yml` exactly:
+
+- **stop**: `terraform apply -var="dynatrace_running=false"` -- disables
+  the 6 K8s monitoring Settings objects (`k8s-monitoring/*-anomaly-disabled.json`,
+  pure data, no templating) and scales `dynatrace-operator`/
+  `dynatrace-webhook` to 0 replicas. OneAgent itself is correctly left
+  alone (it's a separate DaemonSet the Operator created, not managed by
+  the Operator's own replica count) -- same as Ansible's.
+- **start**: `-var="dynatrace_running=true"` (or omit the flag --
+  `true` is the default) -- re-enables the Settings objects, scales
+  operator back to 1 and webhook to 2.
+- Replica scaling uses a `null_resource` + `local-exec` running
+  `kubectl scale`, not a `kubernetes_deployment` resource: the Helm
+  chart has no `replicas` value to set (checked `helm show values` --
+  nothing matches), and managing the same Deployment two ways (Helm's
+  templates *and* a direct Terraform resource) would fight itself. This
+  mirrors Ansible's own literal mechanism (same `kubectl scale` command)
+  rather than forcing a "more Terraform-native" approach that doesn't
+  actually fit what's being scaled.
+- Not replicated: `ensure_operator_webhook.yml`'s webhook-TLS-cert
+  renewal (~7 day TTL, won't expire inside a stop/start test cycle, but
+  worth adding if this needs to survive a longer stopped period).
+- **diagnose**: two complementary signals, not one. `terraform plan`
+  is the config-drift half (do the managed resources match what they
+  should be -- "No changes" is a clean bill of health). The `dynatrace_diagnose`
+  output is the operational-health half plan alone can't show, since
+  the Deployments/DaemonSets here aren't direct Terraform resources
+  whose drift plan would already report: desired vs. ready replica
+  counts for the operator and webhook, the OneAgent and CSI-driver
+  DaemonSets' ready counts, the DynaKube CR's `.status.phase`, and the
+  current `dynatrace_running` value. Read via `terraform output
+  dynatrace_diagnose` (add `-json` for scripting). Built on
+  `data "kubernetes_resource"` -- `hashicorp/kubernetes` has no typed
+  data source for Deployment or DaemonSet (checked the provider's own
+  schema), so this is its generic escape hatch: any apiVersion/kind/name,
+  returns the live object including `.status`.
+
+Validated as a full cycle against the live cluster, 2026-10-30: stop (operator/webhook
+to 0, OneAgent stayed at 3/3 as expected) -> start (operator 1/1,
+webhook 2/2 after a few seconds to schedule) -> `terraform plan` showed
+zero drift and the diagnose output was fully green -> ran a Chapter 03
+Spark load test (23s, succeeded) -> confirmed fresh data in both
+Elasticsearch (the run's `SparkListenerApplicationEnd` event) and
+Dynatrace (OneAgent `lastSeen` on Lab1/2/3 inside the test window).
 
 ## Not yet covered
 
@@ -124,6 +176,11 @@ alongside `ansible_vars`, `shell_env`, etc.
 cd terraform
 terraform init
 terraform plan -var-file=../vars/contexts/dynatrace_terraform.auto.tfvars.json
+# stop / start:
+terraform apply -var-file=../vars/contexts/dynatrace_terraform.auto.tfvars.json -var="dynatrace_running=false"
+terraform apply -var-file=../vars/contexts/dynatrace_terraform.auto.tfvars.json -var="dynatrace_running=true"
+# diagnose:
+terraform output dynatrace_diagnose
 ```
 
 Variable names here match `vars/variables.yaml` exactly (`DT_HOST_GROUP`,
