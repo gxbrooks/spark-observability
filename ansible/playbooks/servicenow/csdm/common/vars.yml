@@ -19,9 +19,9 @@ sn_csdm_trigger_horizontal_discovery: true
 
 sn_sm_deploy_context_file: "{{ sn_repo_root }}/vars/contexts/servicenow_sm_deploy.json"
 
-sn_csdm_inject_bin: "{{ sn_csdm_inject_bin_override | default('csdm-inject') }}"
-sn_csdm_diff_bin: "{{ sn_csdm_diff_bin_override | default('csdm-diff') }}"
-sn_csdm_delete_bin: "{{ sn_csdm_delete_bin_override | default('csdm-delete') }}"
+sn_sync_inject_bin: "{{ sn_sync_inject_bin_override | default('sn-sync-inject') }}"
+sn_sync_diff_bin: "{{ sn_sync_diff_bin_override | default('sn-sync-diff') }}"
+sn_sync_delete_bin: "{{ sn_sync_delete_bin_override | default('sn-sync-delete') }}"
 
 docker_discovery_hosts: >-
   {{ DOCKER_HOSTS | default([])

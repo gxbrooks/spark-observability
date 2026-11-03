@@ -1,8 +1,8 @@
 ---
 # Synthetic CSDM objects for deploy testing.
 # Prefer fixtures in csdm-injector; this file remains as an Observability sample.
-#   csdm-inject --specs ~/repos/csdm-injector/fixtures/synthetic_insert.csdm.yaml
-#   csdm-delete --all --specs ~/repos/csdm-injector/fixtures/synthetic_insert.csdm.yaml
+#   sn-sync-inject --specs ~/repos/csdm-injector/fixtures/synthetic_insert.csdm.yaml
+#   sn-sync-delete --all --specs ~/repos/csdm-injector/fixtures/synthetic_insert.csdm.yaml
 # Ansible wrapper:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
 #     -e @../vars/secrets.yaml \
@@ -21,21 +21,21 @@ tag_defaults:
 business_applications:
   - name: CSDM Synthetic Test BA
     identifier: csdm-synthetic-test-ba
-    short_description: Ephemeral object for Ansible / csdm-inject testing
+    short_description: Ephemeral object for Ansible / sn-sync-inject testing
     operational_status: "1"
     active: "true"
 
 business_services:
   - name: CSDM Synthetic Test BS
     identifier: csdm-synthetic-test-bs
-    short_description: Ephemeral business service for Ansible / csdm-inject testing
+    short_description: Ephemeral business service for Ansible / sn-sync-inject testing
     operational_status: "1"
     parent_business_application: CSDM Synthetic Test BA
 
 service_instances:
   - name: CSDM Synthetic Test AS
     identifier: csdm-synthetic-test-as
-    short_description: Ephemeral application service for Ansible / csdm-inject testing
+    short_description: Ephemeral application service for Ansible / sn-sync-inject testing
     operational_status: "1"
     parent_business_service: CSDM Synthetic Test BS
     platform: saas

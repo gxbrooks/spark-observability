@@ -1,10 +1,10 @@
 ---
-# Diff CSDM specifications against the ServiceNow instance via csdm-diff.
+# Diff CSDM specifications against the ServiceNow instance via sn-sync-diff.
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
 #     -e @../vars/secrets.yaml
 
-- name: Diagnose ServiceNow CSDM model via csdm-diff
+- name: Diagnose ServiceNow CSDM model via sn-sync-diff
   hosts: localhost
   connection: local
   gather_facts: false
@@ -14,24 +14,24 @@
     - "{{ playbook_dir }}/../common/spec_roots.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
-    - name: Require csdm-diff on PATH
+    - name: Require sn-sync-diff on PATH
       ansible.builtin.command:
-        argv: ["{{ sn_csdm_diff_bin }}", "--help"]
+        argv: ["{{ sn_sync_diff_bin }}", "--help"]
       register: sn_csdm_diff_help
       changed_when: false
       failed_when: sn_csdm_diff_help.rc != 0
 
-    - name: Build csdm-diff argv for explicit spec paths
+    - name: Build sn-sync-diff argv for explicit spec paths
       ansible.builtin.set_fact:
-        sn_csdm_diff_argv: "{{ [sn_csdm_diff_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) + ['--inventory', sn_inventory_file] }}"
+        sn_csdm_diff_argv: "{{ [sn_sync_diff_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) + ['--inventory', sn_inventory_file] }}"
       when: sn_csdm_spec_paths_override | default([]) | length > 0
 
-    - name: Build csdm-diff argv for specs-root
+    - name: Build sn-sync-diff argv for specs-root
       ansible.builtin.set_fact:
-        sn_csdm_diff_argv: "{{ [sn_csdm_diff_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) + ['--inventory', sn_inventory_file] }}"
+        sn_csdm_diff_argv: "{{ [sn_sync_diff_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) + ['--inventory', sn_inventory_file] }}"
       when: sn_csdm_spec_paths_override | default([]) | length == 0
 
-    - name: Diff CSDM model with csdm-diff
+    - name: Diff CSDM model with sn-sync-diff
       ansible.builtin.command:
         argv: "{{ sn_csdm_diff_argv }}"
       environment:
@@ -42,13 +42,13 @@
       changed_when: false
       failed_when: sn_csdm_diff_result.rc not in [0, 1]
 
-    - name: Show csdm-diff output
+    - name: Show sn-sync-diff output
       ansible.builtin.debug:
         msg: "{{ sn_csdm_diff_result.stdout | default('(no stdout)') }}"
 
-    - name: Note csdm-diff differences
+    - name: Note sn-sync-diff differences
       ansible.builtin.debug:
         msg: >-
-          csdm-diff reported differences (exit {{ sn_csdm_diff_result.rc }}).
-          Re-run csdm/deploy.yml or csdm-inject to converge the instance.
+          sn-sync-diff reported differences (exit {{ sn_csdm_diff_result.rc }}).
+          Re-run csdm/deploy.yml or sn-sync-inject to converge the instance.
       when: sn_csdm_diff_result.rc == 1

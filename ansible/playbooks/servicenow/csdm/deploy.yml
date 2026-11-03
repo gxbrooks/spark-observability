@@ -25,9 +25,9 @@
     - "{{ playbook_dir }}/../common/spec_roots.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
-    - name: Require csdm-inject on PATH
+    - name: Require sn-sync-inject on PATH
       ansible.builtin.command:
-        argv: ["{{ sn_csdm_inject_bin }}", "--help"]
+        argv: ["{{ sn_sync_inject_bin }}", "--help"]
       register: sn_csdm_inject_help
       changed_when: false
       failed_when: sn_csdm_inject_help.rc != 0
@@ -44,21 +44,21 @@
           {{ sn_sm_deploy_context_file }} is missing sm_rest_populate_tags_uri.
           Run service-mapping/deploy.yml first (imported by this playbook).
 
-    - name: Build csdm-inject argv for explicit spec paths
+    - name: Build sn-sync-inject argv for explicit spec paths
       ansible.builtin.set_fact:
-        sn_csdm_inject_argv: "{{ [sn_csdm_inject_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) + ['--inventory', sn_inventory_file] }}"
+        sn_csdm_inject_argv: "{{ [sn_sync_inject_bin, '--specs'] + (sn_csdm_spec_paths_override | map('expanduser') | list) + ['--inventory', sn_inventory_file] }}"
       when: sn_csdm_spec_paths_override | default([]) | length > 0
 
-    - name: Build csdm-inject argv for specs-root
+    - name: Build sn-sync-inject argv for specs-root
       ansible.builtin.set_fact:
-        sn_csdm_inject_argv: "{{ [sn_csdm_inject_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) + ['--inventory', sn_inventory_file] }}"
+        sn_csdm_inject_argv: "{{ [sn_sync_inject_bin, '--specs-root', sn_specs_root] + (['--region', sn_region_filter] if (sn_region_filter | default('') | length) > 0 else []) + ['--inventory', sn_inventory_file] }}"
       when: sn_csdm_spec_paths_override | default([]) | length == 0
 
-    - name: Show csdm-inject invocation
+    - name: Show sn-sync-inject invocation
       ansible.builtin.debug:
         msg: "Running: {{ sn_csdm_inject_argv | join(' ') }}"
 
-    - name: Inject CSDM model with csdm-inject
+    - name: Inject CSDM model with sn-sync-inject
       ansible.builtin.command:
         argv: "{{ sn_csdm_inject_argv }}"
       environment:
@@ -72,7 +72,7 @@
       register: sn_csdm_inject_result
       changed_when: sn_csdm_inject_result.rc == 0
 
-    - name: Show csdm-inject output
+    - name: Show sn-sync-inject output
       ansible.builtin.debug:
         msg: "{{ sn_csdm_inject_result.stdout | default('(no stdout)') }}"
 

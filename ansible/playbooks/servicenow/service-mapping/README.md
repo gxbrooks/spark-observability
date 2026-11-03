@@ -6,7 +6,7 @@
 | `deploy.yml` | Scripted REST operations + **CI tag categories** (idempotent) |
 | `diagnose.yml` | Horizontal vs vertical Discovery timing and SM enrichment probes |
 
-`csdm/deploy.yml` imports `deploy.yml` before running `csdm-inject`.
+`csdm/deploy.yml` imports `deploy.yml` before running `sn-sync-inject`.
 
 ## Components (manifest order)
 
@@ -44,7 +44,7 @@
 - **Workspace** `/now/svc-map/tag-categories` may be unavailable when Store download
   for `sn_itom_map_app` is blocked; classic UI is sufficient for brooks-lab.
 
-Per-service tag filters from `*.csdm.yaml` are applied by **`csdm-inject`**
+Per-service tag filters from `*.csdm.yaml` are applied by **`sn-sync-inject`**
 (via `csdm/deploy.yml`) regardless of Tag Categories UI state.
 
 ## Usage
@@ -68,6 +68,6 @@ Variables:
 
 ## Related
 
-- `csdm/deploy.yml` — `csdm-inject` applies tag_list population from `*.csdm.yaml`
+- `csdm/deploy.yml` — `sn-sync-inject` applies tag_list population from `*.csdm.yaml`
 - [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §6.5
 - [Tag_Based_Service_Mapping.md](../../../../servicenow/docs/Tag_Based_Service_Mapping.md)

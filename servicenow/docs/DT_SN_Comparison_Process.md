@@ -270,8 +270,8 @@ Export to CSV or JSON. Resolve management zone **name → numeric id** via `GET 
 
 | Drift type | Reconciliation path |
 |------------|---------------------|
-| CSDM hierarchy | `csdm/deploy.yml` → `csdm-inject` |
-| Retire obsolete CIs | `csdm/delete.yml` / `csdm-delete` |
+| CSDM hierarchy | `csdm/deploy.yml` → `sn-sync-inject` |
+| Retire obsolete CIs | `csdm/delete.yml` / `sn-sync-delete` |
 | Host / container enrichment | Horizontal Discovery, Docker Pattern, KVA |
 | Dynatrace → CMDB topology | SGC scheduled import (per connection / MZ) |
 | Host identity | IRE identification rules; align hostname forms |

@@ -63,7 +63,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/
 # Model compare (Python — from repo root)
 # PYTHONPATH=. python -m servicenow.comparator
 
-# CSDM model (requires csdm-inject on PATH)
+# CSDM model (requires sn-sync-inject on PATH)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml
 # Compare process: servicenow/docs/DT_SN_Comparison_Process.md

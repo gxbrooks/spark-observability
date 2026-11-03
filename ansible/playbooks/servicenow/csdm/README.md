@@ -11,11 +11,11 @@ Operator CLI: **[csdm-injector/docs/usage.md](../../../../../../csdm-injector/do
 
 | Playbook | Role |
 |----------|------|
-| `deploy.yml` | Imports `service-mapping/deploy.yml`, then runs `csdm-inject` |
-| `delete.yml` | Runs `csdm-delete` (`sn_csdm_delete_all` or `sn_csdm_delete_cis`) |
-| `diagnose.yml` | Runs `csdm-diff` (exit `1` = differences; playbook does not fail) |
+| `deploy.yml` | Imports `service-mapping/deploy.yml`, then runs `sn-sync-inject` |
+| `delete.yml` | Runs `sn-sync-delete` (`sn_csdm_delete_all` or `sn_csdm_delete_cis`) |
+| `diagnose.yml` | Runs `sn-sync-diff` (exit `1` = differences; playbook does not fail) |
 
-Requires `csdm-inject` / `csdm-diff` on `PATH` (system install or venv).
+Requires `sn-sync-inject` / `sn-sync-diff` on `PATH` (system install or venv).
 
 ```bash
 cd ansible
@@ -47,12 +47,12 @@ export SN_URL=... SN_USER=... SN_PASSWORD=...
 export SN_SM_POPULATE_TAGS_URI=$(jq -r .sm_rest_populate_tags_uri \
   vars/contexts/servicenow_sm_deploy.json)
 
-csdm-inject --specs-root ~/repos/spark-observability/servicenow \
+sn-sync-inject --specs-root ~/repos/spark-observability/servicenow \
   --region brooks-lab \
   --inventory ~/repos/spark-observability/ansible/inventory.yml
 
-csdm-delete --all --specs path/to/app.csdm.yaml   # or --ci NAME
-csdm-diff --specs-root ~/repos/spark-observability/servicenow --region brooks-lab \
+sn-sync-delete --all --specs path/to/app.csdm.yaml   # or --ci NAME
+sn-sync-diff --specs-root ~/repos/spark-observability/servicenow --region brooks-lab \
   --inventory ~/repos/spark-observability/ansible/inventory.yml
 ```
 
@@ -75,7 +75,7 @@ Service Mapping Scripted REST sources live under
 1. Create `servicenow/regions/{region-id}/{name}.csdm.yaml`.
 2. List it in that region’s `region.yaml` → `csdm_specs`.
 3. Apply matching runtime labels on workloads.
-4. Run `csdm/deploy.yml` (or `csdm-inject`).
+4. Run `csdm/deploy.yml` (or `sn-sync-inject`).
 
 Shared infrastructure values belong in `vars/variables.yaml` (Jinja in specs).
 Application-only CSDM names belong in `*.csdm.yaml`.

@@ -55,7 +55,7 @@ Deploy and compare **sweep** `sn_regions_dir/*/region.yaml` to discover regions.
 1. Create `servicenow/regions/{region-id}/region.yaml` (copy from `brooks-lab`).
 2. Add one or more `{name}.csdm.yaml` specifications per [`~/repos/csdm-injector/docs/CSDM_Specifications.md`](../../csdm-injector/docs/CSDM_Specifications.md).
 3. Point `region.yaml` `dynatrace.tenant_id` and `dynatrace.management_zone` at the Dynatrace specs under `observability/dynatrace/` (management zones, integrations).
-4. Prefer `csdm-inject` / `csdm-delete` from **csdm-injector** (see below), or re-run `csdm/deploy.yml`, then `python -m servicenow.comparator` (no registry edit required when using region discovery).
+4. Prefer `sn-sync-inject` / `sn-sync-delete` from **csdm-injector** (see below), or re-run `csdm/deploy.yml`, then `python -m servicenow.comparator` (no registry edit required when using region discovery).
 
 ## Python CSDM tools (`csdm-injector`)
 
@@ -67,9 +67,9 @@ export SN_USER=...
 export SN_PASSWORD=...
 export SN_SM_POPULATE_TAGS_URI=$(jq -r .sm_rest_populate_tags_uri vars/contexts/servicenow_sm_deploy.json)
 
-csdm-inject --specs-root ~/repos/spark-observability/servicenow --region brooks-lab \
+sn-sync-inject --specs-root ~/repos/spark-observability/servicenow --region brooks-lab \
   --inventory ~/repos/spark-observability/ansible/inventory.yml
-csdm-delete --all --specs path/to/file.csdm.yaml
+sn-sync-delete --all --specs path/to/file.csdm.yaml
 ```
 
 Full env and flag reference: [`csdm-injector/docs/usage.md`](../../csdm-injector/docs/usage.md).
