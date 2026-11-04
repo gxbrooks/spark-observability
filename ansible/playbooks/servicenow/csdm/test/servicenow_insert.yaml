@@ -1,8 +1,8 @@
 ---
 # Synthetic CSDM objects for deploy testing.
-# Prefer fixtures in csdm-injector; this file remains as an Observability sample.
-#   sn-sync-inject --specs ~/repos/csdm-injector/fixtures/synthetic_insert.csdm.yaml
-#   sn-sync-delete --all --specs ~/repos/csdm-injector/fixtures/synthetic_insert.csdm.yaml
+# Prefer fixtures in sn-sync; this file remains as an Observability sample.
+#   sn-sync-inject --specs ~/repos/sn-sync/fixtures/synthetic_insert.csdm.yaml
+#   sn-sync-delete --all --specs ~/repos/sn-sync/fixtures/synthetic_insert.csdm.yaml
 # Ansible wrapper:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
 #     -e @../vars/secrets.yaml \

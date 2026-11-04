@@ -12,7 +12,7 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | `discovery/` | Phases 1–3: MID Server, Discovery credentials, schedules, on-demand scans, K8s/Docker discovery |
 | `cmdb/` | CMDB 360 (Multisource CMDB): license check, sys_properties, diagnose |
 | `service-mapping/` | Tag-based Service Mapping: Store apps, classic plugin, Scripted REST (`/populate_tags`) |
-| `csdm/` | Thin wrappers around **csdm-injector** (`deploy.yml` / `delete.yml` / `diagnose.yml`) |
+| `csdm/` | Thin wrappers around **sn-sync** (`deploy.yml` / `delete.yml` / `diagnose.yml`) |
 | `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
 | *(future)* `incident/` | Incident integrations |
 

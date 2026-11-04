@@ -1,5 +1,5 @@
 ---
-# Deploy CSDM objects from region *.csdm.yaml specifications via csdm-injector.
+# Deploy CSDM objects from region *.csdm.yaml specifications via sn-sync.
 # Idempotent — safe to re-run after application or inventory changes.
 #
 # Usage:
@@ -15,7 +15,7 @@
 
 - import_playbook: ../service-mapping/deploy.yml
 
-- name: Deploy ServiceNow CSDM objects via csdm-injector
+- name: Deploy ServiceNow CSDM objects via sn-sync
   hosts: localhost
   connection: local
   gather_facts: false

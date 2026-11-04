@@ -1,11 +1,11 @@
 # CSDM deploy automation
 
-Top-level Ansible playbooks wrap **csdm-injector** to apply ServiceNow CSDM
+Top-level Ansible playbooks wrap **sn-sync** to apply ServiceNow CSDM
 specifications under **`servicenow/regions/`** (see
 [servicenow/README.md](../../../../servicenow/README.md)).
 
-Normative TPG: **[csdm-injector/docs/CSDM_Specifications.md](../../../../../../csdm-injector/docs/CSDM_Specifications.md)**.  
-Operator CLI: **[csdm-injector/docs/usage.md](../../../../../../csdm-injector/docs/usage.md)**.
+Normative TPG: **[sn-sync/docs/CSDM_Specifications.md](../../../../../../sn-sync/docs/CSDM_Specifications.md)**.  
+Operator CLI: **[sn-sync/docs/usage.md](../../../../../../sn-sync/docs/usage.md)**.
 
 ## Entry points
 
@@ -64,7 +64,7 @@ Specs are purely declarative — use operators; do not put `csdm_op` in YAML.
 |------|---------|
 | `deploy.yml` / `diagnose.yml` | Top-level wrappers |
 | `common/vars.yml` | Injector env wiring |
-| `test/servicenow_insert.yaml` | Synthetic sample (prefer `csdm-injector/fixtures/`) |
+| `test/servicenow_insert.yaml` | Synthetic sample (prefer `sn-sync/fixtures/`) |
 
 Service Mapping Scripted REST sources live under
 `../service-mapping/` (not here). Discovery coordination diagnostics:
@@ -89,4 +89,4 @@ Application-only CSDM names belong in `*.csdm.yaml`.
 | Host | Tag-based or vertical | **May** |
 | SaaS | Manual | **Must not** |
 
-Full normative guidance: `csdm-injector/docs/CSDM_Specifications.md` Statement 1.
+Full normative guidance: `sn-sync/docs/CSDM_Specifications.md` Statement 1.

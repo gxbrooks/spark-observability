@@ -53,13 +53,13 @@ Deploy and compare **sweep** `sn_regions_dir/*/region.yaml` to discover regions.
 ## Adding a management region
 
 1. Create `servicenow/regions/{region-id}/region.yaml` (copy from `brooks-lab`).
-2. Add one or more `{name}.csdm.yaml` specifications per [`~/repos/csdm-injector/docs/CSDM_Specifications.md`](../../csdm-injector/docs/CSDM_Specifications.md).
+2. Add one or more `{name}.csdm.yaml` specifications per [`~/repos/sn-sync/docs/CSDM_Specifications.md`](../../sn-sync/docs/CSDM_Specifications.md).
 3. Point `region.yaml` `dynatrace.tenant_id` and `dynatrace.management_zone` at the Dynatrace specs under `observability/dynatrace/` (management zones, integrations).
-4. Prefer `sn-sync-inject` / `sn-sync-delete` from **csdm-injector** (see below), or re-run `csdm/deploy.yml`, then `python -m servicenow.comparator` (no registry edit required when using region discovery).
+4. Prefer `sn-sync-inject` / `sn-sync-delete` from **sn-sync** (see below), or re-run `csdm/deploy.yml`, then `python -m servicenow.comparator` (no registry edit required when using region discovery).
 
-## Python CSDM tools (`csdm-injector`)
+## Python CSDM tools (`sn-sync`)
 
-Normative TPG and CLI docs live in **`~/repos/csdm-injector`**. Specs under `regions/` are pure declarative — use operators, not `csdm_op`:
+Normative TPG and CLI docs live in **`~/repos/sn-sync`**. Specs under `regions/` are pure declarative — use operators, not `csdm_op`:
 
 ```bash
 export SN_URL=...
@@ -72,4 +72,4 @@ sn-sync-inject --specs-root ~/repos/spark-observability/servicenow --region broo
 sn-sync-delete --all --specs path/to/file.csdm.yaml
 ```
 
-Full env and flag reference: [`csdm-injector/docs/usage.md`](../../csdm-injector/docs/usage.md).
+Full env and flag reference: [`sn-sync/docs/usage.md`](../../sn-sync/docs/usage.md).

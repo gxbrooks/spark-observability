@@ -403,7 +403,7 @@ flowchart TB
 
 | Artifact | Role |
 |----------|------|
-| `csdm-injector/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags (declarative) |
+| `sn-sync/docs/CSDM_Specifications.md` | `{stack}.csdm.yaml` format, platforms, tags (declarative) |
 | `servicenow/docs/Tag_Based_Service_Mapping.md` | Tag-based SM and the `servicenow.com/service-instance` key |
 | `servicenow/comparator/` | **Automated compare** (Python) — export + annotated JSON report |
 | `servicenow/comparator/dynatrace-correlation.yaml` | Expected DT partitioning for prescriptive diagnostics |
