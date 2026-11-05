@@ -41,7 +41,15 @@
       tags: [discovery_user]
 
 - name: Install sn-discovery Docker Pattern permissions on Docker hosts
-  hosts: "{{ docker_pattern_discovery_hosts | map(attribute='ansible_host') | unique | list }}"
+  # hosts: is resolved before ANY variable loading for this play -- not
+  # just vars_files, but group_vars too (Ansible must know which hosts a
+  # play targets before it can load per-host variables, so group_vars/all
+  # isn't available here either). This is the one place in the tree that
+  # genuinely cannot use {{ project_root }}; playbook_dir is a magic
+  # variable resolvable with no variable-loading step at all, so it's the
+  # only thing that works here. Pre-existing Ansible limitation, confirmed
+  # identical on the pre-restructuring tree, not introduced by this change.
+  hosts: "{{ (lookup('file', playbook_dir ~ '/../../../../../vars/contexts/servicenow_ansible_vars.yml') | from_yaml).DOCKER_HOSTS | selectattr('discovery_docker_pattern', 'defined') | selectattr('discovery_docker_pattern') | map(attribute='ansible_host') | unique | list }}"
   become: true
   gather_facts: false
   vars_files:

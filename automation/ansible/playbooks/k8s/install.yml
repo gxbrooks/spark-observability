@@ -445,6 +445,22 @@
         state: started
         enabled: yes
 
+    - name: Ensure kubelet is started and enabled
+      # Mirrors the containerd task above (same unconditional style --
+      # a freshly installed, not-yet-configured kubelet just keeps
+      # retrying until kubeadm provides its config, the same way
+      # containerd tolerates being started before full configuration).
+      # Without this, a host where Kubernetes was already initialized in
+      # a prior run but kubelet was since stopped (e.g. via stop.yml)
+      # stays down after install.yml -- the cluster-init tasks below only
+      # run on the master and only when not yet initialized (guarded by
+      # the admin.conf stat check), so there was previously no path that
+      # re-asserted kubelet's state on an already-initialized host.
+      systemd:
+        name: kubelet
+        state: started
+        enabled: yes
+
     # === Initialize Kubernetes Cluster ===
     - name: Check if Kubernetes is already initialized
       stat:

@@ -46,7 +46,7 @@ There is **no** per-tenant directory (e.g. `tenants/pdt20158/`). Specs describe 
 | `DT_HOST_GROUP` | Host-group condition in MZ rules |
 | `dt_specs_root_override` | Optional `-e` when specs live outside the clone |
 
-Playbooks call `ansible/playbooks/specifications/dynatrace/common/resolve_dt_spec_paths.yml` to set `dt_integrations_dir`, `dt_mz_settings_file`, etc.
+Playbooks call `automation/ansible/playbooks/observability/dynatrace/common/resolve_dt_spec_paths.yml` to set `dt_integrations_dir`, `dt_mz_settings_file`, etc.
 
 ## Related automation
 

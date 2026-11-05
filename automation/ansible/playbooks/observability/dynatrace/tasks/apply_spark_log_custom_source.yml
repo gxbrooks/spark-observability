@@ -7,7 +7,7 @@
   ansible.builtin.include_tasks: resolve_dt_api.yml
 
 - name: Resolve Dynatrace specification paths
-  ansible.builtin.include_tasks: "{{ project_root }}/specifications/dynatrace/common/resolve_dt_spec_paths.yml"
+  ansible.builtin.include_tasks: "{{ project_root }}/automation/ansible/playbooks/observability/dynatrace/common/resolve_dt_spec_paths.yml"
 
 - name: Render Standalone short Log4j2 custom log source
   tf_template:
