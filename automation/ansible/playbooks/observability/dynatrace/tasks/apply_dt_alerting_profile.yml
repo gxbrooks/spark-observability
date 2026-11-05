@@ -1,0 +1,133 @@
+---
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../../../../specifications/dynatrace/common/resolve_dt_spec_paths.yml"
+
+- name: List management zones
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:management-zones&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_mz_list
+  delegate_to: localhost
+  run_once: true
+
+- name: Resolve Spark Observability management zone objectId
+  ansible.builtin.set_fact:
+    dt_management_zone_object_id: "{{ item.objectId }}"
+  loop: "{{ dt_mz_list.json['items'] | default([]) }}"
+  when: item.value.name | default('') == dt_management_zone_resolved
+  run_once: true
+
+- name: Default management zone objectId when not matched in loop
+  ansible.builtin.set_fact:
+    dt_management_zone_object_id: "{{ dt_management_zone_object_id | default('') }}"
+  run_once: true
+
+- name: Fail when management zone is missing
+  ansible.builtin.assert:
+    that:
+      - dt_management_zone_object_id | length > 0
+    fail_msg: >-
+      Management zone '{{ dt_management_zone_resolved }}' not found in Dynatrace.
+      Run observability/dynatrace/deploy.yml first.
+  run_once: true
+
+- name: Render Spark lab alerting profile payload
+  tf_template:
+    src: "{{ dt_integrations_dir }}/spark-alerting-profile.json.j2"
+    dest: /tmp/spark-alerting-profile.json
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: Load alerting profile document
+  ansible.builtin.set_fact:
+    dt_alerting_profile_doc: "{{ lookup('file', '/tmp/spark-alerting-profile.json') | from_json }}"
+  run_once: true
+
+- name: List existing alerting profiles
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects?schemaIds=builtin:alerting.profile&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+    status_code: [200]
+  register: dt_alerting_profiles
+  delegate_to: localhost
+  run_once: true
+
+- name: Select existing brooks-lab alerting profile
+  ansible.builtin.set_fact:
+    dt_alerting_profile_object_id: "{{ item.objectId }}"
+    dt_alerting_profile_existing_value: "{{ item.value }}"
+  loop: "{{ dt_alerting_profiles.json['items'] | default([]) }}"
+  when: item.value.name | default('') == dt_sn_alerting_profile_name
+  run_once: true
+
+- name: Default alerting profile facts when not found
+  ansible.builtin.set_fact:
+    dt_alerting_profile_object_id: "{{ dt_alerting_profile_object_id | default('') }}"
+    dt_alerting_profile_existing_value: "{{ dt_alerting_profile_existing_value | default({}) }}"
+  run_once: true
+
+# On-needed check: desired value already contained in the existing object?
+- name: Determine whether alerting profile change is needed
+  ansible.builtin.set_fact:
+    dt_alerting_profile_change_needed: >-
+      {{ (dt_alerting_profile_object_id | length) == 0
+         or (dt_alerting_profile_existing_value
+             | combine(dt_alerting_profile_doc.value, recursive=True)) != dt_alerting_profile_existing_value }}
+  run_once: true
+
+- name: Create brooks-lab alerting profile
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects"
+    method: POST
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      - "{{ dt_alerting_profile_doc }}"
+    status_code: [200, 201]
+  when: dt_alerting_profile_object_id | length == 0
+  register: dt_alerting_profile_create
+  delegate_to: localhost
+  run_once: true
+
+- name: Record alerting profile objectId
+  ansible.builtin.set_fact:
+    dt_alerting_profile_object_id: >-
+      {{ dt_alerting_profile_object_id
+         if (dt_alerting_profile_object_id | length) > 0
+         else (dt_alerting_profile_create.json[0].objectId | default('')) }}
+  run_once: true
+
+- name: Update brooks-lab alerting profile
+  ansible.builtin.uri:
+    url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ dt_alerting_profile_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ dt_alerting_profile_doc }}"
+    status_code: [200, 204]
+  when:
+    - dt_alerting_profile_object_id | length > 0
+    - dt_alerting_profile_create is not defined or dt_alerting_profile_create is skipped
+    - dt_alerting_profile_change_needed | bool
+  delegate_to: localhost
+  run_once: true
+
+- name: Show alerting profile state
+  ansible.builtin.debug:
+    msg: >-
+      Alerting profile '{{ dt_sn_alerting_profile_name }}' => {{ dt_alerting_profile_object_id }}
+      ({{ 'created/updated' if dt_alerting_profile_change_needed | bool else 'already up to date — no change applied' }})
+  run_once: true

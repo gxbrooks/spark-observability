@@ -1,0 +1,54 @@
+# Log to Incident
+
+Prescriptive AsciiDoc for the Log to Incident process (business process plus platform implementations). Source: [Log_to_Incident.adoc](Log_to_Incident.adoc).
+
+Kept as **AsciiDoc** (not Markdown) so Graphviz figures and the HTML/PDF export pipeline continue to work.
+
+## Render HTML + PDF
+
+Source listings use **Rouge** (server-side) for HTML and PDF color. Cursor preview uses **highlight.js** via workspace `asciidoc.preview.asciidoctorAttributes`. Install Rouge with `~/repos/myenv/assert_myenv.sh` (or `assert/assert_gems.sh`) if missing.
+
+From the spark-observability repo root:
+
+```bash
+.vscode/bin/export-drawio.sh specifications/servicenow/docs/Log_to_Incident svg
+.vscode/bin/render-adoc.sh specifications/servicenow/docs/Log_to_Incident/Log_to_Incident.adoc
+```
+
+SVG exports default to an **opaque white** page background (a full-bleed `<rect>` is injected, because CSS `background` on `<svg>` is ignored by many viewers). Pass draw.io’s `-t` / `--transparent` to skip that and keep a transparent background:
+
+```bash
+.vscode/bin/export-drawio.sh -t specifications/servicenow/docs/Log_to_Incident svg
+```
+
+Or **Terminal → Run Task → AsciiDoc: Render HTML + PDF** with `Log_to_Incident.adoc` open.
+
+## Document structure
+
+| Chapter | Role |
+|---------|------|
+| **Purpose** | Why the process exists |
+| **Log to Incident** | Technology-agnostic business process |
+| **Spark Architecture** | Client vs Cluster application context |
+| **Kubernetes Architecture** | K8s objects Spark uses; declared vs ephemeral; Dynatrace and CMDB mapping |
+| **Dynatrace and ServiceNow** | Reference implementation overview |
+| **Phase 1 — ServiceNow Modeling** | CSDM / CMDB foundation |
+| **Client and Cluster Mode Use Cases** | Shared OpenPipeline; Cluster stdout → Container Output; Client file-tail `/mnt/spark/client-logs` → Davis |
+| **Phase 4 — ServiceNow** | Event / alert / incident automation |
+
+Companion notes (Markdown):
+
+- [CMDB_Mapping.md](CMDB_Mapping.md) — client vs service Dynatrace + CMDB differences and how they map `incident.cmdb_ci`.
+- [SGO-Dynatrace_Enhancements.md](SGO-Dynatrace_Enhancements.md) — design of record + product/config gaps for DT/SN account teams (stdout Cluster, client file tail, generic bind, type remap, OOTB AMR, dual webhooks).
+
+Future chapters **may** add other platform pairs (for example Elastic Stack and ServiceNow) without renaming the process.
+
+## draw.io save (desktop)
+
+draw.io sources (`.drawio`) live as peers of `Log_to_Incident.adoc` in this directory. Exports and Graphviz PNGs from `asciidoctor-diagram` go under **`images/`** (`:imagesoutdir: images` in the `.adoc`). That directory is gitignored; regenerate with the render commands above before reviewing HTML/PDF.
+
+1. Save the diagram in draw.io (**File → Save**).
+2. **draw.io desktop:** If **File → Save** does not update the file on disk, use **File → Save As** once to bind the diagram to the repo path. Later **Save** calls work after that.
+3. Export SVG (or run `export-drawio.sh` as above), then render the AsciiDoc.
+4. Confirm the `.drawio` mtime advanced (`stat` on the file).
+5. Close and reopen `Log_to_Incident.pdf` in the viewer (editors often cache open PDFs).

@@ -38,7 +38,7 @@ Report **`findings`** (v1.3) is organized by discoverability:
 | `entity_taxonomy.yaml` | CMDB class ↔ Smartscape entity type discoverability map |
 | `dynatrace-correlation.yaml` | Expected management zone, cluster name map, partitioning diagnostics |
 
-Region registry: `servicenow/regions/*/region.yaml` (`compare.dynatrace_correlation_file` overrides correlation path).
+Region registry: `specifications/servicenow/regions/*/region.yaml` (`compare.dynatrace_correlation_file` overrides correlation path).
 
 ## Report-only (from existing export)
 

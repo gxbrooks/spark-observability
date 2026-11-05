@@ -1,0 +1,141 @@
+# Observability Platform Playbooks
+
+Ansible playbooks for managing the observability platform (Elasticsearch, Kibana, Grafana, Logstash, Prometheus, Tempo, OTel Collector, Elastic Agent).
+
+## Directory layout
+
+```
+observability/
+├── deploy.yml              # Orchestrator: deploy all subsystems
+├── start.yml               # Orchestrator: start all services + health checks
+├── stop.yml                # Orchestrator: docker compose down
+├── test.yml                # Orchestrator: data-flow assertions
+├── diagnose.yml            # Orchestrator: full platform diagnostics
+├── uninstall.yml           # Orchestrator: remove everything
+├── install.yml             # Alias for deploy.yml
+├── elasticsearch/
+│   ├── deploy.yml          # Sync ES config files
+│   ├── start.yml           # Start ES + wait healthy
+│   ├── stop.yml            # Stop ES container
+│   ├── test.yml            # Cluster health + index freshness
+│   └── diagnose.yml        # Connectivity, container, index report
+├── kibana/
+│   ├── start.yml           # Start Kibana + wait healthy
+│   ├── stop.yml            # Stop Kibana container
+│   └── diagnose.yml        # HTTP, container, API level
+├── grafana/
+│   ├── deploy.yml          # Sync Grafana config + plugins dir
+│   ├── start.yml           # Start Grafana + wait healthy
+│   ├── stop.yml            # Stop Grafana container
+│   └── diagnose.yml        # HTTP, dashboard listing
+├── logstash/
+│   ├── deploy.yml          # Sync Logstash config
+│   ├── start.yml           # Start Logstash + wait API
+│   ├── stop.yml            # Stop Logstash container
+│   ├── test.yml            # Network IO + disk IO freshness
+│   └── diagnose.yml        # Container, API, pipelines, OOM check
+├── otel-collector/
+│   ├── deploy.yml          # Sync OTel Collector config
+│   ├── start.yml           # Start OTel Collector
+│   ├── stop.yml            # Stop OTel Collector
+│   └── diagnose.yml        # Container + health endpoint
+├── tempo/
+│   ├── deploy.yml          # Sync Tempo config
+│   ├── start.yml           # Start Tempo + wait ready
+│   ├── stop.yml            # Stop Tempo container
+│   └── diagnose.yml        # Container + readiness
+├── prometheus/
+│   ├── deploy.yml          # Sync config + K8s exporters
+│   ├── start.yml           # Verify exporters + Prometheus
+│   ├── stop.yml            # Stop Prometheus + OTel Collector
+│   ├── diagnose.yml        # Targets, metrics, exporter pods
+│   ├── uninstall.yml       # Remove K8s exporters
+│   └── README.md
+└── elastic-agent/
+    ├── test.yml            # System CPU/memory freshness
+    └── diagnose.yml        # Agent service status on all hosts
+```
+
+## Usage
+
+### Full stack operations
+
+```bash
+cd ansible
+
+# Deploy all config files + build Docker images
+ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
+
+# Start all services
+ansible-playbook -i inventory.yml playbooks/observability/start.yml
+
+# Stop all services (preserve data)
+ansible-playbook -i inventory.yml playbooks/observability/stop.yml
+
+# Stop and delete volumes (fresh start)
+ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
+
+# Full diagnostic
+ansible-playbook -i inventory.yml playbooks/observability/diagnose.yml
+
+# Behavior tests (data flow assertions)
+ansible-playbook -i inventory.yml playbooks/observability/test.yml
+
+# Complete removal
+ansible-playbook -i inventory.yml playbooks/observability/uninstall.yml
+```
+
+### Single-subsystem operations
+
+Each subsystem can be managed independently:
+
+```bash
+# Restart only Logstash
+ansible-playbook -i inventory.yml playbooks/specifications/logstash/stop.yml
+ansible-playbook -i inventory.yml playbooks/specifications/logstash/start.yml
+
+# Diagnose only Elasticsearch
+ansible-playbook -i inventory.yml playbooks/specifications/elasticsearch/diagnose.yml
+
+# Redeploy only Grafana dashboards
+ansible-playbook -i inventory.yml playbooks/specifications/grafana/deploy.yml
+
+# Check Elastic Agent status on all hosts
+ansible-playbook -i inventory.yml playbooks/observability/elastic-agent/diagnose.yml
+```
+
+## Host requirements
+
+All observability services run on the **observability** host group (Lab3). Run from `spark-observability/ansible` with a control node that can SSH as `ansible_user` (see `inventory.yml`).
+
+## Service URLs
+
+| Service       | URL                           |
+|---------------|-------------------------------|
+| Elasticsearch | https://Lab3.lan:9200         |
+| Kibana        | http://Lab3.lan:5601          |
+| Grafana       | http://Lab3.lan:3000          |
+| Logstash      | Lab3.lan:5050 / :5051         |
+| Prometheus    | http://Lab3.lan:9090          |
+| Tempo         | http://Lab3.lan:3200          |
+
+## License and trial reset (Watcher)
+
+**Watcher** (including `application-events-metrics` and batch match watches) **does not execute actions on Elasticsearch Basic**. Basic is appropriate for many stacks; this lab defaults to **`LICENSE=trial`** in `vars/variables.yaml` so Grafana watcher-fed panels work for the trial period.
+
+- Do **not** call `POST /_license/start_basic` on this cluster if you rely on Watcher — use **Trial** or a **paid** license JSON (`PUT /_license`), or reset data (below).
+- `init-index.sh` Step 4 attempts `POST /_license/start_trial` when the cluster is on Basic. Trial is **once per cluster** (same persisted node data); if it was already consumed, wipe volumes and redeploy.
+
+When the trial expires (about once a month), confirm with the operator first,
+then reset for a new trial. Dropping Elasticsearch/Kibana Docker volume state
+is expected:
+
+```bash
+ansible-playbook -i inventory.yml playbooks/observability/stop.yml -e delete_volumes=true
+ansible-playbook -i inventory.yml playbooks/observability/deploy.yml
+ansible-playbook -i inventory.yml playbooks/observability/start.yml
+```
+
+`start.yml` compares the observability Docker volume CA to each Elastic Agent host after Elasticsearch is healthy. When drift is detected (typical after volume wipe), it automatically runs `elastic-agent/start.yml` to redeploy the CA and restart agents. Force a refresh anytime with `-e force_client_ca_sync=true`.
+
+See also: [CA certificate architecture](../../../docs/CA_CERTIFICATE_ARCHITECTURE.md), [Elastic: licenses and subscriptions](https://www.elastic.co/docs/deploy-manage/license).

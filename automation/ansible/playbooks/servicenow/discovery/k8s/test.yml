@@ -1,0 +1,28 @@
+---
+# Phase 2: Assert Kubernetes objects appear in CMDB.
+# Locations are asserted for every K8S_CLUSTERS entry; CMDB content is
+# asserted for each entry flagged kva_informer: true.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/test.yml -e @../vars/secrets.yaml
+
+- name: Test CMDB for Kubernetes discovery
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../../../../../../vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Assert CMDB locations for all clusters in K8S_CLUSTERS registry
+      ansible.builtin.include_tasks: tasks/assert_k8s_cluster_location.yml
+      loop: "{{ k8s_clusters }}"
+      loop_control:
+        loop_var: sn_k8s_cluster
+        label: "{{ sn_k8s_cluster.name }}"
+
+    - name: Assert CMDB content for each kva_informer-enabled cluster
+      ansible.builtin.include_tasks: tasks/test_kva_cluster_cmdb.yml
+      loop: "{{ k8s_kva_clusters }}"
+      loop_control:
+        loop_var: sn_kva_cluster
+        label: "{{ sn_kva_cluster.name }}"

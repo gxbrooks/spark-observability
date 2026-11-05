@@ -1,0 +1,50 @@
+---
+# Log-to-Incident orchestration variables (lookup keys and shared overrides).
+# Desired-state payloads live under specifications/servicenow/integrations/incident/.
+
+sn_repo_root: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}"
+sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
+sn_incident_integrations_dir: "{{ sn_repo_root }}/specifications/servicenow/integrations/incident"
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+sn_incident_si_name: ResolveApplicationService
+sn_l2i_enrich_event_br_name: em-event-enrich-sgo
+sn_l2i_enrich_event_br_order: "100"
+sn_l2i_enrich_alert_br_name: em-alert-enrich-sgo
+# Must run before ServiceNow's own order-100 em_alert before-BRs (Calculate
+# correlation rule, TBAC Tag Normalization BR, Populate TBAC Reasoning, Add
+# message key if missing) — those evaluate the alert's fields as they stand
+# at that order, so our metric_name/cmdb_ci/sn-metric-class backfill has to
+# land first or correlation and TBAC clustering both evaluate stale (empty)
+# data. Previously 5000 (after those OOTB rules), which is why neither the
+# L2I correlation rule nor the metric_class TBAC ever actually correlated
+# anything on this instance.
+sn_l2i_enrich_alert_br_order: "90"
+sn_incident_em_alert_br_name: em-alert-create-log-incident
+sn_incident_em_alert_br_order: "5020"
+
+# Shared instantiation for AMR filter representations.
+sn_incident_max_severity: "3"
+
+# OOTB lookup keys (product-owned rows).
+sn_sgo_ootb_amr_name: SGO-Dynatrace
+sn_sgo_ootb_amr_sys_id: 7f5e284e07032010b1306a77c4a93523
+sn_sgo_dt_alert_subflow_sys_id: 21b17cce07032010b1306a77c4a93506
+sn_l2i_ootb_primary_amr_name: Create Incident for Primary Alert
+sn_l2i_ootb_primary_amr_sys_id: ca7568539f533300b9a491aec32e7040
+sn_l2i_create_incident_subflow_name: Create Incident
+sn_l2i_create_incident_subflow_sys_id: 45454f6193330300415c74aff67ffbfb
+sn_ootb_ci_in_change_window_rule_name: CI in Change Window
+
+# Product-generated TBAC correlation rule name (lookup only).
+sn_l2i_tbac_correlation_rule_name: "[Tag Based] L2I short Log4j2 SI + signature"
+sn_metric_class_tbac_correlation_rule_name: "[Tag Based] L2I metric_class CPU cluster"
+
+# Create BR retired: OOTB AMR SGO-Dynatrace owns incident create.
+sn_l2i_create_br_active: "false"

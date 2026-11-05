@@ -62,10 +62,10 @@ Develop and document a comprehensive certificate management strategy for the ent
    - CA hierarchy diagram
 
 2. **Implementation Playbooks**:
-   - `ansible/playbooks/certificates/generate-ca.yml`
-   - `ansible/playbooks/certificates/generate-app-certs.yml`
-   - `ansible/playbooks/certificates/distribute-certs.yml`
-   - `ansible/playbooks/certificates/rotate-certs.yml`
+   - `automation/ansible/playbooks/certificates/generate-ca.yml`
+   - `automation/ansible/playbooks/certificates/generate-app-certs.yml`
+   - `automation/ansible/playbooks/certificates/distribute-certs.yml`
+   - `automation/ansible/playbooks/certificates/rotate-certs.yml`
 
 3. **Monitoring**:
    - Grafana dashboard for certificate expiration
@@ -79,7 +79,7 @@ Develop and document a comprehensive certificate management strategy for the ent
 
 **Related Issues**:
 - Spark 4.0 upgrade blocked by HTTP registry (tmp/996_spark40_upgrade_in_progress.md)
-- Elasticsearch uses self-signed CA (observability/certs/init-certs.sh)
+- Elasticsearch uses self-signed CA (specifications/certs/init-certs.sh)
 - JupyterHub would require HTTPS for production use
 
 **Dependencies**:
@@ -107,7 +107,7 @@ Develop and document a comprehensive certificate management strategy for the ent
 **Description**:
 Logstash 8.15.0 does not support the `logstash.yml` settings `log.rotation.size`, `log.rotation.age`, and `log.rotation.keep`. Log rotation is currently handled via `log4j2.properties`. Newer Logstash versions (8.17+) may reintroduce native rotation settings in `logstash.yml`. Upgrading would simplify configuration and reduce the reliance on `log4j2.properties` overrides.
 
-**Current Workaround**: Log rotation is configured in `observability/logstash/config/log4j2.properties`.
+**Current Workaround**: Log rotation is configured in `specifications/logstash/config/log4j2.properties`.
 
 **Action**:
 1. Check Elastic release notes for Logstash versions that support `log.rotation.*` settings natively.
@@ -118,8 +118,8 @@ Logstash 8.15.0 does not support the `logstash.yml` settings `log.rotation.size`
 
 **Related Files**:
 - `vars/variables.yaml` (`LOGSTASH_VERSION`)
-- `observability/logstash/config/logstash.yml`
-- `observability/logstash/config/log4j2.properties`
+- `specifications/logstash/config/logstash.yml`
+- `specifications/logstash/config/log4j2.properties`
 - `docs/architecture-and-resources.md`
 
 ---
@@ -159,7 +159,7 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 - **Query**: `has_parent` query to find unmatched End events with parent Start events
 - **Actions**: Creates trace records in `batch-traces` and marks events as `matched: true`
 - **Requirements**: Trial/Platinum license for Watcher functionality
-- **Location**: `observability/elasticsearch/config/batch-events/match-join.watcher.json`
+- **Location**: `specifications/elasticsearch/config/batch-events/match-join.watcher.json`
 
 **Problems with Current Approach**:
 - Polling overhead (runs every 5 seconds even when no events)
@@ -218,7 +218,7 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 
 3. **Documentation**:
    - `docs/Batch_Event_Matching.md` - New architecture
-   - Update `observability/elasticsearch/docs/Elasticsearch_indices.md` (moved from `docs/`)
+   - Update `specifications/elasticsearch/docs/Elasticsearch_indices.md` (moved from `docs/`)
    - Update `docs/Spark_Jobs_Pane.md`
 
 4. **Testing**:
@@ -227,9 +227,9 @@ Replace the current Watcher-based polling approach for matching Spark batch even
    - Backward compatibility with existing batch-traces
 
 **References**:
-- Current implementation: `observability/elasticsearch/config/batch-events/`
+- Current implementation: `specifications/elasticsearch/config/batch-events/`
 - Documentation: `docs/Spark_Jobs_Pane.md` (lines 145-168)
-- Index template: `observability/elasticsearch/config/batch-events/batch-events.template.json`
+- Index template: `specifications/elasticsearch/config/batch-events/batch-events.template.json`
 
 **Success Criteria**:
 - 100% matching accuracy maintained
@@ -261,7 +261,7 @@ After disk-pressure recovery on **lab3**, the `hdfs` namespace still showed only
 4. Review **namenode** placement vs **datanode** spread for fault tolerance.
 
 **Related**:
-- `ansible/playbooks/k8s/` Hadoop/HDFS deploy and `playbooks/deploy.yml` (`hadoop` tag).
+- `automation/ansible/playbooks/k8s/` Hadoop/HDFS deploy and `playbooks/deploy.yml` (`hadoop` tag).
 - Cluster diagnostics: `ansible-playbook playbooks/k8s/diagnose.yml`, `kubectl describe pod` / `kubectl get ds -n hdfs`.
 
 **Success Criteria**:
@@ -300,7 +300,7 @@ Define and implement a **repeatable pattern** for storing observability scope on
 
 **Deliverables**:
 
-1. Design note in `ansible/playbooks/servicenow/docs/` (or standards) describing the chosen pattern and mapping from `vars/variables.yaml` registries (`K8S_CLUSTERS`, `DOCKER_HOSTS`, SGC connection config).  
+1. Design note in `specifications/servicenow/docs/` (or standards) describing the chosen pattern and mapping from `vars/variables.yaml` registries (`K8S_CLUSTERS`, `DOCKER_HOSTS`, SGC connection config).  
 2. Post-import BR or transform (mirror `sgc-inherit-location-from-host`) to set scope from SGC/Dynatrace — **not** from management zone → location.  
 3. Diagnose playbook check: CIs in brooks-lab lab hosts have expected observability scope attribute populated.
 
@@ -315,7 +315,7 @@ Define and implement a **repeatable pattern** for storing observability scope on
 **Estimated Effort**: 0.5 day
 
 **Description**:  
-Review `servicenow/docs/Log_to_Incident/Observability - Service Management Documentation.tpg.md` §2 (Figures and specifications) and §5 (Tables and listings) against the Spark Master StatefulSet pod-template YAML near `Log_to_Incident.adoc` ~line 302.
+Review `specifications/servicenow/docs/Log_to_Incident/Observability - Service Management Documentation.tpg.md` §2 (Figures and specifications) and §5 (Tables and listings) against the Spark Master StatefulSet pod-template YAML near `Log_to_Incident.adoc` ~line 302.
 
 That snippet is illustrative configuration (not a Graphviz/draw.io diagram), but readers may want figure-like presentation: indent, numbered caption, cross-reference. Current TPG **must** use **`Specification {section}-{sequence}`** for configuration listings and reserves auto-numbered **Figure** captions for diagrams.
 
@@ -326,7 +326,7 @@ That snippet is illustrative configuration (not a Graphviz/draw.io diagram), but
 3. Caption placement: above (AsciiDoc default) vs below (figure-like) — document what HTML/PDF can actually support.
 4. Caption typography: listing/figure titles currently render larger/italic than body; set smaller caption font in `docinfo` CSS and `problem-to-incident-theme.yml` (`code.caption.font_size` / `caption.font_size`).
 
-**Example locus**: `servicenow/docs/Log_to_Incident/Log_to_Incident.adoc` (Service-side CMDB / pod template labels, ~line 302).
+**Example locus**: `specifications/servicenow/docs/Log_to_Incident/Log_to_Incident.adoc` (Service-side CMDB / pod template labels, ~line 302).
 
 **Deliverables**:
 

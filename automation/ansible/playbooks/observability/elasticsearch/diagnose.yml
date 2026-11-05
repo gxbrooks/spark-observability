@@ -1,0 +1,48 @@
+---
+# Diagnose Elasticsearch health, container status, and index freshness.
+#
+# License 403 (trial expired, about monthly): confirm with the operator, then
+#   playbooks/observability/stop.yml -e delete_volumes=true
+#   playbooks/observability/deploy.yml
+#   playbooks/observability/start.yml
+# Dropping ES/Kibana volume state is expected. Do not call start_basic if Watcher is required.
+
+- name: Diagnose Elasticsearch
+  hosts: observability
+  gather_facts: false
+  tags: [diagnose, elasticsearch]
+  vars_files:
+    - ../../../../../vars/contexts/elastic_observability_ansible_vars.yml
+  vars:
+    timeout_seconds: 20
+    es_probe_host: "localhost"
+    observability_dir: "/home/ansible/ops/observability"
+    # Used in shared health_check_tasks fail_msg (401/403 hint)
+    observability_env_file: "{{ observability_dir }}/.env"
+  tasks:
+    - name: Resolve ES password from host .env
+      ansible.builtin.include_tasks: common/resolve_es_password.yml
+
+    - name: Run shared health checks
+      ansible.builtin.include_tasks: common/health_check_tasks.yml
+
+    - name: Run shared index checks
+      ansible.builtin.include_tasks: common/index_checks_tasks.yml
+
+    - name: Check Elasticsearch container status
+      ansible.builtin.shell: >
+        cd {{ observability_dir }} &&
+        docker compose ps es01 --format json |
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('State','unknown'))"
+      register: es_container
+      changed_when: false
+      failed_when: false
+
+    - name: Display Elasticsearch status
+      ansible.builtin.debug:
+        msg: |
+          Elasticsearch
+          =============
+          API:       {{ 'UP (HTTP ' ~ es_health.status ~ ')' if es_health.status | default(0) | int == 200 else 'DOWN (' ~ (es_health.msg | default('unreachable')) ~ ')' }}
+          Cluster:   {{ es_health.json.status | default('unknown') if es_health.status | default(0) | int == 200 else 'N/A' }}
+          Container: {{ es_container.stdout | default('unknown') }}

@@ -52,7 +52,7 @@ Deploy and compare **sweep** `sn_regions_dir/*/region.yaml` to discover regions.
 
 ## Adding a management region
 
-1. Create `servicenow/regions/{region-id}/region.yaml` (copy from `brooks-lab`).
+1. Create `specifications/servicenow/regions/{region-id}/region.yaml` (copy from `brooks-lab`).
 2. Add one or more `{name}.csdm.yaml` specifications per [`~/repos/sn-sync/docs/CSDM_Specifications.md`](../../sn-sync/docs/CSDM_Specifications.md).
 3. Point `region.yaml` `dynatrace.tenant_id` and `dynatrace.management_zone` at the Dynatrace specs under `observability/dynatrace/` (management zones, integrations).
 4. Prefer `sn-sync-inject` / `sn-sync-delete` from **sn-sync** (see below), or re-run `csdm/deploy.yml`, then `python -m servicenow.comparator` (no registry edit required when using region discovery).

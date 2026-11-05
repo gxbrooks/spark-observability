@@ -1,0 +1,91 @@
+---
+# Deploy Log-to-Incident ServiceNow automation (enterprise path):
+#   OpenPipeline sn-* tags → Automated grouping (metric_name + cmdb_ci) →
+#   OOTB AMR SGO-Dynatrace (non-secondary, not in maintenance).
+# Usage:
+#   cd ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml
+
+- name: Deploy Log-to-Incident ServiceNow automation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Ensure L2I Dynatrace Grail enrichment sys_properties
+      ansible.builtin.include_tasks: tasks/ensure_l2i_dt_sys_properties.yml
+
+    - name: Ensure ResolveApplicationService Script Include
+      ansible.builtin.include_tasks: tasks/ensure_resolve_application_service_si.yml
+
+    - name: Ensure L2IIncidentFromAlert Script Include (handler helper)
+      ansible.builtin.include_tasks: tasks/ensure_l2i_incident_from_alert_si.yml
+
+    - name: Ensure EvtMgmtCustomIncidentPopulator (Create incident from Alert path)
+      ansible.builtin.include_tasks: tasks/ensure_evtmgmt_custom_incident_populator.yml
+
+    - name: Ensure SGO-Dynatrace enrich BRs (sn-impact/sn-urgency + K8s dash-key CI)
+      ansible.builtin.include_tasks: tasks/ensure_em_enrich_sgo_br.yml
+
+    - name: Ensure em-alert-create-log-incident BR stays inactive
+      ansible.builtin.include_tasks: tasks/ensure_em_alert_create_incident_br.yml
+
+    - name: Try L2IProcessPendingAlerts scheduled job (optional; often ACL-blocked)
+      ansible.builtin.include_tasks: tasks/ensure_l2i_process_pending_job.yml
+
+    - name: Ensure reserved L2I AMR stays inactive; keep TBAC definition
+      ansible.builtin.include_tasks: tasks/ensure_l2i_amr_and_tbac.yml
+
+    - name: Capture log TBAC definition state before metric_class TBAC reuses the same fact names
+      ansible.builtin.set_fact:
+        sn_log_tbac_def_body: "{{ sn_l2i_tbac_def_body }}"
+
+    - name: Ensure metric_class TBAC definition (CPU-family clustering)
+      ansible.builtin.include_tasks: tasks/ensure_metric_class_tbac.yml
+
+    - name: Ensure Automated grouping keys on metric_name + CI (+ TAG_BASED for metric_class TBAC)
+      ansible.builtin.include_tasks: tasks/ensure_l2i_alert_grouping.yml
+
+    - name: Apply Event Management grouping/incident best-practice properties
+      ansible.builtin.include_tasks: tasks/ensure_em_best_practice_properties.yml
+
+    - name: Activate OOTB CI in Change Window maintenance rule
+      ansible.builtin.include_tasks: tasks/ensure_ootb_change_window_maintenance.yml
+
+    - name: Ensure Affected CIs maintenance rule for change windows
+      ansible.builtin.include_tasks: tasks/ensure_affected_ci_maintenance_rule.yml
+
+    - name: Activate OOTB SGO-Dynatrace AMR (log and metric, non-secondary)
+      ansible.builtin.include_tasks: tasks/ensure_sgo_dynatrace_amr.yml
+
+    - name: Attach OOTB Create Incident subflow to SGO-Dynatrace AMR
+      ansible.builtin.include_tasks: tasks/ensure_sgo_amr_create_incident_action.yml
+
+    - name: Ensure L2I rule-based grouping (same CI + metric_name)
+      ansible.builtin.include_tasks: tasks/ensure_l2i_correlation_rule.yml
+
+    - name: Activate Create Incident for Primary Alert on Group Alert only
+      ansible.builtin.include_tasks: tasks/ensure_group_alert_primary_amr.yml
+
+    - name: Log-to-Incident automation summary
+      ansible.builtin.debug:
+        msg: >-
+          L2I path: sn-* tags + metric_name=Log-Error:{signature} +
+          group_by metric_name,cmdb_ci. Log TBAC '{{ sn_log_tbac_def_body.name }}'
+          active={{ sn_log_tbac_def_body.active }}. metric_class TBAC
+          '{{ sn_l2i_tbac_def_body.name }}' active={{ sn_l2i_tbac_def_body.active }}
+          clusters CPU-family alerts via sn-metric-cluster. Enrich BRs
+          '{{ sn_l2i_enrich_event_br_name }}' /
+          '{{ sn_l2i_enrich_alert_br_name }}'.
+          Create BR '{{ sn_incident_em_alert_br_name }}' active={{ sn_l2i_create_br_active }}.
+          AMR '{{ sn_sgo_ootb_amr_name }}' active={{ sn_sgo_amr_body.active }}
+          (OOTB Create Incident subflow).
+          Correlation rule '{{ sn_l2i_corr_body.name }}'.
+          Group Alert AMR '{{ sn_l2i_ootb_primary_amr_name }}'
+          active={{ sn_l2i_primary_amr_body.active }}.
+          OOTB '{{ sn_ootb_ci_in_change_window_rule_name }}' kept active;
+          extension rule '{{ sn_affected_ci_maint_rule_body.name }}' for task_ci.

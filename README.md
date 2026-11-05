@@ -8,24 +8,29 @@ A comprehensive observability platform for Apache Spark applications running on 
 
 ```
 spark-observability/
-├── ansible/                    # Infrastructure automation
-│   ├── inventory.yml          # Host definitions
-│   ├── playbooks/             # Ansible playbooks
-│   │   ├── k8s/               # Kubernetes management
-│   │   ├── observability/    # Observability platform
-│   │   ├── spark/            # Spark deployment
-│   │   └── ea/               # Elastic Agent management
-│   └── roles/                # Ansible roles
+├── automation/
+│   ├── ansible/                # Infrastructure automation
+│   │   ├── inventory.yml      # Host definitions
+│   │   ├── playbooks/         # Ansible playbooks
+│   │   │   ├── k8s/           # Kubernetes management
+│   │   │   ├── observability/ # Observability platform
+│   │   │   ├── spark/         # Spark deployment
+│   │   │   └── elastic-agent/ # Elastic Agent management
+│   │   └── roles/             # Ansible roles
+│   └── terraform/              # Dynatrace/ServiceNow Terraform (in progress)
 ├── docs/                      # Project documentation
 │   ├── PROJECT_OVERVIEW.md   # Comprehensive setup guide
 │   ├── Variable_Flow.md      # Variable management architecture
 │   └── SECURE_SPARK_DEPLOYMENT.md
-├── observability/            # Observability platform
-│   ├── docker-compose.yml    # Docker services
-│   ├── elasticsearch/        # Elasticsearch configuration
-│   ├── kibana/              # Kibana configuration
-│   ├── logstash/            # Logstash configuration
-│   └── grafana/             # Grafana configuration
+├── specifications/            # Declarative per-application config
+│   ├── dynatrace/             # Dynatrace tenant config
+│   ├── elasticsearch/         # Elasticsearch configuration
+│   ├── kibana/                # Kibana configuration
+│   ├── logstash/              # Logstash configuration
+│   ├── grafana/                # Grafana configuration
+│   ├── servicenow/             # ServiceNow CSDM specs + integrations
+│   ├── docker-compose.yml     # Docker services
+│   └── certs/                 # CA certificate generation
 ├── spark/                    # Spark applications and configuration
 │   ├── apps/                # Spark application examples
 │   ├── conf/                # Spark configuration
@@ -54,7 +59,7 @@ spark-observability/
 ### Basic Setup
 ```bash
 # 1. Deploy infrastructure
-cd ansible
+cd automation/ansible
 ansible-playbook -i inventory.yml playbooks/k8s/install.yml
 ansible-playbook -i inventory.yml playbooks/nfs/install_nfs.yml
 
@@ -117,7 +122,7 @@ generate-contexts --vars-dir ./vars -f
 python3 spark/apps/data-analysis-book/chapters/Chapter_03.py
 
 # Check observability platform status
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/observability/diagnose.yml
+ansible-playbook -i automation/ansible/inventory.yml automation/ansible/playbooks/observability/diagnose.yml
 ```
 
 ## 📋 Architecture

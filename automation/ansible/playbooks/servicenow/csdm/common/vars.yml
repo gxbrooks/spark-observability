@@ -1,0 +1,30 @@
+---
+# Shared variables for CSDM top-level playbooks (sn-sync wrappers).
+
+sn_url: "{{ SN_URL | trim }}"
+sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
+sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+
+# playbook_dir = .../ansible/playbooks/servicenow/csdm
+sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
+sn_ansible_root: "{{ playbook_dir | regex_replace('/playbooks/.*$', '') }}"
+sn_inventory_file: "{{ sn_ansible_root }}/inventory.yml"
+sn_repo_root: "{{ sn_ansible_root | dirname }}"
+sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
+sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
+
+sn_mid_server_name: "{{ SN_MID_SERVER_NAME | default('mid-brooks-lab3') }}"
+sn_discovery_schedule_name: "{{ SN_DISCOVERY_SCHEDULE_NAME | default('Brooks Lab CI Discovery') }}"
+sn_csdm_trigger_horizontal_discovery: true
+
+sn_sm_deploy_context_file: "{{ sn_repo_root }}/vars/contexts/servicenow_sm_deploy.json"
+
+sn_sync_inject_bin: "{{ sn_sync_inject_bin_override | default('sn-sync-inject') }}"
+sn_sync_diff_bin: "{{ sn_sync_diff_bin_override | default('sn-sync-diff') }}"
+sn_sync_delete_bin: "{{ sn_sync_delete_bin_override | default('sn-sync-delete') }}"
+
+docker_discovery_hosts: >-
+  {{ DOCKER_HOSTS | default([])
+     | selectattr('container_discovery', 'defined')
+     | selectattr('container_discovery')
+     | list }}
