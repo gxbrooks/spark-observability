@@ -81,7 +81,7 @@
 
 - name: Persist replacement operator token locally for manual secrets update
   ansible.builtin.copy:
-    dest: "{{ playbook_dir }}/../../../../tmp/dt-operator-token-rotated.txt"
+    dest: "{{ project_root }}/automation/ansible/tmp/dt-operator-token-rotated.txt"
     mode: "0600"
     content: "{{ dt_operator_token_create.json.token }}"
   when: (dt_operator_missing_scopes | length) > 0

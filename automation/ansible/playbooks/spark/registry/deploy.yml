@@ -17,7 +17,7 @@
   become: true
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
   vars:
     _registry_connection: "{{ spark_registry_connection | default('unsecure') }}"
     _registry_host: "{{ spark_registry_host | default(registry_host | default(SPARK_REGISTRY_HOST | default(''))) }}"

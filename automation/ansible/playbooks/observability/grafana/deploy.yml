@@ -10,7 +10,7 @@
   tasks:
     - name: Synchronize Grafana directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../../specifications/grafana"
+        src: "{{ project_root }}/specifications/grafana"
         dest: "{{ observability_dir }}/grafana/"
         delete: false
         recursive: true

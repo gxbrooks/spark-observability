@@ -8,7 +8,7 @@
   gather_facts: false
   tags: [discovery_user, mid_server, always]
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Regenerate service-now context when stale
@@ -16,7 +16,7 @@
 
     - name: Ensure vars directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../../../vars"
+        path: "{{ project_root }}/vars"
         state: directory
         mode: "0755"
 
@@ -30,7 +30,7 @@
   become: true
   gather_facts: true
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Install discovery user and sudoers
@@ -45,7 +45,7 @@
   become: true
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Install Docker Pattern permissions for sn-discovery
@@ -60,8 +60,8 @@
   become: true
   gather_facts: true
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/servicenow_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Install MID Server

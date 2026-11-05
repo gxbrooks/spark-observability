@@ -5,7 +5,6 @@
   hosts: kubernetes_master
   become: false
   vars:
-    project_root: "{{ playbook_dir | dirname | dirname | dirname }}"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
     jupyterhub_namespace: "spark"
     jupyterhub_release: "jupyterhub"
@@ -79,7 +78,7 @@
     - name: Generate JupyterHub values file from template
       delegate_to: localhost
       template:
-        src: "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/jupyter/jupyterhub-values.yaml.j2"
+        src: "{{ project_root }}/jupyter/jupyterhub-values.yaml.j2"
         dest: "/tmp/jupyterhub-values.yaml"
         mode: '0644'
     

@@ -7,7 +7,7 @@
   become: false
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
   vars:
     k8s_namespace: "{{ K8S_NAMESPACE }}"
   tasks:

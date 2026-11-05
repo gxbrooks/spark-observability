@@ -3,8 +3,8 @@
   hosts: kubernetes_master
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Apply OOTB Kubernetes monitoring settings (disabled)
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/apply_k8s_monitoring_settings.yml"
@@ -21,8 +21,8 @@
   hosts: kubernetes_master:kubernetes_workers:observability
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Display OneAgent stop guidance
       ansible.builtin.debug:

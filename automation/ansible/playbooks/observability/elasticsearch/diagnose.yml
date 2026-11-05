@@ -12,7 +12,7 @@
   gather_facts: false
   tags: [diagnose, elasticsearch]
   vars_files:
-    - ../../../../../vars/contexts/elastic_observability_ansible_vars.yml
+    - "{{ project_root }}/vars/contexts/elastic_observability_ansible_vars.yml"
   vars:
     timeout_seconds: 20
     es_probe_host: "localhost"

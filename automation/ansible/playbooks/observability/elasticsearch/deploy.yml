@@ -6,16 +6,16 @@
   gather_facts: false
   tags: [deploy, elasticsearch]
   vars_files:
-    - ../../../../../vars/contexts/elastic_observability_ansible_vars.yml
+    - "{{ project_root }}/vars/contexts/elastic_observability_ansible_vars.yml"
   vars:
     observability_dir: "/home/ansible/ops/observability"
     observability_env_file: "{{ observability_dir }}/.env"
     es_probe_host: "localhost"
-    es_config_src_dir: "{{ playbook_dir }}/../../../../../specifications/elasticsearch/config"
+    es_config_src_dir: "{{ project_root }}/specifications/elasticsearch/config"
   tasks:
     - name: Synchronize Elasticsearch directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../../specifications/elasticsearch"
+        src: "{{ project_root }}/specifications/elasticsearch"
         dest: "{{ observability_dir }}/elasticsearch/"
         delete: false
         recursive: true

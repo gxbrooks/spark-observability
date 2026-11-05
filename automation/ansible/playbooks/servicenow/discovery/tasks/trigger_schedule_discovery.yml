@@ -5,7 +5,7 @@
 
 - name: Load deployed schedule sys_id from context file
   ansible.builtin.slurp:
-    src: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_discovery_deploy.json"
+    src: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy.json"
   register: sn_deploy_context_file
   failed_when: false
 

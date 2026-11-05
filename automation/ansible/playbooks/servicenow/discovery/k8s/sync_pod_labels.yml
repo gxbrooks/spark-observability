@@ -9,7 +9,7 @@
   become: true
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/../common/vars.yml"
   tasks:
     - name: List pods in tag-sync namespaces
@@ -47,9 +47,9 @@
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../../vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/../common/vars.yml"
-    - "{{ playbook_dir }}/../../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Sync servicenow.com labels for each pod
       ansible.builtin.include_tasks: tasks/sync_one_k8s_pod_labels.yml

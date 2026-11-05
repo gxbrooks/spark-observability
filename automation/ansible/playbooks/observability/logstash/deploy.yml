@@ -10,7 +10,7 @@
   tasks:
     - name: Synchronize Logstash directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../../specifications/logstash"
+        src: "{{ project_root }}/specifications/logstash"
         dest: "{{ observability_dir }}/logstash/"
         delete: false
         recursive: true

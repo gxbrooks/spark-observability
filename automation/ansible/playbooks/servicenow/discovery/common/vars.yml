@@ -22,8 +22,8 @@ sn_mid_run_as_user: servicenow-mid
 sn_mid_install_dir: "{{ SN_MID_INSTALL_DIR | default('/opt/servicenow/mid-brooks-lab3') }}"
 sn_mid_installer_deb_url: "{{ SN_MID_INSTALLER_DEB_URL | default('') }}"
 
-sn_discovery_ssh_private_key_path: "{{ playbook_dir }}/../../../../vars/sn_discovery_id_ed25519"
-sn_discovery_ssh_public_key_path: "{{ playbook_dir }}/../../../../vars/sn_discovery_id_ed25519.pub"
+sn_discovery_ssh_private_key_path: "{{ project_root }}/vars/sn_discovery_id_ed25519"
+sn_discovery_ssh_public_key_path: "{{ project_root }}/vars/sn_discovery_id_ed25519.pub"
 
 # Scripted REST API — Discovery operations (deploy_discovery_rest_api.yml)
 sn_discovery_rest_api_name: Discovery Operations API
@@ -44,7 +44,7 @@ sn_api_headers:
   Accept: application/json
   Content-Type: application/json
 
-sn_repo_root: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}"
+sn_repo_root: "{{ project_root }}"
 sn_discovery_integrations_dir: "{{ sn_repo_root }}/specifications/servicenow/integrations/discovery"
 sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"

@@ -4,7 +4,7 @@
 
 - name: Load discovery deploy context
   ansible.builtin.slurp:
-    src: "{{ playbook_dir }}/../../../../vars/contexts/servicenow_discovery_deploy.json"
+    src: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy.json"
   register: sn_csdm_disc_deploy_ctx
   failed_when: false
 

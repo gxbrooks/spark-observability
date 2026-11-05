@@ -20,7 +20,7 @@
     - name: Run generate_contexts for devops context
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../../tasks/regenerate_contexts.yml"
       vars:
-        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}"
+        regenerate_contexts_root: "{{ project_root }}"
         regenerate_context_names: ['devops']
 
 - name: Resolve or build OTel listener JAR on controller
@@ -28,11 +28,10 @@
   connection: local
   gather_facts: false
   vars:
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}"
     otel_listener_dir: "{{ project_root }}/spark/otel-listener"
     otel_listener_jar: "{{ SPARK_OTEL_LISTENER_JAR_NAME.value | default('spark-otel-listener-1.0.0.jar') }}"
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/variables.yaml"
+    - "{{ project_root }}/vars/variables.yaml"
   tasks:
     - name: Stat JAR in Maven target directory
       ansible.builtin.stat:
@@ -87,7 +86,7 @@
   become: true
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}/vars/variables.yaml"
+    - "{{ project_root }}/vars/variables.yaml"
   vars:
     otel_listener_jar: "{{ SPARK_OTEL_LISTENER_JAR_NAME.value | default('spark-otel-listener-1.0.0.jar') }}"
     spark_jars_mount: "{{ SPARK_JARS_MOUNT.value | default('/mnt/spark/jars') }}"

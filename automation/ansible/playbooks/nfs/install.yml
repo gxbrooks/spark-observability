@@ -7,14 +7,14 @@
     - name: Run generate_contexts for nfs context
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
-        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+        regenerate_contexts_root: "{{ project_root }}"
         regenerate_context_names: ['nfs']
 
 - name: Install and Configure NFS Server
   hosts: nfs_servers
   become: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/nfs_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   vars:
     nfs_export_opts: "*(rw,sync,no_root_squash,no_subtree_check,insecure)"
@@ -97,7 +97,7 @@
   hosts: nfs_servers
   become: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/nfs_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   vars:
     nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
@@ -168,7 +168,7 @@
   hosts: kubernetes_master:kubernetes_workers:!nfs_servers
   become: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/nfs_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   vars:
     nfs_export_root: "{{ nfs_spark_data_export | dirname }}"
@@ -250,7 +250,7 @@
   hosts: kubernetes_master:kubernetes_workers
   become: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/nfs_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/nfs_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   vars:
     spark_mount_base_resolved: "{{ spark_mount_base }}"

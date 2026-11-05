@@ -7,7 +7,6 @@
   connection: local
   gather_facts: true
   vars:
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname | dirname }}"
     otel_listener_dir: "{{ project_root }}/spark/otel-listener"
     otel_listener_jar: "spark-otel-listener-1.0.0.jar"
     otel_mvn_clean: true

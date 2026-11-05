@@ -9,8 +9,8 @@
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../../vars/contexts/servicenow_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
     - "{{ playbook_dir }}/../common/vars.yml"
   tasks:
     - name: Assert CMDB locations for all clusters in K8S_CLUSTERS registry

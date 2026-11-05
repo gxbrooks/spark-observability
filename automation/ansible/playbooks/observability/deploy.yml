@@ -21,7 +21,7 @@
     - name: Run generate_contexts for observability context
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
-        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+        regenerate_contexts_root: "{{ project_root }}"
         regenerate_context_names: ['observability']
 
 - name: Deploy common observability infrastructure
@@ -31,7 +31,7 @@
   vars:
     observability_dir: "/home/ansible/ops/observability"
     ops_dir: "/home/ansible/ops"
-    env_source_file: "{{ playbook_dir }}/../../../../vars/contexts/observability_docker.env"
+    env_source_file: "{{ project_root }}/vars/contexts/observability_docker.env"
     observability_host_fqdn: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
     observability_host_short: "{{ (hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0])) | regex_replace('\\..*$', '') }}"
     observability_host_ip: "{{ hostvars[groups['observability'][0]]['ansible_default_ipv4']['address'] | default('') }}"
@@ -53,7 +53,7 @@
 
     - name: Copy docker-compose.yml
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../../../specifications/docker-compose.yml"
+        src: "{{ project_root }}/specifications/docker-compose.yml"
         dest: "{{ observability_dir }}/docker-compose.yml"
         mode: '0644'
 
@@ -65,7 +65,7 @@
 
     - name: Synchronize certificates directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../specifications/certs"
+        src: "{{ project_root }}/specifications/certs"
         dest: "{{ observability_dir }}/certs/"
         delete: false
         recursive: true
@@ -83,14 +83,14 @@
 
     - name: Synchronize shared directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../observability/shared"
+        src: "{{ project_root }}/observability/shared"
         dest: "{{ observability_dir }}/shared/"
         delete: false
         recursive: true
 
     - name: Synchronize Prometheus directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../specifications/prometheus"
+        src: "{{ project_root }}/specifications/prometheus"
         dest: "{{ observability_dir }}/prometheus/"
         delete: false
         recursive: true
@@ -150,14 +150,14 @@
 
     - name: Copy .bashrc to ops directory
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../../../.bashrc"
+        src: "{{ project_root }}/.bashrc"
         dest: "{{ ops_dir }}/.bashrc"
         mode: '0644'
       failed_when: false
 
     - name: Copy .bash_aliases to ops directory
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../../../.bash_aliases"
+        src: "{{ project_root }}/.bash_aliases"
         dest: "{{ ops_dir }}/.bash_aliases"
         mode: '0644'
       failed_when: false

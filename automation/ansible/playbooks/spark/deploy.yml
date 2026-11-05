@@ -5,7 +5,6 @@
   hosts: localhost
   gather_facts: false
   vars:
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
   tasks:
     - name: Display deployment information
       debug:
@@ -52,7 +51,6 @@
   connection: local
   gather_facts: false
   vars:
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
   tasks:
     - name: Run generate_contexts for Spark deploy (spark-ansible, spark-runtime, spark-image)
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
@@ -71,9 +69,8 @@
     force_download: false
     force_rebuild: false
     user_spark_home: "/home/{{ ansible_user }}/spark"
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   tasks:
     - name: Display Spark version and image for build
@@ -262,10 +259,9 @@
     force_rebuild: false
     user_spark_home: "/home/{{ ansible_user }}/spark"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
     k8s_config_dir: "{{ user_spark_home }}/k8s"
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   pre_tasks:
     - name: Display Spark version being used

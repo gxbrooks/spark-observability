@@ -10,7 +10,7 @@
   tasks:
     - name: Synchronize Tempo directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../../specifications/tempo"
+        src: "{{ project_root }}/specifications/tempo"
         dest: "{{ observability_dir }}/tempo/"
         delete: false
         recursive: true

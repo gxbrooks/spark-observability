@@ -1,0 +1,16 @@
+---
+# Repository root, computed once per play via `git rev-parse --show-toplevel`
+# rather than walking up a fixed number of directory levels from
+# playbook_dir. This is the standard Ansible pattern for resolving a
+# project's base directory: robust to the repo being renamed, cloned
+# elsewhere, or reorganized (as it was, moving ansible/ -> automation/ansible/)
+# -- unlike hardcoded "N levels of ../" traversal, which silently breaks
+# any time the directory depth changes.
+#
+# -C anchors the git call to playbook_dir so it resolves correctly
+# regardless of the caller's own working directory.
+#
+# Every path reference anywhere in this tree should be
+# "{{ project_root }}/<repo-relative-path>" -- a single flat downward
+# path, never another relative climb.
+project_root: "{{ lookup('pipe', 'git -C ' ~ playbook_dir ~ ' rev-parse --show-toplevel') }}"

@@ -2,7 +2,7 @@
 # Log-to-Incident orchestration variables (lookup keys and shared overrides).
 # Desired-state payloads live under specifications/servicenow/integrations/incident/.
 
-sn_repo_root: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}"
+sn_repo_root: "{{ project_root }}"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 sn_incident_integrations_dir: "{{ sn_repo_root }}/specifications/servicenow/integrations/incident"
 

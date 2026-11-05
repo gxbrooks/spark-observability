@@ -7,9 +7,9 @@ sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
 
 # playbook_dir = .../ansible/playbooks/servicenow/csdm
 sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
-sn_ansible_root: "{{ playbook_dir | regex_replace('/playbooks/.*$', '') }}"
+sn_ansible_root: "{{ project_root }}/automation/ansible"
 sn_inventory_file: "{{ sn_ansible_root }}/inventory.yml"
-sn_repo_root: "{{ sn_ansible_root | dirname }}"
+sn_repo_root: "{{ project_root }}"
 sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 

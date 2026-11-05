@@ -9,19 +9,18 @@
     - name: Run generate_contexts for spark-ansible (spark_ansible_vars.yml)
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
-        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+        regenerate_contexts_root: "{{ project_root }}"
         regenerate_context_names: ['spark-ansible']
 
 - name: Deploy JupyterHub on Kubernetes
   hosts: kubernetes_master
   become: false
   vars:
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
     k8s_config_dir: "/home/{{ ansible_user }}/spark/k8s"
     jupyter_access_host: "{{ hostvars[groups['kubernetes_master'][0]]['ansible_host'] | default(groups['kubernetes_master'][0]) }}"
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
     - "{{ playbook_dir | dirname | dirname }}/roles/spark/vars/main.yml"
 
   pre_tasks:

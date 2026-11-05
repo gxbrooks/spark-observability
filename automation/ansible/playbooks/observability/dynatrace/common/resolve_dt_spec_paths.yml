@@ -7,7 +7,7 @@
 
 - name: Resolve repository and Dynatrace specification roots
   ansible.builtin.set_fact:
-    sn_repo_root: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}"
+    sn_repo_root: "{{ project_root }}"
   delegate_to: localhost
   run_once: true
 

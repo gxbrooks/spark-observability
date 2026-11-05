@@ -67,7 +67,7 @@
 
 - name: Persist replacement API token in local secrets file
   ansible.builtin.lineinfile:
-    path: "{{ playbook_dir }}/../../../../vars/secrets.yaml"
+    path: "{{ project_root }}/vars/secrets.yaml"
     regexp: '^(\s*)DT_API_TOKEN:'
     line: "  DT_API_TOKEN: \"{{ dt_api_token_create.json.token }}\""
     backrefs: false
@@ -78,7 +78,7 @@
 
 - name: Sync replacement API token into dynatrace-ansible context
   ansible.builtin.lineinfile:
-    path: "{{ playbook_dir }}/../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    path: "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
     regexp: '^DT_API_TOKEN:'
     line: "DT_API_TOKEN: \"{{ dt_api_token_create.json.token }}\""
   when: (dt_api_missing_scopes | length) > 0

@@ -4,8 +4,8 @@
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Validate tenant/API token
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
@@ -22,8 +22,8 @@
   hosts: kubernetes_master
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Get operator pods
       ansible.builtin.command: kubectl -n dynatrace get pods
@@ -138,8 +138,8 @@
   hosts: kubernetes_master:kubernetes_workers:observability
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Check OneAgent service status
       ansible.builtin.command: systemctl is-active oneagent

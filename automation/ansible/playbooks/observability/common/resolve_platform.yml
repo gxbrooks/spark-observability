@@ -9,7 +9,7 @@
   connection: local
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
     - "{{ playbook_dir }}/platform_vars.yml"
   tasks:
     - name: Assert OBSERVABILITY_PLATFORM is defined and valid

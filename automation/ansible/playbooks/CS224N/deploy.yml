@@ -3,7 +3,7 @@
   hosts: jupyter_servers
   become: true
   vars:
-    cs224n_src_dir: "{{ playbook_dir | dirname | dirname | dirname | dirname }}/spark/apps/CS224N"
+    cs224n_src_dir: "{{ project_root }}/spark/apps/CS224N"
     cs224n_dest_dir: "/mnt/spark/jupyter/notebooks/CS224N"
   tasks:
     - name: Ensure CS224N destination directory exists

@@ -16,7 +16,7 @@
   gather_facts: false
   tags: [test, spark]
   vars:
-    repo_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+    repo_root: "{{ project_root }}"
     spark_client_env: "{{ repo_root }}/vars/contexts/spark_client_env.sh"
   tasks:
     - name: Require generated Spark client env

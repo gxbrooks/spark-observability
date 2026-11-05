@@ -3,8 +3,8 @@
   hosts: kubernetes_master
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Remove Dynakube resource
       ansible.builtin.command: kubectl -n dynatrace delete dynakube dynakube --ignore-not-found
@@ -25,8 +25,8 @@
   hosts: kubernetes_master:kubernetes_workers:observability
   gather_facts: false
   vars_files:
-    - "{{ playbook_dir }}/../../../../../vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ playbook_dir }}/../../../../../vars/secrets.yaml"
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
   tasks:
     - name: Run OneAgent uninstall script when present
       ansible.builtin.shell: |

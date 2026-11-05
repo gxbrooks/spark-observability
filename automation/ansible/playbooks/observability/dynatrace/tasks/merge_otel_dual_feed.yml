@@ -14,7 +14,7 @@
 # column 0, which the collector treats as an invalid top-level key and crash-loops.
 - name: Remove invalid top-level Dynatrace OTLP exporter (must nest under exporters)
   ansible.builtin.replace:
-    path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    path: "{{ project_root }}/specifications/otel-collector/otel-collector-config.yaml"
     regexp: '(?ms)^# BEGIN DYNATRACE_OTEL_EXPORTER\r?\n^otlphttp/dynatrace:.*?\r?\n^# END DYNATRACE_OTEL_EXPORTER\r?\n'
     replace: ''
   delegate_to: localhost
@@ -22,7 +22,7 @@
 
 - name: Assert Dynatrace OTLP exporter is nested under exporters
   ansible.builtin.command:
-    cmd: grep -E '^[[:space:]]+otlphttp/dynatrace:' "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    cmd: grep -E '^[[:space:]]+otlphttp/dynatrace:' "{{ project_root }}/specifications/otel-collector/otel-collector-config.yaml"
   delegate_to: localhost
   register: dt_otel_exporter_nested
   changed_when: false
@@ -30,7 +30,7 @@
 
 - name: Ensure traces pipeline exports to Dynatrace
   ansible.builtin.replace:
-    path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    path: "{{ project_root }}/specifications/otel-collector/otel-collector-config.yaml"
     regexp: "exporters: \\[elasticsearch/traces, otlp/tempo, debug\\]"
     replace: "exporters: [elasticsearch/traces, otlp/tempo, otlphttp/dynatrace, debug]"
   delegate_to: localhost
@@ -38,7 +38,7 @@
 
 - name: Ensure metrics pipeline exports to Dynatrace
   ansible.builtin.replace:
-    path: "{{ playbook_dir }}/../../../../observability/otel-collector/otel-collector-config.yaml"
+    path: "{{ project_root }}/specifications/otel-collector/otel-collector-config.yaml"
     regexp: "exporters: \\[elasticsearch/metrics, debug\\]"
     replace: "exporters: [elasticsearch/metrics, otlphttp/dynatrace, debug]"
   delegate_to: localhost

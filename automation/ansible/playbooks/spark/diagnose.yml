@@ -12,7 +12,7 @@
   become: false
   gather_facts: true
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
   vars:
     k8s_namespace: "{{ K8S_NAMESPACE }}"
     logstash_obs_host: "{{ hostvars[groups['observability'][0]]['ansible_host'] | default(groups['observability'][0]) }}"
@@ -159,9 +159,9 @@
     - name: Run Spark smoke test (spark.range count)
       ansible.builtin.shell: |
         set -euo pipefail
-        cd "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+        cd "{{ project_root }}"
         source vars/contexts/spark_client_env.sh
-        exec ./venv/bin/python3 "{{ playbook_dir | dirname | dirname | dirname | dirname }}/spark/scripts/spark_diagnose_smoke.py"
+        exec ./venv/bin/python3 "{{ project_root }}/spark/scripts/spark_diagnose_smoke.py"
       args:
         executable: /bin/bash
       register: spark_smoke

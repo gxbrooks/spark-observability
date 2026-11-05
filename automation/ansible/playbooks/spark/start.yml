@@ -11,14 +11,13 @@
   hosts: kubernetes_master
   become: false
   vars_files:
-    - "{{ playbook_dir | dirname | dirname | dirname | dirname }}/vars/contexts/spark_ansible_vars.yml"
+    - "{{ project_root }}/vars/contexts/spark_ansible_vars.yml"
     - "{{ playbook_dir }}/vars.yml"
   vars:
     # Use user's home directory for k8s configs, not /opt/spark
     user_spark_home: "/home/{{ ansible_user }}/spark"
     k8s_config_dir: "{{ user_spark_home }}/k8s"
     kubeconfig: "/home/{{ ansible_user }}/.kube/config"
-    project_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
     # Use spark_component_var to avoid circular reference
     spark_component_var: "{{ spark_component | default('all') }}"
   pre_tasks:

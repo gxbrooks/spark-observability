@@ -10,7 +10,7 @@
   tasks:
     - name: Synchronize OTel Collector directory
       ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../../../../specifications/otel-collector"
+        src: "{{ project_root }}/specifications/otel-collector"
         dest: "{{ observability_dir }}/otel-collector/"
         delete: false
         recursive: true

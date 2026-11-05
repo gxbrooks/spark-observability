@@ -14,7 +14,7 @@ sn_api_headers:
 sn_sm_dir: "{{ playbook_dir | regex_replace('^(.*/service-mapping)(/.*)?$', '\\1') }}"
 sn_sgc_dir: "{{ sn_sm_dir | dirname }}/sgc"
 sn_servicenow_playbooks_dir: "{{ sn_sm_dir | dirname }}"
-sn_repo_root: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}"
+sn_repo_root: "{{ project_root }}"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 sn_sm_files_dir: "{{ sn_sm_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/specifications/servicenow/integrations/service-mapping"
 sn_sm_deploy_context_file: "{{ sn_sm_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_sm_deploy.json"

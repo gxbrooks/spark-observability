@@ -22,7 +22,7 @@
     - name: Run generate_contexts for observability context
       ansible.builtin.include_tasks: "{{ playbook_dir }}/../tasks/regenerate_contexts.yml"
       vars:
-        regenerate_contexts_root: "{{ playbook_dir | dirname | dirname | dirname | dirname }}"
+        regenerate_contexts_root: "{{ project_root }}"
         regenerate_context_names: ['observability']
 
 - import_playbook: common/resolve_platform.yml
@@ -33,7 +33,7 @@
   gather_facts: true
   vars:
     observability_dir: "/home/ansible/ops/observability"
-    env_source_file: "{{ playbook_dir }}/../../../../vars/contexts/observability_docker.env"
+    env_source_file: "{{ project_root }}/vars/contexts/observability_docker.env"
     ca_cert_path: "/etc/ssl/certs/elastic/ca.crt"
   tasks:
     - name: Skip Elastic stack start when elastic platform is disabled
