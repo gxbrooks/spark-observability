@@ -36,7 +36,7 @@ if [[ -z "${ES_CONFIG_DIR}" ]]; then
 fi
 
 BATCH_DIR="${ES_CONFIG_DIR}/batch-metrics"
-ES_OUTPUTS_DIR="${ES_OUTPUTS_DIR:-${ES_CONFIG_DIR}/../outputs}"
+ES_OUTPUTS_DIR="${ES_OUTPUTS_DIR:-${ES_CONFIG_DIR}/outputs}"
 
 echo "=== INITIALIZING BATCH METRICS (deprecated) ==="
 

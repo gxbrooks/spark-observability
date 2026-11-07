@@ -1,6 +1,6 @@
 # Elasticsearch/Kibana Config File Naming Convention
 
-**Scope:** every file under `specifications/elasticsearch/config/**` that
+**Scope:** every file under `specifications/elasticsearch/**` that
 represents an Elasticsearch or Kibana object created by
 `automation/ansible/scripts/elasticsearch/init-index.sh` (ILM policies,
 index templates, ingest pipelines, transforms, Kibana data views, saved
@@ -45,7 +45,7 @@ Grep `init-index.sh` for the file's path and check the name in the
 preceding `esapi`/`kapi` URL against the filename stem:
 
 ```bash
-grep -B1 "config/<category>/<file>" automation/ansible/scripts/elasticsearch/init-index.sh
+grep -B1 "<category>/<file>" automation/ansible/scripts/elasticsearch/init-index.sh
 ```
 
 For `.dataview.json` files, check `data_view.id` in the file itself
@@ -57,8 +57,8 @@ instead — it's self-declared, not chosen by the caller.
   aren't one of the seven types above are out of scope for this
   convention (they don't have a corresponding fileset-driven discovery
   need).
-- **`config/batch-metrics/`** is deprecated (see
-  `config/batch-metrics/README.md`) and not initialized by
+- **`batch-metrics/`** is deprecated (see
+  `batch-metrics/README.md`) and not initialized by
   `init-index.sh`'s main run. Its files are exempt — don't rename them
   as part of maintaining this convention.
 - **`.dashboard.json`** has no live naming authority to match against

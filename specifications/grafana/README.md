@@ -80,7 +80,7 @@ Collected by **spark-otel-listener** (driver) via OTLP → OpenTelemetry Collect
 - **Requires**: Trial or paid Elasticsearch license (Watcher actions do not run on Basic)
 
 ### Batch job data (Elasticsearch / Kibana)
-Batch lifecycle and traces are indexed for search and watchers (not surfaced in a Grafana dashboard here). See [`../elasticsearch/docs/Elasticsearch_indices.md`](../elasticsearch/docs/Elasticsearch_indices.md) and Kibana saved objects under [`../elasticsearch/config/batch-events/`](../elasticsearch/config/batch-events/) and related config.
+Batch lifecycle and traces are indexed for search and watchers (not surfaced in a Grafana dashboard here). See [`../elasticsearch/docs/Elasticsearch_indices.md`](../elasticsearch/docs/Elasticsearch_indices.md) and Kibana saved objects under [`../elasticsearch/batch-events/`](../elasticsearch/batch-events/) and related config.
 
 ## Creating New Dashboards
 

@@ -11,7 +11,7 @@
     observability_dir: "/home/ansible/ops/observability"
     observability_env_file: "{{ observability_dir }}/.env"
     es_probe_host: "localhost"
-    es_config_src_dir: "{{ project_root }}/specifications/elasticsearch/config"
+    es_specs_dir: "{{ project_root }}/specifications/elasticsearch"
   tasks:
     - name: Synchronize Elasticsearch directory
       ansible.posix.synchronize:

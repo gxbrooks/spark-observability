@@ -128,14 +128,14 @@ graph TB
 
 ## Infrastructure metrics (Elastic Agent, Logstash, Prometheus)
 
-Kibana **Data views** under `specifications/elasticsearch/config/` use names like `gpu-metrics` or `system-metrics`, but Elasticsearch stores **Fleet / Elastic Agent** data in standard data streams. If a view shows no data, search for these backing streams instead:
+Kibana **Data views** under `specifications/elasticsearch/` use names like `gpu-metrics` or `system-metrics`, but Elasticsearch stores **Fleet / Elastic Agent** data in standard data streams. If a view shows no data, search for these backing streams instead:
 
 | What you expect | Typical backing data stream(s) | Config folder (templates / ILM) |
 |-----------------|--------------------------------|----------------------------------|
 | Host CPU / memory / load | `metrics-system.cpu-default`, `metrics-system.memory-default`, `metrics-system.load-default` | *(built-in Fleet mappings; ILM: `system-metrics-downsampled` via init scripts)* |
 | Host network / disk I/O (rates via Logstash) | `metrics-system.network-default`, `metrics-system.diskio-default` | Agent → Logstash `:5051` → `system-metrics-rates.conf` |
-| GPU (filestream + `gpu.ndjson`) | `metrics-gpu-default` | `config/gpu-metrics/` |
-| Kubernetes / Prometheus remote-write style | `metrics-kubernetes-*` | `config/kubernetes-metrics/` |
+| GPU (filestream + `gpu.ndjson`) | `metrics-gpu-default` | `gpu-metrics/` |
+| Kubernetes / Prometheus remote-write style | `metrics-kubernetes-*` | `kubernetes-metrics/` |
 
 **Checks:** `GET _cat/indices/.ds-metrics-*?v&s=index` — you should see non-zero `docs.count` for streams that are actively collected (lab verified: `metrics-gpu-default`, `metrics-system.cpu-default`, `metrics-kubernetes-*` all populate when agents and Prometheus wiring are healthy).
 

@@ -159,7 +159,7 @@ Replace the current Watcher-based polling approach for matching Spark batch even
 - **Query**: `has_parent` query to find unmatched End events with parent Start events
 - **Actions**: Creates trace records in `batch-traces` and marks events as `matched: true`
 - **Requirements**: Trial/Platinum license for Watcher functionality
-- **Location**: `specifications/elasticsearch/config/batch-events/match-join.watcher.json`
+- **Location**: `specifications/elasticsearch/batch-events/match-join.watcher.json`
 
 **Problems with Current Approach**:
 - Polling overhead (runs every 5 seconds even when no events)
@@ -227,9 +227,9 @@ Replace the current Watcher-based polling approach for matching Spark batch even
    - Backward compatibility with existing batch-traces
 
 **References**:
-- Current implementation: `specifications/elasticsearch/config/batch-events/`
+- Current implementation: `specifications/elasticsearch/batch-events/`
 - Documentation: `docs/Spark_Jobs_Pane.md` (lines 145-168)
-- Index template: `specifications/elasticsearch/config/batch-events/batch-events.template.json`
+- Index template: `specifications/elasticsearch/batch-events/batch-events.template.json`
 
 **Success Criteria**:
 - 100% matching accuracy maintained

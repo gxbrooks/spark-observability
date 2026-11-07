@@ -15,20 +15,21 @@ Provides centralized management of:
 
 ```
 elasticsearch/
-├── bin/              # Executable scripts and API clients
-├── config/           # Configuration data (JSON files)
-├── docs/             # Documentation
-├── outputs/          # Runtime outputs (logs, API responses)
-├── Dockerfile        # Container build file
-└── requirements.txt  # Python dependencies
+├── batch-events/      # Configuration data, by category (JSON files)
+├── batch-metrics/
+├── batch-traces/
+├── docker-metrics/
+├── ... (one directory per category -- see below)
+├── docs/              # Documentation
+├── outputs/           # Runtime outputs (logs, API responses) -- not under git
+├── Dockerfile         # Container build file
+└── requirements.txt   # Python dependencies
 ```
 
-### bin/
-
-Executable scripts for Elasticsearch and Kibana initialization and
-management. These live under `automation/ansible/scripts/elasticsearch/`
-(code, not declarative spec data) and are synced to the observability
-host by `elasticsearch/deploy.yml`.
+Operational scripts (`init-index.sh`, `esapi`, `kapi`, etc.) live under
+`automation/ansible/scripts/elasticsearch/` instead -- they're code, not
+declarative spec data -- and are synced to the observability host by
+`elasticsearch/deploy.yml` alongside this directory.
 
 **Main Scripts**:
 - `init-index.sh` - Complete initialization (indices, templates, ILM policies, data views)
@@ -43,12 +44,15 @@ export PATH="${PATH}:/home/gxbrooks/repos/elastic-on-spark/automation/ansible/sc
 
 See `automation/ansible/scripts/elasticsearch/README.md` for detailed script documentation.
 
-### config/
+### Configuration categories
 
-Configuration data organized by functionality:
+Configuration data organized by functionality, one directory per
+category directly under `specifications/elasticsearch/` (there is no
+intermediate `config/` directory -- everything under
+`specifications/` is already spec data by convention):
 
 - `batch-events/` - Spark batch job event tracking (watchers, templates)
-- `batch-metrics/` - Batch job metrics aggregation
+- `batch-metrics/` - Batch job metrics aggregation (deprecated -- see its own README.md)
 - `batch-traces/` - Distributed tracing for batch jobs
 - `docker-metrics/` - Docker container metrics with downsampling
 - `kubernetes-metrics/` - Kubernetes metrics (future)
@@ -57,7 +61,7 @@ Configuration data organized by functionality:
 - `spark-logs/` - Spark application logs, transforms, and downsampling
 - `system-metrics/` - System-wide metrics with downsampling
 
-Each directory contains JSON files: templates (`.template.json`), ILM policies (`.ilm.json`), data views (`.dataview.json`), etc.
+Each directory contains JSON files: templates (`.template.json`), ILM policies (`.ilm.json`), data views (`.dataview.json`), etc. -- see `docs/Naming_Convention.md` for the full set of suffixes and the naming rule every file follows.
 
 ### docs/
 
@@ -165,19 +169,19 @@ To add a new metric type (e.g., kubernetes-metrics):
 
 1. Create configuration directory:
    ```bash
-   mkdir config/kubernetes-metrics
+   mkdir kubernetes-metrics
    ```
 
 2. Add ILM policy (filename stem = the policy name used in the PUT call below):
    ```bash
-   vi config/kubernetes-metrics/kubernetes-metrics.ilm.json
+   vi kubernetes-metrics/kubernetes-metrics.ilm.json
    ```
 
 3. Update `automation/ansible/scripts/elasticsearch/init-index.sh` - add new step or integrate into STEP 10:
    ```bash
    echo "Creating kubernetes-metrics ILM policy..."
-   esapi PUT /_ilm/policy/kubernetes-metrics ${CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.ilm.json \
-     > ${OUTPUTS_DIR}/kubernetes-metrics.ilm.out.json
+   esapi PUT /_ilm/policy/kubernetes-metrics ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.ilm.json \
+     > ${ES_OUTPUTS_DIR}/kubernetes-metrics.ilm.out.json
    ```
 
 4. Attach policy to data stream in same step:
@@ -193,14 +197,14 @@ To add a new metric type (e.g., kubernetes-metrics):
 
 ```bash
 esapi GET /_cluster/health
-esapi PUT /_ilm/policy/my-policy config/my-policy.ilm.json
+esapi PUT /_ilm/policy/my-policy my-category/my-policy.ilm.json
 ```
 
 ### kapi - Kibana API
 
 ```bash
 kapi GET /api/status
-kapi POST /api/data_views/data_view config/my-dataview.json
+kapi POST /api/data_views/data_view my-category/my-dataview.json
 ```
 
 See `docs/Elastic_API_Client.md` for detailed usage and exit codes.

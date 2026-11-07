@@ -162,7 +162,7 @@ services:
       TZ: ${TZ}
       # ES_* variables for esapi/kapi commands (CA path must match volume mount)
       ES_DIR: /usr/share/elasticsearch/elasticsearch
-      ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
+      ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
       CA_CERT: /usr/share/elasticsearch/config/certs/ca.crt
@@ -291,7 +291,7 @@ services:
       TZ: ${TZ}
       # variables for esapi and kapi commands (CA path must match volume mount)
       ES_DIR: /usr/share/elasticsearch/elasticsearch
-      ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch/config
+      ES_CONFIG_DIR: /usr/share/elasticsearch/elasticsearch
       ES_OUTPUTS_DIR: /usr/share/elasticsearch/elasticsearch/outputs
       ES_BIN_DIR: /usr/share/elasticsearch/elasticsearch/bin
       CA_CERT: /usr/share/elasticsearch/config/certs/ca.crt

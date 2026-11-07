@@ -223,8 +223,8 @@ curl -sk -u elastic:password 'https://localhost:9200/_transform/spark-log-metric
 ## Files Changed
 
 ### New Files Created
-1. `specifications/elasticsearch/config/spark-logs/spark-logs-pipeline.pipeline.json`
-2. `specifications/elasticsearch/config/spark-logs/spark-log-metrics.transform.json`
+1. `specifications/elasticsearch/spark-logs/spark-logs-pipeline.pipeline.json`
+2. `specifications/elasticsearch/spark-logs/spark-log-metrics.transform.json`
 3. `spark/conf/log4j2-server.properties`
 4. `docs/SPARK_LOGS_IMPLEMENTATION.md` (this file)
 

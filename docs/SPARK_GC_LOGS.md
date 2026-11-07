@@ -161,7 +161,7 @@ curl -X PUT -k -u elastic:password \
 **Data View ID**: `spark-gc-dv`  
 **Index Pattern**: `logs-spark_gc-default`
 
-**Expected Fields** (from specifications/elasticsearch/config/spark-gc/spark-gc-dv.dataview.json):
+**Expected Fields** (from specifications/elasticsearch/spark-gc/spark-gc-dv.dataview.json):
 - ✅ gc.paused.cycle, type, kind
 - ✅ gc.paused.before, after, heapsize (MB)
 - ✅ gc.paused.millis (pause time ms)

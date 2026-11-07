@@ -42,7 +42,7 @@ The `app-events-*` index contains documents with the following key fields:
   - `"end"`: START event was closed because its corresponding END event was received (normal closure)
   - `"parent"`: START event was closed hierarchically by a parent event (residual event closure)
 - **`event.duration`**: Present on END events. Duration of the operation in nanoseconds
-- **`correlation.key`**: Hierarchical correlation key (e.g., `App:{appId}`, `Job:{appId}:{jobId}`) used to link START and END events. See [Spark_Event_Correlation_Keys.md](../../spark/otel-listener/docs/Spark_Event_Correlation_Keys.md) for the full specification.
+- **`correlation.key`**: Hierarchical correlation key (e.g., `App:{appId}`, `Job:{appId}:{jobId}`) used to link START and END events. See [Spark_Event_Correlation_Keys.md](../../../spark/otel-listener/docs/Spark_Event_Correlation_Keys.md) for the full specification.
 - **`correlation.start.event.id`**: Present on END events. References the `event.id` of the corresponding START event that this END event closes
 - **`operation.type`**: The type of Spark operation: `"app"`, `"job"`, `"stage"`, `"task"`, or `"sql"`
 - **`operation.id`**: The identifier for the operation (appId, jobId, stageId, taskId, executionId)
@@ -147,7 +147,7 @@ The `app-events-*` index does not have these limitations:
 
 ## Event Correlation Keys
 
-Events are correlated using hierarchical correlation keys. See [Spark_Event_Correlation_Keys.md](../../spark/otel-listener/docs/Spark_Event_Correlation_Keys.md) for details.
+Events are correlated using hierarchical correlation keys. See [Spark_Event_Correlation_Keys.md](../../../spark/otel-listener/docs/Spark_Event_Correlation_Keys.md) for details.
 
 Key patterns:
 - Application: `App:{appId}`

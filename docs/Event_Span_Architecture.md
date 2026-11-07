@@ -584,7 +584,7 @@ The confidence score indicates how certain the classification is. Low confidence
 ### Event Examples
 
 See configuration files in:
-- `observability/elasticsearch/config/application-events/`
+- `specifications/elasticsearch/application-events/`
 
 ---
 
@@ -1018,7 +1018,7 @@ GET /app-events-*/_search
 
 Configuration files located in:
 ```
-specifications/elasticsearch/config/application-events/
+specifications/elasticsearch/application-events/
 ├── application-events.ilm.json
 ├── application-events.template.json
 ├── application-events.index.json
@@ -1037,8 +1037,8 @@ specifications/elasticsearch/config/application-events/
 | Listener | `spark/otel-listener/src/main/scala/com/elastic/spark/otel/OTelSparkListener.scala` | Spark event capture and emission |
 | Event Emitter | `spark/otel-listener/src/main/scala/com/elastic/spark/otel/EventEmitter.scala` | Elasticsearch event emission with retry |
 | OTEL Collector | `observability/otel-collector/otel-collector-config.yaml` | Span processing and hierarchy extraction |
-| ES Config | `observability/elasticsearch/config/application-events/` | Index templates and ILM policies |
-| Init Script | `observability/elasticsearch/bin/init-index.sh` | Initialization automation |
+| ES Config | `specifications/elasticsearch/application-events/` | Index templates and ILM policies |
+| Init Script | `automation/ansible/scripts/elasticsearch/init-index.sh` | Initialization automation |
 
 ### Hierarchy Extraction (OTEL Collector)
 

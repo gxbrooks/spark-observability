@@ -1,5 +1,5 @@
 # Elasticsearch/Kibana objects discovered directly from the declarative
-# specs in specifications/elasticsearch/config/**, via the
+# specs in specifications/elasticsearch/**, via the
 # elastic/elasticstack provider. This is the Terraform counterpart to
 # automation/ansible/scripts/elasticsearch/init-index.sh -- both read the
 # exact same files; neither is authoritative over the other, so run
@@ -23,10 +23,10 @@
 #     (hand-built in Kibana, exported here only for backup), so bringing
 #     it under Terraform is a new capability, not a replacement of
 #     existing custom software like the five types below are.
-#   - config/batch-metrics/ -- deprecated, not run by init-index.sh.
+#   - batch-metrics/ -- deprecated, not run by init-index.sh.
 
 locals {
-  es_config_dir = "${path.module}/../../specifications/elasticsearch/config"
+  es_specs_dir = "${path.module}/../../specifications/elasticsearch"
 
   # config/batch-metrics/ is deprecated (see its own README.md) and not
   # run by init-index.sh's main sequence -- it has its own standalone
@@ -36,38 +36,38 @@ locals {
   # specifications/elasticsearch/docs/Naming_Convention.md.
 
   # --- ILM policies --------------------------------------------------
-  ilm_files = [for f in fileset(local.es_config_dir, "**/*.ilm.json") : f if !startswith(f, "batch-metrics/")]
+  ilm_files = [for f in fileset(local.es_specs_dir, "**/*.ilm.json") : f if !startswith(f, "batch-metrics/")]
   ilm_policies = {
     for f in local.ilm_files :
-    trimsuffix(basename(f), ".ilm.json") => jsondecode(file("${local.es_config_dir}/${f}")).policy.phases
+    trimsuffix(basename(f), ".ilm.json") => jsondecode(file("${local.es_specs_dir}/${f}")).policy.phases
   }
 
   # --- Index templates -------------------------------------------------
-  template_files = [for f in fileset(local.es_config_dir, "**/*.template.json") : f if !startswith(f, "batch-metrics/")]
+  template_files = [for f in fileset(local.es_specs_dir, "**/*.template.json") : f if !startswith(f, "batch-metrics/")]
   index_templates = {
     for f in local.template_files :
-    trimsuffix(basename(f), ".template.json") => jsondecode(file("${local.es_config_dir}/${f}"))
+    trimsuffix(basename(f), ".template.json") => jsondecode(file("${local.es_specs_dir}/${f}"))
   }
 
   # --- Ingest pipelines ------------------------------------------------
-  pipeline_files = [for f in fileset(local.es_config_dir, "**/*.pipeline.json") : f if !startswith(f, "batch-metrics/")]
+  pipeline_files = [for f in fileset(local.es_specs_dir, "**/*.pipeline.json") : f if !startswith(f, "batch-metrics/")]
   ingest_pipelines = {
     for f in local.pipeline_files :
-    trimsuffix(basename(f), ".pipeline.json") => jsondecode(file("${local.es_config_dir}/${f}"))
+    trimsuffix(basename(f), ".pipeline.json") => jsondecode(file("${local.es_specs_dir}/${f}"))
   }
 
   # --- Transforms --------------------------------------------------------
-  transform_files = [for f in fileset(local.es_config_dir, "**/*.transform.json") : f if !startswith(f, "batch-metrics/")]
+  transform_files = [for f in fileset(local.es_specs_dir, "**/*.transform.json") : f if !startswith(f, "batch-metrics/")]
   transforms = {
     for f in local.transform_files :
-    trimsuffix(basename(f), ".transform.json") => jsondecode(file("${local.es_config_dir}/${f}"))
+    trimsuffix(basename(f), ".transform.json") => jsondecode(file("${local.es_specs_dir}/${f}"))
   }
 
   # --- Kibana data views -------------------------------------------------
-  dataview_files = [for f in fileset(local.es_config_dir, "**/*.dataview.json") : f if !startswith(f, "batch-metrics/")]
+  dataview_files = [for f in fileset(local.es_specs_dir, "**/*.dataview.json") : f if !startswith(f, "batch-metrics/")]
   dataviews = {
     for f in local.dataview_files :
-    jsondecode(file("${local.es_config_dir}/${f}")).data_view.id => jsondecode(file("${local.es_config_dir}/${f}")).data_view
+    jsondecode(file("${local.es_specs_dir}/${f}")).data_view.id => jsondecode(file("${local.es_specs_dir}/${f}")).data_view
   }
 }
 
