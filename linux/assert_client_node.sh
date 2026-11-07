@@ -221,7 +221,7 @@ append_flag() {
 }
 
 # Define packages required for devops client
-PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml make tree tmux yamllint hdfs-cli kubectl)
+PACKAGES=(jq ncat keychain bind9-dnsutils traceroute ansible-core maven python3-toml make tree tmux yamllint hdfs-cli kubectl unzip)
 
 # Install packages using common package assertion script
 $root_dir/linux/assert_packages.sh \
@@ -308,6 +308,11 @@ $root_dir/linux/link_to_user_env.sh \
 # Ensure Python is available for Spark compatibility
 $root_dir/linux/assert_python_version.sh \
     --PythonVersion "$PYTHON_VERSION" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
+# Ensure Terraform is available for the automation/terraform engine
+$root_dir/linux/assert_terraform.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
@@ -441,7 +446,7 @@ echo "========================================"
 echo ""
 echo "Next steps:"
 echo "  1. You do not need to source .bashrc again in the same shell unless you want a full refresh (venv + env + keychain). New login shells load it from ~/.bashrc."
-echo "  2. Ensure the Spark cluster master is running (see SPARK_MASTER in vars/contexts/spark_client_env.sh; connection refused means start the stack): cd $root_dir/ansible && ansible-playbook -i inventory.yml playbooks/start.yml --limit spark_kubernetes"
+echo "  2. Ensure the Spark cluster master is running (see SPARK_MASTER in vars/contexts/spark_client_env.sh; connection refused means start the stack): cd $root_dir/automation/ansible && ansible-playbook -i inventory.yml playbooks/start.yml --limit spark_kubernetes"
 echo "  3. Run a chapter (example): python spark/apps/data-analysis-book/chapters/Chapter_03.py"
 echo "  4. Interactive PySpark:   ./spark/ispark/launch_ipython.sh"
 echo ""

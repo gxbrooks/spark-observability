@@ -214,9 +214,9 @@ Click again to reverse sort order.
 
 ## Configuration Files
 
-- **Dashboard:** `observability/grafana/provisioning/dashboards/spark-logs-viewer.json`
-- **Index Template:** `observability/elasticsearch/spark-logs/logs-spark-default.template.json`
-- **Ingest Pipeline:** `observability/elasticsearch/spark-logs/spark-logs-ingest-pipeline.json`
-- **Data View:** `observability/elasticsearch/spark-logs/spark-logs.dataview.json`
+- **Dashboard:** `specifications/grafana/provisioning/dashboards/spark-logs-viewer.json`
+- **Index Template:** `specifications/elasticsearch/config/spark-logs/logs-spark-default.template.json`
+- **Ingest Pipeline:** `specifications/elasticsearch/config/spark-logs/spark-logs-pipeline.pipeline.json`
+- **Data View:** `specifications/elasticsearch/config/spark-logs/spark-logs.dataview.json`
 
 

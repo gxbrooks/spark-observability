@@ -1018,11 +1018,11 @@ GET /app-events-*/_search
 
 Configuration files located in:
 ```
-observability/elasticsearch/config/application-events/
+specifications/elasticsearch/config/application-events/
 ├── application-events.ilm.json
 ├── application-events.template.json
 ├── application-events.index.json
-├── application-events.dataview.json
+├── app-events.dataview.json
 └── application-events.search.json
 ```
 

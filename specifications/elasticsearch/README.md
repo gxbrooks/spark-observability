@@ -25,7 +25,10 @@ elasticsearch/
 
 ### bin/
 
-Executable scripts for Elasticsearch and Kibana initialization and management.
+Executable scripts for Elasticsearch and Kibana initialization and
+management. These live under `automation/ansible/scripts/elasticsearch/`
+(code, not declarative spec data) and are synced to the observability
+host by `elasticsearch/deploy.yml`.
 
 **Main Scripts**:
 - `init-index.sh` - Complete initialization (indices, templates, ILM policies, data views)
@@ -35,10 +38,10 @@ Executable scripts for Elasticsearch and Kibana initialization and management.
 
 **Usage**: Add to PATH:
 ```bash
-export PATH="${PATH}:/home/gxbrooks/repos/elastic-on-spark/specifications/elasticsearch/bin"
+export PATH="${PATH}:/home/gxbrooks/repos/elastic-on-spark/automation/ansible/scripts/elasticsearch"
 ```
 
-See `bin/README.md` for detailed script documentation.
+See `automation/ansible/scripts/elasticsearch/README.md` for detailed script documentation.
 
 ### config/
 
@@ -154,6 +157,10 @@ Automatic progressive downsampling for long-term metric retention:
 
 ## Adding New Metrics
 
+See `docs/Naming_Convention.md` for the naming rule every config file in this
+directory follows (filename stem must match the live Elasticsearch/Kibana
+object name/ID).
+
 To add a new metric type (e.g., kubernetes-metrics):
 
 1. Create configuration directory:
@@ -161,12 +168,12 @@ To add a new metric type (e.g., kubernetes-metrics):
    mkdir config/kubernetes-metrics
    ```
 
-2. Add ILM policy:
+2. Add ILM policy (filename stem = the policy name used in the PUT call below):
    ```bash
    vi config/kubernetes-metrics/kubernetes-metrics.ilm.json
    ```
 
-3. Update `bin/init-index.sh` - add new step or integrate into STEP 10:
+3. Update `automation/ansible/scripts/elasticsearch/init-index.sh` - add new step or integrate into STEP 10:
    ```bash
    echo "Creating kubernetes-metrics ILM policy..."
    esapi PUT /_ilm/policy/kubernetes-metrics ${CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.ilm.json \

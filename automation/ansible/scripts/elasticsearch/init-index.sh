@@ -264,7 +264,7 @@ kapi POST /api/data_views/data_view \
 
 echo "Creating batch-events searches..."
 kapi POST /api/saved_objects/search/batch-events-events?overwrite=true \
-  ${ES_CONFIG_DIR}/batch-events/batch-events.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/batch-events/batch-events-events.search.json > /dev/null 2>&1
 kapi POST /api/saved_objects/search/active-batches?overwrite=true \
   ${ES_CONFIG_DIR}/batch-events/active-batches.search.json > /dev/null 2>&1
 
@@ -277,14 +277,14 @@ echo ""
 echo "=== STEP 6: INITIALIZING WATCHER DATA VIEW ==="
 
 echo "Creating watcher data view..."
-kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/batch-events/watcher.dataview.json \
+kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/batch-events/watcher-dataview.dataview.json \
   > ${ES_OUTPUTS_DIR}/watcher.dataview.out.json
 
 echo "Creating watcher searches..."
 kapi POST /api/saved_objects/search/match-mustache-watcher-runs?overwrite=true \
-  ${ES_CONFIG_DIR}/batch-events/match-mustache.watcher-runs.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/batch-events/match-mustache-watcher-runs.search.json > /dev/null 2>&1
 kapi POST /api/saved_objects/search/match-join-watcher-runs?overwrite=true \
-  ${ES_CONFIG_DIR}/batch-events/match-join.watcher-runs.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/batch-events/match-join-watcher-runs.search.json > /dev/null 2>&1
 
 echo "✅ Watcher data view initialized"
 
@@ -295,7 +295,7 @@ echo ""
 echo "=== STEP 7: INITIALIZING SYSTEM METRICS ==="
 
 echo "Creating system-metrics-downsampled ILM policy..."
-esapi PUT /_ilm/policy/system-metrics-downsampled ${ES_CONFIG_DIR}/system-metrics/system-metrics.ilm.json \
+esapi PUT /_ilm/policy/system-metrics-downsampled ${ES_CONFIG_DIR}/system-metrics/system-metrics-downsampled.ilm.json \
   > ${ES_OUTPUTS_DIR}/system-metrics-downsampled.ilm.out.json
 
 echo "Attaching policy to existing system metrics data streams..."
@@ -319,7 +319,7 @@ esapi PUT /_ilm/policy/gpu-metrics ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.ilm.
   > ${ES_OUTPUTS_DIR}/gpu-metrics.ilm.out.json
 
 echo "Creating gpu-metrics index template..."
-esapi PUT /_index_template/metrics-gpu-default ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.template.json \
+esapi PUT /_index_template/metrics-gpu-default ${ES_CONFIG_DIR}/gpu-metrics/metrics-gpu-default.template.json \
   > ${ES_OUTPUTS_DIR}/gpu-metrics.template.out.json
 
 echo "Creating metrics-gpu-default data stream if it doesn't exist..."
@@ -337,7 +337,7 @@ kapi POST /api/data_views/data_view \
 
 echo "Creating gpu-metrics saved search..."
 kapi POST /api/saved_objects/search/gpu-metrics-default?overwrite=true \
-  ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/gpu-metrics/gpu-metrics-default.search.json > /dev/null 2>&1
 
 echo "✅ GPU metrics initialized"
 
@@ -352,11 +352,11 @@ esapi PUT /_ilm/policy/spark-metrics ${ES_CONFIG_DIR}/spark-metrics/spark-metric
   > ${ES_OUTPUTS_DIR}/spark-metrics.ilm.out.json
 
 echo "Creating spark-metrics index template..."
-esapi PUT /_index_template/metrics-spark-default ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.template.json \
+esapi PUT /_index_template/metrics-spark-default ${ES_CONFIG_DIR}/spark-metrics/metrics-spark-default.template.json \
   > ${ES_OUTPUTS_DIR}/spark-metrics.template.out.json
 
 echo "Creating spark-metrics ingest pipeline..."
-esapi PUT /_ingest/pipeline/spark-metrics-defaults ${ES_CONFIG_DIR}/spark-metrics/spark-metrics-ingest-pipeline.json \
+esapi PUT /_ingest/pipeline/spark-metrics-defaults ${ES_CONFIG_DIR}/spark-metrics/spark-metrics-defaults.pipeline.json \
   > ${ES_OUTPUTS_DIR}/spark-metrics.pipeline.out.json
 
 echo "Creating metrics-spark-default data stream if it doesn't exist..."
@@ -374,7 +374,7 @@ kapi POST /api/data_views/data_view \
 
 echo "Creating spark-metrics saved search..."
 kapi POST /api/saved_objects/search/spark-metrics-default?overwrite=true \
-  ${ES_CONFIG_DIR}/spark-metrics/spark-metrics.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/spark-metrics/spark-metrics-default.search.json > /dev/null 2>&1
 
 echo "✅ Spark OTLP metrics initialized"
 
@@ -405,7 +405,7 @@ echo ""
 echo "=== STEP 7.10: INITIALIZING KUBERNETES METRICS ==="
 
 echo "Creating kubernetes-metrics-downsampled ILM policy..."
-esapi PUT /_ilm/policy/kubernetes-metrics-downsampled ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.ilm.json \
+esapi PUT /_ilm/policy/kubernetes-metrics-downsampled ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics-downsampled.ilm.json \
   > ${ES_OUTPUTS_DIR}/kubernetes-metrics-downsampled.ilm.out.json
 
 echo "Creating kubernetes-metrics index template..."
@@ -432,7 +432,7 @@ fi
 
 echo "Creating kubernetes-metrics saved search (title: Kubernetes Metrics, id: kubernetes-metrics-default)..."
 if ! kapi POST /api/saved_objects/search/kubernetes-metrics-default?overwrite=true \
-  ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics.search.json \
+  ${ES_CONFIG_DIR}/kubernetes-metrics/kubernetes-metrics-default.search.json \
   > ${ES_OUTPUTS_DIR}/kubernetes-metrics.search.out.json 2>&1; then
   echo "  ⚠️  Saved search create failed; see ${ES_OUTPUTS_DIR}/kubernetes-metrics.search.out.json"
   cat "${ES_OUTPUTS_DIR}/kubernetes-metrics.search.out.json" 2>/dev/null | head -30
@@ -456,7 +456,7 @@ echo ""
 echo "=== STEP 8: INITIALIZING DOCKER METRICS ==="
 
 echo "Creating docker-metrics-downsampled ILM policy..."
-esapi PUT /_ilm/policy/docker-metrics-downsampled ${ES_CONFIG_DIR}/docker-metrics/docker-metrics.ilm.json \
+esapi PUT /_ilm/policy/docker-metrics-downsampled ${ES_CONFIG_DIR}/docker-metrics/docker-metrics-downsampled.ilm.json \
   > ${ES_OUTPUTS_DIR}/docker-metrics-downsampled.ilm.out.json
 
 echo "Attaching policy to existing docker metrics data streams..."
@@ -491,7 +491,7 @@ kapi POST /api/data_views/data_view \
 
 echo "Creating spark-logs default search..."
 kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
-  ${ES_CONFIG_DIR}/spark-logs/spark-logs.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/spark-logs/spark-logs-default.search.json > /dev/null 2>&1
 
 echo "✅ Spark logs initialized"
 
@@ -515,7 +515,7 @@ kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/batch-traces/batch-traces.d
 
 echo "Creating batch-traces searches..."
 kapi POST /api/saved_objects/search/completed-batch-jobs?overwrite=true \
-  ${ES_CONFIG_DIR}/batch-traces/batch-traces.search.json > /dev/null 2>&1
+  ${ES_CONFIG_DIR}/batch-traces/completed-batch-jobs.search.json > /dev/null 2>&1
 
 echo "✅ Batch traces initialized"
 
@@ -549,12 +549,12 @@ esapi PUT /_ilm/policy/spark-gc-downsampled ${ES_CONFIG_DIR}/spark-gc/spark-gc-d
   > ${ES_OUTPUTS_DIR}/spark-gc-downsampled.ilm.out.json
 
 echo "Creating spark-gc index template..."
-esapi PUT /_index_template/spark-gc-ds ${ES_CONFIG_DIR}/spark-gc/spark-gc.template.json \
+esapi PUT /_index_template/spark-gc-ds ${ES_CONFIG_DIR}/spark-gc/spark-gc-ds.template.json \
   > /dev/null 2>&1
 
 echo "Creating spark-gc ingest pipeline..."
-esapi PUT /_ingest/pipeline/logs-spark_gc-default ${ES_CONFIG_DIR}/spark-gc/spark-gc-ingest-pipeline.json \
-  > ${ES_OUTPUTS_DIR}/spark-gc-ingest-pipeline.out.json
+esapi PUT /_ingest/pipeline/logs-spark_gc-default ${ES_CONFIG_DIR}/spark-gc/logs-spark_gc-default.pipeline.json \
+  > ${ES_OUTPUTS_DIR}/spark-gc-pipeline.out.json
 
 echo "Attaching downsampling policy to GC data stream..."
 if esapi --allow-errors GET "/_data_stream/logs-spark_gc-default" > /dev/null 2>&1; then
@@ -562,12 +562,12 @@ if esapi --allow-errors GET "/_data_stream/logs-spark_gc-default" > /dev/null 2>
 fi
 
 echo "Creating spark-gc data view..."
-kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/spark-gc/spark-gc.dataview.json \
+kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/spark-gc/spark-gc-dv.dataview.json \
   > ${ES_OUTPUTS_DIR}/spark-gc.dataview.out.json
 
 echo "Creating spark-gc searches..."
 kapi POST /api/saved_objects/search/spark-gc-search?overwrite=true \
-  ${ES_CONFIG_DIR}/spark-gc/spark-gc.search.json \
+  ${ES_CONFIG_DIR}/spark-gc/spark-gc-search.search.json \
   > ${ES_OUTPUTS_DIR}/spark-gc.search.out.json
 
 echo "✅ Spark GC initialized"
@@ -583,8 +583,8 @@ esapi PUT /_ilm/policy/spark-logs ${ES_CONFIG_DIR}/spark-logs/spark-logs.ilm.jso
   > ${ES_OUTPUTS_DIR}/spark-logs.ilm.out.json
 
 echo "Creating spark-logs ingest pipeline..."
-esapi PUT /_ingest/pipeline/spark-logs-pipeline ${ES_CONFIG_DIR}/spark-logs/spark-logs-ingest-pipeline.json \
-  > ${ES_OUTPUTS_DIR}/spark-logs-ingest-pipeline.out.json
+esapi PUT /_ingest/pipeline/spark-logs-pipeline ${ES_CONFIG_DIR}/spark-logs/spark-logs-pipeline.pipeline.json \
+  > ${ES_OUTPUTS_DIR}/spark-logs-pipeline.out.json
 
 echo "Creating logs-spark-default index template..."
 esapi PUT /_index_template/logs-spark-default ${ES_CONFIG_DIR}/spark-logs/logs-spark-default.template.json \
@@ -605,12 +605,12 @@ kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/spark-logs/spark-logs.datav
 
 echo "Creating spark-logs default search..."
 kapi POST /api/saved_objects/search/spark-logs-default?overwrite=true \
-  ${ES_CONFIG_DIR}/spark-logs/spark-logs.search.json \
+  ${ES_CONFIG_DIR}/spark-logs/spark-logs-default.search.json \
   > ${ES_OUTPUTS_DIR}/spark-logs.search.out.json 2>&1
 
 # Transform output index (metrics-spark-logs-default): no rollover — dedicated ILM policy.
 echo "Creating spark-log-metrics ILM policy (transform output index)..."
-esapi PUT /_ilm/policy/spark-log-metrics ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs.ilm.json \
+esapi PUT /_ilm/policy/spark-log-metrics ${ES_CONFIG_DIR}/spark-logs/spark-log-metrics.ilm.json \
   > ${ES_OUTPUTS_DIR}/metrics-spark-logs.ilm.out.json
 
 echo "Creating spark-logs-metrics-downsampled ILM policy..."
@@ -618,16 +618,16 @@ esapi PUT /_ilm/policy/spark-logs-metrics-downsampled ${ES_CONFIG_DIR}/spark-log
   > ${ES_OUTPUTS_DIR}/spark-logs-metrics-downsampled.ilm.out.json
 
 echo "Creating metrics index template..."
-esapi PUT /_index_template/metrics-spark-logs-default ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs.template.json \
+esapi PUT /_index_template/metrics-spark-logs-default ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs-default.template.json \
   > ${ES_OUTPUTS_DIR}/metrics-spark-logs.template.out.json 2>&1
 
 echo "Creating metrics data view..."
-kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs.dataview.json \
+kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/spark-logs/spark-log-metrics.dataview.json \
   > ${ES_OUTPUTS_DIR}/metrics-spark-logs.dataview.out.json 2>&1
 
 echo "Creating metrics default search..."
 kapi POST /api/saved_objects/search/spark-log-metrics-default?overwrite=true \
-  ${ES_CONFIG_DIR}/spark-logs/metrics-spark-logs.search.json \
+  ${ES_CONFIG_DIR}/spark-logs/spark-log-metrics-default.search.json \
   > ${ES_OUTPUTS_DIR}/metrics-spark-logs.search.out.json 2>&1
 
 # Create or update spark-log-metrics transform
@@ -652,7 +652,7 @@ fi
 # Create transform (index now exists)
 echo "Creating spark-log-metrics transform..."
 esapi PUT /_transform/spark-log-metrics \
-  ${ES_CONFIG_DIR}/spark-logs/spark-log-metrics-transform.json \
+  ${ES_CONFIG_DIR}/spark-logs/spark-log-metrics.transform.json \
   > ${ES_OUTPUTS_DIR}/spark-log-metrics-transform.out.json 2>&1
 
 # Start transform
@@ -687,22 +687,22 @@ echo "=== STEP 14: INITIALIZING OPENTELEMETRY TRACES (DATA STREAM) ==="
 
 echo "Creating extract-application-fields ingest pipeline..."
 esapi PUT /_ingest/pipeline/extract-application-fields \
-  ${ES_CONFIG_DIR}/otel-traces/extract-application-fields-pipeline.json \
+  ${ES_CONFIG_DIR}/otel-traces/extract-application-fields.pipeline.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.pipeline.out.json
 
 echo "Creating spark-semantic-enrichment ingest pipeline..."
 esapi PUT /_ingest/pipeline/spark-semantic-enrichment \
-  ${ES_CONFIG_DIR}/otel-traces/spark-semantic-enrichment-pipeline.json \
+  ${ES_CONFIG_DIR}/otel-traces/spark-semantic-enrichment.pipeline.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.semantic-pipeline.out.json
 
 echo "Creating otel-traces ILM policy..."
 esapi PUT /_ilm/policy/otel-traces \
-  ${ES_CONFIG_DIR}/otel-traces/otel-traces.ilm-policy.json \
+  ${ES_CONFIG_DIR}/otel-traces/otel-traces.ilm.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.ilm.out.json
 
 echo "Creating otel-traces data stream template..."
 esapi PUT /_index_template/otel-traces \
-  ${ES_CONFIG_DIR}/otel-traces/otel-traces.datastream.json \
+  ${ES_CONFIG_DIR}/otel-traces/otel-traces.template.json \
   > ${ES_OUTPUTS_DIR}/otel-traces.template.out.json
 
 echo "Creating traces-otel-default data stream if it doesn't exist..."
@@ -773,7 +773,7 @@ fi
 
 echo "Creating application-events data view..."
 kapi POST /api/data_views/data_view \
-  ${ES_CONFIG_DIR}/application-events/application-events.dataview.json \
+  ${ES_CONFIG_DIR}/application-events/app-events.dataview.json \
   > ${ES_OUTPUTS_DIR}/application-events.dataview.out.json
 
 echo "Creating application-events searches..."
@@ -797,7 +797,7 @@ esapi PUT /_ilm/policy/application-events-metrics ${ES_CONFIG_DIR}/application-e
   > ${ES_OUTPUTS_DIR}/application-events-metrics.ilm.out.json
 
 echo "Creating application-events-metrics index template..."
-esapi PUT /_index_template/application-events-metrics-ds ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.template.json \
+esapi PUT /_index_template/application-events-metrics-ds ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics-ds.template.json \
   > /dev/null 2>&1
 
 echo "Creating application-events-metrics data stream if it doesn't exist..."
@@ -813,7 +813,7 @@ esapi PUT /_watcher/watch/application-events-metrics ${ES_CONFIG_DIR}/applicatio
   > /dev/null 2>&1
 
 echo "Creating application-events-metrics data view..."
-kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics.dataview.json \
+kapi POST /api/data_views/data_view ${ES_CONFIG_DIR}/application-events-metrics/application-events-metrics-ds.dataview.json \
   > ${ES_OUTPUTS_DIR}/application-events-metrics.dataview.out.json
 
 echo "Creating application-events-metrics searches..."

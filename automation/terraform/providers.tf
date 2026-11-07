@@ -18,6 +18,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14"
     }
+    elasticstack = {
+      source  = "elastic/elasticstack"
+      version = "~> 0.16"
+    }
   }
 }
 
@@ -47,4 +51,25 @@ provider "helm" {
 # that constraint, so it's what manages the DynaKube CR here.
 provider "kubectl" {
   config_path = var.kubeconfig_path
+}
+
+# Elasticsearch/Kibana credentials come in via vars/contexts/elastic_terraform.auto.tfvars.json
+# (the "elastic-terraform" context -- same generate-contexts pattern as Dynatrace).
+# TLS is self-signed in this lab (same cert chain esapi/kapi already skip-verify on),
+# so insecure = true here mirrors deploy.yml's validate_certs: false Elasticsearch probe.
+provider "elasticstack" {
+  elasticsearch {
+    endpoints = [var.ES_URL]
+    username  = var.ES_USER
+    password  = var.ES_PASSWORD
+    insecure  = true
+  }
+  kibana {
+    # Kibana itself serves plain HTTP in this lab (no server.ssl.* config;
+    # see specifications/docker-compose.yml's kibana service) -- only
+    # Elasticsearch terminates TLS.
+    endpoints = ["http://${var.KB_HOST}:${var.KB_PORT}"]
+    username  = var.ES_USER
+    password  = var.ES_PASSWORD
+  }
 }

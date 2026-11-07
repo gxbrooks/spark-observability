@@ -27,7 +27,7 @@ logs-spark-spark.template.json → logs-spark-default.template.json
 
 ### 2. Elasticsearch Components ✅
 
-**Created: `spark-logs-ingest-pipeline.json`**
+**Created: `spark-logs-pipeline.pipeline.json`**
 - Parses Spark log format: `YYYY-MM-DD HH:mm:ss LEVEL Class:Line - Message`
 - Extracts fields:
   - `log.level` (INFO, WARN, ERROR, CRITICAL, FATAL, DEBUG, TRACE)
@@ -48,7 +48,7 @@ logs-spark-spark.template.json → logs-spark-default.template.json
   - `spark.class` (keyword)
   - `message` (text with keyword subfield)
 
-**Created: `spark-log-metrics-transform.json`**
+**Created: `spark-log-metrics.transform.json`**
 - Source: `logs-spark-default`
 - Destination: `spark-log-metrics-ds`
 - Frequency: Every 1 minute
@@ -223,8 +223,8 @@ curl -sk -u elastic:password 'https://localhost:9200/_transform/spark-log-metric
 ## Files Changed
 
 ### New Files Created
-1. `observability/elasticsearch/spark-logs/spark-logs-ingest-pipeline.json`
-2. `observability/elasticsearch/spark-logs/spark-log-metrics-transform.json`
+1. `specifications/elasticsearch/config/spark-logs/spark-logs-pipeline.pipeline.json`
+2. `specifications/elasticsearch/config/spark-logs/spark-log-metrics.transform.json`
 3. `spark/conf/log4j2-server.properties`
 4. `docs/SPARK_LOGS_IMPLEMENTATION.md` (this file)
 

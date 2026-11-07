@@ -57,7 +57,7 @@ MOUNT_POINTS=(
   "/mnt/spark/jupyter:/srv/nfs/jupyterhub"
 )
 
-# Application logs are node-local on Kubernetes nodes (see ansible/playbooks/nfs/install.yml).
+# Application logs are node-local on Kubernetes nodes (see automation/ansible/playbooks/nfs/install.yml).
 LOCAL_LOGS_ROOT="/var/local/spark/logs"
 LOCAL_LOGS_MOUNT="/mnt/spark/logs"
 
@@ -250,7 +250,7 @@ for spec in "${MOUNT_POINTS[@]}"; do
   fi
 done
 
-# Application logs: local bind (not NFS) — same contract as ansible/playbooks/nfs/install.yml
+# Application logs: local bind (not NFS) — same contract as automation/ansible/playbooks/nfs/install.yml
 if ! $CHECK; then
   sudo mkdir -p "$LOCAL_LOGS_ROOT"
 fi

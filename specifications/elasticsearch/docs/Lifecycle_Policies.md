@@ -20,7 +20,7 @@ Index Lifecycle Management (ILM) policies with automatic downsampling reduce sto
 
 ### system-metrics-downsampled
 
-**Location**: `config/system-metrics/system-metrics.ilm.json`
+**Location**: `config/system-metrics/system-metrics-downsampled.ilm.json`
 
 **Applies to**:
 - `metrics-system.cpu-default`
@@ -31,7 +31,7 @@ Index Lifecycle Management (ILM) policies with automatic downsampling reduce sto
 
 ### docker-metrics-downsampled
 
-**Location**: `config/docker-metrics/docker-metrics.ilm.json`
+**Location**: `config/docker-metrics/docker-metrics-downsampled.ilm.json`
 
 **Applies to**:
 - `metrics-docker.cpu-default`
@@ -47,7 +47,7 @@ Index Lifecycle Management (ILM) policies with automatic downsampling reduce sto
 
 ### spark-log-metrics
 
-**Location**: `config/spark-logs/metrics-spark-logs.ilm.json`
+**Location**: `config/spark-logs/spark-log-metrics.ilm.json`
 
 **Applies to**:
 - `metrics-spark-logs-default` (transform output index; **no rollover**)
@@ -71,7 +71,7 @@ Retention periods are defined in `/vars/variables.yaml` (lines 36-53) using the 
 | `ES_RETENTION_15MIN` | `8d` | Cold phase start age (15-minute downsampled data) | Cold phase `min_age` |
 | `ES_RETENTION_60MIN` | `730d` | Delete threshold (60-minute downsampled data, 2 years) | Delete phase `min_age` |
 
-**ILM Policy Configuration** (from `system-metrics.ilm.json`):
+**ILM Policy Configuration** (from `system-metrics-downsampled.ilm.json`):
 
 | Phase | min_age | Downsample Interval | Variable Reference |
 |-------|---------|---------------------|-------------------|
@@ -106,7 +106,7 @@ For production deployments, consider Elastic's best practices:
 ILM policies are automatically created and attached by `init-index.sh` (STEP 10):
 
 ```bash
-cd /home/gxbrooks/repos/elastic-on-spark/specifications/elasticsearch/bin
+cd /home/gxbrooks/repos/elastic-on-spark/automation/ansible/scripts/elasticsearch
 ./init-index.sh
 ```
 

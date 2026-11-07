@@ -249,7 +249,7 @@ esac
 
 ## Related Files
 
-- `specifications/elasticsearch/bin/elastic_api.py` - Python API client with exit code system
-- `specifications/elasticsearch/bin/esapi` - Shell wrapper for Elasticsearch
-- `specifications/elasticsearch/bin/kapi` - Shell wrapper for Kibana
-- `specifications/elasticsearch/bin/init-index.sh` - Example usage in initialization script
+- `automation/ansible/scripts/elasticsearch/elastic_api.py` - Python API client with exit code system
+- `automation/ansible/scripts/elasticsearch/esapi` - Shell wrapper for Elasticsearch
+- `automation/ansible/scripts/elasticsearch/kapi` - Shell wrapper for Kibana
+- `automation/ansible/scripts/elasticsearch/init-index.sh` - Example usage in initialization script

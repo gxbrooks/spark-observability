@@ -58,7 +58,7 @@ For client mode usage (outside Docker containers):
 
 4. **Add bin directory to PATH**:
    ```bash
-   export PATH="${PATH}:/home/gxbrooks/repos/elastic-on-spark/specifications/elasticsearch/bin"
+   export PATH="${PATH}:/home/gxbrooks/repos/elastic-on-spark/automation/ansible/scripts/elasticsearch"
    ```
 
 5. **Run the scripts**:
@@ -68,7 +68,7 @@ For client mode usage (outside Docker containers):
    kapi GET /api/status
    
    # Or use full path
-   /home/gxbrooks/repos/elastic-on-spark/specifications/elasticsearch/bin/esapi GET /_cluster/health
+   /home/gxbrooks/repos/elastic-on-spark/automation/ansible/scripts/elasticsearch/esapi GET /_cluster/health
    ```
 
 ## Examples

@@ -89,9 +89,9 @@ Grafana / Kibana (trace visualization)
 - `span.name`: Operation name (e.g., "spark.job.1")
 - Custom attributes: `spark.app.id`, `spark.job.id`, etc.
 
-**Configuration** (See: `observability/elasticsearch/otel-traces/`):
+**Configuration** (See: `specifications/elasticsearch/config/otel-traces/`):
 - Template: `otel-traces.template.json`
-- ILM Policy: `otel-traces.ilm-policy.json`
+- ILM Policy: `otel-traces.ilm.json`
 - Data View: `otel-traces.dataview.json`
 
 ---

@@ -15,8 +15,15 @@
   tasks:
     - name: Synchronize Elasticsearch directory
       ansible.posix.synchronize:
-        src: "{{ project_root }}/specifications/elasticsearch"
+        src: "{{ project_root }}/specifications/elasticsearch/"
         dest: "{{ observability_dir }}/elasticsearch/"
+        delete: false
+        recursive: true
+
+    - name: Synchronize Elasticsearch operational scripts
+      ansible.posix.synchronize:
+        src: "{{ project_root }}/automation/ansible/scripts/elasticsearch/"
+        dest: "{{ observability_dir }}/elasticsearch/bin/"
         delete: false
         recursive: true
 

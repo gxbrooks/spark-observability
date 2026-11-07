@@ -62,6 +62,30 @@ sgc_auto_rotate_token: true
 
 # SGO-Dynatrace Hosts scheduled import (sources/dynatrace/start.yml)
 sgc_hosts_scheduled_import_name: SGO-Dynatrace Hosts
+# Canonical recurring cadence for SGO-Dynatrace Hosts. Execute Now temporarily
+# sets run_type=once; the "before" state is only a safe restore target when it
+# is itself a real recurring cadence. If a prior run's restore step failed (or
+# the row was already wedged at 'once' from a manual UI Execute Now), snapshotting
+# 'once' as "before" and restoring it is a no-op that leaves the import
+# permanently off ServiceNow's internal scheduler. Fall back to these values
+# whenever the current run_type is not a genuine recurring cadence.
+#
+# 'periodically' (base sysauto run_type, confirmed via sys_choice name=sysauto)
+# + run_period is used over 'daily' so topology (and therefore event CI binding)
+# self-heals within an hour of a Dynatrace-side entity change (e.g. a Kubernetes
+# Operator/Dynakube reinstall minting a new cluster entity id) instead of up to
+# a full day.
+sgc_hosts_scheduled_import_restore_run_type: periodically
+sgc_hosts_scheduled_import_restore_run_period: "1970-01-01 01:00:00"
+
+# SGO-Dynatrace Kubernetes Cluster scheduled import — not part of the Hosts
+# cascade (its children are Kubernetes Node/Pod/Namespace, triggered off this
+# parent, not off Hosts). Ensured active + hourly by apply_sgc_topology_config.yml
+# so cluster-level topology (and therefore event CI binding for KUBERNETES_CLUSTER
+# problems) re-syncs on its own after the Dynatrace-side entity ID changes.
+sgc_kubernetes_cluster_scheduled_import_name: SGO-Dynatrace Kubernetes Cluster
+sgc_kubernetes_cluster_scheduled_import_run_type: periodically
+sgc_kubernetes_cluster_scheduled_import_run_period: "1970-01-01 01:00:00"
 sgc_import_execute: true
 sgc_import_monitor: true
 sgc_import_skip_if_running: true

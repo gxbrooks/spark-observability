@@ -4,13 +4,13 @@
 
 - name: Load spark-log-metrics ILM policy document
   ansible.builtin.set_fact:
-    spark_log_metrics_ilm_policy: "{{ lookup('file', es_config_src_dir + '/spark-logs/metrics-spark-logs.ilm.json') | from_json }}"
+    spark_log_metrics_ilm_policy: "{{ lookup('file', es_config_src_dir + '/spark-logs/spark-log-metrics.ilm.json') | from_json }}"
   delegate_to: localhost
   run_once: true
 
 - name: Load metrics-spark-logs index template document
   ansible.builtin.set_fact:
-    metrics_spark_logs_template: "{{ lookup('file', es_config_src_dir + '/spark-logs/metrics-spark-logs.template.json') | from_json }}"
+    metrics_spark_logs_template: "{{ lookup('file', es_config_src_dir + '/spark-logs/metrics-spark-logs-default.template.json') | from_json }}"
   delegate_to: localhost
   run_once: true
 

@@ -99,7 +99,7 @@ fi
 
 if [ ! -f "$SPARK_OTEL_LISTENER_JAR" ]; then
     echo "Warning: OTel listener JAR not found at: $SPARK_OTEL_LISTENER_JAR" >&2
-    echo "  Run: ansible-playbook -i ansible/inventory.yml ansible/playbooks/spark/otel-listener/build.yml" >&2
+    echo "  Run: ansible-playbook -i automation/ansible/inventory.yml automation/ansible/playbooks/spark/otel-listener/build.yml" >&2
 fi
 
 # Template and output paths

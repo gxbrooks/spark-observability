@@ -16,10 +16,31 @@
   when: sn_sgc_hosts_sched_row.sys_id is not defined
 
 - name: Record schedule snapshot before Execute Now
+  # A current run_type of 'once' is not a legitimate cadence to restore — it
+  # means a prior Execute Now never got its schedule restored (this task is
+  # self-reinforcing otherwise: snapshot 'once', restore 'once', forever).
+  # Fall back to the configured canonical cadence in that case.
   ansible.builtin.set_fact:
-    sn_sgc_sched_run_type_before: "{{ sn_sgc_hosts_sched_row.run_type | default('daily') }}"
+    sn_sgc_sched_run_type_before: >-
+      {{ sgc_hosts_scheduled_import_restore_run_type
+         if (sn_sgc_hosts_sched_row.run_type | default('') in ['', 'once'])
+         else sn_sgc_hosts_sched_row.run_type }}
+    sn_sgc_sched_run_period_before: >-
+      {{ sgc_hosts_scheduled_import_restore_run_period
+         if (sn_sgc_hosts_sched_row.run_type | default('') in ['', 'once'])
+         else sn_sgc_hosts_sched_row.run_period | default(sgc_hosts_scheduled_import_restore_run_period) }}
     sn_sgc_sched_run_start_before: "{{ sn_sgc_hosts_sched_row.run_start | default('') }}"
     sn_sgc_sched_run_time_before: "{{ sn_sgc_hosts_sched_row.run_time | default('') }}"
+  run_once: true
+
+- name: Warn when restoring from a previously-wedged schedule
+  ansible.builtin.debug:
+    msg: >-
+      '{{ sgc_hosts_scheduled_import_name }}' was already at run_type=once before
+      this run (a prior Execute Now likely never restored its cadence) — restoring
+      to the configured cadence '{{ sgc_hosts_scheduled_import_restore_run_type }}'
+      instead of re-wedging it at once.
+  when: sn_sgc_hosts_sched_row.run_type | default('') in ['', 'once']
   run_once: true
 
 - name: Read latest Hosts concurrent import set
@@ -207,6 +228,7 @@
           run_type: "{{ sn_sgc_sched_run_type_before }}"
           run_start: "{{ sn_sgc_sched_run_start_before }}"
           run_time: "{{ sn_sgc_sched_run_time_before }}"
+          run_period: "{{ sn_sgc_sched_run_period_before }}"
         status_code: [200, 403]
         return_content: true
       register: sn_sgc_sched_restore

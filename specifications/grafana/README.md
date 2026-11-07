@@ -68,7 +68,7 @@ Collected from Spark event logs and GC logs:
 
 ### Spark OTLP execution and stage metrics
 Collected by **spark-otel-listener** (driver) via OTLP → OpenTelemetry Collector:
-- **Index**: `metrics-spark-default` (data stream; initialized in `elasticsearch/bin/init-index.sh` step 7.85)
+- **Index**: `metrics-spark-default` (data stream; initialized in `automation/ansible/scripts/elasticsearch/init-index.sh` step 7.85)
 - **Active executions**: `spark.executions.active.{app,job,stage,task,sql}` — UpDownCounter (+1 start / −1 close); panels use `max(opened.*) − max(closed.*)` per bucket (same semantics as Watcher open-count)
 - **Stage metrics**: `spark.stage.shuffle.*` (counters), `spark.stage.outcomes.*` (completed counter + failures/spill gauges)
 - **Dynatrace parity**: same instruments ingested to Grail via collector pipeline `metrics/spark/dynatrace/*`

@@ -40,6 +40,11 @@ contexts:
     output: dynatrace_terraform.auto.tfvars.json
     description: Terraform variables for Dynatrace Settings 2.0 resources (terraform/dynatrace_settings.tf)
 
+  - name: elastic-terraform
+    type: terraform_vars
+    output: elastic_terraform.auto.tfvars.json
+    description: Terraform variables for the elastic/elasticstack provider (terraform/elasticsearch_kibana.tf)
+
   - name: elastic-observability-ansible
     type: ansible_vars
     output: elastic_observability_ansible_vars.yml

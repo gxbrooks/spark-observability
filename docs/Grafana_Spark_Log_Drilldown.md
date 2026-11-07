@@ -81,8 +81,8 @@ The links use Grafana variables to dynamically populate:
 
 ## Configuration Files
 
-- **Transform**: `observability/elasticsearch/spark-logs/spark-log-metrics-transform.json`
-- **Index Template**: `observability/elasticsearch/spark-logs/metrics-spark-logs.template.json`
+- **Transform**: `specifications/elasticsearch/config/spark-logs/spark-log-metrics.transform.json`
+- **Index Template**: `specifications/elasticsearch/config/spark-logs/metrics-spark-logs-default.template.json`
 - **Dashboard**: `observability/grafana/provisioning/dashboards/spark-system.json`
 
 ## Future Enhancements

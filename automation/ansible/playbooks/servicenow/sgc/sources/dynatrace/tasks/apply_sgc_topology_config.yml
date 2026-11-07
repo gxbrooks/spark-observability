@@ -355,6 +355,87 @@
       {{ sn_sgc_sched_mismatched | map(attribute='name') | list | join(', ') }}
   when: sn_sgc_sched_mismatched | length > 0
 
+# ----- Kubernetes Cluster scheduled import (cadence) ---------------------------
+# Not a child of the Hosts cascade — its own top-level import. Dynatrace mints a
+# new KUBERNETES_CLUSTER entity id whenever the Kubernetes Operator/Dynakube is
+# reinstalled (confirmed empirically: old entity id's lastSeenTms stops right
+# before the new one's firstSeenTms starts). sys_object_source only tracks
+# whatever entity id this import last saw, so event CI binding for cluster-level
+# problems goes stale until this re-runs. Ensuring active+periodically (hourly)
+# here — instead of leaving it at the shipped 'parent'/inert default — means
+# ServiceNow's own scheduler re-syncs it within an hour of any entity churn,
+# without needing a bespoke Ansible trigger. 'periodically' + run_period is a
+# base sysauto run_type (confirmed via sys_choice name=sysauto, element=run_type)
+# — not a custom field.
+- name: Read SGO-Dynatrace Kubernetes Cluster scheduled import
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?sysparm_query=name={{
+      sgc_kubernetes_cluster_scheduled_import_name | urlencode }}&sysparm_fields=sys_id,name,active,run_type,run_period&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+    return_content: true
+  register: sn_sgc_k8s_cluster_sched
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Record Kubernetes Cluster scheduled import row
+  ansible.builtin.set_fact:
+    sn_sgc_k8s_cluster_sched_row: "{{ sn_sgc_k8s_cluster_sched.json.result | default([]) | first | default({}) }}"
+  run_once: true
+
+- name: Report Kubernetes Cluster scheduled import already active and periodic
+  ansible.builtin.debug:
+    msg: >-
+      Scheduled import '{{ sgc_kubernetes_cluster_scheduled_import_name }}'
+      already active=true, run_type={{ sgc_kubernetes_cluster_scheduled_import_run_type }}
+      (run_period={{ sgc_kubernetes_cluster_scheduled_import_run_period }}) — no update needed.
+  when: >-
+    sn_sgc_k8s_cluster_sched_row.active | default('') == 'true'
+    and sn_sgc_k8s_cluster_sched_row.run_type | default('') == sgc_kubernetes_cluster_scheduled_import_run_type
+    and sn_sgc_k8s_cluster_sched_row.run_period | default('') == sgc_kubernetes_cluster_scheduled_import_run_period
+
+- name: Set Kubernetes Cluster scheduled import active and periodic
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ sn_sgc_k8s_cluster_sched_row.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      active: "true"
+      run_type: "{{ sgc_kubernetes_cluster_scheduled_import_run_type }}"
+      run_period: "{{ sgc_kubernetes_cluster_scheduled_import_run_period }}"
+    status_code: [200, 403]
+    return_content: true
+  register: sn_sgc_k8s_cluster_sched_patch
+  when: >-
+    sn_sgc_k8s_cluster_sched_row.sys_id is defined
+    and (sn_sgc_k8s_cluster_sched_row.active | default('') != 'true'
+         or sn_sgc_k8s_cluster_sched_row.run_type | default('') != sgc_kubernetes_cluster_scheduled_import_run_type
+         or sn_sgc_k8s_cluster_sched_row.run_period | default('') != sgc_kubernetes_cluster_scheduled_import_run_period)
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Report Kubernetes Cluster scheduled import cadence outcome
+  ansible.builtin.debug:
+    msg: >-
+      Kubernetes Cluster scheduled import update: HTTP {{ sn_sgc_k8s_cluster_sched_patch.status }}
+      {{ ('— now active=true, run_type=' ~ sgc_kubernetes_cluster_scheduled_import_run_type
+          ~ ' every ' ~ sgc_kubernetes_cluster_scheduled_import_run_period
+          ~ ' (re-syncs cluster-level CI binding automatically)')
+         if sn_sgc_k8s_cluster_sched_patch.status == 200
+         else '— not authorized; set active + Periodically/hourly cadence in Scheduled Data Imports UI' }}
+  when: sn_sgc_k8s_cluster_sched_patch is not skipped
+
 # ----- Scheduled import activation --------------------------------------------
 - name: Read SGO-Dynatrace Hosts scheduled import
   ansible.builtin.uri:
@@ -446,6 +527,7 @@
         connection row status: {{ sn_sgc_conn_current.status | default('unknown') }}
         Hosts scheduled import: {{ 'active' if (sn_sgc_sched_row.active | default('') == 'true' or (sn_sgc_sched_patch.status | default(0)) == 200) else 'NOT active' }}
         Services scheduled import: {{ 'active' if (sn_sgc_services_sched_row.active | default('') == 'true' or (sn_sgc_services_sched_patch.status | default(0)) == 200) else 'NOT active' }}
+        Kubernetes Cluster scheduled import: {{ 'active+periodically(hourly)' if ((sn_sgc_k8s_cluster_sched_row.active | default('') == 'true' and sn_sgc_k8s_cluster_sched_row.run_type | default('') == sgc_kubernetes_cluster_scheduled_import_run_type) or (sn_sgc_k8s_cluster_sched_patch.status | default(0)) == 200) else 'NOT active+periodically' }}
         service_types_to_ingest: {{ sn_sgc_service_types_desired | default(sn_sgc_service_types_current | default([])) | join(',') }}
         payload template: {{
           'present' if (sn_sgc_payload_tpl.status | default(0) | int == 200

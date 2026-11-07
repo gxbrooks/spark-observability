@@ -69,6 +69,33 @@ variable "kubeconfig_path" {
   default     = "~/.kube/config"
 }
 
+variable "ES_URL" {
+  description = "Elasticsearch base URL, e.g. https://Lab3.lan:9200"
+  type        = string
+  sensitive   = true
+}
+
+variable "ES_USER" {
+  description = "Elasticsearch/Kibana superuser name (elastic)"
+  type        = string
+}
+
+variable "ES_PASSWORD" {
+  description = "Elasticsearch/Kibana superuser password"
+  type        = string
+  sensitive   = true
+}
+
+variable "KB_HOST" {
+  description = "Kibana hostname"
+  type        = string
+}
+
+variable "KB_PORT" {
+  description = "Kibana port"
+  type        = number
+}
+
 variable "dt_spark_hostgroup_entity_id" {
   description = <<-EOT
     Dynatrace HOST_GROUP entity ID for DT_HOST_GROUP, e.g. HOST_GROUP-xxxxxxxx.

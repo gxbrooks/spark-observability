@@ -18,7 +18,7 @@ The amdgpu kernel driver already exposes these metrics in `/sys/class/drm/card*/
 | Collection | `elastic-agent/bin/gpu-metrics.py` | Reads AMD sysfs files, normalizes units (°C, MHz, Watts, %), emits newline-delimited JSON per GPU |
 | Agent Input | Filebeat `exec` input (`id: gpu-metrics`) in `elastic-agent.linux.yml.j2` | Runs the script every 10 s, decodes JSON, drops raw message, tags events as `event.kind: metric`, adds host metadata |
 | Transport | Elastic Agent (systemd) → Elasticsearch output | Uses same `default` output as other metrics, so no Logstash hop |
-| Storage | Data stream `metrics-gpu-default` with `gpu-metrics` ILM | Backing indices roll daily, hot/warm/cold downsampling matches `system-metrics.ilm.json` footprint |
+| Storage | Data stream `metrics-gpu-default` with `gpu-metrics` ILM | Backing indices roll daily, hot/warm/cold downsampling matches `system-metrics-downsampled.ilm.json` footprint |
 | Discovery | Kibana data view `gpu-metrics` + saved search `gpu-metrics-default` | Ships with Init-Index step 7.8 for immediate discoverability |
 | Visualization | Grafana panel “GPU Metrics (Utilization & Temperature)” on `spark-system` dashboard | Plots GPU % vs VRAM % on left axis and edge temperature on right axis with shared time range |
 

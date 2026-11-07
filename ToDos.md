@@ -383,14 +383,14 @@ Best practices:
 ### Why `batch-events` works without `references` but `otel-traces` needs it
 
 **Pattern 1: Direct index name (no references needed)**
-- `batch-events.search.json`: `"index": "batch-events"`
-- `batch-traces.search.json`: `"index": "batch-traces"`
-- `spark-logs.search.json`: `"index": "spark-logs"`
+- `batch-events-events.search.json`: `"index": "batch-events"`
+- `completed-batch-jobs.search.json`: `"index": "batch-traces"`
+- `spark-logs-default.search.json`: `"index": "spark-logs"`
 
 **Pattern 2: Index reference (requires references section)**
 - `otel-traces.search.json`: `"indexRefName": "kibanaSavedObjectMeta.searchSourceJSON.index"` + `references` array
-- `spark-gc.search.json`: `"indexRefName": "..."` + `references`
-- `metrics-spark-logs.search.json`: `"indexRefName": "..."` + `references`
+- `spark-gc-search.search.json`: `"indexRefName": "..."` + `references`
+- `spark-log-metrics-default.search.json`: `"indexRefName": "..."` + `references`
 
 #### Why the difference
 

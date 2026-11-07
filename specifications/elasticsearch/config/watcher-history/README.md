@@ -44,7 +44,7 @@ Two mechanisms are provided to compress watcher history:
 The cleanup watcher and ILM policy are automatically initialized by `init-index.sh`:
 
 ```bash
-cd specifications/elasticsearch/bin
+cd automation/ansible/scripts/elasticsearch
 ./init-index.sh
 ```
 

@@ -12,8 +12,8 @@
 | Index Pattern / Name | Type | Configuration File | Data View Name | Description |
 |---------------------|------|-------------------|----------------|-------------|
 | `logs-spark-default` | Data Stream | `spark-logs/logs-spark-default.template.json` | Spark Application Logs | Spark application logs from all cluster components (master, worker, history, executors) with parsed log levels and stack traces |
-| `metrics-spark-logs-default` | Index (¹) | `spark-logs/metrics-spark-logs.template.json` | Spark Log Metrics | Aggregated Spark log metrics by log level, pod, and time (1-minute buckets) - Transform output from logs-spark-default |
-| `logs-spark_gc-default` | Data Stream | `spark-gc/spark-gc.template.json` | Spark GC Logs | Spark JVM garbage collection logs with GC event details, pause times, and memory statistics |
+| `metrics-spark-logs-default` | Index (¹) | `spark-logs/metrics-spark-logs-default.template.json` | Spark Log Metrics | Aggregated Spark log metrics by log level, pod, and time (1-minute buckets) - Transform output from logs-spark-default |
+| `logs-spark_gc-default` | Data Stream | `spark-gc/spark-gc-ds.template.json` | Spark GC Logs | Spark JVM garbage collection logs with GC event details, pause times, and memory statistics |
 | `batch-events-000001` | Rollover Index | `batch-events/batch-events.template.json` | Batch Events | Spark batch job events from Spark event logs (application start/end, job start/end, stage info) |
 | `batch-metrics-ds` | Data Stream | `batch-metrics/batch-metrics.template.json` | Batch Metrics | Spark batch job metrics (execution times, task counts, shuffle metrics) |
 | `batch-traces` | Data Stream | `batch-traces/batch-traces.template.json` | Batch Traces | Spark SQL query execution traces and DAG information |
@@ -97,8 +97,8 @@ graph TB
 
 | Pipeline Name | Associated Index | Configuration File | Purpose |
 |---------------|------------------|-------------------|---------|
-| `spark-logs-pipeline` | logs-spark-default | `spark-logs/spark-logs-ingest-pipeline.json` | Parse log level, Java class, extract stack traces from multi-line exceptions |
-| `spark-gc-pipeline` | logs-spark_gc-default | `spark-gc/spark-gc-ingest-pipeline.json` | Parse GC events, extract pause times and heap statistics |
+| `spark-logs-pipeline` | logs-spark-default | `spark-logs/spark-logs-pipeline.pipeline.json` | Parse log level, Java class, extract stack traces from multi-line exceptions |
+| `logs-spark_gc-default` | logs-spark_gc-default | `spark-gc/logs-spark_gc-default.pipeline.json` | Parse GC events, extract pause times and heap statistics |
 | (none) | batch-events-* | N/A | Logstash handles parsing |
 | (none) | batch-metrics-ds | N/A | Structured data from Logstash |
 | (none) | batch-traces | N/A | Structured data from Logstash |
@@ -109,7 +109,7 @@ graph TB
 
 | Transform Name | Source | Destination | Configuration File | Purpose |
 |----------------|--------|-------------|-------------------|---------|
-| `spark-log-metrics` | logs-spark-default | metrics-spark-logs-default | `spark-logs/spark-log-metrics-transform.json` | Aggregate log counts by level, pod, and time (1m buckets) |
+| `spark-log-metrics` | logs-spark-default | metrics-spark-logs-default | `spark-logs/spark-log-metrics.transform.json` | Aggregate log counts by level, pod, and time (1m buckets) |
 
 ---
 
@@ -118,11 +118,11 @@ graph TB
 | Policy Name | Applied To | Configuration File | Retention |
 |-------------|------------|-------------------|-----------|
 | `spark-logs` | logs-spark-default | `spark-logs/spark-logs.ilm.json` | 90 days |
-| `spark-log-metrics` | metrics-spark-logs-default | `spark-logs/metrics-spark-logs.ilm.json` | 90 days (delete; no rollover) |
+| `spark-log-metrics` | metrics-spark-logs-default | `spark-logs/spark-log-metrics.ilm.json` | 90 days (delete; no rollover) |
 | `spark-gc` | logs-spark_gc-default | `spark-gc/spark-gc.ilm.json` | 30 days |
-| `batch-events` | batch-events-* | `batch-events/batch-events.ilm-policy.json` | 90 days |
-| `batch-traces` | batch-traces | `batch-traces/batch-traces.ilm-policy.json` | 30 days |
-| `otel-traces` | otel-traces | `otel-traces/otel-traces.ilm-policy.json` | 7 days |
+| `batch-events` | batch-events-* | `batch-events/batch-events.ilm.json` | 90 days |
+| `batch-traces` | batch-traces | `batch-traces/batch-traces.ilm.json` | 30 days |
+| `otel-traces` | otel-traces | `otel-traces/otel-traces.ilm.json` | 7 days |
 
 ---
 

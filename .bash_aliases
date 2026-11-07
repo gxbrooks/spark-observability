@@ -105,7 +105,7 @@ function kdeleteall  { k_kubectl delete pod -n spark --all-containers "$@"; }
 
 # Ansible — observability host (Lab3): Docker Engine + stack deploy + start.
 # Run from your control machine where `ssh ansible@lab3.lan` works (inventory: ansible_ssh_private_key_file).
-_SPARK_OBS_ANSIBLE_ROOT="${SPARK_OBSERVABILITY_ROOT:-$HOME/repos/spark-observability}/ansible"
+_SPARK_OBS_ANSIBLE_ROOT="${SPARK_OBSERVABILITY_ROOT:-$HOME/repos/spark-observability}/automation/ansible"
 ansible_obs_lab3_docker() ( cd "$_SPARK_OBS_ANSIBLE_ROOT" && ansible-playbook -i inventory.yml playbooks/docker/install.yml --limit observability "$@" )
 ansible_obs_lab3_install() ( cd "$_SPARK_OBS_ANSIBLE_ROOT" && ansible-playbook -i inventory.yml playbooks/observability/install.yml --limit observability "$@" )
 ansible_obs_lab3_start()   ( cd "$_SPARK_OBS_ANSIBLE_ROOT" && ansible-playbook -i inventory.yml playbooks/observability/start.yml   --limit observability "$@" )
