@@ -79,7 +79,7 @@ spark.eventLog.compression.codec       none
 
 **Inputs**:
 - File path pattern: `/mnt/spark/events/app-*`
-- Configuration: `elastic-agent/elastic-agent.linux.yml`
+- Configuration: `specifications/elastic-agent/elastic-agent.linux.yml.j2`
 
 **Operations**:
 - Scans directory every 10 seconds for new files
@@ -94,7 +94,7 @@ spark.eventLog.compression.codec       none
 - Destination: `${LS_HOST}:${LS_SPARK_EVENTS_PORT}` (Lab3.lan:5050; Logstash host from `observability_docker.env`)
 - Target: `spark_events` output (type: logstash)
 
-**Configuration** (See: `elastic-agent/elastic-agent.linux.yml`, lines 85-104):
+**Configuration** (See: `specifications/elastic-agent/elastic-agent.linux.yml.j2`, lines 85-104):
 ```yaml
 - id: spark-events
   type: filestream
@@ -293,7 +293,7 @@ spark.eventLog.compression.codec       none
 ## **Related Documentation**
 
 - **Logstash Configuration**: `observability/logstash/pipeline/logstash.conf`
-- **Elastic Agent Config**: `elastic-agent/elastic-agent.linux.yml`
+- **Elastic Agent Config**: `specifications/elastic-agent/elastic-agent.linux.yml.j2`
 - **Grafana Dashboard**: `observability/grafana/provisioning/dashboards/spark-system.json`
 - **Watcher Logic**: `observability/elasticsearch/batch-events/batch-match-join.watcher.json`
 - **Troubleshooting**: `tmp/985_spark_events_pipeline_fix.md`

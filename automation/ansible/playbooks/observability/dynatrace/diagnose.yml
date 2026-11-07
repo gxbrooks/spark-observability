@@ -77,28 +77,9 @@
       ansible.builtin.debug:
         var: operator_troubleshoot.stdout_lines
 
-    - name: Get Dynakube OneAgent daemonset status
-      ansible.builtin.command: kubectl -n dynatrace get daemonset dynakube-oneagent -o wide
-      register: dynakube_oneagent_ds
-      changed_when: false
-      failed_when: false
-
-    - name: Show Dynakube OneAgent daemonset status
-      ansible.builtin.debug:
-        var: dynakube_oneagent_ds.stdout_lines
-
-    - name: Get Dynakube OneAgent pod readiness and crash-loop reasons
-      ansible.builtin.command: >
-        kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent
-        -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[0].ready,WAITING:.status.containerStatuses[0].state.waiting.reason,RESTARTS:.status.containerStatuses[0].restartCount
-        --no-headers
-      register: dynakube_oneagent_non_running
-      changed_when: false
-      failed_when: false
-
-    - name: Show Dynakube OneAgent pod readiness and crash-loop reasons
-      ansible.builtin.debug:
-        var: dynakube_oneagent_non_running.stdout_lines
+    # OneAgent DaemonSet + host-service diagnostics moved to their own
+    # module: see automation/ansible/playbooks/oneagent/diagnose.yml
+    # (imported alongside this file from observability/diagnose.yml).
 
     - name: Check Dynatrace webhook pods and TLS certificate currency
       ansible.builtin.include_tasks:
@@ -134,20 +115,3 @@
       when: dt_k8s_entities.status | default(0) == 200
       run_once: true
 
-- name: Dynatrace diagnose (OneAgent service on hosts)
-  hosts: kubernetes_master:kubernetes_workers:observability
-  gather_facts: false
-  vars_files:
-    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ project_root }}/vars/secrets.yaml"
-  tasks:
-    - name: Check OneAgent service status
-      ansible.builtin.command: systemctl is-active oneagent
-      register: oneagent_status
-      changed_when: false
-      failed_when: false
-      become: true
-
-    - name: Show OneAgent status
-      ansible.builtin.debug:
-        msg: "oneagent on {{ inventory_hostname }} => {{ oneagent_status.stdout | default('unknown') }}"

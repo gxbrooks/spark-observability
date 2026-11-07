@@ -14,15 +14,10 @@
 # convention, nothing here needs to change.
 #
 # Deliberately not covered (see tmp/terraform_ansible_learnings.md):
-#   - *.search.json (Kibana saved searches) -- no native elasticstack
-#     resource; would need elasticstack_kibana_import_saved_objects with
-#     a hand-built saved-object envelope and an explicit id map (search
-#     IDs aren't filename-derivable the way ILM/template/pipeline/
-#     transform/dataview names are). Deferred.
 #   - *.dashboard.json -- no live automation reference at all today
 #     (hand-built in Kibana, exported here only for backup), so bringing
 #     it under Terraform is a new capability, not a replacement of
-#     existing custom software like the five types below are.
+#     existing custom software like the six types below are.
 #   - batch-metrics/ -- deprecated, not run by init-index.sh.
 
 locals {
@@ -68,6 +63,20 @@ locals {
   dataviews = {
     for f in local.dataview_files :
     jsondecode(file("${local.es_specs_dir}/${f}")).data_view.id => jsondecode(file("${local.es_specs_dir}/${f}")).data_view
+  }
+
+  # --- Kibana saved searches ----------------------------------------------
+  # *.search.json files already have filename stem == live saved-object
+  # id (the Naming_Convention.md audit renamed every one that didn't),
+  # so this is fileset()-driven like everything else above -- no
+  # separate id map needed. Each file already carries its own top-level
+  # "attributes" key (and "references" when the search needs one) in
+  # exactly the shape a saved-object envelope expects; this just adds
+  # the "type"/"id" the envelope needs on top.
+  search_files = [for f in fileset(local.es_specs_dir, "**/*.search.json") : f if !startswith(f, "batch-metrics/")]
+  saved_searches = {
+    for f in local.search_files :
+    trimsuffix(basename(f), ".search.json") => jsondecode(file("${local.es_specs_dir}/${f}"))
   }
 }
 
@@ -296,4 +305,31 @@ resource "elasticstack_kibana_data_view" "view" {
       }
     }
   }
+}
+
+# ---------------------------------------------------------------------------
+# Kibana saved searches
+#
+# No native resource wraps Kibana's per-type saved-object endpoint (the
+# one init-index.sh calls directly: POST /api/saved_objects/search/<id>)
+# -- only the generic bulk _import API, via this resource. That API's
+# own "id" attribute is just a generated id for the import *call*, not
+# the saved object's id, so there's nothing stable to `terraform import`
+# against the way the other resources in this file have. It doesn't
+# need one either: overwrite=true makes every apply idempotent against
+# whatever already exists live (same semantic as init-index.sh's own
+# ?overwrite=true), so the first apply here safely reconciles with
+# objects init-index.sh already created instead of erroring as a
+# duplicate create.
+# ---------------------------------------------------------------------------
+resource "elasticstack_kibana_import_saved_objects" "search" {
+  for_each  = local.saved_searches
+  overwrite = true
+
+  file_contents = jsonencode({
+    type       = "search"
+    id         = each.key
+    attributes = each.value.attributes
+    references = try(each.value.references, [])
+  })
 }

@@ -1,14 +1,9 @@
 ---
-- name: Dynatrace install (OneAgent on all Lab hosts)
-  hosts: kubernetes_master:kubernetes_workers:observability
-  become: false
-  gather_facts: true
-  vars_files:
-    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ project_root }}/vars/secrets.yaml"
-  tasks:
-    - name: Install OneAgent on host
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/install_oneagent_host.yml"
+# Host OneAgent install moved to its own module: see
+# automation/ansible/playbooks/oneagent/install.yml (imported alongside
+# this file from observability/install.yml) -- OneAgent is a host
+# agent, not Dynatrace SaaS/tenant config, same split Elastic Agent
+# already gets from observability/elasticsearch/.
 
 - name: Dynatrace install (GPU sampler on Kubernetes worker nodes)
   hosts: kubernetes_workers

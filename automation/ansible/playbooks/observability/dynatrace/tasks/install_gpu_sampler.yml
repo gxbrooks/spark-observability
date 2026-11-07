@@ -1,7 +1,7 @@
 ---
 # Deploy AMD GPU → Dynatrace sampler + systemd timer on GPU worker nodes.
 # Target hosts: kubernetes_workers (Lab1, Lab2).
-# Prerequisite: install_oneagent_host.yml must have run so dynatrace_ingest exists.
+# Prerequisite: oneagent/tasks/install-oneagent-host.yml must have run so dynatrace_ingest exists.
 
 - name: Resolve Dynatrace specification paths
   ansible.builtin.include_tasks: "{{ playbook_dir }}/common/resolve_dt_spec_paths.yml"

@@ -1,0 +1,26 @@
+---
+# Report host OneAgent systemd status. No actual start action: on
+# Kubernetes nodes the Dynakube DaemonSet (Cloud Native Full Stack) is
+# the active OneAgent, and the host systemd service is expected to stay
+# inactive there -- see install.yml for the full explanation. This is
+# read-only, informational.
+
+- name: OneAgent start/status (host service)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+  tasks:
+    - name: Check host OneAgent service status (informational)
+      ansible.builtin.command: systemctl is-active oneagent
+      register: oneagent_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Show host OneAgent status expectation
+      ansible.builtin.debug:
+        msg: >-
+          host oneagent on {{ inventory_hostname }} => {{ oneagent_status.stdout | default('unknown') }}
+          (expected inactive on Kubernetes nodes while the Dynakube DaemonSet manages OneAgent there).

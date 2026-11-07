@@ -1,0 +1,18 @@
+---
+# Remove a host-level OneAgent install (Classic Full Stack). Does not
+# touch the Kubernetes DaemonSet (Cloud Native Full Stack) -- that's
+# removed by dynatrace/uninstall.yml along with the rest of the
+# Dynakube CR.
+
+- name: Uninstall OneAgent host service
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  tasks:
+    - name: Run OneAgent uninstall script when present
+      ansible.builtin.shell: |
+        if [ -x /opt/dynatrace/oneagent/agent/uninstall.sh ]; then
+          /opt/dynatrace/oneagent/agent/uninstall.sh
+        fi
+      become: true
+      changed_when: false
+      failed_when: false

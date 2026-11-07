@@ -9,7 +9,7 @@ This directory holds **repository-wide** documentation: concepts and runbooks th
 | Observability (Elastic/Grafana stack architecture) | `observability/docs/` |
 | Elasticsearch (indices, ILM, API client) | `observability/elasticsearch/docs/` |
 | Grafana | `observability/grafana/docs/` |
-| Elastic Agent | `elastic-agent/docs/` |
+| Elastic Agent | `specifications/elastic-agent/docs/` |
 | Linux client bootstrap | `linux/docs/` |
 
 ## Entry points

@@ -1,5 +1,25 @@
 ---
-# Stop the Elasticsearch container.
+# Stop Kibana then Elasticsearch -- reverse start order, since Kibana
+# depends on ES. Combined with start.yml's reasoning: one deployable
+# unit, one file per lifecycle verb. Use --tags kibana (or
+# elasticsearch) to target just one of the pair.
+
+- name: Stop Kibana
+  hosts: observability
+  gather_facts: false
+  tags: [stop, kibana]
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Stop Kibana container
+      ansible.builtin.command: docker compose stop kibana
+      args:
+        chdir: "{{ observability_dir }}"
+      failed_when: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "Kibana container stopped."
 
 - name: Stop Elasticsearch
   hosts: observability

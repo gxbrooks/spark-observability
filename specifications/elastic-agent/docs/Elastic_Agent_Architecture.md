@@ -372,20 +372,24 @@ Different data types have different processing needs:
 ### File Structure
 
 ```
-elastic-agent/
+specifications/elastic-agent/
 ├── elastic-agent.linux.yml.j2        # Jinja2 template for Linux hosts
-├── elastic-agent.local.yml           # Local client testing
-├── elastic_agent_env_systemd.conf    # Environment variables
+├── bin/
+│   └── gpu-metrics.py                # AMD GPU sysfs metrics collector
 └── docs/
     └── Elastic_Agent_Architecture.md # This document
 
-ansible/
+automation/ansible/
 ├── host_vars/
 │   ├── Lab1.yml                      # Lab1-specific variables
 │   └── Lab2.yml                      # Lab2-specific variables
 └── playbooks/
     └── elastic-agent/
-        └── install.yml                # Deployment playbook
+        ├── install.yml                # Deployment playbook
+        ├── start.yml
+        ├── stop.yml
+        ├── diagnose.yml
+        └── uninstall.yml
 ```
 
 ### Template Variables

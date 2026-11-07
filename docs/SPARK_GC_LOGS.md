@@ -80,7 +80,7 @@ gc.level: "info"
 
 ## Configuration Files
 
-### 1. Elastic Agent Config (elastic-agent/elastic-agent.linux.yml)
+### 1. Elastic Agent Config (specifications/elastic-agent/elastic-agent.linux.yml.j2)
 ```yaml
 - id: spark-gc
   type: filestream
@@ -325,7 +325,7 @@ Add new grok pattern to pipeline:
 
 ## Files Created/Modified
 
-1. `elastic-agent/elastic-agent.linux.yml` - Minimal agent config
+1. `specifications/elastic-agent/elastic-agent.linux.yml.j2` - Minimal agent config
 2. `tmp/gc-ingest-pipeline.json` - Elasticsearch pipeline definition
 3. `tmp/SPARK_GC_FINAL_SOLUTION.md` - This document
 

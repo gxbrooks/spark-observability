@@ -1,0 +1,34 @@
+---
+# Install the Dynatrace OneAgent host-level package (Classic Full Stack
+# style: installer script run directly on the OS, not the Kubernetes
+# DaemonSet). Separate module from dynatrace/ because the agent and the
+# SaaS tenant/Settings backend are a different kind of thing -- same
+# reasoning Elastic Agent already gets its own top-level module instead
+# of living under elasticsearch/.
+#
+# Live-state note (2026-11): on every current lab host (Lab1/Lab2/Lab3)
+# this installer has never actually been run -- the OneAgent binary is
+# absent and the systemd service is inactive. The Dynakube CR's
+# oneAgent.cloudNativeFullStack mode (see specifications/dynatrace/dynakube/dynakube.yaml.j2,
+# applied via automation/terraform/dynatrace_k8s.tf) is the one
+# currently-active OneAgent deployment path for the Kubernetes nodes
+# (kubernetes_master, kubernetes_workers) -- a DaemonSet the Operator
+# manages, not this playbook. Running both Classic Full Stack (this
+# playbook) and Cloud Native Full Stack (the DaemonSet) on the same node
+# is a known Dynatrace anti-pattern (duplicate host-unit consumption,
+# conflicting agent injection), so don't run this against
+# kubernetes_master/kubernetes_workers while cloudNativeFullStack is
+# active on them. It remains meaningful for a host that is NOT a
+# Kubernetes node (observability/Lab3's own OS-level monitoring, outside
+# of what the Kubernetes-scoped DaemonSet covers).
+
+- name: Install OneAgent on host
+  hosts: kubernetes_master:kubernetes_workers:observability
+  become: false
+  gather_facts: true
+  vars_files:
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+  tasks:
+    - name: Install OneAgent on host
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/install-oneagent-host.yml"

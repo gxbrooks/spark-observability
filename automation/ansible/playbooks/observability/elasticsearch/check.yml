@@ -1,0 +1,49 @@
+---
+# Check: does the deployed Elasticsearch/Kibana config match
+# specifications/elasticsearch/** and the operational scripts in
+# automation/ansible/scripts/elasticsearch/? Read-only -- reports drift
+# without changing anything. Per standards/automation.md's check verb:
+# configuration drift, not service health (that's diagnose) or
+# functional correctness (that's test).
+#
+# check_mode: true at the play level forces every task into dry-run
+# regardless of how this playbook is invoked (no --check flag needed,
+# and no accidental mutation possible if an operator forgets it) --
+# ansible.posix.synchronize honors Ansible's check mode as a real
+# rsync dry-run (-n), not a skip, so diff: true surfaces the itemized
+# would-be-changed file list same as deploy.yml's own sync tasks would
+# actually apply.
+
+- name: Check Elasticsearch/Kibana deployed config against specifications
+  hosts: observability
+  gather_facts: false
+  tags: [check, elasticsearch, kibana]
+  check_mode: true
+  vars:
+    observability_dir: "/home/ansible/ops/observability"
+  tasks:
+    - name: Diff specifications/elasticsearch against deployed config
+      ansible.posix.synchronize:
+        src: "{{ project_root }}/specifications/elasticsearch/"
+        dest: "{{ observability_dir }}/elasticsearch/"
+        delete: false
+        recursive: true
+      diff: true
+      register: es_specs_diff
+
+    - name: Diff operational scripts against deployed bin/
+      ansible.posix.synchronize:
+        src: "{{ project_root }}/automation/ansible/scripts/elasticsearch/"
+        dest: "{{ observability_dir }}/elasticsearch/bin/"
+        delete: false
+        recursive: true
+      diff: true
+      register: es_bin_diff
+
+    - name: Report Elasticsearch/Kibana config drift
+      ansible.builtin.debug:
+        msg: |
+          Elasticsearch/Kibana check
+          ==========================
+          Specs (specifications/elasticsearch/):              {{ 'DRIFT -- deploy.yml would change files' if es_specs_diff.changed else 'in sync' }}
+          Operational scripts (automation/.../scripts/elasticsearch/): {{ 'DRIFT -- deploy.yml would change files' if es_bin_diff.changed else 'in sync' }}

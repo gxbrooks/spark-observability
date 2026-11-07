@@ -295,7 +295,7 @@ The system is production-ready and provides the foundation for advanced observab
 - **[architecture-and-resources.md](architecture-and-resources.md)** — Which lab runs NFS, Kubernetes, and observability.
 
 For comprehensive details on Elastic Agent configuration and telemetry collection:
-- **[Elastic Agent Architecture](../elastic-agent/docs/Elastic_Agent_Architecture.md)** - Complete telemetry collection architecture, including:
+- **[Elastic Agent Architecture](../specifications/elastic-agent/docs/Elastic_Agent_Architecture.md)** - Complete telemetry collection architecture, including:
   - System metrics collection strategy
   - Kubernetes metrics (planned)
   - Spark log collection (application logs & GC logs)

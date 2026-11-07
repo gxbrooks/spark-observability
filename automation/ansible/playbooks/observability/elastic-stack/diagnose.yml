@@ -16,7 +16,6 @@
           OS:        {{ ansible_distribution }} {{ ansible_distribution_version }}
 
 - import_playbook: ../elasticsearch/diagnose.yml
-- import_playbook: ../kibana/diagnose.yml
 - import_playbook: ../grafana/diagnose.yml
 - import_playbook: ../logstash/diagnose.yml
 - import_playbook: ../otel-collector/diagnose.yml

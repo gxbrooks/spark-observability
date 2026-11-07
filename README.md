@@ -24,8 +24,8 @@ spark-observability/
 │   └── SECURE_SPARK_DEPLOYMENT.md
 ├── specifications/            # Declarative per-application config
 │   ├── dynatrace/             # Dynatrace tenant config
-│   ├── elasticsearch/         # Elasticsearch configuration
-│   ├── kibana/                # Kibana configuration
+│   ├── elasticsearch/         # Elasticsearch/Kibana configuration (Kibana has no separate dir -- its specs live here too)
+│   ├── elastic-agent/         # Elastic Agent configuration
 │   ├── logstash/              # Logstash configuration
 │   ├── grafana/                # Grafana configuration
 │   ├── servicenow/             # ServiceNow CSDM specs + integrations
@@ -35,7 +35,6 @@ spark-observability/
 │   ├── apps/                # Spark application examples
 │   ├── conf/                # Spark configuration
 │   └── ispark/              # Interactive Spark development
-├── elastic-agent/           # Elastic Agent configuration
 ├── linux/                   # Linux utilities and scripts
 └── vars/variables.yaml           # Central variable definitions
 ```

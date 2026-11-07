@@ -1,37 +1,56 @@
 # Elastic Agent Configuration
 
-This directory contains configuration files for Elastic Agent deployments across the Spark-on-Kubernetes infrastructure.
+This directory contains declarative configuration for Elastic Agent
+deployments across the Spark-on-Kubernetes infrastructure. The
+lifecycle automation that deploys this directory's content lives at
+`automation/ansible/playbooks/elastic-agent/` (install/start/stop/
+diagnose/uninstall).
+
+## Platform support
+
+Linux only. This repo once also deployed to a Windows host (`GaryPC`,
+via `elastic-agent.GaryPC.yml` and the `envconf_to_win_env.py` helper);
+both were removed when the lab dropped that host. The current
+`install.yml` playbook has no Windows branch at all. If Windows support
+is needed again, re-add it as a parallel template
+(`elastic-agent.windows.yml.j2`) and OS-conditional tasks in
+`install.yml` — the line is intentionally drawn here for now rather than
+carried as unused code.
 
 ## Configuration Files
 
 | File | Purpose | Status |
 |------|---------|--------|
 | **elastic-agent.linux.yml.j2** | Jinja2 template for Linux hosts | ✅ Active (deployed via Ansible) |
-| **elastic-agent.linux.yml** | Static Linux configuration | 📋 Reference only |
-| **elastic-agent.local.yml** | Local client testing | 🧪 Development only |
-| **elastic_agent_env_systemd.conf** | Environment variables for systemd | ✅ Active |
+| **bin/gpu-metrics.py** | AMD GPU sysfs metrics collector, run via systemd timer | ✅ Active |
+
+Agent environment variables (`ELASTIC_URL`, `ELASTIC_USER`,
+`ELASTIC_PASSWORD`, `CA_CERT`, `LS_HOST`, `LS_SPARK_EVENTS_PORT`) are
+not a static file here -- they're generated from `vars/variables.yaml`
+into `vars/contexts/elastic_agent_env.conf` and deployed to
+`/etc/elastic-agent/elastic_agent_env.conf` on each host.
 
 ## Deployment
 
 Elastic Agent configurations are deployed using Ansible playbooks with a **template-based approach**:
 
 1. **Template:** `elastic-agent.linux.yml.j2` (Jinja2 template)
-2. **Variables:** `ansible/host_vars/<hostname>.yml` (host-specific overrides)
-3. **Playbook:** `ansible/playbooks/elastic-agent/install.yml`
+2. **Variables:** `automation/ansible/host_vars/<hostname>.yml` (host-specific overrides)
+3. **Playbook:** `automation/ansible/playbooks/elastic-agent/install.yml`
 4. **Destination:** `/opt/Elastic/Agent/elastic-agent.yml` (on managed nodes)
 
 ### Quick Deployment
 
 ```bash
 # Deploy to all Linux hosts
-cd ansible
-ansible-playbook playbooks/elastic-agent/install.yml -l Lab1,Lab2
+cd automation/ansible
+ansible-playbook -i inventory.yml playbooks/elastic-agent/install.yml -l Lab1,Lab2
 
 # Deploy to single host
-ansible-playbook playbooks/elastic-agent/install.yml -l Lab2
+ansible-playbook -i inventory.yml playbooks/elastic-agent/install.yml -l Lab2
 
 # Check status
-ansible-playbook playbooks/elastic-agent/diagnose.yml
+ansible-playbook -i inventory.yml playbooks/elastic-agent/diagnose.yml
 ```
 
 ## Architecture
@@ -64,7 +83,7 @@ The Elastic Agent collects **five types of telemetry**:
 
 ### GPU Metrics Collector
 
-- Script: `elastic-agent/bin/gpu-metrics.py`
+- Script: `bin/gpu-metrics.py` (this directory)
 - Deployed to: `/opt/Elastic/Agent/extensions/gpu-metrics.py`
 - Runs via the Filebeat `exec` input every 10 seconds (low overhead)
 - Reads utilization, clocks, temperature, power, and fan speed from `/sys/class/drm/card*/device/**`
@@ -72,7 +91,7 @@ The Elastic Agent collects **five types of telemetry**:
 
 ## Host Variables
 
-Host-specific behavior is controlled via `ansible/host_vars/<hostname>.yml`:
+Host-specific behavior is controlled via `automation/ansible/host_vars/<hostname>.yml`:
 
 **Lab1 Variables:**
 ```yaml
@@ -107,25 +126,25 @@ For detailed architecture, troubleshooting, and best practices:
 
 ```bash
 # Edit the Jinja2 template
-vim elastic-agent/elastic-agent.linux.yml.j2
+vim specifications/elastic-agent/elastic-agent.linux.yml.j2
 
 # Validate YAML syntax
-yamllint elastic-agent/elastic-agent.linux.yml.j2
+yamllint specifications/elastic-agent/elastic-agent.linux.yml.j2
 
 # Deploy to all hosts
-cd ansible
-ansible-playbook playbooks/elastic-agent/install.yml -l Lab1,Lab2
+cd automation/ansible
+ansible-playbook -i inventory.yml playbooks/elastic-agent/install.yml -l Lab1,Lab2
 ```
 
 ### Change Host-Specific Behavior
 
 ```bash
 # Edit host variables
-vim ansible/host_vars/Lab1.yml
+vim automation/ansible/host_vars/Lab1.yml
 
 # Redeploy to that host only
-cd ansible
-ansible-playbook playbooks/elastic-agent/install.yml -l Lab1
+cd automation/ansible
+ansible-playbook -i inventory.yml playbooks/elastic-agent/install.yml -l Lab1
 ```
 
 ### Verify Deployment
@@ -166,7 +185,7 @@ ansible Lab2 -m shell -a "sudo tail -100 /var/log/elastic-agent/elastic-agent-*.
 
 **Current Approach (Active):**
 - Single OS-based template: `elastic-agent.linux.yml.j2`
-- Host-specific variables in `ansible/host_vars/`
+- Host-specific variables in `automation/ansible/host_vars/`
 - Playbook uses template rendering
 - Scalable - new hosts only need `host_vars/<hostname>.yml`
 
@@ -174,28 +193,11 @@ ansible Lab2 -m shell -a "sudo tail -100 /var/log/elastic-agent/elastic-agent-*.
 
 ## Files Removed
 
-As part of the consolidation to template-based configuration, the following per-host files were removed:
-- `elastic-agent.Lab1.yml` (replaced by template)
-- `elastic-agent.Lab2.yml` (replaced by template)
-- `elastic-agent.lab1.yml` (old lowercase version)
-- `elastic-agent.GaryPC.yml` (unused)
-- `*.bak` backup files
-
-## Environment Variables
-
-Agent configuration uses environment variables from systemd:
-
-**File:** `elastic_agent_env_systemd.conf`  
-**Deployed to:** `/etc/elastic-agent/elastic_agent_env.conf`  
-**Loaded by:** Elastic Agent systemd service
-
-**Key Variables:**
-- `ELASTIC_URL` - Elasticsearch endpoint
-- `ELASTIC_USER` - Elasticsearch username
-- `ELASTIC_PASSWORD` - Elasticsearch password
-- `CA_CERT` - CA certificate path (standard path for all services)
-- `LS_HOST` - Logstash hostname
-- `LS_SPARK_EVENTS_PORT` - Logstash port for Spark events
+- `elastic-agent.Lab1.yml`, `elastic-agent.Lab2.yml`, `elastic-agent.lab1.yml` -- replaced by the template + `host_vars/` approach (2025-11-12).
+- `elastic-agent.GaryPC.yml` -- the Windows per-host config, unused once the Windows (`GaryPC`) host left the lab.
+- `envconf_to_win_env.py` -- Windows env-file conversion helper, dead code once `elastic-agent.GaryPC.yml` was removed; no playbook ever called it.
+- `elastic-agent.local.yml` -- a manually-copied template for monitoring a developer's own local PySpark client workstation (`/tmp/spark/events/`), not part of any deployed/automated path. Removed for the same reason: no playbook referenced it.
+- `*.bak` backup files.
 
 ## Troubleshooting
 
@@ -213,10 +215,10 @@ Agent configuration uses environment variables from systemd:
 ansible Lab2 -m shell -a "sudo tail -200 /var/log/elastic-agent/elastic-agent-*.ndjson"
 
 # Validate YAML
-yamllint elastic-agent/elastic-agent.linux.yml.j2
+yamllint specifications/elastic-agent/elastic-agent.linux.yml.j2
 
 # Update certificate (pull-based: re-run start to test currency and re-fetch from observability volume)
-ansible-playbook -i ansible/inventory.yml ansible/playbooks/elastic-agent/start.yml --limit native
+ansible-playbook -i automation/ansible/inventory.yml automation/ansible/playbooks/elastic-agent/start.yml --limit native
 ```
 
 ### Duplicate Event Collection
@@ -240,7 +242,7 @@ ansible Lab1,Lab2 -m shell -a "grep 'spark-events' /opt/Elastic/Agent/elastic-ag
 **Check:**
 ```bash
 # Verify data in Elasticsearch
-curl -k -u elastic:myElastic2025 "https://GaryPC.local:9200/_cat/indices/metrics-system*"
+curl -k -u elastic:myElastic2025 "https://Lab3.lan:9200/_cat/indices/metrics-system*"
 
 # Check agent status
 ansible Lab1,Lab2 -m shell -a "sudo /opt/Elastic/Agent/elastic-agent status"
@@ -248,10 +250,10 @@ ansible Lab1,Lab2 -m shell -a "sudo /opt/Elastic/Agent/elastic-agent status"
 
 ## Related Files
 
-- `ansible/playbooks/elastic-agent/install.yml` - Installation playbook
-- `ansible/playbooks/elastic-agent/start.yml` - Start agent service
-- `ansible/playbooks/elastic-agent/stop.yml` - Stop agent service
-- `ansible/playbooks/elastic-agent/diagnose.yml` - Check agent status
-- `ansible/host_vars/Lab1.yml` - Lab1-specific variables
-- `ansible/host_vars/Lab2.yml` - Lab2-specific variables
-
+- `automation/ansible/playbooks/elastic-agent/install.yml` - Installation playbook
+- `automation/ansible/playbooks/elastic-agent/start.yml` - Start agent service
+- `automation/ansible/playbooks/elastic-agent/stop.yml` - Stop agent service
+- `automation/ansible/playbooks/elastic-agent/diagnose.yml` - Check agent status
+- `automation/ansible/playbooks/elastic-agent/uninstall.yml` - Remove agent service
+- `automation/ansible/host_vars/Lab1.yml` - Lab1-specific variables
+- `automation/ansible/host_vars/Lab2.yml` - Lab2-specific variables

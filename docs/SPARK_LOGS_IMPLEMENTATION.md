@@ -116,7 +116,7 @@ rootLogger.appenderRefs = console, rolling
 
 ### 6. Elastic Agent Configuration ✅
 
-**Updated: `elastic-agent.linux.yml`**
+**Updated: `elastic-agent.linux.yml.j2`**
 
 ```yaml
 - id: spark-app-logs
@@ -233,7 +233,7 @@ curl -sk -u elastic:password 'https://localhost:9200/_transform/spark-log-metric
 2. `observability/elasticsearch/spark-logs/spark-logs.dataview.json` (updated)
 3. `observability/elasticsearch/bin/init-index.sh` (added STEP 11)
 4. `observability/grafana/provisioning/dashboards/spark-system.json` (added panel)
-5. `elastic-agent/elastic-agent.linux.yml` (updated spark-app-logs section)
+5. `specifications/elastic-agent/elastic-agent.linux.yml.j2` (updated spark-app-logs section)
 
 ### Directory Renamed
 - `observability/elasticsearch/spark/` → `observability/elasticsearch/spark-logs/`

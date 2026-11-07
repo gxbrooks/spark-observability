@@ -1,0 +1,56 @@
+---
+# Diagnose OneAgent regardless of which deployment mode is active:
+# the Kubernetes DaemonSet (Cloud Native Full Stack, Terraform/Operator-
+# managed) and the host systemd service (Classic Full Stack, this
+# module's install.yml) are reported separately since only one is
+# expected to be doing anything on a given node -- see install.yml.
+
+- name: Diagnose OneAgent DaemonSet (Kubernetes-managed)
+  hosts: kubernetes_master
+  gather_facts: false
+  tasks:
+    - name: Get Dynakube OneAgent DaemonSet status
+      ansible.builtin.command: kubectl -n dynatrace get daemonset dynakube-oneagent -o wide
+      register: dynakube_oneagent_ds
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube OneAgent DaemonSet status
+      ansible.builtin.debug:
+        var: dynakube_oneagent_ds.stdout_lines
+
+    - name: Get Dynakube OneAgent pod readiness and crash-loop reasons
+      ansible.builtin.command: >
+        kubectl -n dynatrace get pods -l app.kubernetes.io/name=oneagent
+        -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[0].ready,WAITING:.status.containerStatuses[0].state.waiting.reason,RESTARTS:.status.containerStatuses[0].restartCount
+        --no-headers
+      register: dynakube_oneagent_pods
+      changed_when: false
+      failed_when: false
+
+    - name: Show Dynakube OneAgent pod readiness and crash-loop reasons
+      ansible.builtin.debug:
+        var: dynakube_oneagent_pods.stdout_lines
+
+- name: Diagnose OneAgent host service (Classic Full Stack)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  tasks:
+    - name: Check host OneAgent service status
+      ansible.builtin.command: systemctl is-active oneagent
+      register: oneagent_status
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Check host OneAgent binary presence
+      ansible.builtin.stat:
+        path: /opt/dynatrace/oneagent/agent/lib64/liboneagentproc.so
+      register: oneagent_binary
+
+    - name: Show OneAgent host status
+      ansible.builtin.debug:
+        msg: >-
+          oneagent on {{ inventory_hostname }}: service={{ oneagent_status.stdout | default('unknown') }},
+          binary={{ 'present' if oneagent_binary.stat.exists else 'absent' }}
+          (expected: both absent/inactive on Kubernetes nodes while the DaemonSet is active there).

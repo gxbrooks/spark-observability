@@ -11,3 +11,6 @@
 
 - import_playbook: dynatrace/install.yml
   when: hostvars['localhost']['observability_dynatrace_enabled'] | bool
+
+- import_playbook: ../oneagent/install.yml
+  when: hostvars['localhost']['observability_dynatrace_enabled'] | bool

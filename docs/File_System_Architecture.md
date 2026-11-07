@@ -36,7 +36,7 @@ The file system architecture uses a layered approach:
 
 **Purpose**: Source repository for all project files, version controlled in Git
 
-**Structure**: `~/repos/spark-observability/` containing `ansible/` (Ansible playbooks and roles), `docs/` (documentation), `elastic-agent/` (Elastic Agent configurations and scripts), `observability/` (observability stack), `spark/` (Spark applications and configurations), `vars/` (variable definitions and generators), and other project directories.
+**Structure**: `~/repos/spark-observability/` containing `ansible/` (Ansible playbooks and roles), `docs/` (documentation), `specifications/elastic-agent/` (Elastic Agent configurations and scripts), `observability/` (observability stack), `spark/` (Spark applications and configurations), `vars/` (variable definitions and generators), and other project directories.
 
 **Characteristics**:
 - Source of truth for all configuration and code
@@ -316,7 +316,7 @@ Kubernetes API server certificates are managed separately:
 
 **Examples**:
 - `~/repos/spark-observability/observability/` → `~/ansible/ops/observability/`
-- `~/repos/spark-observability/elastic-agent/bin/gpu-metrics.py` → `~/ansible/ops/elastic-agent/bin/gpu-metrics.py` (if applicable)
+- `~/repos/spark-observability/specifications/elastic-agent/bin/gpu-metrics.py` → `~/ansible/ops/elastic-agent/bin/gpu-metrics.py` (if applicable)
 
 ### Ops → Docker Mapping
 
@@ -497,5 +497,5 @@ Kubernetes API server certificates are managed separately:
 - **[Environment.md](Environment.md)**: Environment variable best practices
 - **[Elastic_API_Client.md](../observability/elasticsearch/docs/Elastic_API_Client.md)**: API client usage
 - **[Elasticsearch_indices.md](../observability/elasticsearch/docs/Elasticsearch_indices.md)**: Elasticsearch index catalog
-- **[Elastic_Agent_Architecture.md](../elastic-agent/docs/Elastic_Agent_Architecture.md)**: Elastic Agent file system details
+- **[Elastic_Agent_Architecture.md](../specifications/elastic-agent/docs/Elastic_Agent_Architecture.md)**: Elastic Agent file system details
 

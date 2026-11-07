@@ -17,18 +17,8 @@
       changed_when: operator_scale.rc == 0
       failed_when: false
 
-- name: Dynatrace stop notice for OneAgent
-  hosts: kubernetes_master:kubernetes_workers:observability
-  gather_facts: false
-  vars_files:
-    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
-    - "{{ project_root }}/vars/secrets.yaml"
-  tasks:
-    - name: Display OneAgent stop guidance
-      ansible.builtin.debug:
-        msg: >-
-          Kubernetes OneAgent is managed by the Dynakube daemonset (not host systemd).
-          This stop playbook only scales down the operator deployment.
-          start.yml restores operator/webhook replicas and renews expired
-          dynatrace-webhook-certs (webhook CrashLoopBackOff if certs expire while operator is down).
-          To fully remove Dynakube/OneAgent resources, run dynatrace/uninstall.yml.
+# Host OneAgent stop notice moved to its own module: see
+# automation/ansible/playbooks/oneagent/stop.yml (imported alongside
+# this file from observability/stop.yml). Reminder: start.yml restores
+# operator/webhook replicas and renews expired dynatrace-webhook-certs
+# (webhook CrashLoopBackOff if certs expire while operator is down).

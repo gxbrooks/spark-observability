@@ -80,7 +80,7 @@ Static pods managed by kubelet on Lab3.
 | Component                                 | Est. memory | Notes                                                                                 |
 | ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
 | NFS server (kernel)                       | 0.5 GiB     | Exports `/srv/nfs/spark/*`; see `[ansible/playbooks/nfs/](../ansible/playbooks/nfs/)` |
-| Elastic Agent                             | 0.5 GiB     | Systemd service; config at `[elastic-agent/](../elastic-agent/)`                      |
+| Elastic Agent                             | 0.5 GiB     | Systemd service; config at `[elastic-agent/](../specifications/elastic-agent/)`                      |
 | Dynatrace OneAgent                        | 0.5–1 GiB   | Host/process/K8s instrumentation; `[ansible/playbooks/observability/dynatrace/](../ansible/playbooks/observability/dynatrace/)` |
 | ServiceNow MID Server (JVM)             | 4–6 GiB     | Native systemd on Lab3; Discovery bridge to `[optimizincdemo1.service-now.com](https://optimizincdemo1.service-now.com/)`; `[ansible/playbooks/servicenow/discovery/](../ansible/playbooks/servicenow/discovery/)`. Both registered MID Servers showed Down / Upgrade Failed as of 2026-09-30 (confirmed via `ecc_agent`) — budgeted capacity, not necessarily current consumption; needs host-level attention separate from this allocation review. |
 | OS, Docker engine, kubelet, sshd, logging | 3 GiB       |                                                                                       |
@@ -222,7 +222,7 @@ These pods run on every node or are scheduled by the cluster.
 
 Elastic Agent runs as a **systemd service** on Lab1, Lab2, and Lab3. It collects system metrics (CPU, memory, disk, network) and ships them to Elasticsearch via Logstash.
 
-There are no cgroup or systemd `MemoryMax`/`CPUQuota` limits configured. Typical steady-state memory is ~500 MiB per host. Configuration is in `[elastic-agent/](../elastic-agent/)`. Deployment is managed by `[ansible/playbooks/elastic-agent/install.yml](../ansible/playbooks/elastic-agent/install.yml)`.
+There are no cgroup or systemd `MemoryMax`/`CPUQuota` limits configured. Typical steady-state memory is ~500 MiB per host. Configuration is in `[elastic-agent/](../specifications/elastic-agent/)`. Deployment is managed by `[ansible/playbooks/elastic-agent/install.yml](../ansible/playbooks/elastic-agent/install.yml)`.
 
 ---
 
@@ -287,7 +287,7 @@ Init containers (`init-certs`, `set-kibana-password`, `init-index`) are short-li
 | Grafana file logs | Built-in `[log.file]` | 128 MB (`max_size_shift=27`) | Daily, 7-day max | [`observability/grafana/grafana.ini`](../observability/grafana/grafana.ini) `[log.file]` |
 | Logstash internal logs | Built-in rotation | 100 MB | 10 files, 7-day age | [`observability/logstash/config/logstash.yml`](../observability/logstash/config/logstash.yml) |
 | Filebeat | Built-in rotation | 10 MB | 10 files | [`observability/filebeat/filebeat.yml`](../observability/filebeat/filebeat.yml) |
-| Elastic Agent | Built-in rotation | 50 MB | 7 files | [`elastic-agent/elastic-agent.linux.yml.j2`](../elastic-agent/elastic-agent.linux.yml.j2) |
+| Elastic Agent | Built-in rotation | 50 MB | 7 files | [`elastic-agent/elastic-agent.linux.yml.j2`](../specifications/elastic-agent/elastic-agent.linux.yml.j2) |
 
 ### 9.3 Spark logs
 
@@ -326,7 +326,7 @@ Prometheus data retention is size- and time-bounded (not log rotation per se, bu
 | `**observability/docs/**`                                 | Observability architecture (Prometheus/Tempo/ES pipeline, environment variables).          |
 | `**observability/elasticsearch/docs/**`                   | Elasticsearch indices, APIs, ILM policies.                                                 |
 | `**observability/grafana/docs/**`, `**prometheus/docs/**` | Component-specific notes.                                                                  |
-| `**elastic-agent/docs/**`                                 | Elastic Agent deployment and behavior.                                                     |
+| `**specifications/elastic-agent/docs/**`                                 | Elastic Agent deployment and behavior.                                                     |
 | `**ansible/playbooks/spark/README.md**`                   | Spark playbook usage and resource details.                                                 |
 | `**ansible/playbooks/servicenow/**`                       | ServiceNow Discovery / CMDB automation (MID Server, schedules, scans).                     |
 

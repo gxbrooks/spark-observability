@@ -1,0 +1,21 @@
+---
+# No actual stop action: the host OneAgent systemd service is expected
+# to already be inactive on Kubernetes nodes (the Dynakube DaemonSet
+# owns OneAgent there instead). This is an informational notice, not a
+# mutating step -- see install.yml for the full explanation.
+
+- name: OneAgent stop notice (host service)
+  hosts: kubernetes_master:kubernetes_workers:observability
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+  tasks:
+    - name: Display OneAgent stop guidance
+      ansible.builtin.debug:
+        msg: >-
+          Kubernetes OneAgent is managed by the Dynakube DaemonSet (not host systemd),
+          so there is no host-level service for this playbook to stop on
+          kubernetes_master/kubernetes_workers. To remove the DaemonSet, run
+          dynatrace/uninstall.yml. To remove a host OneAgent install (if one was made
+          outside the DaemonSet-managed nodes), run oneagent/uninstall.yml.

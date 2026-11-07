@@ -13,16 +13,12 @@ observability/
 ├── diagnose.yml            # Orchestrator: full platform diagnostics
 ├── uninstall.yml           # Orchestrator: remove everything
 ├── install.yml             # Alias for deploy.yml
-├── elasticsearch/
+├── elasticsearch/           # Elasticsearch + Kibana -- one deployable unit
 │   ├── deploy.yml          # Sync ES config files
-│   ├── start.yml           # Start ES + wait healthy
-│   ├── stop.yml            # Stop ES container
+│   ├── start.yml           # Start ES, then Kibana (--tags kibana for just one)
+│   ├── stop.yml            # Stop Kibana, then ES (--tags elasticsearch for just one)
 │   ├── test.yml            # Cluster health + index freshness
-│   └── diagnose.yml        # Connectivity, container, index report
-├── kibana/
-│   ├── start.yml           # Start Kibana + wait healthy
-│   ├── stop.yml            # Stop Kibana container
-│   └── diagnose.yml        # HTTP, container, API level
+│   └── diagnose.yml        # ES connectivity/container/index + Kibana HTTP/container/API
 ├── grafana/
 │   ├── deploy.yml          # Sync Grafana config + plugins dir
 │   ├── start.yml           # Start Grafana + wait healthy
