@@ -16,6 +16,7 @@
 #             - Spark events mount
 #             - Grafana build utilities
 #             - Developer user group memberships (docker, spark, elastic-agent)
+#             - Google Chrome (default web browser)
 #
 # Out of scope (handled by assert_managed_node.sh):
 #             - SSH server configuration
@@ -410,6 +411,11 @@ $root_dir/linux/assert_spark_client_apps.sh \
 # Configure developer user group memberships and workstation-specific paths
 $root_dir/linux/assert_developer_user.sh \
     --User "$USER" \
+    $(append_flag "--Check" "$CHECK") \
+    $(append_flag "--Debug" "$DEBUG")
+
+# Install Google Chrome and set it as the default web browser
+$root_dir/linux/assert_chrome_installed.sh \
     $(append_flag "--Check" "$CHECK") \
     $(append_flag "--Debug" "$DEBUG")
 
