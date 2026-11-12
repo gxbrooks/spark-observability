@@ -6,6 +6,7 @@
     "customId": "${dt_l2i_k8s_openpipeline_custom_id}",
     "routing": "routable",
     "groupRole": "memberPipeline",
+    "metadataList": [],
     "processing": {
       "processors": [
         {
@@ -56,6 +57,16 @@
           "dql": {
             "script": "fieldsAdd `k8s-pod-name` = toString(k8s.pod.name)\n| fieldsAdd `k8s-namespace-name` = toString(coalesce(k8s.namespace.name, \"\"))\n| fieldsAdd `k8s-cluster-name` = toString(coalesce(k8s.cluster.name, \"\"))\n| fieldsAdd `k8s-workload-name` = if(isNotNull(k8s.workload.name) AND toString(k8s.workload.name) != \"\", toString(k8s.workload.name), else: if(isNotNull(k8s.deployment.name) AND toString(k8s.deployment.name) != \"\", toString(k8s.deployment.name), else: if(startsWith(toString(k8s.pod.name), \"spark-worker-lab1\"), \"spark-worker-lab1\", else: if(startsWith(toString(k8s.pod.name), \"spark-worker-lab2\"), \"spark-worker-lab2\", else: if(startsWith(toString(k8s.pod.name), \"spark-master\"), \"spark-master\", else: if(startsWith(toString(k8s.pod.name), \"spark-history\"), \"spark-history-server\", else: \"\"))))))\n| fieldsAdd `k8s-workload-kind` = if(isNotNull(k8s.workload.kind) AND toString(k8s.workload.kind) != \"\", toString(k8s.workload.kind), else: \"deployment\")\n| fieldsAdd `k8s-cronjob-name` = toString(coalesce(k8s.cronjob.name, \"\"))\n| fieldsAdd `k8s-job-name` = toString(coalesce(k8s.job.name, \"\"))"
           }
+        },
+        {
+          "id": "resolve-stable-alert-entity",
+          "type": "dql",
+          "enabled": true,
+          "description": "Alert entity for Davis events: the most stable entity on the record (Kubernetes workload, else process group, else host), never an ephemeral process group instance, pod or container. CMDB Service Mapping flags alerts bound to ephemeral CIs.",
+          "matcher": "loglevel == \"WARN\" OR loglevel == \"ERROR\"",
+          "dql": {
+            "script": "fieldsAdd `sn-alert-entity` = toString(coalesce(dt.entity.cloud_application, dt.entity.process_group, dt.entity.host))"
+          }
         }
       ]
     },
@@ -80,6 +91,7 @@
                 "value": "{sn-environment}|{sn-service-instance}|K8s Critical {loglevel} {sn-log-signature}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
               { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" },
               { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
@@ -116,6 +128,7 @@
               },
               { "key": "event.unique_identifier", "value": "{sn-environment}|enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
               { "key": "dt.davis.event_timeout", "value": "15m" },
               { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-environment", "value": "{sn-environment}" },

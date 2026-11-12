@@ -40,6 +40,26 @@ variable "DT_OWNED_BY" {
   type        = string
 }
 
+variable "DT_L2I_STANDALONE_OPENPIPELINE_DISPLAY_NAME" {
+  description = "Display name for the standalone short Log4j2 OpenPipeline (log alerts)"
+  type        = string
+}
+
+variable "DT_L2I_STANDALONE_OPENPIPELINE_CUSTOM_ID" {
+  description = "Custom ID for the standalone short Log4j2 OpenPipeline (log alerts)"
+  type        = string
+}
+
+variable "DT_L2I_K8S_OPENPIPELINE_DISPLAY_NAME" {
+  description = "Display name for the K8s short Log4j2 OpenPipeline (log alerts)"
+  type        = string
+}
+
+variable "DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID" {
+  description = "Custom ID for the K8s short Log4j2 OpenPipeline (log alerts)"
+  type        = string
+}
+
 variable "K8S_CLUSTERS" {
   description = <<-EOT
     Registry of every Kubernetes cluster known to the shared ServiceNow

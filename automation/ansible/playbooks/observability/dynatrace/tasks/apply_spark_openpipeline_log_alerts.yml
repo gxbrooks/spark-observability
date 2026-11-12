@@ -19,6 +19,17 @@
     src: "{{ dt_integrations_dir }}/standalone-short-log4j2-openpipeline.json.j2"
     dest: /tmp/standalone-short-log4j2-openpipeline.json
     mode: "0644"
+  # vars: forces these through the templar before tf_template's action plugin reads them --
+  # it only resolves its own task vars:, not the full task_vars scope. Since
+  # vars/variables.yaml (common/vars.yml) now sources these from DT_L2I_* (one more layer
+  # of {{ }}), reading them raw would substitute the unrendered Jinja string. Must reference
+  # the DT_L2I_* name directly (not dt_l2i_...  itself) -- a same-name task var shadows the
+  # outer common/vars.yml value in task_vars before the templar resolves it, so pointing a
+  # key at its own name recurses infinitely instead of reaching the outer value.
+  vars:
+    dt_l2i_standalone_openpipeline_display_name: "{{ DT_L2I_STANDALONE_OPENPIPELINE_DISPLAY_NAME }}"
+    dt_l2i_standalone_openpipeline_custom_id: "{{ DT_L2I_STANDALONE_OPENPIPELINE_CUSTOM_ID }}"
+    dt_l2i_environment: "{{ DT_ENVIRONMENT }}"
   delegate_to: localhost
   run_once: true
 
@@ -42,6 +53,12 @@
     src: "{{ dt_integrations_dir }}/k8s-short-log4j2-openpipeline.json.j2"
     dest: /tmp/k8s-short-log4j2-openpipeline.json
     mode: "0644"
+  # See the Standalone render task above for why this vars: override is required and why
+  # each entry must reference the DT_L2I_* name, not its own dt_l2i_... name.
+  vars:
+    dt_l2i_k8s_openpipeline_display_name: "{{ DT_L2I_K8S_OPENPIPELINE_DISPLAY_NAME }}"
+    dt_l2i_k8s_openpipeline_custom_id: "{{ DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID }}"
+    dt_l2i_environment: "{{ DT_ENVIRONMENT }}"
   delegate_to: localhost
   run_once: true
 

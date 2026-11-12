@@ -102,10 +102,32 @@ Dynatrace (OneAgent `lastSeen` on Lab1/2/3 inside the test window).
 
 ## Not yet covered
 
-- **l2i-openpipeline-routing-entries.json.j2** — Ansible merges these
-  entries into an *existing* routing list rather than creating/replacing
-  a whole object. Doesn't map to a single resource; needs either a
-  dedicated merge step or re-modeling as its own managed list.
+- **l2i-openpipeline-routing-entries.json.j2** — stays Ansible-only; not a
+  gap to close. `builtin:openpipeline.logs.routing` is a tenant-wide
+  *singleton* settings object: this environment has exactly one, and its
+  `routingEntries` list currently holds 7 entries from unrelated owners
+  sharing the same Dynatrace tenant — this project's 2 (Standalone short
+  Log4j2, K8s short Log4j2) plus 5 belonging to other integrations
+  (`TMX trade latency prototype`, `Braden IAM Testing`, `SIEM test data`,
+  `SIEM Windows Event normalization`, `Metric Route`). Checked both
+  candidate resources against the provider schema
+  (`terraform providers schema -json`): `dynatrace_generic_setting` and
+  the typed `dynatrace_openpipeline_v2_logs_routing` both model the
+  *entire* object as one resource — `routing_entries` is `max_items: 1`
+  wrapping one list, with no per-entry resource to own a single entry
+  independently. Applying either from this project, declaring only its
+  own 2 entries, would delete the other 5 owners' routes on the next
+  apply. Ansible's `apply_spark_openpipeline_log_alerts.yml` avoids this
+  because it does a true read-merge-write: GET the live list, drop only
+  entries matching this project's own known descriptions
+  (`dt_l2i_routing_descriptions_drop`), prepend its new ones, PUT the
+  whole list back — every other owner's entries pass through untouched.
+  Terraform has no equivalent partial-list resource today. Revisit only
+  if the provider ships a per-entry routing resource (the way many
+  providers split a "whole list" resource from a "member" resource, e.g.
+  AWS's `aws_iam_policy` vs. `aws_iam_role_policy_attachment`); until
+  then, routing managed by whichever tool does a merge, which today
+  means Ansible only.
 - **sgc-problem-notification-payload.json.j2** — a payload fragment that
   gets wrapped into a `builtin:problem.notifications` object by the
   caller; not a complete settings document on its own.

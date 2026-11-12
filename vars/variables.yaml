@@ -315,6 +315,29 @@ DT_OWNED_BY:
   value: gbrooks
   contexts: [dynatrace-ansible, devops, dynatrace-terraform]
 
+# L2I OpenPipeline display names / custom IDs — single source for both tools.
+# Ansible: automation/ansible/playbooks/servicenow/sgc/common/vars.yml (dt_l2i_*)
+# Terraform: automation/terraform/dynatrace_settings.tf (standalone_openpipeline / k8s_openpipeline)
+DT_L2I_STANDALONE_OPENPIPELINE_DISPLAY_NAME:
+  section: Dynatrace L2I pipelines
+  value: "Standalone short Log4j2 - log alerts"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_L2I_STANDALONE_OPENPIPELINE_CUSTOM_ID:
+  section: Dynatrace L2I pipelines
+  value: standalone-short-log4j2-log-alerts
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_L2I_K8S_OPENPIPELINE_DISPLAY_NAME:
+  section: Dynatrace L2I pipelines
+  value: "K8s short Log4j2 - log alerts"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID:
+  section: Dynatrace L2I pipelines
+  value: k8s-short-log4j2-log-alerts
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
 DT_TOKEN_ADMIN_TOKEN:
   section: Dynatrace API tokens
   value: ""

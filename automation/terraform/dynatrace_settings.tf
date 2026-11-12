@@ -6,10 +6,16 @@
 # dynatrace_generic_setting, matching exactly what the Ansible upsert tasks
 # POST/PUT today.
 #
-# Deliberately not covered yet (need more than a straight templatefile ->
-# generic_setting mapping -- see tmp/ port analysis for why):
-#   - l2i-openpipeline-routing-entries.json.j2 (merges into an existing
-#     list rather than creating/replacing a whole object)
+# Deliberately not covered (see automation/terraform/README.md "Not yet
+# covered" for the full writeup):
+#   - l2i-openpipeline-routing-entries.json.j2 -- Ansible-only by design,
+#     not a gap: builtin:openpipeline.logs.routing is a tenant-wide
+#     singleton list shared with 5 unrelated integrations. Checked the
+#     provider schema -- neither dynatrace_generic_setting nor the typed
+#     dynatrace_openpipeline_v2_logs_routing can own a single list entry;
+#     both would have to declare (and thus control) the entire list,
+#     deleting every other owner's entries on apply. Ansible's
+#     read-merge-write avoids that; Terraform has no equivalent resource.
 #   - sgc-problem-notification-payload.json.j2 (a payload fragment that
 #     gets wrapped into a builtin:problem.notifications object by the
 #     caller, not a complete settings document itself)
@@ -62,14 +68,14 @@ locals {
   }))
 
   standalone_openpipeline = jsondecode(templatefile("${local.dt_integrations_dir}/standalone-short-log4j2-openpipeline.json.j2", {
-    dt_l2i_standalone_openpipeline_display_name = "Standalone short Log4j2 - log alerts"
-    dt_l2i_standalone_openpipeline_custom_id    = "standalone-short-log4j2-log-alerts"
+    dt_l2i_standalone_openpipeline_display_name = var.DT_L2I_STANDALONE_OPENPIPELINE_DISPLAY_NAME
+    dt_l2i_standalone_openpipeline_custom_id    = var.DT_L2I_STANDALONE_OPENPIPELINE_CUSTOM_ID
     dt_l2i_environment                          = var.DT_ENVIRONMENT
   }))
 
   k8s_openpipeline = jsondecode(templatefile("${local.dt_integrations_dir}/k8s-short-log4j2-openpipeline.json.j2", {
-    dt_l2i_k8s_openpipeline_display_name = "K8s short Log4j2 - log alerts"
-    dt_l2i_k8s_openpipeline_custom_id    = "k8s-short-log4j2-log-alerts"
+    dt_l2i_k8s_openpipeline_display_name = var.DT_L2I_K8S_OPENPIPELINE_DISPLAY_NAME
+    dt_l2i_k8s_openpipeline_custom_id    = var.DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID
     dt_l2i_environment                   = var.DT_ENVIRONMENT
   }))
 

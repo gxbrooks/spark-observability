@@ -6,6 +6,7 @@
     "customId": "${dt_l2i_standalone_openpipeline_custom_id}",
     "routing": "routable",
     "groupRole": "memberPipeline",
+    "metadataList": [],
     "processing": {
       "processors": [
         {
@@ -46,6 +47,16 @@
           "dql": {
             "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-service-instance` = toString(coalesce(service_instance, \"\"))\n| fieldsAdd `sn-impact` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")\n| fieldsAdd `sn-urgency` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")"
           }
+        },
+        {
+          "id": "resolve-stable-alert-entity",
+          "type": "dql",
+          "enabled": true,
+          "description": "Alert entity for Davis events: the most stable entity on the record (process group, else host), never an ephemeral process group instance, pod or container. CMDB Service Mapping flags alerts bound to ephemeral CIs.",
+          "matcher": "loglevel == \"WARN\" OR loglevel == \"ERROR\"",
+          "dql": {
+            "script": "fieldsAdd `sn-alert-entity` = toString(coalesce(dt.entity.process_group, dt.entity.host))"
+          }
         }
       ]
     },
@@ -70,6 +81,7 @@
                 "value": "{sn-environment}|{sn-service-instance}|Standalone Critical {loglevel} {sn-log-signature}"
               },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
               { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
               { "key": "dt.davis.event_timeout", "value": "15m" },
               { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
@@ -101,6 +113,7 @@
               },
               { "key": "event.unique_identifier", "value": "{sn-environment}|enrichment-missing|{log.source}" },
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
               { "key": "dt.davis.event_timeout", "value": "15m" },
               { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-environment", "value": "{sn-environment}" },

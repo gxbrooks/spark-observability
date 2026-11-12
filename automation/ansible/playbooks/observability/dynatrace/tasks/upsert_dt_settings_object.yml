@@ -44,11 +44,15 @@
   run_once: true
 
 - name: Determine whether settings value changed
+  # Full-value equality, not a combine()-based merge: combine only adds/overwrites keys, so it
+  # can never detect a key the representation removed (found_value would "merge" right back to
+  # itself). A field Dynatrace itself injects into every stored object of a schema (for example
+  # metadataList on builtin:openpipeline.logs.pipelines) must be listed explicitly in the
+  # representation file with its default value so this comparison doesn't see it as drift.
   ansible.builtin.set_fact:
     dt_upsert_change_needed: >-
       {{ (dt_upsert_found_id | length) == 0
-         or (dt_upsert_found_value | combine(dt_upsert_doc.value, recursive=True))
-            != dt_upsert_found_value }}
+         or dt_upsert_doc.value != dt_upsert_found_value }}
   run_once: true
 
 - name: "Create settings object ({{ dt_upsert_match_value }})"
