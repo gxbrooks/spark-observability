@@ -8,7 +8,7 @@ Automates installation of the ServiceNow Store applications required for the
 
 | Path | Purpose |
 | ---- | ------- |
-| `install.yml` | Install required Store apps + plugins (`servicenow/integrations/sgc/store_apps.yml`) via CI/CD App Repo Install (by scope) / plugin activation |
+| `install.yml` | Install required Store apps + plugins (`specifications/servicenow/integrations/sgc/store_apps.yml`) via CI/CD App Repo Install (by scope) / plugin activation |
 | `deploy.yml` | Instance-side SGC validation gate (cross-source) |
 | `diagnose.yml` | Component versions (installed vs pinned vs latest), SGC state, CMDB merge state |
 | `common/` | Shared variables (`vars.yml`) |
@@ -19,7 +19,7 @@ Automates installation of the ServiceNow Store applications required for the
 | `sources/dynatrace/docs/deploy.md` | Manual deployment steps (connection_admin grant, UI fallbacks) |
 | `sources/dynatrace/events/` | Dynatrace → ServiceNow event playbooks (deploy / diagnose / test) |
 | `sources/dynatrace/tasks/` | Dynatrace task fragments |
-| `servicenow/integrations/sgc/` | SGC business-rule scripts |
+| `specifications/servicenow/integrations/sgc/` | SGC business-rule scripts |
 
 Future SGC or event **sources** (e.g. another APM) get their own directory
 under `sources/`. CMDB-specific configuration beyond the SGC (none today)
@@ -36,7 +36,7 @@ Per `standards/automation.md`:
   readable by the automation user), the playbook emits an informational message
   that the action is being redone.
 - **Version pinning** — required apps and pinned versions live in
-  `servicenow/integrations/sgc/store_apps.yml` (`sn_store_apps`).
+  `specifications/servicenow/integrations/sgc/store_apps.yml` (`sn_store_apps`).
   `diagnose.yml` reports installed vs pinned vs
   latest-available versions. `install.yml` warns on pin drift but does not
   upgrade apps on the shared instance.
@@ -50,7 +50,7 @@ a missing variable fails the play. Secrets: `vars/secrets.yaml` → `servicenow:
 
 Key context variables: `SN_URL`, `SN_DT_LEGACY_CONNECTOR_SYS_ID`,
 `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
-(`sn_store_apps`) is `servicenow/integrations/sgc/store_apps.yml`.
+(`sn_store_apps`) is `specifications/servicenow/integrations/sgc/store_apps.yml`.
 
 Webhook credentials for the SGO-Dynatrace cutover live in `vars/secrets.yaml`
 under `servicenow.SN_DT_WEBHOOK_USER` / `SN_DT_WEBHOOK_PASSWORD` (written on
@@ -103,7 +103,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
   holds it, and fails fast naming the exact missing manual step. Perform the
   step and re-run — completed work is skipped. The role can only be granted
   once the CI/CD tooling exists; on a bare instance, activating
-  `com.snc.ci_cd` (manual) precedes the grant. See [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §7
+  `com.snc.ci_cd` (manual) precedes the grant. See [specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md) §7
   "Bootstrap sequence".
 - SGC topology configuration is split: `sources/dynatrace/deploy.yml`
   automates management-zone scoping and schedule activation;
@@ -117,6 +117,6 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 
 - `tmp/Dynatrace-ServiceNow SGC.md` — SGC architecture, object mapping, known issues
 - `tmp/Dynatrace-ServiceNow-events.md` — event path and validation
-- [servicenow/docs/install.md](../../../../servicenow/docs/install.md) §7 — prerequisites, manual install steps, Guided Setup
+- [specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md) §7 — prerequisites, manual install steps, Guided Setup
 
 Phase 1–3 Discovery lives in `../discovery/`.
