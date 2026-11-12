@@ -10,7 +10,8 @@ Run order for this source:
 
 1. `playbooks/servicenow/sgc/install.yml` — installs the scoped app
    (`sn_dynatrace_integ`) and prerequisites. See [specifications/servicenow/docs/install.md](../../../../../../specifications/servicenow/docs/install.md).
-2. **Manual step 1 below** — grant `connection_admin` (one-time).
+2. [`automation/ansible/docs/manual-steps.md`](../../../../../../docs/manual-steps.md) — grant
+   `connection_admin` (one-time).
 3. `playbooks/servicenow/sgc/sources/dynatrace/deploy.yml` — automated
    topology configuration, credential, and connection Hostname.
 4. `playbooks/servicenow/sgc/sources/dynatrace/start.yml` — queue Execute Now
@@ -19,16 +20,17 @@ Run order for this source:
 
 ## Dynatrace tokens (who holds what)
 
-Dynatrace token scopes are **immutable after creation** — "adding" a scope
-always means minting a replacement token. Three tokens are involved:
+Three tokens are involved in this source's connection specifically. For the full catalog of every
+Dynatrace credential this project holds, their scopes, and which are shared with Terraform, see
+[`automation/docs/manual-steps.md`](../../../../../../../docs/manual-steps.md). For the
+`connection_admin` grant and the Guided Setup connection fallback, see
+[`automation/ansible/docs/manual-steps.md`](../../../../../../docs/manual-steps.md).
 
-| Token (name in Dynatrace) | Held in | Scopes | Purpose |
-| ------------------------- | ------- | ------ | ------- |
-| `DT_TOKEN_ADMIN_TOKEN` | `vars/secrets.yaml` (`dynatrace:` block) | `apiTokens.read`, `apiTokens.write` | Mints/rotates other tokens; used by this `deploy.yml` and by `specifications/dynatrace` token rotation |
-| `spark-observability-api` (variable `DT_API_TOKEN`) | `vars/secrets.yaml` | `entities.read`, `entities.write`, `settings.read`, `settings.write`, `metrics.read`, `problems.read`, `ReadConfig`, `WriteConfig` | Ansible automation against the Dynatrace settings/entities/problems APIs; needs **no** SGC or apiTokens scopes. Full list: [`ensure_api_token_scopes.yml`](../../../../observability/dynatrace/tasks/ensure_api_token_scopes.yml) |
-| `dynatrace-servicenow-sgc-integration` | **ServiceNow** (the *Dynatrace API Key* credential) | `entities.read`, `DataExport`, `ReadConfig` | The SGC connection; minted and pushed by `deploy.yml` (`tasks/ensure_sgc_credential.yml`), never written to `vars/secrets.yaml` |
-
-For every other Dynatrace credential this project uses — not just the three above — see **All Dynatrace credentials (project-wide)** below.
+| Token (name in Dynatrace) | Held in | Purpose |
+| ------------------------- | ------- | ------- |
+| `DT_TOKEN_ADMIN_TOKEN` | `vars/secrets.yaml` (`dynatrace:` block) | Mints/rotates other tokens; used by this `deploy.yml` and by `specifications/dynatrace` token rotation |
+| `spark-observability-api` (variable `DT_API_TOKEN`) | `vars/secrets.yaml` | Ansible automation against the Dynatrace settings/entities/problems APIs; needs **no** SGC or apiTokens scopes |
+| `dynatrace-servicenow-sgc-integration` | **ServiceNow** (the *Dynatrace API Key* credential) | The SGC connection; minted and pushed by `deploy.yml` (`tasks/ensure_sgc_credential.yml`), never written to `vars/secrets.yaml` |
 
 `deploy.yml` mints the SGC token on first run. On-needed: when the token
 already exists the play skips with an informational message (token values are
@@ -39,33 +41,6 @@ covers Store uninstall/reinstall leaving a stale ServiceNow credential while
 the Dynatrace token still exists. Force rotation any time with
 `-e sgc_rotate_token=true`; disable auto detection with
 `-e sgc_auto_rotate_token=false`.
-
-## All Dynatrace credentials (project-wide)
-
-Every Dynatrace credential this project holds, not just the three SGC-relevant ones above.
-All live in `vars/secrets.yaml` under the `dynatrace:` block unless noted. "Validated in-repo"
-means an Ansible task actually asserts/rotates on that scope list (`ensure_api_token_scopes.yml`,
-`deploy_operator.yml`) — not validated means the scope list below is Dynatrace's documented
-requirement for that use case, never checked by this project's own code.
-
-| Variable | Format | Scopes | Purpose | Validated in-repo? |
-| --- | --- | --- | --- | --- |
-| `DT_TOKEN_ADMIN_TOKEN` | `dt0c01.*` | `apiTokens.read`, `apiTokens.write` | Bootstrap — mints/rotates every other classic token below | No (presence only) |
-| `DT_API_TOKEN` | `dt0c01.*` | `entities.read`, `entities.write`, `settings.read`, `settings.write`, `metrics.read`, `problems.read`, `ReadConfig`, `WriteConfig` | Ansible/Terraform settings automation (the main one this repo's specs use) | **Yes** — [`ensure_api_token_scopes.yml:12`](../../../../observability/dynatrace/tasks/ensure_api_token_scopes.yml) |
-| `DT_OPERATOR_TOKEN` | `dt0c01.*` | `entities.read`, `events.ingest`, `settings.read`, `settings.write`, `DataExport`, `InstallerDownload`, `activeGateTokenManagement.create` | Dynakube secret `apiToken` — Operator/OneAgent lifecycle on K8s | **Yes** — [`deploy_operator.yml:18`](../../../../observability/dynatrace/tasks/deploy_operator.yml) |
-| `DT_INGEST_TOKEN` | `dt0c01.*` | Not defined in-repo. Dynatrace Operator docs call for `metrics.ingest`, `logs.ingest`, `events.ingest` (and `openTelemetryTrace.ingest` if traces are added) | Dynakube secret `dataIngestToken` — metric/log/event ingest from the cluster | **No** — read and applied raw by [`deploy_operator.yml:162`](../../../../observability/dynatrace/tasks/deploy_operator.yml), no scope lookup/assert exists for it the way `DT_OPERATOR_TOKEN` gets one |
-| `DT_PAAS_TOKEN` | `dt0c01.*` | Not defined in-repo. Dynatrace's classic installer endpoint (`/v1/deployment/installer/agent/...`) documents `InstallerDownload` | OneAgent host install ([`install-oneagent-host.yml`](../../../../oneagent/tasks/install-oneagent-host.yml)) | **No** (presence only) |
-| `DT_PLATFORM_TOKEN` | `dt0s16.*` | `document:write` (per in-repo comments; reads presumably need `document:read` too, not separately confirmed) | Document API — dashboards/Notebooks (`apply_spark_system_dashboard_new.yml`, `apply_dql_dashboards.yml`) | **No** (presence only) |
-| `DT_PLATFORM_TOKEN_GRAIL` | `dt0s16.*` | Comment in [`probe_dql_dashboard_queries.yml:15`](../../../../observability/dynatrace/tasks/probe_dql_dashboard_queries.yml) says `storage:metrics:read`, `storage:entities:read` — but this same token was just confirmed live (2026-11-12) to also successfully run a `fetch logs` query, so its actual granted scopes are broader than that comment states | Grail DQL `query:execute` for the dashboard-tile probe; direct Bearer token, no OAuth exchange needed | **No** (presence only — never introspected against the account) |
-| `DT_DQL_OAUTH_TOKEN` *(new, 2026-11-12)* | OAuth client: `client_id`/`client_secret` (`dt0s02.*`) + `client_urn` (`urn:dtaccount:<uuid>`) | `storage:logs:read`, `storage:buckets:read`, `storage:events:read` — confirmed via a live token exchange against `sso.dynatrace.com/sso/oauth2/token` | Grail DQL `query:execute` for ad-hoc verification (e.g. the Notebook-equivalent entity-field check in `cmdb_reporting.md` Stream A). Exchange for a 5-minute Bearer token with `grant_type=client_credentials`, `client_id`, `client_secret`, `resource=<client_urn>` | N/A — not yet wired into any task |
-
-**`DT_DQL_OAUTH_TOKEN` overlaps with `DT_PLATFORM_TOKEN_GRAIL`** — both can run the same Grail
-log/event DQL queries today. The OAuth client is the credential type Dynatrace is steering new
-integrations toward (short-lived tokens via an exchange, no manual rotation when scopes change,
-unlike classic/platform tokens which require minting a full replacement). Worth deciding whether
-`DT_PLATFORM_TOKEN_GRAIL` stays as a second path or gets retired once something actually consumes
-`DT_DQL_OAUTH_TOKEN` — right now neither is called from a committed task, only from this session's
-one-off verification.
 
 ## Guided Setup map (app v1.14.x)
 
@@ -79,7 +54,7 @@ manage.
 | Card | Action |
 | ---- | ------ |
 | Enable Access To SNC.ImpactManager | **Skip** — automated by `deploy.yml` (`tasks/ensure_impactmanager_script.yml` copies the mediator script to Global scope via the Table API). The card's *Verify script is copied properly* list shows the Global record once `deploy.yml` has run. |
-| Basic | **Skip** — automated by `deploy.yml` (`tasks/ensure_sgc_credential.yml`): mints the Dynatrace token, pushes it into the *Dynatrace API Key* credential with the `api-token ` prefix, and sets the connection Hostname (needs `connection_admin` — manual step 1). Optionally run the card's *Test Connection* task afterwards as a sanity check. *Create Default Notification Payload Template*: the record already exists (`deploy.yml` verifies it) — Mark as Complete without re-running. *Upgrade Source Native Keys*: upgrade-from-1st-gen task; not applicable — Mark as Complete. |
+| Basic | **Skip** — automated by `deploy.yml` (`tasks/ensure_sgc_credential.yml`): mints the Dynatrace token, pushes it into the *Dynatrace API Key* credential with the `api-token ` prefix, and sets the connection Hostname (needs `connection_admin` — see [`automation/ansible/docs/manual-steps.md`](../../../../../../docs/manual-steps.md)). Optionally run the card's *Test Connection* task afterwards as a sanity check. *Create Default Notification Payload Template*: the record already exists (`deploy.yml` verifies it) — Mark as Complete without re-running. *Upgrade Source Native Keys*: upgrade-from-1st-gen task; not applicable — Mark as Complete. |
 | Configure Dynatrace Grail OAuth | **Skip** (optional; only for Grail-enabled tenants ingesting logs/metrics via OAuth). Opening its Configure tasks while the picker is in Global scope shows a scope-mismatch error — close the tab and click the card's **Skip**. |
 | Advanced (locked until Basic completes) | **Skip** — especially **Configure Problem Notification**: `events/deploy.yml` manages the Dynatrace problem notification idempotently; running the wizard task would create a duplicate notification and rotate the `DynatraceAPI` user's password. |
 | Add Multiple Instances | **Skip** (single Dynatrace instance). This card is where the *Update Data Source / Scheduled Data Import / Value Access* and *Clear Cache* tasks live in this app version — they are only needed for additional connections. |
@@ -94,45 +69,6 @@ manage.
 > — there must be a record in the **Global** application with
 > **Accessible from = All application scopes**, alongside the app-scope
 > original.
-
-## Manual step 1 — grant connection_admin (one-time)
-
-`deploy.yml` provisions the credential itself (the `api_key_credentials`
-table is writable by the automation user), but the **Hostname** lives on an
-`http_connection` record gated by the `connection_admin` role. Grant it once
-— in **ServiceNow**, not Dynatrace (`admin_brooks_lab` is a ServiceNow user):
-
-1. **All → User Administration → Users**, open `admin_brooks_lab`.
-2. **Roles** related list → **Edit** → add `connection_admin` → **Save**.
-3. Re-run `deploy.yml`; it sets the Hostname automatically.
-
-After deploy, optionally run the Basic card's **Test Connection** task in
-Guided Setup as a sanity check.
-
-### Manual fallback — configure the connection via Guided Setup
-
-Only needed when `DT_TOKEN_ADMIN_TOKEN` or the role grant is unavailable.
-Use the **Basic** card (**Get Started**). If a form complains "…but Global is
-the current application", switch the application picker to the connector app.
-
-1. Generate the token in Dynatrace (**Access Tokens** →
-   `https://<env-id>.live.dynatrace.com/ui/access-tokens` → **Generate new
-   token**): name `dynatrace-servicenow-sgc-integration`, **Template: None**,
-   scopes `entities.read`, `DataExport`, `ReadConfig`. Copy the
-   `dt0c01.…` value immediately — it is shown only once.
-2. **Configure Auth Token for Dynatrace** — in the pre-created *Dynatrace API
-   Key* record, overwrite **API Key** with the literal text `api-token`, one
-   space, then the token value (a bare token fails with 401 "invalid
-   Api-Token", KB2288188). Leave **API Key Header**/**Prefix** empty and all
-   other fields at their defaults; click **Update**.
-3. **Configure HTTP Connection for Dynatrace** — **Hostname** = the classic
-   environment URL `https://<env-id>.live.dynatrace.com` (no trailing
-   `/api`; never a `*.apps.dynatrace.com` platform URL).
-4. **Test Connection** — must report success.
-
-For the remaining two Basic tasks (*Create Default Notification Payload
-Template*, *Upgrade Source Native Keys*), see the Guided Setup map above —
-Mark as Complete without running them.
 
 ## Import execution — start.yml (automated)
 
@@ -185,5 +121,9 @@ If `scheduled_import_set` write is denied (HTTP 403):
 
 - [specifications/servicenow/docs/install.md](../../../../../../specifications/servicenow/docs/install.md) §7 — Store app and plugin installation, roles
   (including `connection_admin`), and the CI/CD bootstrap sequence.
+- [automation/docs/manual-steps.md](../../../../../../../docs/manual-steps.md) — every Dynatrace
+  credential this project holds, its scopes, and which are shared with Terraform.
+- [automation/ansible/docs/manual-steps.md](../../../../../../docs/manual-steps.md) — the
+  `connection_admin` grant and the Guided Setup connection fallback.
 - `events/` — Dynatrace problem-notification (event) deployment for this
   source (`events/deploy.yml`).
