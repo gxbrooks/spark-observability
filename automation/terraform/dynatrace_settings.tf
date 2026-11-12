@@ -45,7 +45,7 @@ locals {
   }))
 
   alerting_profile = jsondecode(templatefile("${local.dt_integrations_dir}/spark-alerting-profile.json.j2", {
-    dt_sn_alerting_profile_name  = "Spark Observability - ServiceNow brooks-lab"
+    dt_sn_alerting_profile_name  = var.DT_SN_ALERTING_PROFILE_NAME
     dt_management_zone_object_id = dynatrace_generic_setting.management_zone.id
   }))
 
@@ -53,15 +53,15 @@ locals {
     DT_HOST_GROUP                  = var.DT_HOST_GROUP
     dt_l2i_environment             = var.DT_ENVIRONMENT
     dt_management_zone_resolved    = var.DT_MANAGEMENT_ZONE
-    dt_sn_cpu_metric_event_summary = "Spark Lab - Host CPU above 50%"
+    dt_sn_cpu_metric_event_summary = var.DT_SN_CPU_METRIC_EVENT_SUMMARY
   }))
 
   error_log_event = jsondecode(templatefile("${local.dt_integrations_dir}/spark-error-log-event.json.j2", {
-    dt_sn_spark_error_log_event_summary = "Spark Lab - ERROR and WARN log lines"
+    dt_sn_spark_error_log_event_summary = var.DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY
   }))
 
   custom_log_source = jsondecode(templatefile("${local.dt_integrations_dir}/standalone-short-log4j2-custom-source.json.j2", {
-    dt_l2i_standalone_custom_source_name       = "Standalone short Log4j2 - application log files"
+    dt_l2i_standalone_custom_source_name       = var.DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME
     dt_l2i_standalone_log_path_pattern         = "/opt/spark/logs/*.log"
     dt_l2i_standalone_log_path_pattern_rotated = "/opt/spark/logs/*.log.*"
     dt_l2i_standalone_service_instance         = "Spark-Standalone"

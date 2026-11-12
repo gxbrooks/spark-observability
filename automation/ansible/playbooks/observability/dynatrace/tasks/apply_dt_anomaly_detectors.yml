@@ -10,6 +10,17 @@
     src: "{{ dt_integrations_dir }}/spark-cpu-metric-event.json.j2"
     dest: /tmp/spark-cpu-metric-event.json
     mode: "0644"
+  # vars: forces these through the templar before tf_template's action plugin reads them --
+  # it only resolves its own task vars:, not the full task_vars scope. common/vars.yml
+  # sources dt_sn_cpu_metric_event_summary from DT_SN_CPU_METRIC_EVENT_SUMMARY (one more
+  # layer of {{ }}), and dt_l2i_environment from DT_ENVIRONMENT the same way, so reading
+  # either raw would substitute the unrendered Jinja string. dt_l2i_environment needed this
+  # fix here too (not just in apply_spark_openpipeline_log_alerts.yml) -- this template
+  # consumes it as well and had no override. See that file for the original fix and why
+  # each key must reference the DT_* name, not its own name.
+  vars:
+    dt_sn_cpu_metric_event_summary: "{{ DT_SN_CPU_METRIC_EVENT_SUMMARY }}"
+    dt_l2i_environment: "{{ DT_ENVIRONMENT }}"
   delegate_to: localhost
   run_once: true
 
@@ -18,6 +29,11 @@
     src: "{{ dt_integrations_dir }}/spark-error-log-event.json.j2"
     dest: /tmp/spark-error-log-event.json
     mode: "0644"
+  # vars: forces this through the templar -- see the CPU metric event render task above.
+  # common/vars.yml sources dt_sn_spark_error_log_event_summary from
+  # DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY (one more layer of {{ }}).
+  vars:
+    dt_sn_spark_error_log_event_summary: "{{ DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY }}"
   delegate_to: localhost
   run_once: true
 

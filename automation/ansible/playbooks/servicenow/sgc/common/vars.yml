@@ -109,15 +109,18 @@ sgc_import_lab_feeds:
   - sn_dynatrace_integ_sgo_dynatrace_custom_applications
 
 # Lab alerting / notification object names (idempotent upsert keys)
-dt_sn_alerting_profile_name: "Spark Observability - ServiceNow brooks-lab"
+# dt_sn_alerting_profile_name and dt_sn_spark_error_log_event_summary come from
+# vars/variables.yaml (single source for Ansible and Terraform) via dynatrace_ansible_vars.yml,
+# loaded earlier in this playbook's vars_files. See vars/README.md.
+dt_sn_alerting_profile_name: "{{ DT_SN_ALERTING_PROFILE_NAME }}"
 dt_sn_problem_notification_name: "ServiceNow brooks-lab - Spark Observability"
-dt_sn_cpu_metric_event_summary: "Spark Lab - Host CPU above 50%"
+dt_sn_cpu_metric_event_summary: "{{ DT_SN_CPU_METRIC_EVENT_SUMMARY }}"
 dt_sn_cpu_metric_event_summary_legacy: "Spark Lab - Host CPU above 80%"
 dt_sn_cpu_metric_event_host_names:
   - lab1
   - lab2
   - lab3
-dt_sn_spark_error_log_event_summary: "Spark Lab - ERROR and WARN log lines"
+dt_sn_spark_error_log_event_summary: "{{ DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY }}"
 # ---------------------------------------------------------------------------
 # L2I patterns (Spark-independent)
 #   1) Standalone App with short Log4j2 logs  — custom log source + service_instance

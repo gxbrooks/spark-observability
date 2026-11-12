@@ -338,6 +338,29 @@ DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID:
   value: k8s-short-log4j2-log-alerts
   contexts: [dynatrace-ansible, dynatrace-terraform]
 
+# Lab alerting/detector object identities -- single source for both tools.
+# Ansible: automation/ansible/playbooks/servicenow/sgc/common/vars.yml
+# Terraform: automation/terraform/dynatrace_settings.tf
+DT_SN_ALERTING_PROFILE_NAME:
+  section: Dynatrace alerting and detectors
+  value: "Spark Observability - ServiceNow brooks-lab"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_SN_CPU_METRIC_EVENT_SUMMARY:
+  section: Dynatrace alerting and detectors
+  value: "Spark Lab - Host CPU above 50%"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY:
+  section: Dynatrace alerting and detectors
+  value: "Spark Lab - ERROR and WARN log lines"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME:
+  section: Dynatrace alerting and detectors
+  value: "Standalone short Log4j2 - application log files"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
 DT_TOKEN_ADMIN_TOKEN:
   section: Dynatrace API tokens
   value: ""

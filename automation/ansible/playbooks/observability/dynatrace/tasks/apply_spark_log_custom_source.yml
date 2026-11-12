@@ -14,6 +14,14 @@
     src: "{{ dt_integrations_dir }}/standalone-short-log4j2-custom-source.json.j2"
     dest: /tmp/standalone-short-log4j2-custom-source.json
     mode: "0644"
+  # vars: forces this through the templar before tf_template's action plugin reads it --
+  # it only resolves its own task vars:, not the full task_vars scope. common/vars.yml
+  # sources dt_l2i_standalone_custom_source_name from DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME
+  # (one more layer of {{ }}), so reading it raw would substitute the unrendered Jinja
+  # string. See apply_spark_openpipeline_log_alerts.yml for the original fix and why the
+  # key must reference the DT_* name, not its own name.
+  vars:
+    dt_l2i_standalone_custom_source_name: "{{ DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME }}"
   delegate_to: localhost
   run_once: true
 

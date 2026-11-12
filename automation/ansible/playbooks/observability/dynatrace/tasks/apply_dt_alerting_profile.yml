@@ -42,6 +42,14 @@
     src: "{{ dt_integrations_dir }}/spark-alerting-profile.json.j2"
     dest: /tmp/spark-alerting-profile.json
     mode: "0644"
+  # vars: forces this through the templar before tf_template's action plugin reads it --
+  # it only resolves its own task vars:, not the full task_vars scope. common/vars.yml
+  # sources dt_sn_alerting_profile_name from DT_SN_ALERTING_PROFILE_NAME (one more layer
+  # of {{ }}), so reading it raw would substitute the unrendered Jinja string. See the
+  # Standalone OpenPipeline render task in apply_spark_openpipeline_log_alerts.yml for the
+  # original fix and why the key must reference the DT_* name, not its own name.
+  vars:
+    dt_sn_alerting_profile_name: "{{ DT_SN_ALERTING_PROFILE_NAME }}"
   delegate_to: localhost
   run_once: true
 

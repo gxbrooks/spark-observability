@@ -60,6 +60,26 @@ variable "DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID" {
   type        = string
 }
 
+variable "DT_SN_ALERTING_PROFILE_NAME" {
+  description = "Display name for the Spark Observability / ServiceNow alerting profile"
+  type        = string
+}
+
+variable "DT_SN_CPU_METRIC_EVENT_SUMMARY" {
+  description = "Summary for the host CPU metric event (anomaly-detection.metric-events)"
+  type        = string
+}
+
+variable "DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY" {
+  description = "Summary for the Spark ERROR/WARN log event (logmonitoring.log-events)"
+  type        = string
+}
+
+variable "DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME" {
+  description = "config-item-title for the Standalone short Log4j2 custom log source"
+  type        = string
+}
+
 variable "K8S_CLUSTERS" {
   description = <<-EOT
     Registry of every Kubernetes cluster known to the shared ServiceNow
