@@ -172,13 +172,19 @@ needed since this is a long-lived platform token rather than an OAuth client.
 | --- | --- |
 | `storage:metrics:read` | Per the in-repo comment, for the dashboard-tile metric probe |
 | `storage:entities:read` | Per the in-repo comment, resolves entity names in DQL results |
-| `storage:logs:read` *(inferred)* | Not in the original comment, but empirically required — this token successfully ran a `fetch logs` query on 2026-11-12 |
+| `storage:logs:read` *(inferred)* | Not in the original comment, but empirically required to run a `fetch logs` query |
 | `storage:buckets:read` *(inferred)* | Empirically required to resolve the Grail bucket backing any log query; Dynatrace's documented requirement for log DQL |
 
-The exact granted scope list was never confirmed directly against the account — there's no
+The exact granted scope list has never been confirmed directly against the account — there's no
 in-repo lookup task for platform tokens the way `ensure_api_token_scopes.yml` handles classic
-ones. What's listed above is based on the original comment plus what was empirically exercised
-successfully; treat it as a lower bound, not a confirmed exact set.
+ones. What's listed above is a lower bound (the comment's claim plus what's been empirically
+exercised successfully), not a confirmed exact set.
+
+Scope-wise this overlaps with `DT_PLATFORM_TOKEN` above (non-overlapping scope domains, same
+token format) — the two could be minted as a single platform token covering both `document:write`
+and the `storage:*` scopes here. Not done: Dynatrace token scopes are immutable after creation, so
+consolidating would mean minting a brand-new replacement token, an account-owner action in the
+Dynatrace UI rather than something automation should do on its own.
 
 **Validation status**: Not validated — presence-only check in
 [`probe_dql_dashboard_queries.yml:15`](../ansible/playbooks/observability/dynatrace/tasks/probe_dql_dashboard_queries.yml).
@@ -208,35 +214,7 @@ no separate drift check exists since Dynatrace never returns a token's value aft
 
 ---
 
-## Credential simplification (2026-11-12)
-
-**Removed `DT_DQL_OAUTH_TOKEN`.** This was a Dynatrace OAuth client (`dt0s02.*` client ID/secret,
-exchanged for a 5-minute Bearer token via `grant_type=client_credentials` against
-`sso.dynatrace.com/sso/oauth2/token`) set up specifically to unblock a Grail DQL check. It was
-confirmed working — the exchange returned `storage:logs:read storage:buckets:read
-storage:events:read` — but it turned out to do exactly what `DT_PLATFORM_TOKEN_GRAIL` (above)
-already did, and `DT_PLATFORM_TOKEN_GRAIL` is the one actually wired into a committed task
-(`probe_dql_dashboard_queries.yml`). Removed from `vars/secrets.yaml` and
-`vars/secrets.example.yaml` rather than keeping two credentials that do the same job. If
-`DT_PLATFORM_TOKEN_GRAIL` is ever retired in favor of OAuth clients project-wide (the credential
-type Dynatrace is steering new integrations toward — short-lived tokens, no manual re-mint on
-scope changes), re-create the OAuth client the same way and point `probe_dql_dashboard_queries.yml`
-at it instead.
-
-Checked for other overlaps and deliberately did **not** merge these, despite sharing a token
-format:
-
-- `DT_OPERATOR_TOKEN` and `DT_PAAS_TOKEN` (both `dt0c01.*`, `DT_OPERATOR_TOKEN`'s scopes are a
-  strict superset including `InstallerDownload`) — different blast radius: one lives in a
-  Kubernetes Secret, the other authenticates bare-metal host installs. Not the same identity.
-- `DT_PLATFORM_TOKEN` and `DT_PLATFORM_TOKEN_GRAIL` (both `dt0s16.*`, non-overlapping scope
-  domains — Document API vs. Grail storage) — could technically be minted as one platform token
-  with both scope sets, which would reduce the credential count by one. Not done here because it
-  requires minting a brand-new replacement token (scopes are immutable after creation) — an action
-  only the account owner can take in the Dynatrace UI, not something this session should do
-  unilaterally. Flagging as a worthwhile future consolidation.
-
-## Who uses what — Ansible vs. Terraform
+## Credentials used by automation tool
 
 | Credential | Ansible | Terraform |
 | --- | :-: | :-: |
@@ -249,10 +227,11 @@ format:
 | `DT_PLATFORM_TOKEN_GRAIL` | ✓ | — |
 | `dynatrace-servicenow-sgc-integration` | ✓ | — |
 
-Terraform only ever declares the three it actually resources (`variables.tf`): `DT_API_TOKEN`
-(provider auth, `providers.tf`), `DT_OPERATOR_TOKEN` and `DT_INGEST_TOKEN` (the Dynakube secret,
-`dynatrace_k8s.tf`). Every credential Terraform uses is also used by Ansible — there is no
-Terraform-only credential today. Ansible uses all eight.
+Terraform declares and applies the three it has resources for (`variables.tf`): `DT_API_TOKEN`
+for provider auth (`providers.tf`), and `DT_OPERATOR_TOKEN`/`DT_INGEST_TOKEN` for the Dynakube
+secret (`dynatrace_k8s.tf`). The other five have no Terraform resource to consume them yet:
+bootstrap/rotation (`DT_TOKEN_ADMIN_TOKEN`), bare-metal OneAgent install (`DT_PAAS_TOKEN`),
+dashboards (`DT_PLATFORM_TOKEN`), ad-hoc Grail queries (`DT_PLATFORM_TOKEN_GRAIL`), and the
+ServiceNow-side SGC connector, which Terraform doesn't manage at all.
 
-**Unused credentials**: none, after removing `DT_DQL_OAUTH_TOKEN` above. Every remaining
-credential has at least one real consumer in the repo.
+**Unused credentials**: none — every credential above has at least one real consumer in the repo.
