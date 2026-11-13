@@ -140,13 +140,30 @@ Dynatrace (OneAgent `lastSeen` on Lab1/2/3 inside the test window).
   current live value. Ansible resolves this dynamically via an entities
   query; a real implementation should do the same here via a Dynatrace
   entities data source instead of a fixed value.
-- Per-resource free-text values (tag names, alert/event summary strings,
-  openpipeline display names/custom IDs, log-path patterns) are still
-  inline in `dynatrace_settings.tf`'s `templatefile()` calls rather than
-  pulled from `variables.yaml` -- only the broader tenant-partitioning
-  values (host group, management zone, environment, owner, cluster
-  registry, API URL/token) are centrally sourced so far. Worth extending
-  the `dynatrace-terraform` context's variable tags to cover the rest.
+- Auto-tag key/value literals (`Project`/`spark-observability`,
+  `Environment`, `OwnedBy` in `auto-tags.json.j2`'s calling code) stay
+  inline on purpose, not as a gap: each is used once per tool, so naming
+  it in `variables.yaml` would violate `standards/automation.md`'s rule
+  against a variable that exists only to hold a single-use literal.
+  Everything else free-text that once lived inline here -- openpipeline
+  display names/custom IDs, the alerting profile name, the CPU/error log
+  event summaries, the Standalone custom-source name, and its
+  service_instance/log-path-pattern values -- has been moved into
+  `variables.yaml` as this project found and fixed each duplication.
+- `standalone-short-log4j2-custom-source.json.j2`'s enrichment blocks use
+  Dynatrace's own `${0}`/`${1}` capture-group placeholder syntax (referring
+  to regex groups from the `path` pattern match, not a template variable).
+  Terraform's `templatefile()` evaluates *every* `${...}` in a file as its
+  own HCL expression with no way to escape a literal `${0}` — so it
+  currently mis-renders these as the bare strings `"0"`/`"1"` instead of
+  leaving Dynatrace's own placeholder syntax intact, corrupting the
+  enrichment if ever applied via Terraform. The project's own `tf_template`
+  Ansible action plugin renders correctly here (it only substitutes names
+  it was actually given, leaving unknown `${...}` text alone) — Terraform
+  has no equivalent "leave it alone" behavior. Needs either an HCL-side
+  escape (`$${0}`, `$${1}` in the source file, which may need resolving on
+  the Ansible rendering side too) or a different representation for this
+  one object; not resolved here.
 
 ## Working on this with Claude Code
 
