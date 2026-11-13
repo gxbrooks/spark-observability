@@ -361,6 +361,27 @@ DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME:
   value: "Standalone short Log4j2 - application log files"
   contexts: [dynatrace-ansible, dynatrace-terraform]
 
+# Standalone/client custom log source target. Must match the "Standalone short Log4j2
+# (Client file tail)" routing matcher's log.source value
+# (matchesValue(log.source, "/mnt/spark/client-logs/*")) documented in
+# specifications/servicenow/docs/Log_to_Incident/Log_to_Incident.adoc -- this is the client
+# driver's log directory (run-chapters.sh SPARK_LOG_DIR), node-local, not an /opt/spark
+# installation path (there is no Spark install on the client host).
+DT_L2I_STANDALONE_SERVICE_INSTANCE:
+  section: Dynatrace alerting and detectors
+  value: Spark-Client
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_L2I_STANDALONE_LOG_PATH_PATTERN:
+  section: Dynatrace alerting and detectors
+  value: "/mnt/spark/client-logs/*/spark-app.log"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_L2I_STANDALONE_LOG_PATH_PATTERN_ROTATED:
+  section: Dynatrace alerting and detectors
+  value: "/mnt/spark/client-logs/*/spark-app-*.log"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
 DT_TOKEN_ADMIN_TOKEN:
   section: Dynatrace API tokens
   value: ""

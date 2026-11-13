@@ -62,9 +62,9 @@ locals {
 
   custom_log_source = jsondecode(templatefile("${local.dt_integrations_dir}/standalone-short-log4j2-custom-source.json.j2", {
     dt_l2i_standalone_custom_source_name       = var.DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME
-    dt_l2i_standalone_log_path_pattern         = "/opt/spark/logs/*.log"
-    dt_l2i_standalone_log_path_pattern_rotated = "/opt/spark/logs/*.log.*"
-    dt_l2i_standalone_service_instance         = "Spark-Standalone"
+    dt_l2i_standalone_log_path_pattern         = var.DT_L2I_STANDALONE_LOG_PATH_PATTERN
+    dt_l2i_standalone_log_path_pattern_rotated = var.DT_L2I_STANDALONE_LOG_PATH_PATTERN_ROTATED
+    dt_l2i_standalone_service_instance         = var.DT_L2I_STANDALONE_SERVICE_INSTANCE
   }))
 
   standalone_openpipeline = jsondecode(templatefile("${local.dt_integrations_dir}/standalone-short-log4j2-openpipeline.json.j2", {

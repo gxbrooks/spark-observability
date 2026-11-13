@@ -80,6 +80,21 @@ variable "DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME" {
   type        = string
 }
 
+variable "DT_L2I_STANDALONE_SERVICE_INSTANCE" {
+  description = "service_instance stamped by the Standalone custom log source (client driver, not /opt/spark)"
+  type        = string
+}
+
+variable "DT_L2I_STANDALONE_LOG_PATH_PATTERN" {
+  description = "Client driver log file path pattern (SPARK_LOG_DIR, node-local, not /opt/spark)"
+  type        = string
+}
+
+variable "DT_L2I_STANDALONE_LOG_PATH_PATTERN_ROTATED" {
+  description = "Rotated client driver log file path pattern"
+  type        = string
+}
+
 variable "K8S_CLUSTERS" {
   description = <<-EOT
     Registry of every Kubernetes cluster known to the shared ServiceNow
