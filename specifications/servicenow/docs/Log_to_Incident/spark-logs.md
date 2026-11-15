@@ -15,7 +15,7 @@ sequenceDiagram
   participant File as spark-app.log on NFS
   participant OA as OneAgent (Lab1–3)
   participant Route as OpenPipeline routing
-  participant Pipe as Spark Lab log alerts pipeline
+  participant Pipe as Standalone/K8s short Log4j2 pipeline
   participant Grail as Grail (default_logs)
   participant Davis as Davis problem
   participant AP as Alerting profile
@@ -139,7 +139,12 @@ Query: `fetch logs | filter matchesValue(content, "* WARN *") AND matchesValue(l
 
 ### What happens
 
-On tenant **pdt20158**, logs are routed through **OpenPipeline**. A **Spark-specific route** (prepended before the catch-all **Metric Route**) sends Spark log paths into the **`Spark Lab - log alerts`** pipeline. The pipeline stores records in Grail bucket **`default_logs`** and runs a **Davis event processor** (Step 4).
+On tenant **pdt20158**, logs are routed through **OpenPipeline**. Spark-specific routes (prepended before
+the catch-all **Metric Route**) send host/process log paths into the **`Standalone short Log4j2 - log
+alerts`** pipeline and Kubernetes Container Output into the **`K8s short Log4j2 - log alerts`** pipeline.
+Both store records in Grail bucket **`default_logs`** and run a **Davis event processor** (Step 4). See
+[Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) for why the two are split rather than one combined
+pipeline.
 
 Classic **`builtin:logmonitoring.log-events`** (`Spark Lab - ERROR and WARN log lines`) is deployed but **does not evaluate** records that bypass the classic pipeline — OpenPipeline Davis extraction is the **active** alert path.
 
@@ -147,10 +152,11 @@ Classic **`builtin:logmonitoring.log-events`** (`Spark Lab - ERROR and WARN log 
 
 | Object | Schema | Name / description |
 |--------|--------|-------------------|
-| Logs routing | `builtin:openpipeline.logs.routing` | Route **`Spark Lab log alerts (ERROR/WARN)`** — matcher: `matchesValue(log.source, "/mnt/spark/logs/*") OR matchesValue(log.source, "/mnt/spark/client-logs/*")` → pipeline **`Spark Lab - log alerts`** |
+| Logs routing | `builtin:openpipeline.logs.routing` | Routes for `/mnt/spark/logs/*` and `/mnt/spark/client-logs/*` (Standalone) and Container Output (K8s) |
 | Logs routing (catch-all) | same | **`Metric Route`** — matcher: `true` → metric extraction pipeline (all other logs) |
-| Log alerts pipeline | `builtin:openpipeline.logs.pipelines` | **`Spark Lab - log alerts`** (`customId: spark-lab-log-alerts`) |
-| Template | `spark-openpipeline-log-alerts-pipeline.json.j2` | |
+| Log alerts pipelines | `builtin:openpipeline.logs.pipelines` | **`Standalone short Log4j2 - log alerts`** (`customId: standalone-short-log4j2-log-alerts`) and **`K8s short Log4j2 - log alerts`** (`customId: k8s-short-log4j2-log-alerts`) |
+| Templates | `standalone-short-log4j2-openpipeline.json.j2`, `k8s-short-log4j2-openpipeline.json.j2` | |
+| Routing template | `l2i-openpipeline-routing-entries.json.j2` | |
 | Ansible task | `apply_spark_openpipeline_log_alerts.yml` | |
 
 ### Example routing decision (attribute pairs)
@@ -158,8 +164,7 @@ Classic **`builtin:logmonitoring.log-events`** (`Spark Lab - ERROR and WARN log 
 | Attribute | Value for chapter WARN line |
 |-----------|----------------------------|
 | `log.source` | `/mnt/spark/logs/*/spark-app.log` |
-| Route matched | `Spark Lab log alerts (ERROR/WARN)` |
-| Target pipeline | `Spark Lab - log alerts` |
+| Target pipeline | `Standalone short Log4j2 - log alerts` |
 | Storage bucket | `default_logs` |
 
 ---
@@ -168,23 +173,31 @@ Classic **`builtin:logmonitoring.log-events`** (`Spark Lab - ERROR and WARN log 
 
 ### What happens
 
-The **Davis processor** in the Spark log alerts pipeline matches **WARN** or **ERROR** lines under Spark log paths and emits a **Davis event**. That event becomes the ranked event inside a **problem** (Step 5). **`dt.source_entity`** on the event determines which Smartscape entity is “impacted” (today: **host** for file-tailed logs).
+Each pipeline's **Davis processor** matches **WARN** or **ERROR** lines and emits a **Davis event**. That
+event becomes the ranked event inside a **problem** (Step 5). **`dt.source_entity`**, set from a
+`sn-alert-entity` field computed earlier in the pipeline's Processing stage, determines which Smartscape
+entity is "impacted" — the Process Group (or, for K8s, the Kubernetes workload) whenever one can be
+determined, never the ephemeral Process Group Instance or Pod (per
+[Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) Statements 2.1–2.3).
 
 ### Configurations (Davis processor)
 
-| Property | Value |
-|----------|-------|
-| **Matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND (spark.mode == "Client" OR spark.mode == "Cluster") AND class/line present` |
-| **Davis processor** | `spark-warn-error-davis` |
-| `event.type` | `CUSTOM_ALERT` |
-| `event.name` | `Spark critical {loglevel} error at {spark.log.class}:{spark.log.line}` |
-| `event.description` | `Spark {spark.mode} critical {loglevel} error at {spark.log.class}:{spark.log.line} in {spark.log.path}: {content}` |
-| `event.unique_identifier` | `Spark Critical {loglevel} error {spark.log.class}:{spark.log.line}` |
-| `dt.source_entity` | Client: `spark.device` (CUSTOM_DEVICE); Cluster: OneAgent HOST (`coalesce(spark.device, dt.source_entity)`) |
-| `spark.device` | Client CUSTOM_DEVICE id (stamped on Davis event for SN) |
-| `dt.davis.is_merging_allowed` | `false` (same class:line still shares one event via `event.name`) |
-| `dt.source_entity` | HOST (OneAgent file tail; Client also stamps `spark.device`; pod rebind in ServiceNow) |
-| `dt.davis.event_timeout` | `15m` |
+| Property | Standalone | K8s |
+|----------|------------|-----|
+| **Matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND sn-log-class, sn-log-line and service_instance present` | `(loglevel == "WARN" OR loglevel == "ERROR") AND sn-log-class, sn-log-line and k8s.pod.name present` |
+| **Davis processor** | `standalone-short-log4j2-warn-error-davis` | `k8s-short-log4j2-warn-error-davis` |
+| `event.type` | `CUSTOM_ALERT` | `CUSTOM_ALERT` |
+| `event.name` | `Critical {loglevel} at {sn-log-class}:{sn-log-line}` | same |
+| `event.unique_identifier` | `{sn-environment}\|{sn-service-instance}\|Standalone Critical {loglevel} {sn-log-signature}` | `{sn-environment}\|{sn-service-instance}\|K8s Critical {loglevel} {sn-log-signature}` |
+| `dt.source_entity` | `{sn-alert-entity}` = `coalesce(dt.entity.process_group, dt.entity.host)` | `{sn-alert-entity}` = `coalesce(dt.entity.cloud_application, dt.entity.process_group, dt.entity.host)` |
+| `dt.davis.is_entity_remapping_allowed` | `false` | `false` |
+| `dt.davis.is_merging_allowed` | `false` | `false` |
+| `dt.davis.event_timeout` | `15m` | `15m` |
+
+Each pipeline also has a fail-visible processor (`standalone-short-log4j2-missing-service-instance-davis`,
+`k8s-short-log4j2-missing-pod-name-davis`) that fires when the enrichment the main processor depends on
+(`service_instance`, `k8s.pod.name`) is absent — see
+[Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) Statement 3.4.
 
 Legacy (inactive for routed logs): `spark-error-log-event.json.j2` → `builtin:logmonitoring.log-events` summary **`Spark Lab - ERROR and WARN log lines`**.
 
@@ -192,16 +205,16 @@ Legacy (inactive for routed logs): `spark-error-log-event.json.j2` → `builtin:
 
 | Attribute | Example value |
 |-----------|---------------|
-| `timestamp` | `2026-07-01T19:33:32.808000000Z` |
-| `event.name` | `Spark log alert` |
-| `event.category` | `ERROR` |
-| `display_id` | `P-260729` (problem id once correlated) |
-| `dt.source_entity` | `HOST-A3921C1DA2349805` |
-| `dt.source_entity.type` | `host` |
-| `dt.entity.host` | `HOST-A3921C1DA2349805` |
-| `dt.entity.host.name` | `Lab2` |
-| `affected_entity_ids` | `['HOST-A3921C1DA2349805']` |
-| `affected_entity_types` | `['dt.entity.host']` |
+| `timestamp` | `2026-11-07T17:20:35.000000000Z` |
+| `event.name` | `Critical WARN at WindowExec:244` |
+| `event.category` | `CUSTOM_ALERT` |
+| `display_id` | `P-26111273` (problem id once correlated) |
+| `dt.source_entity` | `PROCESS_GROUP-6DC3E88CB60F8CCB` |
+| `dt.source_entity.type` | `process_group` |
+| `dt.entity.process_group` | `PROCESS_GROUP-6DC3E88CB60F8CCB` |
+| `dt.entity.process_group.name` | `Apache Spark Lab3.lan` |
+| `affected_entity_ids` | `['PROCESS_GROUP-6DC3E88CB60F8CCB']` |
+| `affected_entity_types` | `['dt.entity.process_group']` |
 | `entity_tags` | `Environment:lab`, `Project:spark-observability`, `OwnedBy:gbrooks` |
 
 ---
@@ -218,7 +231,7 @@ The first matching Davis event opens a **problem** in management zone **Spark Ob
 |--------|--------|------|
 | Alerting profile | `builtin:alerting.profile` | **`Spark Observability - ServiceNow brooks-lab`** — MZ: Spark Observability; severities: AVAILABILITY, **ERRORS**, PERFORMANCE, RESOURCE_CONTENTION, CUSTOM_ALERT (0 min delay) |
 | Problem notification | `builtin:problem.notifications` | **`ServiceNow brooks-lab - Spark Observability`** |
-| Template | `spark-snow-alerting-profile.json.j2`, `sgc-problem-notification-payload.json.j2` | |
+| Template | `spark-alerting-profile.json.j2`, `sgc-problem-notification-payload.json.j2` | |
 
 ### Example problem (Dynatrace Problems UI)
 
@@ -339,9 +352,9 @@ Event rules may promote **`em_event` → `em_alert`**. Incident automation (if c
 |-------|---------------|------------------------|
 | Emit | `spark/conf/log4j2-client.properties` | Spark image / repo conf |
 | Emit | `spark/apps/data-analysis-book/bin/run-chapters.sh` | Chapter runner |
-| Ingest | `Spark Lab - application log files` custom log source | `apply_spark_log_custom_source.yml` |
-| Route | OpenPipeline logs routing + **`Spark Lab - log alerts`** pipeline | `apply_spark_openpipeline_log_alerts.yml` |
-| Detect | Davis processor matcher + event template | `spark-openpipeline-log-alerts-pipeline.json.j2` |
+| Ingest | `Standalone short Log4j2 - application log files` custom log source | `apply_spark_log_custom_source.yml` |
+| Route | OpenPipeline logs routing + **`Standalone short Log4j2 - log alerts`** / **`K8s short Log4j2 - log alerts`** pipelines | `apply_spark_openpipeline_log_alerts.yml` |
+| Detect | Davis processor matchers + event templates | `standalone-short-log4j2-openpipeline.json.j2`, `k8s-short-log4j2-openpipeline.json.j2` |
 | Detect (legacy, bypassed) | `Spark Lab - ERROR and WARN log lines` log event | `spark-error-log-event.json.j2` |
 | Problem | Management zone **Spark Observability** | `specifications/dynatrace/deploy.yml` |
 | Notify | Alerting profile **Spark Observability - ServiceNow brooks-lab** | `apply_dt_alerting_profile.yml` |
@@ -405,8 +418,8 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 
 1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to `/mnt/spark/client-logs/<instance>/`.
 2. **Ingest** — OneAgent custom log source paths `/mnt/spark/client-logs/*/spark-app*.log`; restart OneAgent after deploy if paths were added recently.
-3. **Detect** — OpenPipeline `spark-warn-error-davis` processor; Davis **`event.name`** = `Critical log.level error at {class}:{line}`; timeout **15m**.
-4. **Notify** — Problem webhook → `em_alert` with HOST CI; description includes full log path.
+3. **Detect** — OpenPipeline `standalone-short-log4j2-warn-error-davis` processor; Davis **`event.name`** = `Critical {loglevel} at {sn-log-class}:{sn-log-line}`; timeout **15m**.
+4. **Notify** — Problem webhook → `em_alert` with the Process Group CI (or Host, if no Process Group is found); description includes full log path.
 5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → service instance **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 
 ### Parallel chapter load
@@ -444,7 +457,6 @@ fetch logs, from:now()-2h
 
 ## Known as-is limitations
 
-1. **Host-level CI binding** — File-tailed `spark-app.log` records carry `dt.source_entity = HOST-…`, so alerts bind to **`cmdb_ci_linux_server`**, not process group, unless ingest path or OpenPipeline `dt.source_entity` override changes.
-2. **Classic log events inactive** — Custom OpenPipeline routing bypasses `builtin:logmonitoring.log-events`; only the Davis processor in **`Spark Lab - log alerts`** fires.
-3. **Chapter driver path vs K8s path** — Driver logs under `lab3-chapter/` share the same Dynatrace path pattern as pod logs but may lag OneAgent tailing if the directory was created after agent scan; allow 2–5 minutes after chapter completion before checking Grail.
-4. **Elasticsearch duplicate** — Same files appear in Elasticsearch via Elastic Agent; SN events come **only** from the Dynatrace webhook path above.
+1. **Classic log events inactive** — Custom OpenPipeline routing bypasses `builtin:logmonitoring.log-events`; only the Davis processors in the Standalone and K8s short Log4j2 pipelines fire.
+2. **Chapter driver path vs K8s path** — Driver logs under `lab3-chapter/` share the same Dynatrace path pattern as pod logs but may lag OneAgent tailing if the directory was created after agent scan; allow 2–5 minutes after chapter completion before checking Grail.
+3. **Elasticsearch duplicate** — Same files appear in Elasticsearch via Elastic Agent; SN events come **only** from the Dynatrace webhook path above.

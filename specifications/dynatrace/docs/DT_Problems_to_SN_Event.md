@@ -58,7 +58,7 @@ sequenceDiagram
 | ------ | --------------- | -------------- | ------- |
 | Management zone | `builtin:management-zones` | `Spark Observability` | Partition brooks-lab hosts/K8s (prerequisite from `specifications/dynatrace/deploy.yml`). |
 | Custom log source | `builtin:logmonitoring.custom-log-source-settings` | **`Spark Lab - application log files`** | OneAgent tails `/mnt/spark/logs/*/spark-app.log*` for Grail ingest. |
-| **OpenPipeline log alerts** | `builtin:openpipeline.logs.pipelines` | **`Spark Lab - log alerts`** | **Primary** Davis event extraction for ERROR/WARN Spark logs (required when logs route through custom OpenPipeline). |
+| **OpenPipeline log alerts** | `builtin:openpipeline.logs.pipelines` | **`Standalone short Log4j2 - log alerts`** and **`K8s short Log4j2 - log alerts`** | **Primary** Davis event extraction for ERROR/WARN Spark logs (required when logs route through custom OpenPipeline). Entity binding and monitor design follow [Dynatrace.tpg.md](../../docs/Dynatrace.tpg.md). |
 | **Log event (classic)** | `builtin:logmonitoring.log-events` | **`Spark Lab - ERROR and WARN log lines`** | Legacy matcher; kept for idempotency but **does not fire** when logs bypass the classic pipeline (see below). |
 | Metric event | `builtin:anomaly-detection.metric-events` | `Spark Lab - Host CPU above 50%` | Fires when `builtin:host.cpu.usage` AVG > 50% (3-sample window). `eventType=CUSTOM_ALERT`, `davisMerge=false` (each breach opens its own problem), tagged `sn-metric-class=cpu`. |
 | Alerting profile | `builtin:alerting.profile` | `Spark Observability - ServiceNow brooks-lab` | Forwards problems in the Spark Observability MZ. |
@@ -102,7 +102,7 @@ Symptoms observed during chapter runs:
 | Classic log event | Enabled, DQL matched in Logs app — **zero** Davis events or problems. |
 | ServiceNow | CPU `CUSTOM_ALERT` events arrived; **no** Spark log problems in `em_event`. |
 
-**Fix:** Deploy **Client** and **Cluster** OpenPipeline Davis processors and routing entries (before the catch-all `Metric Route`). Ansible: `apply_spark_openpipeline_log_alerts.yml` + `spark-*-openpipeline-log-alerts-pipeline.json.j2` + `spark-openpipeline-routing-entries.json.j2`.
+**Fix:** Deploy the Standalone and K8s OpenPipeline Davis processors and routing entries (before the catch-all `Metric Route`). Ansible: `apply_spark_openpipeline_log_alerts.yml` + `standalone-short-log4j2-openpipeline.json.j2` + `k8s-short-log4j2-openpipeline.json.j2` + `l2i-openpipeline-routing-entries.json.j2`.
 
 Additional prerequisites (also deployed by `events/deploy.yml`):
 
@@ -111,17 +111,22 @@ Additional prerequisites (also deployed by `events/deploy.yml`):
 
 ### OpenPipeline configuration (primary path)
 
-Template: `specifications/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`
+Two pipelines — one for host/process-based ("Standalone") logs, one for Kubernetes Container Output
+("K8s") logs — each with a main Davis processor and a fail-visible one that fires when its upstream
+enrichment is missing (see [Dynatrace.tpg.md](../../docs/Dynatrace.tpg.md) Statement 3.4). Entity binding
+follows Statements 2.1–2.3: each pipeline computes a single `sn-alert-entity` field in its Processing
+stage and every Davis processor sets both `dt.source_entity` and `dt.davis.is_entity_remapping_allowed:
+false` from it, so a Problem never binds to the ephemeral Process Group Instance or Pod.
 
-| Field | Value |
-| ----- | ----- |
-| **Pipeline name** | `Spark Lab - log alerts` |
-| **Client Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Client"` |
-| **Cluster Davis matcher** | `(loglevel == "WARN" OR loglevel == "ERROR") AND spark.mode == "Cluster"` |
-| **Event type** | `CUSTOM_ALERT` |
-| **Event name** | Client: `Client application log {loglevel} on {host}:{driver}`; Cluster: `Cluster application log {loglevel} on {spark.pod_name}` |
-| **Routing** | Prepended route: `/mnt/spark/logs/*` OR `/mnt/spark/client-logs/*` → this pipeline (before `Metric Route`). |
-| **Processing** | Trust OneAgent enrichment (`spark.mode`, `spark.driver.instance` / `spark.pod_name`); compose Client `spark.instance`; bind Client CUSTOM_DEVICE; parse Log4j class:line. |
+| Field | Standalone | K8s |
+| ----- | ---------- | --- |
+| **Template** | `specifications/dynatrace/integrations/standalone-short-log4j2-openpipeline.json.j2` | `specifications/dynatrace/integrations/k8s-short-log4j2-openpipeline.json.j2` |
+| **Pipeline name** | `Standalone short Log4j2 - log alerts` | `K8s short Log4j2 - log alerts` |
+| **Main Davis processor** | `standalone-short-log4j2-warn-error-davis` | `k8s-short-log4j2-warn-error-davis` |
+| **Fail-visible Davis processor** | `standalone-short-log4j2-missing-service-instance-davis` (fires when `service_instance` enrichment is missing) | `k8s-short-log4j2-missing-pod-name-davis` (fires when `k8s.pod.name` is missing) |
+| **Event type** | `CUSTOM_ALERT` | `CUSTOM_ALERT` |
+| **`sn-alert-entity`** | `coalesce(dt.entity.process_group, dt.entity.host)` | `coalesce(dt.entity.cloud_application, dt.entity.process_group, dt.entity.host)` |
+| **Routing** | `l2i-openpipeline-routing-entries.json.j2`, prepended before the catch-all `Metric Route` | same |
 
 Canonical narrative: `specifications/servicenow/docs/Log_to_Incident/Log_to_Incident.adoc`.
 

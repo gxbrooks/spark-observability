@@ -21,8 +21,6 @@
 #     caller, not a complete settings document itself)
 #   - the two ServiceNow AMR files (different system, provider choice
 #     pending)
-#   - spark-openpipeline-log-alerts-pipeline.json.j2 (orphaned -- no
-#     current Ansible consumer either, see Phase 1 commit)
 
 locals {
   dt_integrations_dir = "${path.module}/../../specifications/dynatrace/integrations"

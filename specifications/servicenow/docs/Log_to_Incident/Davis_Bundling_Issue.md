@@ -71,7 +71,7 @@ ServiceNow then ran **`K8sLogPodCiBind.applyPodBinding()`**, which skipped `Spar
 |--------|----------|
 | CUSTOM_DEVICE **Spark Client** (`customDeviceId=Spark-Client`, `uiBased=true`) | `apply_spark_client_custom_device.yml` |
 | MZ rule: `CUSTOM_DEVICE` ENTITY_NAME = Spark Client | `management-zones/spark-observability/management-zone.json` |
-| OpenPipeline `resolve-spark-client-entity`: `lookupEntity(CUSTOM_DEVICE, "Spark Client")` | `spark-openpipeline-log-alerts-pipeline.json.j2` |
+| OpenPipeline `resolve-spark-client-entity`: `lookupEntity(CUSTOM_DEVICE, "Spark Client")` | historical: the OpenPipeline file this lived in has since been replaced (CUSTOM_DEVICE binding was removed from the current design — see [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) for the current entity-binding standard) |
 
 Client Davis events must **not** remain on the OneAgent HOST. They bind to **`CUSTOM_DEVICE-…`** so Davis does not merge them with service-side HOST/pod events on Lab3.
 
@@ -112,7 +112,7 @@ Deploy: `ansible/playbooks/servicenow/incident/deploy.yml`.
 | Artifact | Location |
 |----------|----------|
 | CUSTOM_DEVICE apply | `ansible/.../tasks/apply_spark_client_custom_device.yml` |
-| OpenPipeline client entity | `resolve-spark-client-entity` in `spark-openpipeline-log-alerts-pipeline.json.j2` |
+| OpenPipeline client entity | `resolve-spark-client-entity` — historical; the file it lived in has been removed, see [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) |
 | `ResolveApplicationService` | `specifications/servicenow/integrations/incident/ResolveApplicationService.si.js` |
 | `K8sLogPodCiBind` | `specifications/servicenow/integrations/incident/K8sLogPodCiBind.si.js` |
 | NFS / local logs contract | `spark/docs/nfs-mounts.md` |

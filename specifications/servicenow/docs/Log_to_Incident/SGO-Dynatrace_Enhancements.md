@@ -315,15 +315,17 @@ Brooks-lab (new-school) notification:
 | Enabled          | Yes                                                                                             |
 | UI list          | Same problem-notifications list as above — open **ServiceNow brooks-lab - Spark Observability** |
 
-**Clarification:** Demo 1 is a **problem notification + alerting profile**, not an OpenPipeline. The Spark log OpenPipeline that *creates* Davis problems is separate:
+**Clarification:** Demo 1 is a **problem notification + alerting profile**, not an OpenPipeline. The Spark log OpenPipelines that *create* Davis problems are separate — see
+[Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) for the entity-binding and monitor-design standard
+both follow:
 
-| OpenPipeline     | Value                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------- |
-| Display name     | **Spark Lab - log alerts**                                                                          |
-| customId         | `spark-lab-log-alerts`                                                                              |
-| Schema           | `builtin:openpipeline.logs.pipelines`                                                               |
-| Davis processors | `spark-client-warn-error-davis`, `spark-cluster-warn-error-davis`, `spark-enrichment-missing-davis` |
-| Repo             | `specifications/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`               |
+| OpenPipeline     | Standalone                                                      | K8s                                                        |
+| ---------------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| Display name     | **Standalone short Log4j2 - log alerts**                          | **K8s short Log4j2 - log alerts**                             |
+| customId         | `standalone-short-log4j2-log-alerts`                               | `k8s-short-log4j2-log-alerts`                                  |
+| Schema           | `builtin:openpipeline.logs.pipelines`                              | `builtin:openpipeline.logs.pipelines`                          |
+| Davis processors | `standalone-short-log4j2-warn-error-davis`, `standalone-short-log4j2-missing-service-instance-davis` | `k8s-short-log4j2-warn-error-davis`, `k8s-short-log4j2-missing-pod-name-davis` |
+| Repo             | `specifications/dynatrace/integrations/standalone-short-log4j2-openpipeline.json.j2` | `specifications/dynatrace/integrations/k8s-short-log4j2-openpipeline.json.j2` |
 
 ### Do lab BRs / SIs still match `source=Dynatrace`?
 
@@ -537,11 +539,14 @@ Notifications only *select* problems via the alerting profile and POST them — 
 ### C. OpenPipeline Davis processors (what *creates* Spark log problems)
 
 1. Settings → **Process and contextualize** → **OpenPipeline** → **Logs**.
-2. Pipelines → **Spark Lab - log alerts** (`spark-lab-log-alerts`).
-3. **Davis** tab: `spark-client-warn-error-davis`, `spark-cluster-warn-error-davis`, `spark-enrichment-missing-davis`.
-4. **Processing** tab: Client AS stamp / instance compose; Cluster `enrich-cluster-from-k8s` from `k8s.pod.name` on Container Output.
+2. Pipelines → **Standalone short Log4j2 - log alerts** (`standalone-short-log4j2-log-alerts`) and **K8s short Log4j2 - log alerts** (`k8s-short-log4j2-log-alerts`).
+3. **Davis** tab: Standalone — `standalone-short-log4j2-warn-error-davis`, `standalone-short-log4j2-missing-service-instance-davis`; K8s — `k8s-short-log4j2-warn-error-davis`, `k8s-short-log4j2-missing-pod-name-davis`.
+4. **Processing** tab: each pipeline computes `sn-alert-entity` as the most stable entity on the record — Process Group (or, for K8s, the Kubernetes workload) else Host — per
+   [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) Statement 2.2.
 
-To see a live problem’s entity: **Problems** → open problem → **Impacted entities** (HOST for Client file-tail / CPU; CAI/PGI/HOST for Cluster Container Output as attached by OneAgent).
+To see a live problem’s entity: **Problems** → open problem → **Impacted entities** (Process Group /
+Kubernetes workload / Host per Statement 2.1 — never the ephemeral Process Group Instance or Pod the
+Davis processor was written to avoid).
 
 ---
 

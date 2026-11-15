@@ -51,9 +51,16 @@ flowchart TB
 
 ## Dynatrace configuration differences
 
-Both patterns use the Spark OpenPipeline log-alerts pipeline
-(`specifications/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2`)
-and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **processing**, **Davis matcher**, and **impacted entity**.
+> **Stale:** the CUSTOM_DEVICE / `spark.device` / `spark.davis_entity` client-binding design this section
+> describes has since been removed (see "Lab actions already taken" in
+> [SGO-Dynatrace_Enhancements.md](SGO-Dynatrace_Enhancements.md)) and replaced by the entity-binding
+> standard in [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) — Process Group / Kubernetes workload,
+> never a CUSTOM_DEVICE or the ephemeral instance. This section has not been rewritten for the current
+> design; treat the mechanism below as historical, not as current configuration.
+
+Both patterns use OpenPipeline log-alerts pipelines
+(`specifications/dynatrace/integrations/standalone-short-log4j2-openpipeline.json.j2` and
+`k8s-short-log4j2-openpipeline.json.j2`) and the custom log source that tails `/mnt/spark/logs/…`. They diverge in **processing**, **Davis matcher**, and **impacted entity**.
 
 ### Client mode (Dynatrace)
 
@@ -225,6 +232,7 @@ Business rules accept `source=SGO-Dynatrace` **or** `source=Dynatrace` so classi
 - [Log_to_Incident.adoc](Log_to_Incident.adoc) — Steps 0–5, Graphviz figures, automation spec
 - [README.md](README.md) — render / export for the AsciiDoc
 - `specifications/servicenow/regions/brooks-lab/spark.csdm.yaml` — Service Instance declarations
-- `specifications/dynatrace/integrations/spark-openpipeline-log-alerts-pipeline.json.j2` — OpenPipeline / Davis
+- `specifications/dynatrace/integrations/standalone-short-log4j2-openpipeline.json.j2`, `k8s-short-log4j2-openpipeline.json.j2` — OpenPipeline / Davis
+- [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) — current entity-binding and monitor-design standard
 - `specifications/dynatrace/docs/DT_Problems_to_SN_Event.md` — Problem → SN event path
 - `ansible/playbooks/servicenow/incident/` — Script Includes, BRs
