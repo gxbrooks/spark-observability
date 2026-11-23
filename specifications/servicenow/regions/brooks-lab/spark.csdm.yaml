@@ -20,12 +20,21 @@ business_services:
     owned_by: gbrooks
     business_criticality: "4 - not critical"
 
+business_service_offerings:
+  - name: Apache Spark - Production
+    identifier: apache-spark-production
+    short_description: Production offering of Apache Spark service instances
+    operational_status: "1"
+    parent_business_service: Apache Spark
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
 service_instances:
   - name: Spark Master
     identifier: spark-master
     short_description: Spark master — Kubernetes StatefulSet
     operational_status: "1"
-    parent_business_service: Apache Spark
+    service_offering: Apache Spark - Production
     platform: kubernetes
     service_mapping: tags
     discover: false
@@ -35,8 +44,6 @@ service_instances:
     business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
-      - Logstash
-      - Elasticsearch
       - name: lab3
         type: nfs_server
 
@@ -44,7 +51,7 @@ service_instances:
     identifier: spark-history-server
     short_description: Spark history server — completed application UI
     operational_status: "1"
-    parent_business_service: Apache Spark
+    service_offering: Apache Spark - Production
     platform: kubernetes
     service_mapping: tags
     discover: false
@@ -54,8 +61,6 @@ service_instances:
     business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
-      - Logstash
-      - Elasticsearch
       - name: lab3
         type: nfs_server
 
@@ -63,7 +68,7 @@ service_instances:
     identifier: spark-client
     short_description: PySpark client-mode driver — logical service across all client hosts (enterprise)
     operational_status: "1"
-    parent_business_service: Apache Spark
+    service_offering: Apache Spark - Production
     platform: host
     service_mapping: manual
     discover: false
@@ -80,7 +85,7 @@ service_instances:
     identifier: spark-worker
     short_description: Spark workers — Kubernetes Deployment fleet (horizontally scaled)
     operational_status: "1"
-    parent_business_service: Apache Spark
+    service_offering: Apache Spark - Production
     platform: kubernetes
     service_mapping: tags
     discover: false
@@ -90,7 +95,5 @@ service_instances:
     business_criticality: "4 - not critical"
     depends_on:
       - OpenTelemetry Collector
-      - Logstash
-      - Elasticsearch
       - name: lab3
         type: nfs_server

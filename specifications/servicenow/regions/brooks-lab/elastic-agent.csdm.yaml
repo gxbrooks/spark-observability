@@ -11,12 +11,21 @@ business_services:
     owned_by: gbrooks
     business_criticality: "4 - not critical"
 
+business_service_offerings:
+  - name: Elastic Agent - Production
+    identifier: elastic-agent-production
+    short_description: Production offering of Elastic Agent service instances
+    operational_status: "1"
+    parent_business_service: Elastic Agent
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
 service_instances:
   - name: "Elastic Agent ({host})"
     identifier: "elastic-agent-{host_lower}"
     short_description: "Elastic Agent on {host} — ships logs and metrics"
     operational_status: "1"
-    parent_business_service: Elastic Agent
+    service_offering: Elastic Agent - Production
     platform: host
     service_mapping: tags
     discover: false

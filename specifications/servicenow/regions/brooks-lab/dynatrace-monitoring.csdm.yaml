@@ -12,12 +12,21 @@ business_services:
     owned_by: gbrooks
     business_criticality: "4 - not critical"
 
+business_service_offerings:
+  - name: Dynatrace Monitoring - Production
+    identifier: dynatrace-monitoring-production
+    short_description: Production offering of Dynatrace Monitoring service instances
+    operational_status: "1"
+    parent_business_service: Dynatrace Monitoring
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
 service_instances:
   - name: Dynatrace Tenant
     identifier: dynatrace-tenant
     short_description: Dynatrace SaaS environment — problems, metrics, and event ingest
     operational_status: "1"
-    parent_business_service: Dynatrace Monitoring
+    service_offering: Dynatrace Monitoring - Production
     platform: saas
     service_mapping: manual
     discover: false
@@ -28,7 +37,7 @@ service_instances:
     identifier: "dynatrace-oneagent-{host_lower}"
     short_description: "Dynatrace OneAgent pod on Kubernetes node {host}"
     operational_status: "1"
-    parent_business_service: Dynatrace Monitoring
+    service_offering: Dynatrace Monitoring - Production
     platform: kubernetes
     service_mapping: tags
     discover: false

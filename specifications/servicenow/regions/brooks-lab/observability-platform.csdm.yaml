@@ -68,12 +68,69 @@ business_services:
     owned_by: gbrooks
     business_criticality: "4 - not critical"
 
+business_service_offerings:
+  - name: Elasticsearch - Production
+    identifier: elasticsearch-production
+    short_description: Production offering of Elasticsearch service instances
+    operational_status: "1"
+    parent_business_service: Elasticsearch
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: Kibana - Production
+    identifier: kibana-production
+    short_description: Production offering of Kibana service instances
+    operational_status: "1"
+    parent_business_service: Kibana
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: Grafana - Production
+    identifier: grafana-production
+    short_description: Production offering of Grafana service instances
+    operational_status: "1"
+    parent_business_service: Grafana
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: Prometheus - Production
+    identifier: prometheus-production
+    short_description: Production offering of Prometheus service instances
+    operational_status: "1"
+    parent_business_service: Prometheus
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: Grafana Tempo - Production
+    identifier: grafana-tempo-production
+    short_description: Production offering of Grafana Tempo service instances
+    operational_status: "1"
+    parent_business_service: Grafana Tempo
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: OpenTelemetry Collector - Production
+    identifier: opentelemetry-collector-production
+    short_description: Production offering of OpenTelemetry Collector service instances
+    operational_status: "1"
+    parent_business_service: OpenTelemetry Collector
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: Logstash - Production
+    identifier: logstash-production
+    short_description: Production offering of Logstash service instances
+    operational_status: "1"
+    parent_business_service: Logstash
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
 service_instances:
   - name: Elasticsearch
     identifier: elasticsearch
     short_description: Elasticsearch — HTTPS API
     operational_status: "1"
-    parent_business_service: Elasticsearch
+    service_offering: Elasticsearch - Production
     platform: docker
     service_mapping: tags
     discover: false
@@ -86,7 +143,7 @@ service_instances:
     identifier: kibana
     short_description: Kibana UI
     operational_status: "1"
-    parent_business_service: Kibana
+    service_offering: Kibana - Production
     platform: docker
     service_mapping: tags
     discover: false
@@ -101,7 +158,7 @@ service_instances:
     identifier: grafana
     short_description: Grafana UI
     operational_status: "1"
-    parent_business_service: Grafana
+    service_offering: Grafana - Production
     platform: docker
     service_mapping: tags
     discover: false
@@ -118,7 +175,7 @@ service_instances:
     identifier: prometheus
     short_description: Prometheus TSDB and scrape API
     operational_status: "1"
-    parent_business_service: Prometheus
+    service_offering: Prometheus - Production
     platform: docker
     service_mapping: tags
     discover: false
@@ -134,7 +191,7 @@ service_instances:
     identifier: grafana-tempo
     short_description: Tempo trace query HTTP API
     operational_status: "1"
-    parent_business_service: Grafana Tempo
+    service_offering: Grafana Tempo - Production
     platform: docker
     service_mapping: tags
     discover: false
@@ -150,7 +207,7 @@ service_instances:
     identifier: opentelemetry-collector
     short_description: OTel Collector health and OTLP receivers
     operational_status: "1"
-    parent_business_service: OpenTelemetry Collector
+    service_offering: OpenTelemetry Collector - Production
     platform: docker
     service_mapping: tags
     discover: false
@@ -166,7 +223,7 @@ service_instances:
     identifier: logstash
     short_description: Logstash monitoring API and events input
     operational_status: "1"
-    parent_business_service: Logstash
+    service_offering: Logstash - Production
     platform: docker
     service_mapping: tags
     discover: false

@@ -1,0 +1,41 @@
+---
+# Linux Servers — CSDM specification (infrastructure-facing half of CSDM)
+# Design record: specifications/servicenow/docs/Technical_Management_Services.md
+# Normative schema: sn-sync docs/CSDM_Specifications.md Statements 2.3b–2.3d, 3.2.7–3.2.9
+#
+#   Technical Management Service "Linux Servers"          (cmdb_ci_service_technical)
+#     └─ parent field ─ TMO "Linux Servers - Production"  (service_offering, classification=Technical Service)
+#                          └─ Contains::Contained by ─ Dynamic CI Group (cmdb_ci_query_based_service)
+#                                                        └─ svc_ci_assoc ─ lab1, lab2, lab3 (cmdb_ci_linux_server)
+#
+# Table/field names were confirmed live on optimizincdemo1 (2026-11-22).
+
+technical_management_services:
+  - name: Linux Servers
+    identifier: linux-servers
+    short_description: Linux server infrastructure in the brooks-lab environment
+    operational_status: "1"
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+technical_management_service_offerings:
+  - name: Linux Servers - Production
+    identifier: linux-servers-production
+    short_description: Production offering of Linux server infrastructure
+    operational_status: "1"
+    parent_technical_management_service: Linux Servers
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+dynamic_ci_groups:
+  - name: Linux Servers (brooks-lab)
+    identifier: linux-servers-brooks-lab
+    short_description: Lab1-Lab3 Linux server CIs, populated by query rather than hand-picked membership
+    operational_status: "1"
+    owned_by: gbrooks
+    # Membership = the DCG record's own table + filter (encoded query). Discovered CI
+    # names are lowercase short hostnames (lab1/lab2/lab3; fqdn Lab1.lan etc.), not
+    # "Lab1". To add a host, append it here.
+    table: cmdb_ci_linux_server
+    condition: nameINlab1,lab2,lab3
+    service_offering: Linux Servers - Production

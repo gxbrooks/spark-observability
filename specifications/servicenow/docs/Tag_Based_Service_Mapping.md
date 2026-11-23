@@ -174,4 +174,5 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
 
 - [DT_SN_Specification_Guide.md](DT_SN_Specification_Guide.md) — **primary modeling guide** (CSDM + runtime labels + Dynatrace alignment)
 - [CSDM_Specifications.md](CSDM_Specifications.md) — normative `service_mapping: tags` rules
+- [Business_Service_Offerings.md](Business_Service_Offerings.md) — BSO/BS/service-instance relationship schema
 - [ServiceNow Quick Start Guide for Service Mapping](https://www.servicenow.com/community/itom-articles/quick-start-guide-for-service-mapping/ta-p/3521583)
