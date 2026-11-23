@@ -62,10 +62,12 @@ Deploy and compare **sweep** `sn_regions_dir/*/region.yaml` to discover regions.
 Normative TPG and CLI docs live in **`~/repos/sn-sync`**. Specs under `regions/` are pure declarative — use operators, not `csdm_op`:
 
 ```bash
+# One instance at a time (its URL from SN_INSTANCES, its SN_USER<suffix> /
+# SN_PASSWORD<suffix>, and its deploy facts file); <id> = demo1 | demo3.
 export SN_URL=...
 export SN_USER=...
 export SN_PASSWORD=...
-export SN_SM_POPULATE_TAGS_URI=$(jq -r .sm_rest_populate_tags_uri vars/contexts/servicenow_sm_deploy.json)
+export SN_SM_POPULATE_TAGS_URI=$(jq -r .sm_rest_populate_tags_uri vars/contexts/servicenow_sm_deploy_<id>.json)
 
 sn-sync-inject --specs-root ~/repos/spark-observability/servicenow --region brooks-lab \
   --inventory ~/repos/spark-observability/ansible/inventory.yml

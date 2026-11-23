@@ -17,6 +17,18 @@
   ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/ensure_sn_dt_webhook_auth.yml"
   when: sn_sgc_scope_present | default(false) | bool
 
+- name: Fail when the legacy path has no connector for this ServiceNow instance
+  ansible.builtin.assert:
+    that:
+      - (sn_sgc_scope_present | default(false) | bool)
+        or (sn_dt_legacy_connector_sys_id | default('') | length > 0)
+    fail_msg: >-
+      SGC ({{ sn_sgc_app_scope | default('sn_dynatrace_integ') }}) is not installed on
+      {{ sn_url }} and instance '{{ sn_instance_id | default('?') }}' has no
+      dt_legacy_connector_sys_id in SN_INSTANCES. Install SGC first
+      (servicenow/sgc/install.yml) or set the legacy EM connector sys_id.
+  run_once: true
+
 - name: Set ServiceNow inbound event URL (SGC when installed, else legacy)
   ansible.builtin.set_fact:
     sn_dt_event_inbound_url_effective: >-

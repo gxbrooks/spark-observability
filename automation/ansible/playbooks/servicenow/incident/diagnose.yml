@@ -5,6 +5,10 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/incident/diagnose.yml -e @../vars/secrets.yaml
 #   ansible-playbook -i inventory.yml playbooks/servicenow/incident/diagnose.yml -e @../vars/secrets.yaml -e spark_alert_number=Alert0014216
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: incident/diagnose.yml
+
 - name: Diagnose Spark log-to-incident pipeline
   hosts: localhost
   connection: local

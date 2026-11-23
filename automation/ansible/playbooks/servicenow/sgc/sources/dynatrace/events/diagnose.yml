@@ -4,6 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/diagnose.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../../../common/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace/events/diagnose.yml
+
 - name: Diagnose Dynatrace → ServiceNow event path
   hosts: localhost
   connection: local

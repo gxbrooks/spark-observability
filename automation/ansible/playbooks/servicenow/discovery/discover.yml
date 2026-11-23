@@ -2,6 +2,10 @@
 # Trigger an on-demand ServiceNow Discovery scan for the brooks-lab schedule.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: discovery/discover.yml
+
 - name: Preflight brooks-lab Discovery targets
   hosts: k8s_nodes
   gather_facts: false
@@ -88,7 +92,7 @@
   tasks:
     - name: Load deployed schedule sys_id
       ansible.builtin.slurp:
-        src: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy.json"
+        src: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy{{ sn_context_suffix }}.json"
       register: sn_deploy_context_file
       failed_when: false
 

@@ -1,9 +1,21 @@
 ---
 # Shared variables for CSDM top-level playbooks (sn-sync wrappers).
 
-sn_url: "{{ SN_URL | trim }}"
-sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
-sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
+# this process runs the first SN_INSTANCES entry and common/target.yml runs the
+# rest as child runs, so sn_instance_id is always one instance id here.
+# Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
+# See specifications/servicenow/docs/Multi_Instance_Plan.md.
+sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
+sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
+sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
+sn_url: "{{ sn_instance_cfg.url | trim }}"
+sn_user: "{{ (servicenow | default({}))['SN_USER' ~ sn_secret_suffix] | default(lookup('vars', 'SN_USER' ~ sn_secret_suffix)) }}"
+sn_password: "{{ (servicenow | default({}))['SN_PASSWORD' ~ sn_secret_suffix] | default(lookup('vars', 'SN_PASSWORD' ~ sn_secret_suffix)) }}"
+sn_instance_short_name: "{{ sn_instance_cfg.short_name }}"
+# Per-instance suffix for vars/contexts/servicenow_*_deploy_<id>.json.
+sn_context_suffix: "_{{ sn_instance_id }}"
 
 # playbook_dir = .../ansible/playbooks/servicenow/csdm
 sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
@@ -13,11 +25,17 @@ sn_repo_root: "{{ project_root }}"
 sn_discovery_playbooks_dir: "{{ sn_servicenow_playbooks_dir }}/discovery"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 
-sn_mid_server_name: "{{ SN_MID_SERVER_NAME | default('mid-brooks-lab3') }}"
+# Table API headers for the shared discovery/tasks/sn-rest-*.yml helpers
+# (used by the horizontal Discovery trigger adjunct).
+sn_api_headers:
+  Accept: application/json
+  Content-Type: application/json
+
+sn_mid_server_name: "{{ sn_instance_cfg.mid_server_name }}"
 sn_discovery_schedule_name: "{{ SN_DISCOVERY_SCHEDULE_NAME | default('Brooks Lab CI Discovery') }}"
 sn_csdm_trigger_horizontal_discovery: true
 
-sn_sm_deploy_context_file: "{{ sn_repo_root }}/vars/contexts/servicenow_sm_deploy.json"
+sn_sm_deploy_context_file: "{{ sn_repo_root }}/vars/contexts/servicenow_sm_deploy{{ sn_context_suffix }}.json"
 
 sn_sync_inject_bin: "{{ sn_sync_inject_bin_override | default('sn-sync-inject') }}"
 sn_sync_diff_bin: "{{ sn_sync_diff_bin_override | default('sn-sync-diff') }}"

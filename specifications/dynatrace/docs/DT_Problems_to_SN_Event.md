@@ -46,7 +46,7 @@ sequenceDiagram
 | 2. Detection | Log event / metric event | Dynatrace Settings 2.0 objects evaluate DQL (logs) or `builtin:host.cpu.usage` (metrics). |
 | 3. Problem | Davis | Each matching signal creates a **problem** (`davisMerge=false` so log/CPU alerts are not silently merged away). |
 | 4. Filter | Alerting profile | **`Spark Observability - ServiceNow brooks-lab`** scopes problems to management zone **Spark Observability** and forwards **ERRORS**, **CUSTOM_ALERT**, and other configured severities immediately. |
-| 5. Notify | Problem notification | **`ServiceNow brooks-lab - Spark Observability`** POSTs the SGC problem JSON template to ServiceNow. |
+| 5. Notify | Problem notification | One per ServiceNow instance (`SN_INSTANCES.<id>.dt_problem_notification_name`), all on the same alerting profile: **`ServiceNow brooks-lab - Spark Observability`** (Demo1) and **`ServiceNow brooks-lab (demo3) - Spark Observability`** (Demo3). Each POSTs the SGC problem JSON template to its instance, so every problem reaches both. |
 | 6. Ingest | EM push connector | Listener `source=SGO-Dynatrace` parses JSON, maps fields, optionally binds CI via `sys_object_source`. |
 | 7. Operate | Event rules / alerts / incidents | EM rules promote `em_event` → `em_alert`; optional ITSM rules create incidents. See [CI binding by layer](#ci-binding-by-layer-dynatrace--event--alert--incident) and [Avoiding incident storms](#avoiding-incident-storms). |
 
@@ -62,15 +62,17 @@ sequenceDiagram
 | **Log event (classic)** | `builtin:logmonitoring.log-events` | **`Spark Lab - ERROR and WARN log lines`** | Legacy matcher; kept for idempotency but **does not fire** when logs bypass the classic pipeline (see below). |
 | Metric event | `builtin:anomaly-detection.metric-events` | `Spark Lab - Host CPU above 50%` | Fires when `builtin:host.cpu.usage` AVG > 50% (3-sample window). `eventType=CUSTOM_ALERT`, `davisMerge=false` (each breach opens its own problem), tagged `sn-metric-class=cpu`. |
 | Alerting profile | `builtin:alerting.profile` | `Spark Observability - ServiceNow brooks-lab` | Forwards problems in the Spark Observability MZ. |
-| Problem notification | `builtin:problem.notifications` | `ServiceNow brooks-lab - Spark Observability` | Webhook to ServiceNow inbound events API. |
+| Problem notification | `builtin:problem.notifications` | `ServiceNow brooks-lab - Spark Observability` (Demo1), `ServiceNow brooks-lab (demo3) - Spark Observability` (Demo3) | Webhook to each ServiceNow instance's inbound events API (one per `SN_INSTANCES` entry). |
 
-Deploy or refresh:
+Deploy or refresh. Every command takes `-e target=demo1|demo3|all` (default
+`demo3`). The Dynatrace tenant objects above are shared; the problem
+notification and its webhook credentials are per instance.
 
 ```bash
-cd ansible
+cd automation/ansible
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
-  -e @../vars/secrets.yaml
+  -e @../vars/secrets.yaml -e target=all
 ```
 
 Diagnose / test:
@@ -175,13 +177,14 @@ Chapter runs sustain CPU on Lab1/Lab2/Lab3 hosts in the Spark Observability mana
 
 ## Problem notification webhook
 
-**URL (brooks-lab, SGC installed):**
+**URL (brooks-lab, SGC installed)** — one notification per instance:
 
 ```
-https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace
+https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace   # Demo1
+https://optimizincdemo3.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace   # Demo3
 ```
 
-**Authentication:** HTTP `Authorization: Basic …` using brooks-lab credentials (`SN_DT_WEBHOOK_USER` / `SN_DT_WEBHOOK_PASSWORD` in `vars/secrets.yaml`). Automation provisions these for the brooks-lab notification only; it does **not** modify the pre-existing **ServiceNow Demo 1 - Optimiz** notification.
+**Authentication:** HTTP `Authorization: Basic …` using that instance's brooks-lab credentials (`SN_DT_WEBHOOK_USER<suffix>` / `SN_DT_WEBHOOK_PASSWORD<suffix>` in `vars/secrets.yaml`; suffix `_DEMO3` for Demo3). Automation provisions these for the brooks-lab notifications only; it does **not** modify the pre-existing **ServiceNow Demo 1 - Optimiz**, **Legacy Demo 3** or **ServiceNow optimiz demo3** notifications.
 
 **Payload template** (SGC format — `ConnectionId` + **`ProblemDetailsJSON`** v1, not v2):
 
@@ -649,10 +652,11 @@ sgc/sources/dynatrace/deploy.yml → SGC Dynatrace source + topology import conf
 sgc/sources/dynatrace/events/deploy.yml → Problem notification / inbound_event listener
 ```
 
-**Run separately (required for Application Service binding on incidents):**
+**Run separately (required for Application Service binding on incidents)** —
+each takes `-e target=demo1|demo3|all` (default `demo3`):
 
 ```bash
-cd ansible
+cd automation/ansible
 
 # CSDM Application Services + BA/BS hierarchy + declared depends_on
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
@@ -740,7 +744,7 @@ Also remove any **vertical** artifacts if present: **`sa_m2m_service_entry_point
 #### 2. Recreate CSDM objects from spec
 
 ```bash
-cd ansible
+cd automation/ansible   # add -e target=demo1|demo3|all (default demo3)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
 ```
 
@@ -783,7 +787,7 @@ Deploy output should show **`Tag SM <name>: HTTP 202`** for each observability s
 | **`csdm/diagnose.yml`** | Service instances present; process_status / service_status reported |
 
 ```bash
-cd ansible
+cd automation/ansible   # add -e target=demo1|demo3|all (default demo3)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml
 ```
 
@@ -949,9 +953,9 @@ On the notification detail page, confirm:
 
 | Field | Expected value |
 | ----- | -------------- |
-| Display name | `ServiceNow brooks-lab - Spark Observability` |
+| Display name | `ServiceNow brooks-lab - Spark Observability` (Demo1) / `ServiceNow brooks-lab (demo3) - Spark Observability` (Demo3) |
 | Type | Custom integration / **Webhook** |
-| Webhook URL | `https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` |
+| Webhook URL | `https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` (Demo1) / `https://optimizincdemo3.service-now.com/…` (Demo3) |
 | Alerting profile | `Spark Observability - ServiceNow brooks-lab` |
 | Payload | includes `ConnectionId` (SGC template) |
 
@@ -996,7 +1000,7 @@ Related list URLs:
 
 | Purpose | URL |
 | ------- | --- |
-| `em_event` list (newest first) | [em_event_list.do](https://optimizincdemo1.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on) |
+| `em_event` list (newest first) | [Demo1](https://optimizincdemo1.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on) / [Demo3](https://optimizincdemo3.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on) |
 
 **UI path:** **Event Management → All Events** → filter **Source** = `SGO-Dynatrace`.
 
@@ -1018,10 +1022,10 @@ Related list URLs:
 **Ansible**
 
 ```bash
-cd ansible
+cd automation/ansible
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/test.yml \
-  -e @../vars/secrets.yaml
+  -e @../vars/secrets.yaml -e target=all
 ```
 
 ---
@@ -1030,11 +1034,11 @@ ansible-playbook -i inventory.yml \
 
 | Object | Brooks-lab automation | Pre-existing Demo 1 |
 | ------ | --------------------- | ------------------- |
-| Problem notification | `ServiceNow brooks-lab - Spark Observability` | `ServiceNow Demo 1 - Optimiz` |
+| Problem notification | `ServiceNow brooks-lab - Spark Observability`, `ServiceNow brooks-lab (demo3) - Spark Observability` | `ServiceNow Demo 1 - Optimiz` (Demo1); `Legacy Demo 3`, `ServiceNow optimiz demo3` (Demo3) |
 | Inbound URL | `source=SGO-Dynatrace` | `source=dynatrace&sys_id=712a39811…` |
 | Alerting profile | Spark Observability MZ only | (Demo 1 profile separate) |
 
-Brooks-lab playbooks **add** parallel Dynatrace objects; they do **not** modify Demo 1 connector configuration.
+Brooks-lab playbooks **add** parallel Dynatrace objects; they do **not** modify the pre-existing Demo1 or Demo3 notifications or connector configuration.
 
 ---
 

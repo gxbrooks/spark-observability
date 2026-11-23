@@ -126,7 +126,8 @@ play, not in `deploy.yml`. Git ignores `tmp/`.
 The stress driver (`run-stress.sh -cr MINUTES`) creates a **Standard** change,
 walks New → Scheduled → Implement (`work_start` set), and moves to **Review**
 when the window ends or the suite stops. Normal changes cannot jump to
-Implement from REST (assignment-group approval).
+Implement from REST (assignment-group approval). The change is created only on the instance in `SN_URL`
+(Demo1); `create-sn-change-window.py` is not multi-instance.
 
 Event Management does **not** update CI `operational_status` or CSDM
 `life_cycle_stage`. Confirm suppression on `em_impact_maint_ci` /
@@ -134,8 +135,22 @@ Event Management does **not** update CI `operational_status` or CSDM
 
 ## Usage
 
+Every playbook takes `-e target=demo1|demo3|all` (default `demo3`); see
+[../README.md](../README.md#target-instance--e-target).
+
+`deploy.yml` changes **instance-wide** Event Management behaviour, not just
+brooks-lab rows: EM properties (`evt_mgmt.avoid_int_enabled`,
+`sn_em_ai.evt_mgmt.disable_lists_auto_refresh`), Automated grouping
+(`sa_analytics.agg.*`), the OOTB AMR **Create Incident for Primary Alert** (all
+Group Alerts), the OOTB Script Include `EvtMgmtCustomIncidentPopulator`, and the
+change-window maintenance rules. It therefore runs only on instances whose
+`SN_INSTANCES.<id>.incident_deploy_enabled` is `true`, and skips the rest with a
+message (it does not fail, so aggregators and `target=all` continue). Demo3 is
+held (`false`): its Event Management is shared with other teams. `test.yml` and
+`diagnose.yml` are read-only and run on any target.
+
 ```bash
-cd ansible
-ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml
+cd automation/ansible
+ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml -e target=demo1
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 ```

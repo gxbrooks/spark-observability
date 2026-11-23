@@ -23,7 +23,8 @@ Location uses the same product-native pattern as K8s:
 ## Playbooks
 
 ```bash
-cd ansible
+cd automation/ansible
+# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml -e @../vars/secrets.yaml
@@ -31,4 +32,4 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml
 
 `discover.yml` syncs running containers, writes **`servicenow.com/*`** and **`com.docker.compose.*`** labels to **`cmdb_key_value`** (required for tag-based Service Mapping), retires container CIs whose `container_id` is no longer running, and deduplicates multiple CMDB rows that share the same container **name** on a host when only one matching container is running.
 
-Tag-based SM instance configuration: [specifications/servicenow/docs/Tag_Based_Service_Mapping.md](../../../../specifications/servicenow/docs/Tag_Based_Service_Mapping.md).
+Tag-based SM instance configuration: [specifications/servicenow/docs/Tag_Based_Service_Mapping.md](../../../../../../specifications/servicenow/docs/Tag_Based_Service_Mapping.md).

@@ -1,5 +1,9 @@
 ---
 # Stop ServiceNow MID Server on Lab3.
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: discovery/stop.yml
+
 - name: Stop MID Server
   hosts: observability
   become: true

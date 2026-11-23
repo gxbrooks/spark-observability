@@ -121,11 +121,14 @@
 - name: Queue Execute Now via scheduled_import_set run_start
   when: not (sgc_import_already_running | bool)
   block:
+    # Table API date-times are UTC; a local-time value lands hours in the past
+    # (CST: 6 h), and the scheduler never picks it up.
     - name: Compute run_start for Execute Now
       ansible.builtin.set_fact:
         sgc_import_run_start: >-
           {{ '%Y-%m-%d %H:%M:%S' | strftime(
-               (ansible_date_time.epoch | int) + (sgc_import_start_offset_seconds | default(30) | int)
+               (ansible_date_time.epoch | int) + (sgc_import_start_offset_seconds | default(30) | int),
+               utc=True
              ) }}
       run_once: true
 
@@ -166,11 +169,13 @@
           or run Execute Now manually in Dynatrace Observability → Scheduled Data Imports.
       when: sn_sgc_execute_now_patch.status != 200
 
+    # Strictly newer than the latest set seen before Execute Now: with >= the
+    # pre-existing set matched itself and was taken as the new run.
     - name: Wait for new Hosts concurrent import set
       ansible.builtin.uri:
         url: >-
           {{ sn_url }}/api/now/table/sys_concurrent_import_set?sysparm_query=scheduled_import={{
-          sn_sgc_hosts_sched_row.sys_id }}^sys_created_on>={{
+          sn_sgc_hosts_sched_row.sys_id }}^sys_created_on>{{
           sn_sgc_latest_cis_row.sys_created_on | default('1970-01-01 00:00:00') | urlencode
           }}^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,number,sys_created_on&sysparm_limit=1
         method: GET

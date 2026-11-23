@@ -38,7 +38,7 @@
 
 ## Tag Categories UI
 
-- **Classic (works on optimizincdemo1):** Filter Navigator → **CI tag categories**
+- **Classic (works on optimizincdemo1 and optimizincdemo3):** Filter Navigator → **CI tag categories**
   or `svc_tag_categories_list.do`. Requires **`service_mapping_admin`**.
 - **Empty list is normal** — click **New** and create categories (see install.md §6.5).
 - **Workspace** `/now/svc-map/tag-categories` may be unavailable when Store download
@@ -50,7 +50,8 @@ Per-service tag filters from `*.csdm.yaml` are applied by **`sn-sync-inject`**
 ## Usage
 
 ```bash
-cd ansible
+cd automation/ansible
+# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/install.yml \
   -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.yml \
@@ -61,6 +62,11 @@ ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/diagnose.
 
 Also invoked from top-level `playbooks/servicenow/install.yml` **after** `sgc/install.yml`.
 
+`deploy.yml` writes the Scripted REST URIs to
+`vars/contexts/servicenow_sm_deploy_<id>.json` (one file per instance);
+`csdm/deploy.yml` reads the file for the same target. On shared instances it only
+adds its own "Service Instance" tag category and leaves other categories alone.
+
 Variables:
 
 - `sn_sm_ensure_store_apps` — default **false**; set **true** to CI/CD refresh every manifest app (slow; may warn on shared demos)
@@ -69,5 +75,5 @@ Variables:
 ## Related
 
 - `csdm/deploy.yml` — `sn-sync-inject` applies tag_list population from `*.csdm.yaml`
-- [specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md) §6.5
-- [Tag_Based_Service_Mapping.md](../../../../specifications/servicenow/docs/Tag_Based_Service_Mapping.md)
+- [specifications/servicenow/docs/install.md](../../../../../specifications/servicenow/docs/install.md) §6.5
+- [Tag_Based_Service_Mapping.md](../../../../../specifications/servicenow/docs/Tag_Based_Service_Mapping.md)

@@ -1,6 +1,6 @@
 ---
 # Deploy global-scoped Scripted REST API for Discovery operations (schedule + quick).
-# ServiceNow assigns base_uri; operation URIs are persisted in servicenow_discovery_deploy.json.
+# ServiceNow assigns base_uri; operation URIs are persisted in vars/contexts/servicenow_discovery_deploy_<id>.json.
 #
 # Requires: web_service_admin (create sys_ws_*), discovery_admin (script calls Discovery API).
 

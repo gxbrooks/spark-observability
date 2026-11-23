@@ -704,31 +704,62 @@ SN_DISCOVERY_SCHEDULE_NAME:
   value: Brooks Lab CI Discovery
   contexts: [service-now]
 
-SN_INSTANCE_SHORT_NAME:
+# Instance registry: brooks-lab feeds several ServiceNow instances at once.
+# A list (not a map: the context generator flattens nested maps) of entries
+# keyed by `id`. Every ServiceNow playbook takes `-e target=<id>|all`
+# (default SN_DEFAULT_TARGET). `all` runs the playbook once per entry, in list
+# order: the first entry in this process, the rest as child ansible-playbook
+# runs (playbooks/servicenow/common/target.yml).
+# SN_URL above is only for the non-Ansible readers (servicenow/comparator,
+# spark/.../create-sn-change-window.py); it stays Demo1's URL.
+# Secrets for an instance are servicenow.<KEY><secrets_suffix> in
+# vars/secrets.yaml (SN_USER_DEMO3, SN_MID_PASSWORD_DEMO3, ...).
+# Per-instance deploy facts: vars/contexts/servicenow_*_deploy_<id>.json.
+# Design: specifications/servicenow/docs/Multi_Instance_Plan.md
+SN_DEFAULT_TARGET:
   section: ServiceNow instance
-  value: optimizincdemo1
+  value: demo3
   contexts: [service-now]
 
-SN_MID_SERVER_NAME:
-  section: MID Server
-  value: mid-brooks-lab3
+SN_INSTANCES:
+  section: ServiceNow instance
+  value:
+    - id: demo1
+      url: https://optimizincdemo1.service-now.com
+      short_name: optimizincdemo1
+      secrets_suffix: ""
+      # MID Server on Lab3. The .deb package path; installed by the vendor package.
+      mid_server_name: mid-brooks-lab3
+      mid_service_name: mid_brooks_lab3
+      mid_agent_dir: /opt/servicenow/mid/agent
+      # Must match the instance build (MID Server > Downloads).
+      mid_installer_deb_url: https://install.service-now.com/glide/distribution/builds/package/app-signed/mid-linux-installer/2026/05/19/mid-linux-installer.zurich-07-01-2025__patch7b-hotfix1-05-18-2026_05-19-2026_0833.linux.x86-64.deb
+      # Legacy EM push connector (source=dynatrace); SGC uses source=SGO-Dynatrace.
+      dt_legacy_connector_sys_id: 712a39811ba483105488a937b04bcba5
+      dt_problem_notification_name: ServiceNow brooks-lab - Spark Observability
+      # Dynatrace API token SGC uses to pull topology (sgc/sources/dynatrace).
+      dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration
+      # incident/deploy.yml changes instance-wide Event Management settings.
+      incident_deploy_enabled: true
+    - id: demo3
+      url: https://optimizincdemo3.service-now.com
+      short_name: optimizincdemo3
+      secrets_suffix: _DEMO3
+      # Second MID on Lab3: unpacked from the .deb into its own directory.
+      mid_server_name: mid-brooks-lab3-demo3
+      mid_service_name: mid_brooks_lab3_demo3
+      mid_agent_dir: /opt/servicenow/mid-demo3/agent
+      # Demo3 runs Australia patch5b (glide.war); Demo1 runs Zurich, so the MIDs differ.
+      mid_installer_deb_url: https://install.service-now.com/glide/distribution/builds/package/app-signed/mid-linux-installer/2026/11/18/mid-linux-installer.australia-02-11-2026__patch5bw47-11-13-2026_11-18-2026_1916.linux.x86-64.deb
+      # Unused while Demo3 runs SGC (source=SGO-Dynatrace).
+      dt_legacy_connector_sys_id: ""
+      dt_problem_notification_name: ServiceNow brooks-lab (demo3) - Spark Observability
+      dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration-demo3
+      # Held: Demo3 Event Management is shared with other teams, and
+      # incident/deploy.yml changes instance-wide EM properties, grouping and
+      # OOTB rules. incident/deploy.yml skips this instance until set to true.
+      incident_deploy_enabled: false
   contexts: [service-now]
-
-SN_MID_INSTALL_DIR:
-  section: MID Server
-  value: /opt/servicenow/mid-brooks-lab3
-  contexts: [service-now]
-
-SN_MID_INSTALLER_DEB_URL:
-  section: MID Server
-  value: https://install.service-now.com/glide/distribution/builds/package/app-signed/mid-linux-installer/2026/05/19/mid-linux-installer.zurich-07-01-2025__patch7b-hotfix1-05-18-2026_05-19-2026_0833.linux.x86-64.deb
-  contexts: [service-now]
-
-SN_DT_LEGACY_CONNECTOR_SYS_ID:
-  section: Dynatrace event integration
-  value: 712a39811ba483105488a937b04bcba5
-  contexts: [service-now]
-  description: Legacy EM push connector sys_id on optimizincdemo1 (source=dynatrace). SGC uses source=SGO-Dynatrace when installed.
 
 
 # =============================================================================

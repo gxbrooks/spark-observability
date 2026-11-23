@@ -2,6 +2,10 @@
 # Assert brooks-lab Linux servers appear in CMDB after Discovery.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/test.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: discovery/test.yml
+
 - name: Test CMDB for brooks-lab discovered hosts
   hosts: localhost
   connection: local

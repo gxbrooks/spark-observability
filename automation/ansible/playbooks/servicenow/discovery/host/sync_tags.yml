@@ -3,6 +3,10 @@
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/sync_tags.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/host/sync_tags.yml
+
 - name: Sync host CSDM tags to cmdb_key_value
   hosts: localhost
   connection: local

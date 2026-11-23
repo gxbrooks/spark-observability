@@ -35,16 +35,48 @@ sibling directories.
 
 | Variable | Where | Purpose |
 | -------- | ----- | ------- |
-| `SN_URL` | `variables.yaml` → service-now context | Instance base URL |
-| `SN_MID_INSTALLER_DEB_URL` | `variables.yaml` → service-now context | Linux MID `.deb` (must match instance build) |
-| `SN_LAB_LOCATION_NAME`, subnet, MID name, … | `variables.yaml` → service-now context | brooks-lab Discovery scope |
+| `SN_INSTANCES` | `variables.yaml` → service-now context | Instance registry, one entry per `id` (`demo1`, `demo3`): `url`, `secrets_suffix`, MID name/service/dir, `mid_installer_deb_url` (must match the instance build), `dt_problem_notification_name`, `dt_sgc_api_token_name`, `dt_legacy_connector_sys_id`, `incident_deploy_enabled` |
+| `SN_DEFAULT_TARGET` | `variables.yaml` → service-now context | Instance used when `-e target` is omitted (`demo3`) |
+| `SN_URL` | `variables.yaml` → service-now context | Demo1 URL, read only by the non-Ansible tools (`servicenow/comparator`, `create-sn-change-window.py`); playbooks use `SN_INSTANCES.<id>.url` |
+| `SN_LAB_LOCATION_NAME`, subnet, schedule, … | `variables.yaml` → service-now context | brooks-lab Discovery scope (same on every instance) |
 
-**Secrets** — `vars/secrets.yaml` → `servicenow:` block:
+**Secrets** — `vars/secrets.yaml` → `servicenow:` block. Each instance's keys
+carry its `secrets_suffix` (none for `demo1`, `_DEMO3` for `demo3`):
 
-- `SN_USER`, `SN_PASSWORD` — API automation user (`admin_brooks_lab`)
-- `SN_MID_USER`, `SN_MID_PASSWORD` — MID Server user (`mid_brooks_lab`, **`mid_server` role only**)
+- `SN_USER<suffix>`, `SN_PASSWORD<suffix>` — API automation user (`admin_brooks_lab`)
+- `SN_MID_USER<suffix>`, `SN_MID_PASSWORD<suffix>` — MID Server user (`mid_brooks_lab`, **`mid_server` role only**)
+- `SN_DT_WEBHOOK_USER<suffix>`, `SN_DT_WEBHOOK_PASSWORD<suffix>` — written by `sgc/sources/dynatrace/events/deploy.yml`
 
-Full prerequisite checklist: **[specifications/servicenow/docs/install.md](../../../specifications/servicenow/docs/install.md)**
+**Per-instance deploy facts** (gitignored, written by deploy playbooks):
+`vars/contexts/servicenow_discovery_deploy_<id>.json`,
+`servicenow_k8s_discovery_deploy_<id>.json`, `servicenow_sm_deploy_<id>.json`.
+
+## Target instance (`-e target=`)
+
+brooks-lab feeds several ServiceNow instances at once (Demo1 and Demo3). Every
+ServiceNow playbook takes:
+
+| Value | Effect |
+| ----- | ------ |
+| *(omitted)* | `SN_DEFAULT_TARGET` — **`demo3`** |
+| `demo1` / `demo3` | That instance only |
+| `all` | Every `SN_INSTANCES` entry. This process runs the first entry (`demo1`); [`common/target.yml`](common/target.yml) first runs the same ServiceNow playbook as a child `ansible-playbook -e target=<id>` for each remaining entry (same inventory, extra vars, tags, verbosity, `--check`/`--diff`). Child logs: `automation/ansible/tmp/sn-target-<playbook>-<id>-<timestamp>.log`. A failed child stops the run before the first entry runs. |
+
+`common/target.yml` is the first `import_playbook` of every ServiceNow
+playbook. It validates `target` and fans out **once per run** (the outermost
+ServiceNow playbook), so aggregators such as `servicenow/deploy.yml` or the
+whole-lab `playbooks/deploy.yml` re-run only the ServiceNow playbook per
+instance, never the whole lab. Two playbooks have no guard because they don't
+touch ServiceNow: `discovery/k8s/label_oneagent_pods.yml` and
+`sgc/sources/dynatrace/events/apply_openpipeline_only.yml`.
+
+`incident/deploy.yml` changes instance-wide Event Management settings, so it
+**skips** any instance whose `incident_deploy_enabled` is `false` (Demo3 today:
+its EM is shared with other teams).
+
+Design and status: [Multi_Instance_Plan.md](../../../../specifications/servicenow/docs/Multi_Instance_Plan.md).
+
+Full prerequisite checklist: **[specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md)**
 
 SSH discovery private key is generated on first `discovery/install.yml` run and
 stored at `vars/sn_discovery_id_ed25519` (gitignored).
@@ -52,14 +84,15 @@ stored at `vars/sn_discovery_id_ed25519` (gitignored).
 ## Entry points
 
 ```bash
-cd ansible
+cd automation/ansible
 
+# Every command below takes -e target=demo1|demo3|all (default demo3).
 # Full ServiceNow stack (or run individual playbooks below)
 ansible-playbook -i inventory.yml playbooks/servicenow/install.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml -e target=all
 # Model compare (Python — from repo root)
 # PYTHONPATH=. python -m servicenow.comparator
 
@@ -80,10 +113,14 @@ ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../va
 
 | User | Secrets key | Roles | Used for |
 | ---- | ----------- | ----- | -------- |
-| `admin_brooks_lab` | `SN_USER` | discovery_admin, cmdb_inst_admin, rest_service, … | Ansible `deploy.yml` / `discover.yml` |
-| `mid_brooks_lab` | `SN_MID_USER` | **mid_server** only | MID Server agent on Lab3 |
+| `admin_brooks_lab` | `SN_USER<suffix>` | `admin` on Demo1 and Demo3 (or discovery_admin, cmdb_inst_admin, rest_service, …) | Ansible `deploy.yml` / `discover.yml` |
+| `mid_brooks_lab` | `SN_MID_USER<suffix>` | **mid_server** only | MID Server agent on Lab3 (one MID per instance) |
 
-The MID user **cannot** replace the admin user for Phase 1. See [specifications/servicenow/docs/install.md](../../../specifications/servicenow/docs/install.md).
+Each instance has its own pair of users (separate passwords). Lab3 runs one MID
+per instance: `mid-brooks-lab3` (Demo1, `/opt/servicenow/mid/agent`) and
+`mid-brooks-lab3-demo3` (Demo3, `/opt/servicenow/mid-demo3/agent`).
+
+The MID user **cannot** replace the admin user for Phase 1. See [specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md).
 
 Run `discovery/diagnose.yml` for a live permission matrix.
 

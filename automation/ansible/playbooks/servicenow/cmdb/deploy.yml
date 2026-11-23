@@ -15,6 +15,10 @@
 #   playbooks/servicenow/discovery/discover.yml   — force Discovery scan (IRE-populated CIs)
 #   playbooks/servicenow/sgc/sources/dynatrace/start.yml — Dynatrace SGC import cascade
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: cmdb/deploy.yml
+
 - name: Deploy CMDB 360 (Multisource CMDB) settings
   hosts: localhost
   connection: local

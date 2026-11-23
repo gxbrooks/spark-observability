@@ -23,6 +23,10 @@
 #   sgc_import_poll_interval — seconds between progress reports (default: 300)
 #   sgc_import_poll_retries — max polls before timeout (default: 12 → 60 minutes)
 
+- import_playbook: ../../../common/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace/start.yml
+
 - name: Start SGO-Dynatrace Hosts import and monitor cascade
   hosts: localhost
   connection: local

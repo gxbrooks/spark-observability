@@ -6,6 +6,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/deploy.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: sgc/deploy.yml
+
 - name: Deploy / validate Dynatrace SGC integration prerequisites
   hosts: localhost
   connection: local

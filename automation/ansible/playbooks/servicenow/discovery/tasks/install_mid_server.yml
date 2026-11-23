@@ -26,16 +26,26 @@
 - name: Fail when MID installer URL is not configured
   ansible.builtin.fail:
     msg: >-
-      Set SN_MID_INSTALLER_DEB_URL in vars/variables.yaml to the Linux .deb from
-      ServiceNow MID Server Downloads for this instance build.
+      Set mid_installer_deb_url for instance '{{ sn_instance_id }}' in
+      SN_INSTANCES (vars/variables.yaml) to the Linux .deb from that instance's
+      MID Server > Downloads (it must match the instance build).
   when:
     - not sn_mid_service_unit.stat.exists
     - sn_mid_installer_deb_url | length == 0
 
+# One host can run several MID Servers (one per ServiceNow instance). The vendor
+# .deb is a single `agent` package that unpacks to sn_mid_package_agent_dir, so
+# only one instance can use the package install; every other instance gets the
+# .deb's agent tree copied into its own sn_mid_agent_dir.
+- name: Classify MID install type
+  ansible.builtin.set_fact:
+    sn_mid_is_package_install: "{{ sn_mid_agent_dir == sn_mid_package_agent_dir }}"
+    sn_mid_deb_path: "/tmp/servicenow-mid-installer-{{ sn_instance_id }}.deb"
+
 - name: Download MID Server DEB
   ansible.builtin.get_url:
     url: "{{ sn_mid_installer_deb_url_resolved }}"
-    dest: "/tmp/servicenow-mid-installer.deb"
+    dest: "{{ sn_mid_deb_path }}"
     mode: "0644"
   become: true
   when:
@@ -51,45 +61,92 @@
 
 - name: Install MID Server DEB package
   ansible.builtin.apt:
-    deb: "/tmp/servicenow-mid-installer.deb"
+    deb: "{{ sn_mid_deb_path }}"
     state: present
   become: true
   register: sn_mid_apt_install
   failed_when: false
   when:
+    - sn_mid_is_package_install | bool
     - not sn_mid_service_unit.stat.exists
     - sn_mid_agent_pkg.stdout is not search('install ok installed')
 
 - name: Install MID Server DEB with forced dependencies (Ubuntu libc6 vs RPM glibc)
   ansible.builtin.command:
-    cmd: dpkg -i --force-depends /tmp/servicenow-mid-installer.deb
+    cmd: dpkg -i --force-depends {{ sn_mid_deb_path }}
   become: true
   register: sn_mid_dpkg_install
   changed_when: "'Setting up agent' in sn_mid_dpkg_install.stdout"
   when:
+    - sn_mid_is_package_install | bool
     - not sn_mid_service_unit.stat.exists
     - sn_mid_agent_pkg.stdout is not search('install ok installed')
     - sn_mid_apt_install is failed or (sn_mid_apt_install.rc | default(0)) != 0
 
-- name: Locate default MID agent directory after package install
-  ansible.builtin.find:
-    paths: /opt/servicenow
-    patterns: agent
-    file_type: directory
-    recurse: true
-    depth: 3
-  register: sn_mid_agent_dirs
+- name: Check for an existing agent tree in the instance's MID directory
+  ansible.builtin.stat:
+    path: "{{ sn_mid_agent_dir }}/installer.sh"
+  register: sn_mid_agent_tree
   become: true
+
+- name: Unpack the MID .deb into this instance's own agent directory
+  when:
+    - not (sn_mid_is_package_install | bool)
+    - not sn_mid_service_unit.stat.exists
+    - not sn_mid_agent_tree.stat.exists
+  become: true
+  block:
+    - name: Extract the .deb payload to a staging directory
+      ansible.builtin.shell: |
+        set -euo pipefail
+        rm -rf "/tmp/sn-mid-extract-{{ sn_instance_id }}"
+        mkdir -p "/tmp/sn-mid-extract-{{ sn_instance_id }}"
+        dpkg-deb -x "{{ sn_mid_deb_path }}" "/tmp/sn-mid-extract-{{ sn_instance_id }}"
+        test -x "/tmp/sn-mid-extract-{{ sn_instance_id }}{{ sn_mid_package_agent_dir }}/installer.sh"
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Create the instance's MID parent directory
+      ansible.builtin.file:
+        path: "{{ sn_mid_agent_dir | dirname }}"
+        state: directory
+        owner: "{{ sn_mid_run_as_user }}"
+        group: "{{ sn_mid_run_as_user }}"
+        mode: "0755"
+
+    - name: Copy the agent tree into place
+      ansible.builtin.command:
+        argv:
+          - cp
+          - -a
+          - "/tmp/sn-mid-extract-{{ sn_instance_id }}{{ sn_mid_package_agent_dir }}"
+          - "{{ sn_mid_agent_dir }}"
+        creates: "{{ sn_mid_agent_dir }}/installer.sh"
+
+    - name: Give the MID runtime user ownership of the agent tree
+      ansible.builtin.file:
+        path: "{{ sn_mid_agent_dir | dirname }}"
+        state: directory
+        recurse: true
+        owner: "{{ sn_mid_run_as_user }}"
+        group: "{{ sn_mid_run_as_user }}"
+
+    - name: Remove the staging directory
+      ansible.builtin.file:
+        path: "/tmp/sn-mid-extract-{{ sn_instance_id }}"
+        state: absent
 
 - name: Set MID agent path
   ansible.builtin.set_fact:
-    sn_mid_agent_path: "{{ (sn_mid_agent_dirs.files | map(attribute='path') | list | first) | default('/opt/servicenow/mid/agent') }}"
+    sn_mid_agent_path: "{{ sn_mid_agent_dir }}"
 
 - name: Require MID Server ServiceNow credentials
   ansible.builtin.fail:
     msg: >-
-      Add servicenow.SN_MID_USER and SN_MID_PASSWORD (mid_server role) to vars/secrets.yaml
-      before installing the MID Server.
+      Add servicenow.SN_MID_USER{{ sn_secret_suffix }} and SN_MID_PASSWORD{{ sn_secret_suffix }}
+      (a user with only the mid_server role on {{ sn_url }}) to vars/secrets.yaml
+      before installing the MID Server for instance '{{ sn_instance_id }}'.
   when:
     - sn_mid_user | length == 0 or sn_mid_password | length == 0
 
@@ -163,9 +220,12 @@
   register: sn_mid_service_start
   failed_when: false
 
+# One sudoers file per MID service, so installing a second MID does not
+# overwrite the first one's auto-upgrade rights. The package-install MID keeps
+# the original file name.
 - name: Allow MID runtime user passwordless systemctl for auto-upgrade
   ansible.builtin.copy:
-    dest: /etc/sudoers.d/servicenow-mid
+    dest: "/etc/sudoers.d/{{ 'servicenow-mid' if (sn_mid_is_package_install | bool) else 'servicenow-mid-' ~ sn_mid_service_name }}"
     mode: "0440"
     validate: "visudo -cf %s"
     content: |

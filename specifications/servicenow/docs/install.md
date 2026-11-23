@@ -3,8 +3,13 @@
 This document covers **prerequisites** on the ServiceNow instance and lab hosts,
 then the Ansible install sequence for brooks-lab Discovery.
 
-**Instance:** [https://optimizincdemo1.service-now.com/](https://optimizincdemo1.service-now.com/)  
-**Playbooks:** `ansible/playbooks/servicenow/discovery/`  
+**Instances:** [https://optimizincdemo1.service-now.com/](https://optimizincdemo1.service-now.com/) (`demo1`, unsuffixed secrets);
+[https://optimizincdemo3.service-now.com/](https://optimizincdemo3.service-now.com/) (`demo3`, `*_DEMO3` secrets).  
+**Target:** every ServiceNow playbook takes `-e target=demo1|demo3|all`; **the default is `demo3`**.
+The commands in this guide omit `target`, so they act on Demo3. Add `-e target=demo1` or
+`-e target=all` as needed. See [Multiple ServiceNow instances](#multiple-servicenow-instances).
+Examples naming optimizincdemo1 record how Demo1 was set up; the same steps apply to each instance.  
+**Playbooks:** `automation/ansible/playbooks/servicenow/discovery/`  
 **Variables:** `vars/variables.yaml` → `**service-now`** context → generated
 `vars/contexts/servicenow_ansible_vars.yml`  
 **Secrets:** `vars/secrets.yaml` → `servicenow:` block (see `vars/secrets.example.yaml`)
@@ -109,13 +114,44 @@ ServiceNow support documents a specific exception. Least privilege is
 
 ### Password and `config.xml`
 
-The User ID and password must match `mid.instance.username` and
-`mid.instance.password` in the MID `config.xml` on Lab3 (rendered by
-`discovery/install.yml`).
+`config.xml` is the **MID Server agent's own configuration file**. It is not a
+file in this repository. On Lab3 there is one per instance, at
+`<mid_agent_dir>/config.xml` (owner `servicenow-mid`; read with sudo):
 
-If the password contains `**&`**, `<`, `>`, or quotes, the install template
-XML-escapes it automatically. Prefer passwords without `&` when rotating, to
-avoid encoding mistakes in manual edits.
+```
+/opt/servicenow/mid/agent/config.xml          Demo1 (mid-brooks-lab3)
+/opt/servicenow/mid-demo3/agent/config.xml    Demo3 (mid-brooks-lab3-demo3)
+```
+
+See [One MID Server per instance](#one-mid-server-per-instance-all-on-lab3).
+
+The MID agent reads it at startup. The parameters that matter here:
+
+| Parameter                 | Value                                         |
+| ------------------------- | --------------------------------------------- |
+| `url`                     | the instance, e.g. `https://optimizincdemo1.service-now.com` |
+| `name`                    | `SN_INSTANCES.<id>.mid_server_name` (`mid-brooks-lab3`, `mid-brooks-lab3-demo3`) |
+| `mid.instance.username`   | `mid_brooks_lab` (`SN_MID_USER<secrets_suffix>`) |
+| `mid.instance.password`   | `SN_MID_PASSWORD<secrets_suffix>`              |
+
+The ServiceNow `mid_brooks_lab` User ID and password must match the two
+`mid.instance.*` values exactly.
+
+**How the file is written:** `discovery/install.yml --tags mid_server [-e target=<id>]`
+(`tasks/install_mid_server.yml`) puts the agent tree in that instance's
+`mid_agent_dir`: the package install for Demo1, or an unpacked copy of the `.deb`
+for any other instance. It then runs the vendor's
+`installer.sh -silent -INSTANCE_URL … -MID_USERNAME … -MID_PASSWORD …` there,
+and that script writes `config.xml`. The script only runs on a first install. To
+rotate the password afterwards, edit `mid.instance.password` in that
+`config.xml` with sudo, then restart that MID's service
+(`tasks/restart_mid_server.yml`). The agent encrypts the value on its next start.
+
+`templates/mid-config.xml.j2` is not referenced by any playbook; the vendor
+installer is the only writer of `config.xml`.
+
+When editing `config.xml` by hand, XML-escape `&`, `<`, `>`, and quotes in the
+password (`&amp;` etc.). Prefer passwords without them.
 
 ### What the MID user cannot do (verified)
 
@@ -244,7 +280,7 @@ calls the schedule endpoint; operators and automation may also call Quick Discov
 
 
 ServiceNow assigns the base path (instance-specific). Operation URIs are written
-to `vars/contexts/servicenow_discovery_deploy.json` as `discovery_rest_operation_uri`
+to `vars/contexts/servicenow_discovery_deploy_<id>.json` (one file per instance, e.g. `_demo1`, `_demo3`) as `discovery_rest_operation_uri`
 and `discovery_rest_quick_uri`.
 
 CMDB license checks use the **CI/CD plugin activate API** (`sn_cicd.sys_ci_automation`)
@@ -1028,8 +1064,8 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 
 | Variable                                           | Where                                               | Purpose                                                                          |
 | -------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `SN_DT_LEGACY_CONNECTOR_SYS_ID`                    | `vars/variables.yaml` (service-now)                 | Pre-existing legacy EM push connector (`712a39811…`) used until SGC is installed |
-| `SN_URL`, `SN_INSTANCE_SHORT_NAME`                 | `vars/variables.yaml` (service-now)                 | Instance identity                                                                |
+| `SN_INSTANCES.<id>.dt_legacy_connector_sys_id`     | `vars/variables.yaml` (service-now)                 | Pre-existing legacy EM push connector (Demo1: `712a39811…`) used until SGC is installed |
+| `SN_INSTANCES` (`url`, `short_name`, …), `SN_DEFAULT_TARGET` | `vars/variables.yaml` (service-now)       | Instance identity per target; `SN_URL` is Demo1's URL for non-Ansible readers only |
 | `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE` | `vars/variables.yaml` (dynatrace-ansible) / secrets | Dynatrace side                                                                   |
 | `sn_store_apps`                                    | `specifications/servicenow/integrations/sgc/store_apps.yml` (sgc-local)             | App/plugin manifest: scopes, install order, pinned versions                      |
 
@@ -1061,7 +1097,8 @@ installs by application **scope** via the CI/CD App Repo Install API.
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Dynatrace problem notification `**ServiceNow Demo 1 - Optimiz`**    | **Pre-existing** — webhook to `optimizincdemo1…/inbound_event?source=dynatrace&sys_id=712a39811…`  |
 | ServiceNow EM push connector `**712a39811ba483105488a937b04bcba5`** | **Pre-existing** — referenced by Demo 1 notification; **not** created or modified by our playbooks |
-| Dynatrace notification `**ServiceNow optimiz demo3`**               | **Pre-existing** — points at optimizincdemo3                                                       |
+| Dynatrace notification `**ServiceNow optimiz demo3`**               | **Pre-existing** — **disabled**; now points at an httpdump.app URL, not Demo3 (checked 2026-11-23) |
+| Dynatrace notification `**Legacy Demo 3`**                          | **Pre-existing** — enabled; `Otel Demo` alerting profile → Demo3 EM push connector `4d2f61174728db503a869b83616d4386` (`source=dynatrace`, no auth header) |
 
 
 Contact **Optimiz / prior integrators** before changing Demo 1, connector `712a39811…`, or shared Dynatrace notifications.
@@ -1074,9 +1111,164 @@ Contact **Optimiz / prior integrators** before changing Demo 1, connector `712a3
 
 ---
 
+## Multiple ServiceNow instances
+
+brooks-lab feeds **optimizincdemo1** and **optimizincdemo3** concurrently. Design and
+status: [Multi_Instance_Plan.md](Multi_Instance_Plan.md).
+
+ServiceNow accounts are **per instance**. Each instance needs its own
+`admin_brooks_lab` and `mid_brooks_lab` records with the roles in §1–§2. The
+same User IDs are used everywhere, with a different password on each instance.
+
+### Instance registry and the `target` flag
+
+`vars/variables.yaml` → `SN_INSTANCES` lists every instance (keyed by `id`) with:
+- its URL and short name, and its `secrets_suffix`;
+- its MID Server name, service, directory and installer `.deb`;
+- its legacy EM connector sys_id and Dynatrace problem-notification name;
+- the SGC Dynatrace API token name (`dt_sgc_api_token_name`);
+- `incident_deploy_enabled` (see below).
+
+Every ServiceNow playbook takes `-e target=<id>|all`. The default is
+`SN_DEFAULT_TARGET` = **`demo3`**:
+
+```bash
+# Demo3 (default)
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml
+# Demo1
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e target=demo1
+# Both: demo3 runs as a child ansible-playbook first, then demo1 in this process
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e target=all
+```
+
+How it works:
+
+- Each ServiceNow playbook imports `playbooks/servicenow/common/target.yml` as its
+  first play. That play rejects an unknown target.
+- For `all`, the outermost ServiceNow playbook in the run re-runs itself once per
+  extra instance as a child `ansible-playbook` with `-e target=<id>`. The child gets
+  the same inventory, `-e` values, tags, `--limit`, verbosity and `--check`/`--diff`.
+  Its log goes to `automation/ansible/tmp/sn-target-<playbook>-<id>-<timestamp>.log`.
+  The parent run then continues against the first `SN_INSTANCES` entry (demo1).
+- Fan-out happens once per run. In a whole-lab `playbooks/deploy.yml -e target=all`,
+  only the ServiceNow part is re-run per instance, never the whole lab.
+- A failed child stops the run before the first instance is touched.
+- `discovery/k8s/label_oneagent_pods.yml` and
+  `sgc/sources/dynatrace/events/apply_openpipeline_only.yml` don't depend on the
+  instance (Kubernetes pods and the Dynatrace tenant), so they have no guard and run
+  once.
+
+Each `servicenow/*/common/vars.yml` derives these from the selected entry:
+`sn_url`, `sn_user`, `sn_password`, `sn_mid_*`, `sn_instance_short_name`,
+`sn_dt_legacy_connector_sys_id`, `dt_sn_problem_notification_name` and
+`dt_sgc_api_token_name`.
+
+Deploy facts are written per instance, for **every** instance including Demo1:
+`vars/contexts/servicenow_discovery_deploy_<id>.json`,
+`servicenow_k8s_discovery_deploy_<id>.json` and `servicenow_sm_deploy_<id>.json`.
+
+`SN_URL` stays in `variables.yaml` as Demo1's URL. Only the non-Ansible readers use it
+(`servicenow/comparator`, `create-sn-change-window.py`).
+
+**Incident rules are held on shared instances.** `incident/deploy.yml` changes
+Event Management for the whole instance:
+- EM properties;
+- Automated grouping;
+- the OOTB "Create Incident for Primary Alert" rule;
+- the `EvtMgmtCustomIncidentPopulator` Script Include;
+- the maintenance rules.
+
+It skips (doesn't fail) any instance whose `incident_deploy_enabled` is `false`.
+Demo3 is set to `false` because other teams use its Event Management.
+
+### Secrets naming
+
+The unsuffixed keys belong to Demo1 (`secrets_suffix: ""`). Every other instance uses the
+same keys with its `secrets_suffix` (`_DEMO3`):
+
+```yaml
+servicenow:
+  # optimizincdemo1 (demo1)
+  SN_USER: "admin_brooks_lab"
+  SN_PASSWORD: "<plaintext password>"
+  SN_MID_USER: "mid_brooks_lab"
+  SN_MID_PASSWORD: "<plaintext password>"
+  SN_DT_WEBHOOK_USER: ...        # written by sgc/sources/dynatrace/events/deploy.yml
+  SN_DT_WEBHOOK_PASSWORD: ...
+
+  # optimizincdemo3 (demo3, the default target)
+  SN_USER_DEMO3: "admin_brooks_lab"
+  SN_PASSWORD_DEMO3: "<plaintext password>"
+  SN_MID_USER_DEMO3: "mid_brooks_lab"
+  SN_MID_PASSWORD_DEMO3: "<plaintext password>"
+  SN_DT_WEBHOOK_USER_DEMO3: ...  # written by events/deploy.yml -e target=demo3
+  SN_DT_WEBHOOK_PASSWORD_DEMO3: ...
+```
+
+Passwords must be **plaintext**, because REST Basic Auth and the MID agent send
+them as typed. Values shaped like `$s$<salt>$<hash>` are ServiceNow's stored
+hash from `sys_user.user_password` and cannot be used to sign in.
+
+### One MID Server per instance, all on Lab3
+
+A MID Server registers with exactly one instance (`url` in its `config.xml`), so
+Lab3 runs one MID per instance:
+
+| Instance | MID name | systemd service | Agent dir (`config.xml` lives here) | sudoers |
+| -------- | -------- | --------------- | ----------------------------------- | ------- |
+| demo1 | `mid-brooks-lab3` | `mid_brooks_lab3` | `/opt/servicenow/mid/agent` | `/etc/sudoers.d/servicenow-mid` |
+| demo3 | `mid-brooks-lab3-demo3` | `mid_brooks_lab3_demo3` | `/opt/servicenow/mid-demo3/agent` | `/etc/sudoers.d/servicenow-mid-mid_brooks_lab3_demo3` |
+
+`install.yml --tags mid_server -e target=<id>` installs that instance's MID:
+
+- The vendor `.deb` is one `agent` package that unpacks to `/opt/servicenow/mid/agent`.
+  The instance whose `mid_agent_dir` is that path gets the normal package install.
+- Every other instance gets the same `.deb` unpacked (`dpkg-deb -x`) and its `agent`
+  tree copied into its own `mid_agent_dir`, owned by `servicenow-mid`.
+- Both then run `installer.sh -silent` with that instance's URL, MID user,
+  `-MID_NAME`, and `-APP_NAME`. The script writes that directory's `config.xml` and
+  the systemd unit.
+- Each MID gets its own sudoers file, so its auto-upgrade can restart only its own
+  service.
+
+The `.deb` must match each instance's build. Set `mid_installer_deb_url` per instance
+from that instance's **MID Server → Downloads**.
+
+Memory: each MID JVM runs with `-Xmx1024m`. Lab3 has ample headroom
+(~34 GiB available, 2026-11-23).
+
+### Dynatrace problem notifications per instance
+
+`sgc/sources/dynatrace/events/deploy.yml -e target=<id>|all` upserts one Dynatrace
+problem notification **per instance**, named by `dt_problem_notification_name`. All of
+them use the same `Spark Observability - ServiceNow brooks-lab` alerting profile, so
+each instance receives the same problems. The URL is the SGC endpoint
+(`source=SGO-Dynatrace`) when SGC is installed on that instance. Otherwise it is the
+legacy EM push connector (`dt_legacy_connector_sys_id`), and the play fails if that
+is empty.
+
+### Creating the users on an instance
+
+As an instance admin, in that instance's UI:
+
+1. **All → System Security → Users → New**.
+2. **User ID** `admin_brooks_lab` (or `mid_brooks_lab`), **Identity type** Machine,
+   **Web service access only** ticked. Save.
+3. **Set Password**, and store the same plaintext in the instance's
+   `SN_PASSWORD_<INSTANCE>` / `SN_MID_PASSWORD_<INSTANCE>`.
+4. **Roles** related list: the §1 roles for `admin_brooks_lab`, and only
+   `mid_server` for `mid_brooks_lab`.
+
+Check the instance first. Shared demo instances may already have a
+`mid_brooks_lab`; don't reset another person's password (see
+[Do not override others' work](#do-not-override-others-work-shared-demo)).
+
+---
+
 ## Installation sequence
 
-Run from the `ansible/` directory:
+Run from the `automation/ansible/` directory. These commands target Demo3 (the default);
+add `-e target=demo1` or `-e target=all` for the other instance or for both:
 
 ```bash
 # 0. Permission and connectivity check
@@ -1092,7 +1284,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/deploy.yml \
   -e @../vars/secrets.yaml
 
 # 3. Validate MID Server "Up" in ServiceNow UI:
-#    MID Server > Servers > mid-brooks-lab3
+#    MID Server > Servers > mid-brooks-lab3-demo3 (Demo3) / mid-brooks-lab3 (Demo1)
 
 # 4. On-demand Discovery scan
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml \
@@ -1119,7 +1311,8 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml \
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `deploy.yml` 403 on Discovery tables | `admin_brooks_lab` roles; run `diagnose.yml`                                                                      |
 | `cmdb_key_value` REST insert 403     | Complete [§6.3](#63-enable-automation-to-update-key-value-pairs); re-run `discovery/docker/discover.yml` |
-| MID stays Down                       | `mid_brooks_lab` has `mid_server`; password matches `config.xml`; `&` in password XML-escaped                     |
+| MID stays Down                       | `mid_brooks_lab` has `mid_server`; password matches `/opt/servicenow/mid/agent/config.xml`; `&` in password XML-escaped |
+| 401 against a non-default instance   | Using that instance's `*_<INSTANCE>` secrets? Is the value plaintext, not a `$s$…$…` hash? |
 | MID user cannot run deploy           | Expected — use `admin_brooks_lab` (`SN_USER`)                                                                     |
 | No CIs after scan                    | MID Up; schedule linked to range + credential; wait for scan completion                                           |
 | Duplicate CIs                        | Hostnames must be `Lab1.lan`, `Lab2.lan`, `Lab3.lan` consistently                                                 |

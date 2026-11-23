@@ -13,6 +13,10 @@
 #   -e '{"sn_csdm_spec_paths_override": ["/path/to/file.csdm.yaml"]}'
 #   -e sn_csdm_trigger_horizontal_discovery=false
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: csdm/deploy.yml
+
 - import_playbook: ../service-mapping/deploy.yml
 
 - name: Deploy ServiceNow CSDM objects via sn-sync

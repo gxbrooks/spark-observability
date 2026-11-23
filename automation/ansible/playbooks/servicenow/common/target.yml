@@ -1,0 +1,121 @@
+---
+# ServiceNow target resolution — imported as the FIRST entry of every ServiceNow
+# playbook:
+#
+#   - import_playbook: <rel>/common/target.yml
+#     vars:
+#       sn_target_playbook: <path of the importing playbook, relative to playbooks/servicenow/>
+#
+# Flag: -e target=<id>|all   (ids from SN_INSTANCES; default SN_DEFAULT_TARGET = demo3)
+#
+#   <id>  run against that instance only.
+#   all   run against every SN_INSTANCES entry: the rest of this process handles
+#         the first entry (common/vars.yml maps all → first id); this play first
+#         runs the same ServiceNow playbook once per remaining entry as a child
+#         ansible-playbook with -e target=<id> (same inventory, extra vars, tags,
+#         verbosity, check/diff). Child logs go to automation/ansible/tmp/.
+#
+# Fan-out happens once per run: the outermost ServiceNow playbook fans out, and
+# guards imported later in the same run (nested imports, aggregators such as
+# servicenow/deploy.yml or the whole-lab playbooks/deploy.yml) skip it. A
+# whole-lab run therefore re-runs only the ServiceNow playbook per instance,
+# never the whole lab. A failed child fails this play, so the first instance is
+# not run.
+
+- name: Resolve ServiceNow target ({{ sn_target_playbook | default('?') }})
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+  vars:
+    sn_target_ids: "{{ SN_INSTANCES | map(attribute='id') | list }}"
+    sn_target_requested: "{{ target | default(SN_DEFAULT_TARGET) }}"
+  tasks:
+    - name: Validate target
+      ansible.builtin.assert:
+        that:
+          - sn_target_requested in sn_target_ids + ['all']
+        fail_msg: >-
+          target='{{ sn_target_requested }}' is not valid. Use -e target=<id> with
+          one of {{ sn_target_ids }} or -e target=all (default {{ SN_DEFAULT_TARGET }}).
+        quiet: true
+
+    - name: Fan out to the remaining instances
+      when:
+        - sn_target_requested == 'all'
+        - not (sn_target_fanout_done | default(false) | bool)
+      block:
+        - name: Read this run's ansible-playbook arguments
+          ansible.builtin.set_fact:
+            sn_target_cli: "{{ lookup('sn_cli_args') }}"
+            sn_target_child_ids: "{{ sn_target_ids[1:] }}"
+            sn_target_log_dir: "{{ playbook_dir | regex_replace('/playbooks/.*$', '') }}/tmp"
+            sn_target_stamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+        - name: Ensure child log directory exists
+          ansible.builtin.file:
+            path: "{{ sn_target_log_dir }}"
+            state: directory
+            mode: "0755"
+
+        - name: Build the child ansible-playbook command line
+          ansible.builtin.set_fact:
+            sn_target_base_argv: >-
+              {%- set c = sn_target_cli -%}
+              {%- set a = [c.python, c.ansible_playbook, (playbook_dir | dirname) ~ '/' ~ sn_target_playbook] -%}
+              {%- for i in c.inventory %}{% set _ = a.extend(['-i', i]) %}{% endfor -%}
+              {%- for e in c.extra_vars %}{% set _ = a.extend(['-e', e]) %}{% endfor -%}
+              {%- if c.tags | length > 0 %}{% set _ = a.extend(['--tags', c.tags | join(',')]) %}{% endif -%}
+              {%- if c.skip_tags | length > 0 %}{% set _ = a.extend(['--skip-tags', c.skip_tags | join(',')]) %}{% endif -%}
+              {%- if c.subset | length > 0 %}{% set _ = a.extend(['--limit', c.subset]) %}{% endif -%}
+              {%- if c.verbosity > 0 %}{% set _ = a.append('-' ~ ('v' * c.verbosity)) %}{% endif -%}
+              {%- if c.check %}{% set _ = a.append('--check') %}{% endif -%}
+              {%- if c.diff %}{% set _ = a.append('--diff') %}{% endif -%}
+              {{ a }}
+
+        - name: Run {{ sn_target_playbook }} for each remaining instance
+          ansible.builtin.shell:
+            cmd: >-
+              set -o pipefail;
+              {{ (sn_target_base_argv + ['-e', 'target=' ~ item]) | map('quote') | join(' ') }}
+              2>&1 | tee {{ (sn_target_log_dir ~ '/sn-target-'
+                             ~ (sn_target_playbook | replace('/', '_') | regex_replace('[.]yml$', ''))
+                             ~ '-' ~ item ~ '-' ~ sn_target_stamp ~ '.log') | quote }}
+            executable: /bin/bash
+            chdir: "{{ sn_target_cli.cwd }}"
+          environment:
+            ANSIBLE_FORCE_COLOR: "false"
+          loop: "{{ sn_target_child_ids }}"
+          register: sn_target_children
+          changed_when: false
+          failed_when: false
+          check_mode: false
+
+        - name: Show child run results (full logs in {{ sn_target_log_dir }})
+          ansible.builtin.debug:
+            msg: "{{ ['target=' ~ item.item ~ ' rc=' ~ item.rc] + (item.stdout_lines | default([]))[-25:] }}"
+          loop: "{{ sn_target_children.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+
+        - name: Fail when a child run failed
+          ansible.builtin.fail:
+            msg: >-
+              {{ sn_target_playbook }} failed for
+              {{ sn_target_children.results | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list }};
+              not running {{ sn_target_ids[0] }}. Logs: {{ sn_target_log_dir }}/sn-target-*-{{ sn_target_stamp }}.log
+          when: sn_target_children.results | rejectattr('rc', 'equalto', 0) | list | length > 0
+
+    - name: Record that fan-out is done for this run
+      ansible.builtin.set_fact:
+        sn_target_fanout_done: true
+
+    - name: Show ServiceNow target
+      ansible.builtin.debug:
+        msg: >-
+          {{ sn_target_playbook }}: target={{ sn_target_requested }} →
+          this run: {{ sn_target_ids[0] if sn_target_requested == 'all' else sn_target_requested }}
+          {%- if sn_target_requested == 'all' %}
+          (children ran: {{ sn_target_ids[1:] | join(', ') }}){% endif %}

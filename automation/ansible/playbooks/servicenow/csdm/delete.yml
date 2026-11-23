@@ -10,6 +10,10 @@
 #     -e @../vars/secrets.yaml \
 #     -e '{"sn_csdm_delete_cis": ["Elasticsearch", "Kibana"]}'
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: csdm/delete.yml
+
 - name: Delete ServiceNow CSDM objects via sn-sync-delete
   hosts: localhost
   connection: local

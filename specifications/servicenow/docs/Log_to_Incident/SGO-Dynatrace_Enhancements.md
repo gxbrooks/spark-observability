@@ -1,6 +1,6 @@
 # SGO-Dynatrace Enhancements (lab findings for DT / SN account teams)
 
-**Instance:** optimizincdemo1  
+**Instance:** optimizincdemo1 (findings below were observed there). Since 2026-11-23 brooks-lab also feeds optimizincdemo3 (Demo3); see [Multi_Instance_Plan.md](../Multi_Instance_Plan.md). The incident layer (`incident/deploy.yml`) is applied only where `SN_INSTANCES.<id>.incident_deploy_enabled` is true — Demo1, not Demo3 (shared Event Management).  
 **Dynatrace tenant:** pdt20158  
 **Date:** 2026-08-18 (EM Ready vs incident `severity<=3` gate; Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR; sn-impact enrich; K8s dash-key CI)  
 **Scope:** short Log4j2 application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
@@ -314,6 +314,12 @@ Brooks-lab (new-school) notification:
 | Alerting profile | `Spark Observability - ServiceNow brooks-lab` (scoped to MZ **Spark Observability**)            |
 | Enabled          | Yes                                                                                             |
 | UI list          | Same problem-notifications list as above — open **ServiceNow brooks-lab - Spark Observability** |
+
+Each ServiceNow instance gets its own brooks-lab notification, named by
+`SN_INSTANCES.<id>.dt_problem_notification_name` and created by
+`events/deploy.yml -e target=<id>` on the same alerting profile. Demo3's is
+**ServiceNow brooks-lab (demo3) - Spark Observability**, so every brooks-lab
+problem is posted to both instances.
 
 **Clarification:** Demo 1 is a **problem notification + alerting profile**, not an OpenPipeline. The Spark log OpenPipelines that *create* Davis problems are separate — see
 [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) for the entity-binding and monitor-design standard

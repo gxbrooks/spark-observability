@@ -2,6 +2,10 @@
 # Phase 2: KVA Informer health + brooks-lab Kubernetes CMDB counts.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/diagnose.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/diagnose.yml
+
 - name: Diagnose KVA Informer pod on brooks-lab cluster
   hosts: kubernetes_master
   become: true
@@ -109,4 +113,4 @@
           brooks-lab Kubernetes CMDB (cluster={{ sn_k8s_cluster_name }})
           Counts by table: {{ sn_k8s_cmdb_report | default({}) }}
           CMDB filter: {{ sn_cmdb_kubernetes_url }}
-          K8s deploy context: vars/contexts/servicenow_k8s_discovery_deploy.json
+          K8s deploy context: vars/contexts/servicenow_k8s_discovery_deploy{{ sn_context_suffix }}.json

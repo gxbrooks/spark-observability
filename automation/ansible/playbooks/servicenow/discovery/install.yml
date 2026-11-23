@@ -2,6 +2,10 @@
 # Install ServiceNow Discovery prerequisites on lab hosts.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: discovery/install.yml
+
 - name: Generate SSH key pair for Discovery credential
   hosts: localhost
   connection: local

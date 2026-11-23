@@ -2,6 +2,10 @@
 # Deploy ServiceNow Discovery configuration (location, credential, range, schedule).
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/deploy.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: discovery/deploy.yml
+
 - name: Deploy ServiceNow Discovery configuration
   hosts: localhost
   connection: local
@@ -49,7 +53,7 @@
 
     - name: Persist deploy facts for discover.yml
       ansible.builtin.copy:
-        dest: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy.json"
+        dest: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy{{ sn_context_suffix }}.json"
         mode: "0644"
         content: >-
           {{ {

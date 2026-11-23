@@ -151,7 +151,8 @@ Default **`svc_traversal_rules`** on the instance control parent/child edges in 
 ## Automation reference
 
 ```bash
-cd ansible
+cd automation/ansible
+# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
 
 # Repopulate containers + cmdb_key_value labels + retire stale container CIs
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \

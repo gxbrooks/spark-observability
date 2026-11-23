@@ -2,6 +2,10 @@
 # Phase 2: Install Kubernetes discovery prerequisites on the brooks-lab cluster.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/install.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/install.yml
+
 - name: Prepare Kubernetes API access and KVA Informer on Lab3
   hosts: kubernetes_master
   become: true

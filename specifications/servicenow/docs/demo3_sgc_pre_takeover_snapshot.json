@@ -1,0 +1,442 @@
+{
+ "api_key_credentials_meta": [
+  {
+   "active": "true",
+   "name": "Dynatrace API Key",
+   "sys_id": "20b9d77e075820107add6a77c4a93544",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2024-09-26 15:33:17"
+  }
+ ],
+ "http_connection": [
+  {
+   "_note": "use_mid/mid fields captured 2026-11-23 before use_mid=false",
+   "active": "true",
+   "connection_url": "https://mjm80413.live.dynatrace.com",
+   "credential": "20b9d77e075820107add6a77c4a93544",
+   "host": "mjm80413.live.dynatrace.com",
+   "mid_selection": "Specific MID Server",
+   "mid_server": "DevMidServer (status Down)",
+   "name": "Dynatrace Connection",
+   "port": "",
+   "protocol": "https",
+   "sys_id": "e0c63f0f075020107add6a77c4a935d6",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2024-09-26 15:46:17",
+   "use_mid": "true"
+  }
+ ],
+ "properties": [
+  {
+   "name": "sn_dynatrace_integ.management_zone_id",
+   "sys_id": "5ef724e149c0f45003e4ee342c9d3c99",
+   "sys_updated_by": "admin",
+   "value": ""
+  },
+  {
+   "name": "sn_dynatrace_integ.management_zone_name",
+   "sys_id": "a6d760e149c0f45003e4ee342c9d3c33",
+   "sys_updated_by": "admin",
+   "value": ""
+  },
+  {
+   "name": "sn_dynatrace_integ.events_for_unmatched_ci.enabled",
+   "sys_id": "e749839c77570110a52b1bfaae5a9920",
+   "sys_updated_by": "admin",
+   "value": "false"
+  }
+ ],
+ "scheduled_imports": [
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Scale Sets VM",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "008cdf6453979210f947810330e5e67f",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Custom Applications",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "047a65a0ffad22109858ffffffffff4c",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-05-28 11:34:17"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Application Rels",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "04d04a1107662010b1306a77c4a935b6",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-05-28 04:32:36"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Dynamo DB v1",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "1266c31eff4062109858ffffffffff13",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS EC2 Instance",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "184d6cec7f491210408a8fb94d866522",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Processes",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "1d136cea07a420107add6a77c4a935d5",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2024-05-14 06:05:31"
+  },
+  {
+   "active": "false",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Hosts",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "daily",
+   "sys_id": "36f22cea07a420107add6a77c4a93506",
+   "sys_updated_by": "ksanders@optimiz.ca",
+   "sys_updated_on": "2026-11-20 16:03:16"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Storage Account",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "40dd7b4e7f701210b5d859671d866506",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure VM",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "448bafa143e49610eb9c055b96b8f2ef",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Cosmos DB V2",
+   "run_time": "1970-01-01 15:30:00",
+   "run_type": "parent",
+   "sys_id": "51428c767f3e1210408a8fb94d866570",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Kubernetes Cluster",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "52e793d043710210eb9c055b96b8f29b",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:15"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Application Network LB",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "543bd301774d12109858733eaf5a9945",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS RDS V2",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "5454c454ffc422109858ffffffffffd8",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Cosmos DB v1",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "5d7cad6e9f8712109858fbb69a0a1c49",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Load Balancer",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "5e9b904b93a01210532db73e748918ca",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Kubernetes Node",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "5ec9ee5343f94210eb9c055b96b8f24a",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:15"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Docker Container",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "5fa31cacffb2021001d3ebca03cb1494",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:15"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Kubernetes Pod",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "6208fab0433a4210eb9c055b96b8f267",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Auto Scaling Group V1",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "6356c2b753f0aa10f947810330e5e68f",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-04-16 05:02:52"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Lambda Func V1",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "65194ac343a31210f947055b96b8f2ca",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Kubernetes Namespace",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "65a8d69343b94210eb9c055b96b8f2d1",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:15"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Process Groups",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "6fa96ac407732010b1306a77c4a93517",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2022-05-03 17:08:30"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Function App",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "72e5a7c77fe29e10408a8fb94d86653e",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Region",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "79390ade7f2c5210408a8fb94d866571",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Elastic Loadbalancer",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "852d70be7f4d9210408a8fb94d866514",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS RDS V1",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "8cfde321ff846610408affffffffff18",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure SQL Server V2",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "a13b1b447f17d610408a8fb94d8665a0",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS S3 Bucket V2",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "b14a0cd87ffb9e10408a8fb94d866560",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Subscriptions",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "c14de1f77f581210b5d859671d8665de",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Services",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "c31aeec407732010b1306a77c4a9358b",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2024-10-24 04:33:40"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Azure Storage Accounts v2",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "d4889f877fb85210b5d859671d8665d2",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Applications",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "db014e1107662010b1306a77c4a935af",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2024-10-24 04:34:27"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Datacenters",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "df9cc950777012109858733eaf5a9918",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace Kubernetes Service",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "e5a3862c434fce10eb9c055b96b8f2c0",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Dynamo DB v2",
+   "run_time": "1970-01-01 05:00:00",
+   "run_type": "parent",
+   "sys_id": "ec684fea9f6752109858fbb69a0a1c68",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Lambda Func V2",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "f51fa55b43e71210f947055b96b8f2cb",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:01"
+  },
+  {
+   "active": "true",
+   "connection_override": "",
+   "name": "SGO-Dynatrace AWS Service Account",
+   "run_time": "1969-12-31 18:30:00",
+   "run_type": "parent",
+   "sys_id": "fb50a8b443701250eb9c055b96b8f23d",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2025-03-25 13:16:14"
+  }
+ ],
+ "sn_dynatrace_integ_connections": [
+  {
+   "connection_alias": "f379137e075820107add6a77c4a93538",
+   "management_zone_id": "",
+   "management_zone_name": "",
+   "message": "",
+   "service_types_to_ingest": "CUSTOM_SERVICE,DATABASE_SERVICE,WEB_SERVICE",
+   "status": "Pending",
+   "status_code": "",
+   "suggestion": "",
+   "sys_created_by": "admin",
+   "sys_created_on": "2022-04-07 20:32:17",
+   "sys_domain": "global",
+   "sys_id": "29a63a14773a8110a52b1bfaae5a9973",
+   "sys_mod_count": "0",
+   "sys_tags": "",
+   "sys_updated_by": "admin",
+   "sys_updated_on": "2022-04-14 17:12:42",
+   "tags": ""
+  }
+ ]
+}

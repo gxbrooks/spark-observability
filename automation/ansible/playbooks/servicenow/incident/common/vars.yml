@@ -6,9 +6,19 @@ sn_repo_root: "{{ project_root }}"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 sn_incident_integrations_dir: "{{ sn_repo_root }}/specifications/servicenow/integrations/incident"
 
-sn_url: "{{ SN_URL | trim }}"
-sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
-sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
+# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
+# this process runs the first SN_INSTANCES entry and common/target.yml runs the
+# rest as child runs, so sn_instance_id is always one instance id here.
+# Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
+# See specifications/servicenow/docs/Multi_Instance_Plan.md.
+sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
+sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
+sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
+sn_url: "{{ sn_instance_cfg.url | trim }}"
+sn_user: "{{ (servicenow | default({}))['SN_USER' ~ sn_secret_suffix] | default(lookup('vars', 'SN_USER' ~ sn_secret_suffix)) }}"
+sn_password: "{{ (servicenow | default({}))['SN_PASSWORD' ~ sn_secret_suffix] | default(lookup('vars', 'SN_PASSWORD' ~ sn_secret_suffix)) }}"
+sn_instance_short_name: "{{ sn_instance_cfg.short_name }}"
 sn_api_headers:
   Accept: application/json
   Content-Type: application/json

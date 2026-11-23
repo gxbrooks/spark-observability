@@ -18,9 +18,14 @@ Operator CLI: **[sn-sync/docs/usage.md](../../../../../../sn-sync/docs/usage.md)
 Requires `sn-sync-inject` / `sn-sync-diff` on `PATH` (system install or venv).
 
 ```bash
-cd ansible
+cd automation/ansible
+# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
   -e @../vars/secrets.yaml
+
+# Both instances
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+  -e @../vars/secrets.yaml -e target=all
 
 # One region
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
@@ -35,17 +40,22 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
   -e @../vars/secrets.yaml
 ```
 
-`deploy.yml` loads `SN_*` from Observability secrets/context and
-`SN_SM_*` URIs from `vars/contexts/servicenow_sm_deploy.json` (written by
-`service-mapping/deploy.yml`). Optional adjunct: horizontal Discovery trigger
+`deploy.yml` loads the target instance's URL from `SN_INSTANCES`, its
+`SN_USER<suffix>` / `SN_PASSWORD<suffix>` from secrets, and `SN_SM_*` URIs from
+`vars/contexts/servicenow_sm_deploy_<id>.json` (written by
+`service-mapping/deploy.yml` for the same target). The specs' owner fields
+(`owned_by`, `business_owner`, `it_application_owner`) name the user `gbrooks`,
+which must exist on every target instance (`sn-sync-inject` stops on the first
+record otherwise). Optional adjunct: horizontal Discovery trigger
 (`-e sn_csdm_trigger_horizontal_discovery=false` to skip).
 
 ## Direct CLI (same semantics)
 
 ```bash
+# One instance at a time: that instance's URL, user and deploy facts.
 export SN_URL=... SN_USER=... SN_PASSWORD=...
 export SN_SM_POPULATE_TAGS_URI=$(jq -r .sm_rest_populate_tags_uri \
-  vars/contexts/servicenow_sm_deploy.json)
+  vars/contexts/servicenow_sm_deploy_<id>.json)
 
 sn-sync-inject --specs-root ~/repos/spark-observability/servicenow \
   --region brooks-lab \

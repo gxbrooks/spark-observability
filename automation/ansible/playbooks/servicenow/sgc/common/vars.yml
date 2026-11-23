@@ -7,10 +7,19 @@
 # fallbacks for context variables here; a missing variable must fail the play.
 # Secrets: vars/secrets.yaml (servicenow: block).
 
-sn_url: "{{ SN_URL | trim }}"
-sn_user: "{{ servicenow.SN_USER | default(SN_USER) }}"
-sn_password: "{{ servicenow.SN_PASSWORD | default(SN_PASSWORD) }}"
-sn_instance_short_name: "{{ SN_INSTANCE_SHORT_NAME }}"
+# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
+# this process runs the first SN_INSTANCES entry and common/target.yml runs the
+# rest as child runs, so sn_instance_id is always one instance id here.
+# Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
+# See specifications/servicenow/docs/Multi_Instance_Plan.md.
+sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
+sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
+sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
+sn_url: "{{ sn_instance_cfg.url | trim }}"
+sn_user: "{{ (servicenow | default({}))['SN_USER' ~ sn_secret_suffix] | default(lookup('vars', 'SN_USER' ~ sn_secret_suffix)) }}"
+sn_password: "{{ (servicenow | default({}))['SN_PASSWORD' ~ sn_secret_suffix] | default(lookup('vars', 'SN_PASSWORD' ~ sn_secret_suffix)) }}"
+sn_instance_short_name: "{{ sn_instance_cfg.short_name }}"
 sn_lab_location_name: "{{ SN_LAB_LOCATION_NAME }}"
 
 sn_api_headers:
@@ -37,7 +46,7 @@ sn_sgc_location_br_name: sgc-inherit-location-from-host
 
 # Legacy EM push connector (pre-SGC / parallel path on demo instances)
 sn_dt_legacy_event_source: dynatrace
-sn_dt_legacy_connector_sys_id: "{{ SN_DT_LEGACY_CONNECTOR_SYS_ID }}"
+sn_dt_legacy_connector_sys_id: "{{ sn_instance_cfg.dt_legacy_connector_sys_id | default('') }}"
 
 sn_dt_event_inbound_url_sgc: >-
   {{ sn_url }}/api/sn_em_connector/em/inbound_event?source={{ sn_sgc_event_source }}
@@ -54,7 +63,10 @@ dt_management_zone_object_id: ""
 
 # Dedicated Dynatrace token for the SGC connection (minted by
 # sources/dynatrace/tasks/ensure_sgc_credential.yml via DT_TOKEN_ADMIN_TOKEN)
-dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration
+# One token per ServiceNow instance: a shared name would make a second instance
+# skip minting (token "exists") and a rotation on one delete the other's token.
+# The default instance keeps the original name.
+dt_sgc_api_token_name: "{{ sn_instance_cfg.dt_sgc_api_token_name }}"
 
 # SGC credential rotation (sources/dynatrace/tasks/check_sgc_token_remint_needed.yml)
 sgc_hosts_import_table: sn_dynatrace_integ_sg_dynatrace_hosts
@@ -113,7 +125,7 @@ sgc_import_lab_feeds:
 # vars/variables.yaml (single source for Ansible and Terraform) via dynatrace_ansible_vars.yml,
 # loaded earlier in this playbook's vars_files. See vars/README.md.
 dt_sn_alerting_profile_name: "{{ DT_SN_ALERTING_PROFILE_NAME }}"
-dt_sn_problem_notification_name: "ServiceNow brooks-lab - Spark Observability"
+dt_sn_problem_notification_name: "{{ sn_instance_cfg.dt_problem_notification_name }}"
 dt_sn_cpu_metric_event_summary: "{{ DT_SN_CPU_METRIC_EVENT_SUMMARY }}"
 dt_sn_cpu_metric_event_summary_legacy: "Spark Lab - Host CPU above 80%"
 dt_sn_cpu_metric_event_host_names:

@@ -256,8 +256,8 @@ Dynatrace **Problem notification** POSTs JSON to the SGC inbound listener. **`so
 
 | Setting | Value |
 |---------|-------|
-| **URL** | `https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` |
-| **Auth** | HTTP Basic (`SN_DT_WEBHOOK_USER` / `SN_DT_WEBHOOK_PASSWORD` in `vars/secrets.yaml`) |
+| **URL** | `https://<instance>.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` — one notification per instance (`SN_INSTANCES.<id>.dt_problem_notification_name`): `optimizincdemo1` (Demo1) and `optimizincdemo3` (Demo3) |
+| **Auth** | HTTP Basic (`SN_DT_WEBHOOK_USER<suffix>` / `SN_DT_WEBHOOK_PASSWORD<suffix>` in `vars/secrets.yaml`; suffix `_DEMO3` for Demo3) |
 | **Payload template** | `sgc-problem-notification-payload.json.j2` |
 | **ConnectionId** | SGC connection alias sys_id (injected as `ConnectionId` in body) |
 | **notifyClosedProblems** | `true` — RESOLVED posts update the same `message_key`. Those updates (often EM severity **OK / 5**) must still pass Event → Ready so Alert rules can close open alerts. Do **not** filter Ready on `severity<=3`; that gate belongs on incident create only. |
@@ -362,13 +362,13 @@ Event rules may promote **`em_event` → `em_alert`**. Incident automation (if c
 | SN ingest | SGC inbound + field mappings | Store app `sn_dynatrace_integ` |
 | SN CI | `sys_object_source` + SGC host import | `apply_sgc_topology_config.yml`, Guided Setup |
 
-**Deploy everything:**
+**Deploy everything** (`-e target=demo1|demo3|all`, default `demo3`):
 
 ```bash
-cd ansible
+cd automation/ansible
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
-  -e @../vars/secrets.yaml
+  -e @../vars/secrets.yaml -e target=all
 ```
 
 **Generate test signal:**
@@ -386,7 +386,7 @@ cd spark/apps/data-analysis-book
 # ServiceNow events (last 2h)
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/test.yml \
-  -e @../vars/secrets.yaml
+  -e @../vars/secrets.yaml -e target=all
 ```
 
 Dynatrace Logs (WARN/ERROR, last 2h): [Logs app — Spark paths](https://pdt20158.apps.dynatrace.com/ui/apps/dynatrace.logs/) with DQL:
@@ -399,7 +399,7 @@ fetch logs, from:now()-2h
 | limit 100
 ```
 
-ServiceNow: [em_event list — SGO-Dynatrace](https://optimizincdemo1.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on)
+ServiceNow: em_event list — SGO-Dynatrace on [Demo1](https://optimizincdemo1.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on) / [Demo3](https://optimizincdemo3.service-now.com/em_event_list.do?sysparm_query=source%3DSGO-Dynatrace%5EORDERBYDESCsys_created_on)
 
 ---
 
@@ -438,9 +438,10 @@ Chapter **05** sets `spark.sparkContext.setLogLevel("WARN")` — useful for driv
 ### Verify spark-client alerts and incidents
 
 ```bash
-cd ansible
+cd automation/ansible
+# Incidents are created only where incident/deploy.yml ran (Demo1; held on Demo3).
 ansible-playbook -i inventory.yml playbooks/servicenow/incident/test.yml \
-  -e @../vars/secrets.yaml
+  -e @../vars/secrets.yaml -e target=demo1
 ```
 
 DQL filter for client paths only:

@@ -4,6 +4,10 @@
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/sync_pod_labels.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/sync_pod_labels.yml
+
 - name: Collect Kubernetes pods with servicenow.com labels
   hosts: kubernetes_master
   become: true

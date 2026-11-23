@@ -4,6 +4,10 @@
 #
 # Prerequisite: k8s/install.yml and KVA full discovery (cluster CI exists in CMDB).
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/deploy.yml
+
 - name: Deploy ServiceNow KVA location configuration
   hosts: localhost
   connection: local
@@ -21,7 +25,7 @@
 
     - name: Persist K8s deploy context
       ansible.builtin.copy:
-        dest: "{{ project_root }}/vars/contexts/servicenow_k8s_discovery_deploy.json"
+        dest: "{{ project_root }}/vars/contexts/servicenow_k8s_discovery_deploy{{ sn_context_suffix }}.json"
         mode: "0644"
         content: >-
           {{ {

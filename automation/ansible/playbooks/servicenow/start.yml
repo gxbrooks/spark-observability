@@ -6,6 +6,10 @@
 #
 # On-demand Discovery scans are not auto-triggered here; run discovery/discover.yml explicitly.
 
+- import_playbook: common/target.yml
+  vars:
+    sn_target_playbook: start.yml
+
 - name: ServiceNow start banner
   hosts: localhost
   connection: local

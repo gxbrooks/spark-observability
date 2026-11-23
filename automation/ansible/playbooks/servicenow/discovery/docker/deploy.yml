@@ -2,6 +2,10 @@
 # Phase 3: Docker instance configuration (location inheritance business rule).
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/docker/deploy.yml
+
 - name: Deploy ServiceNow Docker discovery configuration
   hosts: localhost
   connection: local

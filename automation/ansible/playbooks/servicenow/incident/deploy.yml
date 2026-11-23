@@ -6,6 +6,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: incident/deploy.yml
+
 - name: Deploy Log-to-Incident ServiceNow automation
   hosts: localhost
   connection: local
@@ -16,6 +20,22 @@
     - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
+    # Instance-wide Event Management changes (EM properties, Automated grouping,
+    # OOTB AMRs/Script Includes): SN_INSTANCES.<id>.incident_deploy_enabled gates
+    # shared instances. Skipping (not failing) keeps aggregators and target=all going.
+    - name: Report incident deploy held for this instance
+      ansible.builtin.debug:
+        msg: >-
+          incident/deploy.yml SKIPPED for {{ sn_instance_id }} ({{ sn_url }}):
+          incident_deploy_enabled is false in SN_INSTANCES (vars/variables.yaml).
+          Set it to true only after the instance's other users accept the
+          instance-wide Event Management changes this playbook makes.
+      when: not (sn_instance_cfg.incident_deploy_enabled | default(true) | bool)
+
+    - name: Stop when incident deploy is held for this instance
+      ansible.builtin.meta: end_play
+      when: not (sn_instance_cfg.incident_deploy_enabled | default(true) | bool)
+
     - name: Ensure L2I Dynatrace Grail enrichment sys_properties
       ansible.builtin.include_tasks: tasks/ensure_l2i_dt_sys_properties.yml
 

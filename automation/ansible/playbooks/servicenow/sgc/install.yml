@@ -34,6 +34,10 @@
 #   sn_sgc_app_mode — install (default) | repair | reinstall | reset
 #   sn_sgc_maintain_scopes — scopes to repair/reinstall (default: [sn_dynatrace_integ])
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: sgc/install.yml
+
 - name: Install ServiceNow Store applications and plugins for Dynatrace SGC
   hosts: localhost
   connection: local

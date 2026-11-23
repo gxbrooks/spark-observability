@@ -4,6 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/diagnose.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: sgc/diagnose.yml
+
 - name: Diagnose Dynatrace SGC prerequisites and CMDB merge state
   hosts: localhost
   connection: local

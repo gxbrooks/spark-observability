@@ -4,6 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../../../common/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace/events/deploy.yml
+
 - name: Configure Dynatrace alerting and ServiceNow event webhook for brooks-lab
   hosts: localhost
   connection: local

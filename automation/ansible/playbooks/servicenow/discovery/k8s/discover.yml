@@ -2,6 +2,10 @@
 # Phase 2: Restart KVA Informer to force a full CMDB sync.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/discover.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/discover.yml
+
 - name: Restart KVA Informer for full brooks-lab sync
   hosts: kubernetes_master
   become: true

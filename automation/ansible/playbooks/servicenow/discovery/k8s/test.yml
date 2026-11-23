@@ -4,6 +4,10 @@
 # asserted for each entry flagged kva_informer: true.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/test.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../../common/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/test.yml
+
 - name: Test CMDB for Kubernetes discovery
   hosts: localhost
   connection: local

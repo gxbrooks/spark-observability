@@ -2,6 +2,10 @@
 # Diagnose ServiceNow API access, Discovery ACLs, MID Server, and lab accounts.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e @../vars/secrets.yaml
 
+- import_playbook: ../common/target.yml
+  vars:
+    sn_target_playbook: discovery/diagnose.yml
+
 - name: Diagnose ServiceNow Discovery integration
   hosts: localhost
   connection: local
@@ -320,8 +324,8 @@
   tasks:
     - name: Check MID install directory
       ansible.builtin.stat:
-        path: "{{ sn_mid_install_dir }}"
-      register: sn_mid_install_dir_stat
+        path: "{{ sn_mid_agent_dir }}"
+      register: sn_mid_agent_dir_stat
 
     - name: Check MID agent path under /opt/servicenow
       ansible.builtin.stat:
@@ -349,7 +353,7 @@
       ansible.builtin.debug:
         msg: |
           {{ inventory_hostname }} MID install:
-          - install dir {{ sn_mid_install_dir }}: {{ 'present' if sn_mid_install_dir_stat.stat.exists | default(false) else 'MISSING' }}
+          - agent dir {{ sn_mid_agent_dir }}: {{ 'present' if sn_mid_agent_dir_stat.stat.exists | default(false) else 'MISSING' }}
           - /opt/servicenow: {{ 'present' if sn_mid_opt_stat.stat.exists | default(false) else 'MISSING' }}
           - systemd {{ sn_mid_service_name }}.service: {{ 'present' if sn_mid_unit_stat.stat.exists | default(false) else 'MISSING' }}
           - service state: {{ sn_mid_host_service }}

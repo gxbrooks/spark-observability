@@ -6,7 +6,8 @@
 # snc_platform_rest_api_access; dynatrace.integration does not and cannot be
 # granted those roles without instance admin.
 #
-# Stores SN_DT_WEBHOOK_USER / SN_DT_WEBHOOK_PASSWORD in vars/secrets.yaml for
+# Stores SN_DT_WEBHOOK_USER<suffix> / SN_DT_WEBHOOK_PASSWORD<suffix> (suffix from the
+# selected SN_INSTANCES entry, e.g. _DEMO3) in vars/secrets.yaml for
 # Dynatrace problem-notification PUTs (secret re-entry). Does not modify Demo 1
 # legacy connector (712a39811…) or ServiceNow user passwords.
 
@@ -15,9 +16,9 @@
     sn_secrets_file: >-
       {{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml
     sn_dt_webhook_user_resolved: >-
-      {{ (servicenow | default({})).SN_DT_WEBHOOK_USER | default(sn_user, true) }}
+      {{ (servicenow | default({}))['SN_DT_WEBHOOK_USER' ~ sn_secret_suffix] | default(sn_user, true) }}
     sn_dt_webhook_password_resolved: >-
-      {{ (servicenow | default({})).SN_DT_WEBHOOK_PASSWORD
+      {{ (servicenow | default({}))['SN_DT_WEBHOOK_PASSWORD' ~ sn_secret_suffix]
          | default(sn_password, true) }}
   no_log: true
   run_once: true
@@ -25,8 +26,8 @@
 - name: Mark webhook secrets for first-time persistence
   ansible.builtin.set_fact:
     sn_dt_webhook_secrets_persist_needed: >-
-      {{ ((servicenow | default({})).SN_DT_WEBHOOK_USER | default('') | length) == 0
-         or ((servicenow | default({})).SN_DT_WEBHOOK_PASSWORD | default('') | length) == 0 }}
+      {{ ((servicenow | default({}))['SN_DT_WEBHOOK_USER' ~ sn_secret_suffix] | default('') | length) == 0
+         or ((servicenow | default({}))['SN_DT_WEBHOOK_PASSWORD' ~ sn_secret_suffix] | default('') | length) == 0 }}
   run_once: true
 
 - name: Build Dynatrace Authorization header value
@@ -74,9 +75,9 @@
     line: '  {{ item.key }}: "{{ item.value }}"'
     insertafter: '^servicenow:'
   loop:
-    - key: SN_DT_WEBHOOK_USER
+    - key: "SN_DT_WEBHOOK_USER{{ sn_secret_suffix }}"
       value: "{{ sn_dt_webhook_user_resolved }}"
-    - key: SN_DT_WEBHOOK_PASSWORD
+    - key: "SN_DT_WEBHOOK_PASSWORD{{ sn_secret_suffix }}"
       value: "{{ sn_dt_webhook_password_resolved }}"
   when: sn_dt_webhook_secrets_persist_needed | bool
   delegate_to: localhost
@@ -89,6 +90,6 @@
       SGO-Dynatrace webhook auth: user={{ sn_dt_webhook_user_resolved }},
       endpoint={{ sn_dt_event_inbound_url_sgc }},
       verify=OK,
-      secrets={{ 'written to vars/secrets.yaml (SN_DT_WEBHOOK_*)' if sn_dt_webhook_secrets_persist_needed | bool else 'unchanged' }}.
+      secrets={{ 'written to vars/secrets.yaml (SN_DT_WEBHOOK_*' ~ sn_secret_suffix ~ ')' if sn_dt_webhook_secrets_persist_needed | bool else 'unchanged' }}.
       Demo 1 legacy connector (712a39811…) and notification are not modified.
   run_once: true

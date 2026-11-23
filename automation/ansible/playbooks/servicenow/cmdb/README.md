@@ -17,13 +17,13 @@ attribute when IRE merges updates from Discovery, SGC, KVA, and other sources.
   `sn_cicd.sys_ci_automation` (plugin activation API)
 - ITOM Discovery entitlement on the instance (`com.snc.itom.discovery.license`)
 
-See [specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md) §7 for roles and bootstrap.
+See [specifications/servicenow/docs/install.md](../../../../../specifications/servicenow/docs/install.md) §7 for roles and bootstrap.
 
 ## Usage
 
 ```bash
-cd ansible
-
+cd automation/ansible
+# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/diagnose.yml -e @../vars/secrets.yaml
 ```

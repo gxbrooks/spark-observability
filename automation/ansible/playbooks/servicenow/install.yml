@@ -4,6 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/install.yml -e @../vars/secrets.yaml
 
+- import_playbook: common/target.yml
+  vars:
+    sn_target_playbook: install.yml
+
 - name: ServiceNow install banner
   hosts: localhost
   connection: local
