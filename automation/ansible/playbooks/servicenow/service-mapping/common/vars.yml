@@ -3,13 +3,14 @@
 # Context variables come from vars/contexts/servicenow_ansible_vars.yml; secrets
 # from vars/secrets.yaml.
 
-# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
-# this process runs the first SN_INSTANCES entry and common/target.yml runs the
-# rest as child runs, so sn_instance_id is always one instance id here.
+# ServiceNow target: ONE instance per run (-e target=<id>, ids in SN_INSTANCES).
+# tasks/target.yml resolves it — default: the active instance, derived from
+# the live MID Server / KVA informer / Dynatrace notifications (nothing is
+# recorded) — and publishes it to every host as sn_target_resolved.
 # Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
-# See specifications/servicenow/docs/Multi_Instance_Plan.md.
-sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
-sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+# See specifications/servicenow/docs/Multi_Target_ServiceNow.md.
+sn_target: "{{ sn_target_resolved | default(target) }}"
+sn_instance_id: "{{ sn_target }}"
 sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
 sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
 sn_url: "{{ sn_instance_cfg.url | trim }}"
@@ -31,10 +32,8 @@ sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/pl
 sn_sm_files_dir: "{{ sn_sm_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/specifications/servicenow/integrations/service-mapping"
 sn_sm_deploy_context_file: "{{ sn_sm_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_sm_deploy{{ sn_context_suffix }}.json"
 
-sn_sm_rest_api_name: Service Mapping Operations API
-sn_sm_rest_discover_path: /discover
-sn_sm_rest_populate_tags_path: /populate_tags
-sn_sm_rest_ensure_tag_categories_path: /ensure_tag_categories
+# Service Mapping Operations REST API (name, operations, paths):
+# specifications/servicenow/integrations/service-mapping/sys_ws_*.json
 
 sn_csdm_tag_key_service_instance: servicenow.com/service-instance
 

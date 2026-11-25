@@ -1,0 +1,51 @@
+---
+# Upsert one sn_em_tbac_alert_clustering_tags row (additional_info nested key).
+
+- name: Look up TBAC tag {{ sn_l2i_tbac_tag_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_tbac_tag_name | urlencode }}&sysparm_limit=1"
+
+- name: Record TBAC tag {{ sn_l2i_tbac_tag_name }} state
+  ansible.builtin.set_fact:
+    sn_l2i_tbac_tag_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_tbac_tag_live: "{{ sn_rest_json.result[0] | default({}) }}"
+    sn_l2i_tbac_tag_update_body:
+      source: additional_info
+      match_method: exact
+      additional_info_key: "{{ sn_l2i_tbac_tag_key }}"
+      description: "{{ sn_l2i_tbac_tag_description }}"
+      customize_name: "true"
+
+- name: Create TBAC tag {{ sn_l2i_tbac_tag_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_body:
+      name: "{{ sn_l2i_tbac_tag_name }}"
+      source: additional_info
+      match_method: exact
+      additional_info_key: "{{ sn_l2i_tbac_tag_key }}"
+      description: "{{ sn_l2i_tbac_tag_description }}"
+      customize_name: "true"
+  when: not sn_l2i_tbac_tag_exists | bool
+
+- name: Compare TBAC tag {{ sn_l2i_tbac_tag_name }} with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_l2i_tbac_tag_update_body }}"
+    sn_drift_live: "{{ sn_l2i_tbac_tag_live }}"
+  when: sn_l2i_tbac_tag_exists | bool
+
+- name: Update TBAC tag {{ sn_l2i_tbac_tag_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sn_em_tbac_alert_clustering_tags
+    sn_rest_sys_id: "{{ sn_l2i_tbac_tag_live.sys_id }}"
+    sn_rest_body: "{{ sn_l2i_tbac_tag_update_body }}"
+  when:
+    - sn_l2i_tbac_tag_exists | bool
+    - sn_drift_fields | length > 0

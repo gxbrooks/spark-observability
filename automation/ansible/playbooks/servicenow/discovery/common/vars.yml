@@ -2,13 +2,14 @@
 # Shared ServiceNow Discovery variables (included by playbooks).
 # Non-secret defaults: vars/contexts/servicenow_ansible_vars.yml (service-now context).
 # Secrets: vars/secrets.yaml → servicenow: block.
-# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
-# this process runs the first SN_INSTANCES entry and common/target.yml runs the
-# rest as child runs, so sn_instance_id is always one instance id here.
+# ServiceNow target: ONE instance per run (-e target=<id>, ids in SN_INSTANCES).
+# tasks/target.yml resolves it — default: the active instance, derived from
+# the live MID Server / KVA informer / Dynatrace notifications (nothing is
+# recorded) — and publishes it to every host as sn_target_resolved.
 # Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
-# See specifications/servicenow/docs/Multi_Instance_Plan.md.
-sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
-sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+# See specifications/servicenow/docs/Multi_Target_ServiceNow.md.
+sn_target: "{{ sn_target_resolved | default(target) }}"
+sn_instance_id: "{{ sn_target }}"
 sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
 sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
 sn_url: "{{ sn_instance_cfg.url | trim }}"
@@ -28,32 +29,16 @@ sn_discovery_schedule_name: "{{ SN_DISCOVERY_SCHEDULE_NAME | default('Brooks Lab
 sn_discovery_credential_name: brooks-lab-ssh
 sn_discovery_range_name: brooks-lab-subnet
 sn_mid_server_name: "{{ sn_instance_cfg.mid_server_name }}"
-# Linux systemd service name (alphanumeric + underscore only; not the ecc_agent display name)
-sn_mid_service_name: "{{ sn_instance_cfg.mid_service_name | default(sn_mid_server_name | replace('-', '_')) }}"
+# One MID Server on Lab3 at a time, owned by the active instance: the vendor
+# .deb's single `agent` package and one systemd unit. The ecc_agent name
+# (mid_server_name) stays per instance, so each instance keeps its own MID record.
+sn_mid_service_name: mid_brooks_lab3
 sn_mid_run_as_user: servicenow-mid
-# MID agent directory for this instance. /opt/servicenow/mid/agent is where the
-# vendor .deb unpacks; any other path is a second MID copied from the .deb.
-sn_mid_agent_dir: "{{ sn_instance_cfg.mid_agent_dir }}"
-sn_mid_package_agent_dir: /opt/servicenow/mid/agent
+sn_mid_agent_dir: /opt/servicenow/mid/agent
 sn_mid_installer_deb_url: "{{ sn_instance_cfg.mid_installer_deb_url | default('') }}"
 
 sn_discovery_ssh_private_key_path: "{{ project_root }}/vars/sn_discovery_id_ed25519"
 sn_discovery_ssh_public_key_path: "{{ project_root }}/vars/sn_discovery_id_ed25519.pub"
-
-# Scripted REST API — Discovery operations (deploy_discovery_rest_api.yml)
-sn_discovery_rest_api_name: Discovery Operations API
-sn_discovery_rest_schedule_path: /schedule/run
-sn_discovery_rest_quick_path: /quick/run
-sn_discovery_rest_operations:
-  - name: Run discovery schedule
-    relative_path: /schedule/run
-    script_file: discovery_run_schedule.js
-  - name: Run discovery schedule (legacy path)
-    relative_path: /run
-    script_file: discovery_run_schedule.js
-  - name: Quick discovery
-    relative_path: /quick/run
-    script_file: discovery_run_quick.js
 
 sn_api_headers:
   Accept: application/json
@@ -61,7 +46,7 @@ sn_api_headers:
 
 sn_repo_root: "{{ project_root }}"
 sn_discovery_integrations_dir: "{{ sn_repo_root }}/specifications/servicenow/integrations/discovery"
-sn_servicenow_playbooks_dir: "{{ playbook_dir | dirname }}"
+sn_servicenow_playbooks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 
 # Kubernetes cluster registry (K8S_CLUSTERS in vars/variables.yaml).
@@ -92,7 +77,6 @@ sn_cmdb_kubernetes_url: >-
 # Phase 2 — Kubernetes discovery (KVA Informer; cluster registry in vars/variables.yaml)
 sn_k8s_informer_helm_repo: "{{ K8S_KVA_HELM_REPO | default('https://install.service-now.com/glide/distribution/builds/package/informer/informer-helm/repo') }}"
 sn_k8s_cluster_location_map: "{{ K8S_CLUSTERS }}"
-sn_k8s_location_br_name: k8s-inherit-location-from-cluster
 sn_k8s_informer_secret_name: "k8s-informer-cred-{{ sn_instance_short_name }}"
 sn_k8s_tag_sync_namespaces:
   - spark
@@ -109,7 +93,6 @@ docker_pattern_discovery_hosts: >-
      | selectattr('discovery_docker_pattern')
      | list }}
 docker_discovery_hosts: "{{ DOCKER_HOSTS | selectattr('container_discovery', 'defined') | selectattr('container_discovery') | list }}"
-sn_docker_location_br_name: docker-inherit-location-from-host
 sn_k8s_discovery_namespaces:
   - default
   - kube-system

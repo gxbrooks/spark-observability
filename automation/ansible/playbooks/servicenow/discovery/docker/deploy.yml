@@ -2,9 +2,10 @@
 # Phase 3: Docker instance configuration (location inheritance business rule).
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../../common/target.yml
+- import_playbook: ../../tasks/target.yml
   vars:
     sn_target_playbook: discovery/docker/deploy.yml
+    sn_target_mode: switch
 
 - name: Deploy ServiceNow Docker discovery configuration
   hosts: localhost
@@ -16,7 +17,7 @@
     - "{{ playbook_dir }}/../common/vars.yml"
   tasks:
     - name: Ensure Docker location inheritance business rule
-      ansible.builtin.include_tasks: tasks/ensure_docker_location_business_rule.yml
+      ansible.builtin.include_tasks: tasks/ensure-docker-location-business-rule.yml
 
     - name: Deploy summary
       ansible.builtin.debug:
@@ -24,4 +25,4 @@
           Docker discovery configuration complete.
           DOCKER_HOSTS entries: {{ docker_hosts | map(attribute='name') | list }}
           container_discovery-enabled: {{ docker_discovery_hosts | map(attribute='name') | list }}
-          Business rule: {{ sn_docker_location_br_name }}
+          Business rule: {{ sn_docker_location_br_body.name }}

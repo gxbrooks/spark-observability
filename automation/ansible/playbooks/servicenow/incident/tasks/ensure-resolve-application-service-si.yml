@@ -1,0 +1,62 @@
+---
+# Upsert ServiceNow Script Include artifact used by L2I BRs to bind Dynatrace
+# spark.service_instance / spark.pod_identifier (or ImpactedEntities HOST / CAI /
+# CUSTOM_DEVICE) to Application Service / host CIs and to append DQL text.
+
+- name: Build ResolveApplicationService script include payload
+  ansible.builtin.set_fact:
+    sn_incident_si_body:
+      name: "{{ sn_incident_si_name }}"
+      active: "true"
+      access: public
+      client_callable: "false"
+      description: >-
+        Artifact: generic entity→CI bind for SGO-Dynatrace events/alerts
+        (spark.service_instance→AS; spark.pod_identifier→pod→AS; else HOST /
+        CUSTOM_DEVICE / CAI; leave cmdb_ci empty when no match). Appends DQL
+        text only (no Grail fetch).
+      script: >-
+        {{
+          lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js')
+          | replace('@@DT_TENANT_URL@@', (DT_TENANT_URL | default(dynatrace.DT_TENANT_URL | default('https://pdt20158.apps.dynatrace.com')) | trim | regex_replace('/$', '')))
+          | replace('@@DT_PLATFORM_TOKEN_GRAIL@@', (dynatrace.DT_PLATFORM_TOKEN_GRAIL | default(dynatrace.DT_PLATFORM_TOKEN | default(''))))
+        }}
+
+- name: Look up ResolveApplicationService script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_script_include
+    sn_rest_query: "sysparm_query=name={{ sn_incident_si_name | urlencode }}^sys_scope=global&sysparm_limit=1"
+
+- name: Record ResolveApplicationService script include state
+  ansible.builtin.set_fact:
+    sn_incident_si_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_incident_si_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_incident_si_live: "{{ sn_rest_json.result[0] | default({}) }}"
+  no_log: true
+
+- name: Create ResolveApplicationService script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script_include
+    sn_rest_body: "{{ sn_incident_si_body }}"
+  when: not sn_incident_si_exists | bool
+
+- name: Compare ResolveApplicationService script include with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_incident_si_body }}"
+    sn_drift_live: "{{ sn_incident_si_live }}"
+  when: sn_incident_si_exists | bool
+
+- name: Update ResolveApplicationService script include
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script_include
+    sn_rest_sys_id: "{{ sn_incident_si_sys_id }}"
+    sn_rest_body: "{{ sn_incident_si_body }}"
+  when:
+    - sn_incident_si_exists | bool
+    - sn_drift_fields | length > 0

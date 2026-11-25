@@ -23,9 +23,10 @@
 #   sgc_import_poll_interval — seconds between progress reports (default: 300)
 #   sgc_import_poll_retries — max polls before timeout (default: 12 → 60 minutes)
 
-- import_playbook: ../../../common/target.yml
+- import_playbook: ../../../tasks/target.yml
   vars:
     sn_target_playbook: sgc/sources/dynatrace/start.yml
+    sn_target_mode: switch
 
 - name: Start SGO-Dynatrace Hosts import and monitor cascade
   hosts: localhost
@@ -38,7 +39,7 @@
     - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     - name: Check SGC application presence
-      ansible.builtin.include_tasks: tasks/check_sgc_prerequisites.yml
+      ansible.builtin.include_tasks: tasks/check-sgc-prerequisites.yml
 
     - name: Stop when SGC scoped application is not installed
       ansible.builtin.fail:
@@ -48,7 +49,7 @@
       when: not sn_sgc_scope_present | bool
 
     - name: Resolve SGO-Dynatrace Hosts scheduled import
-      ansible.builtin.include_tasks: tasks/resolve_hosts_scheduled_import.yml
+      ansible.builtin.include_tasks: tasks/resolve-hosts-scheduled-import.yml
 
     - name: Attach monitor context for monitor-only mode
       when: not (sgc_import_execute | default(true) | bool)
@@ -87,7 +88,7 @@
           when: sn_sgc_monitor_cis.json.result | default([]) | length == 0
 
     - name: Queue Execute Now on SGO-Dynatrace Hosts
-      ansible.builtin.include_tasks: tasks/execute_hosts_scheduled_import.yml
+      ansible.builtin.include_tasks: tasks/execute-hosts-scheduled-import.yml
       when: sgc_import_execute | default(true) | bool
 
     - name: Record concurrent import label for progress reports
@@ -105,7 +106,7 @@
           run_once: true
 
         - name: Poll import batch progress
-          ansible.builtin.include_tasks: tasks/monitor_sgc_import_batch.yml
+          ansible.builtin.include_tasks: tasks/monitor-sgc-import-batch.yml
 
         - name: Fail when import batch did not complete within the poll window
           ansible.builtin.fail:

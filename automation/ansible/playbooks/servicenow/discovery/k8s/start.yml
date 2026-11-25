@@ -1,0 +1,56 @@
+---
+# Start Kubernetes discovery for the target instance (default: the active one):
+#   - the guard (switch mode) points the KVA informer at the target and scales
+#     it back up when it was parked (stop.yml);
+#   - label the OneAgent pods with their node's servicenow.com/service-instance;
+#   - copy servicenow.com/* pod labels into cmdb_key_value on the pod CIs.
+# A full KVA resync (rollout restart of the informer) runs only with
+# --tags all,kva_resync (or --tags kva_resync alone for just the restart).
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/start.yml
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/start.yml --tags all,kva_resync
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/start.yml
+    sn_target_mode: switch
+
+- name: Restart the KVA informer for a full brooks-lab resync
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  tags: [never, kva_resync]
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Note that the resync is a forced restart
+      ansible.builtin.debug:
+        msg: >-
+          Restarting the KVA informer in {{ sn_k8s_informer_namespace }} for a full
+          resync (requested with the kva_resync tag; the instance can't report
+          whether one is needed).
+
+    - name: Rollout restart KVA Informer deployment
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ sn_k8s_informer_namespace }} rollout restart deployment
+          --all
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      changed_when: true
+
+    - name: Wait for KVA Informer Ready after restart
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ sn_k8s_informer_namespace }} wait --for=condition=Ready pod
+          --all --timeout=300s
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      changed_when: false
+
+- name: Ensure OneAgent pods carry per-node servicenow.com/service-instance
+  ansible.builtin.import_playbook: tasks/label-oneagent-pods.yml
+
+- name: Sync servicenow.com pod labels to cmdb_key_value
+  ansible.builtin.import_playbook: tasks/sync-pod-labels.yml

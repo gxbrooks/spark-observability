@@ -1,0 +1,100 @@
+---
+# Derive the active ServiceNow instance from the live lab components and list
+# the inconsistencies (runs on localhost after the detection plays of
+# tasks/target.yml). Nothing is recorded: this is the only source of truth.
+#
+# Inputs (facts set by the detection tasks):
+#   sn_dt_brooks_notifications           localhost      [{id, enabled, object_id, ...}]
+#   sn_mid_owner_id, sn_mid_running,     observability  (activate-mid-server.yml)
+#   sn_mid_extra_dirs, sn_mid_extra_units
+#   sn_kva_installed, sn_kva_owner_id,   kubernetes_master (activate-kva-informer.yml)
+#   sn_kva_running
+#
+# An instance X is ACTIVE when:
+#   - the Lab3 MID Server belongs to X (config.xml url) and its service runs;
+#   - no other MID tree/unit is on the host;
+#   - X's brooks-lab Dynatrace problem notification is the only one enabled;
+#   - the KVA informer is not installed, is parked (0 replicas), or points at X.
+#
+# Outputs:
+#   sn_live_active            X, or '' when no instance is fully active
+#   sn_live_mid_owner_known   the MID's owner id when it is a known instance, else ''
+#   sn_live_problems          inconsistencies (empty when an instance is active)
+#   sn_live_report            human-readable lines for the playbook output
+
+- name: Collect the component states
+  ansible.builtin.set_fact:
+    sn_live_ids: "{{ SN_INSTANCES | map(attribute='id') | list }}"
+    sn_live_mid: >-
+      {{ {'owner': hostvars[sn_mid_host].sn_mid_owner_id | default('unknown'),
+          'running': hostvars[sn_mid_host].sn_mid_running | default(false) | bool,
+          'extra': (hostvars[sn_mid_host].sn_mid_extra_dirs | default([]))
+                   + (hostvars[sn_mid_host].sn_mid_extra_units | default([]))} }}
+    sn_live_kva: >-
+      {{ {'installed': hostvars[sn_kva_host].sn_kva_installed | default(false) | bool,
+          'owner': hostvars[sn_kva_host].sn_kva_owner_id | default('none'),
+          'running': hostvars[sn_kva_host].sn_kva_running | default(false) | bool} }}
+    sn_live_dt_enabled: "{{ sn_dt_brooks_notifications | selectattr('enabled') | map(attribute='id') | list }}"
+    sn_live_dt_missing: "{{ sn_dt_brooks_notifications | selectattr('object_id', 'equalto', '') | map(attribute='id') | list }}"
+
+- name: Derive the active instance
+  ansible.builtin.set_fact:
+    sn_live_mid_owner_known: "{{ sn_live_mid.owner if sn_live_mid.owner in sn_live_ids else '' }}"
+    sn_live_active: >-
+      {%- set ns = namespace(active='') -%}
+      {%- for x in sn_live_ids -%}
+        {%- if sn_live_mid.owner == x and sn_live_mid.running and sn_live_mid.extra | length == 0
+               and sn_live_dt_enabled == [x]
+               and (not sn_live_kva.installed or not sn_live_kva.running or sn_live_kva.owner == x) -%}
+          {%- set ns.active = x -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ ns.active }}
+
+- name: List the inconsistencies
+  ansible.builtin.set_fact:
+    sn_live_problems: >-
+      {%- set p = [] -%}
+      {%- set m = sn_live_mid -%}
+      {%- if m.owner == 'none' -%}
+        {%- set _ = p.append('Lab3 MID Server: not installed') -%}
+      {%- elif m.owner not in sn_live_ids -%}
+        {%- set _ = p.append('Lab3 MID Server: points at an instance not in SN_INSTANCES (' ~ m.owner ~ ')') -%}
+      {%- elif not m.running -%}
+        {%- set _ = p.append('Lab3 MID Server: belongs to ' ~ m.owner ~ ' but its service is stopped') -%}
+      {%- endif -%}
+      {%- if m.extra | length > 0 -%}
+        {%- set _ = p.append('Lab3: extra MID Server trees/units ' ~ (m.extra | join(', ')) ~ ' (one MID per host)') -%}
+      {%- endif -%}
+      {%- if sn_live_dt_enabled | length == 0 -%}
+        {%- set _ = p.append('Dynatrace: no brooks-lab problem notification is enabled (no instance receives events)') -%}
+      {%- elif sn_live_dt_enabled | length > 1 -%}
+        {%- set _ = p.append('Dynatrace: brooks-lab notifications are enabled for ' ~ (sn_live_dt_enabled | join(' and ')) ~ ' (events go to more than one instance)') -%}
+      {%- elif sn_live_dt_enabled[0] != m.owner -%}
+        {%- set _ = p.append('Dynatrace: events go to ' ~ sn_live_dt_enabled[0] ~ ' but the MID Server belongs to ' ~ m.owner) -%}
+      {%- endif -%}
+      {%- if sn_live_kva.installed and sn_live_kva.running and sn_live_kva.owner != m.owner -%}
+        {%- set _ = p.append('KVA informer: feeds ' ~ sn_live_kva.owner ~ ' but the MID Server belongs to ' ~ m.owner) -%}
+      {%- endif -%}
+      {{ p if sn_live_active | length == 0 else [] }}
+
+- name: Summarize the notifications
+  ansible.builtin.set_fact:
+    sn_live_dt_summary: >-
+      {%- set out = [] -%}
+      {%- for n in sn_dt_brooks_notifications -%}
+        {%- set _ = out.append(n.id ~ ' ' ~ ('missing' if not n.object_id else ('enabled' if n.enabled else 'disabled'))) -%}
+      {%- endfor -%}
+      {{ out | join(', ') }}
+
+- name: Build the active-instance report
+  ansible.builtin.set_fact:
+    sn_live_report: >-
+      {{ ['Active ServiceNow instance: ' ~ (sn_live_active if sn_live_active | length > 0
+            else 'NONE (' ~ (sn_live_problems | length) ~ ' inconsistencies)'),
+          'Lab3 MID Server: ' ~ sn_live_mid.owner ~ ', ' ~ ('running' if sn_live_mid.running else 'stopped')
+            ~ ((', extra: ' ~ (sn_live_mid.extra | join(', '))) if sn_live_mid.extra | length > 0 else ''),
+          'Dynatrace brooks-lab notifications: ' ~ sn_live_dt_summary,
+          'KVA informer: ' ~ ('not installed' if not sn_live_kva.installed
+            else (sn_live_kva.owner ~ ', ' ~ ('running' if sn_live_kva.running else 'parked (0 replicas)')))]
+         + (sn_live_problems | map('regex_replace', '^', '  ✗ ') | list) }}

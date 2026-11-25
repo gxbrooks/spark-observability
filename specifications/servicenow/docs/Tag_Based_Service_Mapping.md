@@ -9,10 +9,10 @@ Tag-based mapping matches discovered workload CIs to service instances using **`
 | Step | Playbook | Purpose |
 |------|----------|---------|
 | 1 | `csdm/deploy.yml` | Create BA / BS / service instance CIs; configure tag population rules |
-| 2 | `discovery/docker/discover.yml` | Sync containers; upsert `servicenow.com/*` on container CIs |
-| 3 | **Docker Pattern** horizontal discovery on Lab3 (`discovery/discover.yml`) | Enriches container/process relationships (vertical SM) |
-| 4 | KVA + `discovery/k8s/sync_pod_labels.yml` | K8s pod CIs; KVA copies pod labels (including `servicenow.com/service-instance`); pod sync mirrors `servicenow.com/*` |
-| 5 | `discovery/host/sync_tags.yml` | Host agents — `servicenow.com/*` on `cmdb_ci_linux_server` |
+| 2 | `discovery/docker/start.yml` | Sync containers; upsert `servicenow.com/*` on container CIs |
+| 3 | **Docker Pattern** horizontal discovery on Lab3 (`discovery/start.yml --tags discovery_scan`) | Enriches container/process relationships (vertical SM) |
+| 4 | KVA + `discovery/k8s/start.yml` | K8s pod CIs; KVA copies pod labels (including `servicenow.com/service-instance`); pod sync mirrors `servicenow.com/*` |
+| 5 | `discovery/host/deploy.yml` | Host agents — `servicenow.com/*` on `cmdb_ci_linux_server` |
 | 6 | **Instance UI** (below) | Verify the Tag Category + tag population rule on each service instance |
 
 ### cmdb_key_value and table ACLs
@@ -25,7 +25,7 @@ On **optimizincdemo1**, **`admin_brooks_lab`** already has **`cmdb_inst_admin`**
 ACL Exception Insert Failed due to security constraints
 ```
 
-So **`cmdb_inst_admin` does not grant insert on `cmdb_key_value`** on this instance. **`discovery/docker/discover.yml`** can read and upsert labels only after a **table ACL** change (or an elevated import path).
+So **`cmdb_inst_admin` does not grant insert on `cmdb_key_value`** on this instance. **`discovery/docker/start.yml`** can read and upsert labels only after a **table ACL** change (or an elevated import path).
 
 #### How to fix (instance admin with security_admin)
 
@@ -103,7 +103,7 @@ Values are the display names sanitized to the Kubernetes label charset (illegal 
 | Spark History Server | `Spark-History-Server` | … |
 | Spark Worker | `Spark-Worker` | same value on every worker pod (all nodes) |
 
-Sync canonical tags: `discovery/k8s/sync_pod_labels.yml` (included in `discovery/k8s/discover.yml`).
+Sync canonical tags: `discovery/k8s/start.yml` (included in `discovery/k8s/start.yml`).
 
 ### Host agents (tag-based, per node)
 
@@ -111,7 +111,7 @@ Sync canonical tags: `discovery/k8s/sync_pod_labels.yml` (included in `discovery
 |-----------|----------------------------|---------------|
 | `elastic-agent.csdm.yaml` | `Elastic Agent (Lab1)` … | `cmdb_ci_linux_server` |
 
-Run `discovery/host/sync_tags.yml` after CSDM deploy.
+Run `discovery/host/deploy.yml` after CSDM deploy.
 
 ### Kubernetes agent pods (tag-based, per node)
 
@@ -119,7 +119,7 @@ Run `discovery/host/sync_tags.yml` after CSDM deploy.
 |-----------|----------------------------|---------------|
 | `dynatrace-monitoring.csdm.yaml` | `Dynatrace OneAgent (Lab1)` … (K8s-sanitized on the pod, e.g. `Dynatrace-OneAgent-Lab1`) | `cmdb_ci_kubernetes_pod` (Dynakube OneAgent pod) |
 
-Run `discovery/k8s/label_oneagent_pods.yml`. Do **not** tag both Elastic Agent and OneAgent on the same `linux_server` CI — they share one canonical `servicenow.com/service-instance` key per CI.
+Run `discovery/k8s/start.yml`. Do **not** tag both Elastic Agent and OneAgent on the same `linux_server` CI — they share one canonical `servicenow.com/service-instance` key per CI.
 
 ### Excluded from tag-based SM
 
@@ -152,18 +152,18 @@ Default **`svc_traversal_rules`** on the instance control parent/child edges in 
 
 ```bash
 cd automation/ansible
-# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
+# Target instance: -e target=demo1|demo3 (default: the active instance), on every command.
 
 # Repopulate containers + cmdb_key_value labels + retire stale container CIs
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml \
   -e @../vars/secrets.yaml
 
 # Kubernetes pod servicenow.com labels (after KVA sync)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/sync_pod_labels.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/start.yml \
   -e @../vars/secrets.yaml
 
 # Host agent servicenow.com labels on linux_server CIs
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/sync_tags.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/host/deploy.yml \
   -e @../vars/secrets.yaml
 
 # Diagnose

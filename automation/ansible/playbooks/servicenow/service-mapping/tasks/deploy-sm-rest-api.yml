@@ -1,0 +1,235 @@
+---
+# Deploy global-scoped Scripted REST API for Service Mapping operations.
+# Representations: specifications/servicenow/integrations/service-mapping/
+#   sys_ws_definition_sm_operations_api.json  (the API)
+#   sys_ws_operation_sm_*.json + sm_*.js       (its operations and their scripts)
+
+- name: Load Service Mapping REST API representations
+  ansible.builtin.set_fact:
+    sn_sm_rest_api_def: "{{ lookup('file', sn_sm_files_dir + '/sys_ws_definition_sm_operations_api.json') | from_json }}"
+    sn_sm_rest_discover_op: "{{ lookup('file', sn_sm_files_dir + '/sys_ws_operation_sm_discover.json') | from_json }}"
+    sn_sm_rest_populate_tags_op: "{{ lookup('file', sn_sm_files_dir + '/sys_ws_operation_sm_populate_tags.json') | from_json }}"
+    sn_sm_rest_ensure_tag_categories_op: "{{ lookup('file', sn_sm_files_dir + '/sys_ws_operation_sm_ensure_tag_categories.json') | from_json }}"
+    sn_sm_rest_discover_script: "{{ lookup('file', sn_sm_files_dir + '/sm_discover_service.js') }}"
+    sn_sm_rest_populate_tags_script: "{{ lookup('file', sn_sm_files_dir + '/sm_populate_tag_list.js') }}"
+    sn_sm_rest_ensure_tag_categories_script: "{{ lookup('file', sn_sm_files_dir + '/sm_ensure_tag_categories.js') }}"
+
+- name: Look up Service Mapping Operations REST API definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_definition
+    sn_rest_query: "sysparm_query=name={{ sn_sm_rest_api_def.name | urlencode }}&sysparm_fields=sys_id,name,base_uri,active&sysparm_limit=1"
+
+- name: Record current Service Mapping REST API definition
+  ansible.builtin.set_fact:
+    sn_sm_rest_ws_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_sm_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Fail when Service Mapping REST API name lookup matched wrong definition
+  ansible.builtin.fail:
+    msg: >-
+      Scripted REST API '{{ sn_sm_rest_api_def.name }}' resolved to unexpected base_uri
+      '{{ sn_sm_rest_base_uri }}'. Expected a custom /api/opti8/ (or similar) namespace,
+      not a platform API such as /api/now/process_sync. Check the API name in
+      sys_ws_definition_sm_operations_api.json and
+      delete any duplicate sys_ws_definition rows with the same name.
+  when:
+    - sn_sm_rest_ws_sys_id | default('') | length > 0
+    - sn_sm_rest_base_uri is match('/api/now/')
+
+- name: Create Service Mapping Operations REST API definition
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_definition
+    sn_rest_body: "{{ sn_sm_rest_api_def }}"
+  when: sn_sm_rest_ws_sys_id | default('') | length == 0
+
+- name: Record Service Mapping REST API sys_id from create
+  ansible.builtin.set_fact:
+    sn_sm_rest_ws_sys_id: "{{ sn_rest_record.sys_id }}"
+  when:
+    - sn_sm_rest_ws_sys_id | default('') | length == 0
+    - sn_rest_status in [200, 201]
+
+- name: Refresh Service Mapping REST API base URI
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_definition
+    sn_rest_query: "sysparm_query=sys_id={{ sn_sm_rest_ws_sys_id }}&sysparm_fields=base_uri&sysparm_limit=1"
+  when: sn_sm_rest_base_uri | default('') | length == 0
+
+- name: Store Service Mapping REST base URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_base_uri: "{{ sn_rest_json.result[0].base_uri }}"
+  when:
+    - sn_sm_rest_base_uri | default('') | length == 0
+    - sn_rest_json.result | default([]) | length > 0
+
+- name: Look up Service Mapping discover REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method={{ sn_sm_rest_discover_op.http_method }}^relative_path={{
+      sn_sm_rest_discover_op.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri,operation_script&sysparm_limit=1
+
+- name: Cache discover operation lookup
+  ansible.builtin.set_fact:
+    sn_sm_discover_op_rows: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Create Service Mapping discover REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_operation
+    sn_rest_body: >-
+      {{ sn_sm_rest_discover_op | combine({
+           'web_service_definition': sn_sm_rest_ws_sys_id,
+           'operation_script': sn_sm_rest_discover_script}) }}
+  when: sn_sm_discover_op_rows | length == 0
+
+- name: Update Service Mapping discover REST operation script
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_operation
+    sn_rest_sys_id: "{{ sn_sm_discover_op_rows[0].sys_id }}"
+    sn_rest_body:
+      operation_script: "{{ sn_sm_rest_discover_script }}"
+      active: "{{ sn_sm_rest_discover_op.active }}"
+  when:
+    - sn_sm_discover_op_rows | length > 0
+    - sn_sm_discover_op_rows[0].operation_script | default('') != sn_sm_rest_discover_script
+
+- name: Refresh Service Mapping discover operation URI
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method={{ sn_sm_rest_discover_op.http_method }}^relative_path={{
+      sn_sm_rest_discover_op.relative_path | urlencode }}&sysparm_fields=operation_uri&sysparm_limit=1
+
+- name: Record Service Mapping discover REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_discover_uri: "{{ sn_rest_json.result[0].operation_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Look up Service Mapping populate_tags REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method={{ sn_sm_rest_populate_tags_op.http_method }}^relative_path={{
+      sn_sm_rest_populate_tags_op.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri,operation_script&sysparm_limit=1
+
+- name: Cache populate_tags operation lookup
+  ansible.builtin.set_fact:
+    sn_sm_populate_tags_op_rows: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Create Service Mapping populate_tags REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_operation
+    sn_rest_body: >-
+      {{ sn_sm_rest_populate_tags_op | combine({
+           'web_service_definition': sn_sm_rest_ws_sys_id,
+           'operation_script': sn_sm_rest_populate_tags_script}) }}
+  when: sn_sm_populate_tags_op_rows | length == 0
+
+- name: Update Service Mapping populate_tags REST operation script
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_operation
+    sn_rest_sys_id: "{{ sn_sm_populate_tags_op_rows[0].sys_id }}"
+    sn_rest_body:
+      operation_script: "{{ sn_sm_rest_populate_tags_script }}"
+      active: "{{ sn_sm_rest_populate_tags_op.active }}"
+  when:
+    - sn_sm_populate_tags_op_rows | length > 0
+    - sn_sm_populate_tags_op_rows[0].operation_script | default('') != sn_sm_rest_populate_tags_script
+
+- name: Refresh Service Mapping populate_tags operation URI
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method={{ sn_sm_rest_populate_tags_op.http_method }}^relative_path={{
+      sn_sm_rest_populate_tags_op.relative_path | urlencode }}&sysparm_fields=operation_uri&sysparm_limit=1
+
+- name: Record Service Mapping populate_tags REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_populate_tags_uri: "{{ sn_rest_json.result[0].operation_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Look up Service Mapping ensure_tag_categories REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method={{ sn_sm_rest_ensure_tag_categories_op.http_method }}^relative_path={{
+      sn_sm_rest_ensure_tag_categories_op.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri,operation_script&sysparm_limit=1
+
+- name: Cache ensure_tag_categories operation lookup
+  ansible.builtin.set_fact:
+    sn_sm_ensure_tag_categories_op_rows: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Create Service Mapping ensure_tag_categories REST operation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_operation
+    sn_rest_body: >-
+      {{ sn_sm_rest_ensure_tag_categories_op | combine({
+           'web_service_definition': sn_sm_rest_ws_sys_id,
+           'operation_script': sn_sm_rest_ensure_tag_categories_script}) }}
+  when: sn_sm_ensure_tag_categories_op_rows | length == 0
+
+- name: Update Service Mapping ensure_tag_categories REST operation script
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_operation
+    sn_rest_sys_id: "{{ sn_sm_ensure_tag_categories_op_rows[0].sys_id }}"
+    sn_rest_body:
+      operation_script: "{{ sn_sm_rest_ensure_tag_categories_script }}"
+      active: "{{ sn_sm_rest_ensure_tag_categories_op.active }}"
+  when:
+    - sn_sm_ensure_tag_categories_op_rows | length > 0
+    - sn_sm_ensure_tag_categories_op_rows[0].operation_script | default('') != sn_sm_rest_ensure_tag_categories_script
+
+- name: Refresh Service Mapping ensure_tag_categories operation URI
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_sm_rest_ws_sys_id }}^http_method={{ sn_sm_rest_ensure_tag_categories_op.http_method }}^relative_path={{
+      sn_sm_rest_ensure_tag_categories_op.relative_path | urlencode }}&sysparm_fields=operation_uri&sysparm_limit=1
+
+- name: Record Service Mapping ensure_tag_categories REST URI
+  ansible.builtin.set_fact:
+    sn_sm_rest_ensure_tag_categories_uri: "{{ sn_rest_json.result[0].operation_uri }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: Persist Service Mapping REST URIs to context file
+  ansible.builtin.copy:
+    dest: "{{ sn_sm_deploy_context_file }}"
+    mode: "0644"
+    content: >-
+      {{ {
+        'sm_rest_discover_uri': sn_sm_rest_discover_uri | default(''),
+        'sm_rest_populate_tags_uri': sn_sm_rest_populate_tags_uri | default(''),
+        'sm_rest_ensure_tag_categories_uri': sn_sm_rest_ensure_tag_categories_uri | default(''),
+        'sm_rest_base_uri': sn_sm_rest_base_uri | default('')
+      } | to_nice_json }}
+
+- name: Service Mapping REST API summary
+  ansible.builtin.debug:
+    msg: |
+      Service Mapping Operations API:
+        POST {{ sn_sm_rest_discover_uri | default('pending') }} — vertical discovery
+        POST {{ sn_sm_rest_populate_tags_uri | default('pending') }} — tag_list population
+        POST {{ sn_sm_rest_ensure_tag_categories_uri | default('pending') }} — CI tag categories

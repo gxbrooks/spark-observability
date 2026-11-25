@@ -2,9 +2,10 @@
 # Phase 2: KVA Informer health + brooks-lab Kubernetes CMDB counts.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/diagnose.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../../common/target.yml
+- import_playbook: ../../tasks/target.yml
   vars:
     sn_target_playbook: discovery/k8s/diagnose.yml
+    sn_target_mode: any
 
 - name: Diagnose KVA Informer pod on brooks-lab cluster
   hosts: kubernetes_master
@@ -69,6 +70,28 @@
       - cmdb_ci_kubernetes_pod
       - cmdb_ci_kubernetes_service
   tasks:
+    # The test.yml checks (Diagnostic and test statement 1). Failures are
+    # reported and diagnose carries on with the deeper counts below.
+    - name: Test check — CMDB locations for all clusters in K8S_CLUSTERS registry
+      ansible.builtin.include_tasks:
+        file: tasks/assert-k8s-cluster-location.yml
+        apply:
+          ignore_errors: true
+      loop: "{{ k8s_clusters }}"
+      loop_control:
+        loop_var: sn_k8s_cluster
+        label: "{{ sn_k8s_cluster.name }}"
+
+    - name: Test check — CMDB content for each kva_informer-enabled cluster
+      ansible.builtin.include_tasks:
+        file: tasks/test-kva-cluster-cmdb.yml
+        apply:
+          ignore_errors: true
+      loop: "{{ k8s_kva_clusters }}"
+      loop_control:
+        loop_var: sn_kva_cluster
+        label: "{{ sn_kva_cluster.name }}"
+
     - name: Resolve brooks-lab cluster sys_id
       ansible.builtin.uri:
         url: >-

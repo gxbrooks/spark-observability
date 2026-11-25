@@ -4,11 +4,13 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e @../vars/secrets.yaml
 #
-# On-demand Discovery scans are not auto-triggered here; run discovery/discover.yml explicitly.
+# On-demand Discovery scans are not auto-triggered here; run
+# discovery/start.yml --tags discovery_scan explicitly.
 
-- import_playbook: common/target.yml
+- import_playbook: tasks/target.yml
   vars:
     sn_target_playbook: start.yml
+    sn_target_mode: switch
 
 - name: ServiceNow start banner
   hosts: localhost
@@ -19,10 +21,13 @@
     - name: Display ServiceNow start information
       ansible.builtin.debug:
         msg: |
-          ServiceNow start: discovery/start.yml → sgc/sources/dynatrace/start.yml
-          For CI Discovery scan: playbooks/servicenow/discovery/discover.yml
+          ServiceNow start: discovery/start.yml → discovery/k8s/start.yml → sgc/sources/dynatrace/start.yml
+          For a CI Discovery scan: playbooks/servicenow/discovery/start.yml --tags discovery_scan
 
 - import_playbook: discovery/start.yml
+  tags: [servicenow]
+
+- import_playbook: discovery/k8s/start.yml
   tags: [servicenow]
 
 - import_playbook: sgc/sources/dynatrace/start.yml

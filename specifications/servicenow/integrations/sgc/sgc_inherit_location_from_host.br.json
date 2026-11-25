@@ -1,0 +1,10 @@
+{
+  "name": "sgc-inherit-location-from-host",
+  "active": "true",
+  "collection": "cmdb_ci",
+  "when": "before",
+  "action_insert": "true",
+  "action_update": "true",
+  "filter_condition": "locationISEMPTY^hostISNOTEMPTY^discovery_sourceLIKE*SGO-Dynatrace*",
+  "description": "SGO-Dynatrace imports leave location empty on infrastructure CIs; inherit from the related host CI when that host already has location (e.g. from Discovery). Does not map Dynatrace management zones to location."
+}

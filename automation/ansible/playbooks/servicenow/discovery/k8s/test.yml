@@ -4,9 +4,10 @@
 # asserted for each entry flagged kva_informer: true.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/test.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../../common/target.yml
+- import_playbook: ../../tasks/target.yml
   vars:
     sn_target_playbook: discovery/k8s/test.yml
+    sn_target_mode: active
 
 - name: Test CMDB for Kubernetes discovery
   hosts: localhost
@@ -18,14 +19,14 @@
     - "{{ playbook_dir }}/../common/vars.yml"
   tasks:
     - name: Assert CMDB locations for all clusters in K8S_CLUSTERS registry
-      ansible.builtin.include_tasks: tasks/assert_k8s_cluster_location.yml
+      ansible.builtin.include_tasks: tasks/assert-k8s-cluster-location.yml
       loop: "{{ k8s_clusters }}"
       loop_control:
         loop_var: sn_k8s_cluster
         label: "{{ sn_k8s_cluster.name }}"
 
     - name: Assert CMDB content for each kva_informer-enabled cluster
-      ansible.builtin.include_tasks: tasks/test_kva_cluster_cmdb.yml
+      ansible.builtin.include_tasks: tasks/test-kva-cluster-cmdb.yml
       loop: "{{ k8s_kva_clusters }}"
       loop_control:
         loop_var: sn_kva_cluster

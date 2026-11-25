@@ -1,0 +1,415 @@
+---
+# ServiceNow target + active-instance guard. Imported as the FIRST entry of every
+# ServiceNow playbook:
+#
+#   - import_playbook: <rel>/tasks/target.yml
+#     vars:
+#       sn_target_playbook: <path of the importing playbook, relative to playbooks/servicenow/>
+#       sn_target_mode: switch | active | any
+#
+# brooks-lab feeds ONE ServiceNow instance at a time (the "active" instance).
+# Nothing records it: every run DERIVES it from the live lab components and
+# checks that they agree (tasks/derive-active-instance.yml):
+#   - Lab3 MID Server     config.xml url (owner) + service running;
+#   - Dynatrace           which brooks-lab problem notification is enabled;
+#   - KVA informer        Helm instance.name (owner) + replicas (when installed).
+# An instance is ACTIVE when the MID belongs to it and runs, only its brooks-lab
+# notification is enabled, and a running KVA informer points at it. Anything
+# else is listed as inconsistencies.
+#
+# Flag: -e target=<id> (ids from SN_INSTANCES; 'all' is rejected).
+#
+# Modes (set by the importing playbook):
+#   switch  install / deploy / start. Target: -e target, else the active
+#           instance, else the MID's owner (e.g. after stop.yml). Points every
+#           component at the target: disables the other instances' brooks-lab
+#           notifications, reconfigures the MID for the target (installs one if
+#           none), repoints or parks the KVA informer, makes sure the MID's
+#           signing key is active and the MID validated, enables the target's
+#           notification. Idempotent.
+#   active  discover / test / sync. Requires a consistent active instance and
+#           runs against it; fails with the inconsistencies otherwise, and when
+#           -e target names another instance.
+#   any     diagnose / delete / stop. Target: -e target, else the active
+#           instance, else the MID's owner. Inconsistencies are reported as an
+#           (ignored) error and the playbook continues. servicenow/diagnose.yml
+#           (the consistency check) fails at its end when no instance is active.
+#
+# The guard runs once per ansible-playbook run (nested imports and aggregators
+# reuse it). Design: specifications/servicenow/docs/Multi_Target_ServiceNow.md
+
+- name: ServiceNow target — read the request ({{ sn_target_playbook | default('?') }})
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+  vars:
+    sn_guard_mode: "{{ sn_target_mode | default('active') }}"
+    sn_target_ids: "{{ SN_INSTANCES | map(attribute='id') | list }}"
+  tasks:
+    - name: Skip when the guard already ran in this run
+      ansible.builtin.meta: end_play
+      when: sn_guard_done | default(false) | bool
+
+    - name: Read the requested target
+      ansible.builtin.set_fact:
+        sn_guard_mode_req: "{{ sn_guard_mode }}"
+        sn_guard_playbook: "{{ sn_target_playbook | default('?') }}"
+        sn_target_requested: "{{ target | default('') | string | trim }}"
+
+    - name: Reject target=all (one instance at a time)
+      ansible.builtin.fail:
+        msg: >-
+          target=all is no longer supported: brooks-lab feeds one ServiceNow instance
+          at a time (one MID Server on Lab3, one KVA informer per cluster). Use
+          -e target=<id> with one of {{ sn_target_ids }}.
+      when: sn_target_requested == 'all'
+
+    - name: Validate target and mode
+      ansible.builtin.assert:
+        that:
+          - sn_target_requested == '' or sn_target_requested in sn_target_ids
+          - sn_guard_mode in ['switch', 'active', 'any']
+        fail_msg: >-
+          target='{{ sn_target_requested }}' (mode {{ sn_guard_mode }}) is not valid.
+          Use -e target=<id> with one of {{ sn_target_ids }}.
+        quiet: true
+
+# --- Detection (every mode) --------------------------------------------------
+
+- name: ServiceNow target — detect Dynatrace problem notifications
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+  tasks:
+    - name: Skip when the guard already ran in this run
+      ansible.builtin.meta: end_play
+      when: sn_guard_done | default(false) | bool
+
+    - name: Detect brooks-lab problem notifications
+      ansible.builtin.include_tasks:
+        file: dt-problem-notifications.yml
+        apply:
+          tags: [always]
+      vars:
+        sn_dt_notification_action: detect
+
+- name: ServiceNow target — detect the Lab3 MID Server
+  hosts: observability
+  become: true
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | dirname }}/discovery/common/vars.yml"
+  tasks:
+    - name: Skip when the guard already ran in this run
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost'].sn_guard_done | default(false) | bool
+
+    - name: Detect the MID Server owner and state
+      ansible.builtin.include_tasks:
+        file: activate-mid-server.yml
+        apply:
+          tags: [always]
+      vars:
+        sn_mid_apply: false
+
+- name: ServiceNow target — detect the KVA informer
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | dirname }}/discovery/common/vars.yml"
+  tasks:
+    - name: Skip when the guard already ran in this run
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost'].sn_guard_done | default(false) | bool
+
+    - name: Detect the KVA informer owner and state
+      ansible.builtin.include_tasks:
+        file: activate-kva-informer.yml
+        apply:
+          tags: [always]
+      vars:
+        sn_kva_apply: false
+
+- name: ServiceNow target — derive the active instance and resolve the target
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  vars:
+    sn_mid_host: "{{ groups['observability'] | first }}"
+    sn_kva_host: "{{ groups['kubernetes_master'] | first }}"
+    sn_id_pattern: "<{{ SN_INSTANCES | map(attribute='id') | join('|') }}>"
+  tasks:
+    - name: Skip when the guard already ran in this run
+      ansible.builtin.meta: end_play
+      when: sn_guard_done | default(false) | bool
+
+    - name: Derive the active instance from the live components
+      ansible.builtin.include_tasks:
+        file: derive-active-instance.yml
+        apply:
+          tags: [always]
+
+    - name: Resolve the target (requested, else active, else the MID's owner)
+      ansible.builtin.set_fact:
+        sn_target_final: >-
+          {{ sn_target_requested if sn_target_requested | length > 0
+             else (sn_live_active if (sn_live_active | length > 0 or sn_guard_mode_req == 'active')
+                   else sn_live_mid_owner_known) }}
+
+    - name: Show the active instance
+      ansible.builtin.debug:
+        msg: "{{ sn_live_report }}"
+
+    - name: Require a consistent active instance (discover / test / sync)
+      ansible.builtin.fail:
+        msg: >-
+          {{ ['No ServiceNow instance is fully active, so ' ~ sn_guard_playbook ~ ' has nothing to run against.']
+             + sn_live_problems
+             + ['Fix: ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e target=' ~ sn_id_pattern] }}
+      when:
+        - sn_guard_mode_req == 'active'
+        - sn_live_active | length == 0
+
+    - name: Require the active instance for this playbook
+      ansible.builtin.fail:
+        msg: >-
+          {{ sn_guard_playbook }} acts on the ACTIVE instance only, and
+          target={{ sn_target_requested }} is not active (active: {{ sn_live_active }}).
+          Switch first: ansible-playbook -i inventory.yml playbooks/servicenow/start.yml
+          -e target={{ sn_target_requested }}
+      when:
+        - sn_guard_mode_req == 'active'
+        - sn_target_requested | length > 0
+        - sn_target_requested != sn_live_active
+
+    - name: Require a target when none can be derived
+      ansible.builtin.fail:
+        msg: >-
+          {{ ['No target: -e target was not given, no instance is active and no instance owns the Lab3 MID Server.']
+             + sn_live_problems + ['Use -e target=' ~ sn_id_pattern ~ '.'] }}
+      when:
+        - sn_guard_mode_req in ['switch', 'any']
+        - sn_target_final | length == 0
+
+    - name: Report inconsistencies (no instance fully active)
+      ansible.builtin.fail:
+        msg: >-
+          {{ ['ERROR: no ServiceNow instance is fully active. Continuing ' ~ sn_guard_playbook ~ ' against ' ~ sn_target_final ~ '.']
+             + sn_live_problems }}
+      ignore_errors: true
+      when:
+        - sn_guard_mode_req == 'any'
+        - sn_live_active | length == 0
+
+    - name: Note when the target is not the active instance
+      ansible.builtin.debug:
+        msg: "Note: {{ sn_guard_playbook }} runs against {{ sn_target_final }}, which is NOT the active instance ({{ sn_live_active }})."
+      when:
+        - sn_guard_mode_req == 'any'
+        - sn_live_active | length > 0
+        - sn_target_final != sn_live_active
+
+    - name: Publish the target to every host in this run
+      ansible.builtin.set_fact:
+        sn_target_resolved: "{{ sn_target_final if sn_target_final | length > 0 else (SN_INSTANCES | map(attribute='id') | first) }}"
+        sn_target_guard_mode: "{{ sn_guard_mode_req }}"
+        sn_live_active: "{{ sn_live_active }}"
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ ['localhost'] + groups['all'] }}"
+
+    - name: Check the target has the Kubernetes Visibility Agent app
+      ansible.builtin.include_tasks:
+        file: check-kva-app.yml
+        apply:
+          tags: [always]
+      when:
+        - sn_guard_mode_req == 'switch'
+        - hostvars[sn_kva_host].sn_kva_installed | default(false) | bool
+
+# --- Switch (mode switch only) -----------------------------------------------
+
+- name: ServiceNow switch — Dynatrace, disable the other instances' notifications
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+  tasks:
+    - name: Skip unless switching (once per run)
+      ansible.builtin.meta: end_play
+      when: (sn_guard_done | default(false) | bool) or sn_target_guard_mode != 'switch'
+
+    - name: Disable the other instances' brooks-lab notifications
+      ansible.builtin.include_tasks:
+        file: dt-problem-notifications.yml
+        apply:
+          tags: [always]
+      vars:
+        sn_dt_notification_action: deactivate_others
+
+- name: ServiceNow switch — Lab3 MID Server, point at the target
+  hosts: observability
+  become: true
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir | dirname }}/discovery/common/vars.yml"
+  tasks:
+    - name: Skip unless switching (once per run)
+      ansible.builtin.meta: end_play
+      when: (hostvars['localhost'].sn_guard_done | default(false) | bool) or sn_target_guard_mode != 'switch'
+
+    - name: Point the MID Server at the target
+      ansible.builtin.include_tasks:
+        file: activate-mid-server.yml
+        apply:
+          tags: [always]
+      vars:
+        sn_mid_apply: true
+
+- name: ServiceNow switch — KVA informer, point at the target
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir | dirname }}/discovery/common/vars.yml"
+  tasks:
+    - name: Skip unless switching (once per run)
+      ansible.builtin.meta: end_play
+      when: (hostvars['localhost'].sn_guard_done | default(false) | bool) or sn_target_guard_mode != 'switch'
+
+    - name: Repoint or park the KVA informer
+      ansible.builtin.include_tasks:
+        file: activate-kva-informer.yml
+        apply:
+          tags: [always]
+      vars:
+        sn_kva_apply: true
+
+- name: ServiceNow switch — validate the MID, enable the target's notification
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+    - "{{ playbook_dir | dirname }}/discovery/common/vars.yml"
+  vars:
+    sn_mid_host: "{{ groups['observability'] | first }}"
+    sn_kva_host: "{{ groups['kubernetes_master'] | first }}"
+    sn_mid_swapped: "{{ hostvars[sn_mid_host].sn_mid_swapped | default(false) }}"
+  tasks:
+    - name: Skip when the guard already ran in this run
+      ansible.builtin.meta: end_play
+      when: sn_guard_done | default(false) | bool
+
+    - name: Bring the target's MID Server up and enable its notification
+      when: sn_target_guard_mode == 'switch'
+      block:
+        # The build the instance expects its MIDs to run. A reconfigured MID
+        # first reports Up on its old build, then auto-upgrades (or downgrades)
+        # to this one, so "Up" alone is not enough.
+        - name: Read the target's MID build (sys_property mid.version)
+          ansible.builtin.uri:
+            url: >-
+              {{ sn_url }}/api/now/table/sys_properties?sysparm_query=name=mid.version&sysparm_fields=value&sysparm_limit=1
+            method: GET
+            user: "{{ sn_user }}"
+            password: "{{ sn_password }}"
+            force_basic_auth: true
+            headers: "{{ sn_api_headers }}"
+            status_code: [200]
+          register: sn_mid_expected_version
+          no_log: true
+
+        - name: Wait for the MID Server to be Up on the target's build (covers the auto-upgrade)
+          ansible.builtin.uri:
+            url: >-
+              {{ sn_url }}/api/now/table/ecc_agent?sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=status,validated,version&sysparm_limit=1
+            method: GET
+            user: "{{ sn_user }}"
+            password: "{{ sn_password }}"
+            force_basic_auth: true
+            headers: "{{ sn_api_headers }}"
+            status_code: [200]
+          register: sn_mid_wait
+          vars:
+            sn_mid_build: "{{ (sn_mid_expected_version.json.result | default([{}]) | first | default({})).value | default('') }}"
+          until: >-
+            (sn_mid_wait.json.result | default([]) | length > 0)
+            and (sn_mid_wait.json.result[0].status == 'Up')
+            and (sn_mid_build | length == 0 or sn_mid_wait.json.result[0].version == sn_mid_build)
+          retries: 80
+          delay: 15
+          no_log: true
+
+        - name: Make sure the MID's signing key is active
+          ansible.builtin.include_tasks:
+            file: ensure-mid-signing-key.yml
+            apply:
+              tags: [always]
+
+        - name: Validate the MID Server
+          ansible.builtin.include_tasks:
+            file: "{{ playbook_dir | dirname }}/discovery/tasks/validate-mid-server.yml"
+            apply:
+              tags: [always]
+
+        - name: Restart the MID Server after validation
+          ansible.builtin.systemd:
+            name: "{{ sn_mid_service_name }}.service"
+            state: restarted
+          become: true
+          delegate_to: "{{ sn_mid_host }}"
+          when: sn_mid_validation_changed | default(false) | bool
+
+        - name: Enable the target instance's problem notification
+          ansible.builtin.include_tasks:
+            file: dt-problem-notifications.yml
+            apply:
+              tags: [always]
+          vars:
+            sn_dt_notification_action: enable_target
+
+        - name: Switch report
+          ansible.builtin.debug:
+            msg:
+              - "ServiceNow → {{ sn_target_resolved }} (before: {{ sn_live_active or 'no instance fully active' }})"
+              - "MID Server on {{ sn_mid_host }}: {{ hostvars[sn_mid_host].sn_mid_report | default('?') | trim }}"
+              - "MID signing key: {{ sn_sigkey_report | default('?') | trim }}"
+              - "KVA informer on {{ sn_kva_host }}: {{ hostvars[sn_kva_host].sn_kva_report | default('?') | trim }}"
+              - "Dynatrace: {{ sn_dt_notification_report | default([]) | join('; ') }}"
+
+    - name: Mark the guard done for this run
+      ansible.builtin.set_fact:
+        sn_guard_done: true
+        sn_live_active: "{{ sn_target_resolved if sn_target_guard_mode == 'switch' else sn_live_active }}"
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ ['localhost'] + groups['all'] }}"

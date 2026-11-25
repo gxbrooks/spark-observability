@@ -49,33 +49,34 @@ truth) via the generated `vars/contexts/servicenow_ansible_vars.yml` and
 a missing variable fails the play. Secrets: `vars/secrets.yaml` → `servicenow:`.
 
 Key context variables: `SN_INSTANCES` (per instance: `url`, `secrets_suffix`,
-`dt_legacy_connector_sys_id`, `dt_problem_notification_name`,
-`dt_sgc_api_token_name`), `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
+`dt_problem_notification_name`, `dt_sgc_api_token_name`), `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
 (`sn_store_apps`) is `specifications/servicenow/integrations/sgc/store_apps.yml`.
 
 Webhook credentials for the SGO-Dynatrace cutover live in `vars/secrets.yaml`
 under `servicenow.SN_DT_WEBHOOK_USER<suffix>` / `SN_DT_WEBHOOK_PASSWORD<suffix>`
 (written on first `events/deploy.yml` for that instance after SGC install).
 `events/deploy.yml` updates only that instance's brooks-lab Dynatrace problem
-notification (`SN_INSTANCES.<id>.dt_problem_notification_name`); every instance
-gets its own notification on the same brooks-lab alerting profile, so each
-Dynatrace problem reaches all instances.
+notification (`SN_INSTANCES.<id>.dt_problem_notification_name`). Every instance
+has its own notification on the same brooks-lab alerting profile, and only the
+active instance's is enabled, so Dynatrace problems reach the active instance only.
 
 ## Target instance
 
-Every playbook below takes `-e target=demo1|demo3|all` (default
-`SN_DEFAULT_TARGET` = `demo3`); see [../README.md](../README.md#target-instance--e-target).
+Every playbook below takes `-e target=demo1|demo3` (default: the active instance,
+derived each run from the lab components); see [../README.md](../README.md#target-instance--e-target).
+`install.yml`, `deploy.yml` and `start.yml` with another target switch the lab to
+that instance; `events/test.yml` runs only against the active instance.
 Each instance has its own SGC install, Dynatrace API token
 (`dt_sgc_api_token_name`), "Dynatrace Connection" and import schedules.
-`events/apply_openpipeline_only.yml` changes only the Dynatrace tenant, so it
-takes no `target`.
+`events/deploy.yml --tags openpipeline` applies only the OpenPipeline log
+alerts (Dynatrace tenant only); the guard still runs.
 
 ## Playbooks
 
 ```bash
 cd automation/ansible
 
-# Add -e target=demo1|demo3|all to any command (default demo3).
+# Add -e target=demo1|demo3 to any command (default: the active instance).
 # 0. Store apps + plugins (idempotent; skips what is installed)
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/install.yml -e @../vars/secrets.yaml
 

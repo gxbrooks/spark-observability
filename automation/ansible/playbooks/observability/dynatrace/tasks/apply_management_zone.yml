@@ -88,8 +88,41 @@
       {{ management_zone_create.json | default(management_zone_create.content) }}
   run_once: true
 
+# Whole-value comparison (a field dropped from the representation is a change).
+# Dynatrace leaves default-false propagation flags out of each rule's
+# attributeRule when it returns the object, while the representation spells
+# them out; those false flags are dropped on both sides before comparing.
+- name: Determine whether the management zone differs from its representation
+  ansible.builtin.set_fact:
+    mz_change_needed: >-
+      {%- macro norm(v) -%}
+        {%- set rules = [] -%}
+        {%- for r in v.rules | default([]) -%}
+          {%- if r.attributeRule is defined -%}
+            {%- set ar = r.attributeRule | dict2items | rejectattr('value', 'sameas', false) | items2dict -%}
+            {%- set _ = rules.append(r | combine({'attributeRule': ar})) -%}
+          {%- else -%}{%- set _ = rules.append(r) -%}{%- endif -%}
+        {%- endfor -%}
+        {{ v | combine({'rules': rules}) | to_json }}
+      {%- endmacro -%}
+      {{ (mz_object_id | trim) != ''
+         and norm(mz_settings_list.json['items'] | selectattr('objectId', 'equalto', mz_object_id)
+                  | map(attribute='value') | first) != norm(mz_document.value) }}
+  run_once: true
+
+- name: Report which management zone keys differ (names only)
+  ansible.builtin.debug:
+    msg: >-
+      Management zone differs in:
+      {%- for k in (mz_live.keys() | list + mz_document.value.keys() | list) | unique %}
+      {%- if mz_live.get(k) != mz_document.value.get(k) %} [{{ k }}]{% endif %}{% endfor %}
+  vars:
+    mz_live: "{{ mz_settings_list.json['items'] | selectattr('objectId', 'equalto', mz_object_id) | map(attribute='value') | first }}"
+  when: mz_change_needed | bool
+  run_once: true
+
 - name: Update management zone settings object
-  when: (mz_object_id | trim) != ''
+  when: mz_change_needed | bool
   ansible.builtin.uri:
     url: "{{ dt_api_url_resolved }}/v2/settings/objects/{{ mz_object_id }}"
     method: PUT
@@ -105,7 +138,7 @@
   failed_when: false
 
 - name: Assert management zone update succeeded
-  when: (mz_object_id | trim) != ''
+  when: mz_change_needed | bool
   ansible.builtin.assert:
     that:
       - management_zone_update.status | default(0) == 200

@@ -18,9 +18,10 @@
 #   sn_sm_configure_tag_categories — true (default) | false
 #   sn_sm_maintain_scopes — scopes for repair/reinstall
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: service-mapping/install.yml
+    sn_target_mode: switch
 
 - name: Install ServiceNow Service Mapping Store apps and plugin
   hosts: localhost

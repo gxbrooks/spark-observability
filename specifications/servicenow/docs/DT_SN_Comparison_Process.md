@@ -271,7 +271,7 @@ Export to CSV or JSON. Resolve management zone **name → numeric id** via `GET 
 | Drift type | Reconciliation path |
 |------------|---------------------|
 | CSDM hierarchy | `csdm/deploy.yml` → `sn-sync-inject` |
-| Retire obsolete CIs | `csdm/delete.yml` / `sn-sync-delete` |
+| Retire obsolete CIs | `csdm/undeploy.yml` / `sn-sync-delete` |
 | Host / container enrichment | Horizontal Discovery, Docker Pattern, KVA |
 | Dynatrace → CMDB topology | SGC scheduled import (per connection / MZ) |
 | Host identity | IRE identification rules; align hostname forms |
@@ -433,7 +433,7 @@ PYTHONPATH=. python -m servicenow.comparator --scope-unit-id brooks-lab-onprem
 
 **Report output:** `DT_SN_Model_Comparison_Report.json` (v1.2) is a **platform-neutral** comparison of the full CMDB and Dynatrace tenant export against CSDM intent. The report root carries **`scope_applied`** (default: all/all) and **`csdm_intent_sources`** (which `*.csdm.yaml` files were loaded). Region registry ids (`scope_unit_id`, `region_id`, `cmdb_location`) appear only under **`csdm_intent_sources[].registry`** — they describe where intent came from, not an implicit export boundary unless scope filters are enabled.
 
-**Dynatrace correlation spec:** `compare/dynatrace-correlation.yaml` declares expected management zone, host group, Kubernetes cluster map, and reference hosts for partitioning diagnostics. It does not limit export scope unless `sn_compare_filter_by_dynatrace_mz=true`.
+**Dynatrace correlation spec:** `servicenow/comparator/dynatrace-correlation.yaml` declares expected management zone, host group, Kubernetes cluster map, and reference hosts for partitioning diagnostics. It does not limit export scope unless `sn_compare_filter_by_dynatrace_mz=true`.
 
 **Default scope is the full model on both platforms.** Scope-unit fields (`cmdb_location`, `dynatrace_management_zones`) are **correlation registry metadata** for diagnostics and optional filters:
 
@@ -451,7 +451,7 @@ ansible-playbook ... -e sn_compare_filter_by_dynatrace_mz=true
 
 **Diff classification** (`matched`, `servicenow_only`, `dynatrace_only`, `missing_in_cmdb`, `missing_tag_binding`, `ok_canonical_tag`, `ok_alternate_tag_only`) is computed by `compare/files/generate_compare_report.py`.
 
-**Tag binding notes:** Compare queries `cmdb_key_value` for the canonical key `servicenow.com/service-instance` (expected value: the service instance display name, K8s-sanitized for `platform: kubernetes`) plus alternate keys `app.kubernetes.io/name` and `app`. When canonical rows are absent but alternate rows match an intent `identifier`, the report marks **`alternate_tag_only`** — run `discovery/docker/discover.yml` or fix table ACLs per `specifications/servicenow/docs/install.md` §6.3.
+**Tag binding notes:** Compare queries `cmdb_key_value` for the canonical key `servicenow.com/service-instance` (expected value: the service instance display name, K8s-sanitized for `platform: kubernetes`) plus alternate keys `app.kubernetes.io/name` and `app`. When canonical rows are absent but alternate rows match an intent `identifier`, the report marks **`alternate_tag_only`** — run `discovery/docker/start.yml` or fix table ACLs per `specifications/servicenow/docs/install.md` §6.3.
 
 This automation does **not** replace `csdm/diagnose.yml` or `sgc/diagnose.yml`; run those for deep Service Mapping, SGC, and IRE diagnostics. Compare focuses on **cross-platform inventory, tag alignment, and annotated drift** at correlation keys.
 

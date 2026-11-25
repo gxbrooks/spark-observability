@@ -32,8 +32,8 @@ Keep `advanced` false. Advanced `findCisInMaint()` scripts are easy to drop
 (wrong return type). A fallback script lives in `em_maint_affected_cis.js`
 and is not part of deploy. If used, it must `return JSON.stringify(cis)`.
 
-`incident/deploy.yml` applies it per instance with `-e target=<id>` (only where
-`SN_INSTANCES.<id>.incident_deploy_enabled` is true — not Demo3 today). By hand,
+`incident/deploy.yml` applies it to the target instance (`-e target=<id>`,
+default the active instance; Demo1 or Demo3). By hand,
 use the Table API with that instance's URL and credentials (create when the
 name does not exist):
 

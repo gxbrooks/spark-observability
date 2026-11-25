@@ -85,11 +85,21 @@ def load_config(
     dt_vars = _load_yaml(dynatrace_vars_path or root / "vars/contexts/dynatrace_ansible_vars.yml")
     secrets = _load_yaml(secrets_path or root / "vars/secrets.yaml")
     sn_secrets = secrets.get("servicenow") or {}
+    # brooks-lab feeds one ServiceNow instance at a time and nothing records
+    # which one: servicenow/sn_active_instance.py derives it from the enabled
+    # brooks-lab Dynatrace problem notification (SN_TARGET=<id> overrides).
+    import sys as _sys
 
-    sn_user = _unwrap(sn_secrets.get("SN_USER") or secrets.get("SN_USER") or "")
-    sn_password = _unwrap(sn_secrets.get("SN_PASSWORD") or secrets.get("SN_PASSWORD") or "")
+    _sys.path.insert(0, str(root / "servicenow"))
+    from sn_active_instance import active_instance
+
+    active = active_instance(root)
+    suffix = str(active.get("secrets_suffix") or "")
+
+    sn_user = _unwrap(sn_secrets.get("SN_USER" + suffix) or secrets.get("SN_USER" + suffix) or "")
+    sn_password = _unwrap(sn_secrets.get("SN_PASSWORD" + suffix) or secrets.get("SN_PASSWORD" + suffix) or "")
     if not sn_user or not sn_password:
-        raise ValueError("SN_USER and SN_PASSWORD must be set in vars/secrets.yaml (servicenow section)")
+        raise ValueError(f"SN_USER{suffix} and SN_PASSWORD{suffix} must be set in vars/secrets.yaml (servicenow section)")
 
     dt_api_url = str(_unwrap(dt_vars.get("DT_API_URL") or "")).strip()
     dt_api_token = str(_unwrap(dt_vars.get("DT_API_TOKEN") or "")).strip()
@@ -98,7 +108,7 @@ def load_config(
 
     return CompareConfig(
         repo_root=root,
-        sn_url=str(_unwrap(sn_vars.get("SN_URL") or secrets.get("SN_URL") or "")).strip(),
+        sn_url=str(active["url"]).strip(),
         sn_user=str(sn_user).strip(),
         sn_password=str(sn_password).strip(),
         dt_api_url=dt_api_url,

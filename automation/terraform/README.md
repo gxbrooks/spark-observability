@@ -211,6 +211,18 @@ does). The `terraform_vars` writer that produces it lives in the sibling
 `context-variables` project (`context_variables.generate.write_terraform_vars`),
 alongside `ansible_vars`, `shell_env`, etc.
 
+### State (shared, locked)
+
+`backend.tf` keeps the state in the brooks-lab cluster (Kubernetes backend):
+Secret `tfstate-default-spark-observability` in namespace `default`, locked by a
+Lease of the same name during every plan and apply (automation standard,
+Terraform statement 1). Migrated from the local `terraform.tfstate` on
+2026-11-25 (`terraform init -migrate-state`); a concurrent plan is refused with
+"Error acquiring the state lock". The backend reads `~/.kube/config`; on
+another machine use `terraform init -backend-config="config_path=<path>"`. The
+state holds secrets, so read access to Secrets in namespace `default` is read
+access to them.
+
 ```bash
 cd automation/terraform
 terraform init

@@ -3,10 +3,14 @@
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
+# OpenPipeline Spark log alerts only (plus the SGO unmatched-CI events property;
+# no webhook / management zone / custom source):
+#   ... events/deploy.yml -e @../vars/secrets.yaml --tags openpipeline
 
-- import_playbook: ../../../../common/target.yml
+- import_playbook: ../../../../tasks/target.yml
   vars:
     sn_target_playbook: sgc/sources/dynatrace/events/deploy.yml
+    sn_target_mode: switch
 
 - name: Configure Dynatrace alerting and ServiceNow event webhook for brooks-lab
   hosts: localhost
@@ -23,15 +27,20 @@
         dt_observability_tasks_dir: >-
           {{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/observability/dynatrace
       run_once: true
+      tags: [always]
 
     - name: Detect SGC installation (controls webhook source= parameter)
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check-sgc-prerequisites.yml"
 
     - name: Ensure SGO unmatched-CI events property
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/ensure_spark_entity_cmdb_bindings.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir | dirname }}/tasks/ensure-spark-entity-cmdb-bindings.yml"
+        apply:
+          tags: [openpipeline]
+      tags: [openpipeline]
 
     - name: Apply Spark Observability management zone
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply_spark_management_zone.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/apply-spark-management-zone.yml"
 
     - name: Apply brooks-lab alerting profile (Spark Observability management zone)
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_dt_alerting_profile.yml"
@@ -40,7 +49,11 @@
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_spark_log_custom_source.yml"
 
     - name: Apply OpenPipeline Davis extraction for Spark ERROR/WARN logs
-      ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_spark_openpipeline_log_alerts.yml"
+      ansible.builtin.include_tasks:
+        file: "{{ dt_observability_tasks_dir }}/tasks/apply_spark_openpipeline_log_alerts.yml"
+        apply:
+          tags: [openpipeline]
+      tags: [openpipeline]
 
     - name: Apply CPU metric detector (classic log event disabled — OpenPipeline is canonical)
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_dt_anomaly_detectors.yml"

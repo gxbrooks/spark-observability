@@ -59,9 +59,10 @@ ansible-playbook -i inventory.yml playbooks/specifications/dynatrace/deploy.yml 
 # disabled by dynatrace/stop.yml (clusters / namespaces / nodes / workloads / volumes)
 
 # One ServiceNow problem notification per instance (SN_INSTANCES.<id>.dt_problem_notification_name),
-# all on the same brooks-lab alerting profile; -e target=demo1|demo3|all (default demo3).
+# all on the same brooks-lab alerting profile; only the active instance's is enabled.
+# -e target=demo1|demo3 (default: the active instance; another target switches the lab).
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
-  -e @../vars/secrets.yaml -e target=all
+  -e @../vars/secrets.yaml
 ```
 
 Specs: `integrations/k8s-monitoring/`. See `docs/Tenant_Setup.md` and `Partitioning_and_Tagging.md`.

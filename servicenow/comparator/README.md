@@ -14,6 +14,8 @@ Optional flags: `--scope-unit-id brooks-lab-onprem`, `--filter-by-cmdb-location`
 
 Requires `vars/secrets.yaml` (SN credentials) and `vars/contexts/dynatrace_ansible_vars.yml` (DT API token).
 
+Runs against the active ServiceNow instance, derived by `servicenow/sn_active_instance.py` from the enabled brooks-lab Dynatrace problem notification (`SN_TARGET=<id>` overrides); see [Multi_Target_ServiceNow.md](../../specifications/servicenow/docs/Multi_Target_ServiceNow.md).
+
 ## Outputs
 
 Writes under `tmp/compare/<timestamp>/`:

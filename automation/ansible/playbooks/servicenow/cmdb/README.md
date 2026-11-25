@@ -23,7 +23,7 @@ See [specifications/servicenow/docs/install.md](../../../../../specifications/se
 
 ```bash
 cd automation/ansible
-# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
+# Target instance: -e target=demo1|demo3 (default: the active instance), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/diagnose.yml -e @../vars/secrets.yaml
 ```
@@ -32,7 +32,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/diagnose.yml -e @../
 
 After `cmdb/deploy.yml`:
 
-1. `discovery/discover.yml` — CI Discovery scan (IRE-populated CIs)
+1. `discovery/start.yml --tags discovery_scan` — CI Discovery scan (IRE-populated CIs)
 2. `sgc/sources/dynatrace/start.yml` — SGO-Dynatrace import cascade
 
 Or use the top-level orchestrator: `playbooks/servicenow/start.yml`.

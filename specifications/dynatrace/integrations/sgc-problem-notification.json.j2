@@ -1,0 +1,20 @@
+{
+  "schemaId": "builtin:problem.notifications",
+  "scope": "environment",
+  "value": {
+    "enabled": ${dt_problem_notification_enabled},
+    "type": "WEBHOOK",
+    "displayName": "${dt_sn_problem_notification_name}",
+    "alertingProfile": "${dt_alerting_profile_object_id}",
+    "webHookNotification": {
+      "url": "${sn_dt_event_inbound_url}",
+      "acceptAnyCertificate": false,
+      "notifyEventMergesEnabled": false,
+      "notifyClosedProblems": true,
+      "headers": [
+        { "name": "Authorization", "secret": true, "secretValue": "${sn_dt_webhook_authorization}" }
+      ],
+      "payload": ${dt_problem_notification_payload_json}
+    }
+  }
+}

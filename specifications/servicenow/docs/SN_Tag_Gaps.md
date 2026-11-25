@@ -63,7 +63,7 @@ KVA does **not** automatically provide everything this project needs:
 | Mechanism | What ServiceNow / MID does | What it puts in `cmdb_key_value` |
 |-----------|---------------------------|----------------------------------|
 | **Docker Pattern** (horizontal Discovery) | Discovers containers, processes, relationships for vertical Service Mapping | **Not** custom `servicenow.com/*` Compose labels ([CSDM_Specifications.md](CSDM_Specifications.md) Statement 4.4) |
-| **`discovery/docker/discover.yml`** (this repo) | `docker ps` + `docker inspect` on the host | **All** container labels, including `servicenow.com/*` and `com.docker.compose.*` |
+| **`discovery/docker/start.yml`** (this repo) | `docker ps` + `docker inspect` on the host | **All** container labels, including `servicenow.com/*` and `com.docker.compose.*` |
 
 Docker Pattern enriches the container/process graph; it does **not** populate Compose **`servicenow.com/*`** rows that tag-based Service Mapping rules expect in this lab.
 
@@ -73,16 +73,16 @@ Docker Pattern enriches the container/process graph; it does **not** populate Co
 
 | Playbook | Runtime contact | Direction | Role |
 |----------|-----------------|-----------|------|
-| **`k8s/sync_pod_labels.yml`** | `kubectl get pods -o json` (read labels) | Runtime → SN `cmdb_key_value` | Mirror `servicenow.com/*` when KVA lag or labels present on pods |
-| **`docker/discover.yml`** | `docker ps`, `docker inspect` | Runtime → SN `cmdb_key_value` (+ container CI upsert) | Fills Docker Pattern gap for Compose labels |
-| **`host/sync_tags.yml`** | None | CSDM spec → SN `cmdb_key_value` on `linux_server` | Host agents without container/pod label surface |
-| **`k8s/discover.yml`** | `kubectl rollout restart` KVA | SN-side informer only | Not app pod labels |
+| **`k8s/k8s/tasks/sync-pod-labels.yml`** | `kubectl get pods -o json` (read labels) | Runtime → SN `cmdb_key_value` | Mirror `servicenow.com/*` when KVA lag or labels present on pods |
+| **`docker/start.yml`** | `docker ps`, `docker inspect` | Runtime → SN `cmdb_key_value` (+ container CI upsert) | Fills Docker Pattern gap for Compose labels |
+| **`host/deploy.yml`** | None | CSDM spec → SN `cmdb_key_value` on `linux_server` | Host agents without container/pod label surface |
+| **`k8s/start.yml`** | `kubectl rollout restart` KVA | SN-side informer only | Not app pod labels |
 | **`csdm/deploy.yml`** | None | CSDM spec → SN CMDB hierarchy | Business model, not runtime tags |
 | **`compare.yml`** | SN + Dynatrace APIs (read) | Export / drift report | No runtime writes |
 
 **None of these playbooks inject tags into running containers or pods.** They either read runtime and write CMDB, or push model intent into CMDB.
 
-The Kubernetes tag pipeline is a **runtime mirror** (`sync_pod_labels.yml`) — it duplicates what KVA would do if pods carry the `servicenow.com/service-instance` label, covering KVA lag.
+The Kubernetes tag pipeline is a **runtime mirror** (`k8s/tasks/sync-pod-labels.yml`) — it duplicates what KVA would do if pods carry the `servicenow.com/service-instance` label, covering KVA lag.
 
 ---
 

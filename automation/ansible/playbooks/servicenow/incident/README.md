@@ -33,7 +33,9 @@ Virtual Automated/Tag groups use source **Group Alert**. AMR **Create Incident
 for Primary Alert** (`source=Group Alert^maintenance=false^incidentISEMPTY`)
 tickets those primaries.
 
-BR `em-alert-create-log-incident` stays **inactive**. Reserved AMR
+BR `em-alert-create-log-incident` is retired: `deploy.yml` no longer manages it
+(deactivate it once with the ephemeral `incident/tmp/` play if an instance still
+has it active). Reserved AMR
 **L2I Create Incident CRITICAL_LOG_EVENT** stays **inactive**.
 
 ## Why all-kebab `sn-*` keys (`sn-service-instance`, not `sn-service_instance`)
@@ -67,7 +69,7 @@ Lab convention for Dynatrace custom event properties that ServiceNow reads:
 | `EvtMgmtCustomIncidentPopulator` | L2I: incident CI = SI; correlate by SI + `sn-log-signature` |
 | `L2IIncidentFromAlert` | Helper → `EvtMgmtIncidentHandler` (job / reprocess) |
 | BR `em-event-enrich-sgo` / `em-alert-enrich-sgo` | Before insert/update: stamp `sn-impact`/`sn-urgency`; log CI = service instance; else K8s dash-key CI; **durable log**: rewrite Clear/OK to Major so DT RESOLVED does not close the event/alert |
-| BR `em-alert-create-log-incident` | **Inactive.** Replaced by AMR `SGO-Dynatrace` |
+| BR `em-alert-create-log-incident` | **Retired, not managed by deploy** (inactive). Replaced by AMR `SGO-Dynatrace` |
 | TBAC `L2I short Log4j2 SI + signature` | **Inactive.** Log grouping is Automated `metric_name` + `cmdb_ci` |
 | AMR `L2I Create Incident CRITICAL_LOG_EVENT` | **Inactive** (reserved) |
 | AMR `SGO-Dynatrace` | **Active.** Log + metric; OOTB **Create Incident** subflow; non-secondary; not maintenance; CI bound; `severity<=3` |
@@ -126,8 +128,11 @@ play, not in `deploy.yml`. Git ignores `tmp/`.
 The stress driver (`run-stress.sh -cr MINUTES`) creates a **Standard** change,
 walks New → Scheduled → Implement (`work_start` set), and moves to **Review**
 when the window ends or the suite stops. Normal changes cannot jump to
-Implement from REST (assignment-group approval). The change is created only on the instance in `SN_URL`
-(Demo1); `create-sn-change-window.py` is not multi-instance.
+Implement from REST (assignment-group approval). The change is created on the active instance, which
+`create-sn-change-window.py` derives from the enabled brooks-lab Dynatrace
+notification (`servicenow/sn_active_instance.py`; `SN_TARGET=<id>` overrides).
+It fails when no instance is active. `--close` uses the instance the change was
+opened on.
 
 Event Management does **not** update CI `operational_status` or CSDM
 `life_cycle_stage`. Confirm suppression on `em_impact_maint_ci` /
@@ -135,7 +140,7 @@ Event Management does **not** update CI `operational_status` or CSDM
 
 ## Usage
 
-Every playbook takes `-e target=demo1|demo3|all` (default `demo3`); see
+Every playbook takes `-e target=demo1|demo3` (default: the active instance); see
 [../README.md](../README.md#target-instance--e-target).
 
 `deploy.yml` changes **instance-wide** Event Management behaviour, not just
@@ -143,11 +148,12 @@ brooks-lab rows: EM properties (`evt_mgmt.avoid_int_enabled`,
 `sn_em_ai.evt_mgmt.disable_lists_auto_refresh`), Automated grouping
 (`sa_analytics.agg.*`), the OOTB AMR **Create Incident for Primary Alert** (all
 Group Alerts), the OOTB Script Include `EvtMgmtCustomIncidentPopulator`, and the
-change-window maintenance rules. It therefore runs only on instances whose
-`SN_INSTANCES.<id>.incident_deploy_enabled` is `true`, and skips the rest with a
-message (it does not fail, so aggregators and `target=all` continue). Demo3 is
-held (`false`): its Event Management is shared with other teams. `test.yml` and
-`diagnose.yml` are read-only and run on any target.
+change-window maintenance rules. It runs on whichever instance is active, Demo3
+included (the earlier Demo3 hold was lifted 2026-11-24), and those instance-wide
+settings stay on an instance after a switch away; see
+[Multi_Target_ServiceNow.md](../../../../../specifications/servicenow/docs/Multi_Target_ServiceNow.md). `diagnose.yml` is read-only and runs on
+any target; `test.yml` runs only against the active instance. `deploy.yml` with another
+target switches the lab to that instance first.
 
 ```bash
 cd automation/ansible

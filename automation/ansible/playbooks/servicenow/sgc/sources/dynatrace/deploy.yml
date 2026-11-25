@@ -23,9 +23,10 @@
 #   ansible-playbook -i inventory.yml \
 #     playbooks/servicenow/sgc/sources/dynatrace/deploy.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../../../common/target.yml
+- import_playbook: ../../../tasks/target.yml
   vars:
     sn_target_playbook: sgc/sources/dynatrace/deploy.yml
+    sn_target_mode: switch
 
 - name: Deploy Dynatrace SGC topology configuration
   hosts: localhost
@@ -47,7 +48,7 @@
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/resolve_dt_api.yml"
 
     - name: Check SGC application presence
-      ansible.builtin.include_tasks: tasks/check_sgc_prerequisites.yml
+      ansible.builtin.include_tasks: tasks/check-sgc-prerequisites.yml
 
     - name: Stop when SGC scoped application is not installed
       ansible.builtin.fail:
@@ -58,13 +59,13 @@
       when: not sn_sgc_scope_present | bool
 
     - name: Ensure ImpactManager mediator script is accessible from Global scope
-      ansible.builtin.include_tasks: tasks/ensure_impactmanager_script.yml
+      ansible.builtin.include_tasks: tasks/ensure-impactmanager-script.yml
 
     - name: Ensure SGC Dynatrace credential and connection hostname
-      ansible.builtin.include_tasks: tasks/ensure_sgc_credential.yml
+      ansible.builtin.include_tasks: tasks/ensure-sgc-credential.yml
 
     - name: Apply SGC topology configuration
-      ansible.builtin.include_tasks: tasks/apply_sgc_topology_config.yml
+      ansible.builtin.include_tasks: tasks/apply-sgc-topology-config.yml
 
     - name: Ensure SGC location inheritance business rule
-      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/ensure_sgc_location_business_rule.yml"
+      ansible.builtin.include_tasks: "{{ sn_sgc_dir }}/tasks/ensure-sgc-location-business-rule.yml"

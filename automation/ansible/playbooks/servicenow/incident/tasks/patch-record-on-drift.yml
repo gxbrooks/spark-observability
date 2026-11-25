@@ -1,0 +1,23 @@
+---
+# PATCH one ServiceNow record only when it differs from the body (for loops,
+# where each row needs its own compare).
+# Inputs:
+#   sn_pod_table  — Table API table
+#   sn_pod_live   — the live row (Table API, no display values; must carry
+#                   sys_id and every field of sn_pod_body)
+#   sn_pod_body   — the body that would be PATCHed
+
+- name: Compare {{ sn_pod_table }} {{ sn_pod_live.sys_id }} with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_pod_body }}"
+    sn_drift_live: "{{ sn_pod_live }}"
+
+- name: Patch {{ sn_pod_table }} {{ sn_pod_live.sys_id }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: "{{ sn_pod_table }}"
+    sn_rest_sys_id: "{{ sn_pod_live.sys_id }}"
+    sn_rest_body: "{{ sn_pod_body }}"
+  when: sn_drift_fields | length > 0

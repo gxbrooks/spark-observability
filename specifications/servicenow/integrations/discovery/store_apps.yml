@@ -1,0 +1,16 @@
+---
+# ServiceNow Store applications that Kubernetes discovery needs on the target
+# instance. Same shape as ../sgc/store_apps.yml (consumed through sn_store_apps
+# by servicenow/discovery/k8s/install.yml and diagnose.yml).
+#
+# The Kubernetes Visibility Agent app receives what the KVA informer sends;
+# without it the informer has nothing to feed (tasks/target.yml parks it).
+# No version pin: Demo1 (Zurich) runs 3.14.1 and Demo3 (Australia) offers
+# 3.16.1, so install.yml installs the latest version the instance offers.
+# install.yml does not upgrade an installed app on a shared instance.
+
+sn_store_apps:
+  - name: Kubernetes Visibility Agent
+    scope: sn_acc_visibility
+    type: store_app
+    version: ""

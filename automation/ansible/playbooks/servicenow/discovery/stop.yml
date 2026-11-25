@@ -1,19 +1,37 @@
 ---
-# Stop ServiceNow MID Server on Lab3.
-- import_playbook: ../common/target.yml
+# Stop the ServiceNow MID Server on Lab3 — only when it belongs to the target
+# instance (default: the active instance). The MID stays installed; start.yml
+# (or any install/deploy/start for this instance) starts it again.
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: discovery/stop.yml
+    sn_target_mode: any
 
 - name: Stop MID Server
   hosts: observability
   become: true
   gather_facts: false
   vars_files:
-    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
+    - name: Read the MID agent's instance URL
+      ansible.builtin.command:
+        cmd: sed -n 's/.*name="url" value="\([^"]*\)".*/\1/p' {{ sn_mid_agent_dir }}/config.xml
+      register: sn_mid_cfg_url
+      changed_when: false
+      failed_when: false
+
     - name: Stop MID Server systemd unit
       ansible.builtin.systemd:
         name: "{{ sn_mid_service_name }}.service"
         state: stopped
       failed_when: false
+      when: (sn_mid_cfg_url.stdout | trim | regex_replace('/+$', '')) == sn_url
+
+    - name: Report a MID that belongs to another instance
+      ansible.builtin.debug:
+        msg: >-
+          The Lab3 MID belongs to {{ sn_mid_cfg_url.stdout | trim or 'no instance (not installed)' }},
+          not {{ sn_url }}; left running.
+      when: (sn_mid_cfg_url.stdout | trim | regex_replace('/+$', '')) != sn_url

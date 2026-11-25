@@ -4,9 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/deploy.yml -e @../vars/secrets.yaml
 
-- import_playbook: common/target.yml
+- import_playbook: tasks/target.yml
   vars:
     sn_target_playbook: deploy.yml
+    sn_target_mode: switch
 
 - name: ServiceNow deploy banner
   hosts: localhost

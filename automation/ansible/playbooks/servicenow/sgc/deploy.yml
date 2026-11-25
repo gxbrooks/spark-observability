@@ -6,9 +6,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/deploy.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: sgc/deploy.yml
+    sn_target_mode: switch
 
 - name: Deploy / validate Dynatrace SGC integration prerequisites
   hosts: localhost
@@ -21,7 +22,7 @@
     - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
   tasks:
     - name: Check SGC application presence
-      ansible.builtin.include_tasks: sources/dynatrace/tasks/check_sgc_prerequisites.yml
+      ansible.builtin.include_tasks: sources/dynatrace/tasks/check-sgc-prerequisites.yml
 
     - name: Stop when SGC scoped application is not installed
       ansible.builtin.fail:

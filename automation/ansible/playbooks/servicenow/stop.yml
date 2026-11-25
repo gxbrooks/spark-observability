@@ -1,0 +1,41 @@
+---
+# ServiceNow stop — stop feeding the target instance (default: the active one):
+#   - stop the Lab3 MID Server (when it belongs to target);
+#   - park the KVA informer (0 replicas) when it points at target;
+#   - disable target's brooks-lab Dynatrace problem notification.
+# Configuration stays in place on the instance and the MID stays configured for
+# it, so afterwards no instance is active (diagnose.yml reports the stopped
+# components) and start.yml without -e target resumes the MID's owner.
+# start.yml -e target=<id> switches the lab to another instance instead.
+# Usage:
+#   cd automation/ansible
+#   ansible-playbook -i inventory.yml playbooks/servicenow/stop.yml
+
+- import_playbook: tasks/target.yml
+  vars:
+    sn_target_playbook: stop.yml
+    sn_target_mode: any
+
+- import_playbook: discovery/stop.yml
+  tags: [servicenow]
+
+- import_playbook: discovery/k8s/stop.yml
+  tags: [servicenow]
+
+- name: Disable the target's Dynatrace problem notification
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [servicenow]
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+  tasks:
+    - name: Disable target's brooks-lab problem notification
+      ansible.builtin.include_tasks: tasks/dt-problem-notifications.yml
+      vars:
+        sn_dt_notification_action: disable_target
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ sn_dt_notification_report }}"

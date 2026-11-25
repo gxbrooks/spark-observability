@@ -4,9 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/diagnose.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../../../../common/target.yml
+- import_playbook: ../../../../tasks/target.yml
   vars:
     sn_target_playbook: sgc/sources/dynatrace/events/diagnose.yml
+    sn_target_mode: any
 
 - name: Diagnose Dynatrace → ServiceNow event path
   hosts: localhost
@@ -25,7 +26,7 @@
       run_once: true
 
     - name: Check SGC and sys_object_source rows
-      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check_sgc_prerequisites.yml"
+      ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/tasks/check-sgc-prerequisites.yml"
 
     - name: Resolve Dynatrace API
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/resolve_dt_api.yml"
@@ -56,7 +57,7 @@
       ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
       vars:
         sn_rest_table: em_event
-        sn_rest_query: "sysparm_query=sourceIN{{ sn_sgc_event_source }},{{ sn_dt_legacy_event_source }}^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,message,sys_created_on,cmdb_ci&sysparm_limit=10"
+        sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^ORDERBYDESCsys_created_on&sysparm_fields=number,source,severity,state,message,sys_created_on,cmdb_ci&sysparm_limit=10"
 
     - name: Show em_event query result or permission note
       ansible.builtin.debug:
@@ -67,3 +68,9 @@
           em_event query returned HTTP {{ sn_rest_status | default('unknown') }}.
           Grant admin_brooks_lab evt_mgmt_admin (or em_event read ACL) to validate events via API.
           {% endif %}
+
+    - name: Test check — recent SGO-Dynatrace events (failures reported, diagnose continues)
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir | dirname }}/tasks/test-recent-sgc-events.yml"
+        apply:
+          ignore_errors: true

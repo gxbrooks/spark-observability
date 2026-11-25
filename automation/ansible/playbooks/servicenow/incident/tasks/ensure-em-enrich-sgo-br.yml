@@ -1,0 +1,94 @@
+---
+# Upsert SGO-Dynatrace enrichment BRs.
+# Before insert/update: stamp sn-impact/sn-urgency; log CI = service instance;
+# else K8s dash-key CI.
+# Record metadata: specifications/servicenow/integrations/incident/sys_script_em_{event,alert}_enrich_sgo.json
+# Script text:     specifications/servicenow/integrations/incident/em_{event,alert}_enrich_sgo.br.js
+
+- name: Load em_event enrich SGO business rule representation
+  ansible.builtin.set_fact:
+    sn_l2i_enrich_event_br_body: >-
+      {{ lookup('file', sn_incident_integrations_dir + '/sys_script_em_event_enrich_sgo.json') | from_json
+         | combine({'script': lookup('file', sn_incident_integrations_dir + '/em_event_enrich_sgo.br.js')}) }}
+
+- name: Look up em_event enrich SGO business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_enrich_event_br_body.name | urlencode }}&sysparm_limit=1"
+
+- name: Record em_event enrich SGO business rule state
+  ansible.builtin.set_fact:
+    sn_l2i_enrich_event_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_enrich_event_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_l2i_enrich_event_br_live: "{{ sn_rest_json.result[0] | default({}) }}"
+
+- name: Create em_event enrich SGO business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script
+    sn_rest_body: "{{ sn_l2i_enrich_event_br_body }}"
+  when: not sn_l2i_enrich_event_br_exists | bool
+
+- name: Compare em_event enrich SGO business rule with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_l2i_enrich_event_br_body }}"
+    sn_drift_live: "{{ sn_l2i_enrich_event_br_live }}"
+  when: sn_l2i_enrich_event_br_exists | bool
+
+- name: Update em_event enrich SGO business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ sn_l2i_enrich_event_br_sys_id }}"
+    sn_rest_body: "{{ sn_l2i_enrich_event_br_body }}"
+  when:
+    - sn_l2i_enrich_event_br_exists | bool
+    - sn_drift_fields | length > 0
+
+- name: Load em_alert enrich SGO business rule representation
+  ansible.builtin.set_fact:
+    sn_l2i_enrich_alert_br_body: >-
+      {{ lookup('file', sn_incident_integrations_dir + '/sys_script_em_alert_enrich_sgo.json') | from_json
+         | combine({'script': lookup('file', sn_incident_integrations_dir + '/em_alert_enrich_sgo.br.js')}) }}
+
+- name: Look up em_alert enrich SGO business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_script
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_enrich_alert_br_body.name | urlencode }}&sysparm_limit=1"
+
+- name: Record em_alert enrich SGO business rule state
+  ansible.builtin.set_fact:
+    sn_l2i_enrich_alert_br_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_enrich_alert_br_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_l2i_enrich_alert_br_live: "{{ sn_rest_json.result[0] | default({}) }}"
+
+- name: Create em_alert enrich SGO business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_script
+    sn_rest_body: "{{ sn_l2i_enrich_alert_br_body }}"
+  when: not sn_l2i_enrich_alert_br_exists | bool
+
+- name: Compare em_alert enrich SGO business rule with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_l2i_enrich_alert_br_body }}"
+    sn_drift_live: "{{ sn_l2i_enrich_alert_br_live }}"
+  when: sn_l2i_enrich_alert_br_exists | bool
+
+- name: Update em_alert enrich SGO business rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_script
+    sn_rest_sys_id: "{{ sn_l2i_enrich_alert_br_sys_id }}"
+    sn_rest_body: "{{ sn_l2i_enrich_alert_br_body }}"
+  when:
+    - sn_l2i_enrich_alert_br_exists | bool
+    - sn_drift_fields | length > 0

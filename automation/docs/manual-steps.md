@@ -36,7 +36,7 @@ separate from the tokens it mints, so a compromised automation token can't mint 
 **Validation status**: Not validated in-repo (presence-only check in
 [`ensure_api_token_scopes.yml`](../ansible/playbooks/observability/dynatrace/tasks/ensure_api_token_scopes.yml),
 [`deploy_operator.yml`](../ansible/playbooks/observability/dynatrace/tasks/deploy_operator.yml),
-[`ensure_sgc_credential.yml`](../ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/ensure_sgc_credential.yml)).
+[`ensure-sgc-credential.yml`](../ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/ensure-sgc-credential.yml)).
 
 ---
 
@@ -209,7 +209,7 @@ retrievable afterward.
 | `ReadConfig` | Legacy Config API reads for the SGC's configuration mirroring |
 
 **Validation status**: Implicit — minted with exactly this scope list by
-[`ensure_sgc_credential.yml`](../ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/ensure_sgc_credential.yml);
+[`ensure-sgc-credential.yml`](../ansible/playbooks/servicenow/sgc/sources/dynatrace/tasks/ensure-sgc-credential.yml);
 no separate drift check exists since Dynatrace never returns a token's value after creation.
 
 ---

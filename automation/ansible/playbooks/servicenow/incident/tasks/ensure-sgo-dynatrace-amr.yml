@@ -1,0 +1,34 @@
+---
+# Activate OOTB SGO-Dynatrace AMR for log and metric alerts.
+# Payload: specifications/servicenow/integrations/incident/em_alert_management_rule_sgo_dynatrace.json.j2
+- name: Load SGO-Dynatrace AMR representation
+  ansible.builtin.set_fact:
+    sn_sgo_amr_body: "{{ lookup('tf_template', sn_incident_integrations_dir + '/em_alert_management_rule_sgo_dynatrace.json.j2', sn_incident_max_severity=sn_incident_max_severity) | from_json }}"
+
+- name: Look up OOTB SGO-Dynatrace Alert Management Rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: em_alert_management_rule
+    sn_rest_query: "sysparm_query=sys_id={{ sn_sgo_ootb_amr_sys_id }}^ORname={{ sn_sgo_ootb_amr_name | urlencode }}&sysparm_fields=sys_id,name,{{ sn_sgo_amr_body.keys() | join(',') }}&sysparm_limit=5"
+
+- name: Require OOTB SGO-Dynatrace AMR to exist
+  ansible.builtin.assert:
+    that:
+      - (sn_rest_json.result | default([]) | length) > 0
+    fail_msg: OOTB AMR '{{ sn_sgo_ootb_amr_name }}' not found.
+
+- name: Record OOTB SGO-Dynatrace AMR rows
+  ansible.builtin.set_fact:
+    sn_sgo_amr_rows: "{{ sn_rest_json.result | default([]) if (sn_rest_status | default(0) | int) == 200 else [] }}"
+
+# Per row: compare, then PATCH only a row that differs.
+- name: Patch OOTB SGO-Dynatrace AMR filter and activate
+  ansible.builtin.include_tasks: patch-record-on-drift.yml
+  vars:
+    sn_pod_table: em_alert_management_rule
+    sn_pod_live: "{{ item }}"
+    sn_pod_body: "{{ sn_sgo_amr_body }}"
+  loop: "{{ sn_sgo_amr_rows }}"
+  loop_control:
+    label: "{{ item.sys_id | default('') }}"
+  when: item.sys_id | default('') | length > 0

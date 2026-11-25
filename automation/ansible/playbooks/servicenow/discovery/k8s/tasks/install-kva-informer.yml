@@ -1,0 +1,142 @@
+---
+# Deploy ServiceNow Kubernetes Visibility Agent (Informer) via Helm on the brooks-lab cluster.
+
+- name: Ensure KVA namespace exists
+  ansible.builtin.command:
+    cmd: kubectl create namespace {{ sn_k8s_informer_namespace }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_ns
+  changed_when: sn_kva_ns.rc == 0
+  failed_when: false
+
+# Applied only when the stored user/password differ (kubectl apply reports
+# "configured" for this secret even when nothing changed).
+- name: Create or update ServiceNow credentials secret for KVA
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ns={{ sn_k8s_informer_namespace }}
+    name={{ sn_k8s_informer_secret_name }}
+    current=$(kubectl -n "$ns" get secret "$name" -o jsonpath='{.data.\.user}/{.data.\.password}' 2>/dev/null || true)
+    desired="$(printf %s "$SN_KVA_USER" | base64 -w0)/$(printf %s "$SN_KVA_PASSWORD" | base64 -w0)"
+    if [ "$current" = "$desired" ]; then
+      echo unchanged
+    else
+      kubectl -n "$ns" create secret generic "$name" \
+        --from-literal=.user="$SN_KVA_USER" \
+        --from-literal=.password="$SN_KVA_PASSWORD" \
+        --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+      if [ -n "$current" ]; then echo updated; else echo created; fi
+    fi
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+    SN_KVA_USER: "{{ sn_user }}"
+    SN_KVA_PASSWORD: "{{ sn_password }}"
+  no_log: true
+  register: sn_kva_secret
+  changed_when: sn_kva_secret.stdout != 'unchanged'
+
+- name: Report the credentials secret result
+  ansible.builtin.debug:
+    msg: "KVA credentials secret {{ sn_k8s_informer_secret_name }}: {{ sn_kva_secret.stdout }}"
+
+- name: Add ServiceNow KVA Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add k8s-informer {{ sn_k8s_informer_helm_repo }}
+  register: sn_kva_helm_repo
+  changed_when: "'has been added' in sn_kva_helm_repo.stdout"
+  failed_when: false
+
+- name: Update KVA Helm repository index
+  ansible.builtin.command:
+    cmd: helm repo update k8s-informer
+  changed_when: false
+
+- name: Read the deployed release (values, chart) and the repo's latest chart
+  ansible.builtin.shell: |
+    set -o pipefail
+    ns={{ sn_k8s_informer_namespace }}
+    rel={{ sn_k8s_informer_helm_release }}
+    VALUES="$(helm get values "$rel" -n "$ns" -o json 2>/dev/null || echo '{}')" \
+    RELEASES="$(helm list -n "$ns" -o json)" \
+    REPO="$(helm search repo k8s-informer/k8s-informer-chart -o json)" \
+    REPLICAS="$(kubectl -n "$ns" get deploy -o jsonpath='{.items[*].spec.replicas}')" \
+    REL="$rel" python3 -c '
+    import json, os
+    rel = [r for r in json.loads(os.environ["RELEASES"]) if r["name"] == os.environ["REL"]]
+    repo = json.loads(os.environ["REPO"])
+    print(json.dumps({
+        "values": json.loads(os.environ["VALUES"]) or {},
+        "deployed": rel[0]["chart"] if rel else "",
+        "latest": ("k8s-informer-chart-" + repo[0]["version"]) if repo else "",
+        "replicas": sum(int(x) for x in os.environ["REPLICAS"].split()),
+    }))'
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_release_state
+  changed_when: false
+
+# Upgrade only when something differs: instance/cluster values, a newer chart
+# in the repo, or a parked (0-replica) informer. helm upgrade itself always
+# writes a new revision.
+- name: Decide whether the release needs an install or upgrade
+  ansible.builtin.set_fact:
+    sn_kva_upgrade_needed: >-
+      {{ (sn_kva_state['values'].instance | default({})).name | default('') != sn_instance_short_name
+         or sn_kva_state['values'].clusterName | default('') != sn_k8s_cluster_name
+         or sn_kva_state.deployed != sn_kva_state.latest
+         or sn_kva_state.replicas | int == 0 }}
+  vars:
+    sn_kva_state: "{{ sn_kva_release_state.stdout | from_json }}"
+
+- name: Report the release state
+  ansible.builtin.debug:
+    msg: >-
+      KVA release {{ sn_k8s_informer_helm_release }}:
+      {{ 'install/upgrade needed' if sn_kva_upgrade_needed | bool else 'up to date for ' ~ sn_instance_short_name ~ ' — no upgrade' }}
+
+- name: Install or upgrade KVA Informer Helm release
+  when: sn_kva_upgrade_needed | bool
+  ansible.builtin.command:
+    cmd: >-
+      helm upgrade {{ sn_k8s_informer_helm_release }} k8s-informer/k8s-informer-chart
+      --install
+      --namespace {{ sn_k8s_informer_namespace }}
+      --set acceptEula=Y
+      --set instance.name={{ sn_instance_short_name }}
+      --set clusterName={{ sn_k8s_cluster_name }}
+      --wait
+      --timeout 10m
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_helm_install
+
+- name: Wait for KVA Informer pod to become Ready
+  ansible.builtin.command:
+    cmd: >-
+      kubectl -n {{ sn_k8s_informer_namespace }} wait --for=condition=Ready pod
+      --all --timeout=300s
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_pod_wait
+  changed_when: false
+  failed_when: false
+
+- name: KVA Informer deployment status
+  ansible.builtin.command:
+    cmd: kubectl -n {{ sn_k8s_informer_namespace }} get pods,deploy -o wide
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_status
+  changed_when: false
+
+- name: Report KVA install
+  ansible.builtin.debug:
+    msg: |
+      Kubernetes Visibility Agent installed in namespace {{ sn_k8s_informer_namespace }}.
+      Cluster name in CMDB: {{ sn_k8s_cluster_name }}
+      {{ sn_kva_status.stdout }}

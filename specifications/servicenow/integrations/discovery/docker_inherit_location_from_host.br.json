@@ -1,0 +1,10 @@
+{
+  "name": "docker-inherit-location-from-host",
+  "active": "true",
+  "collection": "cmdb_ci_docker_container",
+  "when": "before",
+  "action_insert": "true",
+  "action_update": "true",
+  "filter_condition": "locationISEMPTY^hostISNOTEMPTY",
+  "description": "Docker Discovery leaves location empty; inherit from parent Linux server CI (DOCKER_HOSTS registry in vars/variables.yaml)."
+}

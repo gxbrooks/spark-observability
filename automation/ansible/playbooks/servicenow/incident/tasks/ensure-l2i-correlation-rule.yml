@@ -1,0 +1,50 @@
+---
+# Rule-based grouping for <CI>|<signature>: same cmdb_ci and same metric_name.
+# Payload: em_alert_correlation_rule_same_ci_metric.json + em_corr_same_ci_metric.js
+- name: Load L2I correlation rule representation
+  ansible.builtin.set_fact:
+    sn_l2i_corr_body: >-
+      {{
+        lookup('file', sn_incident_integrations_dir + '/em_alert_correlation_rule_same_ci_metric.json')
+        | from_json
+        | combine({'script': lookup('file', sn_incident_integrations_dir + '/em_corr_same_ci_metric.js')})
+      }}
+
+- name: Look up L2I Same CI + metric_name correlation rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: em_alert_correlation_rule
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_corr_body.name | urlencode }}&sysparm_limit=1"
+
+- name: Record L2I correlation rule state
+  ansible.builtin.set_fact:
+    sn_l2i_corr_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_l2i_corr_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_l2i_corr_live: "{{ sn_rest_json.result[0] | default({}) }}"
+
+- name: Create L2I correlation rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: em_alert_correlation_rule
+    sn_rest_body: "{{ sn_l2i_corr_body }}"
+  when: not sn_l2i_corr_exists | bool
+
+- name: Compare L2I correlation rule with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_l2i_corr_body }}"
+    sn_drift_live: "{{ sn_l2i_corr_live }}"
+  when: sn_l2i_corr_exists | bool
+
+- name: Update L2I correlation rule
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: em_alert_correlation_rule
+    sn_rest_sys_id: "{{ sn_l2i_corr_sys_id }}"
+    sn_rest_body: "{{ sn_l2i_corr_body }}"
+  when:
+    - sn_l2i_corr_exists | bool
+    - sn_l2i_corr_sys_id | length > 0
+    - sn_drift_fields | length > 0

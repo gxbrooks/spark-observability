@@ -1,0 +1,10 @@
+{
+  "name": "k8s-inherit-location-from-cluster",
+  "active": "true",
+  "collection": "cmdb_ci_kubernetes_component",
+  "when": "before",
+  "action_insert": "true",
+  "action_update": "true",
+  "filter_condition": "locationISEMPTY^clusterISNOTEMPTY",
+  "description": "KVA Informer leaves location empty on child Kubernetes CIs; inherit from cluster CI (location set by k8s/deploy.yml from vars/variables.yaml cluster-to-location map)."
+}

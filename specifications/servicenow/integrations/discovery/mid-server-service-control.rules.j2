@@ -1,0 +1,14 @@
+// Managed by ansible: servicenow/discovery/tasks/ensure-mid-service-control.yml
+// Installed as /etc/polkit-1/rules.d/50-servicenow-mid.rules on the MID host.
+// MID auto-upgrade restarts its own unit with plain `systemctl` (no sudo), so
+// the MID runtime user may start/stop/restart that one unit and nothing else.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "{{ sn_mid_service_name }}.service" &&
+        subject.user == "{{ sn_mid_run_as_user }}") {
+        var verb = action.lookup("verb");
+        if (verb == "start" || verb == "stop" || verb == "restart") {
+            return polkit.Result.YES;
+        }
+    }
+});

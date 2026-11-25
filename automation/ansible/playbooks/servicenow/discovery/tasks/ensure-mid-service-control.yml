@@ -1,0 +1,21 @@
+---
+# Let the MID runtime user start/stop/restart ITS OWN systemd unit (runs on the
+# MID host, become).
+#
+# MID auto-upgrade runs as sn_mid_run_as_user and restarts the service with
+# bin/mid.sh, which calls `systemctl start|stop|restart <unit>` WITHOUT sudo.
+# For a non-root user systemd asks polkit, and without a rule the answer is
+# "Interactive authentication required": the upgrader retries 10 times, gives
+# up with UpgradeStatus=rollback_failure and leaves the MID stopped (seen on
+# Lab3 2026-11-24). A sudoers rule does not help because sudo is never used.
+# Scope: one user, one unit, verbs start/stop/restart (status needs no auth).
+# Representation: specifications/servicenow/integrations/discovery/mid-server-service-control.rules.j2
+
+- name: Allow the MID user to start/stop/restart its unit (polkit)
+  ansible.builtin.template:
+    src: "{{ project_root }}/specifications/servicenow/integrations/discovery/mid-server-service-control.rules.j2"
+    dest: /etc/polkit-1/rules.d/50-servicenow-mid.rules
+    owner: root
+    group: root
+    mode: "0644"
+  become: true

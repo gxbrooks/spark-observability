@@ -245,7 +245,7 @@ No runtime tags; map manually or through SGC import.
 
 Container and Kubernetes specifications describe **what is deployed**. For tag-based Service Mapping, each service or pod template must include the **`servicenow.com/service-instance`** label that Discovery copies into **`cmdb_key_value`**.
 
-After you change labels, redeploy the workload so running objects match the specification, then allow Discovery or KVA to refresh the CMDB. **`discovery/k8s/sync_pod_labels.yml`** copies pod labels from the cluster into **`cmdb_key_value`** when KVA has not yet ingested them.
+After you change labels, redeploy the workload so running objects match the specification, then allow Discovery or KVA to refresh the CMDB. **`discovery/k8s/start.yml`** copies pod labels from the cluster into **`cmdb_key_value`** when KVA has not yet ingested them.
 
 ### Required ServiceNow labels
 
@@ -284,8 +284,8 @@ Dynatrace OneAgent is the one workload that needs a **post-deploy labeling step*
 The labeling step is **not** a separate modeling path — it sets the same explicit join key every other workload carries in its spec:
 
 1. **`apply_dynakube.yml`** applies shared labels from `dynakube.yaml.j2` and runs **`label_oneagent_servicenow.yml`** once OneAgent pods are ready.
-2. **`discovery/k8s/label_oneagent_pods.yml`** re-applies per-node service-instance labels when pods are recreated (for example after a DynaKube rollout) without a full Dynatrace deploy.
-3. **`discovery/k8s/sync_pod_labels.yml`** reads labels from the cluster into `cmdb_key_value` — the same bridge used for Spark and other pods.
+2. **`discovery/k8s/start.yml`** re-applies per-node service-instance labels when pods are recreated (for example after a DynaKube rollout) without a full Dynatrace deploy.
+3. **`discovery/k8s/start.yml`** reads labels from the cluster into `cmdb_key_value` — the same bridge used for Spark and other pods.
 
 There is no name-prefix inference: each pod receives an explicit `servicenow.com/service-instance` label for its node's Service Instance.
 
@@ -326,9 +326,9 @@ See [DT_SN_Comparison_Process.md](DT_SN_Comparison_Process.md) for the full work
 
 | Platform | Workload | CMDB CI | Typical ingestion |
 |----------|----------|---------|-------------------|
-| Docker | Compose service | `cmdb_ci_docker_container` | **`discovery/docker/discover.yml`** label sync (Docker Pattern enriches the container graph but not custom label rows) |
-| Kubernetes | Pod | `cmdb_ci_kubernetes_pod` | KVA Informer (source `system`); **`sync_pod_labels.yml`** bridges gaps |
-| Host | systemd agent | `cmdb_ci_linux_server` | **`discovery/host/sync_tags.yml`** host tag sync |
+| Docker | Compose service | `cmdb_ci_docker_container` | **`discovery/docker/start.yml`** label sync (Docker Pattern enriches the container graph but not custom label rows) |
+| Kubernetes | Pod | `cmdb_ci_kubernetes_pod` | KVA Informer (source `system`); **`k8s/tasks/sync-pod-labels.yml`** bridges gaps |
+| Host | systemd agent | `cmdb_ci_linux_server` | **`discovery/host/deploy.yml`** host tag sync |
 
 All Ansible label mirrors match and copy only **`servicenow.com/*`** keys. Tag-based Service Mapping matches **`servicenow.com/service-instance`** only; matching CIs become service members in **`svc_ci_assoc`**.
 
@@ -351,7 +351,7 @@ Ansible still defines **`DT_TENANT_URL`**, **`DT_API_URL`**, tokens, and partiti
 3. Add the **`servicenow.com/service-instance`** label and platform labels to container or Kubernetes specifications, using the service instance display **`name`** (Kubernetes-sanitized on Kubernetes).
 4. Deploy workloads so Discovery and KVA see current labels.
 5. Run **`csdm/deploy.yml`** to create or update Service Instances in the CMDB; for tag-based services it also sets the tag population rule (via the `/populate_tags` Scripted REST API) and triggers membership recalculation.
-6. Run native discovery; run **`discovery/k8s/sync_pod_labels.yml`** when needed.
+6. Run native discovery; run **`discovery/k8s/start.yml`** when needed.
 7. Ensure the **Service Instance** tag category exists (**`service-mapping/tasks/ensure-tag-categories.yml`**) — [Tag_Based_Service_Mapping.md](Tag_Based_Service_Mapping.md).
 8. Run **`compare.yml`** and review **`DT_SN_Model_Comparison_Report.json`** for drift.
 

@@ -46,7 +46,7 @@ sequenceDiagram
 | 2. Detection | Log event / metric event | Dynatrace Settings 2.0 objects evaluate DQL (logs) or `builtin:host.cpu.usage` (metrics). |
 | 3. Problem | Davis | Each matching signal creates a **problem** (`davisMerge=false` so log/CPU alerts are not silently merged away). |
 | 4. Filter | Alerting profile | **`Spark Observability - ServiceNow brooks-lab`** scopes problems to management zone **Spark Observability** and forwards **ERRORS**, **CUSTOM_ALERT**, and other configured severities immediately. |
-| 5. Notify | Problem notification | One per ServiceNow instance (`SN_INSTANCES.<id>.dt_problem_notification_name`), all on the same alerting profile: **`ServiceNow brooks-lab - Spark Observability`** (Demo1) and **`ServiceNow brooks-lab (demo3) - Spark Observability`** (Demo3). Each POSTs the SGC problem JSON template to its instance, so every problem reaches both. |
+| 5. Notify | Problem notification | One per ServiceNow instance (`SN_INSTANCES.<id>.dt_problem_notification_name`), all on the same alerting profile: **`ServiceNow brooks-lab - Spark Observability`** (Demo1) and **`ServiceNow brooks-lab (demo3) - Spark Observability`** (Demo3). Each POSTs the SGC problem JSON template to its instance. Only the active instance's notification is enabled, so problems reach the active instance only. |
 | 6. Ingest | EM push connector | Listener `source=SGO-Dynatrace` parses JSON, maps fields, optionally binds CI via `sys_object_source`. |
 | 7. Operate | Event rules / alerts / incidents | EM rules promote `em_event` → `em_alert`; optional ITSM rules create incidents. See [CI binding by layer](#ci-binding-by-layer-dynatrace--event--alert--incident) and [Avoiding incident storms](#avoiding-incident-storms). |
 
@@ -62,17 +62,20 @@ sequenceDiagram
 | **Log event (classic)** | `builtin:logmonitoring.log-events` | **`Spark Lab - ERROR and WARN log lines`** | Legacy matcher; kept for idempotency but **does not fire** when logs bypass the classic pipeline (see below). |
 | Metric event | `builtin:anomaly-detection.metric-events` | `Spark Lab - Host CPU above 50%` | Fires when `builtin:host.cpu.usage` AVG > 50% (3-sample window). `eventType=CUSTOM_ALERT`, `davisMerge=false` (each breach opens its own problem), tagged `sn-metric-class=cpu`. |
 | Alerting profile | `builtin:alerting.profile` | `Spark Observability - ServiceNow brooks-lab` | Forwards problems in the Spark Observability MZ. |
-| Problem notification | `builtin:problem.notifications` | `ServiceNow brooks-lab - Spark Observability` (Demo1), `ServiceNow brooks-lab (demo3) - Spark Observability` (Demo3) | Webhook to each ServiceNow instance's inbound events API (one per `SN_INSTANCES` entry). |
+| Problem notification | `builtin:problem.notifications` | `ServiceNow brooks-lab - Spark Observability` (Demo1), `ServiceNow brooks-lab (demo3) - Spark Observability` (Demo3) | Webhook to each ServiceNow instance's inbound events API (one per `SN_INSTANCES` entry; only the active instance's is enabled). |
 
-Deploy or refresh. Every command takes `-e target=demo1|demo3|all` (default
-`demo3`). The Dynatrace tenant objects above are shared; the problem
-notification and its webhook credentials are per instance.
+Deploy or refresh. Every command takes `-e target=demo1|demo3` (default: the
+active instance; see [Multi_Target_ServiceNow.md](../../servicenow/docs/Multi_Target_ServiceNow.md)).
+The Dynatrace tenant objects above are shared; the problem notification and its
+webhook credentials are per instance. `deploy.yml` with another target switches
+brooks-lab to that instance: it disables the other brooks-lab notification and
+enables the target's.
 
 ```bash
 cd automation/ansible
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
-  -e @../vars/secrets.yaml -e target=all
+  -e @../vars/secrets.yaml
 ```
 
 Diagnose / test:
@@ -177,7 +180,7 @@ Chapter runs sustain CPU on Lab1/Lab2/Lab3 hosts in the Spark Observability mana
 
 ## Problem notification webhook
 
-**URL (brooks-lab, SGC installed)** — one notification per instance:
+**URL (brooks-lab, SGC installed)** — one notification per instance; only the active instance's is enabled:
 
 ```
 https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace   # Demo1
@@ -454,9 +457,9 @@ Use Pattern B only until Pattern A is verified, or as a safety net in the same s
 | Step | Playbook / action | What it produces |
 | ---- | ----------------- | ---------------- |
 | CSDM hierarchy | **`csdm/deploy.yml`** | Application Service CIs; BA → BS → AS **Contains**; declared **`depends_on`** |
-| Docker workload tags | **`discovery/docker/discover.yml`** | Container CIs + **`cmdb_key_value`** (`servicenow.com/*`) |
-| K8s workload tags | **`discovery/k8s/discover.yml`** (includes **`sync_pod_labels.yml`**) | Pod CIs + **`cmdb_key_value`** |
-| Host agent tags | **`discovery/host/sync_tags.yml`** | **`cmdb_key_value`** on **`cmdb_ci_linux_server`** |
+| Docker workload tags | **`discovery/docker/start.yml`** | Container CIs + **`cmdb_key_value`** (`servicenow.com/*`) |
+| K8s workload tags | **`discovery/k8s/start.yml`** (includes **`k8s/tasks/sync-pod-labels.yml`**) | Pod CIs + **`cmdb_key_value`** |
+| Host agent tags | **`discovery/host/deploy.yml`** | **`cmdb_key_value`** on **`cmdb_ci_linux_server`** |
 | Tag filter per Application Service | **`csdm/deploy.yml`** → **`sn-sync-inject`** (when `service_mapping: tags`) | **`tag_list`** via Service Mapping Operations REST (`/populate_tags`) |
 | Workload → AS membership | **ServiceNow tag-based mapping** (`ServicePopulatorRunner` + scheduled job) | **`svc_ci_assoc`** membership materialized from tags |
 | Event / alert CI binding | **`sgc/sources/dynatrace/events/deploy.yml`** (via top-level **`deploy.yml`**) | SGO-Dynatrace webhook; **`sys_object_source`** → event **`cmdb_ci`** |
@@ -488,8 +491,8 @@ These rows must exist **before** correlation works. None of them travel inside t
 | System | Record | Key data | How it got there |
 | ------ | ------ | -------- | ---------------- |
 | Docker / Compose | Running container `grafana` | Labels: `com.docker.compose.service=grafana`, `servicenow.com/service-instance=Grafana` | `observability/docker-compose.yml` |
-| ServiceNow CMDB | `cmdb_ci_docker_container` (grafana) | `container_id`, `host` → lab3 | `discovery/docker/discover.yml` |
-| ServiceNow CMDB | `cmdb_key_value` on container CI | `key=servicenow.com/service-instance`, `value=Grafana` (also `com.docker.compose.service=grafana`) | `discovery/docker/discover.yml` (`docker inspect` → REST upsert) |
+| ServiceNow CMDB | `cmdb_ci_docker_container` (grafana) | `container_id`, `host` → lab3 | `discovery/docker/start.yml` |
+| ServiceNow CMDB | `cmdb_key_value` on container CI | `key=servicenow.com/service-instance`, `value=Grafana` (also `com.docker.compose.service=grafana`) | `discovery/docker/start.yml` (`docker inspect` → REST upsert) |
 | ServiceNow CMDB | `cmdb_ci_service_by_tags` (Grafana) | display `name=Grafana` | `csdm/deploy.yml` + `/populate_tags` reclass |
 | ServiceNow CMDB | `svc_ci_assoc` | Application Service **member** = container CI | Tag-based Service Mapping after `tag_list` from `csdm/deploy.yml` |
 | ServiceNow CMDB | `sys_object_source` | `name=SGO-Dynatrace`, `id=<Dynatrace entityId>`, `target_sys_id` → container or process group CI | SGC scheduled topology import |
@@ -535,7 +538,7 @@ Payload shape: `specifications/dynatrace/integrations/sgc-problem-notification-p
 | **`additional_info`** | Webhook blob | May include **`Tags`**, full JSON — useful for debugging, **not** the designed AS join |
 | **Application Service** | — | **Not set** on `em_event` (by design) |
 
-**Where Compose / servicenow.com tags are *not*:** they are **not** mapped to dedicated columns on `em_event`. They live on the **bound CMDB CI** in `cmdb_key_value` (written earlier by `docker/discover.yml`), reachable only by following **`em_event.cmdb_ci`**.
+**Where Compose / servicenow.com tags are *not*:** they are **not** mapped to dedicated columns on `em_event`. They live on the **bound CMDB CI** in `cmdb_key_value` (written earlier by `docker/start.yml`), reachable only by following **`em_event.cmdb_ci`**.
 
 If **`cmdb_ci` is empty**, incident automation has no infrastructure anchor — fix SGC import and `sys_object_source` before tuning AS rules.
 
@@ -604,7 +607,7 @@ sequenceDiagram
   EV->>EV: cmdb_ci = container (or PG)
   EV->>AL: alert rule
   AL->>AL: cmdb_ci = same infrastructure CI
-  Note over CTR,KV: servicenow.com/* and com.docker.compose.*<br/>already on CI from docker/discover.yml
+  Note over CTR,KV: servicenow.com/* and com.docker.compose.*<br/>already on CI from docker/start.yml
   Note over REL,AS: SM membership materialized before problem
   AL->>REL: query svc_ci_assoc (Pattern A)
   REL->>AS: service_id Application Service
@@ -616,7 +619,7 @@ sequenceDiagram
 | Question | Answer |
 | -------- | ------ |
 | Does Dynatrace put `com.docker.compose.service` on the event? | **No** — not in the SGC webhook contract unless it is also a **Dynatrace entity/problem tag** |
-| Does SGC pass Compose labels to ServiceNow on import? | **No** — SGC imports topology + **Dynatrace-defined tags** to `cmdb_key_value` on imported CIs; Compose labels are synced by **`docker/discover.yml`** onto **container** CIs only |
+| Does SGC pass Compose labels to ServiceNow on import? | **No** — SGC imports topology + **Dynatrace-defined tags** to `cmdb_key_value` on imported CIs; Compose labels are synced by **`docker/start.yml`** onto **container** CIs only |
 | What does `em_event.Tags` / `additional_info` carry? | **Problem-level** Dynatrace tags (`Project`, `Environment`, …), not CSDM join keys |
 | How does incident get Application Service? | **Not from the event payload** — from **`em_alert.cmdb_ci`** → **`svc_ci_assoc`** (or **`cmdb_key_value`** on that CI) → service instance |
 | What must be true first? | Container tags synced, SM **`svc_ci_assoc`** membership exists, `sys_object_source` maps problem `entityId` to the same (or bridged) infrastructure CI |
@@ -628,13 +631,13 @@ K8s Application Services in **`spark.csdm.yaml`** and related specs use the same
 | Layer | K8s example |
 | ----- | ----------- |
 | Event / alert **`cmdb_ci`** | **`cmdb_ci_kubernetes_pod`** (or node/host for cluster-level problems) via SGC **`sys_object_source`** |
-| Tags | **`discovery/k8s/sync_pod_labels.yml`** upserts **`servicenow.com/service-instance`** on pod CIs (Spark Master, Spark Worker, Dynatrace OneAgent pods, etc.; K8s-sanitized display names) |
+| Tags | **`discovery/k8s/start.yml`** upserts **`servicenow.com/service-instance`** on pod CIs (Spark Master, Spark Worker, Dynatrace OneAgent pods, etc.; K8s-sanitized display names) |
 | Membership | Tag-based SM rules match pod labels → Application Service **member** in **`svc_ci_assoc`** |
 | Incident **`cmdb_ci`** | Query **`svc_ci_assoc`** from pod (Pattern A) to Application Service such as **`Spark Master`** or **`Spark Worker`** |
 
 KVA writes **`app.kubernetes.io/*`** labels as user **`system`**; canonical CSDM join keys use **`servicenow.com/*`** from pod label sync. Tag filters for **`service_mapping: tags`** services are applied by **`csdm/deploy.yml`** (see [Tag_Based_Service_Mapping.md](../../../../../../specifications/servicenow/docs/Tag_Based_Service_Mapping.md)).
 
-Host-level CPU alerts (Spark chapters) may bind events to **`cmdb_ci_linux_server`**. If the host tag sync (`discovery/host/sync_tags.yml`) or vertical mapping defines which Application Service owns that host agent, query **`svc_ci_assoc`** or use tag lookup on the **host** CI; otherwise incident rules may intentionally leave **`cmdb_ci`** empty or map to a declared host-agent Application Service (e.g. Elastic Agent Lab1).
+Host-level CPU alerts (Spark chapters) may bind events to **`cmdb_ci_linux_server`**. If the host tag sync (`discovery/host/deploy.yml`) or vertical mapping defines which Application Service owns that host agent, query **`svc_ci_assoc`** or use tag lookup on the **host** CI; otherwise incident rules may intentionally leave **`cmdb_ci`** empty or map to a declared host-agent Application Service (e.g. Elastic Agent Lab1).
 
 #### What `playbooks/servicenow/deploy.yml` runs (and what it does not)
 
@@ -653,7 +656,7 @@ sgc/sources/dynatrace/events/deploy.yml → Problem notification / inbound_event
 ```
 
 **Run separately (required for Application Service binding on incidents)** —
-each takes `-e target=demo1|demo3|all` (default `demo3`):
+each takes `-e target=demo1|demo3` (default: the active instance):
 
 ```bash
 cd automation/ansible
@@ -662,13 +665,13 @@ cd automation/ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
 
 # Horizontal Discovery scan (hosts, Docker Pattern enrichment)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/start.yml --tags discovery_scan -e @../vars/secrets.yaml
 
 # Docker: container CIs + servicenow.com cmdb_key_value tags
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml -e @../vars/secrets.yaml
 
 # K8s: KVA resync + servicenow.com pod label sync
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/start.yml -e @../vars/secrets.yaml
 ```
 
 Tag filters for **`service_mapping: tags`** services are applied by **`csdm/deploy.yml`** automatically. Confirm **`svc_ci_assoc`** membership after workload tags sync — see [install.md §6.5](../../../../../../specifications/servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services).
@@ -681,7 +684,7 @@ Incident automation uses Script Include **`ResolveApplicationService`** to query
 | ---- | ------ |
 | 1 | SGC topology import current; `sys_object_source` rows exist for entities in problems |
 | 2 | CSDM Application Services deployed — **`csdm/deploy.yml`** (`specifications/servicenow/regions/brooks-lab/*.csdm.yaml`) |
-| 3 | Docker/K8s/host tags synced — **`discovery/docker/discover.yml`**, **`discovery/k8s/discover.yml`**, **`discovery/host/sync_tags.yml`** as applicable |
+| 3 | Docker/K8s/host tags synced — **`discovery/docker/start.yml`**, **`discovery/k8s/start.yml`**, **`discovery/host/deploy.yml`** as applicable |
 | 4 | Tag-based Service Mapping filters applied (**`csdm/deploy.yml`**); confirm **`svc_ci_assoc`** members on each Application Service |
 | 5 | EM alert rules create alerts with **`cmdb_ci`** populated (infrastructure CI) |
 | 6 | Incident automation queries **`svc_ci_assoc`** (Pattern A); tag lookup (Pattern B) only as fallback |
@@ -705,13 +708,13 @@ Until workload tags exist and the tag-based mapping job runs, Application Servic
 | BA → BS → AS **Contains** (CSDM hierarchy) | Yes — **`csdm/deploy.yml`** | **`cmdb_rel_ci`** from deploy processor |
 | Cross-service **`depends_on`** | Yes — **`csdm/deploy.yml`** (second pass) | **`cmdb_rel_ci`** Depends on::Used by |
 | Tag-based SM **rules** (tag filter per Application Service) | Yes — **`csdm/deploy.yml`** → **`sn-sync-inject`** | REST **`/populate_tags`** |
-| Container / pod CIs in CMDB | Partially — Discovery, Docker Pattern, KVA | **`discovery/discover.yml`**, KVA informer |
-| **`servicenow.com/*`** on workload CIs | Yes — after ACL fix, re-run discover playbooks | **`discovery/docker/discover.yml`**, **`discovery/k8s/discover.yml`** |
+| Container / pod CIs in CMDB | Partially — Discovery, Docker Pattern, KVA | **`discovery/start.yml --tags discovery_scan`**, KVA informer |
+| **`servicenow.com/*`** on workload CIs | Yes — after ACL fix, re-run discover playbooks | **`discovery/docker/start.yml`**, **`discovery/k8s/start.yml`** |
 | Workload → AS membership (`svc_ci_assoc`) | **After tags + filters exist** — `/populate_tags` + ServicePopulatorRunner / scheduled job | Platform job; deploy triggers interactive recalculation |
-| Re-bind when new container gets labels | **After rules exist** — same scheduled job on next run | Re-run **`docker/discover.yml`** if labels changed; SM job picks up new CIs |
+| Re-bind when new container gets labels | **After rules exist** — same scheduled job on next run | Re-run **`docker/start.yml`** if labels changed; SM job picks up new CIs |
 | Tag Categories (instance-wide) | **One-time manual** (`sm_admin`) if missing | Service Mapping Workspace — see [install.md §6.5 Step A](../../../../../../specifications/servicenow/docs/install.md#65-tag-based-service-mapping--observability-application-services) |
 
-Compose labels → **`docker/discover.yml`** → **`cmdb_key_value`** is automated. Tag filter configuration per Application Service is driven by the **`*.csdm.yaml`** spec during **`csdm/deploy.yml`** — no separate per-service UI step is required unless troubleshooting.
+Compose labels → **`docker/start.yml`** → **`cmdb_key_value`** is automated. Tag filter configuration per Application Service is driven by the **`*.csdm.yaml`** spec during **`csdm/deploy.yml`** — no separate per-service UI step is required unless troubleshooting.
 
 Once tag filters are configured, any container (or pod) whose **`servicenow.com/service-instance`** value matches the service instance display name should appear as an **`svc_ci_assoc`** member on the next tag-based mapping run — you do not need a new entry point per container redeploy.
 
@@ -737,14 +740,14 @@ Delete the seven observability Application Services (Grafana, Elasticsearch, Kib
 
 **UI:** `cmdb_ci_service_discovered.list` → filter name → delete each Application Service.
 
-**Ansible / CLI (delete by name):** use **`csdm/delete.yml`** with `sn_csdm_delete_cis`, or `sn-sync-delete --ci NAME` against the declarative spec (see install.md §6.5).
+**Ansible / CLI (delete by name):** use **`csdm/undeploy.yml`** with `sn_csdm_delete_cis`, or `sn-sync-delete --ci NAME` against the declarative spec (see install.md §6.5).
 
 Also remove any **vertical** artifacts if present: **`sa_m2m_service_entry_point`** rows or **Depends on** links to **`cmdb_ci_endpoint`** entry points on these services (Service Mapping UI → manage service → remove stale entry points per [Tag_Based_Service_Mapping.md](../../../../../../specifications/servicenow/docs/Tag_Based_Service_Mapping.md)).
 
 #### 2. Recreate CSDM objects from spec
 
 ```bash
-cd automation/ansible   # add -e target=demo1|demo3|all (default demo3)
+cd automation/ansible   # add -e target=demo1|demo3 (default: the active instance)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml -e @../vars/secrets.yaml
 ```
 
@@ -754,10 +757,10 @@ Source: **`specifications/servicenow/regions/brooks-lab/observability-platform.c
 
 ```bash
 # Horizontal Discovery + Docker Pattern (Lab3)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/start.yml --tags discovery_scan -e @../vars/secrets.yaml
 
 # Container CIs + servicenow.com/* cmdb_key_value (requires install.md §6.3 ACLs)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml -e @../vars/secrets.yaml
 ```
 
 Verify:
@@ -787,7 +790,7 @@ Deploy output should show **`Tag SM <name>: HTTP 202`** for each observability s
 | **`csdm/diagnose.yml`** | Service instances present; process_status / service_status reported |
 
 ```bash
-cd automation/ansible   # add -e target=demo1|demo3|all (default demo3)
+cd automation/ansible   # add -e target=demo1|demo3 (default: the active instance)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../vars/secrets.yaml
 ```
 
@@ -797,9 +800,9 @@ Processes may complete in different orders on a shared demo instance. Safe itera
 
 ```text
 1. csdm/deploy.yml          → Service instances exist + tag population + svc_ci_assoc recalc
-2. discovery/discover.yml   → hosts + Docker Pattern containers
-3. docker/discover.yml      → cmdb_key_value tags (may fail until §6.3 ACLs fixed — fix ACL, re-run)
-4. If tags change in Compose → docker compose up -d, then re-run docker/discover.yml, then re-run csdm/deploy.yml or Update map
+2. discovery/start.yml --tags discovery_scan   → hosts + Docker Pattern containers
+3. docker/start.yml      → cmdb_key_value tags (may fail until §6.3 ACLs fixed — fix ACL, re-run)
+4. If tags change in Compose → docker compose up -d, then re-run docker/start.yml, then re-run csdm/deploy.yml or Update map
 5. If map empty but tags OK  → confirm tag filter value = display name (servicenow.com/service-instance)
 ```
 
@@ -810,7 +813,7 @@ Processes may complete in different orders on a shared demo instance. Safe itera
 | Gap | Possible follow-up |
 | --- | ------------------ |
 | Auto-configure SM tag filters from **`*.csdm.yaml`** | Ansible playbook calling Service Mapping REST / workspace APIs |
-| Watch new tags and trigger **Update map** | Scheduled job on control node after **`docker/discover.yml`** |
+| Watch new tags and trigger **Update map** | Scheduled job on control node after **`docker/start.yml`** |
 | Include CSDM + docker discover in top-level **`deploy.yml`** | Orchestration change only — SM rules still need instance config |
 
 Until then, **tag sync is automated; SM rule creation is operator-driven** (`sm_admin`).
@@ -957,6 +960,7 @@ On the notification detail page, confirm:
 | Type | Custom integration / **Webhook** |
 | Webhook URL | `https://optimizincdemo1.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` (Demo1) / `https://optimizincdemo3.service-now.com/…` (Demo3) |
 | Alerting profile | `Spark Observability - ServiceNow brooks-lab` |
+| Enabled | On for the active instance only |
 | Payload | includes `ConnectionId` (SGC template) |
 
 Auth uses brooks-lab Basic credentials (`SN_DT_WEBHOOK_*` in `vars/secrets.yaml`).
@@ -1025,8 +1029,10 @@ Related list URLs:
 cd automation/ansible
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/test.yml \
-  -e @../vars/secrets.yaml -e target=all
+  -e @../vars/secrets.yaml
 ```
+
+`test.yml` checks the active instance only.
 
 ---
 

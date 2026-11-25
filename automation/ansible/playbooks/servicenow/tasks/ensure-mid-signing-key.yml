@@ -1,0 +1,194 @@
+---
+# Make sure the Lab3 MID's keys are accepted by the target instance (runs on
+# localhost after the MID is Up; sn_mid_host is the MID host).
+#
+# The instance holds two keys per ecc_agent record:
+#   - the MID's RSA public key (ecc_agent.public_key): used to verify the MID;
+#   - an ECC signing key (ecc_agent_signing_key, both Demo1/Zurich and
+#     Demo3/Australia): states pre_activation / active / suspended / deactivated.
+#
+# Rules read from the instances (2026-11-24):
+#   - the MID pushes its RSA public key on every start. The instance accepts a
+#     changed key only when validated is 'false' or 'rekey'; with 'true' it
+#     refuses ("New public key cannot be verified. MID Server encryption keys do
+#     not match"). With 'rekey' the OOTB rule "MID rekey set validated true"
+#     accepts it and sets validated=true (that is the OOTB Rekey UI action,
+#     MIDServerManage.rekey).
+#   - ECC: at start the MID asks for the agent's active/pre_activation key and
+#     registers its own ONLY when there is none (mid_ecc_signing_api). A
+#     registration from a validated MID with a proof signed by its RSA key
+#     becomes active; otherwise pre_activation, which a restart of the
+#     validated MID promotes.
+#
+# After an owner change (sn_mid_swapped) the target instance still holds the
+# RSA key and ECC key of an earlier install, so both are replaced with the
+# OOTB rekey: deactivate the agent's active/pre_activation signing keys → set
+# validated=rekey → restart the MID → wait for validated=true and a new key →
+# restart once more if it is pre_activation → wait for active.
+# Without an owner change the same rekey runs when the newest key is not active,
+# or when the MID's log since its last start shows a refused RSA key or "MID
+# server is not yet validated" (the instance can't tell the keys aren't the MID's).
+# Setting validated=true by REST alone is NOT enough: the MID never re-sends its
+# key and never re-registers (seen on Demo1 2026-11-24).
+# Instances without ecc_agent_signing_key skip all of this.
+
+- name: Read the MID's ecc_agent record
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/ecc_agent?sysparm_query=name={{ sn_mid_server_name | urlencode }}&sysparm_fields=sys_id,validated&sysparm_limit=1
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sn_sigkey_agent
+  no_log: true
+
+- name: Read the agent's signing keys (newest first)
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/ecc_agent_signing_key?sysparm_query=agent={{ sn_sigkey_agent.json.result[0].sys_id }}^ORDERBYDESCsys_created_on&sysparm_fields=sys_id,state,sys_created_on&sysparm_limit=20
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200, 400, 403, 404]
+  register: sn_sigkey_rows
+  no_log: true
+  when: sn_sigkey_agent.json.result | default([]) | length > 0
+
+- name: Classify the signing-key state
+  ansible.builtin.set_fact:
+    sn_sigkey_supported: "{{ (sn_sigkey_rows.status | default(0)) == 200 }}"
+    sn_sigkey_sys_id: "{{ sn_sigkey_agent.json.result[0].sys_id | default('') }}"
+    sn_sigkey_state: "{{ (sn_sigkey_rows.json.result | default([{}]) | first | default({})).state | default('none') }}"
+    # Keys that exist before the rekey; a "new" key is any other sys_id (no
+    # date comparison: encoded-query date literals depend on the user's time zone).
+    sn_sigkey_old_ids: "{{ sn_sigkey_rows.json.result | default([]) | map(attribute='sys_id') | list }}"
+    sn_sigkey_live: "{{ sn_sigkey_rows.json.result | default([]) | selectattr('state', 'in', ['active', 'pre_activation']) | list }}"
+    sn_sigkey_action: none
+
+# The instance cannot tell that the active keys are not the MID's; the MID can.
+# Since its last start, a refused RSA key or "not yet validated" means rekey.
+- name: Check the MID log since its last start for refused keys
+  ansible.builtin.shell: |
+    log={{ sn_mid_agent_dir }}/logs/agent0.log.0
+    start=$(grep -n 'MID Server started' "$log" | tail -1 | cut -d: -f1)
+    tail -n +"${start:-1}" "$log" | grep -c -E 'UpdatePublicKey error|MID server is not yet validated' || true
+  args:
+    executable: /bin/bash
+  become: true
+  delegate_to: "{{ sn_mid_host }}"
+  register: sn_sigkey_midlog
+  changed_when: false
+
+- name: Decide the key action
+  ansible.builtin.set_fact:
+    sn_sigkey_action: >-
+      {{ 'rekey' if ((sn_mid_swapped | default(false) | bool)
+                     or sn_sigkey_state != 'active'
+                     or (sn_sigkey_midlog.stdout | trim | int) > 0) else 'none' }}
+  when:
+    - sn_sigkey_supported | bool
+    - sn_sigkey_sys_id | length > 0
+
+- name: Rekey the MID on the target instance (OOTB rekey)
+  when: sn_sigkey_action == 'rekey'
+  block:
+    - name: Deactivate the agent's old signing keys (made by an earlier install)
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/ecc_agent_signing_key/{{ item.sys_id }}"
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body: {state: deactivated}
+        status_code: [200]
+      loop: "{{ sn_sigkey_live }}"
+      loop_control:
+        label: "{{ item.state }} {{ item.sys_created_on }}"
+      no_log: true
+      changed_when: true
+
+    - name: Set validated=rekey (the instance then accepts the MID's RSA key)
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/ecc_agent/{{ sn_sigkey_sys_id }}"
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body: {validated: rekey}
+        status_code: [200]
+      no_log: true
+      changed_when: true
+
+    - name: Restart the MID Server (push the RSA key, register a signing key)
+      ansible.builtin.systemd:
+        name: "{{ sn_mid_service_name }}.service"
+        state: restarted
+      become: true
+      delegate_to: "{{ sn_mid_host }}"
+
+    - name: Wait for the instance to accept the RSA key (validated=true)
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/ecc_agent/{{ sn_sigkey_sys_id }}?sysparm_fields=validated,status"
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+      register: sn_sigkey_validated
+      until: sn_sigkey_validated.json.result.validated | default('') == 'true'
+      retries: 30
+      delay: 10
+      no_log: true
+
+    - name: Wait for the MID's new signing key
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/ecc_agent_signing_key?sysparm_query={{ ('agent=' ~ sn_sigkey_sys_id ~ '^stateINpre_activation,active^sys_idNOT IN' ~ (sn_sigkey_old_ids | join(','))) | urlencode }}&sysparm_fields=state&sysparm_limit=1
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+      register: sn_sigkey_new
+      until: sn_sigkey_new.json.result | default([]) | length > 0
+      retries: 30
+      delay: 10
+      no_log: true
+
+    - name: Restart the validated MID to promote a pre_activation key
+      ansible.builtin.systemd:
+        name: "{{ sn_mid_service_name }}.service"
+        state: restarted
+      become: true
+      delegate_to: "{{ sn_mid_host }}"
+      when: sn_sigkey_new.json.result[0].state == 'pre_activation'
+
+    - name: Wait for an active signing key
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/ecc_agent_signing_key?sysparm_query={{ ('agent=' ~ sn_sigkey_sys_id ~ '^state=active^sys_idNOT IN' ~ (sn_sigkey_old_ids | join(','))) | urlencode }}&sysparm_fields=state&sysparm_limit=1
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+      register: sn_sigkey_final
+      until: sn_sigkey_final.json.result | default([]) | length > 0
+      # A restart can start an auto-upgrade first; allow 15 minutes.
+      retries: 90
+      delay: 10
+      no_log: true
+
+- name: Record the key report
+  ansible.builtin.set_fact:
+    sn_sigkey_report: >-
+      {%- if not (sn_sigkey_supported | default(false) | bool) -%}no signing keys on this instance
+      {%- elif sn_sigkey_action == 'none' -%}signing key {{ sn_sigkey_state }}
+      {%- else -%}rekeyed (validated=rekey accepted the RSA key; signing key {{ sn_sigkey_state }} → new key active){%- endif -%}

@@ -3,13 +3,14 @@
 # Non-secret context: vars/contexts/servicenow_ansible_vars.yml
 # Secrets: vars/secrets.yaml → servicenow:
 
-# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
-# this process runs the first SN_INSTANCES entry and common/target.yml runs the
-# rest as child runs, so sn_instance_id is always one instance id here.
+# ServiceNow target: ONE instance per run (-e target=<id>, ids in SN_INSTANCES).
+# tasks/target.yml resolves it — default: the active instance, derived from
+# the live MID Server / KVA informer / Dynatrace notifications (nothing is
+# recorded) — and publishes it to every host as sn_target_resolved.
 # Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
-# See specifications/servicenow/docs/Multi_Instance_Plan.md.
-sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
-sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+# See specifications/servicenow/docs/Multi_Target_ServiceNow.md.
+sn_target: "{{ sn_target_resolved | default(target) }}"
+sn_instance_id: "{{ sn_target }}"
 sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
 sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
 sn_url: "{{ sn_instance_cfg.url | trim }}"
@@ -33,10 +34,6 @@ sn_cmdb_required_licenses:
     name: ITOM Discovery License
     required_for: CMDB 360 and native Discovery
 
-sn_cmdb_multisource_properties:
-  - name: glide.identification_engine.multisource_enabled
-    value: "true"
-    description: Enables CMDB 360 (Multisource CMDB)
-  - name: glide.identification_engine.multisource_cmdb_ci_enabled
-    value: "true"
-    description: Capture CMDB 360 attribute history for cmdb_ci classes
+# CMDB 360 sys_properties (desired values): representation file, shared by
+# deploy (tasks/enable-multisource-cmdb.yml) and diagnose.
+sn_cmdb_multisource_properties: "{{ lookup('file', sn_repo_root + '/specifications/servicenow/integrations/cmdb/sys_properties_multisource_cmdb.json') | from_json }}"

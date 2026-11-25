@@ -1,0 +1,96 @@
+---
+# Detect / switch the brooks-lab Dynatrace problem notifications (one per
+# SN_INSTANCES entry, by dt_problem_notification_name). Other teams'
+# notifications on the tenant are never read for change or modified.
+#
+# sn_dt_notification_action:
+#   detect             report only
+#   deactivate_others  disable every brooks-lab notification except target's
+#   enable_target      enable target's (created by events/deploy.yml when missing)
+#   disable_target     disable target's (servicenow/stop.yml)
+#
+# Enable/disable PUTs the object back with only `enabled` changed. Dynatrace
+# returns the webhook Authorization header masked and keeps the stored secret
+# when the masked value is sent back.
+
+- name: List Dynatrace problem notifications
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects?schemaIds=builtin:problem.notifications&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ DT_API_TOKEN }}"
+    status_code: [200]
+  register: sn_dt_notif_list
+  no_log: true
+
+- name: Select the brooks-lab notification of each instance
+  ansible.builtin.set_fact:
+    sn_dt_brooks_notifications: >-
+      {%- set out = [] -%}
+      {%- for inst in SN_INSTANCES -%}
+        {%- set m = sn_dt_notif_list.json['items'] | default([])
+                    | selectattr('value.displayName', 'equalto', inst.dt_problem_notification_name) | list -%}
+        {%- set _ = out.append({
+              'id': inst.id,
+              'name': inst.dt_problem_notification_name,
+              'object_id': (m[0].objectId if m else ''),
+              'enabled': ((m[0].value.enabled | default(false)) if m else false),
+              'value': (m[0].value if m else {})}) -%}
+      {%- endfor -%}
+      {{ out }}
+  no_log: true
+
+- name: Disable other instances' brooks-lab notifications
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects/{{ item.object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ DT_API_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      value: "{{ item.value | combine({'enabled': false}) }}"
+    status_code: [200, 204]
+  loop: "{{ sn_dt_brooks_notifications | rejectattr('id', 'equalto', sn_target_resolved) | selectattr('enabled') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: sn_dt_disable_others
+  changed_when: true
+  no_log: true
+  when: sn_dt_notification_action == 'deactivate_others'
+
+- name: Enable or disable the target instance's notification
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects/{{ item.object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ DT_API_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      value: "{{ item.value | combine({'enabled': sn_dt_notification_action == 'enable_target'}) }}"
+    status_code: [200, 204]
+  loop: >-
+    {{ sn_dt_brooks_notifications
+       | selectattr('id', 'equalto', sn_target_resolved)
+       | selectattr('object_id', 'ne', '')
+       | selectattr('enabled', 'ne', sn_dt_notification_action == 'enable_target')
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true
+  when: sn_dt_notification_action in ['enable_target', 'disable_target']
+
+- name: Record the notification report
+  ansible.builtin.set_fact:
+    sn_dt_notification_report: >-
+      {%- set lines = [] -%}
+      {%- for n in sn_dt_brooks_notifications -%}
+        {%- set now_enabled = n.enabled -%}
+        {%- if sn_dt_notification_action == 'deactivate_others' and n.id != sn_target_resolved -%}{%- set now_enabled = false -%}{%- endif -%}
+        {%- if sn_dt_notification_action == 'enable_target' and n.id == sn_target_resolved and n.object_id -%}{%- set now_enabled = true -%}{%- endif -%}
+        {%- if sn_dt_notification_action == 'disable_target' and n.id == sn_target_resolved -%}{%- set now_enabled = false -%}{%- endif -%}
+        {%- set _ = lines.append(n.id ~ ': ' ~ n.name ~ ' — ' ~ ('MISSING (created by sgc/sources/dynatrace/events/deploy.yml)' if not n.object_id else ('enabled' if now_enabled else 'disabled'))) -%}
+      {%- endfor -%}
+      {{ lines }}

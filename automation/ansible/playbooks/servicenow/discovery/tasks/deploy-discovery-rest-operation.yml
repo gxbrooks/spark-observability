@@ -1,0 +1,63 @@
+---
+# Deploy or update one Scripted REST operation on sn_discovery_rest_ws_sys_id.
+# Expects sn_discovery_rest_op: basename of the operation's representation pair in
+# specifications/servicenow/integrations/discovery/ — <name>.json.j2 (record fields)
+# and <name>.js (operation_script source).
+
+- name: "Load REST operation representation {{ sn_discovery_rest_op }}"
+  ansible.builtin.set_fact:
+    sn_discovery_rest_op_body: >-
+      {{ lookup('tf_template', sn_discovery_integrations_dir + '/' + sn_discovery_rest_op + '.json.j2',
+                web_service_definition=sn_discovery_rest_ws_sys_id) | from_json
+         | combine({'operation_script': lookup('file', sn_discovery_integrations_dir + '/' + sn_discovery_rest_op + '.js')}) }}
+
+- name: "Look up REST operation {{ sn_discovery_rest_op_body.relative_path }}"
+  ansible.builtin.include_tasks: sn-rest-get.yml
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_discovery_rest_ws_sys_id }}^http_method={{
+      sn_discovery_rest_op_body.http_method }}^relative_path={{
+      sn_discovery_rest_op_body.relative_path | urlencode }}&sysparm_limit=1
+
+- name: "Create REST operation {{ sn_discovery_rest_op_body.relative_path }}"
+  ansible.builtin.include_tasks: sn-rest-mutate.yml
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_ws_operation
+    sn_rest_body: "{{ sn_discovery_rest_op_body }}"
+  when: sn_rest_json.result | default([]) | length == 0
+
+- name: Compare the live REST operation with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_discovery_rest_op_body }}"
+    sn_drift_live: "{{ sn_rest_json.result[0] }}"
+  when: sn_rest_json.result | default([]) | length > 0
+
+- name: "Update REST operation {{ sn_discovery_rest_op_body.relative_path }}"
+  ansible.builtin.include_tasks: sn-rest-mutate.yml
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_ws_operation
+    sn_rest_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+    sn_rest_body: "{{ sn_discovery_rest_op_body }}"
+  when:
+    - sn_rest_json.result | default([]) | length > 0
+    - sn_drift_fields | length > 0
+
+- name: "Refresh REST operation {{ sn_discovery_rest_op_body.relative_path }}"
+  ansible.builtin.include_tasks: sn-rest-get.yml
+  vars:
+    sn_rest_table: sys_ws_operation
+    sn_rest_query: >-
+      sysparm_query=web_service_definition={{ sn_discovery_rest_ws_sys_id }}^http_method={{
+      sn_discovery_rest_op_body.http_method }}^relative_path={{
+      sn_discovery_rest_op_body.relative_path | urlencode }}&sysparm_fields=sys_id,operation_uri&sysparm_limit=1
+
+- name: "Record operation URI for {{ sn_discovery_rest_op }}"
+  ansible.builtin.set_fact:
+    sn_discovery_rest_operation_uris: >-
+      {{ (sn_discovery_rest_operation_uris | default({}))
+         | combine({ sn_discovery_rest_op: sn_rest_json.result[0].operation_uri }) }}
+  when: sn_rest_json.result | default([]) | length > 0

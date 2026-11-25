@@ -256,7 +256,7 @@ Dynatrace **Problem notification** POSTs JSON to the SGC inbound listener. **`so
 
 | Setting | Value |
 |---------|-------|
-| **URL** | `https://<instance>.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` — one notification per instance (`SN_INSTANCES.<id>.dt_problem_notification_name`): `optimizincdemo1` (Demo1) and `optimizincdemo3` (Demo3) |
+| **URL** | `https://<instance>.service-now.com/api/sn_em_connector/em/inbound_event?source=SGO-Dynatrace` — one notification per instance (`SN_INSTANCES.<id>.dt_problem_notification_name`): `optimizincdemo1` (Demo1) and `optimizincdemo3` (Demo3); only the active instance's is enabled |
 | **Auth** | HTTP Basic (`SN_DT_WEBHOOK_USER<suffix>` / `SN_DT_WEBHOOK_PASSWORD<suffix>` in `vars/secrets.yaml`; suffix `_DEMO3` for Demo3) |
 | **Payload template** | `sgc-problem-notification-payload.json.j2` |
 | **ConnectionId** | SGC connection alias sys_id (injected as `ConnectionId` in body) |
@@ -360,15 +360,15 @@ Event rules may promote **`em_event` → `em_alert`**. Incident automation (if c
 | Notify | Alerting profile **Spark Observability - ServiceNow brooks-lab** | `apply_dt_alerting_profile.yml` |
 | Notify | Webhook **ServiceNow brooks-lab - Spark Observability** | `apply_dt_problem_notification.yml` |
 | SN ingest | SGC inbound + field mappings | Store app `sn_dynatrace_integ` |
-| SN CI | `sys_object_source` + SGC host import | `apply_sgc_topology_config.yml`, Guided Setup |
+| SN CI | `sys_object_source` + SGC host import | `apply-sgc-topology-config.yml`, Guided Setup |
 
-**Deploy everything** (`-e target=demo1|demo3|all`, default `demo3`):
+**Deploy everything** (`-e target=demo1|demo3`, default: the active instance; another target switches the lab to it):
 
 ```bash
 cd automation/ansible
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml \
-  -e @../vars/secrets.yaml -e target=all
+  -e @../vars/secrets.yaml
 ```
 
 **Generate test signal:**
@@ -383,10 +383,10 @@ cd spark/apps/data-analysis-book
 **Verify:**
 
 ```bash
-# ServiceNow events (last 2h)
+# ServiceNow events on the active instance (last 2h)
 ansible-playbook -i inventory.yml \
   playbooks/servicenow/sgc/sources/dynatrace/events/test.yml \
-  -e @../vars/secrets.yaml -e target=all
+  -e @../vars/secrets.yaml
 ```
 
 Dynatrace Logs (WARN/ERROR, last 2h): [Logs app — Spark paths](https://pdt20158.apps.dynatrace.com/ui/apps/dynatrace.logs/) with DQL:
@@ -440,6 +440,7 @@ Chapter **05** sets `spark.sparkContext.setLogLevel("WARN")` — useful for driv
 ```bash
 cd automation/ansible
 # Incidents are created only where incident/deploy.yml ran (Demo1; held on Demo3).
+# test.yml runs only when Demo1 is the active instance.
 ansible-playbook -i inventory.yml playbooks/servicenow/incident/test.yml \
   -e @../vars/secrets.yaml -e target=demo1
 ```

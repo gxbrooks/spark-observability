@@ -12,10 +12,11 @@ Automates brooks-lab Discovery:
    **Discovery Operations API** deployed by `deploy.yml`.
 4. **diagnose.yml** — API permissions, MID state, credential presence.
 5. **test.yml** — Assert lab Linux server CIs exist in CMDB after a scan.
-6. **stop.yml** / **start.yml** — MID Server service lifecycle on Lab3 (the
-   target instance's MID only).
+6. **stop.yml** / **start.yml** — MID Server service lifecycle on Lab3.
+   `stop.yml` stops the MID only when it belongs to the target instance;
+   `start.yml` switches the lab to the target first.
 
-Every playbook takes `-e target=demo1|demo3|all` (default `demo3`); see
+Every playbook takes `-e target=demo1|demo3` (default: the active instance); see
 [../README.md](../README.md#target-instance--e-target).
 
 ## brooks-lab identification
@@ -37,12 +38,26 @@ Playbooks load `vars/contexts/servicenow_ansible_vars.yml` (auto-regenerated).
 
 ## MID Server install
 
-- One MID per instance on Lab3, all from `SN_INSTANCES.<id>`: `mid_server_name`,
-  `mid_service_name` (systemd unit), `mid_agent_dir`. Demo1 uses the vendor
-  package path `/opt/servicenow/mid/agent`; every other instance gets the
-  `.deb`'s agent tree unpacked into its own directory
-  (Demo3: `/opt/servicenow/mid-demo3/agent`, unit `mid_brooks_lab3_demo3`) and
-  its own sudoers file.
+- One MID on Lab3, owned by the active instance: the vendor package in
+  `/opt/servicenow/mid/agent`, systemd unit `mid_brooks_lab3`. Its `ecc_agent`
+  name is `SN_INSTANCES.<id>.mid_server_name` (`mid-brooks-lab3` for Demo1,
+  `mid-brooks-lab3-demo3` for Demo3).
+- Switching instances (any install/deploy/start with another target)
+  **reconfigures** the MID (`tasks/reconfigure-mid-server.yml`: `config.xml`
+  url, user, password, name; `mid_sys_id` dropped); the MID then auto-upgrades
+  to the target's build. The target's `.deb` (cached in
+  `/var/cache/servicenow-mid/`) is installed only when Lab3 has no MID or with
+  `-e sn_mid_switch_method=reinstall` (uninstall via
+  `tasks/uninstall-mid-server.yml`, then install). See
+  [Multi_Target_ServiceNow.md](../../../../../specifications/servicenow/docs/Multi_Target_ServiceNow.md).
+- Auto-upgrade restarts the unit with `systemctl` (no sudo), so
+  `tasks/ensure-mid-service-control.yml` installs a polkit rule
+  (`/etc/polkit-1/rules.d/50-servicenow-mid.rules`) letting the MID user
+  start/stop/restart `mid_brooks_lab3.service`; the old, ineffective
+  `/etc/sudoers.d/servicenow-mid` is removed.
+- `tasks/ensure-mid-signing-key.yml` re-keys the MID (invalidate →
+  restart → validate → restart) when its owner changed or its signing key is not
+  active (both instances use MID signing keys).
 - Requires `SN_MID_USER<suffix>` / `SN_MID_PASSWORD<suffix>` with the
   `mid_server` role on that instance.
 - `SN_INSTANCES.<id>.mid_installer_deb_url` — build-specific Linux `.deb`

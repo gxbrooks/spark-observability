@@ -357,6 +357,31 @@
         replace: 'SystemdCgroup = true'
       notify: Restart containerd
 
+    # On a host where Docker installed containerd first (Lab3), config.toml is
+    # Docker's minimal file: "Generate default containerd configuration" is
+    # skipped (creates: is satisfied) and there is no SystemdCgroup line for the
+    # replace above to flip, so runc kept the cgroupfs driver while the kubelet
+    # uses systemd. That mismatch made the kubelet rebuild pod sandboxes again
+    # and again on Lab3 (kube-proxy: 6,441 restarts in 28 days; the DynaKube
+    # ActiveGate never became Ready). Found 2026-11-25. Regenerating the full
+    # default here would duplicate the registry table appended below (invalid
+    # TOML), so only the runc options table is added.
+    - name: Check whether containerd's config sets the runc cgroup driver
+      command: grep -c SystemdCgroup /etc/containerd/config.toml
+      register: containerd_cgroup_setting
+      changed_when: false
+      failed_when: false
+
+    - name: Set the systemd cgroup driver for runc (config without the setting)
+      blockinfile:
+        path: /etc/containerd/config.toml
+        marker: "# {mark} ANSIBLE MANAGED BLOCK -- runc systemd cgroup driver"
+        block: |
+          [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+            SystemdCgroup = true
+      when: (containerd_cgroup_setting.stdout | default('0') | int) == 0
+      notify: Restart containerd
+
     - name: Ensure containerd's CRI plugin is enabled (required by kubelet)
       replace:
         path: /etc/containerd/config.toml

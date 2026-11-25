@@ -18,7 +18,6 @@ import argparse
 import base64
 import json
 import os
-import re
 import sys
 import time
 import urllib.error
@@ -50,33 +49,43 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
 
-def load_sn_creds() -> tuple[str, str, str]:
-    url = os.environ.get("SN_URL", "").strip()
+def load_sn_creds(instance_id: str = "") -> tuple[str, str, str, str]:
+    """URL and credentials for the ACTIVE ServiceNow instance (or instance_id).
+
+    brooks-lab feeds one instance at a time and nothing records which one:
+    servicenow/sn_active_instance.py derives it from the Dynatrace brooks-lab
+    problem notification that is enabled (SN_TARGET=<id> overrides). Env
+    SN_URL / SN_USER / SN_PASSWORD override the URL and credentials.
+    Returns (instance_id, url, user, password).
+    """
+    root = repo_root()
+    sys.path.insert(0, str(root / "servicenow"))
+    import yaml  # PyYAML ships with Ansible
+    from sn_active_instance import NoActiveInstance, active_instance, instances
+
+    if instance_id:
+        match = [i for i in instances(root) if i.get("id") == instance_id]
+        if not match:
+            raise SystemExit(f"instance {instance_id} is not in SN_INSTANCES")
+        inst = match[0]
+    else:
+        try:
+            inst = active_instance(root)
+        except NoActiveInstance as exc:
+            raise SystemExit(f"No active ServiceNow instance: {exc}")
+    suffix = str(inst.get("secrets_suffix") or "")
+    url = os.environ.get("SN_URL", "").strip() or str(inst["url"])
     user = os.environ.get("SN_USER", "").strip()
     password = os.environ.get("SN_PASSWORD", "").strip()
-    root = repo_root()
-    if not url:
-        ctx = root / "vars/contexts/servicenow_ansible_vars.yml"
-        if ctx.is_file():
-            m = re.search(r'^SN_URL:\s*"([^"]+)"', ctx.read_text(), re.M)
-            if m:
-                url = m.group(1).rstrip("/")
     secrets = root / "vars/secrets.yaml"
-    if secrets.is_file():
-        text = secrets.read_text()
-        if not user:
-            m = re.search(r'SN_USER:\s*"([^"]+)"', text)
-            if m:
-                user = m.group(1)
-        if not password:
-            m = re.search(r'SN_PASSWORD:\s*"([^"]+)"', text)
-            if m:
-                password = m.group(1)
-    if not url:
-        url = "https://optimizincdemo1.service-now.com"
+    if secrets.is_file() and (not user or not password):
+        doc = yaml.safe_load(secrets.read_text()) or {}
+        values = {**doc, **(doc.get("servicenow") or {})}
+        user = user or str(values.get("SN_USER" + suffix) or "").strip()
+        password = password or str(values.get("SN_PASSWORD" + suffix) or "").strip()
     if not user or not password:
-        raise SystemExit("SN_USER / SN_PASSWORD missing (env or vars/secrets.yaml)")
-    return url.rstrip("/"), user, password
+        raise SystemExit(f"SN_USER{suffix} / SN_PASSWORD{suffix} missing (env or vars/secrets.yaml)")
+    return str(inst["id"]), url.rstrip("/"), user, password
 
 
 class SnClient:
@@ -260,7 +269,7 @@ def wait_for_maint(sn: SnClient, cis: list[dict], wait_seconds: int) -> tuple[bo
     return True, missing
 
 
-def open_change(sn: SnClient, minutes: int, log_dir: str, wait_seconds: int) -> int:
+def open_change(sn: SnClient, minutes: int, log_dir: str, wait_seconds: int, instance_id: str = "") -> int:
     cis = resolve_cis(sn)
     primary = next((c for c in cis if c.get("name") == "lab1"), cis[0])
     start = datetime.now(timezone.utc)
@@ -318,6 +327,7 @@ def open_change(sn: SnClient, minutes: int, log_dir: str, wait_seconds: int) -> 
         "maint_missing": missing,
         "maint_table_readable": readable,
         "closed": False,
+        "instance": instance_id,
     }
     print(json.dumps(payload, indent=2))
     write_payload(log_dir, payload)
@@ -347,15 +357,23 @@ def main() -> int:
         help="Move the change in --log-dir/change-window.json to Review",
     )
     args = parser.parse_args()
-    url, user, password = load_sn_creds()
-    sn = SnClient(url, user, password)
     if args.close:
         if not args.log_dir:
             raise SystemExit("--close requires --log-dir")
-        return close_change(sn, args.log_dir)
+        # Close on the instance the change was opened on, even if brooks-lab
+        # switched instances during the run.
+        opened_on = ""
+        path = change_json_path(args.log_dir)
+        if path.is_file():
+            opened_on = str(json.loads(path.read_text()).get("instance") or "")
+        _, url, user, password = load_sn_creds(opened_on)
+        return close_change(SnClient(url, user, password), args.log_dir)
+    instance_id, url, user, password = load_sn_creds()
+    sn = SnClient(url, user, password)
+    print(f"ServiceNow instance: {instance_id} ({url})", file=sys.stderr)
     if args.minutes < 1:
         raise SystemExit("--minutes must be >= 1 (or pass --close)")
-    return open_change(sn, args.minutes, args.log_dir, args.wait_seconds)
+    return open_change(sn, args.minutes, args.log_dir, args.wait_seconds, instance_id)
 
 
 if __name__ == "__main__":

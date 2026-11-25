@@ -1,0 +1,24 @@
+---
+# Does the target instance have the Kubernetes Visibility Agent app
+# (scope sn_acc_visibility)? The KVA informer only feeds instances that do;
+# activate-kva-informer.yml parks it (0 replicas) otherwise. Runs on localhost.
+# Sets sn_kva_target_app_present.
+
+- name: Look up the Kubernetes Visibility Agent app on the target
+  ansible.builtin.uri:
+    url: >-
+      {{ (SN_INSTANCES | selectattr('id', 'equalto', sn_target_resolved) | first).url
+      }}/api/now/table/sys_scope?sysparm_query=scope=sn_acc_visibility^active=true&sysparm_fields=scope,version&sysparm_limit=1
+    user: "{{ servicenow['SN_USER' ~ sn_kva_check_suffix] }}"
+    password: "{{ servicenow['SN_PASSWORD' ~ sn_kva_check_suffix] }}"
+    force_basic_auth: true
+    headers: {Accept: application/json}
+    status_code: [200]
+  vars:
+    sn_kva_check_suffix: "{{ (SN_INSTANCES | selectattr('id', 'equalto', sn_target_resolved) | first).secrets_suffix }}"
+  register: sn_kva_app_lookup
+  no_log: true
+
+- name: Record whether the target has the KVA app
+  ansible.builtin.set_fact:
+    sn_kva_target_app_present: "{{ sn_kva_app_lookup.json.result | default([]) | length > 0 }}"

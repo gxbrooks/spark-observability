@@ -1,0 +1,45 @@
+---
+# Synthetic CSDM objects for deploy testing.
+# Prefer fixtures in sn-sync; this file remains as an Observability sample.
+#   sn-sync-inject --specs ~/repos/sn-sync/fixtures/synthetic_insert.csdm.yaml
+#   sn-sync-delete --all --specs ~/repos/sn-sync/fixtures/synthetic_insert.csdm.yaml
+# Ansible wrapper:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
+#     -e @../vars/secrets.yaml \
+#     -e '{"sn_csdm_spec_paths_override": ["<repo>/specifications/servicenow/csdm/test/servicenow_insert.yaml"]}'
+
+csdm_defaults:
+  business_owner: gbrooks
+  it_application_owner: gbrooks
+  owned_by: gbrooks
+  business_criticality: "4 - not critical"
+
+tag_defaults:
+  environment: on-prem
+  location: brooks-lab
+
+business_applications:
+  - name: CSDM Synthetic Test BA
+    identifier: csdm-synthetic-test-ba
+    short_description: Ephemeral object for Ansible / sn-sync-inject testing
+    operational_status: "1"
+    active: "true"
+
+business_services:
+  - name: CSDM Synthetic Test BS
+    identifier: csdm-synthetic-test-bs
+    short_description: Ephemeral business service for Ansible / sn-sync-inject testing
+    operational_status: "1"
+    parent_business_application: CSDM Synthetic Test BA
+
+service_instances:
+  - name: CSDM Synthetic Test AS
+    identifier: csdm-synthetic-test-as
+    short_description: Ephemeral application service for Ansible / sn-sync-inject testing
+    operational_status: "1"
+    parent_business_service: CSDM Synthetic Test BS
+    platform: saas
+    service_mapping: manual
+    discover: false
+    environment: on-prem
+    location: brooks-lab

@@ -143,7 +143,10 @@
       value:
         routingEntries: "{{ dt_openpipeline_routing_entries_new }}"
     status_code: [200, 204]
-  when: dt_openpipeline_logs_routing_object_id | default('') | length > 0
+  when:
+    - dt_openpipeline_logs_routing_object_id | default('') | length > 0
+    # Whole-list comparison: only PUT when the merged routing differs.
+    - dt_openpipeline_routing_entries_new != (dt_openpipeline_logs_routing_existing.routingEntries | default([]))
   delegate_to: localhost
   run_once: true
 

@@ -1,0 +1,59 @@
+---
+# Give the brooks-lab Kubernetes cluster CI both identifiers its sources use,
+# so the IRE matches one CI whichever source arrives first (runs on localhost).
+#
+# Kubernetes Cluster identification rules (both instances): ip_address+port,
+# name+cluster_resource_id, k8s_uid. The KVA informer identifies the cluster by
+# k8s_uid; the SGC Dynatrace import by name+cluster_resource_id. Both carry the
+# same value — the cluster UID (uid of namespace kube-system) — but each sets
+# only its own field, so on Demo3 (SGC first) KVA created a second cluster CI
+# (found and merged 2026-11-25). With both fields set, either source matches.
+#
+# Expects sn_k8s_cluster_uid (read on kubernetes_master by deploy.yml).
+
+- name: Look up the cluster CI(s) named {{ sn_k8s_cluster_name }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_kubernetes_cluster
+    sn_rest_query: >-
+      sysparm_query=name={{ sn_k8s_cluster_name | urlencode }}&sysparm_fields=sys_id,discovery_source,k8s_uid,cluster_resource_id&sysparm_limit=10
+
+- name: Record the cluster CIs
+  ansible.builtin.set_fact:
+    sn_k8s_cluster_cis: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Warn about duplicate cluster CIs
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ sn_k8s_cluster_cis | length }} cluster CIs named {{ sn_k8s_cluster_name }} on
+      {{ sn_url }} ({{ sn_k8s_cluster_cis | map(attribute='discovery_source') | join(', ') }}).
+      Merge them once (move child CIs and relationships to the one to keep, then
+      delete the other) — see Multi_Target_ServiceNow.md, "Duplicate cluster CI".
+  when: sn_k8s_cluster_cis | length > 1
+
+- name: Set the missing cluster identifier(s)
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: cmdb_ci_kubernetes_cluster
+    sn_rest_sys_id: "{{ item.sys_id }}"
+    sn_rest_body:
+      k8s_uid: "{{ sn_k8s_cluster_uid }}"
+      cluster_resource_id: "{{ sn_k8s_cluster_uid }}"
+  loop: "{{ sn_k8s_cluster_cis }}"
+  loop_control:
+    label: "{{ item.discovery_source }} {{ item.sys_id }}"
+  when:
+    - sn_k8s_cluster_uid | default('') | length > 0
+    # Never with duplicates: two CIs with the same identifiers is an IRE error.
+    - sn_k8s_cluster_cis | length == 1
+    # Only a CI that is this cluster (one identifier already matches) and lacks the other.
+    - sn_k8s_cluster_uid in [item.k8s_uid, item.cluster_resource_id]
+    - item.k8s_uid != sn_k8s_cluster_uid or item.cluster_resource_id != sn_k8s_cluster_uid
+
+- name: Report the cluster identifiers
+  ansible.builtin.debug:
+    msg: >-
+      Cluster CI {{ sn_k8s_cluster_name }} on {{ sn_url }}: {{ sn_k8s_cluster_cis | length }} found
+      ({{ sn_k8s_cluster_cis | map(attribute='discovery_source') | join(', ') }});
+      cluster UID {{ sn_k8s_cluster_uid }}.

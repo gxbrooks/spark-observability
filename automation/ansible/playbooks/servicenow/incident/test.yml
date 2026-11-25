@@ -4,9 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/incident/test.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: incident/test.yml
+    sn_target_mode: active
 
 - name: Test Log-to-Incident bindings
   hosts: localhost
@@ -19,10 +20,10 @@
     - "{{ playbook_dir | dirname }}/sgc/common/vars.yml"
   tasks:
     - name: Test log incident bindings
-      ansible.builtin.include_tasks: tasks/test_log_incident_bindings.yml
+      ansible.builtin.include_tasks: tasks/test-log-incident-bindings.yml
 
     - name: Test alert grouping (message_key, metric_name, metric_class, durability)
-      ansible.builtin.include_tasks: tasks/test_alert_grouping.yml
+      ansible.builtin.include_tasks: tasks/test-alert-grouping.yml
 
     - name: Test spark-client application service bindings
-      ansible.builtin.include_tasks: tasks/test_spark_client_as.yml
+      ansible.builtin.include_tasks: tasks/test-spark-client-as.yml

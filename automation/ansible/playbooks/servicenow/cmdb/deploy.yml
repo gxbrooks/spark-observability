@@ -12,12 +12,13 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../vars/secrets.yaml
 #
 # Next (typical brooks-lab sequence):
-#   playbooks/servicenow/discovery/discover.yml   — force Discovery scan (IRE-populated CIs)
+#   playbooks/servicenow/discovery/start.yml --tags discovery_scan   — force Discovery scan (IRE-populated CIs)
 #   playbooks/servicenow/sgc/sources/dynatrace/start.yml — Dynatrace SGC import cascade
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: cmdb/deploy.yml
+    sn_target_mode: switch
 
 - name: Deploy CMDB 360 (Multisource CMDB) settings
   hosts: localhost
@@ -41,10 +42,10 @@
           Configure SN_URL in vars/variables.yaml and servicenow.SN_USER / SN_PASSWORD in vars/secrets.yaml
 
     - name: Check CMDB 360 license prerequisites (non-fatal)
-      ansible.builtin.include_tasks: tasks/check_cmdb_licenses.yml
+      ansible.builtin.include_tasks: tasks/check-cmdb-licenses.yml
 
     - name: Enable CMDB 360 / Multisource CMDB
-      ansible.builtin.include_tasks: tasks/enable_multisource_cmdb.yml
+      ansible.builtin.include_tasks: tasks/enable-multisource-cmdb.yml
 
     - name: Deploy summary
       ansible.builtin.debug:
@@ -59,7 +60,7 @@
           Verify in UI: Configuration → CMDB 360 Properties (or CMDB Workspace → CMDB 360).
 
           Recommended next steps:
-            1. discovery/discover.yml — run brooks-lab CI Discovery (populates IRE / cmdb_multisource_data)
+            1. discovery/start.yml --tags discovery_scan — run brooks-lab CI Discovery (populates IRE / cmdb_multisource_data)
             2. sgc/sources/dynatrace/start.yml — Execute Now on SGO-Dynatrace Hosts (after SGC deploy)
 
           Or run the full ServiceNow start orchestrator:

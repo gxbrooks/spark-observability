@@ -7,13 +7,14 @@
 # fallbacks for context variables here; a missing variable must fail the play.
 # Secrets: vars/secrets.yaml (servicenow: block).
 
-# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
-# this process runs the first SN_INSTANCES entry and common/target.yml runs the
-# rest as child runs, so sn_instance_id is always one instance id here.
+# ServiceNow target: ONE instance per run (-e target=<id>, ids in SN_INSTANCES).
+# tasks/target.yml resolves it — default: the active instance, derived from
+# the live MID Server / KVA informer / Dynatrace notifications (nothing is
+# recorded) — and publishes it to every host as sn_target_resolved.
 # Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
-# See specifications/servicenow/docs/Multi_Instance_Plan.md.
-sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
-sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+# See specifications/servicenow/docs/Multi_Target_ServiceNow.md.
+sn_target: "{{ sn_target_resolved | default(target) }}"
+sn_instance_id: "{{ sn_target }}"
 sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
 sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
 sn_url: "{{ sn_instance_cfg.url | trim }}"
@@ -42,18 +43,17 @@ sn_integrations_dir: "{{ sn_specs_root }}/integrations"
 sn_sgc_app_scope: sn_dynatrace_integ
 sn_sgc_discovery_source: SGO-Dynatrace
 sn_sgc_event_source: SGO-Dynatrace
-sn_sgc_location_br_name: sgc-inherit-location-from-host
 
-# Legacy EM push connector (pre-SGC / parallel path on demo instances)
-sn_dt_legacy_event_source: dynatrace
-sn_dt_legacy_connector_sys_id: "{{ sn_instance_cfg.dt_legacy_connector_sys_id | default('') }}"
-
+# brooks-lab posts Dynatrace problems ONLY to the OOTB SGC push connector
+# "Dynatrace Observability" (sn_em_connector_listener, source SGO-Dynatrace,
+# sys_id b70d280e07032010b1306a77c4a9355e on every instance with SGC). The
+# legacy "Dynatrace Monitor Push Connector" (source=dynatrace) and the
+# instance-specific legacy connector instances belong to other teams'
+# notifications and are not used.
 sn_dt_event_inbound_url_sgc: >-
   {{ sn_url }}/api/sn_em_connector/em/inbound_event?source={{ sn_sgc_event_source }}
-sn_dt_event_inbound_url_legacy: >-
-  {{ sn_url }}/api/sn_em_connector/em/inbound_event?source={{ sn_dt_legacy_event_source }}&sys_id={{ sn_dt_legacy_connector_sys_id }}
 
-# SGO-Dynatrace webhook Basic auth (ensure_sn_dt_webhook_auth.yml → secrets.yaml SN_DT_WEBHOOK_*)
+# SGO-Dynatrace webhook Basic auth (ensure-sn-dt-webhook-auth.yml → secrets.yaml SN_DT_WEBHOOK_*)
 
 # Dynatrace API (resolved in observability/dynatrace/tasks/resolve_dt_api.yml)
 dt_api_url_resolved: ""
@@ -62,13 +62,13 @@ dt_management_zone_resolved: "{{ DT_MANAGEMENT_ZONE }}"
 dt_management_zone_object_id: ""
 
 # Dedicated Dynatrace token for the SGC connection (minted by
-# sources/dynatrace/tasks/ensure_sgc_credential.yml via DT_TOKEN_ADMIN_TOKEN)
+# sources/dynatrace/tasks/ensure-sgc-credential.yml via DT_TOKEN_ADMIN_TOKEN)
 # One token per ServiceNow instance: a shared name would make a second instance
 # skip minting (token "exists") and a rotation on one delete the other's token.
 # The default instance keeps the original name.
 dt_sgc_api_token_name: "{{ sn_instance_cfg.dt_sgc_api_token_name }}"
 
-# SGC credential rotation (sources/dynatrace/tasks/check_sgc_token_remint_needed.yml)
+# SGC credential rotation (sources/dynatrace/tasks/check-sgc-token-remint-needed.yml)
 sgc_hosts_import_table: sn_dynatrace_integ_sg_dynatrace_hosts
 sgc_auto_rotate_token: true
 
@@ -92,7 +92,7 @@ sgc_hosts_scheduled_import_restore_run_period: "1970-01-01 01:00:00"
 
 # SGO-Dynatrace Kubernetes Cluster scheduled import — not part of the Hosts
 # cascade (its children are Kubernetes Node/Pod/Namespace, triggered off this
-# parent, not off Hosts). Ensured active + hourly by apply_sgc_topology_config.yml
+# parent, not off Hosts). Ensured active + hourly by apply-sgc-topology-config.yml
 # so cluster-level topology (and therefore event CI binding for KUBERNETES_CLUSTER
 # problems) re-syncs on its own after the Dynatrace-side entity ID changes.
 sgc_kubernetes_cluster_scheduled_import_name: SGO-Dynatrace Kubernetes Cluster

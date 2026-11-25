@@ -1,0 +1,65 @@
+---
+# Uninstall MID Servers from the host (become).
+#   sn_mid_uninstall_dirs   agent directories (…/agent) to remove
+#   sn_mid_uninstall_units  systemd unit names (without .service) to remove
+# The vendor `agent` .deb is purged when its directory (sn_mid_agent_dir) is in
+# the list. The ecc_agent record on the instance is left alone (it shows Down).
+
+- name: Stop and disable MID units
+  ansible.builtin.systemd:
+    name: "{{ item }}.service"
+    state: stopped
+    enabled: false
+  loop: "{{ sn_mid_uninstall_units }}"
+  failed_when: false
+
+- name: Remove the MID service registration (mid.sh remove)
+  ansible.builtin.command:
+    cmd: sh {{ item }}/bin/mid.sh remove
+    removes: "{{ item }}/bin/mid.sh"
+  loop: "{{ sn_mid_uninstall_dirs }}"
+  failed_when: false
+
+- name: Check whether the vendor agent package is installed
+  ansible.builtin.command: dpkg-query -W -f='${Status}' agent
+  register: sn_mid_uninstall_pkg
+  changed_when: false
+  failed_when: false
+
+- name: Purge the vendor agent package
+  ansible.builtin.shell: |
+    dpkg -r --force-all agent
+    dpkg --purge agent
+  when:
+    - sn_mid_agent_dir in sn_mid_uninstall_dirs
+    - sn_mid_uninstall_pkg.stdout is search('install ok installed')
+  changed_when: true
+
+- name: Remove MID agent trees
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: absent
+  loop: "{{ sn_mid_uninstall_dirs }}"
+  when: (item | dirname) is match('^/opt/servicenow/[^/]+$')
+
+- name: Remove leftover MID unit files
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.service"
+    state: absent
+  loop: "{{ sn_mid_uninstall_units }}"
+
+- name: Remove MID sudoers files of removed units
+  ansible.builtin.file:
+    path: "/etc/sudoers.d/servicenow-mid-{{ item }}"
+    state: absent
+  loop: "{{ sn_mid_uninstall_units }}"
+
+- name: Remove the MID polkit rule when the main unit goes
+  ansible.builtin.file:
+    path: /etc/polkit-1/rules.d/50-servicenow-mid.rules
+    state: absent
+  when: sn_mid_service_name in sn_mid_uninstall_units
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

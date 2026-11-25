@@ -28,21 +28,28 @@ See [specifications/servicenow/docs/install.md](../../../../../../specifications
 | -------- | ------- |
 | `install.yml` | Helm KVA Informer on the `kva_informer`-enabled cluster |
 | `deploy.yml` | All registry locations + inheritance business rule |
-| `discover.yml` | Restart Informer for CMDB resync |
+| `start.yml` | Make sure the informer runs for the target (unparks it), label the OneAgent pods, copy `servicenow.com/*` pod labels to `cmdb_key_value`. `--tags all,kva_resync` also restarts the informer for a full CMDB resync |
+| `stop.yml` | Park the informer (0 replicas) when it feeds the target |
 | `test.yml` | Assert all registry locations + workloads per `kva_informer` cluster |
-| `diagnose.yml` | Informer pod + CMDB counts |
+| `diagnose.yml` | The `test.yml` checks (reported, not fatal), informer pod + CMDB counts |
 
-Target instance: `-e target=demo1|demo3|all` (default `demo3`); see
+Target instance: `-e target=demo1|demo3` (default: the active instance); see
 [../../README.md](../../README.md#target-instance--e-target). `deploy.yml`
 writes `vars/contexts/servicenow_k8s_discovery_deploy_<id>.json`.
 
 **One KVA informer per cluster.** The Helm release
 (`k8s-informer-<cluster>`) and namespace are per cluster, not per instance, so
-`install.yml` with a different `target` (or `target=all`) **repoints** the
-cluster's informer to that instance (`instance.name`) instead of adding a
-second one. Only the last-installed instance receives KVA data. KVA is installed
-for Demo1 today; `deploy.yml`, `test.yml` and `diagnose.yml` are safe on any
-target.
+it follows the active instance. When the release is installed, a switch (any
+install/deploy/start with another target) **repoints** it to the target
+(`helm upgrade` with the target's `instance.name` and credentials secret), or
+**parks** it (scales it to 0 replicas) when the target lacks the Kubernetes
+Visibility Agent app (`sn_acc_visibility`). `stop.yml` parks it too.
+`install.yml` installs both prerequisites for the target: the Kubernetes
+Visibility Agent Store app on the instance (manifest
+`specifications/servicenow/integrations/discovery/store_apps.yml`, CI/CD App Repo
+API, skipped when present) and the informer Helm release pointed at it. The informer is
+installed on the brooks-lab cluster (`k8s-informer-brooks-lab`). `diagnose.yml` and `stop.yml` run on any target; `test.yml` runs only against
+the active instance.
 
 ```bash
 cd automation/ansible

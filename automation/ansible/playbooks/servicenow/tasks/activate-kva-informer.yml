@@ -1,0 +1,132 @@
+---
+# KVA informer: one Helm release per cluster (sn_k8s_informer_helm_release),
+# alone in its namespace (sn_k8s_informer_namespace). The chart names the
+# deployment after the instance and sets no release label, so replicas are
+# read and scaled for every deployment in that namespace.
+# sending to the instance named by its `instance.name` value. Runs on
+# kubernetes_master (become). Detection runs in every mode (sets
+# sn_kva_installed / sn_kva_owner_id / sn_kva_running). Changes happen only when
+# sn_kva_apply is true (switch mode) and the release is installed:
+#   - target has the KVA app (sn_kva_target_app_present, checked on localhost)
+#     → repoint the release at the target (install-kva-informer.yml: credentials
+#       secret + helm upgrade, which also restores the replica count);
+#   - target lacks the app → PARK the informer (scale to 0 replicas) so it
+#     feeds no instance; switching to an instance with the app brings it back.
+# Other instances' credential secrets are deleted. A cluster without the
+# release is left alone — install it with discovery/k8s/install.yml.
+
+- name: Read the KVA informer release values
+  ansible.builtin.command:
+    cmd: >-
+      /usr/local/bin/helm get values {{ sn_k8s_informer_helm_release }}
+      -n {{ sn_k8s_informer_namespace }} -o json
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_values
+  changed_when: false
+  failed_when: false
+
+- name: Read the KVA informer replica count
+  ansible.builtin.command:
+    cmd: >-
+      kubectl -n {{ sn_k8s_informer_namespace }} get deploy
+      -o jsonpath={.items[*].spec.replicas}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_replicas
+  changed_when: false
+  failed_when: false
+  when: sn_kva_values.rc == 0
+
+- name: Classify the KVA informer
+  ansible.builtin.set_fact:
+    sn_kva_installed: "{{ sn_kva_values.rc == 0 }}"
+    sn_kva_instance_name: >-
+      {{ ((sn_kva_values.stdout | from_json).instance | default({})).name | default('')
+         if sn_kva_values.rc == 0 else '' }}
+    sn_kva_running: >-
+      {{ sn_kva_values.rc == 0
+         and ((sn_kva_replicas.stdout | default('0')).split() | map('int') | sum) > 0 }}
+
+- name: Resolve the KVA owner
+  ansible.builtin.set_fact:
+    sn_kva_owner_id: >-
+      {{ (SN_INSTANCES | selectattr('short_name', 'equalto', sn_kva_instance_name) | map(attribute='id') | first)
+         | default(('unknown:' ~ sn_kva_instance_name) if sn_kva_instance_name else 'none', true) }}
+    sn_kva_swapped: false
+    sn_kva_parked: false
+    sn_kva_target_has_app: "{{ hostvars['localhost'].sn_kva_target_app_present | default(true) | bool }}"
+
+- name: Repoint the KVA informer at the target instance
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir | dirname }}/discovery/k8s/tasks/install-kva-informer.yml"
+    apply:
+      tags: [always]
+  when:
+    - sn_kva_apply | default(false) | bool
+    - sn_kva_installed | bool
+    - sn_kva_target_has_app | bool
+    - sn_kva_owner_id != sn_target_resolved or not (sn_kva_running | bool)
+
+- name: Record that the KVA informer was repointed
+  ansible.builtin.set_fact:
+    sn_kva_swapped: true
+    sn_kva_running: true
+  when:
+    - sn_kva_apply | default(false) | bool
+    - sn_kva_installed | bool
+    - sn_kva_target_has_app | bool
+    - sn_kva_owner_id != sn_target_resolved or not (sn_kva_running | bool)
+
+- name: Park the KVA informer (target has no KVA app)
+  ansible.builtin.command:
+    cmd: >-
+      kubectl -n {{ sn_k8s_informer_namespace }} scale deploy
+      --all --replicas=0
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sn_kva_park
+  changed_when: sn_kva_running | bool
+  when:
+    - sn_kva_apply | default(false) | bool
+    - sn_kva_installed | bool
+    - not (sn_kva_target_has_app | bool)
+
+- name: Record that the KVA informer is parked
+  ansible.builtin.set_fact:
+    sn_kva_parked: true
+    sn_kva_running: false
+  when:
+    - sn_kva_apply | default(false) | bool
+    - sn_kva_installed | bool
+    - not (sn_kva_target_has_app | bool)
+
+- name: Delete other instances' KVA credential secrets
+  ansible.builtin.command:
+    cmd: >-
+      kubectl -n {{ sn_k8s_informer_namespace }} delete secret
+      k8s-informer-cred-{{ item.short_name }} --ignore-not-found
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  loop: "{{ SN_INSTANCES | rejectattr('id', 'equalto', sn_target_resolved) | list }}"
+  loop_control:
+    label: "{{ item.id }}"
+  register: sn_kva_secret_cleanup
+  changed_when: "'deleted' in sn_kva_secret_cleanup.stdout"
+  when:
+    - sn_kva_apply | default(false) | bool
+    - sn_kva_installed | bool
+    - sn_kva_target_has_app | bool
+
+- name: Record the KVA report
+  ansible.builtin.set_fact:
+    sn_kva_report: >-
+      {%- if not (sn_kva_installed | bool) -%}
+      not installed (release {{ sn_k8s_informer_helm_release }}; install with discovery/k8s/install.yml)
+      {%- elif sn_kva_parked | bool -%}
+      parked (0 replicas): {{ sn_target_resolved }} has no Kubernetes Visibility Agent app
+      {%- elif sn_kva_swapped | bool -%}
+      {{ ('repointed ' ~ sn_kva_owner_id ~ ' → ' ~ sn_target_resolved) if sn_kva_owner_id != sn_target_resolved else 'unparked for ' ~ sn_target_resolved }}, running
+      {%- else -%}
+      owner {{ sn_kva_owner_id }}, {{ 'running' if sn_kva_running | bool else 'parked (0 replicas)' }} (release {{ sn_k8s_informer_helm_release }})
+      {%- endif -%}

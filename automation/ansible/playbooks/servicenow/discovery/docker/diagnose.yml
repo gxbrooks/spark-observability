@@ -1,0 +1,49 @@
+---
+# Docker discovery diagnose: the test.yml checks (reported, not fatal) plus the
+# location-inheritance business rule's state on the instance.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/diagnose.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/docker/diagnose.yml
+    sn_target_mode: any
+
+- name: Diagnose Docker discovery for container_discovery-enabled hosts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Test check — CMDB content for each container_discovery host
+      ansible.builtin.include_tasks:
+        file: tasks/test-docker-host-cmdb.yml
+        apply:
+          ignore_errors: true
+      loop: "{{ docker_discovery_hosts }}"
+      loop_control:
+        loop_var: sn_docker_host
+        label: "{{ sn_docker_host.name }}"
+
+    - name: Look up the Docker location business rule
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/sys_script?sysparm_query={{ ('name=' ~ sn_docker_br.name) | urlencode }}&sysparm_fields=name,active,collection,when,order&sysparm_limit=5
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200, 403]
+      register: sn_docker_br_rows
+      no_log: true
+      vars:
+        sn_docker_br: "{{ lookup('file', sn_discovery_integrations_dir ~ '/docker_inherit_location_from_host.br.json') | from_json }}"
+
+    - name: Report the Docker location business rule
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Business rule: HTTP ' ~ sn_docker_br_rows.status if sn_docker_br_rows.status != 200
+             else ('Business rule: ' ~ (sn_docker_br_rows.json.result | to_json) if sn_docker_br_rows.json.result | length > 0
+                   else 'Business rule MISSING — run discovery/docker/deploy.yml') }}

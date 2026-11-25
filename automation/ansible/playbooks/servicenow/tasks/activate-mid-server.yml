@@ -1,0 +1,131 @@
+---
+# One MID Server on Lab3, owned by the target instance (runs on the
+# observability host, become). The owner is read from the agent's config.xml
+# url. Detection runs in every mode (sets sn_mid_owner_id / sn_mid_running);
+# changes happen only when sn_mid_apply is true (switch mode):
+#   - no MID installed → install target's (discovery/tasks/install-mid-server.yml);
+#   - another instance owns it → RECONFIGURE it for the target
+#     (discovery/tasks/reconfigure-mid-server.yml: url, credentials, name; the
+#     MID then auto-upgrades to the target's build). -e sn_mid_switch_method=reinstall
+#     uninstalls and installs the target's .deb instead (fallback);
+#   - target owns it → remove any extra MID trees/units (older two-MID layout)
+#     and make sure the service is enabled and running.
+
+- name: Read the MID agent's instance URL
+  ansible.builtin.command:
+    cmd: sed -n 's/.*name="url" value="\([^"]*\)".*/\1/p' {{ sn_mid_agent_dir }}/config.xml
+  register: sn_mid_cfg_url
+  changed_when: false
+  failed_when: false
+
+- name: List MID agent trees and systemd units on the host
+  ansible.builtin.shell: |
+    find /opt/servicenow -mindepth 2 -maxdepth 2 -name agent -type d 2>/dev/null | sort
+    echo '--units--'
+    find /etc/systemd/system -maxdepth 1 -name 'mid_*.service' -printf '%f\n' 2>/dev/null | sed 's/\.service$//' | sort
+  register: sn_mid_inventory
+  changed_when: false
+
+- name: Classify the MID Server layout
+  ansible.builtin.set_fact:
+    sn_mid_owner_url: "{{ (sn_mid_cfg_url.stdout_lines | first | default('')) | regex_replace('/+$', '') }}"
+    sn_mid_agent_dirs: "{{ sn_mid_inventory.stdout.split('--units--')[0].split() }}"
+    sn_mid_units: "{{ sn_mid_inventory.stdout.split('--units--')[1].split() }}"
+
+- name: Resolve the MID owner and what is foreign to the target
+  ansible.builtin.set_fact:
+    sn_mid_owner_id: >-
+      {{ (SN_INSTANCES | selectattr('url', 'equalto', sn_mid_owner_url) | map(attribute='id') | first)
+         | default(('unknown:' ~ sn_mid_owner_url) if sn_mid_owner_url else 'none', true) }}
+    sn_mid_extra_dirs: "{{ sn_mid_agent_dirs | reject('equalto', sn_mid_agent_dir) | list }}"
+    sn_mid_extra_units: "{{ sn_mid_units | reject('equalto', sn_mid_service_name) | list }}"
+
+- name: Read the MID service state
+  ansible.builtin.command: systemctl is-active {{ sn_mid_service_name }}.service
+  register: sn_mid_state
+  changed_when: false
+  failed_when: false
+
+- name: Decide how to point the MID at the target
+  ansible.builtin.set_fact:
+    sn_mid_action: >-
+      {%- if not (sn_mid_apply | default(false) | bool) -%}none
+      {%- elif sn_mid_agent_dir not in sn_mid_agent_dirs or sn_mid_service_name not in sn_mid_units -%}install
+      {%- elif sn_mid_owner_id == sn_target_resolved -%}none
+      {%- elif (sn_mid_switch_method | default('reconfigure')) == 'reinstall' -%}reinstall
+      {%- else -%}reconfigure{%- endif -%}
+    sn_mid_swapped: false
+
+- name: Uninstall every MID Server on the host (reinstall requested)
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir | dirname }}/discovery/tasks/uninstall-mid-server.yml"
+    apply:
+      tags: [always]
+  vars:
+    sn_mid_uninstall_dirs: "{{ sn_mid_agent_dirs }}"
+    sn_mid_uninstall_units: "{{ sn_mid_units }}"
+  when: sn_mid_action in ['reinstall', 'install'] and (sn_mid_agent_dirs | length > 0 or sn_mid_units | length > 0)
+
+- name: Remove extra MID trees and units (one MID per host)
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir | dirname }}/discovery/tasks/uninstall-mid-server.yml"
+    apply:
+      tags: [always]
+  vars:
+    sn_mid_uninstall_dirs: "{{ sn_mid_extra_dirs }}"
+    sn_mid_uninstall_units: "{{ sn_mid_extra_units }}"
+  when:
+    - sn_mid_apply | default(false) | bool
+    - sn_mid_action in ['none', 'reconfigure']
+    - (sn_mid_extra_dirs | length > 0) or (sn_mid_extra_units | length > 0)
+
+- name: Install the target instance's MID Server
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir | dirname }}/discovery/tasks/install-mid-server.yml"
+    apply:
+      tags: [always]
+  when: sn_mid_action in ['install', 'reinstall']
+
+- name: Reconfigure the MID Server for the target instance
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir | dirname }}/discovery/tasks/reconfigure-mid-server.yml"
+    apply:
+      tags: [always]
+  when: sn_mid_action == 'reconfigure'
+
+- name: Record that the MID changed owner
+  ansible.builtin.set_fact:
+    sn_mid_swapped: true
+  when: sn_mid_action != 'none'
+
+- name: Let the MID user restart its own unit (auto-upgrade)
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir | dirname }}/discovery/tasks/ensure-mid-service-control.yml"
+    apply:
+      tags: [always]
+  when: sn_mid_apply | default(false) | bool
+
+- name: Ensure the target's MID Server is enabled and running
+  ansible.builtin.systemd:
+    name: "{{ sn_mid_service_name }}.service"
+    state: started
+    enabled: true
+  when: sn_mid_apply | default(false) | bool
+
+- name: Re-read the MID service state
+  ansible.builtin.command: systemctl is-active {{ sn_mid_service_name }}.service
+  register: sn_mid_state_after
+  changed_when: false
+  failed_when: false
+
+- name: Record the MID state and report
+  ansible.builtin.set_fact:
+    sn_mid_owner_after: "{{ sn_target_resolved if sn_mid_swapped | bool else sn_mid_owner_id }}"
+    sn_mid_running: "{{ sn_mid_state_after.stdout | trim == 'active' }}"
+    sn_mid_report: >-
+      {%- if sn_mid_swapped | bool -%}
+      {{ sn_mid_action }}d for {{ sn_target_resolved }} ({{ sn_mid_server_name }}; was {{ sn_mid_owner_id }}), service {{ sn_mid_state_after.stdout }}
+      {%- else -%}
+      owner {{ sn_mid_owner_id }} ({{ sn_mid_agent_dir }}), service {{ sn_mid_service_name }} {{ sn_mid_state_after.stdout }}
+      {%- if sn_mid_extra_dirs | length > 0 or sn_mid_extra_units | length > 0 %}; extra {{ 'removed' if sn_mid_apply | default(false) | bool else 'present' }}: {{ sn_mid_extra_dirs + sn_mid_extra_units }}{% endif -%}
+      {%- endif -%}

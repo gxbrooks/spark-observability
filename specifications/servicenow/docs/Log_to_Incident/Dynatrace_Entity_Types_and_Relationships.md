@@ -35,7 +35,7 @@ Storage: **`cmdb_key_value.configuration_item`** → tagged CI; **`key`** / **`v
 | `com.docker.compose.service` | Compose service name (string) |
 | `com.docker.compose.project` | Compose project name (string) |
 
-1. Written by **`discovery/docker/discover.yml`** onto **`cmdb_ci_docker_container`** from `docker inspect` labels.
+1. Written by **`discovery/docker/start.yml`** onto **`cmdb_ci_docker_container`** from `docker inspect` labels.
 2. Not in the Dynatrace problem webhook unless mirrored via **`DT_TAGS`** onto the Dynatrace process group entity.
 3. **`com.docker.compose.service`** bridges **`cmdb_ci_appl`** (process group CI) to **`cmdb_ci_docker_container`** on the same **`cmdb_ci_linux_server`** when the process group CI lacks the `servicenow.com/service-instance` tag.
 
@@ -49,7 +49,7 @@ Storage: **`cmdb_key_value.configuration_item`** → tagged CI; **`key`** / **`v
 | `app.kubernetes.io/part-of` | Product / business-app name (string) |
 
 1. KVA writes pod labels — including **`app.kubernetes.io/*`** and **`servicenow.com/service-instance`** — to **`cmdb_key_value`** on **`cmdb_ci_kubernetes_pod`** as user **`system`**.
-2. **`discovery/k8s/sync_pod_labels.yml`** mirrors **`servicenow.com/*`** keys on the same pod CIs.
+2. **`discovery/k8s/start.yml`** mirrors **`servicenow.com/*`** keys on the same pod CIs.
 3. **`app.kubernetes.io/name`** is an alternate Service Mapping key when the canonical `servicenow.com/service-instance` row is missing (compare report marks **`alternate_tag_only`**).
 
 #### Dynatrace → CMDB tag copy (SGC)
@@ -99,7 +99,7 @@ Imported by the **SGO-Dynatrace Hosts** scheduled import (Hosts V2 cascade). IRE
 | --- | --- |
 | `servicenow.com/service-instance` | `cmdb_ci_service_discovered.name` (display name) |
 
-1. Tags are on **`cmdb_ci_linux_server`**, written by **`discovery/host/sync_tags.yml`**.
+1. Tags are on **`cmdb_ci_linux_server`**, written by **`discovery/host/deploy.yml`**.
 2. Tag-based Service Mapping records membership in **`svc_ci_assoc`** from the service instance to **`cmdb_ci_linux_server`**.
 
 
@@ -406,7 +406,7 @@ Imported by **SGO-Dynatrace Kubernetes Pod** feed. Mapped to **`cmdb_ci_kubernet
 | `app.kubernetes.io/component` | Component role (string) |
 | `app.kubernetes.io/part-of` | Product name (string) |
 
-1. Tags are on **`cmdb_ci_kubernetes_pod`**. KVA copies pod labels (including `servicenow.com/service-instance`) as user `system`; **`discovery/k8s/sync_pod_labels.yml`** mirrors `servicenow.com/*` keys.
+1. Tags are on **`cmdb_ci_kubernetes_pod`**. KVA copies pod labels (including `servicenow.com/service-instance`) as user `system`; **`discovery/k8s/start.yml`** mirrors `servicenow.com/*` keys.
 2. Dynatrace **`CLOUD_APPLICATION_INSTANCE`** binds to the same pod CI via **`sys_object_source`** — tags are on the CMDB row, not in the problem webhook payload.
 3. Service Mapping match records membership in **`svc_ci_assoc`** from the service instance to **`cmdb_ci_kubernetes_pod`**.
 
@@ -437,7 +437,7 @@ Docker workloads on bare-metal or VM hosts use a **dual CMDB path** in brooks-la
 | Path | Source | CMDB result |
 | --- | --- |
 | **SGC topology import** | OneAgent on container host; Smartscape process/container entities | `cmdb_ci_computer`, `cmdb_ci_group`, `cmdb_ci_appl`, `cmdb_ci_service_auto` / `cmdb_ci_service_calculated`, optional `cmdb_ci_docker_container` when container entity is in cascade |
-| **ServiceNow Discovery** | `discovery/docker/discover.yml` on `DOCKER_HOSTS` with `container_discovery: true` | `cmdb_ci_docker_container` + **`cmdb_key_value`** from Compose labels (`com.docker.compose.*`, `servicenow.com/*`) |
+| **ServiceNow Discovery** | `discovery/docker/start.yml` on `DOCKER_HOSTS` with `container_discovery: true` | `cmdb_ci_docker_container` + **`cmdb_key_value`** from Compose labels (`com.docker.compose.*`, `servicenow.com/*`) |
 | **CSDM Service Mapping** | Tag-based SM on service instances | **`svc_ci_assoc`** membership from `cmdb_ci_service_by_tags` → container / host (not from Dynatrace) |
 
 Dynatrace **`CONTAINER_GROUP`** / **`CONTAINER_GROUP_INSTANCE`** appear on Docker hosts and inside K8s pods. On Compose hosts, correlate container CIs to process groups via **shared host** + Compose service name tags — see [docker_model.md](docker_model.md).
@@ -477,7 +477,7 @@ When the Docker/container import set is enabled in the SGC cascade, may map to a
 #### 4.2 CONTAINER_GROUP_INSTANCE — `dt.entity.container_group_instance`
 A single running container — on a Docker host or inside a Kubernetes pod. Carries OCI image metadata, container runtime info, and resource limits.
 
-Imported by Docker/container feeds when enabled. Mapped to **`cmdb_ci_docker_container`** (standalone Docker) or child container CI under **`cmdb_ci_kubernetes_pod`** (K8s). Brooks-lab **`discovery/docker/discover.yml`** also creates/updates **`cmdb_ci_docker_container`** independently of SGC, with Compose labels in **`cmdb_key_value`**.
+Imported by Docker/container feeds when enabled. Mapped to **`cmdb_ci_docker_container`** (standalone Docker) or child container CI under **`cmdb_ci_kubernetes_pod`** (K8s). Brooks-lab **`discovery/docker/start.yml`** also creates/updates **`cmdb_ci_docker_container`** independently of SGC, with Compose labels in **`cmdb_key_value`**.
 
 | Dynatrace attribute | ServiceNow field |
 | --- | --- |
@@ -507,7 +507,7 @@ Imported by Docker/container feeds when enabled. Mapped to **`cmdb_ci_docker_con
 | `com.docker.compose.service` | Compose service name (string) |
 | `com.docker.compose.project` | Compose project name (string) |
 
-1. All rows on **`cmdb_ci_docker_container`**, written by **`discovery/docker/discover.yml`** from Compose/`docker inspect` labels.
+1. All rows on **`cmdb_ci_docker_container`**, written by **`discovery/docker/start.yml`** from Compose/`docker inspect` labels.
 2. Service Mapping key: **`servicenow.com/service-instance`** → service instance display name (**`cmdb_ci_service_discovered.name`**).
 
 

@@ -11,16 +11,16 @@
         {
           "path": "${dt_l2i_standalone_log_path_pattern}",
           "enrichment": [
-            { "type": "attribute", "key": "log.path", "value": "${0}" },
-            { "type": "attribute", "key": "log.driver.instance", "value": "${1}" },
+            { "type": "attribute", "key": "log.path", "value": "$${0}" },
+            { "type": "attribute", "key": "log.driver.instance", "value": "$${1}" },
             { "type": "attribute", "key": "service_instance", "value": "${dt_l2i_standalone_service_instance}" }
           ]
         },
         {
           "path": "${dt_l2i_standalone_log_path_pattern_rotated}",
           "enrichment": [
-            { "type": "attribute", "key": "log.path", "value": "${0}" },
-            { "type": "attribute", "key": "log.driver.instance", "value": "${1}" },
+            { "type": "attribute", "key": "log.path", "value": "$${0}" },
+            { "type": "attribute", "key": "log.driver.instance", "value": "$${1}" },
             { "type": "attribute", "key": "service_instance", "value": "${dt_l2i_standalone_service_instance}" }
           ]
         }

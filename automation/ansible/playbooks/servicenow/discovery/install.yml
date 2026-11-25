@@ -2,9 +2,10 @@
 # Install ServiceNow Discovery prerequisites on lab hosts.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: discovery/install.yml
+    sn_target_mode: switch
 
 - name: Generate SSH key pair for Discovery credential
   hosts: localhost
@@ -39,7 +40,7 @@
   tasks:
     - name: Install discovery user and sudoers
       ansible.builtin.include_tasks:
-        file: tasks/install_discovery_user.yml
+        file: tasks/install-discovery-user.yml
         apply:
           tags: [discovery_user]
       tags: [discovery_user]
@@ -62,7 +63,7 @@
   tasks:
     - name: Install Docker Pattern permissions for sn-discovery
       ansible.builtin.include_tasks:
-        file: tasks/install_discovery_docker.yml
+        file: tasks/install-discovery-docker.yml
         apply:
           tags: [discovery_user]
       tags: [discovery_user]
@@ -78,7 +79,7 @@
   tasks:
     - name: Install MID Server
       ansible.builtin.include_tasks:
-        file: tasks/install_mid_server.yml
+        file: tasks/install-mid-server.yml
         apply:
           tags: [mid_server]
       when: observability_host | default('Lab3') == inventory_hostname

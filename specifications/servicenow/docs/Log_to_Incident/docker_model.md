@@ -72,7 +72,7 @@ Service instances with `service_mapping: tags` are reclassed to `cmdb_ci_service
 | Relationship | **Runs on::Runs** → host | Infrastructure placement |
 | Membership | **`svc_ci_assoc`** row (service → this container) | **Pattern A** when alert CI = this row |
 | Dynatrace | **`sys_object_source`** (`SGO-Dynatrace`, `CONTAINER_*` / container entity id) | **`em_event.cmdb_ci`** when Davis picks container entity and IRE merged |
-| Source | `discovery/docker/discover.yml` | Creates CI + `cmdb_key_value` from `docker inspect` |
+| Source | `discovery/docker/start.yml` | Creates CI + `cmdb_key_value` from `docker inspect` |
 
 ### `cmdb_ci_appl` (process group — SGC)
 
@@ -163,7 +163,7 @@ Summary table — **when** each row applies (alert already has infrastructure **
 
 | Step | Object | Result |
 | ---- | ------ | ------ |
-| 1 | `discovery/docker/discover.yml` | Container CI + **`cmdb_key_value`** tags |
+| 1 | `discovery/docker/start.yml` | Container CI + **`cmdb_key_value`** tags |
 | 2 | `csdm/deploy.yml` | service instance (reclassed **`cmdb_ci_service_by_tags`**) + tag population rule via **`/populate_tags`** |
 | 3 | Tag-based SM (`SNC.ServicePopulatorRunner`) | **`svc_ci_assoc`** row (service → container) |
 | 4 | SGC import | **`sys_object_source`** for container **`entityId`** (if DT sends it) |
@@ -192,7 +192,7 @@ Summary table — **when** each row applies (alert already has infrastructure **
 3. Query **`cmdb_ci_service_discovered`** (hierarchy includes **`cmdb_ci_service_by_tags`**): **`name`** = **`Grafana`**.
 4. Set **`incident.cmdb_ci`** = service instance sys_id.
 
-**CIs / tags:** `cmdb_key_value` on container (from **`docker/discover.yml`**), AS **`name`** field. No **`svc_ci_assoc`** row required.
+**CIs / tags:** `cmdb_key_value` on container (from **`docker/start.yml`**), AS **`name`** field. No **`svc_ci_assoc`** row required.
 
 ---
 
@@ -242,7 +242,7 @@ Summary table — **when** each row applies (alert already has infrastructure **
 
 | Table | On / for | Purpose |
 | ----- | -------- | ------- |
-| `cmdb_key_value` | container | Compose + servicenow.com tags from **`docker/discover.yml`** |
+| `cmdb_key_value` | container | Compose + servicenow.com tags from **`docker/start.yml`** |
 | `cmdb_key_value` | process group | Dynatrace entity tags from **SGC** (needs **`DT_TAGS`**) |
 | `sys_object_source` | host, PG, container | **`entityId`** → CI for events/alerts |
 | `cmn_location` | host, container | `brooks-lab` |

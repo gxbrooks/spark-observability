@@ -1,0 +1,43 @@
+---
+# Job-based grouping: require matching metric_name AND cmdb_ci; keep
+# aggregation enabled; make sure TAG_BASED is in group_logic_order so the
+# metric_class TBAC definition (req 4, CPU-family clustering) can run.
+# Representation: specifications/servicenow/integrations/incident/sys_properties_l2i_alert_grouping.json
+# (entries with "value" are applied as-is; an entry with "value_includes" names
+# a token deploy appends to the instance's current comma-separated value).
+
+- name: Load L2I alert grouping sys_properties representation
+  ansible.builtin.set_fact:
+    sn_l2i_grouping_props: "{{ lookup('file', sn_incident_integrations_dir + '/sys_properties_l2i_alert_grouping.json') | from_json }}"
+
+- name: Apply L2I alert grouping sys_properties
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply-sys-property.yml"
+  loop: "{{ sn_l2i_grouping_props | selectattr('value', 'defined') | list }}"
+  loop_control:
+    loop_var: sn_sysprop_item
+    label: "{{ sn_sysprop_item.name }}"
+
+- name: Select the group_logic_order entry
+  ansible.builtin.set_fact:
+    sn_l2i_group_logic_prop: "{{ sn_l2i_grouping_props | selectattr('value_includes', 'defined') | first }}"
+
+- name: Look up current group_logic_order
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_properties
+    sn_rest_query: "sysparm_query=name={{ sn_l2i_group_logic_prop.name }}&sysparm_fields=sys_id,name,value&sysparm_limit=1"
+
+- name: Record current group_logic_order
+  ansible.builtin.set_fact:
+    sn_l2i_group_logic_order: "{{ (sn_rest_json.result | default([]))[0].value | default('') }}"
+
+- name: Ensure TAG_BASED is in group_logic_order
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply-sys-property.yml"
+  vars:
+    sn_sysprop_item:
+      name: "{{ sn_l2i_group_logic_prop.name }}"
+      value: "{{ ((sn_l2i_group_logic_order.split(',') | map('trim') | list) + [sn_l2i_group_logic_prop.value_includes]) | unique | join(',') }}"
+      description: "{{ sn_l2i_group_logic_prop.description }}"
+  when:
+    - sn_l2i_group_logic_order | length > 0
+    - sn_l2i_group_logic_prop.value_includes not in sn_l2i_group_logic_order

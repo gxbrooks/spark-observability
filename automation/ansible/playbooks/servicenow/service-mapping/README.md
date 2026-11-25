@@ -22,7 +22,7 @@
 
 | Path | Purpose |
 |------|---------|
-| `tasks/deploy_sm_rest_api.yml` | Install/update Scripted REST API |
+| `tasks/deploy-sm-rest-api.yml` | Install/update Scripted REST API |
 | `specifications/servicenow/integrations/service-mapping/sm_*.js` | Operation scripts (`discover`, `populate_tags`, `ensure_tag_categories`) |
 | `tasks/ensure-tag-categories.yml` | Apply `specifications/servicenow/integrations/service-mapping/tag_categories.yml` via REST |
 | `specifications/servicenow/integrations/service-mapping/store_apps.yml` | Desired Store app / plugin list |
@@ -51,7 +51,7 @@ Per-service tag filters from `*.csdm.yaml` are applied by **`sn-sync-inject`**
 
 ```bash
 cd automation/ansible
-# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
+# Target instance: -e target=demo1|demo3 (default: the active instance), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/install.yml \
   -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.yml \

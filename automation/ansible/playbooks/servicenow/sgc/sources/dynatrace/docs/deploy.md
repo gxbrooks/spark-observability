@@ -30,7 +30,7 @@ Dynatrace credential this project holds, their scopes, and which are shared with
 | ------------------------- | ------- | ------- |
 | `DT_TOKEN_ADMIN_TOKEN` | `vars/secrets.yaml` (`dynatrace:` block) | Mints/rotates other tokens; used by this `deploy.yml` and by `specifications/dynatrace` token rotation |
 | `spark-observability-api` (variable `DT_API_TOKEN`) | `vars/secrets.yaml` | Ansible automation against the Dynatrace settings/entities/problems APIs; needs **no** SGC or apiTokens scopes |
-| `dynatrace-servicenow-sgc-integration` | **ServiceNow** (the *Dynatrace API Key* credential) | The SGC connection; minted and pushed by `deploy.yml` (`tasks/ensure_sgc_credential.yml`), never written to `vars/secrets.yaml` |
+| `dynatrace-servicenow-sgc-integration` | **ServiceNow** (the *Dynatrace API Key* credential) | The SGC connection; minted and pushed by `deploy.yml` (`tasks/ensure-sgc-credential.yml`), never written to `vars/secrets.yaml` |
 
 `deploy.yml` mints the SGC token on first run. On-needed: when the token
 already exists the play skips with an informational message (token values are
@@ -53,8 +53,8 @@ manage.
 
 | Card | Action |
 | ---- | ------ |
-| Enable Access To SNC.ImpactManager | **Skip** — automated by `deploy.yml` (`tasks/ensure_impactmanager_script.yml` copies the mediator script to Global scope via the Table API). The card's *Verify script is copied properly* list shows the Global record once `deploy.yml` has run. |
-| Basic | **Skip** — automated by `deploy.yml` (`tasks/ensure_sgc_credential.yml`): mints the Dynatrace token, pushes it into the *Dynatrace API Key* credential with the `api-token ` prefix, and sets the connection Hostname (needs `connection_admin` — see [`automation/ansible/docs/manual-steps.md`](../../../../../../docs/manual-steps.md)). Optionally run the card's *Test Connection* task afterwards as a sanity check. *Create Default Notification Payload Template*: the record already exists (`deploy.yml` verifies it) — Mark as Complete without re-running. *Upgrade Source Native Keys*: upgrade-from-1st-gen task; not applicable — Mark as Complete. |
+| Enable Access To SNC.ImpactManager | **Skip** — automated by `deploy.yml` (`tasks/ensure-impactmanager-script.yml` copies the mediator script to Global scope via the Table API). The card's *Verify script is copied properly* list shows the Global record once `deploy.yml` has run. |
+| Basic | **Skip** — automated by `deploy.yml` (`tasks/ensure-sgc-credential.yml`): mints the Dynatrace token, pushes it into the *Dynatrace API Key* credential with the `api-token ` prefix, and sets the connection Hostname (needs `connection_admin` — see [`automation/ansible/docs/manual-steps.md`](../../../../../../docs/manual-steps.md)). Optionally run the card's *Test Connection* task afterwards as a sanity check. *Create Default Notification Payload Template*: the record already exists (`deploy.yml` verifies it) — Mark as Complete without re-running. *Upgrade Source Native Keys*: upgrade-from-1st-gen task; not applicable — Mark as Complete. |
 | Configure Dynatrace Grail OAuth | **Skip** (optional; only for Grail-enabled tenants ingesting logs/metrics via OAuth). Opening its Configure tasks while the picker is in Global scope shows a scope-mismatch error — close the tab and click the card's **Skip**. |
 | Advanced (locked until Basic completes) | **Skip** — especially **Configure Problem Notification**: `events/deploy.yml` manages the Dynatrace problem notification idempotently; running the wizard task would create a duplicate notification and rotate the `DynatraceAPI` user's password. |
 | Add Multiple Instances | **Skip** (single Dynatrace instance). This card is where the *Update Data Source / Scheduled Data Import / Value Access* and *Clear Cache* tasks live in this app version — they are only needed for additional connections. |

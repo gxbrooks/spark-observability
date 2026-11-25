@@ -19,13 +19,13 @@ Requires `sn-sync-inject` / `sn-sync-diff` on `PATH` (system install or venv).
 
 ```bash
 cd automation/ansible
-# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
+# Target instance: -e target=demo1|demo3 (default: the active instance), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
   -e @../vars/secrets.yaml
 
-# Both instances
+# Demo1 (switches the lab to Demo1 first)
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
-  -e @../vars/secrets.yaml -e target=all
+  -e @../vars/secrets.yaml -e target=demo1
 
 # One region
 ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
@@ -74,7 +74,7 @@ Specs are purely declarative — use operators; do not put `csdm_op` in YAML.
 |------|---------|
 | `deploy.yml` / `diagnose.yml` | Top-level wrappers |
 | `common/vars.yml` | Injector env wiring |
-| `test/servicenow_insert.yaml` | Synthetic sample (prefer `sn-sync/fixtures/`) |
+| `specifications/servicenow/csdm/test/servicenow_insert.yaml` | Synthetic sample (prefer `sn-sync/fixtures/`) |
 
 Service Mapping Scripted REST sources live under
 `../service-mapping/` (not here). Discovery coordination diagnostics:

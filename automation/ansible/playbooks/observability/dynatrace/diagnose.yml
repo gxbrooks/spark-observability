@@ -67,6 +67,27 @@
           Dynakube ActiveGate version => {{ dynakube_activegate_version.stdout | default('unknown') }}
           (new Kubernetes UI requires >= 1.327)
 
+    - name: Read ActiveGate readiness and restarts
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl -n dynatrace get statefulset -l app.kubernetes.io/component=activegate \
+          -o jsonpath='{range .items[*]}{.metadata.name} ready={.status.readyReplicas}/{.spec.replicas}{"\n"}{end}'
+        kubectl -n dynatrace get pod -l app.kubernetes.io/component=activegate \
+          -o jsonpath='{range .items[*]}{.metadata.name} restarts={.status.containerStatuses[?(@.name=="activegate")].restartCount} waiting={.status.containerStatuses[?(@.name=="activegate")].state.waiting.reason}{"\n"}{end}'
+      args:
+        executable: /bin/bash
+      register: dt_ag_health
+      changed_when: false
+      failed_when: false
+
+    - name: Show ActiveGate readiness
+      ansible.builtin.debug:
+        msg: >-
+          ActiveGate => {{ dt_ag_health.stdout_lines | join('; ') }}
+          {{ '— NOT READY: run observability/dynatrace/start.yml (recreates a crash-looping pod)'
+             if (dt_ag_health.stdout is search('CrashLoopBackOff') or dt_ag_health.stdout is search('ready=/') or dt_ag_health.stdout is search('ready=0/'))
+             else '' }}
+
     - name: Run operator troubleshoot command
       ansible.builtin.command: kubectl exec deploy/dynatrace-operator -n dynatrace -- dynatrace-operator troubleshoot
       register: operator_troubleshoot

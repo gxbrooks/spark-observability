@@ -13,7 +13,7 @@ Capability flags per entry (absent = false):
 | Flag | Purpose |
 | ---- | ------- |
 | `discovery_docker_pattern` | `sn-discovery` joins `docker` group + Docker Pattern sudoers on this host (`discovery/install.yml`) |
-| `container_discovery` | Sync running containers into CMDB via `docker/discover.yml` |
+| `container_discovery` | Sync running containers into CMDB via `docker/start.yml` |
 
 Location uses the same product-native pattern as K8s:
 
@@ -24,9 +24,9 @@ Location uses the same product-native pattern as K8s:
 
 ```bash
 cd automation/ansible
-# Target instance: -e target=demo1|demo3|all (default demo3), on every command.
+# Target instance: -e target=demo1|demo3 (default: the active instance), on every command.
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.yml -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml -e @../vars/secrets.yaml
 ```
 

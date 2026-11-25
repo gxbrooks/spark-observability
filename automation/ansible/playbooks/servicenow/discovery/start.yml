@@ -1,15 +1,17 @@
 ---
-# Start ServiceNow MID Server on Lab3.
-- import_playbook: ../common/target.yml
+# Start ServiceNow MID Server on Lab3. With --tags discovery_scan, also run an
+# on-demand Discovery scan (tasks/run-discovery-scan.yml).
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: discovery/start.yml
+    sn_target_mode: switch
 
 - name: Start MID Server
   hosts: observability
   become: true
   gather_facts: false
   vars_files:
-    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Start MID Server systemd unit
@@ -18,3 +20,8 @@
         state: started
         enabled: true
       failed_when: false
+
+# On-demand Discovery scan of the brooks-lab schedule — only when asked for:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/start.yml --tags discovery_scan
+- import_playbook: tasks/run-discovery-scan.yml
+  tags: [never, discovery_scan]

@@ -1,10 +1,73 @@
 ---
-# Phase 2: Install Kubernetes discovery prerequisites on the brooks-lab cluster.
-# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/install.yml -e @../vars/secrets.yaml
+# Install Kubernetes discovery prerequisites for the target instance:
+#   1. the Kubernetes Visibility Agent Store app (sn_acc_visibility) on the
+#      instance (manifest: specifications/servicenow/integrations/discovery/store_apps.yml),
+#      via the CI/CD App Repo API — skipped when already installed;
+#   2. the KVA informer Helm release on the brooks-lab cluster, pointed at the
+#      target instance.
+# Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/install.yml -e @../vars/secrets.yaml [-e target=demo1|demo3]
 
-- import_playbook: ../../common/target.yml
+- import_playbook: ../../tasks/target.yml
   vars:
     sn_target_playbook: discovery/k8s/install.yml
+    sn_target_mode: switch
+
+- name: Install the Kubernetes Visibility Agent app on the target instance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ project_root }}/specifications/servicenow/integrations/discovery/store_apps.yml"
+  vars:
+    sn_store_tasks_dir: "{{ playbook_dir }}/../../sgc/tasks"
+  tasks:
+    - name: Check which Store apps the target already has
+      ansible.builtin.include_tasks: "{{ sn_store_tasks_dir }}/check-store-apps.yml"
+
+    - name: Select missing Store apps
+      ansible.builtin.set_fact:
+        sn_apps_missing: >-
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+             | rejectattr('installed') | list }}
+
+    - name: Check CI/CD bootstrap prerequisites
+      ansible.builtin.include_tasks: "{{ sn_store_tasks_dir }}/check-cicd-bootstrap.yml"
+      when: sn_apps_missing | length > 0
+
+    - name: Install missing Store apps via the CI/CD App Repo API
+      ansible.builtin.include_tasks: "{{ sn_store_tasks_dir }}/install-store-app.yml"
+      loop: "{{ sn_apps_missing }}"
+      loop_control:
+        loop_var: sn_app
+        label: "{{ sn_app.scope }}"
+
+    - name: Reset the Store app status before the re-check
+      ansible.builtin.set_fact:
+        sn_store_app_status: []
+        sn_store_rows_by_scope: {}
+      when: sn_apps_missing | length > 0
+
+    - name: Re-check the Store apps after install
+      ansible.builtin.include_tasks: "{{ sn_store_tasks_dir }}/check-store-apps.yml"
+      when: sn_apps_missing | length > 0
+
+    - name: Assert the Kubernetes Visibility Agent app is installed
+      ansible.builtin.assert:
+        that:
+          - sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+            | rejectattr('installed') | list | length == 0
+        fail_msg: >-
+          Still missing on {{ sn_url }}:
+          {{ sn_store_app_status | selectattr('type', 'equalto', 'store_app')
+             | rejectattr('installed') | map(attribute='scope') | list }}.
+          Install it from the Store UI (specifications/servicenow/docs/install.md §7
+          "Manual Store install"), then re-run this playbook.
+        success_msg: >-
+          Kubernetes Visibility Agent app installed on {{ sn_url }}
+          (v{{ (sn_store_app_status | selectattr('scope', 'equalto', 'sn_acc_visibility') | first).installed_version }}).
 
 - name: Prepare Kubernetes API access and KVA Informer on Lab3
   hosts: kubernetes_master
@@ -16,7 +79,7 @@
     - "{{ playbook_dir }}/../common/vars.yml"
   tasks:
     - name: Deploy Kubernetes Visibility Agent (Informer)
-      ansible.builtin.include_tasks: tasks/install_kva_informer.yml
+      ansible.builtin.include_tasks: tasks/install-kva-informer.yml
 
 - name: Install summary
   hosts: localhost
@@ -29,7 +92,7 @@
     - name: Print install summary
       ansible.builtin.debug:
         msg: |
-          Phase 2 install complete.
+          Kubernetes discovery install complete for {{ sn_url }}.
           KVA namespace: {{ sn_k8s_informer_namespace }}
           CMDB cluster name: {{ sn_k8s_cluster_name }}
           Next: ansible-playbook ... discovery/k8s/deploy.yml (cluster location + inheritance BR)

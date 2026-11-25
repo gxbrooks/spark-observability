@@ -4,9 +4,10 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml \
 #     -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: csdm/diagnose.yml
+    sn_target_mode: any
 
 - name: Diagnose ServiceNow CSDM model via sn-sync-diff
   hosts: localhost

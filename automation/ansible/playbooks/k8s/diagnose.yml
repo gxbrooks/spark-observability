@@ -307,8 +307,10 @@
         msg: "rp_filter settings: {{ rp_filter_settings.stdout_lines }}"
 
     # === Cgroup Driver Mismatch Detection ===
+    # Effective value (config dump), not the file: a config.toml without the
+    # line (Docker's minimal file on Lab3) means the default, false.
     - name: Get containerd cgroup driver setting
-      shell: grep -E "SystemdCgroup\s*=" /etc/containerd/config.toml 2>/dev/null | tail -1 | awk -F'=' '{print $2}' | tr -d ' '
+      shell: containerd config dump 2>/dev/null | grep -E "SystemdCgroup\s*=" | tail -1 | awk -F'=' '{print $2}' | tr -d ' '
       register: containerd_cgroup
       failed_when: false
 

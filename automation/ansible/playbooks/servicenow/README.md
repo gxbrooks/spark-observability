@@ -12,12 +12,14 @@ components (Discovery SSH account, MID Server) run on lab hosts per
 | `discovery/` | Phases 1–3: MID Server, Discovery credentials, schedules, on-demand scans, K8s/Docker discovery |
 | `cmdb/` | CMDB 360 (Multisource CMDB): license check, sys_properties, diagnose |
 | `service-mapping/` | Tag-based Service Mapping: Store apps, classic plugin, Scripted REST (`/populate_tags`) |
-| `csdm/` | Thin wrappers around **sn-sync** (`deploy.yml` / `delete.yml` / `diagnose.yml`) |
+| `csdm/` | Thin wrappers around **sn-sync** (`deploy.yml` / `undeploy.yml` / `diagnose.yml`) |
 | `sgc/` | Phase 4: Service Graph Connector + event integration. `install.yml` installs required Store apps/plugins; `sources/<source>/` holds per-source (currently `dynatrace/`) configuration, including `sources/dynatrace/events/` for the alerting webhook |
 | *(future)* `incident/` | Incident integrations |
 
 Top-level orchestrators: `install.yml`, `deploy.yml`, `start.yml`, `diagnose.yml`
-(import child playbooks in order). Global playbooks import these with tag
+(import child playbooks in order; `diagnose.yml` also reports which instance owns
+each lab component and fails at its end when no instance is fully active), plus
+`stop.yml` (stop feeding the active instance). Global playbooks import these with tag
 `servicenow` (use `--skip-tags servicenow` to omit).
 
 **Model compare** is implemented in Python: `servicenow/comparator/` (see README there).
@@ -35,9 +37,8 @@ sibling directories.
 
 | Variable | Where | Purpose |
 | -------- | ----- | ------- |
-| `SN_INSTANCES` | `variables.yaml` → service-now context | Instance registry, one entry per `id` (`demo1`, `demo3`): `url`, `secrets_suffix`, MID name/service/dir, `mid_installer_deb_url` (must match the instance build), `dt_problem_notification_name`, `dt_sgc_api_token_name`, `dt_legacy_connector_sys_id`, `incident_deploy_enabled` |
-| `SN_DEFAULT_TARGET` | `variables.yaml` → service-now context | Instance used when `-e target` is omitted (`demo3`) |
-| `SN_URL` | `variables.yaml` → service-now context | Demo1 URL, read only by the non-Ansible tools (`servicenow/comparator`, `create-sn-change-window.py`); playbooks use `SN_INSTANCES.<id>.url` |
+| `SN_INSTANCES` | `variables.yaml` → service-now context | Instance registry, one entry per `id` (`demo1`, `demo3`): `url`, `secrets_suffix`, `mid_server_name`, `mid_installer_deb_url` (used only when Lab3 has no MID, or with `-e sn_mid_switch_method=reinstall`), `dt_problem_notification_name`, `dt_sgc_api_token_name` |
+| `SN_URL` | `variables.yaml` → service-now context | Demo1 URL. Playbooks use `SN_INSTANCES.<id>.url`; the non-Ansible tools (`servicenow/comparator`, `create-sn-change-window.py`) derive the active instance with `servicenow/sn_active_instance.py` (`SN_TARGET=<id>` overrides) |
 | `SN_LAB_LOCATION_NAME`, subnet, schedule, … | `variables.yaml` → service-now context | brooks-lab Discovery scope (same on every instance) |
 
 **Secrets** — `vars/secrets.yaml` → `servicenow:` block. Each instance's keys
@@ -53,28 +54,39 @@ carry its `secrets_suffix` (none for `demo1`, `_DEMO3` for `demo3`):
 
 ## Target instance (`-e target=`)
 
-brooks-lab feeds several ServiceNow instances at once (Demo1 and Demo3). Every
-ServiceNow playbook takes:
+brooks-lab feeds **one** ServiceNow instance at a time, the **active instance**
+(Demo1 or Demo3). Nothing records it: every run **derives** it from the Lab3 MID
+(`config.xml` `url` and service running), the enabled brooks-lab Dynatrace
+problem notification, and the KVA informer Helm release (`instance.name`,
+replicas). An instance is active only when all three agree; `diagnose.yml` is the
+consistency check and fails at its end otherwise. Every ServiceNow playbook takes:
 
 | Value | Effect |
 | ----- | ------ |
-| *(omitted)* | `SN_DEFAULT_TARGET` — **`demo3`** |
-| `demo1` / `demo3` | That instance only |
-| `all` | Every `SN_INSTANCES` entry. This process runs the first entry (`demo1`); [`common/target.yml`](common/target.yml) first runs the same ServiceNow playbook as a child `ansible-playbook -e target=<id>` for each remaining entry (same inventory, extra vars, tags, verbosity, `--check`/`--diff`). Child logs: `automation/ansible/tmp/sn-target-<playbook>-<id>-<timestamp>.log`. A failed child stops the run before the first entry runs. |
+| *(omitted)* | The active instance; in `switch` and `any` mode, else the MID's owner (e.g. after `stop.yml`) |
+| `demo1` / `demo3` | That instance |
+| `all` | Rejected |
 
-`common/target.yml` is the first `import_playbook` of every ServiceNow
-playbook. It validates `target` and fans out **once per run** (the outermost
-ServiceNow playbook), so aggregators such as `servicenow/deploy.yml` or the
-whole-lab `playbooks/deploy.yml` re-run only the ServiceNow playbook per
-instance, never the whole lab. Two playbooks have no guard because they don't
-touch ServiceNow: `discovery/k8s/label_oneagent_pods.yml` and
-`sgc/sources/dynatrace/events/apply_openpipeline_only.yml`.
+[`tasks/target.yml`](tasks/target.yml) is the first `import_playbook` of every
+ServiceNow playbook. The importing playbook sets its mode:
 
-`incident/deploy.yml` changes instance-wide Event Management settings, so it
-**skips** any instance whose `incident_deploy_enabled` is `false` (Demo3 today:
-its EM is shared with other teams).
+| Mode | Playbooks | Behaviour |
+| ---- | --------- | --------- |
+| `switch` | every `install.yml`, `deploy.yml`, `start.yml` | Switch the lab to the target first: disable the other instances' brooks-lab Dynatrace problem notifications, **reconfigure** the Lab3 MID for the target if another instance owns it (it then auto-upgrades to the target's build; install only when Lab3 has no MID or with `-e sn_mid_switch_method=reinstall`), repoint the KVA informer via Helm (or park it at 0 replicas when the target lacks the Kubernetes Visibility Agent app), make sure the MID's signing key is active and the MID validated, enable the target's notification. No change when everything already points at the target. |
+| `active` | every `test.yml` | Require a consistent active instance (fail listing the inconsistencies otherwise) and fail when `-e target` names another instance. |
+| `any` | every `diagnose.yml`, `csdm/undeploy.yml`, `stop.yml`, `discovery/stop.yml` | Either instance; inconsistencies are reported as an ignored ERROR and the playbook continues; a note when the target is not active. |
 
-Design and status: [Multi_Instance_Plan.md](../../../../specifications/servicenow/docs/Multi_Instance_Plan.md).
+Resolution and activation happen once per run, so aggregators such as
+`servicenow/deploy.yml` or the whole-lab `playbooks/deploy.yml` switch once.
+`sgc/sources/dynatrace/events/deploy.yml --tags openpipeline` (only the
+Dynatrace OpenPipeline log alerts) also runs the guard, though it changes only
+the Dynatrace tenant.
+
+`incident/deploy.yml` runs on whichever instance is active (Demo3 included). It
+changes instance-wide Event Management settings, which stay on an instance after
+a switch away.
+
+Design and status: [Multi_Target_ServiceNow.md](../../../../specifications/servicenow/docs/Multi_Target_ServiceNow.md).
 
 Full prerequisite checklist: **[specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md)**
 
@@ -86,13 +98,16 @@ stored at `vars/sn_discovery_id_ed25519` (gitignored).
 ```bash
 cd automation/ansible
 
-# Every command below takes -e target=demo1|demo3|all (default demo3).
+# Every command below takes -e target=demo1|demo3 (default: the active instance).
+# install/deploy/start with another target switch the lab to that instance.
+ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml
 # Full ServiceNow stack (or run individual playbooks below)
 ansible-playbook -i inventory.yml playbooks/servicenow/install.yml -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/deploy.yml -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/start.yml --tags discovery_scan -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml -e target=all
+ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
+ansible-playbook -i inventory.yml playbooks/servicenow/stop.yml -e @../vars/secrets.yaml
 # Model compare (Python — from repo root)
 # PYTHONPATH=. python -m servicenow.comparator
 
@@ -114,11 +129,14 @@ ansible-playbook -i inventory.yml playbooks/servicenow/cmdb/deploy.yml -e @../va
 | User | Secrets key | Roles | Used for |
 | ---- | ----------- | ----- | -------- |
 | `admin_brooks_lab` | `SN_USER<suffix>` | `admin` on Demo1 and Demo3 (or discovery_admin, cmdb_inst_admin, rest_service, …) | Ansible `deploy.yml` / `discover.yml` |
-| `mid_brooks_lab` | `SN_MID_USER<suffix>` | **mid_server** only | MID Server agent on Lab3 (one MID per instance) |
+| `mid_brooks_lab` | `SN_MID_USER<suffix>` | **mid_server** only | MID Server agent on Lab3 (one MID, owned by the active instance) |
 
 Each instance has its own pair of users (separate passwords). Lab3 runs one MID
-per instance: `mid-brooks-lab3` (Demo1, `/opt/servicenow/mid/agent`) and
-`mid-brooks-lab3-demo3` (Demo3, `/opt/servicenow/mid-demo3/agent`).
+(`/opt/servicenow/mid/agent`, unit `mid_brooks_lab3`), registered with the active
+instance as `mid-brooks-lab3` (Demo1) or `mid-brooks-lab3-demo3` (Demo3). A switch
+reconfigures it for the target (`config.xml` url, user, password, name) and the
+MID auto-upgrades to the target's build; see
+[Multi_Target_ServiceNow.md](../../../../specifications/servicenow/docs/Multi_Target_ServiceNow.md).
 
 The MID user **cannot** replace the admin user for Phase 1. See [specifications/servicenow/docs/install.md](../../../../specifications/servicenow/docs/install.md).
 

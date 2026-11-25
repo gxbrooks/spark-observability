@@ -27,6 +27,10 @@ Supported subset (matches actual usage in this repo, nothing more):
                                          pattern. Not a general expression
                                          evaluator.
 
+  $${  and  %%{                       -- Terraform's escapes for a literal
+                                         "${" / "%{" (e.g. Dynatrace's own
+                                         "$${0}" capture-group placeholders).
+
 Not supported (none of the converted files need it): any other %{ if }
 condition, nested loops, inline list/object literals in %{ for }, HCL
 function calls, string escapes beyond what's already valid JSON/YAML text.
@@ -48,6 +52,10 @@ _IF_GT_ZERO_RE = re.compile(
     r"%\{\s*if\s+([A-Za-z_][A-Za-z0-9_]*)\s*>\s*0\s*\}(.*?)%\{\s*endif\s*\}",
     re.DOTALL,
 )
+
+
+_ESC_DOLLAR = "\x00TF_ESC_DOLLAR\x00"
+_ESC_PERCENT = "\x00TF_ESC_PERCENT\x00"
 
 
 class TfTemplateError(Exception):
@@ -125,6 +133,9 @@ def render(text, variables):
     string the way Jinja2's default undefined behavior would.
     """
     scope = dict(variables or {})
+    # Terraform escapes: "$${" and "%%{" are a literal "${" / "%{" and are never
+    # interpreted. Hide them while rendering and restore them afterwards.
+    text = text.replace("$${", _ESC_DOLLAR).replace("%%{", _ESC_PERCENT)
     text = _expand_for_loops(text, scope)
     text = _substitute_vars(text, scope)
-    return text
+    return text.replace(_ESC_DOLLAR, "${").replace(_ESC_PERCENT, "%{")

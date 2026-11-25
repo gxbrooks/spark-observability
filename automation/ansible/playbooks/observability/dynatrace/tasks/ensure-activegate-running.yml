@@ -1,0 +1,80 @@
+---
+# Make sure the DynaKube's ActiveGate StatefulSet is Ready (runs on
+# kubernetes_master, like ensure_operator_webhook.yml).
+#
+# Seen on brooks-lab 2026-11-25: after the ActiveGate auto-updated (1.349.93,
+# 2026-11-19), its pod sat in CrashLoopBackOff for 6 days (1,380 restarts). The
+# kubelet rebuilt the pod sandbox on every attempt and stopped the container
+# seconds after it started, never logging a probe failure; the DynaKube stayed
+# in phase Deploying. A fresh pod (the StatefulSet recreates it) clears that.
+# So: when the pod is crash-looping, recreate it once, then wait for Ready.
+
+- name: Read the ActiveGate pod state
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl -n dynatrace get pod -l app.kubernetes.io/component=activegate \
+      -o jsonpath='{range .items[*]}{.metadata.name} {.status.containerStatuses[?(@.name=="activegate")].ready} {.status.containerStatuses[?(@.name=="activegate")].restartCount} {.status.containerStatuses[?(@.name=="activegate")].state.waiting.reason}{"\n"}{end}'
+  args:
+    executable: /bin/bash
+  register: dt_ag_pods
+  changed_when: false
+  failed_when: false
+
+- name: Classify the ActiveGate pods
+  ansible.builtin.set_fact:
+    dt_ag_crashlooping: >-
+      {{ dt_ag_pods.stdout_lines | map('split') | selectattr(1, 'ne', 'true')
+         | selectattr(3, 'defined') | selectattr(3, 'equalto', 'CrashLoopBackOff')
+         | map(attribute=0) | list }}
+
+- name: Note that a crash-looping ActiveGate pod is recreated
+  ansible.builtin.debug:
+    msg: >-
+      ActiveGate pod(s) {{ dt_ag_crashlooping }} in CrashLoopBackOff — deleting so the
+      StatefulSet recreates them with a fresh sandbox.
+  when: dt_ag_crashlooping | length > 0
+
+- name: Recreate crash-looping ActiveGate pods
+  ansible.builtin.command: kubectl -n dynatrace delete pod {{ item }} --wait=true --timeout=120s
+  loop: "{{ dt_ag_crashlooping }}"
+  changed_when: true
+  when: dt_ag_crashlooping | length > 0
+
+# The ActiveGate's readiness probe starts after 90 s; allow 6 minutes.
+- name: Wait for the ActiveGate StatefulSet to be Ready
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl -n dynatrace get statefulset -l app.kubernetes.io/component=activegate \
+      -o jsonpath='{range .items[*]}{.status.readyReplicas}/{.spec.replicas}{"\n"}{end}'
+  args:
+    executable: /bin/bash
+  register: dt_ag_ready
+  until: >-
+    dt_ag_ready.stdout_lines | length > 0
+    and dt_ag_ready.stdout_lines | reject('match', '^(\\d+)/\\1$') | list | length == 0
+  retries: 36
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: Read the DynaKube phase
+  ansible.builtin.command: kubectl -n dynatrace get dynakube -o jsonpath={.items[*].status.phase}
+  register: dt_dynakube_phase
+  changed_when: false
+  failed_when: false
+
+- name: Report the ActiveGate state
+  ansible.builtin.debug:
+    msg: >-
+      ActiveGate ready replicas: {{ dt_ag_ready.stdout_lines | join(', ') }};
+      DynaKube phase: {{ dt_dynakube_phase.stdout | default('unknown') }}
+
+- name: Fail when the ActiveGate is not Ready
+  ansible.builtin.fail:
+    msg: >-
+      The ActiveGate StatefulSet is not Ready ({{ dt_ag_ready.stdout_lines | join(', ') }}).
+      Check: kubectl -n dynatrace describe pod -l app.kubernetes.io/component=activegate,
+      and kubectl -n dynatrace logs -l app.kubernetes.io/component=activegate --previous.
+  when: >-
+    dt_ag_ready.stdout_lines | default([]) | length == 0
+    or dt_ag_ready.stdout_lines | reject('match', '^(\\d+)/\\1$') | list | length > 0

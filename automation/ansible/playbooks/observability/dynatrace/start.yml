@@ -11,6 +11,9 @@
     - name: Ensure Dynatrace Operator and webhook are running with valid certs
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ensure_operator_webhook.yml"
 
+    - name: Ensure the DynaKube ActiveGate is running (recreate a crash-looping pod)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/ensure-activegate-running.yml"
+
     - name: Activate cluster in Dynatrace Kubernetes app
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/activate_k8s_app.yml"
 

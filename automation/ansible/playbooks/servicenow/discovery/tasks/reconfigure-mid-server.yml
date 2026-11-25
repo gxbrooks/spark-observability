@@ -1,0 +1,102 @@
+---
+# Repoint the installed Lab3 MID Server at the target instance without
+# reinstalling it (runs on the MID host, become). Called by
+# tasks/activate-mid-server.yml when another instance owns the MID.
+#
+# What changes (agent/config.xml):
+#   url                     → target instance URL
+#   mid.instance.username   → SN_MID_USER<suffix>
+#   mid.instance.password   → SN_MID_PASSWORD<suffix> (plain text, secure="true":
+#                             the MID encrypts it again on start)
+#   name                    → target's mid_server_name (its ecc_agent record)
+#   mid_sys_id              → removed (the previous instance's ecc_agent sys_id;
+#                             the MID finds or creates its record by name)
+# What stays: the install tree, JRE, systemd unit, keystore
+# (keypairs.mid_id) and wrapper settings.
+#
+# Build: the MID auto-upgrades to the target instance's build after it
+# connects (Zurich ↔ Australia), so ecc_agent shows "Upgrading" for a few
+# minutes. The caller waits for status Up.
+# Signing keys: handled after the MID is Up (tasks/ensure-mid-signing-key.yml).
+
+- name: Require MID Server credentials for the target instance
+  ansible.builtin.assert:
+    that:
+      - sn_mid_user | length > 0
+      - sn_mid_password | length > 0
+    fail_msg: >-
+      Add servicenow.SN_MID_USER{{ sn_secret_suffix }} and SN_MID_PASSWORD{{ sn_secret_suffix }}
+      to vars/secrets.yaml before switching the MID to '{{ sn_target_resolved }}'.
+    quiet: true
+
+- name: Stop the MID Server
+  ansible.builtin.systemd:
+    name: "{{ sn_mid_service_name }}.service"
+    state: stopped
+
+- name: Back up config.xml (previous owner)
+  ansible.builtin.copy:
+    src: "{{ sn_mid_agent_dir }}/config.xml"
+    dest: "{{ sn_mid_agent_dir }}/config.xml.{{ sn_mid_owner_id | regex_replace('[^A-Za-z0-9_-]', '_') }}.bak"
+    remote_src: true
+    owner: "{{ sn_mid_run_as_user }}"
+    group: "{{ sn_mid_run_as_user }}"
+    mode: "0600"
+
+- name: Point config.xml at the target instance
+  # stdlib Python (no lxml on Lab3): rewrites only the live <parameter> lines;
+  # values come from the environment so the password never reaches argv or logs.
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    import os, re
+    from xml.sax.saxutils import escape
+    path = os.environ["MID_CONFIG"]
+    text = open(path).read()
+    want = {
+        "url": os.environ["MID_URL"],
+        "mid.instance.username": os.environ["MID_USER"],
+        "mid.instance.password": os.environ["MID_PASSWORD"],
+        "name": os.environ["MID_NAME"],
+    }
+    seen = set()
+    def sub(m):
+        name = m.group(2)
+        if name not in want or name in seen:
+            return m.group(0)
+        if name == "mid.instance.password" and m.group(4).startswith("cyberark"):
+            return m.group(0)
+        seen.add(name)
+        return m.group(1) + escape(want[name], {'"': "&quot;"}) + m.group(5)
+    # Skip commented-out examples: only lines outside <!-- --> are rewritten.
+    parts = re.split(r"(<!--.*?-->)", text, flags=re.S)
+    pat = re.compile(r'(<parameter name="([^"]+)"( secure="true")? value=")([^"]*)("\s*/>)')
+    for i, part in enumerate(parts):
+        if not part.startswith("<!--"):
+            part = pat.sub(sub, part)
+            part = re.sub(r'[ \t]*<parameter name="mid_sys_id" value="[^"]*"\s*/>[ \t]*\n?', "", part)
+            parts[i] = part
+    missing = set(want) - seen
+    if missing:
+        raise SystemExit("config.xml lacks parameters: %s" % sorted(missing))
+    new = "".join(parts)
+    if new != text:
+        open(path, "w").write(new)
+        print("changed")
+    PY
+  args:
+    executable: /bin/bash
+  environment:
+    MID_CONFIG: "{{ sn_mid_agent_dir }}/config.xml"
+    MID_URL: "{{ sn_url }}/"
+    MID_USER: "{{ sn_mid_user }}"
+    MID_PASSWORD: "{{ sn_mid_password }}"
+    MID_NAME: "{{ sn_mid_server_name }}"
+  register: sn_mid_reconfig
+  changed_when: "'changed' in sn_mid_reconfig.stdout"
+  no_log: true
+
+- name: Start the MID Server against the target instance
+  ansible.builtin.systemd:
+    name: "{{ sn_mid_service_name }}.service"
+    state: started
+    enabled: true

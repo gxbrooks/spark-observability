@@ -1,12 +1,18 @@
 ---
-# ServiceNow diagnose — Discovery, CMDB 360, Dynatrace SGC.
+# ServiceNow diagnose — active instance, Discovery, CMDB 360, Dynatrace SGC.
+# Also the active-instance consistency check: tasks/target.yml derives the
+# active instance from the Lab3 MID Server, the brooks-lab Dynatrace problem
+# notifications and the KVA informer, and reports what each points at. When no
+# instance is fully active, every other check still runs and the playbook then
+# fails with the list of inconsistencies.
 # Usage:
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml -e @../vars/secrets.yaml
 
-- import_playbook: common/target.yml
+- import_playbook: tasks/target.yml
   vars:
     sn_target_playbook: diagnose.yml
+    sn_target_mode: any
 
 - name: ServiceNow diagnose banner
   hosts: localhost
@@ -27,3 +33,19 @@
 
 - import_playbook: sgc/diagnose.yml
   tags: [servicenow]
+
+- name: ServiceNow active instance verdict
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always, servicenow]
+  tasks:
+    - name: Report the active instance
+      ansible.builtin.debug:
+        msg: "Active ServiceNow instance: {{ sn_live_active }}"
+      when: sn_live_active | default('') | length > 0
+
+    - name: Fail when no instance is fully active
+      ansible.builtin.fail:
+        msg: "{{ ['No ServiceNow instance is fully active.'] + (sn_live_problems | default([])) }}"
+      when: sn_live_active | default('') | length == 0

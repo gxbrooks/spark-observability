@@ -1,0 +1,39 @@
+---
+# Stop Kubernetes discovery for the target instance (default: the active one):
+# park the KVA informer (scale to 0 replicas) when it feeds the target. The
+# Helm release, its values and the credentials secret stay; start.yml (or any
+# install/deploy/start for the target) scales it back up.
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/k8s/stop.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/k8s/stop.yml
+    sn_target_mode: any
+
+- name: Park the KVA informer when it feeds the target
+  hosts: kubernetes_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+  tasks:
+    - name: Scale the KVA informer to 0 replicas
+      ansible.builtin.command:
+        cmd: >-
+          kubectl -n {{ sn_k8s_informer_namespace }} scale deploy
+          --all --replicas=0
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      when:
+        - sn_kva_installed | default(false) | bool
+        - sn_kva_owner_id | default('') == sn_target_resolved
+        - sn_kva_running | default(false) | bool
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          KVA informer: {{ 'parked (0 replicas)' if (sn_kva_installed | default(false) | bool)
+          and sn_kva_owner_id | default('') == sn_target_resolved
+          else 'left as is (owner ' ~ (sn_kva_owner_id | default('none')) ~ ', target ' ~ sn_target_resolved ~ ')' }}

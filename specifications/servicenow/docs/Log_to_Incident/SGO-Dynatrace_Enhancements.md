@@ -1,6 +1,6 @@
 # SGO-Dynatrace Enhancements (lab findings for DT / SN account teams)
 
-**Instance:** optimizincdemo1 (findings below were observed there). Since 2026-11-23 brooks-lab also feeds optimizincdemo3 (Demo3); see [Multi_Instance_Plan.md](../Multi_Instance_Plan.md). The incident layer (`incident/deploy.yml`) is applied only where `SN_INSTANCES.<id>.incident_deploy_enabled` is true — Demo1, not Demo3 (shared Event Management).  
+**Instance:** optimizincdemo1 (findings below were observed there). brooks-lab can also feed optimizincdemo3 (Demo3), one instance at a time; see [Multi_Target_ServiceNow.md](../Multi_Target_ServiceNow.md). The incident layer (`incident/deploy.yml`) is applied only where `SN_INSTANCES.<id>.incident_deploy_enabled` is true — Demo1, not Demo3 (shared Event Management).  
 **Dynatrace tenant:** pdt20158  
 **Date:** 2026-08-18 (EM Ready vs incident `severity<=3` gate; Spark-independent L2I patterns: Standalone + K8s short Log4j2; AMR+TBAC tags; thin create BR; sn-impact enrich; K8s dash-key CI)  
 **Scope:** short Log4j2 application-log → Davis problem → ServiceNow Event Management → ITSM incident, using **SGO-Dynatrace** only.
@@ -159,7 +159,7 @@ OpenPipeline **Processing cannot look up entities by name**. Lab **does not** ba
 
 **Root cause:** `sn_dynatrace_integ.events_for_unmatched_ci.enabled=false` → syslog `SGO-Dynatrace: Skipping event creation on non matched CI`.
 
-**Lab fix:** set that property to `true` in `ensure_spark_entity_cmdb_bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `service_instance` / `k8s.pod.name` (or HOST for CPU).
+**Lab fix:** set that property to `true` in `ensure-spark-entity-cmdb-bindings.yml` (wired into `events/deploy.yml`). Lab BRs then bind via `service_instance` / `k8s.pod.name` (or HOST for CPU).
 
 **Ask SN:** document this property for SGO customers whose Davis primary entity is not in an SGC topology feed (common for Client HOST file-tail and any residual HOST-primary Cluster problems).
 
@@ -312,14 +312,15 @@ Brooks-lab (new-school) notification:
 | Display name     | `ServiceNow brooks-lab - Spark Observability`                                                   |
 | Webhook URL      | `…/inbound_event?source=SGO-Dynatrace`                                                          |
 | Alerting profile | `Spark Observability - ServiceNow brooks-lab` (scoped to MZ **Spark Observability**)            |
-| Enabled          | Yes                                                                                             |
+| Enabled          | Yes while Demo1 is the active instance                                                          |
 | UI list          | Same problem-notifications list as above — open **ServiceNow brooks-lab - Spark Observability** |
 
 Each ServiceNow instance gets its own brooks-lab notification, named by
 `SN_INSTANCES.<id>.dt_problem_notification_name` and created by
 `events/deploy.yml -e target=<id>` on the same alerting profile. Demo3's is
-**ServiceNow brooks-lab (demo3) - Spark Observability**, so every brooks-lab
-problem is posted to both instances.
+**ServiceNow brooks-lab (demo3) - Spark Observability**. Only the active
+instance's notification is enabled, so brooks-lab problems are posted to that
+instance only.
 
 **Clarification:** Demo 1 is a **problem notification + alerting profile**, not an OpenPipeline. The Spark log OpenPipelines that *create* Davis problems are separate — see
 [Dynatrace.tpg.md](../../../docs/Dynatrace.tpg.md) for the entity-binding and monitor-design standard
@@ -473,7 +474,7 @@ Business Rule **`em-alert-create-log-incident`** sets `cmdb_ci` on insert throug
 | Name | Kind | Role | Notes |
 | ---- | ---- | ---- | ----- |
 | `ResolveApplicationService` | Script Include | SI resolve helpers; type remap; processing notes | Active |
-| `em-alert-create-log-incident` | BR `em_alert` order 5020 | AMR shim → `EvtMgmtIncidentHandler` | Active |
+| `em-alert-create-log-incident` | BR `em_alert` order 5020 | AMR shim → `EvtMgmtIncidentHandler` | Retired (inactive; replaced by AMR `SGO-Dynatrace`) |
 | Bind / propagate BRs (`em-*-bind-*`, `em-event-propagate-*`) | — | **Purged** (SGO native bind) | Deleted |
 | `K8sLogPodCiBind` / `em-*-k8s-*` create BRs | Legacy | Renamed/retired | **Inactive** |
 

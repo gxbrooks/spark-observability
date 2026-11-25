@@ -4,9 +4,10 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/diagnose.yml \
 #     -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: service-mapping/diagnose.yml
+    sn_target_mode: any
 
 - name: Diagnose Service Mapping discovery coordination
   hosts: localhost
@@ -20,7 +21,7 @@
     - "{{ playbook_dir }}/../csdm/common/vars.yml"
   tasks:
     - name: Compare horizontal vs vertical Discovery timing
-      ansible.builtin.include_tasks: tasks/diagnose_discovery_coordination.yml
+      ansible.builtin.include_tasks: tasks/diagnose-discovery-coordination.yml
 
     - name: Probe SM prerequisite enrichment for Requirements services
-      ansible.builtin.include_tasks: tasks/diagnose_sm_enrichment.yml
+      ansible.builtin.include_tasks: tasks/diagnose-sm-enrichment.yml

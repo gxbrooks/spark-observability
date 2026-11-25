@@ -5,9 +5,11 @@ then the Ansible install sequence for brooks-lab Discovery.
 
 **Instances:** [https://optimizincdemo1.service-now.com/](https://optimizincdemo1.service-now.com/) (`demo1`, unsuffixed secrets);
 [https://optimizincdemo3.service-now.com/](https://optimizincdemo3.service-now.com/) (`demo3`, `*_DEMO3` secrets).  
-**Target:** every ServiceNow playbook takes `-e target=demo1|demo3|all`; **the default is `demo3`**.
-The commands in this guide omit `target`, so they act on Demo3. Add `-e target=demo1` or
-`-e target=all` as needed. See [Multiple ServiceNow instances](#multiple-servicenow-instances).
+**Target:** brooks-lab feeds **one instance at a time** (the active instance). Every
+ServiceNow playbook takes `-e target=demo1|demo3`; the default is the active instance,
+which every run derives from the lab components (nothing records it). The commands in
+this guide omit `target`, so they act on the active instance. Install, deploy and start playbooks with another target switch
+the lab to it first. See [Multiple ServiceNow instances](#multiple-servicenow-instances).
 Examples naming optimizincdemo1 record how Demo1 was set up; the same steps apply to each instance.  
 **Playbooks:** `automation/ansible/playbooks/servicenow/discovery/`  
 **Variables:** `vars/variables.yaml` → `**service-now`** context → generated
@@ -115,15 +117,11 @@ ServiceNow support documents a specific exception. Least privilege is
 ### Password and `config.xml`
 
 `config.xml` is the **MID Server agent's own configuration file**. It is not a
-file in this repository. On Lab3 there is one per instance, at
-`<mid_agent_dir>/config.xml` (owner `servicenow-mid`; read with sudo):
+file in this repository. Lab3 runs one MID, owned by the active instance, and its
+file is `/opt/servicenow/mid/agent/config.xml` (owner `servicenow-mid`; read with
+sudo). Its `url` names the instance that owns the MID.
 
-```
-/opt/servicenow/mid/agent/config.xml          Demo1 (mid-brooks-lab3)
-/opt/servicenow/mid-demo3/agent/config.xml    Demo3 (mid-brooks-lab3-demo3)
-```
-
-See [One MID Server per instance](#one-mid-server-per-instance-all-on-lab3).
+See [One MID Server on Lab3](#one-mid-server-on-lab3-owned-by-the-active-instance).
 
 The MID agent reads it at startup. The parameters that matter here:
 
@@ -138,17 +136,18 @@ The ServiceNow `mid_brooks_lab` User ID and password must match the two
 `mid.instance.*` values exactly.
 
 **How the file is written:** `discovery/install.yml --tags mid_server [-e target=<id>]`
-(`tasks/install_mid_server.yml`) puts the agent tree in that instance's
-`mid_agent_dir`: the package install for Demo1, or an unpacked copy of the `.deb`
-for any other instance. It then runs the vendor's
+(`tasks/install-mid-server.yml`) installs the vendor `.deb` package into
+`/opt/servicenow/mid/agent`. It then runs the vendor's
 `installer.sh -silent -INSTANCE_URL … -MID_USERNAME … -MID_PASSWORD …` there,
 and that script writes `config.xml`. The script only runs on a first install. To
 rotate the password afterwards, edit `mid.instance.password` in that
-`config.xml` with sudo, then restart that MID's service
-(`tasks/restart_mid_server.yml`). The agent encrypts the value on its next start.
+`config.xml` with sudo, then restart the MID service `mid_brooks_lab3`
+(`tasks/restart-mid-server.yml`). The agent encrypts the value on its next start.
 
-`templates/mid-config.xml.j2` is not referenced by any playbook; the vendor
-installer is the only writer of `config.xml`.
+On a switch to another instance, `discovery/tasks/reconfigure-mid-server.yml`
+rewrites `url`, `name`, `mid.instance.username` and `mid.instance.password` in
+the existing `config.xml` (and drops `mid_sys_id`); see
+[One MID Server on Lab3](#one-mid-server-on-lab3-owned-by-the-active-instance).
 
 When editing `config.xml` by hand, XML-escape `&`, `<`, `>`, and quotes in the
 password (`&amp;` etc.). Prefer passwords without them.
@@ -214,14 +213,16 @@ Uploaded to ServiceNow as credential `**brooks-lab-ssh`** by `deploy.yml`.
 ### Lab hosts
 
 - Lab1, Lab2, Lab3 powered on and reachable via Ansible inventory
-- Lab3 outbound HTTPS (443) to `optimizincdemo1.service-now.com`
+- Lab3 outbound HTTPS (443) to every instance in `SN_INSTANCES` (`optimizincdemo1.service-now.com`, `optimizincdemo3.service-now.com`) and to `install.service-now.com` (MID auto-upgrade packages)
 - Lab3 can reach `192.168.1.0/24` for Discovery scans
 - ~4–6 GiB RAM headroom on Lab3 for MID JVM (see `docs/architecture-and-resources.md`)
 
 ### MID Server package
 
-- `SN_MID_INSTALLER_DEB_URL` in `vars/variables.yaml` (service-now context)
-points at the Linux `.deb` that matches the **instance build**.
+- `SN_INSTANCES.<id>.mid_installer_deb_url` in `vars/variables.yaml` (service-now context)
+points at the Linux `.deb` that matches the **instance build**. It is used only
+when Lab3 has no MID (or with `-e sn_mid_switch_method=reinstall`); a switch
+reconfigures the existing MID, which then auto-upgrades to the instance's build.
 
 **Current value (optimizincdemo1, Zurich build
 `glide-zurich-07-01-2025__patch7b-hotfix1-05-18-2026_05-19-2026_0833`):**
@@ -236,7 +237,7 @@ https://install.service-now.com/glide/distribution/builds/package/app-signed/mid
 2. Select the Linux installer for your instance version.
 3. Copy the signed `.deb` URL, or read `glide.war` from the instance and match
   the build string in the filename.
-4. Update `SN_MID_INSTALLER_DEB_URL` in `variables.yaml` and re-run
+4. Update `SN_INSTANCES.<id>.mid_installer_deb_url` in `variables.yaml` and re-run
   `discovery/install.yml --tags mid_server`.
 
 The MID installer build **must** match the instance; a mismatch prevents the MID
@@ -267,7 +268,7 @@ calls the schedule endpoint; operators and automation may also call Quick Discov
 
 | Endpoint                                  | Script API                  | Body (JSON)                              |
 | ----------------------------------------- | --------------------------- | ---------------------------------------- |
-| `POST …/schedule/run` (or legacy `…/run`) | `discoverNow(scheduleGr)`   | `schedule_name` **or** `schedule_sys_id` |
+| `POST …/schedule/run` | `discoverNow(scheduleGr)`   | `schedule_name` **or** `schedule_sys_id` |
 | `POST …/quick/run`                        | `discoveryFromIP(ip, mid?)` | `ip_address`; optional `mid_server`      |
 
 
@@ -422,7 +423,7 @@ generate-contexts --vars-dir ./vars -f service-now
 | `**name**`                | Yes                        | Logical stack name (used in playbooks and logs).                                                                                                            |
 | `**location**`            | Yes                        | Expected `cmn_location.name` (inherited from host CI via business rule).                                                                                    |
 | `**location_full_name**`  | Recommended                | Display name when location is created by deploy.                                                                                                            |
-| `**container_discovery**` | Capability flag            | `true` = this repo syncs running containers into `cmdb_ci_docker_container` (`docker/discover.yml`) and validates them (`docker/test.yml`). Absent = false. |
+| `**container_discovery**` | Capability flag            | `true` = this repo syncs running containers into `cmdb_ci_docker_container` (`docker/start.yml`) and validates them (`docker/test.yml`). Absent = false. |
 | `**cmdb_host_name**`      | Yes                        | CMDB Linux server name (e.g. `lab3` from Phase 1).                                                                                                          |
 | `**ansible_host**`        | When `container_discovery` | Inventory host to run `docker ps` on (e.g. `Lab3`).                                                                                                         |
 | `**compose_dir**`         | Optional                   | Compose project directory name (documentation).                                                                                                             |
@@ -591,7 +592,7 @@ operation on table ACLs.
 
    ```bash
    cd ansible
-   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+   ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml \
      -e @../vars/secrets.yaml
    ```
 
@@ -623,7 +624,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/diagnose.yml -e @../
 cd ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/deploy.yml \
   -e @../vars/secrets.yaml
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml \
   -e @../vars/secrets.yaml
 ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/test.yml \
   -e @../vars/secrets.yaml
@@ -633,7 +634,7 @@ See `discovery/docker/README.md` for playbook details.
 
 ### 6.5 Tag-based Service Mapping — Observability Application Services
 
-**When:** After **§6.3** (`cmdb_key_value` ACLs), **§6.4** (`discovery/docker/discover.yml`), and **`csdm/deploy.yml`** for `observability-platform.csdm.yaml`.
+**When:** After **§6.3** (`cmdb_key_value` ACLs), **§6.4** (`discovery/docker/start.yml`), and **`csdm/deploy.yml`** for `observability-platform.csdm.yaml`.
 
 **Who:** **`csdm/deploy.yml`** runs **`sn-sync-inject`** as the automation user (`admin_brooks_lab`). Tag Categories (Step A below) require **`service_mapping_admin`** on your interactive user ( **`sm_admin`** is often absent on Zurich).
 
@@ -645,7 +646,7 @@ See `discovery/docker/README.md` for playbook details.
 | ---- | --------- | ----------------- |
 | Delete + recreate Service Instances | Yes | `sn-sync-delete --ci …` then `csdm/deploy.yml` / `sn-sync-inject` (see below) |
 | BA → BS → service instance hierarchy + `depends_on` | Yes | `csdm/deploy.yml` → `sn-sync-inject` |
-| Container CIs + `servicenow.com/*` tags | Yes (after §6.3) | `discovery/docker/discover.yml` |
+| Container CIs + `servicenow.com/*` tags | Yes (after §6.3) | `discovery/docker/start.yml` |
 | Tag population rule per Service Instance (`tag_list`) | Yes | `sn-sync-inject` when `service_mapping: tags` |
 | Tag Category (instance-wide) | Yes | `service-mapping/deploy.yml` (via scoped REST; included in `csdm/deploy.yml`) |
 | Membership (`svc_ci_assoc`) workload → Service Instance | **ServiceNow** (after tags + rules exist) | `SNC.ServicePopulatorRunner('INTERACTIVE')`, triggered by inject |
@@ -661,7 +662,7 @@ cd ansible
 OBS="/home/gxbrooks/repos/spark-observability/specifications/servicenow/regions/brooks-lab"
 
 # 1. Delete named service instances (BA/BS retained)
-ansible-playbook -i inventory.yml playbooks/servicenow/csdm/delete.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/csdm/undeploy.yml \
   -e @../vars/secrets.yaml \
   -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform.csdm.yaml\"], \
        \"sn_csdm_delete_cis\": [\"Elasticsearch\", \"Kibana\", \"Grafana\", \"Prometheus\", \
@@ -673,11 +674,11 @@ ansible-playbook -i inventory.yml playbooks/servicenow/csdm/deploy.yml \
   -e "{\"sn_csdm_spec_paths_override\": [\"$OBS/observability-platform.csdm.yaml\"], \"sn_csdm_trigger_horizontal_discovery\": false}"
 
 # 3. Sync container tags (requires §6.3 ACLs)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/discover.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/docker/start.yml \
   -e @../vars/secrets.yaml
 ```
 
-Override variable **`sn_csdm_spec_paths_override`** limits `csdm/deploy.yml` / `delete.yml` to one or more spec files.
+Override variable **`sn_csdm_spec_paths_override`** limits `csdm/deploy.yml` / `undeploy.yml` to one or more spec files.
 
 #### Step A — Tag Categories (once per instance)
 
@@ -730,7 +731,7 @@ For observability-platform, values match `observability/docker-compose.yml` labe
 
 Deploy output shows **`Tag SM <name>: HTTP 202`** for each service when population succeeds. **`service_status`** may remain **requirements** until workload tags exist and the Service Populator runs.
 
-**Verify tags before blaming SM:** `cmdb_key_value.list` filtered on key `servicenow.com/service-instance`. If rows are missing, complete [§6.3](#63-enable-automation-to-update-key-value-pairs) and re-run `discovery/docker/discover.yml`.
+**Verify tags before blaming SM:** `cmdb_key_value.list` filtered on key `servicenow.com/service-instance`. If rows are missing, complete [§6.3](#63-enable-automation-to-update-key-value-pairs) and re-run `discovery/docker/start.yml`.
 
 **Verify membership:** `svc_ci_assoc.list` with service = Service Instance sys_id — tag-based SM adds matching CIs as **members** in `svc_ci_assoc` (no `cmdb_rel_ci` **Contains** edges are created). The deploy triggers `SNC.ServicePopulatorRunner('INTERACTIVE')` so membership recalculates immediately.
 
@@ -1064,8 +1065,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 
 | Variable                                           | Where                                               | Purpose                                                                          |
 | -------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `SN_INSTANCES.<id>.dt_legacy_connector_sys_id`     | `vars/variables.yaml` (service-now)                 | Pre-existing legacy EM push connector (Demo1: `712a39811…`) used until SGC is installed |
-| `SN_INSTANCES` (`url`, `short_name`, …), `SN_DEFAULT_TARGET` | `vars/variables.yaml` (service-now)       | Instance identity per target; `SN_URL` is Demo1's URL for non-Ansible readers only |
+| `SN_INSTANCES` (`url`, `short_name`, …)            | `vars/variables.yaml` (service-now)                 | Instance identity per target; `SN_URL` is Demo1's URL (the non-Ansible tools derive the active instance instead) |
 | `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE` | `vars/variables.yaml` (dynatrace-ansible) / secrets | Dynatrace side                                                                   |
 | `sn_store_apps`                                    | `specifications/servicenow/integrations/sgc/store_apps.yml` (sgc-local)             | App/plugin manifest: scopes, install order, pinned versions                      |
 
@@ -1107,14 +1107,15 @@ Contact **Optimiz / prior integrators** before changing Demo 1, connector `712a3
 
 - Dynatrace: `Spark Observability - ServiceNow brooks-lab` (alerting profile)
 - Dynatrace: `Spark Lab - Host CPU above 80%` (metric event)
-- Dynatrace: `ServiceNow brooks-lab - Spark Observability` (problem notification — uses legacy URL until SGC installed)
+- Dynatrace: `ServiceNow brooks-lab - Spark Observability` (problem notification — used the legacy URL until SGC was installed; the legacy fallback was removed 2026-11-24, it now posts only to `source=SGO-Dynatrace`)
 
 ---
 
 ## Multiple ServiceNow instances
 
-brooks-lab feeds **optimizincdemo1** and **optimizincdemo3** concurrently. Design and
-status: [Multi_Instance_Plan.md](Multi_Instance_Plan.md).
+brooks-lab can feed **optimizincdemo1** or **optimizincdemo3**, one at a time. The
+instance it currently feeds is the **active instance**. Design and status:
+[Multi_Target_ServiceNow.md](Multi_Target_ServiceNow.md).
 
 ServiceNow accounts are **per instance**. Each instance needs its own
 `admin_brooks_lab` and `mid_brooks_lab` records with the roles in §1–§2. The
@@ -1124,53 +1125,73 @@ same User IDs are used everywhere, with a different password on each instance.
 
 `vars/variables.yaml` → `SN_INSTANCES` lists every instance (keyed by `id`) with:
 - its URL and short name, and its `secrets_suffix`;
-- its MID Server name, service, directory and installer `.deb`;
-- its legacy EM connector sys_id and Dynatrace problem-notification name;
-- the SGC Dynatrace API token name (`dt_sgc_api_token_name`);
-- `incident_deploy_enabled` (see below).
+- its MID Server name (`mid_server_name`) and installer `.deb` (`mid_installer_deb_url`);
+- its Dynatrace problem-notification name (`dt_problem_notification_name`);
+- the SGC Dynatrace API token name (`dt_sgc_api_token_name`).
 
-Every ServiceNow playbook takes `-e target=<id>|all`. The default is
-`SN_DEFAULT_TARGET` = **`demo3`**:
+Every ServiceNow playbook takes `-e target=<id>`; `target=all` is rejected. Nothing
+records which instance is active: every run **derives** it from the Lab3 MID
+(`config.xml` `url` and service running), the enabled brooks-lab Dynatrace problem
+notification, and the KVA informer Helm release (`instance.name`, replicas). An
+instance is active only when all three agree; `servicenow/diagnose.yml` is the
+consistency check and fails at its end otherwise. Without `-e target`, switch and any modes use the active
+instance, else the MID's owner (e.g. after `stop.yml`); active mode requires a
+consistent active instance. See
+[Multi_Target_ServiceNow.md](Multi_Target_ServiceNow.md#the-active-instance-is-derived-never-recorded).
 
 ```bash
-# Demo3 (default)
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml
-# Demo1
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e target=demo1
-# Both: demo3 runs as a child ansible-playbook first, then demo1 in this process
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e target=all
+# Which instance owns the MID, the KVA informer and the Dynatrace notifications
+ansible-playbook -i inventory.yml playbooks/servicenow/diagnose.yml
+# Switch the lab to Demo1 (start the MID, run the SGC import)
+ansible-playbook -i inventory.yml playbooks/servicenow/start.yml -e target=demo1
+# Read-only check of an instance, active or not
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e target=demo3
+# Stop feeding the active instance (stop the MID, park the KVA informer, disable its notification)
+ansible-playbook -i inventory.yml playbooks/servicenow/stop.yml
 ```
 
 How it works:
 
-- Each ServiceNow playbook imports `playbooks/servicenow/common/target.yml` as its
-  first play. That play rejects an unknown target.
-- For `all`, the outermost ServiceNow playbook in the run re-runs itself once per
-  extra instance as a child `ansible-playbook` with `-e target=<id>`. The child gets
-  the same inventory, `-e` values, tags, `--limit`, verbosity and `--check`/`--diff`.
-  Its log goes to `automation/ansible/tmp/sn-target-<playbook>-<id>-<timestamp>.log`.
-  The parent run then continues against the first `SN_INSTANCES` entry (demo1).
-- Fan-out happens once per run. In a whole-lab `playbooks/deploy.yml -e target=all`,
-  only the ServiceNow part is re-run per instance, never the whole lab.
-- A failed child stops the run before the first instance is touched.
-- `discovery/k8s/label_oneagent_pods.yml` and
-  `sgc/sources/dynatrace/events/apply_openpipeline_only.yml` don't depend on the
-  instance (Kubernetes pods and the Dynatrace tenant), so they have no guard and run
-  once.
+- Each ServiceNow playbook imports `playbooks/servicenow/tasks/target.yml` as its
+  first play, with a mode set by its verb:
+  - `switch` (every `install.yml`, `deploy.yml`, `start.yml`): point the lab at the
+    target first. Disable the other instances' brooks-lab Dynatrace problem
+    notifications; if another instance owns the Lab3 MID, reconfigure it for the
+    target (it then auto-upgrades to the target's build); repoint the KVA informer
+    via Helm, or park it when the target lacks the Kubernetes Visibility Agent app;
+    make sure the MID's signing key is active and the MID validated; enable the
+    target's notification. Nothing changes when everything already points at the
+    target.
+  - `active` (every `discover.yml` and `test.yml`, `discovery/host/deploy.yml`,
+    `discovery/k8s/start.yml`): require a consistent active instance
+    (fail listing the inconsistencies otherwise); fail when `-e target` names
+    another instance.
+  - `any` (every `diagnose.yml`, `csdm/undeploy.yml`, `stop.yml`,
+    `discovery/stop.yml`): either instance; inconsistencies are reported as an
+    ignored ERROR and the playbook continues, with a note when the target is not
+    active. `servicenow/diagnose.yml` then fails at its end when no instance is
+    fully active.
+- Resolution and activation happen once per run. Guards in nested imports and
+  aggregators (including the whole-lab `playbooks/deploy.yml`) reuse the result.
+- Every service-management playbook runs the guard; the OneAgent pod labelling
+  in `discovery/k8s/start.yml` and `events/deploy.yml --tags openpipeline`
+  touch only Kubernetes pods and the Dynatrace tenant.
 
 Each `servicenow/*/common/vars.yml` derives these from the selected entry:
 `sn_url`, `sn_user`, `sn_password`, `sn_mid_*`, `sn_instance_short_name`,
-`sn_dt_legacy_connector_sys_id`, `dt_sn_problem_notification_name` and
-`dt_sgc_api_token_name`.
+`dt_sn_problem_notification_name` and `dt_sgc_api_token_name`.
 
 Deploy facts are written per instance, for **every** instance including Demo1:
 `vars/contexts/servicenow_discovery_deploy_<id>.json`,
 `servicenow_k8s_discovery_deploy_<id>.json` and `servicenow_sm_deploy_<id>.json`.
 
-`SN_URL` stays in `variables.yaml` as Demo1's URL. Only the non-Ansible readers use it
-(`servicenow/comparator`, `create-sn-change-window.py`).
+The non-Ansible readers (`servicenow/comparator`, `create-sn-change-window.py`) can't
+reach the MID or the cluster, so `servicenow/sn_active_instance.py` derives the active
+instance from the Dynatrace signal alone: the instance whose brooks-lab notification is
+the only one enabled. `SN_TARGET=<id>` overrides it; they fail when no instance, or more
+than one, is enabled.
 
-**Incident rules are held on shared instances.** `incident/deploy.yml` changes
+**Incident rules follow the active instance.** `incident/deploy.yml` changes
 Event Management for the whole instance:
 - EM properties;
 - Automated grouping;
@@ -1178,8 +1199,8 @@ Event Management for the whole instance:
 - the `EvtMgmtCustomIncidentPopulator` Script Include;
 - the maintenance rules.
 
-It skips (doesn't fail) any instance whose `incident_deploy_enabled` is `false`.
-Demo3 is set to `false` because other teams use its Event Management.
+It runs on whichever instance is active, Demo3 included (the Demo3 hold was lifted
+2026-11-24). These settings stay on an instance after a switch away.
 
 ### Secrets naming
 
@@ -1196,7 +1217,7 @@ servicenow:
   SN_DT_WEBHOOK_USER: ...        # written by sgc/sources/dynatrace/events/deploy.yml
   SN_DT_WEBHOOK_PASSWORD: ...
 
-  # optimizincdemo3 (demo3, the default target)
+  # optimizincdemo3 (demo3)
   SN_USER_DEMO3: "admin_brooks_lab"
   SN_PASSWORD_DEMO3: "<plaintext password>"
   SN_MID_USER_DEMO3: "mid_brooks_lab"
@@ -1209,43 +1230,67 @@ Passwords must be **plaintext**, because REST Basic Auth and the MID agent send
 them as typed. Values shaped like `$s$<salt>$<hash>` are ServiceNow's stored
 hash from `sys_user.user_password` and cannot be used to sign in.
 
-### One MID Server per instance, all on Lab3
+### One MID Server on Lab3, owned by the active instance
 
-A MID Server registers with exactly one instance (`url` in its `config.xml`), so
-Lab3 runs one MID per instance:
+A MID Server registers with exactly one instance (`url` in its `config.xml`), and the
+vendor `.deb` is one `agent` package with one install path. Lab3 therefore runs **one**
+MID: systemd unit `mid_brooks_lab3`, directory `/opt/servicenow/mid/agent`. Its
+`ecc_agent` name follows the owner:
 
-| Instance | MID name | systemd service | Agent dir (`config.xml` lives here) | sudoers |
-| -------- | -------- | --------------- | ----------------------------------- | ------- |
-| demo1 | `mid-brooks-lab3` | `mid_brooks_lab3` | `/opt/servicenow/mid/agent` | `/etc/sudoers.d/servicenow-mid` |
-| demo3 | `mid-brooks-lab3-demo3` | `mid_brooks_lab3_demo3` | `/opt/servicenow/mid-demo3/agent` | `/etc/sudoers.d/servicenow-mid-mid_brooks_lab3_demo3` |
+| Instance | MID name (`mid_server_name`) |
+| -------- | ---------------------------- |
+| demo1 | `mid-brooks-lab3` |
+| demo3 | `mid-brooks-lab3-demo3` |
 
-`install.yml --tags mid_server -e target=<id>` installs that instance's MID:
+A switch-mode playbook with a target that does not own the MID
+(`tasks/activate-mid-server.yml`):
 
-- The vendor `.deb` is one `agent` package that unpacks to `/opt/servicenow/mid/agent`.
-  The instance whose `mid_agent_dir` is that path gets the normal package install.
-- Every other instance gets the same `.deb` unpacked (`dpkg-deb -x`) and its `agent`
-  tree copied into its own `mid_agent_dir`, owned by `servicenow-mid`.
-- Both then run `installer.sh -silent` with that instance's URL, MID user,
-  `-MID_NAME`, and `-APP_NAME`. The script writes that directory's `config.xml` and
-  the systemd unit.
-- Each MID gets its own sudoers file, so its auto-upgrade can restart only its own
-  service.
+- **reconfigures** it (`discovery/tasks/reconfigure-mid-server.yml`): stops the
+  service, backs up `config.xml`, sets the target's `url`, `mid.instance.username`,
+  `mid.instance.password` and `name` (`mid_server_name`), drops `mid_sys_id`, and
+  starts the service. The MID finds its `ecc_agent` record on the target by name and
+  **auto-upgrades to the target's build** (Zurich ↔ Australia);
+- installs the target's `.deb` (cached in `/var/cache/servicenow-mid/`) only when
+  Lab3 has no MID, or uninstalls and reinstalls it with
+  `-e sn_mid_switch_method=reinstall`;
+- waits for the target's `ecc_agent` record to come Up (up to 20 minutes, covering
+  the auto-upgrade);
+- makes sure the MID's signing key is active (`tasks/ensure-mid-signing-key.yml`).
+  Both Demo1 and Demo3 use MID signing keys (`ecc_agent_signing_key`). When the
+  owner changed or the key isn't active it re-keys: invalidate, restart, wait for a
+  new key, validate, restart, wait for it to become `active`. Without this the MID
+  fails to register (HTTP 400) because the instance holds a key the MID's keystore
+  lacks. See [Multi_Target_ServiceNow.md](Multi_Target_ServiceNow.md#mid-signing-keys);
+- validates it.
 
-The `.deb` must match each instance's build. Set `mid_installer_deb_url` per instance
-from that instance's **MID Server → Downloads**.
+The old instance's `ecc_agent` record stays, and shows Down.
 
-Memory: each MID JVM runs with `-Xmx1024m`. Lab3 has ample headroom
-(~34 GiB available, 2026-11-23).
+**MID service control (polkit).** Auto-upgrade restarts the MID with `bin/mid.sh`,
+which calls `systemctl start|stop|restart` as the MID user without sudo. A polkit
+rule, `/etc/polkit-1/rules.d/50-servicenow-mid.rules`
+(`discovery/tasks/ensure-mid-service-control.yml`), lets that user start, stop and
+restart `mid_brooks_lab3.service`; without it the upgrade fails and leaves the MID
+stopped. The former `/etc/sudoers.d/servicenow-mid` was ineffective (sudo is never
+called) and is removed.
+
+The `.deb` is used only for a fresh install or `sn_mid_switch_method=reinstall`, and
+must match each instance's build. Set `mid_installer_deb_url` per instance from that
+instance's **MID Server → Downloads**.
+
+On 2026-11-23 a second MID (`mid-brooks-lab3-demo3`) was unpacked from the `.deb`
+into `/opt/servicenow/mid-demo3/agent` so both instances ran at once. That layout is
+retired: when the owning instance's MID is already installed, a switch removes any
+extra MID trees and units.
 
 ### Dynatrace problem notifications per instance
 
-`sgc/sources/dynatrace/events/deploy.yml -e target=<id>|all` upserts one Dynatrace
+`sgc/sources/dynatrace/events/deploy.yml -e target=<id>` upserts one Dynatrace
 problem notification **per instance**, named by `dt_problem_notification_name`. All of
-them use the same `Spark Observability - ServiceNow brooks-lab` alerting profile, so
-each instance receives the same problems. The URL is the SGC endpoint
-(`source=SGO-Dynatrace`) when SGC is installed on that instance. Otherwise it is the
-legacy EM push connector (`dt_legacy_connector_sys_id`), and the play fails if that
-is empty.
+them use the same `Spark Observability - ServiceNow brooks-lab` alerting profile, and
+**only the active instance's notification is enabled**; a switch disables the others
+and enables the target's. Other teams' notifications are never modified. The URL is
+the OOTB SGO-Dynatrace push connector (`source=SGO-Dynatrace`); `events/deploy.yml`
+requires SGC on the target (the legacy-connector fallback was removed 2026-11-24).
 
 ### Creating the users on an instance
 
@@ -1267,8 +1312,8 @@ Check the instance first. Shared demo instances may already have a
 
 ## Installation sequence
 
-Run from the `automation/ansible/` directory. These commands target Demo3 (the default);
-add `-e target=demo1` or `-e target=all` for the other instance or for both:
+Run from the `automation/ansible/` directory. These commands target the active instance
+(the default); add `-e target=<id>` to switch the lab to another instance:
 
 ```bash
 # 0. Permission and connectivity check
@@ -1284,10 +1329,10 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/deploy.yml \
   -e @../vars/secrets.yaml
 
 # 3. Validate MID Server "Up" in ServiceNow UI:
-#    MID Server > Servers > mid-brooks-lab3-demo3 (Demo3) / mid-brooks-lab3 (Demo1)
+#    MID Server > Servers > mid-brooks-lab3-demo3 (Demo3) or mid-brooks-lab3 (Demo1)
 
 # 4. On-demand Discovery scan
-ansible-playbook -i inventory.yml playbooks/servicenow/discovery/discover.yml \
+ansible-playbook -i inventory.yml playbooks/servicenow/discovery/start.yml --tags discovery_scan \
   -e @../vars/secrets.yaml
 
 # 5. Assert Linux server CIs (after scan completes)
@@ -1310,7 +1355,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml \
 | Symptom                              | Check                                                                                                             |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `deploy.yml` 403 on Discovery tables | `admin_brooks_lab` roles; run `diagnose.yml`                                                                      |
-| `cmdb_key_value` REST insert 403     | Complete [§6.3](#63-enable-automation-to-update-key-value-pairs); re-run `discovery/docker/discover.yml` |
+| `cmdb_key_value` REST insert 403     | Complete [§6.3](#63-enable-automation-to-update-key-value-pairs); re-run `discovery/docker/start.yml` |
 | MID stays Down                       | `mid_brooks_lab` has `mid_server`; password matches `/opt/servicenow/mid/agent/config.xml`; `&` in password XML-escaped |
 | 401 against a non-default instance   | Using that instance's `*_<INSTANCE>` secrets? Is the value plaintext, not a `$s$…$…` hash? |
 | MID user cannot run deploy           | Expected — use `admin_brooks_lab` (`SN_USER`)                                                                     |
@@ -1329,8 +1374,8 @@ ansible-playbook -i inventory.yml playbooks/servicenow/discovery/install.yml \
 - [../../ansible/playbooks/servicenow/README.md](../../ansible/playbooks/servicenow/README.md) — Ansible playbook layout
 - [../../ansible/playbooks/servicenow/discovery/README.md](../../ansible/playbooks/servicenow/discovery/README.md) — discovery playbook verbs
 - [../../ansible/playbooks/servicenow/discovery/docker/README.md](../../ansible/playbooks/servicenow/discovery/docker/README.md) — Docker container sync and label upsert
-- [../../ansible/playbooks/servicenow/discovery/k8s/sync_pod_labels.yml](../../ansible/playbooks/servicenow/discovery/k8s/sync_pod_labels.yml) — Kubernetes pod label sync
-- [../../ansible/playbooks/servicenow/discovery/host/sync_tags.yml](../../ansible/playbooks/servicenow/discovery/host/sync_tags.yml) — host agent tags on linux_server CIs
+- [../../ansible/playbooks/servicenow/discovery/k8s/start.yml](../../ansible/playbooks/servicenow/discovery/k8s/start.yml) — Kubernetes pod label sync
+- [../../ansible/playbooks/servicenow/discovery/host/deploy.yml](../../ansible/playbooks/servicenow/discovery/host/deploy.yml) — host agent tags on linux_server CIs
 - [../../docs/architecture-and-resources.md](../../docs/architecture-and-resources.md) — Lab3 MID memory budget
 - `tmp/ServiceNow_Dynatrace_Integration.md` — CMDB / Dynatrace design
 - `tmp/Dynatrace-ServiceNow SGC.md` — SGC / IRE mapping

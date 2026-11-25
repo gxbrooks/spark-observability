@@ -6,13 +6,14 @@ sn_repo_root: "{{ project_root }}"
 sn_discovery_tasks_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/automation/ansible/playbooks/servicenow/discovery/tasks"
 sn_incident_integrations_dir: "{{ sn_repo_root }}/specifications/servicenow/integrations/incident"
 
-# ServiceNow target: -e target=<id>|all (default SN_DEFAULT_TARGET). With `all`,
-# this process runs the first SN_INSTANCES entry and common/target.yml runs the
-# rest as child runs, so sn_instance_id is always one instance id here.
+# ServiceNow target: ONE instance per run (-e target=<id>, ids in SN_INSTANCES).
+# tasks/target.yml resolves it — default: the active instance, derived from
+# the live MID Server / KVA informer / Dynatrace notifications (nothing is
+# recorded) — and publishes it to every host as sn_target_resolved.
 # Registry: SN_INSTANCES in vars/variables.yaml. Secrets: servicenow.<KEY><secrets_suffix>.
-# See specifications/servicenow/docs/Multi_Instance_Plan.md.
-sn_target: "{{ target | default(SN_DEFAULT_TARGET) }}"
-sn_instance_id: "{{ (SN_INSTANCES | first).id if sn_target == 'all' else sn_target }}"
+# See specifications/servicenow/docs/Multi_Target_ServiceNow.md.
+sn_target: "{{ sn_target_resolved | default(target) }}"
+sn_instance_id: "{{ sn_target }}"
 sn_instance_cfg: "{{ SN_INSTANCES | selectattr('id', 'equalto', sn_instance_id) | first }}"
 sn_secret_suffix: "{{ sn_instance_cfg.secrets_suffix | default('') }}"
 sn_url: "{{ sn_instance_cfg.url | trim }}"
@@ -24,20 +25,6 @@ sn_api_headers:
   Content-Type: application/json
 
 sn_incident_si_name: ResolveApplicationService
-sn_l2i_enrich_event_br_name: em-event-enrich-sgo
-sn_l2i_enrich_event_br_order: "100"
-sn_l2i_enrich_alert_br_name: em-alert-enrich-sgo
-# Must run before ServiceNow's own order-100 em_alert before-BRs (Calculate
-# correlation rule, TBAC Tag Normalization BR, Populate TBAC Reasoning, Add
-# message key if missing) — those evaluate the alert's fields as they stand
-# at that order, so our metric_name/cmdb_ci/sn-metric-class backfill has to
-# land first or correlation and TBAC clustering both evaluate stale (empty)
-# data. Previously 5000 (after those OOTB rules), which is why neither the
-# L2I correlation rule nor the metric_class TBAC ever actually correlated
-# anything on this instance.
-sn_l2i_enrich_alert_br_order: "90"
-sn_incident_em_alert_br_name: em-alert-create-log-incident
-sn_incident_em_alert_br_order: "5020"
 
 # Shared instantiation for AMR filter representations.
 sn_incident_max_severity: "3"
@@ -55,6 +42,3 @@ sn_ootb_ci_in_change_window_rule_name: CI in Change Window
 # Product-generated TBAC correlation rule name (lookup only).
 sn_l2i_tbac_correlation_rule_name: "[Tag Based] L2I short Log4j2 SI + signature"
 sn_metric_class_tbac_correlation_rule_name: "[Tag Based] L2I metric_class CPU cluster"
-
-# Create BR retired: OOTB AMR SGO-Dynatrace owns incident create.
-sn_l2i_create_br_active: "false"

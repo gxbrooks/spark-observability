@@ -1,0 +1,42 @@
+---
+# Sys properties for Spark Log-to-Incident Grail enrichment + Logs deep links.
+# Representation: specifications/servicenow/integrations/incident/sys_properties_l2i_dt.json.j2
+# (names/descriptions; values instantiated from secrets / context vars below).
+
+- name: Resolve Log-to-Incident Dynatrace Apps URL and Grail token
+  ansible.builtin.set_fact:
+    sn_l2i_dt_apps_url: >-
+      {{ DT_TENANT_URL
+         | default(dynatrace.DT_TENANT_URL | default(''))
+         | trim
+         | regex_replace('/$', '') }}
+    sn_l2i_dt_platform_token: >-
+      {{ dynatrace.DT_PLATFORM_TOKEN_GRAIL
+         | default(dynatrace.DT_PLATFORM_TOKEN | default('')) }}
+  no_log: true
+
+- name: Load L2I Dynatrace sys_properties representation
+  ansible.builtin.set_fact:
+    sn_l2i_dt_props: >-
+      {{ lookup('tf_template', sn_incident_integrations_dir + '/sys_properties_l2i_dt.json.j2',
+                sn_l2i_dt_apps_url=sn_l2i_dt_apps_url,
+                sn_l2i_dt_platform_token=sn_l2i_dt_platform_token) | from_json }}
+  no_log: true
+
+- name: Apply L2I Dynatrace sys_properties
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply-sys-property.yml"
+  loop: "{{ sn_l2i_dt_props | selectattr('value', 'ne', '') | list }}"
+  loop_control:
+    loop_var: sn_sysprop_item
+    label: "{{ sn_sysprop_item.name }}"
+
+- name: Warn when L2I Dynatrace enrichment properties are incomplete
+  ansible.builtin.debug:
+    msg: >-
+      Skipping L2I Grail enrichment sys_properties
+      (apps_url={{ sn_l2i_dt_apps_url | length > 0 }},
+      token={{ sn_l2i_dt_platform_token | length > 0 }}).
+      Set DT_TENANT_URL and dynatrace.DT_PLATFORM_TOKEN_GRAIL in secrets.
+  when: >-
+    (sn_l2i_dt_apps_url | length == 0)
+    or (sn_l2i_dt_platform_token | length == 0)

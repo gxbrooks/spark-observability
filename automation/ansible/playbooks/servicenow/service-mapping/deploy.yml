@@ -7,9 +7,10 @@
 #   ansible-playbook -i inventory.yml playbooks/servicenow/service-mapping/deploy.yml \
 #     -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: service-mapping/deploy.yml
+    sn_target_mode: switch
 
 - name: Deploy Service Mapping configuration
   hosts: localhost
@@ -24,7 +25,7 @@
       ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/regenerate-context.yml"
 
     - name: Deploy Service Mapping Operations REST API
-      ansible.builtin.include_tasks: tasks/deploy_sm_rest_api.yml
+      ansible.builtin.include_tasks: tasks/deploy-sm-rest-api.yml
 
     - name: Ensure default CI tag categories
       ansible.builtin.include_tasks: tasks/ensure-tag-categories.yml

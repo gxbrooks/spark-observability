@@ -1,0 +1,11 @@
+---
+# Event Management properties that must sit in front of AMRs:
+#   - wait for the grouping job before evaluating create-incident rules
+#   - do not auto-refresh Workspace alert lists
+# Representation: specifications/servicenow/integrations/incident/sys_properties_em_best_practice.json
+- name: Apply Event Management best-practice sys_properties
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply-sys-property.yml"
+  loop: "{{ lookup('file', sn_incident_integrations_dir + '/sys_properties_em_best_practice.json') | from_json }}"
+  loop_control:
+    loop_var: sn_sysprop_item
+    label: "{{ sn_sysprop_item.name }}"

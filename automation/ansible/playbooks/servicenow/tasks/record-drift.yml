@@ -1,0 +1,28 @@
+---
+# Which fields of a ServiceNow record differ from its representation?
+# Inputs:
+#   sn_drift_wanted — the representation (dict of field → value)
+#   sn_drift_live   — the record as the Table API returned it (no display values)
+# Output:
+#   sn_drift_fields — names of the representation's fields whose live value
+#                     differs (empty list = nothing to update)
+# The Table API returns every value as a string and reference fields as
+# {link, value}; booleans in the representation compare as 'true'/'false'.
+# Only the representation's fields are compared: a field the project doesn't
+# set is the instance's to keep.
+
+- name: Compare the record with its representation
+  ansible.builtin.set_fact:
+    sn_drift_fields: >-
+      {%- set out = [] -%}
+      {%- for key, want in sn_drift_wanted.items() -%}
+        {%- set live = sn_drift_live.get(key, '') -%}
+        {%- set live = live.value if live is mapping else live -%}
+        {%- set want = ('true' if want else 'false') if want is boolean else want -%}
+        {%- if (live | string) != (want | string) -%}{%- set _ = out.append(key) -%}{%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+
+- name: Report the fields that differ (names only)
+  ansible.builtin.debug:
+    msg: "{{ 'differs: ' ~ (sn_drift_fields | join(', ')) if sn_drift_fields | length > 0 else 'matches its representation — no update' }}"

@@ -2,9 +2,10 @@
 # Deploy ServiceNow Discovery configuration (location, credential, range, schedule).
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/deploy.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: discovery/deploy.yml
+    sn_target_mode: switch
 
 - name: Deploy ServiceNow Discovery configuration
   hosts: localhost
@@ -46,12 +47,12 @@
       when: not sn_discovery_key_stat.stat.exists
 
     - name: Configure ServiceNow Discovery objects
-      ansible.builtin.include_tasks: tasks/deploy_servicenow.yml
+      ansible.builtin.include_tasks: tasks/deploy-servicenow.yml
 
     - name: Deploy Scripted REST API for Discover Now trigger
-      ansible.builtin.include_tasks: tasks/deploy_discovery_rest_api.yml
+      ansible.builtin.include_tasks: tasks/deploy-discovery-rest-api.yml
 
-    - name: Persist deploy facts for discover.yml
+    - name: Persist deploy facts for the Discovery scan (start.yml --tags discovery_scan)
       ansible.builtin.copy:
         dest: "{{ project_root }}/vars/contexts/servicenow_discovery_deploy{{ sn_context_suffix }}.json"
         mode: "0644"
@@ -67,7 +68,7 @@
              } | to_nice_json }}
 
     - name: Ensure MID Server is validated for Discovery
-      ansible.builtin.include_tasks: tasks/validate_mid_server.yml
+      ansible.builtin.include_tasks: tasks/validate-mid-server.yml
 
     - name: Deploy summary
       ansible.builtin.debug:
@@ -79,7 +80,7 @@
           Quick Discovery API: POST {{ sn_url }}{{ sn_discovery_rest_quick_uri | default('(run deploy.yml)') }}
           MID {{ sn_mid_server_name }}: validated={{ 'true (just applied — restarting MID)' if sn_mid_validation_changed | default(false) else 'ok' }}
           CMDB (all CIs at brooks-lab): {{ sn_cmdb_all_cis_url }}
-          Next: ansible-playbook ... playbooks/servicenow/discovery/discover.yml
+          Next: ansible-playbook ... playbooks/servicenow/discovery/start.yml --tags discovery_scan
 
 - name: Restart MID Server after validation
   hosts: observability
@@ -90,5 +91,5 @@
     - "{{ playbook_dir }}/common/vars.yml"
   tasks:
     - name: Restart MID when validation was just applied
-      ansible.builtin.include_tasks: tasks/restart_mid_server.yml
+      ansible.builtin.include_tasks: tasks/restart-mid-server.yml
       when: hostvars['localhost'].sn_mid_validation_changed | default(false)

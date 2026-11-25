@@ -1,0 +1,17 @@
+[
+  {
+    "name": "sa_analytics.agg.group_alert_with_same_group_by_fields",
+    "value": "metric_name,cmdb_ci",
+    "description": "Extra AND for job-based alert grouping. L2I log metric_name is Log-Error:{sn-log-signature}; same CI + same signature group, different signatures stay apart."
+  },
+  {
+    "name": "sa_analytics.aggregation_enabled",
+    "value": "true",
+    "description": "Enable scheduled-job alert grouping (Automated, CMDB, Text)"
+  },
+  {
+    "name": "sa_analytics.agg.query.group_logic_order",
+    "value_includes": "TAG_BASED",
+    "description": "Alert grouping method order (TAG_BASED enabled for metric_class TBAC clustering)"
+  }
+]

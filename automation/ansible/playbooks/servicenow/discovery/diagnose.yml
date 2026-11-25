@@ -2,9 +2,10 @@
 # Diagnose ServiceNow API access, Discovery ACLs, MID Server, and lab accounts.
 # Usage: ansible-playbook -i inventory.yml playbooks/servicenow/discovery/diagnose.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: discovery/diagnose.yml
+    sn_target_mode: any
 
 - name: Diagnose ServiceNow Discovery integration
   hosts: localhost
@@ -288,6 +289,21 @@
           {% endfor %}
       when: sn_auth_test.status == 200
 
+- name: Discovery test checks (the test.yml checks; failures reported, diagnose continues)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/common/vars.yml"
+  tasks:
+    - name: Test check — the lab hosts were discovered
+      ansible.builtin.include_tasks:
+        file: tasks/test-discovered-hosts.yml
+        apply:
+          ignore_errors: true
+
 - name: Diagnose lab host discovery account
   hosts: k8s_nodes
   become: true
@@ -390,13 +406,13 @@
           - Linux servers: {{ sn_cmdb_linux_servers_url }}
 
           {% if hostvars['localhost'].sn_mid_registered | default(false) and hostvars['localhost'].sn_mid_sn_validated | default('') | string != 'true' %}
-          Next: deploy.yml (validates MID and restarts) before discover.yml
+          Next: deploy.yml (validates MID and restarts) before start.yml --tags discovery_scan
           {% elif not (hostvars['localhost'].sn_mid_registered | default(false)) and not (hostvars['Lab3'].sn_mid_host_installed | default(false)) %}
           Next: ansible-playbook ... discovery/install.yml -e @../vars/secrets.yaml --tags mid_server
           {% elif hostvars['Lab3'].sn_mid_host_installed | default(false) and not (hostvars['localhost'].sn_mid_registered | default(false)) %}
           Next: check mid_brooks_lab password in config.xml, journalctl on Lab3, MID Server > Issues in UI
           {% elif hostvars['localhost'].sn_mid_registered | default(false) %}
-          Next: re-run deploy.yml to link Discovery schedule, then discover.yml
+          Next: re-run deploy.yml to link Discovery schedule, then start.yml --tags discovery_scan
           {% endif %}
 
           Required for deploy.yml: discovery_schedule + discovery_credentials + cmn_location write.

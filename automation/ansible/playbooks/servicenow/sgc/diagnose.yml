@@ -4,9 +4,10 @@
 #   cd ansible
 #   ansible-playbook -i inventory.yml playbooks/servicenow/sgc/diagnose.yml -e @../vars/secrets.yaml
 
-- import_playbook: ../common/target.yml
+- import_playbook: ../tasks/target.yml
   vars:
     sn_target_playbook: sgc/diagnose.yml
+    sn_target_mode: any
 
 - name: Diagnose Dynatrace SGC prerequisites and CMDB merge state
   hosts: localhost
@@ -54,7 +55,7 @@
 
     # ----- SGC application and CMDB source rows --------------------------------
     - name: Check SGC application and CMDB source rows
-      ansible.builtin.include_tasks: sources/dynatrace/tasks/check_sgc_prerequisites.yml
+      ansible.builtin.include_tasks: sources/dynatrace/tasks/check-sgc-prerequisites.yml
 
     - name: List brooks-lab Linux server CIs (Discovery authoritative)
       ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
@@ -67,7 +68,7 @@
         var: sn_rest_json.result
 
     - name: Diagnose IRE host merge for lab nodes
-      ansible.builtin.include_tasks: tasks/diagnose_ire_host_merge.yml
+      ansible.builtin.include_tasks: tasks/diagnose-ire-host-merge.yml
 
     # ----- Dynatrace side -------------------------------------------------------
     - name: Query Dynatrace HOST entities (sample)
