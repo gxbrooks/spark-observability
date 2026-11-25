@@ -1,0 +1,51 @@
+---
+# Build eShop container images from the pinned upstream source plus lab patches, and push them
+# to the Lab3 registry. Builds run inside the .NET SDK container, so Lab3 needs only Docker.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/build.yml
+#   -e eshop_rebuild=true   rebuild and push even when the tag is already in the registry
+
+- name: Build eShop images
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+  tasks:
+    - name: Read the commit currently checked out
+      ansible.builtin.command: git -C {{ eshop_src_dir | quote }} rev-parse HEAD
+      register: eshop_head
+      failed_when: false
+      changed_when: false
+
+    # force discards the lab patches from a previous build; they are re-applied below.
+    - name: Check out the pinned eShop source
+      ansible.builtin.git:
+        repo: "{{ eshop_repo_url }}"
+        dest: "{{ eshop_src_dir }}"
+        version: "{{ eshop_repo_version }}"
+        force: true
+      when: eshop_head.stdout != eshop_repo_version
+
+    - name: Ensure the NuGet cache shared by SDK containers exists
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.cache/eshop-nuget"
+        state: directory
+        mode: "0755"
+
+    - name: Apply lab patches
+      ansible.builtin.include_tasks: tasks/apply-patch.yml
+      loop: "{{ query('fileglob', eshop_patch_dir ~ '/*.patch') | sort }}"
+      loop_control:
+        loop_var: eshop_patch
+
+    - name: Build and push each service image
+      ansible.builtin.include_tasks: tasks/build-image.yml
+      loop: "{{ eshop_projects | dict2items }}"
+      loop_control:
+        loop_var: eshop_project
+        label: "{{ eshop_project.key }}"
+
+    - name: Report the image tag deploy will use
+      ansible.builtin.debug:
+        msg: "eShop images {{ eshop_registry }}/eshop/<service>:{{ eshop_image_tag }}"

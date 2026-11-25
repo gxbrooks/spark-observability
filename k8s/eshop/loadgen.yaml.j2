@@ -1,0 +1,43 @@
+# eShop order load generator. The script (eshop/loadgen/loadgen.py) is mounted from ConfigMap
+# eshop-loadgen, which deploy.yml creates from the source file. Runs on the app node (Lab1).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: {{ eshop_namespace }}
+  labels: {app: loadgen, app.kubernetes.io/part-of: eshop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: loadgen}}
+  template:
+    metadata:
+      labels: {app: loadgen, app.kubernetes.io/part-of: eshop}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: {{ eshop_app_node }}}
+      containers:
+        - name: loadgen
+          image: python:3.13-alpine
+          command: [python, -u, /app/loadgen.py]
+          env:
+            - {name: IDENTITY_URL, value: "{{ eshop_identity_url }}"}
+            - {name: ORDERS_PER_MINUTE, value: "{{ eshop_loadgen_orders_per_minute }}"}
+            - name: LOADGEN_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: loadgen-client-secret}}
+            - name: LOADGEN_USERNAME
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: loadgen-username}}
+            - name: LOADGEN_PASSWORD
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: loadgen-password}}
+            # Separate user for `loadgen.py --check` (test.yml / diagnose.yml).
+            - name: CHECK_USERNAME
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: check-username}}
+            - name: CHECK_PASSWORD
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: check-password}}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: script, mountPath: /app}
+      volumes:
+        - name: script
+          configMap: {name: eshop-loadgen}

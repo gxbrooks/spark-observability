@@ -1,0 +1,159 @@
+---
+# eShop checks shared by test.yml (eshop_deep: false) and diagnose.yml (eshop_deep: true).
+# Each check appends {check, status, detail, hint} to eshop_checks. Dependent checks are skipped
+# (status SKIP) when their prerequisite fails.
+# Expects: common/vars.yml, the `eshop` secrets dict, KUBECONFIG in the play environment.
+
+- name: Initialise check results
+  ansible.builtin.set_fact:
+    eshop_checks: []
+
+# --- 1. Deployments available ---------------------------------------------------------------
+- name: Read eShop deployments
+  ansible.builtin.command: kubectl get deployments -n {{ eshop_namespace }} -o json
+  register: eshop_deploy_json
+  failed_when: false
+  changed_when: false
+
+- name: Evaluate deployment availability
+  vars:
+    eshop_expected: "{{ eshop_infra_deployments + eshop_app_deployments + ['loadgen'] }}"
+    eshop_items: "{{ (eshop_deploy_json.stdout | from_json)['items'] if eshop_deploy_json.rc == 0 else [] }}"
+    eshop_ready: "{{ eshop_items | selectattr('status.readyReplicas', 'defined') | selectattr('status.readyReplicas', '>=', 1) | map(attribute='metadata.name') | list }}"
+    eshop_not_ready: "{{ eshop_expected | difference(eshop_ready) }}"
+  ansible.builtin.set_fact:
+    eshop_deployments_ok: "{{ eshop_not_ready | length == 0 }}"
+    eshop_checks: >-
+      {{ eshop_checks + [{'check': 'deployments available',
+          'status': 'PASS' if eshop_not_ready | length == 0 else 'FAIL',
+          'detail': (eshop_expected | length - eshop_not_ready | length) ~ '/' ~ (eshop_expected | length) ~ ' ready'
+                    ~ ('' if eshop_not_ready | length == 0 else '; not ready: ' ~ eshop_not_ready | join(', ')),
+          'hint': 'Stopped? run eshop/start.yml. Otherwise: kubectl -n ' ~ eshop_namespace ~ ' describe deploy <name> / logs deploy/<name>'}] }}
+
+# --- 2. Placement (nothing load-bearing on Lab3) --------------------------------------------
+- name: Read eShop pod placement
+  ansible.builtin.command: >-
+    kubectl get pods -n {{ eshop_namespace }} --field-selector=status.phase=Running
+    -o jsonpath='{range .items[*]}{.metadata.labels.app}={.spec.nodeName}{"\n"}{end}'
+  register: eshop_pods
+  failed_when: false
+  changed_when: false
+
+- name: Evaluate placement
+  vars:
+    eshop_on_lab3: "{{ eshop_pods.stdout_lines | select('search', '=lab3$') | list }}"
+  ansible.builtin.set_fact:
+    eshop_checks: >-
+      {{ eshop_checks + [{'check': 'no eShop pods on lab3',
+          'status': 'PASS' if eshop_on_lab3 | length == 0 else 'FAIL',
+          'detail': eshop_pods.stdout_lines | join(', ') if eshop_on_lab3 | length == 0 else 'on lab3: ' ~ eshop_on_lab3 | join(', '),
+          'hint': 'Every eShop workload must carry a nodeSelector for lab1/lab2 (k8s/eshop/*.yaml.j2).'}] }}
+
+# --- 3. Every subscriber queue has a consumer ------------------------------------------------
+- name: Read RabbitMQ queues
+  ansible.builtin.uri:
+    url: "http://{{ eshop_public_host }}:{{ eshop_rabbitmq_mgmt_nodeport }}/api/queues/%2F"
+    user: "{{ eshop.RABBITMQ_USER }}"
+    password: "{{ eshop.RABBITMQ_PASSWORD }}"
+    force_basic_auth: true
+    return_content: true
+  register: eshop_queues
+  failed_when: false
+  when: eshop_deployments_ok
+
+- name: Evaluate queue consumers
+  vars:
+    eshop_expected_queues: [Basket, Catalog, Ordering, OrderProcessor, PaymentProcessor, Webhooks, Ordering.webapp]
+    eshop_queue_list: "{{ eshop_queues.json | default([]) }}"
+    eshop_consumed: "{{ eshop_queue_list | selectattr('consumers', '>=', 1) | map(attribute='name') | list }}"
+    eshop_missing: "{{ eshop_expected_queues | difference(eshop_consumed) }}"
+  ansible.builtin.set_fact:
+    eshop_queues_ok: "{{ eshop_deployments_ok and eshop_missing | length == 0 }}"
+    eshop_checks: >-
+      {{ eshop_checks + [{'check': 'subscriber queues have consumers',
+          'status': 'SKIP' if not eshop_deployments_ok else ('PASS' if eshop_missing | length == 0 else 'FAIL'),
+          'detail': 'skipped: deployments not available' if not eshop_deployments_ok
+                    else (eshop_queue_list | map(attribute='name') | zip(eshop_queue_list | map(attribute='messages', default=0), eshop_queue_list | map(attribute='consumers'))
+                          | map('join', ':') | join(', ') ~ ('' if eshop_missing | length == 0 else '; no consumer: ' ~ eshop_missing | join(', '))),
+          'hint': 'A queue without a consumer means its service lost its RabbitMQ connection; check that service logs (name:messages:consumers shown).'}] }}
+
+# --- 4. End-to-end order through the queue saga ----------------------------------------------
+- name: Place one order and wait for Paid
+  ansible.builtin.command: kubectl exec -n {{ eshop_namespace }} deploy/loadgen -- python -u /app/loadgen.py --check
+  register: eshop_e2e
+  failed_when: false
+  changed_when: false
+  when: eshop_queues_ok
+
+- name: Evaluate end-to-end order
+  ansible.builtin.set_fact:
+    eshop_checks: >-
+      {{ eshop_checks + [{'check': 'order reaches Paid via queues',
+          'status': 'SKIP' if not eshop_queues_ok else ('PASS' if eshop_e2e.rc == 0 else 'FAIL'),
+          'detail': 'skipped: queue check failed' if not eshop_queues_ok
+                    else (eshop_e2e.stdout_lines | select('search', 'check_') | list | last | default(eshop_e2e.stderr | default(''))),
+          'hint': 'Statuses show where the saga stopped: Submitted=order-processor grace period, AwaitingValidation=catalog-api, StockConfirmed=payment-processor.'}] }}
+
+# --- Deeper diagnostics (diagnose.yml only) ---------------------------------------------------
+- name: Deeper diagnostics
+  when: eshop_deep | default(false) | bool
+  block:
+    - name: Read pod restarts, images and Dynatrace injection
+      ansible.builtin.command: >-
+        kubectl get pods -n {{ eshop_namespace }} -o jsonpath='{range .items[*]}{.metadata.labels.app}
+        restarts={.status.containerStatuses[0].restartCount}
+        image={.spec.containers[0].image}
+        dt_injected={.metadata.annotations.oneagent\.dynatrace\.com/injected}{"\n"}{end}'
+      register: eshop_pod_detail
+      changed_when: false
+
+    - name: Count Duende licence messages in Identity.API logs
+      ansible.builtin.shell: >-
+        kubectl logs -n {{ eshop_namespace }} deploy/identity-api --since=24h 2>/dev/null
+        | grep -ciE 'licen[cs]e|trial' || true
+      register: eshop_duende
+      changed_when: false
+
+    - name: Summarise load generator over the last 15 minutes
+      ansible.builtin.shell: >-
+        kubectl logs -n {{ eshop_namespace }} deploy/loadgen --since=15m 2>/dev/null
+        | grep -oE '"event": "order_(placed|failed)"' | sort | uniq -c || true
+      register: eshop_loadgen
+      changed_when: false
+
+    - name: Read recent warning events
+      ansible.builtin.command: >-
+        kubectl get events -n {{ eshop_namespace }} --field-selector type=Warning
+        --sort-by=.lastTimestamp -o custom-columns=AGE:.lastTimestamp,OBJECT:.involvedObject.name,REASON:.reason,MESSAGE:.message
+      register: eshop_events
+      changed_when: false
+
+    - name: Record deeper diagnostics
+      vars:
+        eshop_uninjected: "{{ eshop_pod_detail.stdout_lines | select('search', 'dt_injected=$') | map('split') | map('first') | list }}"
+        eshop_stale: "{{ eshop_pod_detail.stdout_lines | select('search', 'image=' ~ eshop_registry) | reject('search', eshop_image_tag) | map('split') | map('first') | list }}"
+      ansible.builtin.set_fact:
+        eshop_checks: >-
+          {{ eshop_checks + [
+            {'check': 'Dynatrace OneAgent injected', 'status': 'PASS' if eshop_uninjected | length == 0 else 'WARN',
+             'detail': 'all pods' if eshop_uninjected | length == 0 else 'not injected: ' ~ eshop_uninjected | join(', '),
+             'hint': 'Pods started before the Dynatrace operator webhook, or excluded by the DynaKube; restart them.'},
+            {'check': 'images match build tag ' ~ eshop_image_tag, 'status': 'PASS' if eshop_stale | length == 0 else 'WARN',
+             'detail': 'all current' if eshop_stale | length == 0 else 'stale: ' ~ eshop_stale | join(', '),
+             'hint': 'Run eshop/build.yml then eshop/deploy.yml.'},
+            {'check': 'Duende licence log lines (24h)', 'status': 'INFO',
+             'detail': eshop_duende.stdout | trim ~ ' lines; Duende 8 logs a missing-licence error about every 30 min and keeps serving',
+             'hint': 'If Identity.API stops issuing tokens after a Duende upgrade, run eshop/start.yml (restarts Identity.API).'},
+            {'check': 'load generator (15m)', 'status': 'INFO',
+             'detail': eshop_loadgen.stdout_lines | map('trim') | join(', ') if eshop_loadgen.stdout | length > 0 else 'no orders logged',
+             'hint': 'Failures: kubectl -n ' ~ eshop_namespace ~ ' logs deploy/loadgen'},
+            {'check': 'pods', 'status': 'INFO', 'detail': eshop_pod_detail.stdout_lines | join(' | '), 'hint': ''},
+            {'check': 'warning events', 'status': 'INFO',
+             'detail': eshop_events.stdout_lines[1:] | join(' | ') if eshop_events.stdout_lines | length > 1 else 'none', 'hint': ''}] }}
+
+- name: Report eShop checks
+  ansible.builtin.debug:
+    msg: "[{{ item.status }}] {{ item.check }}: {{ item.detail }}{{ ('  -> ' ~ item.hint) if item.status in ['FAIL', 'WARN'] else '' }}"
+  loop: "{{ eshop_checks }}"
+  loop_control:
+    label: "{{ item.check }}"

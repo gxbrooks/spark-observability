@@ -1,0 +1,59 @@
+---
+# Shared variables for the eShop module (build, deploy, start, stop, diagnose, test, check, undeploy).
+# eShop (github.com/dotnet/eShop, MIT) is a RabbitMQ-centric .NET demo used to study how
+# Dynatrace and ServiceNow model queues. Placement rule: Lab3 hosts no load-bearing components.
+
+# Upstream source, pinned for repeatable builds. Lab3 is the dev server; repos live in ~/repos.
+eshop_repo_url: https://github.com/dotnet/eShop.git
+eshop_repo_version: 3c6e531a6063676ece317644f72172fb42a935b3
+eshop_src_dir: "{{ lookup('env', 'HOME') }}/repos/eShop"
+
+# Lab changes applied on top of upstream (see eshop/patches/*.patch commentary in eshop/README.md).
+eshop_patch_dir: "{{ project_root }}/eshop/patches"
+
+# Images are pushed to the Lab3 plain-HTTP registry (same one Spark uses). The tag combines the
+# upstream commit and a digest of the lab patches, so changing either produces a new image.
+eshop_registry: Lab3.lan:5000
+eshop_image_tag: >-
+  {{ eshop_repo_version[:12] }}-{{ lookup('pipe', 'cat ' ~ eshop_patch_dir ~ '/*.patch | sha1sum')[:8] }}
+eshop_sdk_image: mcr.microsoft.com/dotnet/sdk:11.0
+
+eshop_namespace: eshop
+eshop_kubeconfig: "{{ lookup('env', 'HOME') }}/.kube/config"
+eshop_manifest_dir: "{{ project_root }}/k8s/eshop"
+eshop_render_dir: "{{ project_root }}/tmp/eshop-manifests"
+
+# .NET projects built into images: image name -> project path under eshop_src_dir.
+eshop_projects:
+  identity-api: src/Identity.API/Identity.API.csproj
+  basket-api: src/Basket.API/Basket.API.csproj
+  catalog-api: src/Catalog.API/Catalog.API.csproj
+  ordering-api: src/Ordering.API/Ordering.API.csproj
+  order-processor: src/OrderProcessor/OrderProcessor.csproj
+  payment-processor: src/PaymentProcessor/PaymentProcessor.csproj
+  webhooks-api: src/Webhooks.API/Webhooks.API.csproj
+  webapp: src/WebApp/WebApp.csproj
+
+# Node placement. Lab2 carries the broker, data stores and the queue-only consumers;
+# Lab1 carries the UI and APIs, so every message crosses Lab1 <-> Lab2.
+eshop_data_node: lab2
+eshop_app_node: lab1
+
+# Public (browser- and pod-reachable) endpoints. Identity's issuer is derived from the request
+# host, so browsers, APIs and the load generator must all use this one URL.
+eshop_public_host: lab1.lan
+eshop_webapp_nodeport: 30580
+eshop_identity_nodeport: 30581
+eshop_rabbitmq_mgmt_nodeport: 30582
+eshop_identity_url: "http://{{ eshop_public_host }}:{{ eshop_identity_nodeport }}"
+eshop_webapp_url: "http://{{ eshop_public_host }}:{{ eshop_webapp_nodeport }}"
+
+# Load generator: orders placed per minute (0 pauses ordering without stopping the pod).
+# Capacity ceiling is ~3/min: ordering-api consumes its queue one message at a time and upstream
+# eShop sleeps 10 s in SetStockConfirmed/SetStockRejected/SetPaid handlers (2 per order). Above
+# ~3/min the Ordering queue backlog grows without bound (a deliberate saturation scenario).
+eshop_loadgen_orders_per_minute: 2
+
+# Deployments in start order (data first, then producers/consumers, then UI and load).
+eshop_infra_deployments: [postgres, redis, rabbitmq]
+eshop_app_deployments: [identity-api, catalog-api, ordering-api, basket-api, order-processor, payment-processor, webhooks-api, webapp]

@@ -1,0 +1,17 @@
+---
+# Apply one lab patch to the eShop checkout unless it is already applied.
+# Expects: eshop_patch (path), eshop_src_dir.
+
+- name: "Check whether {{ eshop_patch | basename }} is already applied"
+  ansible.builtin.command: git apply --reverse --check {{ eshop_patch | quote }}
+  args:
+    chdir: "{{ eshop_src_dir }}"
+  register: eshop_patch_applied
+  failed_when: false
+  changed_when: false
+
+- name: "Apply {{ eshop_patch | basename }}"
+  ansible.builtin.command: git apply {{ eshop_patch | quote }}
+  args:
+    chdir: "{{ eshop_src_dir }}"
+  when: eshop_patch_applied.rc != 0

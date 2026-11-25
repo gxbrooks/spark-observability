@@ -1,0 +1,33 @@
+---
+# Stop eShop by scaling every deployment to 0 in reverse dependency order (load generator first,
+# backing services last). Manifests, Secret and Postgres data on Lab2 stay in place.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/stop.yml
+
+- name: Stop eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Read current replica counts
+      ansible.builtin.command: >-
+        kubectl get deployments -n {{ eshop_namespace }}
+        -o jsonpath='{range .items[*]}{.metadata.name}={.spec.replicas}{"\n"}{end}'
+      register: eshop_replicas_raw
+      changed_when: false
+
+    - name: Index replica counts by deployment
+      ansible.builtin.set_fact:
+        eshop_replicas: "{{ dict(eshop_replicas_raw.stdout_lines | map('split', '=')) }}"
+
+    - name: Stop eShop in reverse dependency order
+      ansible.builtin.include_tasks: tasks/scale-deployment.yml
+      loop: "{{ (eshop_infra_deployments + eshop_app_deployments + ['loadgen']) | reverse | list }}"
+      loop_control:
+        loop_var: eshop_deployment
+      vars:
+        eshop_target_replicas: 0

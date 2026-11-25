@@ -1,0 +1,17 @@
+---
+# Scale one eShop deployment to eshop_target_replicas (skipped when already there) and, when
+# scaling up, wait for it to become available.
+# Expects: eshop_deployment, eshop_target_replicas, eshop_replicas (name -> current spec.replicas).
+
+- name: "Scale {{ eshop_deployment }} to {{ eshop_target_replicas }}"
+  ansible.builtin.command: >-
+    kubectl scale deployment/{{ eshop_deployment }} -n {{ eshop_namespace }}
+    --replicas={{ eshop_target_replicas }}
+  when: eshop_replicas[eshop_deployment] | default('0') | int != eshop_target_replicas | int
+  changed_when: true
+
+- name: "Wait for {{ eshop_deployment }}"
+  ansible.builtin.command: >-
+    kubectl rollout status deployment/{{ eshop_deployment }} -n {{ eshop_namespace }} --timeout=300s
+  when: eshop_target_replicas | int > 0
+  changed_when: false

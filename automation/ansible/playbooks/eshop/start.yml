@@ -1,0 +1,58 @@
+---
+# Start eShop: scale backing services, then .NET services, then the load generator to 1.
+# Identity.API is restarted when it was already running, which resets Duende IdentityServer's
+# unlicensed ("trial") mode state and its in-memory developer signing key. Duende 8.x (used by
+# eShop) has no trial request limit or expiry, so this is a safeguard against future versions.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/start.yml
+
+- name: Start eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Read current replica counts
+      ansible.builtin.command: >-
+        kubectl get deployments -n {{ eshop_namespace }}
+        -o jsonpath='{range .items[*]}{.metadata.name}={.spec.replicas}{"\n"}{end}'
+      register: eshop_replicas_raw
+      changed_when: false
+
+    - name: Index replica counts by deployment
+      ansible.builtin.set_fact:
+        eshop_replicas: "{{ dict(eshop_replicas_raw.stdout_lines | map('split', '=')) }}"
+
+    - name: Fail when eShop is not deployed
+      ansible.builtin.assert:
+        that: eshop_replicas | length > 0
+        fail_msg: "No deployments in namespace {{ eshop_namespace }}; run playbooks/eshop/deploy.yml first."
+        quiet: true
+
+    - name: Start eShop in dependency order
+      ansible.builtin.include_tasks: tasks/scale-deployment.yml
+      loop: "{{ eshop_infra_deployments + eshop_app_deployments + ['loadgen'] }}"
+      loop_control:
+        loop_var: eshop_deployment
+      vars:
+        eshop_target_replicas: 1
+
+    - name: Note — restarting Identity.API to reset Duende trial-mode state
+      ansible.builtin.debug:
+        msg: >-
+          identity-api was already running; restarting it so Duende's unlicensed-mode counters and
+          developer signing key start fresh. Existing sessions and tokens become invalid; the load
+          generator re-authenticates automatically.
+      when: eshop_replicas['identity-api'] | default('0') | int > 0
+
+    - name: Restart Identity.API
+      ansible.builtin.command: kubectl rollout restart deployment/identity-api -n {{ eshop_namespace }}
+      when: eshop_replicas['identity-api'] | default('0') | int > 0
+      changed_when: true
+
+    - name: Wait for Identity.API
+      ansible.builtin.command: kubectl rollout status deployment/identity-api -n {{ eshop_namespace }} --timeout=300s
+      changed_when: false

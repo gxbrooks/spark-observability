@@ -83,6 +83,21 @@
         and 'config_path = ""' in (cri_registry_config_path.stdout | default(''))
       changed_when: true
 
+    # containerd 2.x CRI (io.containerd.cri.v1.images) must name exactly one hosts directory.
+    # With a ':'-separated list (e.g. '/etc/containerd/certs.d:/etc/docker/certs.d') containerd
+    # >= 2.1, which pulls CRI images through its transfer service, finds no hosts.toml and falls
+    # back to HTTPS ("server gave HTTP response to HTTPS client"). ctr --hosts-dir still works,
+    # and already-cached images mask the fault until a new image or tag is pulled.
+    - name: Set containerd 2.x CRI registry config_path to certs.d only
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        after: "\\[plugins\\.'io\\.containerd\\.cri\\.v1\\.images'\\.registry\\]"
+        before: "\\n\\s*\\["
+        regexp: "^(\\s*)config_path = '(?!/etc/containerd/certs\\.d')[^']*'$"
+        replace: "\\1config_path = '/etc/containerd/certs.d'"
+        backup: true
+      when: _registry_connection | lower == 'unsecure'
+
     - name: Restart containerd to load registry config
       ansible.builtin.systemd:
         name: containerd

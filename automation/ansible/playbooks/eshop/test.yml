@@ -1,0 +1,26 @@
+---
+# Test eShop: deployments available, placement off Lab3, every subscriber queue consumed, and one
+# order driven end to end through the RabbitMQ saga to Paid. Creates one real order.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/test.yml
+
+- name: Test eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+    - "{{ project_root }}/vars/secrets.yaml"
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Run eShop checks
+      ansible.builtin.include_tasks: tasks/run-checks.yml
+      vars:
+        eshop_deep: false
+
+    - name: Assert all eShop checks passed
+      ansible.builtin.assert:
+        that: eshop_checks | rejectattr('status', 'equalto', 'PASS') | list | length == 0
+        fail_msg: "Failed or skipped: {{ eshop_checks | rejectattr('status', 'equalto', 'PASS') | map(attribute='check') | join(', ') }}"
+        success_msg: "All {{ eshop_checks | length }} eShop checks passed."

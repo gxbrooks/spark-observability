@@ -1,0 +1,68 @@
+---
+# Create or update the identities eShop runs with, from vars/secrets.yaml (eshop block):
+#   - PostgreSQL superuser password and the per-database connection strings
+#   - RabbitMQ user (the broker creates it on first start from RABBITMQ_DEFAULT_USER/PASS)
+#   - "loadgen" OIDC client secret (client defined by eshop/patches/identity-loadgen-client.patch)
+#   - the seeded eShop users the load generator orders as and test.yml checks as
+# All land in Secret eshop-credentials; values never appear in logs or rendered files.
+# Expects: common/vars.yml and the `eshop` secrets dict.
+
+- name: Validate eShop secrets are present
+  ansible.builtin.assert:
+    that:
+      - eshop is defined
+      - eshop[item] | default('') | length > 0
+    fail_msg: "vars/secrets.yaml is missing eshop.{{ item }} (see vars/secrets.example.yaml)"
+    quiet: true
+  loop: [POSTGRES_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD, LOADGEN_CLIENT_SECRET, LOADGEN_USERNAME, LOADGEN_PASSWORD, CHECK_USERNAME, CHECK_PASSWORD]
+  no_log: true
+
+- name: Ensure namespace {{ eshop_namespace }} exists
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: "{{ {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': eshop_namespace, 'labels': {'app.kubernetes.io/part-of': 'eshop'}}} | to_json }}"
+  environment: {KUBECONFIG: "{{ eshop_kubeconfig }}"}
+  register: eshop_ns_apply
+  changed_when: "'unchanged' not in eshop_ns_apply.stdout"
+
+# Server-side apply: client-side `kubectl apply` would copy every value into the
+# last-applied-configuration annotation in plain text. Diff first so reruns report no change.
+- name: Apply Secret eshop-credentials
+  ansible.builtin.shell: |
+    set -o pipefail
+    manifest=$(cat)
+    if printf '%s' "$manifest" | kubectl diff --server-side --field-manager=eshop-ansible -f - >/dev/null; then
+      echo unchanged
+    else
+      rc=$?; [ "$rc" -eq 1 ] || exit "$rc"
+      printf '%s' "$manifest" | kubectl apply --server-side --field-manager=eshop-ansible -f -
+    fi
+  args:
+    executable: /bin/bash
+    stdin: "{{ eshop_secret | to_json }}"
+  environment: {KUBECONFIG: "{{ eshop_kubeconfig }}"}
+  vars:
+    eshop_pg: "Host=postgres;Port=5432;Username=postgres;Password={{ eshop.POSTGRES_PASSWORD }}"
+    eshop_secret:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata: {name: eshop-credentials, namespace: "{{ eshop_namespace }}"}
+      stringData:
+        postgres-password: "{{ eshop.POSTGRES_PASSWORD }}"
+        rabbitmq-user: "{{ eshop.RABBITMQ_USER }}"
+        rabbitmq-password: "{{ eshop.RABBITMQ_PASSWORD }}"
+        loadgen-client-secret: "{{ eshop.LOADGEN_CLIENT_SECRET }}"
+        loadgen-username: "{{ eshop.LOADGEN_USERNAME }}"
+        loadgen-password: "{{ eshop.LOADGEN_PASSWORD }}"
+        check-username: "{{ eshop.CHECK_USERNAME }}"
+        check-password: "{{ eshop.CHECK_PASSWORD }}"
+        conn-eventbus: "amqp://{{ eshop.RABBITMQ_USER | urlencode }}:{{ eshop.RABBITMQ_PASSWORD | urlencode }}@rabbitmq:5672"
+        conn-redis: "redis:6379"
+        conn-catalogdb: "{{ eshop_pg }};Database=catalogdb"
+        conn-identitydb: "{{ eshop_pg }};Database=identitydb"
+        conn-orderingdb: "{{ eshop_pg }};Database=orderingdb"
+        conn-webhooksdb: "{{ eshop_pg }};Database=webhooksdb"
+  register: eshop_secret_apply
+  changed_when: "'unchanged' not in eshop_secret_apply.stdout"
+  no_log: true

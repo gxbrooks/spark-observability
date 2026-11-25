@@ -1,0 +1,44 @@
+---
+# Report drift between the live eShop objects and the k8s/eshop representation files, without
+# changing anything (kubectl diff). Secret eshop-credentials is not compared; it is built from
+# vars/secrets.yaml by deploy.yml.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/check.yml
+
+- name: Check eShop for drift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Render manifests
+      ansible.builtin.include_tasks: tasks/render-manifests.yml
+
+    - name: Diff live objects against manifests
+      ansible.builtin.command: kubectl diff -f {{ eshop_render_dir }}/{{ item }}.yaml
+      loop: [infra, apps, loadgen]
+      register: eshop_diff
+      # kubectl diff: 0 = no drift, 1 = drift found, >1 = error
+      failed_when: eshop_diff.rc > 1
+      changed_when: false
+
+    - name: Diff load generator script ConfigMap
+      ansible.builtin.shell: >-
+        set -o pipefail &&
+        kubectl create configmap eshop-loadgen -n {{ eshop_namespace }}
+        --from-file=loadgen.py={{ project_root }}/eshop/loadgen/loadgen.py --dry-run=client -o yaml
+        | kubectl diff -f -
+      args:
+        executable: /bin/bash
+      register: eshop_cm_diff
+      failed_when: eshop_cm_diff.rc > 1
+      changed_when: false
+
+    - name: Report drift
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'No drift.' if (eshop_diff.results | map(attribute='rc') | max) == 0 and eshop_cm_diff.rc == 0
+          else 'Drift found:\n' ~ ((eshop_diff.results | map(attribute='stdout') | list) + [eshop_cm_diff.stdout]) | select | join('\n') }}

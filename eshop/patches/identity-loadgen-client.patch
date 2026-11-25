@@ -1,0 +1,33 @@
+diff --git a/src/Identity.API/Configuration/Config.cs b/src/Identity.API/Configuration/Config.cs
+index f1d41a6..ec01ab2 100644
+--- a/src/Identity.API/Configuration/Config.cs
++++ b/src/Identity.API/Configuration/Config.cs
+@@ -41,6 +41,28 @@
+         {
+             return new List<Client>
+             {
++                // Lab load generator (spark-observability eshop module): places orders through
++                // Ordering.API as a seeded user. Without LoadGenClientSecret the client gets a
++                // random secret and is unusable.
++                new Client
++                {
++                    ClientId = "loadgen",
++                    ClientName = "Lab Order Load Generator",
++                    ClientSecrets = new List<Secret>
++                    {
++                        new Secret((configuration["LoadGenClientSecret"] ?? Guid.NewGuid().ToString()).Sha256())
++                    },
++                    AllowedGrantTypes = GrantTypes.ResourceOwnerPassword,
++                    RequireConsent = false,
++                    AllowedScopes = new List<string>
++                    {
++                        IdentityServerConstants.StandardScopes.OpenId,
++                        IdentityServerConstants.StandardScopes.Profile,
++                        "orders",
++                        "basket"
++                    },
++                    AccessTokenLifetime = 60*60 // 1 hour
++                },
+                 new Client
+                 {
+                     ClientId = "maui",

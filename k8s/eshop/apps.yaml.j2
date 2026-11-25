@@ -1,0 +1,88 @@
+{#
+  eShop .NET services. Each entry lists: node (placement), conn (connection-string names read
+  from Secret eshop-credentials as conn-<name>), env (plain settings), nodeport (public NodePort,
+  optional), probe (tcp port check; eShop maps /health only in Development).
+
+  Aspire normally injects connection strings and service URLs; here Kubernetes Service names
+  match the hostnames the code uses (http://basket-api, https+http://catalog-api, ...), so the
+  service-discovery pass-through resolves them via cluster DNS.
+#}
+{% set identity_env = {'Identity__Url': eshop_identity_url} %}
+{% set services = {
+  'identity-api': {
+    'node': eshop_app_node, 'conn': ['identitydb'], 'nodeport': eshop_identity_nodeport,
+    'env': {'WebAppClient': eshop_webapp_url, 'WebhooksWebClient': eshop_webapp_url,
+            'BasketApiClient': 'http://basket-api', 'OrderingApiClient': 'http://ordering-api',
+            'WebhooksApiClient': 'http://webhooks-api'},
+    'secret_env': {'LoadGenClientSecret': 'loadgen-client-secret'}},
+  'catalog-api': {'node': eshop_app_node, 'conn': ['catalogdb', 'eventbus'], 'env': {}},
+  'ordering-api': {'node': eshop_app_node, 'conn': ['orderingdb', 'eventbus'], 'env': identity_env},
+  'basket-api': {'node': eshop_app_node, 'conn': ['redis', 'eventbus'], 'env': identity_env},
+  'webhooks-api': {'node': eshop_app_node, 'conn': ['webhooksdb', 'eventbus'], 'env': identity_env},
+  'order-processor': {'node': eshop_data_node, 'conn': ['orderingdb', 'eventbus'], 'env': {}},
+  'payment-processor': {'node': eshop_data_node, 'conn': ['eventbus'], 'env': {}},
+  'webapp': {
+    'node': eshop_app_node, 'conn': ['eventbus'], 'nodeport': eshop_webapp_nodeport,
+    'env': {'IdentityUrl': eshop_identity_url, 'CallBackUrl': eshop_webapp_url}},
+} %}
+{% for name, svc in services.items() %}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ name }}
+  namespace: {{ eshop_namespace }}
+  labels: {app: {{ name }}, app.kubernetes.io/part-of: eshop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: {{ name }}}}
+  template:
+    metadata:
+      labels: {app: {{ name }}, app.kubernetes.io/part-of: eshop}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: {{ svc.node }}}
+      containers:
+        - name: {{ name }}
+          image: {{ eshop_registry }}/eshop/{{ name }}:{{ eshop_image_tag }}
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - {name: ASPNETCORE_FORWARDEDHEADERS_ENABLED, value: "true"}
+            - {name: DT_RELEASE_PRODUCT, value: eshop}
+            - {name: DT_RELEASE_VERSION, value: "{{ eshop_image_tag }}"}
+{% for conn in svc.conn %}
+            - name: ConnectionStrings__{{ conn }}
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: conn-{{ conn }}}}
+{% endfor %}
+{% for key, value in svc.env.items() %}
+            - {name: {{ key }}, value: "{{ value }}"}
+{% endfor %}
+{% for key, secret_key in (svc.secret_env | default({})).items() %}
+            - name: {{ key }}
+              valueFrom: {secretKeyRef: {name: eshop-credentials, key: {{ secret_key }}}}
+{% endfor %}
+          readinessProbe:
+            tcpSocket: {port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ name }}
+  namespace: {{ eshop_namespace }}
+spec:
+{% if svc.nodeport is defined %}
+  type: NodePort
+{% endif %}
+  selector: {app: {{ name }}}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+{% if svc.nodeport is defined %}
+      nodePort: {{ svc.nodeport }}
+{% endif %}
+{% endfor %}

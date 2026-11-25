@@ -1,0 +1,63 @@
+---
+# Build one eShop service image with `dotnet publish -t:PublishContainer` inside the SDK
+# container, load it into Docker and push it to the lab registry.
+# Expects: eshop_project ({key: image name, value: csproj path}) plus common/vars.yml.
+
+- name: "Check registry for eshop/{{ eshop_project.key }}:{{ eshop_image_tag }}"
+  ansible.builtin.uri:
+    url: "http://{{ eshop_registry }}/v2/eshop/{{ eshop_project.key }}/manifests/{{ eshop_image_tag }}"
+    method: HEAD
+    headers:
+      Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json
+    status_code: [200, 404]
+  register: eshop_image_present
+
+- name: "Build and push eshop/{{ eshop_project.key }}"
+  when: eshop_image_present.status == 404 or (eshop_rebuild | default(false) | bool)
+  block:
+    - name: "Publish {{ eshop_project.key }} as an image archive"
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --user
+          - "{{ lookup('pipe', 'id -u') }}:{{ lookup('pipe', 'id -g') }}"
+          - -e
+          - HOME=/tmp
+          - -e
+          - DOTNET_CLI_TELEMETRY_OPTOUT=1
+          - -e
+          - NUGET_PACKAGES=/nuget
+          - -v
+          - "{{ eshop_src_dir }}:/src"
+          - -v
+          - "{{ lookup('env', 'HOME') }}/.cache/eshop-nuget:/nuget"
+          - -w
+          - /src
+          - "{{ eshop_sdk_image }}"
+          - dotnet
+          - publish
+          - "{{ eshop_project.value }}"
+          - -c
+          - Release
+          - -t:PublishContainer
+          - "-p:ContainerRepository=eshop/{{ eshop_project.key }}"
+          - "-p:ContainerImageTag={{ eshop_image_tag }}"
+          - "-p:ContainerArchiveOutputPath=/src/artifacts/images/{{ eshop_project.key }}.tar.gz"
+      register: eshop_publish
+      changed_when: true
+
+    - name: "Load {{ eshop_project.key }} into Docker"
+      ansible.builtin.command: docker load -i {{ eshop_src_dir }}/artifacts/images/{{ eshop_project.key }}.tar.gz
+      changed_when: true
+
+    - name: "Tag {{ eshop_project.key }} for the lab registry"
+      ansible.builtin.command: >-
+        docker tag eshop/{{ eshop_project.key }}:{{ eshop_image_tag }}
+        {{ eshop_registry }}/eshop/{{ eshop_project.key }}:{{ eshop_image_tag }}
+      changed_when: true
+
+    - name: "Push {{ eshop_project.key }}"
+      ansible.builtin.command: docker push {{ eshop_registry }}/eshop/{{ eshop_project.key }}:{{ eshop_image_tag }}
+      changed_when: true

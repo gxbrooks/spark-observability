@@ -1,0 +1,16 @@
+---
+# Render k8s/eshop/*.yaml.j2 into eshop_render_dir (project tmp/, gitignored).
+# The manifests hold no secret values; credentials are referenced from Secret eshop-credentials.
+
+- name: Ensure manifest render directory exists
+  ansible.builtin.file:
+    path: "{{ eshop_render_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Render eShop manifests
+  ansible.builtin.template:
+    src: "{{ eshop_manifest_dir }}/{{ item }}.yaml.j2"
+    dest: "{{ eshop_render_dir }}/{{ item }}.yaml"
+    mode: "0644"
+  loop: [infra, apps, loadgen]

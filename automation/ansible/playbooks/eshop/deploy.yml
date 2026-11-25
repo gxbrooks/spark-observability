@@ -1,0 +1,78 @@
+---
+# Deploy eShop to Kubernetes: identities (Secret), backing services on Lab2, .NET services split
+# across Lab1/Lab2, and the order load generator. Images must already be built (build.yml).
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/deploy.yml
+
+- name: Deploy eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+    - "{{ project_root }}/vars/secrets.yaml"
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Confirm every image for tag {{ eshop_image_tag }} is in the registry
+      ansible.builtin.uri:
+        url: "http://{{ eshop_registry }}/v2/eshop/{{ item }}/manifests/{{ eshop_image_tag }}"
+        method: HEAD
+        headers:
+          Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json
+      loop: "{{ eshop_projects.keys() | list }}"
+      register: eshop_images
+      failed_when: eshop_images.status != 200
+      # A 404 here means build.yml has not run for this upstream commit + patch set.
+
+    - name: Apply identities
+      ansible.builtin.include_tasks: tasks/apply-identities.yml
+
+    - name: Render manifests
+      ansible.builtin.include_tasks: tasks/render-manifests.yml
+
+    # Diff first: piping `create --dry-run` into apply reports "configured" on every run.
+    - name: Apply load generator script ConfigMap
+      ansible.builtin.shell: |
+        set -o pipefail
+        manifest=$(kubectl create configmap eshop-loadgen -n {{ eshop_namespace }} \
+          --from-file=loadgen.py={{ project_root }}/eshop/loadgen/loadgen.py --dry-run=client -o yaml)
+        if printf '%s\n' "$manifest" | kubectl diff --server-side --field-manager=eshop-ansible --force-conflicts -f - >/dev/null; then
+          echo unchanged
+        else
+          rc=$?; [ "$rc" -eq 1 ] || exit "$rc"
+          printf '%s\n' "$manifest" | kubectl apply --server-side --field-manager=eshop-ansible --force-conflicts -f -
+        fi
+      args:
+        executable: /bin/bash
+      register: eshop_cm_apply
+      changed_when: "'unchanged' not in eshop_cm_apply.stdout"
+
+    - name: Apply backing services
+      ansible.builtin.command: kubectl apply -f {{ eshop_render_dir }}/infra.yaml
+      register: eshop_infra_apply
+      changed_when: eshop_infra_apply.stdout_lines | reject('search', 'unchanged') | list | length > 0
+
+    - name: Wait for backing services
+      ansible.builtin.command: kubectl rollout status deployment/{{ item }} -n {{ eshop_namespace }} --timeout=300s
+      loop: "{{ eshop_infra_deployments }}"
+      changed_when: false
+
+    - name: Apply eShop services and load generator
+      ansible.builtin.command: kubectl apply -f {{ eshop_render_dir }}/{{ item }}.yaml
+      loop: [apps, loadgen]
+      register: eshop_app_apply
+      changed_when: eshop_app_apply.stdout_lines | reject('search', 'unchanged') | list | length > 0
+
+    - name: Wait for eShop services
+      ansible.builtin.command: kubectl rollout status deployment/{{ item }} -n {{ eshop_namespace }} --timeout=300s
+      loop: "{{ eshop_app_deployments + ['loadgen'] }}"
+      changed_when: false
+
+    - name: Show entry points
+      ansible.builtin.debug:
+        msg:
+          - "Store:        {{ eshop_webapp_url }}"
+          - "Identity:     {{ eshop_identity_url }}"
+          - "RabbitMQ UI:  http://{{ eshop_public_host }}:{{ eshop_rabbitmq_mgmt_nodeport }} (user eshop.RABBITMQ_USER from vars/secrets.yaml)"
+          - "Verify:       ansible-playbook -i inventory.yml playbooks/eshop/test.yml"

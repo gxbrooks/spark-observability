@@ -1,0 +1,48 @@
+---
+# Remove eShop from Kubernetes (deletes namespace eshop and everything in it).
+# Postgres data in /var/lib/eshop/postgres on the data node is kept unless
+# -e eshop_purge_data=true; purge it after changing eshop.POSTGRES_PASSWORD, because Postgres
+# only reads the password when it initialises an empty data directory.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/undeploy.yml
+
+- name: Undeploy eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Delete namespace {{ eshop_namespace }}
+      ansible.builtin.command: kubectl delete namespace {{ eshop_namespace }} --ignore-not-found --wait=true --timeout=300s
+      register: eshop_ns_delete
+      changed_when: "'deleted' in eshop_ns_delete.stdout"
+
+    - name: Purge Postgres data on {{ eshop_data_node }}
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - run
+          - eshop-purge
+          - -n
+          - default
+          - --rm
+          - -i
+          - --restart=Never
+          - --image=busybox:1.36
+          - --overrides
+          - >-
+            {"spec":{"nodeSelector":{"kubernetes.io/hostname":"{{ eshop_data_node }}"},
+            "containers":[{"name":"eshop-purge","image":"busybox:1.36",
+            "command":["sh","-c","rm -rf /host/eshop && echo purged"],
+            "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
+            "volumes":[{"name":"host","hostPath":{"path":"/var/lib"}}]}}
+      when: eshop_purge_data | default(false) | bool
+      changed_when: true
+
+    - name: Note — Postgres data kept
+      ansible.builtin.debug:
+        msg: "Postgres data remains in /var/lib/eshop/postgres on {{ eshop_data_node }}; re-run with -e eshop_purge_data=true to remove it."
+      when: not (eshop_purge_data | default(false) | bool)

@@ -1,0 +1,21 @@
+---
+# Diagnose eShop: every test.yml check plus OneAgent injection, image tag drift, Duende licence
+# log lines, load-generator outcomes, pod restarts and warning events. Never fails the run;
+# read the [FAIL]/[WARN] lines and their hints. Like test.yml, it places one real order.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/eshop/diagnose.yml
+
+- name: Diagnose eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - common/vars.yml
+    - "{{ project_root }}/vars/secrets.yaml"
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Run eShop checks with deeper diagnostics
+      ansible.builtin.include_tasks: tasks/run-checks.yml
+      vars:
+        eshop_deep: true
