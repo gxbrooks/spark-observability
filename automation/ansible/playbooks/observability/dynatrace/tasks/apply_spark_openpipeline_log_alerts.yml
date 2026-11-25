@@ -4,6 +4,7 @@
 # Patterns:
 #   Standalone App with short Log4j2 logs → standalone-short-log4j2-openpipeline.json.j2
 #   K8s App with short Log4j2 logs       → k8s-short-log4j2-openpipeline.json.j2
+#   eShop .NET (single-line simple logs) → eshop-dotnet-log-alerts-openpipeline.json.j2
 # Routing: l2i-openpipeline-routing-entries.json.j2
 #
 # SN binds: service_instance (Standalone) or k8s.pod.name (K8s).
@@ -77,6 +78,34 @@
     dt_l2i_k8s_pipeline_object_id: "{{ dt_upsert_found_id }}"
   run_once: true
 
+- name: Render eShop .NET log-alert OpenPipeline
+  tf_template:
+    src: "{{ dt_integrations_dir }}/eshop-dotnet-log-alerts-openpipeline.json.j2"
+    dest: /tmp/eshop-dotnet-log-alerts-openpipeline.json
+    mode: "0644"
+  # Same vars: override pattern as the Standalone/K8s renders above.
+  vars:
+    dt_eshop_openpipeline_display_name: "{{ DT_ESHOP_OPENPIPELINE_DISPLAY_NAME }}"
+    dt_eshop_openpipeline_custom_id: "{{ DT_ESHOP_OPENPIPELINE_CUSTOM_ID }}"
+    dt_l2i_environment: "{{ DT_ENVIRONMENT }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Upsert eShop .NET log-alert OpenPipeline
+  ansible.builtin.include_tasks: upsert_dt_settings_object.yml
+  vars:
+    dt_upsert_schema_id: builtin:openpipeline.logs.pipelines
+    dt_upsert_doc: "{{ lookup('file', '/tmp/eshop-dotnet-log-alerts-openpipeline.json') | from_json }}"
+    dt_upsert_match_key: customId
+    dt_upsert_match_value: "{{ dt_eshop_openpipeline_custom_id }}"
+    dt_upsert_match_key_alt: displayName
+    dt_upsert_match_value_alt: "{{ dt_eshop_openpipeline_display_name }}"
+
+- name: Record eShop OpenPipeline objectId
+  ansible.builtin.set_fact:
+    dt_eshop_pipeline_object_id: "{{ dt_upsert_found_id }}"
+  run_once: true
+
 - name: Render L2I OpenPipeline routing entries
   tf_template:
     src: "{{ dt_integrations_dir }}/l2i-openpipeline-routing-entries.json.j2"
@@ -112,7 +141,7 @@
   ansible.builtin.set_fact:
     dt_l2i_routing_descriptions_drop: >-
       {{
-        [dt_l2i_standalone_routing_description, dt_l2i_k8s_routing_description]
+        [dt_l2i_standalone_routing_description, dt_l2i_k8s_routing_description, dt_eshop_routing_description]
         + (dt_l2i_routing_description_legacy | default([]))
       }}
   run_once: true
@@ -157,5 +186,7 @@
       => {{ dt_l2i_standalone_pipeline_object_id }};
       K8s '{{ dt_l2i_k8s_openpipeline_custom_id }}'
       => {{ dt_l2i_k8s_pipeline_object_id }};
+      eShop '{{ dt_eshop_openpipeline_custom_id }}'
+      => {{ dt_eshop_pipeline_object_id }};
       routing updated.
   run_once: true

@@ -47,6 +47,11 @@ spec:
           ports: [{name: http, containerPort: 8080}]
           env:
             - {name: ASPNETCORE_FORWARDEDHEADERS_ENABLED, value: "true"}
+            # One log record per line ("warn: Category[id] message"), so Dynatrace sees the
+            # level, category and message together (eshop-dotnet-log-alerts OpenPipeline).
+            - {name: Logging__Console__FormatterName, value: simple}
+            - {name: Logging__Console__FormatterOptions__SingleLine, value: "true"}
+            - {name: Logging__Console__FormatterOptions__IncludeScopes, value: "false"}
             - {name: DT_RELEASE_PRODUCT, value: eshop}
             - {name: DT_RELEASE_VERSION, value: "{{ eshop_image_tag }}"}
 {% for conn in svc.conn %}

@@ -1,0 +1,30 @@
+---
+# Run RabbitMQ discovery: read the eShop broker (management API) and its consumers (pod IPs -> workloads),
+# reconcile broker and queue CIs through the IRE, and relate each queue to its consumer Deployment CIs.
+# Idempotent: the IRE no-ops unchanged CIs; consumer relationships converge to the live consumers.
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/servicenow/discovery/rabbitmq/start.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/rabbitmq/start.yml
+    sn_target_mode: active
+
+- name: Discover RabbitMQ broker and queues
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ project_root }}/automation/ansible/playbooks/eshop/common/vars.yml"
+    - common/vars.yml
+  tasks:
+    - name: Collect broker inventory
+      ansible.builtin.include_tasks: tasks/collect-rabbitmq-inventory.yml
+
+    - name: Reconcile broker and queue CIs
+      ansible.builtin.include_tasks: tasks/reconcile-rabbitmq-cis.yml
+
+    - name: Relate queues to consumer workloads
+      ansible.builtin.include_tasks: tasks/relate-queue-consumers.yml

@@ -80,6 +80,25 @@ locals {
   service_response_time = jsondecode(templatefile("${local.dt_integrations_dir}/spark-service-response-time-anomaly-detection.json.j2", {
     dt_spark_hostgroup_entity_id = var.dt_spark_hostgroup_entity_id
   }))
+
+  # eShop (namespace eshop). The routing entry that sends eShop container logs to this pipeline
+  # lives in l2i-openpipeline-routing-entries.json.j2 and stays Ansible-only (tenant-wide
+  # singleton list -- see the header of this file).
+  eshop_openpipeline = jsondecode(templatefile("${local.dt_integrations_dir}/eshop-dotnet-log-alerts-openpipeline.json.j2", {
+    dt_eshop_openpipeline_display_name = var.DT_ESHOP_OPENPIPELINE_DISPLAY_NAME
+    dt_eshop_openpipeline_custom_id    = var.DT_ESHOP_OPENPIPELINE_CUSTOM_ID
+    dt_l2i_environment                 = var.DT_ENVIRONMENT
+  }))
+
+  eshop_queue_backlog = jsondecode(templatefile("${local.dt_integrations_dir}/eshop-rabbitmq-queue-backlog-metric-event.json.j2", {
+    dt_eshop_queue_backlog_event_summary = var.DT_ESHOP_QUEUE_BACKLOG_EVENT_SUMMARY
+    dt_l2i_environment                   = var.DT_ENVIRONMENT
+  }))
+
+  eshop_queue_no_consumer = jsondecode(templatefile("${local.dt_integrations_dir}/eshop-rabbitmq-queue-no-consumer-metric-event.json.j2", {
+    dt_eshop_queue_no_consumer_event_summary = var.DT_ESHOP_QUEUE_NO_CONSUMER_EVENT_SUMMARY
+    dt_l2i_environment                       = var.DT_ENVIRONMENT
+  }))
 }
 
 resource "dynatrace_generic_setting" "management_zone" {
@@ -136,4 +155,22 @@ resource "dynatrace_generic_setting" "service_response_time" {
   schema = local.service_response_time.schemaId
   scope  = local.service_response_time.scope
   value  = jsonencode(local.service_response_time.value)
+}
+
+resource "dynatrace_generic_setting" "eshop_openpipeline" {
+  schema = local.eshop_openpipeline.schemaId
+  scope  = local.eshop_openpipeline.scope
+  value  = jsonencode(local.eshop_openpipeline.value)
+}
+
+resource "dynatrace_generic_setting" "eshop_queue_backlog" {
+  schema = local.eshop_queue_backlog.schemaId
+  scope  = local.eshop_queue_backlog.scope
+  value  = jsonencode(local.eshop_queue_backlog.value)
+}
+
+resource "dynatrace_generic_setting" "eshop_queue_no_consumer" {
+  schema = local.eshop_queue_no_consumer.schemaId
+  scope  = local.eshop_queue_no_consumer.scope
+  value  = jsonencode(local.eshop_queue_no_consumer.value)
 }

@@ -1,0 +1,35 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "${dt_eshop_queue_backlog_event_summary}",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "rabbitmq_queue_messages:filter(eq(\"k8s.namespace.name\",\"eshop\")):splitBy(\"queue\",\"dt.entity.cloud_application\"):max"
+    },
+    "eventEntityDimensionKey": "dt.entity.cloud_application",
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 25.0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 3,
+      "samples": 5,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "eShop RabbitMQ queue {dims:queue} backlog above 25",
+      "description": "RabbitMQ queue {dims:queue} holds more than 25 messages (ready + unacknowledged) for 3 of 5 minutes: its consumer is not keeping up. sn-event-kind=QUEUE_EVENT sn-metric-class=queue-backlog sn-environment=${dt_l2i_environment} sn-impact=2 sn-urgency=2",
+      "eventType": "CUSTOM_ALERT",
+      "davisMerge": false,
+      "metadata": [
+        { "metadataKey": "sn-event-kind", "metadataValue": "QUEUE_EVENT" },
+        { "metadataKey": "sn-metric-class", "metadataValue": "queue-backlog" },
+        { "metadataKey": "sn-environment", "metadataValue": "${dt_l2i_environment}" },
+        { "metadataKey": "sn-impact", "metadataValue": "2" },
+        { "metadataKey": "sn-urgency", "metadataValue": "2" }
+      ]
+    }
+  }
+}

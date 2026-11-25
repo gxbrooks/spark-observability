@@ -1,0 +1,11 @@
+---
+# Shared by deploy/start/test/diagnose/undeploy of the RabbitMQ discovery module.
+# Broker location and credentials come from the eShop module (common/vars.yml, vars/secrets.yaml
+# eshop block); representations live in specifications/servicenow/integrations/discovery/rabbitmq.
+
+rmq_spec_dir: "{{ sn_discovery_integrations_dir }}/rabbitmq"
+rmq_discovery_source: RabbitMQ-API
+rmq_mgmt_url: "http://{{ eshop_public_host }}:{{ eshop_rabbitmq_mgmt_nodeport }}"
+rmq_k8s_namespace: "{{ eshop_namespace }}"
+rmq_k8s_workload: rabbitmq
+rmq_amqp_port: 5672

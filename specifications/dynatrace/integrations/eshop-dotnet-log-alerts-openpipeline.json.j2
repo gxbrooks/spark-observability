@@ -1,0 +1,127 @@
+{
+  "schemaId": "builtin:openpipeline.logs.pipelines",
+  "scope": "environment",
+  "value": {
+    "displayName": "${dt_eshop_openpipeline_display_name}",
+    "customId": "${dt_eshop_openpipeline_custom_id}",
+    "routing": "routable",
+    "groupRole": "memberPipeline",
+    "metadataList": [],
+    "processing": {
+      "processors": [
+        {
+          "id": "tag-pipeline-custom-id",
+          "type": "fieldsAdd",
+          "enabled": true,
+          "description": "Stamp sn-pipeline and sn-environment (dash keys for SN TBAC)",
+          "matcher": "true",
+          "fieldsAdd": {
+            "fields": [
+              { "name": "sn-pipeline", "value": "${dt_eshop_openpipeline_custom_id}" },
+              { "name": "sn-environment", "value": "${dt_l2i_environment}" }
+            ]
+          }
+        },
+        {
+          "id": "parse-dotnet-simple-single-line",
+          "type": "dql",
+          "enabled": true,
+          "description": ".NET simple console formatter, single line: '<lvl>: <Category>[<EventId>] <message>' -> loglevel, sn-log-class, sn-log-line",
+          "matcher": "true",
+          "dql": {
+            "script": "parse content, \"WORD:eshop_dotnet_level ': ' LD:sn_log_class '[' INT:sn_log_line ']' LD\"\n| fieldsAdd loglevel = if(eshop_dotnet_level == \"crit\", \"CRITICAL\", else: if(eshop_dotnet_level == \"fail\", \"ERROR\", else: if(eshop_dotnet_level == \"warn\", \"WARN\", else: if(eshop_dotnet_level == \"info\", \"INFO\", else: if(eshop_dotnet_level == \"dbug\" OR eshop_dotnet_level == \"trce\", \"DEBUG\", else: loglevel)))))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-impact` = if(loglevel == \"CRITICAL\", \"1\", else: if(loglevel == \"ERROR\", \"2\", else: \"3\"))\n| fieldsAdd `sn-urgency` = if(loglevel == \"CRITICAL\", \"1\", else: if(loglevel == \"ERROR\", \"2\", else: \"3\"))"
+          }
+        },
+        {
+          "id": "alias-k8s-dash-keys",
+          "type": "dql",
+          "enabled": true,
+          "description": "Dash-key K8s aliases and sn-service-instance (eShop-<workload>) for SN enrichment",
+          "matcher": "isNotNull(k8s.pod.name)",
+          "dql": {
+            "script": "fieldsAdd `k8s-pod-name` = toString(k8s.pod.name)\n| fieldsAdd `k8s-namespace-name` = toString(coalesce(k8s.namespace.name, \"\"))\n| fieldsAdd `k8s-workload-name` = toString(coalesce(k8s.workload.name, k8s.deployment.name, \"\"))\n| fieldsAdd `k8s-workload-kind` = toString(coalesce(k8s.workload.kind, \"deployment\"))\n| fieldsAdd `sn-service-instance` = concat(\"eShop-\", toString(coalesce(k8s.workload.name, k8s.deployment.name, \"unknown\")))"
+          }
+        },
+        {
+          "id": "resolve-stable-alert-entity",
+          "type": "dql",
+          "enabled": true,
+          "description": "Stable source entity (TPG 2.2): workload, else process group, else host",
+          "matcher": "loglevel == \"WARN\" OR loglevel == \"ERROR\" OR loglevel == \"CRITICAL\" OR matchesValue(content, \"fail:*\") OR matchesValue(content, \"crit:*\")",
+          "dql": {
+            "script": "fieldsAdd `sn-alert-entity` = toString(coalesce(dt.entity.cloud_application, dt.entity.process_group, dt.entity.host))"
+          }
+        }
+      ]
+    },
+    "davis": {
+      "processors": [
+        {
+          "id": "eshop-dotnet-warn-error-critical-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "eShop .NET WARN/ERROR/CRITICAL -> CUSTOM_ALERT on the workload; sn-* L2I tags",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\" OR loglevel == \"CRITICAL\") AND isNotNull(`sn-log-class`) AND isNotNull(k8s.pod.name)",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "CUSTOM_ALERT" },
+              { "key": "event.name", "value": "eShop {loglevel} in {k8s-workload-name}: {sn-log-class}[{sn-log-line}]" },
+              { "key": "event.description", "value": "eShop .NET {loglevel} from {sn-log-class}[{sn-log-line}] on {k8s.pod.name} sn-event-kind=CRITICAL_LOG_EVENT sn-log-signature={sn-log-signature} sn-environment={sn-environment} sn-service-instance={sn-service-instance} sn-pipeline={sn-pipeline} sn-impact={sn-impact} sn-urgency={sn-urgency} k8s-pod-name={k8s-pod-name} k8s-workload-name={k8s-workload-name}: {content}" },
+              { "key": "event.unique_identifier", "value": "{sn-environment}|{sn-service-instance}|eShop {loglevel} {sn-log-signature}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" },
+              { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
+              { "key": "sn-log-class", "value": "{sn-log-class}" },
+              { "key": "sn-log-line", "value": "{sn-log-line}" },
+              { "key": "sn-log-signature", "value": "{sn-log-signature}" },
+              { "key": "metric.name", "value": "Log-{loglevel}:{sn-log-signature}" },
+              { "key": "sn-environment", "value": "{sn-environment}" },
+              { "key": "sn-service-instance", "value": "{sn-service-instance}" },
+              { "key": "sn-pipeline", "value": "{sn-pipeline}" },
+              { "key": "sn-impact", "value": "{sn-impact}" },
+              { "key": "sn-urgency", "value": "{sn-urgency}" },
+              { "key": "k8s.pod.name", "value": "{k8s.pod.name}" },
+              { "key": "k8s-pod-name", "value": "{k8s-pod-name}" },
+              { "key": "k8s-workload-name", "value": "{k8s-workload-name}" },
+              { "key": "k8s-workload-kind", "value": "{k8s-workload-kind}" },
+              { "key": "k8s-namespace-name", "value": "{k8s-namespace-name}" }
+            ]
+          }
+        },
+        {
+          "id": "eshop-dotnet-unparsed-error-davis",
+          "type": "davis",
+          "enabled": true,
+          "description": "Fail-visible (TPG 3.4): an error-looking eShop line the .NET parser did not recognise",
+          "matcher": "isNull(`sn-log-class`) AND (matchesValue(content, \"fail:*\") OR matchesValue(content, \"crit:*\"))",
+          "davis": {
+            "properties": [
+              { "key": "event.type", "value": "CUSTOM_ALERT" },
+              { "key": "event.name", "value": "eShop log line not parsed on {k8s.workload.name}" },
+              { "key": "event.description", "value": "eShop .NET error line did not match the simple single-line format; check Logging__Console__* settings sn-event-kind=CRITICAL_LOG_EVENT sn-environment={sn-environment} sn-impact=3 sn-urgency=3: {content}" },
+              { "key": "event.unique_identifier", "value": "{sn-environment}|eshop-parse-missing|{k8s.workload.name}" },
+              { "key": "dt.davis.is_merging_allowed", "value": "false" },
+              { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
+              { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
+              { "key": "dt.davis.event_timeout", "value": "15m" }
+            ]
+          }
+        }
+      ]
+    },
+    "storage": {
+      "processors": [
+        {
+          "id": "default-storage",
+          "type": "bucketAssignment",
+          "enabled": true,
+          "description": "Store in default logs bucket",
+          "matcher": "true",
+          "bucketAssignment": { "bucketName": "default_logs" }
+        }
+      ]
+    }
+  }
+}

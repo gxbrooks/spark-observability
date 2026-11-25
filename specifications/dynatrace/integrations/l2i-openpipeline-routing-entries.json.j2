@@ -12,5 +12,12 @@
     "pipelineId": "${dt_l2i_k8s_pipeline_object_id}",
     "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"${dt_l2i_k8s_namespace}\")",
     "description": "${dt_l2i_k8s_routing_description}"
+  },
+  {
+    "enabled": true,
+    "pipelineType": "custom",
+    "pipelineId": "${dt_eshop_pipeline_object_id}",
+    "matcher": "matchesValue(log.source, \"Container Output\") AND matchesValue(k8s.namespace.name, \"${dt_eshop_k8s_namespace}\")",
+    "description": "${dt_eshop_routing_description}"
   }
 ]

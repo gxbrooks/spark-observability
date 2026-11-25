@@ -35,7 +35,7 @@
           "description": "Parse short Log4j2 Class:Line into sn-log-* fields",
           "matcher": "true",
           "dql": {
-            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-impact` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")\n| fieldsAdd `sn-urgency` = if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\")"
+            "script": "parse content, \"TIMESTAMP('yyyy-MM-dd HH:mm:ss') SPACE{1,} WORD:log.level SPACE{1,} LD:sn_log_class ':' INT:sn_log_line LD\"\n| fieldsAdd sn_log_signature = concat(toString(coalesce(sn_log_class, \"\")), \":\", toString(coalesce(sn_log_line, \"\")))\n| fieldsAdd `sn-log-class` = sn_log_class\n| fieldsAdd `sn-log-line` = sn_log_line\n| fieldsAdd `sn-log-signature` = sn_log_signature\n| fieldsAdd `sn-impact` = if(loglevel == \"CRITICAL\" OR loglevel == \"SEVERE\" OR toString(log.level) == \"FATAL\", \"1\", else: if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\"))\n| fieldsAdd `sn-urgency` = if(loglevel == \"CRITICAL\" OR loglevel == \"SEVERE\" OR toString(log.level) == \"FATAL\", \"1\", else: if(loglevel == \"ERROR\" OR toString(log.level) == \"ERROR\", \"2\", else: \"3\"))"
           }
         },
         {
@@ -63,7 +63,7 @@
           "type": "dql",
           "enabled": true,
           "description": "Alert entity for Davis events: the most stable entity on the record (Kubernetes workload, else process group, else host), never an ephemeral process group instance, pod or container. CMDB Service Mapping flags alerts bound to ephemeral CIs.",
-          "matcher": "loglevel == \"WARN\" OR loglevel == \"ERROR\"",
+          "matcher": "loglevel == \"WARN\" OR loglevel == \"ERROR\" OR loglevel == \"CRITICAL\" OR loglevel == \"SEVERE\" OR log.level == \"FATAL\"",
           "dql": {
             "script": "fieldsAdd `sn-alert-entity` = toString(coalesce(dt.entity.cloud_application, dt.entity.process_group, dt.entity.host))"
           }
@@ -76,8 +76,8 @@
           "id": "k8s-short-log4j2-warn-error-davis",
           "type": "davis",
           "enabled": true,
-          "description": "K8s short Log4j2 WARN/ERROR → CUSTOM_ALERT; sn-* L2I tags",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNotNull(`sn-log-class`) AND isNotNull(`sn-log-line`) AND isNotNull(k8s.pod.name)",
+          "description": "K8s short Log4j2 WARN/ERROR/CRITICAL → CUSTOM_ALERT; sn-* L2I tags",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\" OR loglevel == \"CRITICAL\" OR loglevel == \"SEVERE\" OR log.level == \"FATAL\") AND isNotNull(`sn-log-class`) AND isNotNull(`sn-log-line`) AND isNotNull(k8s.pod.name)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "CUSTOM_ALERT" },
@@ -116,8 +116,8 @@
           "id": "k8s-short-log4j2-missing-pod-name-davis",
           "type": "davis",
           "enabled": true,
-          "description": "Fail-visible: WARN/ERROR without k8s.pod.name on Container Output",
-          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\") AND isNull(k8s.pod.name)",
+          "description": "Fail-visible: WARN/ERROR/CRITICAL without k8s.pod.name on Container Output",
+          "matcher": "(loglevel == \"WARN\" OR loglevel == \"ERROR\" OR loglevel == \"CRITICAL\" OR loglevel == \"SEVERE\" OR log.level == \"FATAL\") AND isNull(k8s.pod.name)",
           "davis": {
             "properties": [
               { "key": "event.type", "value": "CUSTOM_ALERT" },

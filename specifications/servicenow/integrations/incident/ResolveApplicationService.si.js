@@ -1775,7 +1775,9 @@ ResolveApplicationService.prototype = {
     }
 
     this.stampCustomProperties(gr, stamps);
-    if (!this.applyLogServiceInstanceBinding(gr)) {
+    if (this.applyQueueCiBinding(gr)) {
+      // Queue events name one queue: its CI is the most specific binding.
+    } else if (!this.applyLogServiceInstanceBinding(gr)) {
       this.applyK8sTagCiBinding(gr, {
         workload: workload,
         kind: kind,
@@ -1802,6 +1804,45 @@ ResolveApplicationService.prototype = {
         ' ' +
         ciNote
     );
+    return true;
+  },
+
+  /**
+   * Queue metric events (Dynatrace sn-metric-class queue-*, e.g. the eShop RabbitMQ backlog and
+   * no-consumer metric events) bind to the RabbitMQ queue CI that RabbitMQ discovery
+   * (discovery source RabbitMQ-API) maintains. Dynatrace attaches these problems to the broker
+   * workload; the queue name only appears in the event text ("RabbitMQ queue <name> ...").
+   * Returns true when it bound a queue CI.
+   */
+  applyQueueCiBinding: function (gr) {
+    if (!gr) {
+      return false;
+    }
+    var metricClass = String(this.getCustomProperty(gr, ['sn-metric-class']) || '');
+    if (metricClass.indexOf('queue-') !== 0) {
+      return false;
+    }
+    var text = String(gr.description || '') + ' ' + String(gr.additional_info || '');
+    var m = /RabbitMQ queue ([A-Za-z0-9._:-]+) (?:backlog|holds|has no consumer)/.exec(text);
+    if (!m) {
+      this.appendProcessingNote(gr, 'sgo-enrich: queue event without a queue name');
+      return false;
+    }
+    var q = new GlideRecord('cmdb_ci_appl_rabbitmq_queue');
+    q.addQuery('name', m[1]);
+    q.addQuery('install_status', '!=', '7');
+    q.orderByDesc('last_discovered');
+    q.setLimit(1);
+    q.query();
+    if (!q.next()) {
+      this.appendProcessingNote(gr, 'sgo-enrich: no RabbitMQ queue CI named ' + m[1]);
+      return false;
+    }
+    gr.cmdb_ci = q.getUniqueValue();
+    if (gr.isValidField('resource')) {
+      gr.resource = m[1];
+    }
+    this.appendProcessingNote(gr, 'sgo-enrich: cmdb_ci → RabbitMQ queue ' + m[1] + ' (' + metricClass + ')');
     return true;
   },
 

@@ -160,6 +160,12 @@ dt_l2i_k8s_openpipeline_display_name: "{{ DT_L2I_K8S_OPENPIPELINE_DISPLAY_NAME }
 dt_l2i_k8s_openpipeline_custom_id: "{{ DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID }}"
 dt_l2i_k8s_routing_description: "K8s short Log4j2 log alerts (Container Output)"
 
+# eShop .NET services (namespace eshop): single-line simple console logs.
+dt_eshop_k8s_namespace: "eshop"
+dt_eshop_openpipeline_display_name: "{{ DT_ESHOP_OPENPIPELINE_DISPLAY_NAME }}"
+dt_eshop_openpipeline_custom_id: "{{ DT_ESHOP_OPENPIPELINE_CUSTOM_ID }}"
+dt_eshop_routing_description: "eShop .NET log alerts (Container Output ns=eshop)"
+
 # Prior route descriptions removed from routing on apply (idempotent cleanup)
 dt_l2i_routing_description_legacy:
   - "Spark Lab log alerts (ERROR/WARN)"

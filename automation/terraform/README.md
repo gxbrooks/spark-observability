@@ -239,3 +239,23 @@ not `dt_host_group`) rather than conventional Terraform lower_snake_case
 -- every context-variables writer passes keys through unchanged, so this
 keeps the Terraform side a direct match instead of needing a rename/mapping
 layer to stay in sync.
+
+## eShop additions (2026-11-25)
+
+`dynatrace_settings.tf` also manages the eShop .NET log-alert OpenPipeline and the two eShop
+RabbitMQ queue metric events (backlog, no consumer); the management zone and
+`cloud_monitoring-anomaly-enabled.json` gained eShop/process-group rules and Prometheus scraping in
+their shared representation files. The eShop routing entry stays Ansible-only (tenant-wide routing
+singleton, see `dynatrace_settings.tf` header). ServiceNow configuration lives in its own root module,
+`servicenow/` (see `servicenow/README.md`).
+
+Running plan/apply needs both var files (Elastic resources were added after the commands above):
+
+```bash
+terraform plan -var-file=../../vars/contexts/dynatrace_terraform.auto.tfvars.json \
+               -var-file=../../vars/contexts/elastic_terraform.auto.tfvars.json
+```
+
+Not yet covered: the ServiceNow incident module (`playbooks/servicenow/incident/`: script includes,
+business rules, alert management rules) is Ansible-only. `ResolveApplicationService` embeds a
+deploy-time Grail token, so porting it means deciding how Terraform injects that secret.

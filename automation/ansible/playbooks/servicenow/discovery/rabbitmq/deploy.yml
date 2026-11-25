@@ -1,0 +1,23 @@
+---
+# Configure the instance for RabbitMQ discovery: the RabbitMQ-API discovery source (cmdb_ci.discovery_source
+# choice) that the IRE runs in start.yml are attributed to. Terraform equivalent: automation/terraform/servicenow/.
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/servicenow/discovery/rabbitmq/deploy.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/rabbitmq/deploy.yml
+    sn_target_mode: switch
+
+- name: Deploy RabbitMQ discovery configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ project_root }}/automation/ansible/playbooks/eshop/common/vars.yml"
+    - common/vars.yml
+  tasks:
+    - name: Ensure discovery source choice RabbitMQ-API
+      ansible.builtin.include_tasks: tasks/ensure-discovery-source-choice.yml

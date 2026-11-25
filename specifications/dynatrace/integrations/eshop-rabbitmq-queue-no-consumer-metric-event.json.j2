@@ -1,0 +1,35 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "${dt_eshop_queue_no_consumer_event_summary}",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "rabbitmq_queue_consumers:filter(eq(\"k8s.namespace.name\",\"eshop\")):splitBy(\"queue\",\"dt.entity.cloud_application\"):min"
+    },
+    "eventEntityDimensionKey": "dt.entity.cloud_application",
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 1.0,
+      "alertOnNoData": false,
+      "alertCondition": "BELOW",
+      "violatingSamples": 2,
+      "samples": 3,
+      "dealertingSamples": 3
+    },
+    "eventTemplate": {
+      "title": "eShop RabbitMQ queue {dims:queue} has no consumer",
+      "description": "RabbitMQ queue {dims:queue} has had no consumer for 2 of 3 minutes: its subscribing service is down or lost its broker connection, and its events are not being processed. sn-event-kind=QUEUE_EVENT sn-metric-class=queue-no-consumer sn-environment=${dt_l2i_environment} sn-impact=1 sn-urgency=2",
+      "eventType": "AVAILABILITY",
+      "davisMerge": false,
+      "metadata": [
+        { "metadataKey": "sn-event-kind", "metadataValue": "QUEUE_EVENT" },
+        { "metadataKey": "sn-metric-class", "metadataValue": "queue-no-consumer" },
+        { "metadataKey": "sn-environment", "metadataValue": "${dt_l2i_environment}" },
+        { "metadataKey": "sn-impact", "metadataValue": "1" },
+        { "metadataKey": "sn-urgency", "metadataValue": "2" }
+      ]
+    }
+  }
+}

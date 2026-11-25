@@ -24,3 +24,22 @@
         that: eshop_checks | rejectattr('status', 'equalto', 'PASS') | list | length == 0
         fail_msg: "Failed or skipped: {{ eshop_checks | rejectattr('status', 'equalto', 'PASS') | map(attribute='check') | join(', ') }}"
         success_msg: "All {{ eshop_checks | length }} eShop checks passed."
+
+# Stress scenario (opt-in): ansible-playbook -i inventory.yml playbooks/eshop/test.yml --tags stress
+#   -e eshop_stress_minutes=12 -e eshop_stress_orders_per_minute=8
+# Saturation plus three injected faults (see tasks/run-stress.yml), then a full restore.
+- name: Stress eShop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [never, stress]
+  vars_files:
+    - common/vars.yml
+  vars:
+    eshop_stress_minutes: 12
+    eshop_stress_orders_per_minute: 8
+  environment:
+    KUBECONFIG: "{{ eshop_kubeconfig }}"
+  tasks:
+    - name: Run the stress scenario
+      ansible.builtin.include_tasks: tasks/run-stress.yml

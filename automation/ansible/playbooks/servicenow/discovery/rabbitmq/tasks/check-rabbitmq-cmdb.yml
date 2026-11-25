@@ -1,0 +1,95 @@
+---
+# Compare the CMDB with the live broker (read-only). Shared by test.yml and diagnose.yml.
+# Expects collect-rabbitmq-inventory.yml facts. Appends to rmq_checks: {check, status, detail, hint}.
+
+- name: Initialise check results
+  ansible.builtin.set_fact:
+    rmq_checks: []
+
+- name: Look up broker CI
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_appl_rabbitmq
+    sn_rest_query: >-
+      sysparm_query=node_name={{ rmq_overview.node | urlencode }}^vhost=/&sysparm_fields=sys_id,name,version,discovery_source,last_discovered&sysparm_limit=2
+
+- name: Evaluate broker CI
+  ansible.builtin.set_fact:
+    rmq_broker_ci: "{{ sn_rest_json.result[0] | default({}) }}"
+    rmq_checks: >-
+      {{ rmq_checks + [{'check': 'broker CI exists',
+          'status': 'PASS' if sn_rest_json.result | default([]) | length == 1 else 'FAIL',
+          'detail': (sn_rest_json.result[0].name ~ ' v' ~ sn_rest_json.result[0].version ~ ', source ' ~ sn_rest_json.result[0].discovery_source
+                     ~ ', last discovered ' ~ sn_rest_json.result[0].last_discovered) if sn_rest_json.result | default([]) | length > 0
+                    else 'no cmdb_ci_appl_rabbitmq with node_name ' ~ rmq_overview.node,
+          'hint': 'Run servicenow/discovery/rabbitmq/start.yml.'}] }}
+
+- name: Read broker relationships
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: >-
+      sysparm_query=parent={{ rmq_broker_ci.sys_id }}&sysparm_fields=type.name,child.name,child.sys_class_name,child.sys_id&sysparm_limit=200
+  when: rmq_broker_ci.sys_id is defined
+
+- name: Evaluate hosting and queue containment
+  when: rmq_broker_ci.sys_id is defined
+  vars:
+    # Dot-walked fields come back as flat keys ("type.name"); normalise once.
+    rmq_rels: >-
+      {%- set out = [] -%}
+      {%- for r in sn_rest_json.result | default([]) -%}
+        {%- set _ = out.append({'type': r['type.name'], 'name': r['child.name'], 'cls': r['child.sys_class_name'], 'sys_id': r['child.sys_id']}) -%}
+      {%- endfor -%}
+      {{ out }}
+    rmq_cmdb_queues: "{{ rmq_rels | selectattr('type', 'equalto', 'Contains::Contained by') | selectattr('cls', 'equalto', 'cmdb_ci_appl_rabbitmq_queue') | map(attribute='name') | sort }}"
+    rmq_live_queues: "{{ rmq_queues | map(attribute='name') | sort }}"
+    rmq_runs_on: "{{ rmq_rels | selectattr('type', 'equalto', 'Runs on::Runs') | map(attribute='name') | list }}"
+  ansible.builtin.set_fact:
+    rmq_cmdb_queue_sys_ids: "{{ dict(rmq_rels | selectattr('cls', 'equalto', 'cmdb_ci_appl_rabbitmq_queue') | map(attribute='name') | zip(rmq_rels | selectattr('cls', 'equalto', 'cmdb_ci_appl_rabbitmq_queue') | map(attribute='sys_id'))) }}"
+    rmq_checks: >-
+      {{ rmq_checks + [
+        {'check': 'broker runs on ' ~ rmq_host_name,
+         'status': 'PASS' if rmq_host_name in rmq_runs_on else 'FAIL',
+         'detail': 'Runs on: ' ~ (rmq_runs_on | join(', ') or 'none'),
+         'hint': 'The broker pod moved node, or the host CI name differs; rerun start.yml.'},
+        {'check': 'CMDB queues match live queues',
+         'status': 'PASS' if rmq_cmdb_queues == rmq_live_queues else 'FAIL',
+         'detail': (rmq_cmdb_queues | length) ~ ' in CMDB, ' ~ (rmq_live_queues | length) ~ ' live'
+                   ~ ('' if rmq_cmdb_queues == rmq_live_queues else '; missing: ' ~ (rmq_live_queues | difference(rmq_cmdb_queues) | join(',') or '-')
+                      ~ '; stale: ' ~ (rmq_cmdb_queues | difference(rmq_live_queues) | join(',') or '-')),
+         'hint': 'Rerun start.yml; stale queue CIs are retired by undeploy.yml or by hand.'}] }}
+
+- name: Read queue consumer relationships
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: >-
+      sysparm_query=type.name={{ 'Depends on::Used by' | urlencode }}^childIN{{ (rmq_cmdb_queue_sys_ids | default({})).values() | join(',') }}&sysparm_fields=parent.name,child.name&sysparm_limit=500
+  when: rmq_cmdb_queue_sys_ids | default({}) | length > 0
+
+- name: Evaluate consumer relationships
+  when: rmq_cmdb_queue_sys_ids | default({}) | length > 0
+  vars:
+    rmq_rel_pairs: >-
+      {%- set out = [] -%}
+      {%- for r in sn_rest_json.result | default([]) -%}{%- set _ = out.append(r['parent.name'] ~ '->' ~ r['child.name']) -%}{%- endfor -%}
+      {{ out }}
+    rmq_want_pairs: >-
+      {%- set out = [] -%}
+      {%- for q, wls in rmq_queue_consumers.items() -%}{%- for wl in wls -%}{%- set _ = out.append(wl ~ '->' ~ q) -%}{%- endfor -%}{%- endfor -%}
+      {{ out }}
+    rmq_missing_pairs: "{{ rmq_want_pairs | difference(rmq_rel_pairs) }}"
+  ansible.builtin.set_fact:
+    rmq_checks: >-
+      {{ rmq_checks + [{'check': 'queue consumers related (Depends on)',
+          'status': 'PASS' if rmq_missing_pairs | length == 0 else 'FAIL',
+          'detail': (rmq_rel_pairs | sort | join(', ')) if rmq_missing_pairs | length == 0 else 'missing: ' ~ rmq_missing_pairs | join(', '),
+          'hint': 'A consumer Deployment CI may not exist yet (KVA sync); rerun start.yml.'}] }}
+
+- name: Report RabbitMQ CMDB checks
+  ansible.builtin.debug:
+    msg: "[{{ item.status }}] {{ item.check }}: {{ item.detail }}{{ ('  -> ' ~ item.hint) if item.status == 'FAIL' else '' }}"
+  loop: "{{ rmq_checks }}"
+  loop_control:
+    label: "{{ item.check }}"

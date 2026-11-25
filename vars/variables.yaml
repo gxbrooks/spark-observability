@@ -338,6 +338,30 @@ DT_L2I_K8S_OPENPIPELINE_CUSTOM_ID:
   value: k8s-short-log4j2-log-alerts
   contexts: [dynatrace-ansible, dynatrace-terraform]
 
+# eShop (.NET, namespace eshop) WARN/ERROR/CRITICAL log alerts.
+# specifications/dynatrace/integrations/eshop-dotnet-log-alerts-openpipeline.json.j2
+DT_ESHOP_OPENPIPELINE_DISPLAY_NAME:
+  section: Dynatrace L2I pipelines
+  value: "eShop .NET - log alerts"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_ESHOP_OPENPIPELINE_CUSTOM_ID:
+  section: Dynatrace L2I pipelines
+  value: eshop-dotnet-log-alerts
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+# eShop RabbitMQ queue metric events (summary = object identity for both tools).
+# specifications/dynatrace/integrations/eshop-rabbitmq-queue-*-metric-event.json.j2
+DT_ESHOP_QUEUE_BACKLOG_EVENT_SUMMARY:
+  section: Dynatrace L2I pipelines
+  value: "eShop RabbitMQ queue backlog"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
+DT_ESHOP_QUEUE_NO_CONSUMER_EVENT_SUMMARY:
+  section: Dynatrace L2I pipelines
+  value: "eShop RabbitMQ queue without consumer"
+  contexts: [dynatrace-ansible, dynatrace-terraform]
+
 # Lab alerting/detector object identities -- single source for both tools.
 # Ansible: automation/ansible/playbooks/servicenow/sgc/common/vars.yml
 # Terraform: automation/terraform/dynatrace_settings.tf

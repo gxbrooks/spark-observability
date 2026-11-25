@@ -1,0 +1,54 @@
+---
+# Ensure the cmdb_ci.discovery_source choice RabbitMQ-API exists and matches its representation.
+# Representation: specifications/servicenow/integrations/discovery/rabbitmq/sys_choice_discovery_source_rabbitmq_api.json
+# Terraform: automation/terraform/servicenow/discovery_rabbitmq.tf (same file).
+
+- name: Load discovery source choice representation
+  ansible.builtin.set_fact:
+    rmq_choice_body: "{{ lookup('file', rmq_spec_dir + '/sys_choice_discovery_source_rabbitmq_api.json') | from_json }}"
+
+- name: Look up discovery source choice {{ rmq_discovery_source }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_choice
+    sn_rest_query: >-
+      sysparm_query=name={{ rmq_choice_body.name }}^element={{ rmq_choice_body.element }}^value={{ rmq_choice_body.value | urlencode }}^language={{ rmq_choice_body.language }}&sysparm_limit=1
+
+- name: Record whether the choice exists
+  ansible.builtin.set_fact:
+    rmq_choice_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    rmq_choice_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    rmq_choice_live: "{{ sn_rest_json.result[0] | default({}) }}"
+
+- name: Create discovery source choice {{ rmq_discovery_source }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: sys_choice
+    sn_rest_body: "{{ rmq_choice_body }}"
+  when: not rmq_choice_exists | bool
+
+- name: Fail when the choice could not be created
+  ansible.builtin.assert:
+    that: sn_rest_status | int in [200, 201]
+    fail_msg: "Creating sys_choice {{ rmq_discovery_source }} failed ({{ sn_rest_status }}): {{ sn_rest_error }}"
+    quiet: true
+  when: not rmq_choice_exists | bool
+
+- name: Compare the live choice with its representation
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ rmq_choice_body }}"
+    sn_drift_live: "{{ rmq_choice_live }}"
+  when: rmq_choice_exists | bool
+
+- name: Update discovery source choice {{ rmq_discovery_source }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: sys_choice
+    sn_rest_sys_id: "{{ rmq_choice_sys_id }}"
+    sn_rest_body: "{{ rmq_choice_body }}"
+  when:
+    - rmq_choice_exists | bool
+    - sn_drift_fields | length > 0

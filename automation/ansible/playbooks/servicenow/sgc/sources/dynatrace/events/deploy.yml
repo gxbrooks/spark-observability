@@ -58,5 +58,8 @@
     - name: Apply CPU metric detector (classic log event disabled — OpenPipeline is canonical)
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_dt_anomaly_detectors.yml"
 
+    - name: Apply eShop RabbitMQ queue metric events (backlog, no consumer)
+      ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply-eshop-queue-metric-events.yml"
+
     - name: Apply brooks-lab problem notification webhook to ServiceNow
       ansible.builtin.include_tasks: "{{ dt_observability_tasks_dir }}/tasks/apply_dt_problem_notification.yml"

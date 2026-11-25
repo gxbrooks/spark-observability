@@ -1,0 +1,42 @@
+---
+# Diagnose RabbitMQ discovery: every test.yml check plus the discovery-source choice drift and the live
+# queue depths/consumer counts. Read-only; never fails on check results.
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/servicenow/discovery/rabbitmq/diagnose.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/rabbitmq/diagnose.yml
+    sn_target_mode: any
+
+- name: Diagnose RabbitMQ discovery
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ project_root }}/automation/ansible/playbooks/eshop/common/vars.yml"
+    - common/vars.yml
+  tasks:
+    - name: Collect broker inventory
+      ansible.builtin.include_tasks: tasks/collect-rabbitmq-inventory.yml
+
+    - name: Compare CMDB with the broker
+      ansible.builtin.include_tasks: tasks/check-rabbitmq-cmdb.yml
+
+    - name: Look up discovery source choice
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: sys_choice
+        sn_rest_query: "sysparm_query=name=cmdb_ci^element=discovery_source^value={{ rmq_discovery_source }}&sysparm_limit=1"
+
+    - name: Compare discovery source choice with its representation
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+      vars:
+        sn_drift_wanted: "{{ lookup('file', rmq_spec_dir + '/sys_choice_discovery_source_rabbitmq_api.json') | from_json }}"
+        sn_drift_live: "{{ sn_rest_json.result[0] | default({}) }}"
+
+    - name: Show live queue depth and consumers
+      ansible.builtin.debug:
+        msg: "{{ rmq_queues | map(attribute='name') | zip(rmq_queues | map(attribute='messages', default='?'), rmq_queues | map(attribute='consumers', default='?')) | map('join', ':') | list }} (queue:messages:consumers)"

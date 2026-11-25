@@ -1,0 +1,53 @@
+{#
+  IRE payload (POST /api/now/identifyreconcile?sysparm_data_source=RabbitMQ-API) for one RabbitMQ
+  broker and its queues, built from the RabbitMQ management API by
+  automation/ansible/playbooks/servicenow/discovery/rabbitmq/start.yml.
+
+  Item order is fixed: 0 = host the broker runs on, 1 = broker, 2.. = queues.
+  Identification (OOTB rules on the instance):
+    cmdb_ci_appl_rabbitmq        dependent; sys_class_name + vhost + node_name; Runs on a computer
+    cmdb_ci_appl_rabbitmq_queue  dependent; sys_class_name + vhost + name; Contained by the broker
+  The host item carries only its name so the IRE matches the existing server CI (owned by
+  SGO-Dynatrace) without this source overwriting any of its attributes.
+
+  Inputs: rmq_host_name, rmq_overview (management /api/overview), rmq_queues (/api/queues),
+          rmq_amqp_port, rmq_k8s_namespace, rmq_k8s_workload.
+#}
+{
+  "items": [
+    {
+      "className": "cmdb_ci_linux_server",
+      "values": { "name": "{{ rmq_host_name }}" }
+    },
+    {
+      "className": "cmdb_ci_appl_rabbitmq",
+      "values": {
+        "name": "{{ rmq_overview.node }}",
+        "node_name": "{{ rmq_overview.node }}",
+        "vhost": "/",
+        "service_name": "{{ rmq_overview.cluster_name }}",
+        "version": "{{ rmq_overview.rabbitmq_version }}",
+        "tcp_port": "{{ rmq_amqp_port }}",
+        "install_status": "1",
+        "operational_status": "1",
+        "short_description": "RabbitMQ {{ rmq_overview.rabbitmq_version }} broker, Kubernetes {{ rmq_k8s_namespace }}/{{ rmq_k8s_workload }} on {{ rmq_host_name }}"
+      }
+    }{% for q in rmq_queues %},
+    {
+      "className": "cmdb_ci_appl_rabbitmq_queue",
+      "values": {
+        "name": "{{ q.name }}",
+        "vhost": "{{ q.vhost }}",
+        "install_status": "1",
+        "operational_status": "1",
+        "short_description": "RabbitMQ queue {{ q.name }} (vhost {{ q.vhost }}, durable={{ q.durable | lower }}) on {{ rmq_overview.node }}"
+      }
+    }{% endfor %}
+
+  ],
+  "relations": [
+    { "parent": 1, "child": 0, "type": "Runs on::Runs" }{% for q in rmq_queues %},
+    { "parent": 1, "child": {{ loop.index + 1 }}, "type": "Contains::Contained by" }{% endfor %}
+
+  ]
+}

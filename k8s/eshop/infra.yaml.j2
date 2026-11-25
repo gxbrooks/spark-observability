@@ -117,6 +117,13 @@ spec:
   template:
     metadata:
       labels: {app: rabbitmq, app.kubernetes.io/part-of: eshop}
+      # Dynatrace "Monitor annotated Prometheus exporters" scrapes RabbitMQ's built-in exporter.
+      # /metrics/per-object carries per-queue series (rabbitmq_queue_messages_ready/_unacked,
+      # rabbitmq_queue_consumers, labels vhost+queue); plain /metrics is aggregated only.
+      annotations:
+        metrics.dynatrace.com/scrape: "true"
+        metrics.dynatrace.com/port: "15692"
+        metrics.dynatrace.com/path: /metrics/per-object
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_data_node }}}
       # Stable node name so the broker identity is constant across pod restarts.

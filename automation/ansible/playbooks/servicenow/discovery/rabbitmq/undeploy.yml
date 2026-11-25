@@ -1,0 +1,47 @@
+---
+# Remove what RabbitMQ discovery created: consumer relationships, queue and broker CIs with discovery source
+# RabbitMQ-API (their Contains/Runs on relationships go with them). The discovery source choice is kept,
+# since CMDB history references it; remove it with Terraform destroy or by hand if wanted.
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/servicenow/discovery/rabbitmq/undeploy.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/rabbitmq/undeploy.yml
+    sn_target_mode: active
+
+- name: Undeploy RabbitMQ discovery CIs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ project_root }}/automation/ansible/playbooks/eshop/common/vars.yml"
+    - common/vars.yml
+  tasks:
+    - name: Find RabbitMQ CIs created by this source
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: cmdb_ci
+        sn_rest_query: >-
+          sysparm_query=discovery_source={{ rmq_discovery_source }}^sys_class_nameINcmdb_ci_appl_rabbitmq_queue,cmdb_ci_appl_rabbitmq&sysparm_fields=sys_id,name,sys_class_name&sysparm_limit=500
+
+    - name: Record CIs to remove
+      ansible.builtin.set_fact:
+        rmq_undeploy_cis: "{{ sn_rest_json.result | default([]) }}"
+
+    - name: Remove relationships of each CI
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/delete-cmdb-relationships-for-ci.yml"
+      vars:
+        sn_csdm_ci_sys_id: "{{ item.sys_id }}"
+        sn_csdm_lookup_name: "{{ item.name }}"
+      loop: "{{ rmq_undeploy_cis }}"
+
+    - name: Delete each CI
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/delete-cmdb-record.yml"
+      vars:
+        sn_csdm_table: "{{ item.sys_class_name }}"
+        sn_csdm_ci_sys_id: "{{ item.sys_id }}"
+        sn_csdm_lookup_name: "{{ item.name }}"
+      loop: "{{ rmq_undeploy_cis }}"

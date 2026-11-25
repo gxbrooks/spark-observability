@@ -1,0 +1,32 @@
+---
+# Assert the CMDB matches the live broker: broker CI, Runs on host, one queue CI per live queue,
+# consumer relationships. Read-only; fails on any FAIL.
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml playbooks/servicenow/discovery/rabbitmq/test.yml
+
+- import_playbook: ../../tasks/target.yml
+  vars:
+    sn_target_playbook: discovery/rabbitmq/test.yml
+    sn_target_mode: active
+
+- name: Test RabbitMQ discovery
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ project_root }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ project_root }}/vars/secrets.yaml"
+    - "{{ playbook_dir }}/../common/vars.yml"
+    - "{{ project_root }}/automation/ansible/playbooks/eshop/common/vars.yml"
+    - common/vars.yml
+  tasks:
+    - name: Collect broker inventory
+      ansible.builtin.include_tasks: tasks/collect-rabbitmq-inventory.yml
+
+    - name: Compare CMDB with the broker
+      ansible.builtin.include_tasks: tasks/check-rabbitmq-cmdb.yml
+
+    - name: Assert all RabbitMQ CMDB checks passed
+      ansible.builtin.assert:
+        that: rmq_checks | rejectattr('status', 'equalto', 'PASS') | list | length == 0
+        fail_msg: "Failed: {{ rmq_checks | rejectattr('status', 'equalto', 'PASS') | map(attribute='check') | join(', ') }}"
+        success_msg: "All {{ rmq_checks | length }} RabbitMQ CMDB checks passed."

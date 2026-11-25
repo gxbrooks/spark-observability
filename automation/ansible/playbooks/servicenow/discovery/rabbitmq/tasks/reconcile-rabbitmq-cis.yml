@@ -1,0 +1,40 @@
+---
+# Send the broker and its queues through the IRE (data source RabbitMQ-API).
+# Expects collect-rabbitmq-inventory.yml facts. Sets rmq_broker_sys_id and rmq_queue_sys_ids
+# ({queue name: sys_id}). The IRE itself decides insert vs update vs no-op.
+
+- name: Reconcile broker and queues through the IRE
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/identifyreconcile?sysparm_data_source={{ rmq_discovery_source | urlencode }}"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: "{{ lookup('template', rmq_spec_dir + '/rabbitmq-ire-payload.json.j2') | from_json }}"
+    status_code: [200, 201]
+    return_content: true
+  register: rmq_ire
+  no_log: true
+  # The IRE reports per-item outcomes; "changed" is only known from them.
+  changed_when: rmq_ire.json.result['items'] | selectattr('operation', 'in', ['INSERT', 'UPDATE']) | list | length > 0
+
+- name: Fail on IRE item errors
+  ansible.builtin.assert:
+    that: rmq_ire_errors | length == 0
+    fail_msg: "IRE rejected items: {{ rmq_ire_errors }}"
+    quiet: true
+  vars:
+    rmq_ire_errors: "{{ rmq_ire.json.result['items'] | selectattr('errors', 'defined') | selectattr('errors') | map(attribute='errors') | list }}"
+
+- name: Record reconciled CI sys_ids
+  ansible.builtin.set_fact:
+    rmq_broker_sys_id: "{{ rmq_ire.json.result['items'][1].sysId }}"
+    rmq_queue_sys_ids: "{{ dict(rmq_queues | map(attribute='name') | zip(rmq_ire.json.result['items'][2:] | map(attribute='sysId'))) }}"
+
+- name: Show IRE outcome
+  ansible.builtin.debug:
+    msg: >-
+      {{ rmq_ire.json.result['items'] | map(attribute='className') | zip(rmq_ire.json.result['items'] | map(attribute='operation'))
+         | map('join', ':') | list }}

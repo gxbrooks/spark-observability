@@ -1,0 +1,78 @@
+---
+# Relate each queue to the Kubernetes Deployment CI (KVA) of its consumers with
+# "Depends on::Used by" (consumer depends on queue), and remove that relationship from
+# workloads that no longer consume the queue. Expects reconcile-rabbitmq-cis.yml facts.
+
+- name: Look up relationship type Depends on::Used by
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_type
+    sn_rest_query: "sysparm_query=name={{ 'Depends on::Used by' | urlencode }}&sysparm_fields=sys_id&sysparm_limit=1"
+
+- name: Record relationship type
+  ansible.builtin.set_fact:
+    rmq_rel_type_sys_id: "{{ sn_rest_json.result[0].sys_id }}"
+
+- name: Look up consumer Deployment CIs in namespace {{ rmq_k8s_namespace }}
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_ci_kubernetes_deployment
+    sn_rest_query: >-
+      sysparm_query=namespace={{ rmq_k8s_namespace }}^nameIN{{ (rmq_queue_consumers.values() | flatten | unique | join(',')) | urlencode }}&sysparm_fields=sys_id,name&sysparm_limit=100
+
+- name: Index Deployment CIs by name
+  ansible.builtin.set_fact:
+    rmq_deployment_sys_ids: "{{ dict(sn_rest_json.result | map(attribute='name') | zip(sn_rest_json.result | map(attribute='sys_id'))) }}"
+
+- name: Read existing queue consumer relationships
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_query: >-
+      sysparm_query=type={{ rmq_rel_type_sys_id }}^childIN{{ rmq_queue_sys_ids.values() | join(',') }}&sysparm_fields=sys_id,parent,child&sysparm_limit=500
+
+- name: Compute wanted and existing relationships
+  vars:
+    rmq_wanted_pairs: >-
+      {%- set out = [] -%}
+      {%- for q, wls in rmq_queue_consumers.items() if q in rmq_queue_sys_ids -%}
+        {%- for wl in wls if wl in rmq_deployment_sys_ids -%}
+          {%- set _ = out.append(rmq_deployment_sys_ids[wl] ~ '|' ~ rmq_queue_sys_ids[q]) -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {{ out }}
+    rmq_existing: "{{ sn_rest_json.result | default([]) }}"
+  ansible.builtin.set_fact:
+    rmq_rel_create: "{{ rmq_wanted_pairs | difference(rmq_existing | map(attribute='parent.value') | zip(rmq_existing | map(attribute='child.value')) | map('join', '|') | list) }}"
+    rmq_rel_delete: >-
+      {%- set out = [] -%}
+      {%- for r in rmq_existing if (r.parent.value ~ '|' ~ r.child.value) not in rmq_wanted_pairs -%}
+        {%- set _ = out.append(r.sys_id) -%}
+      {%- endfor -%}
+      {{ out }}
+    rmq_consumers_without_ci: "{{ rmq_queue_consumers.values() | flatten | unique | difference(rmq_deployment_sys_ids.keys() | list) }}"
+
+- name: Create queue consumer relationships
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: cmdb_rel_ci
+    sn_rest_body:
+      parent: "{{ item.split('|')[0] }}"
+      child: "{{ item.split('|')[1] }}"
+      type: "{{ rmq_rel_type_sys_id }}"
+  loop: "{{ rmq_rel_create }}"
+
+- name: Remove relationships to workloads that no longer consume the queue
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/delete-cmdb-record.yml"
+  vars:
+    sn_csdm_table: cmdb_rel_ci
+    sn_csdm_ci_sys_id: "{{ item }}"
+    sn_csdm_lookup_name: "queue consumer relationship {{ item }}"
+  loop: "{{ rmq_rel_delete }}"
+
+- name: Show consumer relationship changes
+  ansible.builtin.debug:
+    msg: >-
+      created {{ rmq_rel_create | length }}, removed {{ rmq_rel_delete | length }}
+      {{ ('; consumers with no Deployment CI yet (KVA): ' ~ rmq_consumers_without_ci | join(', ')) if rmq_consumers_without_ci | length > 0 else '' }}

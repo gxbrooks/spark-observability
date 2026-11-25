@@ -79,6 +79,22 @@ Browser sign-in runs over plain HTTP on a non-localhost name; browsers may drop 
 correlation cookies and refuse the login. Browsing the catalogue and the load generator are not
 affected.
 
+## Observability (Dynatrace and ServiceNow)
+
+| Signal | Where it is configured | Result |
+|---|---|---|
+| RabbitMQ per-queue metrics | `metrics.dynatrace.com/*` annotations on the rabbitmq pod (`k8s/eshop/infra.yaml.j2`); `openMetricsPipelineEnabled` in `specifications/dynatrace/integrations/k8s-monitoring/cloud_monitoring-anomaly-enabled.json` | `rabbitmq_queue_*` metrics split by `queue`, bound to the rabbitmq workload |
+| Queue backlog / no consumer | `eshop-rabbitmq-queue-{backlog,no-consumer}-metric-event.json.j2` (Ansible: `apply-eshop-queue-metric-events.yml`; Terraform: `dynatrace_settings.tf`) | Davis problems per queue; ServiceNow binds them to the queue CI |
+| WARN/ERROR/CRITICAL logs | Single-line .NET console logs (`apps.yaml.j2`); OpenPipeline `eshop-dotnet-log-alerts-openpipeline.json.j2` + routing entry | One Davis problem per workload + logger category + level |
+| Kubernetes anomalies and events | Management zone rules for namespace `eshop` (workloads, namespace, process groups); `eventProcessingActive` | Workload, node and cluster problems flow to ServiceNow |
+| CMDB | `playbooks/servicenow/discovery/rabbitmq/` | `cmdb_ci_appl_rabbitmq` + one `cmdb_ci_appl_rabbitmq_queue` per queue, consumer `Depends on` relations |
+
+Stress scenario (saturation plus three injected faults, then a full restore):
+
+```bash
+ansible-playbook -i inventory.yml playbooks/eshop/test.yml --tags stress -e eshop_stress_minutes=12
+```
+
 ## Load generation
 
 `loadgen` places `eshop_loadgen_orders_per_minute` orders per minute (default 2) through

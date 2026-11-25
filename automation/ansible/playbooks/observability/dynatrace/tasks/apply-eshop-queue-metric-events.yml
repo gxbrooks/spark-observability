@@ -1,0 +1,41 @@
+---
+# Upsert the eShop RabbitMQ queue metric events (backlog, no consumer). Both read RabbitMQ's
+# per-queue Prometheus series scraped by Dynatrace Kubernetes monitoring (annotations on the
+# rabbitmq pod, k8s/eshop/infra.yaml.j2) and bind to the rabbitmq workload (CLOUD_APPLICATION).
+# Terraform: automation/terraform/dynatrace_settings.tf (eshop_queue_* resources).
+
+- name: Resolve Dynatrace API credentials
+  ansible.builtin.include_tasks: resolve_dt_api.yml
+
+- name: Resolve Dynatrace specification paths
+  ansible.builtin.include_tasks: "{{ project_root }}/automation/ansible/playbooks/observability/dynatrace/common/resolve_dt_spec_paths.yml"
+
+- name: Render eShop queue metric events
+  tf_template:
+    src: "{{ dt_integrations_dir }}/eshop-rabbitmq-queue-{{ item }}-metric-event.json.j2"
+    dest: "/tmp/eshop-rabbitmq-queue-{{ item }}-metric-event.json"
+    mode: "0644"
+  # vars: override so tf_template sees rendered values (see apply_spark_openpipeline_log_alerts.yml).
+  vars:
+    dt_eshop_queue_backlog_event_summary: "{{ DT_ESHOP_QUEUE_BACKLOG_EVENT_SUMMARY }}"
+    dt_eshop_queue_no_consumer_event_summary: "{{ DT_ESHOP_QUEUE_NO_CONSUMER_EVENT_SUMMARY }}"
+    dt_l2i_environment: "{{ DT_ENVIRONMENT }}"
+  loop: [backlog, no-consumer]
+  delegate_to: localhost
+  run_once: true
+
+- name: Upsert eShop queue backlog metric event
+  ansible.builtin.include_tasks: upsert_dt_settings_object.yml
+  vars:
+    dt_upsert_schema_id: builtin:anomaly-detection.metric-events
+    dt_upsert_doc: "{{ lookup('file', '/tmp/eshop-rabbitmq-queue-backlog-metric-event.json') | from_json }}"
+    dt_upsert_match_key: summary
+    dt_upsert_match_value: "{{ DT_ESHOP_QUEUE_BACKLOG_EVENT_SUMMARY }}"
+
+- name: Upsert eShop queue no-consumer metric event
+  ansible.builtin.include_tasks: upsert_dt_settings_object.yml
+  vars:
+    dt_upsert_schema_id: builtin:anomaly-detection.metric-events
+    dt_upsert_doc: "{{ lookup('file', '/tmp/eshop-rabbitmq-queue-no-consumer-metric-event.json') | from_json }}"
+    dt_upsert_match_key: summary
+    dt_upsert_match_value: "{{ DT_ESHOP_QUEUE_NO_CONSUMER_EVENT_SUMMARY }}"

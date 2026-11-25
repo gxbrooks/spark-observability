@@ -1,0 +1,63 @@
+---
+# Read the broker, its queues and its consumers from the RabbitMQ management API, and map each
+# consumer connection (pod IP) to its Kubernetes workload. Read-only.
+# Sets: rmq_overview, rmq_queues, rmq_host_name, rmq_queue_consumers ({queue: [workload, ...]}).
+
+- name: Read RabbitMQ overview
+  ansible.builtin.uri:
+    url: "{{ rmq_mgmt_url }}/api/overview"
+    user: "{{ eshop.RABBITMQ_USER }}"
+    password: "{{ eshop.RABBITMQ_PASSWORD }}"
+    force_basic_auth: true
+    return_content: true
+  register: rmq_overview_resp
+  no_log: true
+
+- name: Read RabbitMQ queues
+  ansible.builtin.uri:
+    url: "{{ rmq_mgmt_url }}/api/queues?columns=name,vhost,durable,consumers,messages"
+    user: "{{ eshop.RABBITMQ_USER }}"
+    password: "{{ eshop.RABBITMQ_PASSWORD }}"
+    force_basic_auth: true
+    return_content: true
+  register: rmq_queues_resp
+  no_log: true
+
+- name: Read RabbitMQ consumers
+  ansible.builtin.uri:
+    url: "{{ rmq_mgmt_url }}/api/consumers"
+    user: "{{ eshop.RABBITMQ_USER }}"
+    password: "{{ eshop.RABBITMQ_PASSWORD }}"
+    force_basic_auth: true
+    return_content: true
+  register: rmq_consumers_resp
+  no_log: true
+
+- name: Read pods in namespace {{ rmq_k8s_namespace }}
+  ansible.builtin.command: kubectl get pods -n {{ rmq_k8s_namespace }} -o json
+  environment: {KUBECONFIG: "{{ eshop_kubeconfig }}"}
+  register: rmq_pods
+  changed_when: false
+
+- name: Build broker and consumer facts
+  vars:
+    rmq_pod_items: "{{ (rmq_pods.stdout | from_json)['items'] | selectattr('status.podIP', 'defined') | list }}"
+    rmq_ip_to_workload: "{{ dict(rmq_pod_items | map(attribute='status.podIP') | zip(rmq_pod_items | map(attribute='metadata.labels.app'))) }}"
+  ansible.builtin.set_fact:
+    rmq_overview: "{{ rmq_overview_resp.json }}"
+    rmq_queues: "{{ rmq_queues_resp.json | sort(attribute='name') }}"
+    rmq_host_name: "{{ rmq_pod_items | selectattr('metadata.labels.app', 'equalto', rmq_k8s_workload) | map(attribute='spec.nodeName') | first }}"
+    rmq_queue_consumers: >-
+      {%- set out = {} -%}
+      {%- for c in rmq_consumers_resp.json -%}
+        {%- set wl = rmq_ip_to_workload.get(c.channel_details.peer_host, '') -%}
+        {%- if wl -%}{%- set _ = out.update({c.queue.name: ((out.get(c.queue.name, []) + [wl]) | unique | list)}) -%}{%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+
+- name: Show broker inventory
+  ansible.builtin.debug:
+    msg: >-
+      {{ rmq_overview.node }} (RabbitMQ {{ rmq_overview.rabbitmq_version }}) on {{ rmq_host_name }};
+      queues: {{ rmq_queues | map(attribute='name') | join(', ') }};
+      consumers: {{ rmq_queue_consumers }}

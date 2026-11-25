@@ -75,6 +75,26 @@ variable "DT_SN_SPARK_ERROR_LOG_EVENT_SUMMARY" {
   type        = string
 }
 
+variable "DT_ESHOP_OPENPIPELINE_DISPLAY_NAME" {
+  description = "Display name of the eShop .NET log-alert OpenPipeline"
+  type        = string
+}
+
+variable "DT_ESHOP_OPENPIPELINE_CUSTOM_ID" {
+  description = "Custom ID of the eShop .NET log-alert OpenPipeline"
+  type        = string
+}
+
+variable "DT_ESHOP_QUEUE_BACKLOG_EVENT_SUMMARY" {
+  description = "Summary (identity) of the eShop RabbitMQ queue backlog metric event"
+  type        = string
+}
+
+variable "DT_ESHOP_QUEUE_NO_CONSUMER_EVENT_SUMMARY" {
+  description = "Summary (identity) of the eShop RabbitMQ queue no-consumer metric event"
+  type        = string
+}
+
 variable "DT_L2I_STANDALONE_CUSTOM_SOURCE_NAME" {
   description = "config-item-title for the Standalone short Log4j2 custom log source"
   type        = string

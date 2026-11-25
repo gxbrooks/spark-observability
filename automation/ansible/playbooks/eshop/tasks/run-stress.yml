@@ -1,0 +1,84 @@
+---
+# eShop stress scenario: one saturation plus three injected faults, held for eshop_stress_minutes,
+# then restored (always, even on failure or interrupt). Each targets a distinct alert class:
+#
+#   saturation        loadgen at eshop_stress_orders_per_minute (> ~3/min ceiling)
+#                     -> Ordering queue backlog (metric event, bound to the queue CI in ServiceNow)
+#   consumer outage   payment-processor scaled to 0
+#                     -> PaymentProcessor queue has no consumer (AVAILABILITY) + its backlog
+#   broker misconfig  webhooks-api eventbus pointed at amqp://localhost
+#                     -> repeated .NET "fail:" lines (eShop ERROR log alert) + Webhooks no consumer
+#   crash loop        catalog-api database password wrong -> migration fails, host stops
+#                     -> container restarts (Kubernetes workload anomaly) + "crit:"/"fail:" lines
+#
+# Expects common/vars.yml and KUBECONFIG in the play environment.
+
+- name: Inject stress and faults
+  block:
+    - name: Raise load generator to {{ eshop_stress_orders_per_minute }} orders/minute
+      ansible.builtin.command: >-
+        kubectl -n {{ eshop_namespace }} set env deployment/loadgen ORDERS_PER_MINUTE={{ eshop_stress_orders_per_minute }}
+      changed_when: true
+
+    - name: Stop payment-processor (consumer outage)
+      ansible.builtin.command: kubectl -n {{ eshop_namespace }} scale deployment/payment-processor --replicas=0
+      changed_when: true
+
+    - name: Point webhooks-api at a broker that does not exist (broker misconfiguration)
+      ansible.builtin.command: >-
+        kubectl -n {{ eshop_namespace }} set env deployment/webhooks-api ConnectionStrings__eventbus=amqp://localhost
+      changed_when: true
+
+    - name: Give catalog-api a wrong database password (crash loop)
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - -n
+          - "{{ eshop_namespace }}"
+          - set
+          - env
+          - deployment/catalog-api
+          - ConnectionStrings__catalogdb=Host=postgres;Port=5432;Username=postgres;Password=wrong-on-purpose;Database=catalogdb
+      changed_when: true
+
+    - name: Record stress window start
+      ansible.builtin.set_fact:
+        eshop_stress_started: "{{ now(utc=true).isoformat() }}"
+
+    - name: Hold the stress window for {{ eshop_stress_minutes }} minutes
+      ansible.builtin.pause:
+        minutes: "{{ eshop_stress_minutes | int }}"
+
+    - name: Record stress window end
+      ansible.builtin.set_fact:
+        eshop_stress_ended: "{{ now(utc=true).isoformat() }}"
+
+  always:
+    - name: Remove the injected environment overrides
+      ansible.builtin.command: >-
+        kubectl -n {{ eshop_namespace }} set env deployment/{{ item.deployment }} {{ item.var }}-
+      loop:
+        - {deployment: webhooks-api, var: ConnectionStrings__eventbus}
+        - {deployment: catalog-api, var: ConnectionStrings__catalogdb}
+      changed_when: true
+
+    - name: Render manifests
+      ansible.builtin.include_tasks: render-manifests.yml
+
+    - name: Re-apply services and load generator from their representations
+      ansible.builtin.command: kubectl apply -f {{ eshop_render_dir }}/{{ item }}.yaml
+      loop: [apps, loadgen]
+      changed_when: true
+
+    - name: Restore payment-processor
+      ansible.builtin.command: kubectl -n {{ eshop_namespace }} scale deployment/payment-processor --replicas=1
+      changed_when: true
+
+    - name: Wait for every eShop deployment
+      ansible.builtin.command: kubectl rollout status deployment/{{ item }} -n {{ eshop_namespace }} --timeout=300s
+      loop: "{{ eshop_app_deployments + ['loadgen'] }}"
+      changed_when: false
+
+- name: Report the stress window
+  ansible.builtin.debug:
+    msg: "eShop stress window {{ eshop_stress_started | default('?') }} .. {{ eshop_stress_ended | default('?') }} (UTC); faults restored."
