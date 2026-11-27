@@ -36,10 +36,10 @@
           "id": "alias-k8s-dash-keys",
           "type": "dql",
           "enabled": true,
-          "description": "Dash-key K8s aliases and sn-service-instance (eShop-<workload>) for SN enrichment",
+          "description": "Dash-key K8s aliases; sn-service-instance = the workload's servicenow.com/service-instance label value (mirrors eshop_service_instances in playbooks/eshop/common/vars.yml)",
           "matcher": "isNotNull(k8s.pod.name)",
           "dql": {
-            "script": "fieldsAdd `k8s-pod-name` = toString(k8s.pod.name)\n| fieldsAdd `k8s-namespace-name` = toString(coalesce(k8s.namespace.name, \"\"))\n| fieldsAdd `k8s-workload-name` = toString(coalesce(k8s.workload.name, k8s.deployment.name, \"\"))\n| fieldsAdd `k8s-workload-kind` = toString(coalesce(k8s.workload.kind, \"deployment\"))\n| fieldsAdd `sn-service-instance` = concat(\"eShop-\", toString(coalesce(k8s.workload.name, k8s.deployment.name, \"unknown\")))"
+            "script": "fieldsAdd `k8s-pod-name` = toString(k8s.pod.name)\n| fieldsAdd `k8s-namespace-name` = toString(coalesce(k8s.namespace.name, \"\"))\n| fieldsAdd `k8s-workload-name` = toString(coalesce(k8s.workload.name, k8s.deployment.name, \"\"))\n| fieldsAdd `k8s-workload-kind` = toString(coalesce(k8s.workload.kind, \"deployment\"))\n| fieldsAdd `sn-workload` = toString(coalesce(k8s.workload.name, k8s.deployment.name, \"unknown\"))\n| fieldsAdd `sn-service-instance` = if(`sn-workload` == \"webapp\", \"eShop-WebApp\", else: if(`sn-workload` == \"basket-api\", \"eShop-Basket-API\", else: if(`sn-workload` == \"identity-api\", \"eShop-Identity-API\", else: if(`sn-workload` == \"catalog-api\", \"eShop-Catalog-API\", else: if(`sn-workload` == \"ordering-api\", \"eShop-Ordering-API\", else: if(`sn-workload` == \"order-processor\", \"eShop-Order-Processor\", else: if(`sn-workload` == \"payment-processor\", \"eShop-Payment-Processor\", else: if(`sn-workload` == \"webhooks-api\", \"eShop-Webhooks-API\", else: if(`sn-workload` == \"postgres\", \"eShop-PostgreSQL\", else: if(`sn-workload` == \"redis\", \"eShop-Redis\", else: if(`sn-workload` == \"rabbitmq\", \"eShop-RabbitMQ\", else: if(`sn-workload` == \"loadgen\", \"eShop-Load-Generator\", else: concat(\"eShop-\", `sn-workload`)))))))))))))"
           }
         },
         {

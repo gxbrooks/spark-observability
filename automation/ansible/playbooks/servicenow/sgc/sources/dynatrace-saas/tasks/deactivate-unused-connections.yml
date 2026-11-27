@@ -1,0 +1,71 @@
+---
+# Deactivate SGC for Dynatrace SaaS connections listed in sgc_saas_deactivate_connections:
+# the service graph connection and its cloned scheduled imports ("<connection> - ...").
+# Only active records are changed, so reruns change nothing.
+
+- name: Read the connections to deactivate
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_cmdb_int_util_service_graph_connection
+    sn_rest_query: >-
+      sysparm_query=nameIN{{ sgc_saas_deactivate_connections | join(',') | urlencode }}&sysparm_fields=sys_id,name,active&sysparm_limit=20
+
+- name: Record the connections to deactivate
+  ansible.builtin.set_fact:
+    sgc_saas_unused_conns: "{{ sn_rest_json.result | default([]) }}"
+
+- name: Read their active scheduled imports
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/scheduled_import_set?sysparm_query=active=true^nameSTARTSWITH{{ (item ~ ' - ') | urlencode
+      }}&sysparm_fields=sys_id,name&sysparm_limit=100
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sgc_saas_unused_imports
+  no_log: true
+  loop: "{{ sgc_saas_deactivate_connections }}"
+
+- name: Deactivate their scheduled imports
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: {active: "false"}
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  loop: "{{ sgc_saas_unused_imports.results | map(attribute='json.result') | flatten }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Deactivate the connections
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_cmdb_int_util_service_graph_connection/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: {active: "false"}
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  loop: "{{ sgc_saas_unused_conns | selectattr('active', 'equalto', 'true') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Report unused connections
+  ansible.builtin.debug:
+    msg: >-
+      Unused SaaS connections inactive: {{ sgc_saas_unused_conns | map(attribute='name') | list }};
+      scheduled imports deactivated this run: {{ sgc_saas_unused_imports.results | map(attribute='json.result')
+      | flatten | map(attribute='name') | list }}

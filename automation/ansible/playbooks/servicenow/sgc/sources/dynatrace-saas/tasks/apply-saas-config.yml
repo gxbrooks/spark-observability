@@ -1,0 +1,128 @@
+---
+# Converge the default SaaS connection on the brooks-lab tenant. Every write is
+# preceded by the state read in read-saas-state.yml and skipped when it already matches.
+# Expects: read-saas-state.yml and check-saas-token.yml (sgc_saas_token_ok) have run.
+
+- name: Point the HTTP connection at the brooks-lab tenant
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/http_connection/{{ sgc_saas_http.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    # ServiceNow rebuilds connection_url from protocol + host (+ port, base_path) on save,
+    # so host is the field that has to change; connection_url alone is overwritten.
+    body:
+      protocol: https
+      host: "{{ sgc_saas_tenant_url | regex_replace('^https?://', '') }}"
+      connection_url: "{{ sgc_saas_tenant_url }}"
+      use_mid: "false"
+      active: "true"
+    status_code: [200]
+  no_log: true
+  register: sgc_saas_http_patch
+  changed_when: true
+  when: >-
+    sgc_saas_http.connection_url | default('') != sgc_saas_tenant_url
+    or sgc_saas_http.use_mid | default('false') != 'false'
+    or sgc_saas_http.active | default('true') != 'true'
+
+# The credential's token is write-only (not readable back), so it is written when
+# the connection was repointed, when the connection's last run did not succeed, or
+# on request (-e sgc_saas_rotate_credential=true).
+- name: Decide whether to write the connection credential
+  ansible.builtin.set_fact:
+    sgc_saas_write_credential: >-
+      {{ (sgc_saas_rotate_credential | bool)
+         or (sgc_saas_http_patch is changed)
+         or (sgc_saas_sg.status | default('') != 'Success') }}
+
+- name: Write the platform token into the connection credential
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/api_key_credentials/{{ sgc_saas_http.credential.value }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      api_key: "{{ sgc_saas_token }}"
+      active: "true"
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  when:
+    - sgc_saas_write_credential | bool
+    - sgc_saas_http.credential.value | default('') | length > 0
+
+- name: Announce the credential write
+  ansible.builtin.debug:
+    msg: >-
+      Credential {{ 'written (token is write-only; previous value unknown)'
+      if sgc_saas_write_credential | bool else 'left as is (connection reports Success; '
+      ~ '-e sgc_saas_rotate_credential=true to rewrite)' }}.
+
+- name: Create or update connection properties that differ
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sn_cmdb_int_util_service_graph_connection_property{{
+      ('/' ~ sgc_saas_props[item.key].sys_id) if item.key in sgc_saas_props else '' }}
+    method: "{{ 'PATCH' if item.key in sgc_saas_props else 'POST' }}"
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: >-
+      {{ {'value': item.value} if item.key in sgc_saas_props else
+         {'sn_cmdb_int_util_service_graph_connection': sgc_saas_sg.sys_id,
+          'property': item.key, 'value': item.value} }}
+    status_code: [200, 201]
+  no_log: true
+  changed_when: true
+  loop: "{{ sgc_saas_connection_properties | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}={{ item.value }}"
+  when: (sgc_saas_props[item.key].value | default(None)) != item.value
+
+- name: Activate the service graph connection
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_cmdb_int_util_service_graph_connection/{{ sgc_saas_sg.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      active: "true"
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  when: sgc_saas_sg.active | default('false') != 'true'
+
+- name: Activate the root scheduled imports on an hourly cadence
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      active: "true"
+      run_type: "{{ sgc_saas_import_run_type }}"
+      run_period: "{{ sgc_saas_import_run_period }}"
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  loop: "{{ sgc_saas_roots }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: >-
+    item.active != 'true' or item.run_type != sgc_saas_import_run_type
+    or item.run_period != sgc_saas_import_run_period

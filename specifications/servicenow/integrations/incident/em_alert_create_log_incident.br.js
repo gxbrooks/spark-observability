@@ -10,7 +10,7 @@
   // source=SGO-Dynatrace^severity<=3^incidentISEMPTY (see ensure-em-alert-create-incident-br.yml).
   // Do not put severity<=3 on the EM Event → Ready rule — Warning (4) and
   // OK/clear (5) must still reach alert processing to open/close alerts.
-  if (String(current.source) !== 'SGO-Dynatrace') {
+  if (!new BrooksLabConnector().isOurRecord(current)) {
     return;
   }
   if (!current.incident.nil()) {

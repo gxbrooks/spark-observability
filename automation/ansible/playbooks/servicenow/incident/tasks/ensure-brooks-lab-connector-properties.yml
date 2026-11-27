@@ -1,0 +1,36 @@
+---
+# brooks-lab connector identity and FindService settings as sys_properties.
+# Representation: specifications/servicenow/integrations/incident/sys_properties_brooks_lab_connector.json.j2
+# The connection ids are this instance's SGC connection alias sys_ids (sn_connector_alias_ids).
+
+- name: Look up the brooks-lab SGC connection aliases
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_alias
+    sn_rest_query: "sysparm_query=idIN{{ sn_connector_alias_ids | join(',') | urlencode }}&sysparm_fields=sys_id,id&sysparm_limit=10"
+
+- name: Record the brooks-lab SGC connection ids
+  ansible.builtin.set_fact:
+    sn_connector_connection_ids: "{{ sn_rest_json.result | default([]) | map(attribute='sys_id') | sort | join(',') }}"
+
+- name: Require at least one brooks-lab SGC connection alias
+  ansible.builtin.assert:
+    that: sn_connector_connection_ids | length > 0
+    fail_msg: >-
+      None of {{ sn_connector_alias_ids }} exists on {{ sn_url }}; install and deploy the SGC
+      (servicenow/sgc/) before the incident automation.
+
+- name: Render the brooks-lab connector properties
+  ansible.builtin.set_fact:
+    sn_connector_props: >-
+      {{ lookup('tf_template', sn_incident_integrations_dir + '/sys_properties_brooks_lab_connector.json.j2',
+                sn_connector_event_class=sn_connector_event_class,
+                sn_connector_connection_ids=sn_connector_connection_ids,
+                sn_find_service_default_service_instance=sn_find_service_default_service_instance) | from_json }}
+
+- name: Apply the brooks-lab connector properties
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../cmdb/tasks/apply-sys-property.yml"
+  loop: "{{ sn_connector_props | selectattr('value', 'ne', '') | list }}"
+  loop_control:
+    loop_var: sn_sysprop_item
+    label: "{{ sn_sysprop_item.name }}"

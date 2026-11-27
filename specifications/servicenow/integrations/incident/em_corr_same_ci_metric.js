@@ -25,7 +25,7 @@
   if (!ci) {
     return JSON.stringify(result);
   }
-  if (String(currentAlert.source || '') !== 'SGO-Dynatrace') {
+  if (!new BrooksLabConnector().isOurRecord(currentAlert)) {
     return JSON.stringify(result);
   }
 
@@ -35,7 +35,7 @@
   openPrimary.addQuery('sys_id', '!=', currentAlert.sys_id);
   openPrimary.addQuery('cmdb_ci', ci);
   openPrimary.addQuery('metric_name', metric);
-  openPrimary.addQuery('source', 'SGO-Dynatrace');
+  openPrimary.addQuery('event_class', new BrooksLabConnector().eventClass);
   openPrimary.addQuery('correlation_group', '1'); // 1 = Primary (see em_alert.correlation_group sys_choice)
   openPrimary.addNotNullQuery('incident');
   openPrimary.addQuery('incident.active', true);
@@ -54,7 +54,7 @@
   gr.addQuery('state', 'IN', 'Open,Reopen');
   gr.addQuery('cmdb_ci', ci);
   gr.addQuery('metric_name', metric);
-  gr.addQuery('source', 'SGO-Dynatrace');
+  gr.addQuery('event_class', new BrooksLabConnector().eventClass);
   var from = new GlideDateTime(currentAlert.sys_created_on);
   from.addSeconds(-3600);
   gr.addQuery('sys_created_on', '>=', from);

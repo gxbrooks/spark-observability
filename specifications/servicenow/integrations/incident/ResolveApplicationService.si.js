@@ -1,6 +1,17 @@
 var ResolveApplicationService = Class.create();
 ResolveApplicationService.prototype = {
-  initialize: function () {},
+  initialize: function () {
+    this.connector = new BrooksLabConnector();
+  },
+
+  /**
+   * True for events and alerts from the brooks-lab Dynatrace connector (BrooksLabConnector:
+   * our SGC ConnectionId on the SGO-Dynatrace receiver, stamped as event_class). Alert source
+   * is not used: on this instance some brooks-lab alerts carry source "Dynatrace".
+   */
+  isBrooksLabRecord: function (gr) {
+    return !!gr && this.connector.isOurRecord(gr);
+  },
 
   /**
    * Append a line to em_event / em_alert processing_notes (never silent).
@@ -186,14 +197,17 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Look up CMDB target for a Dynatrace entity id via SGO-Dynatrace sys_object_source.
+   * Look up CMDB target for a Dynatrace entity id via the SGC sys_object_source rows of either
+   * connector: legacy SGC ("SGO-Dynatrace") and SGC SaaS ("SGO-Dynatrace SaaS"). The SaaS
+   * connector keys Kubernetes entities by Smartscape ids (K8S_*), so classic ids such as
+   * CLOUD_APPLICATION-* only match the legacy rows; host ids match both.
    */
   lookupSysObjectSourceTarget: function (entityId, targetTable) {
     if (!entityId) {
       return null;
     }
     var sos = new GlideRecord('sys_object_source');
-    sos.addQuery('name', 'SGO-Dynatrace');
+    sos.addQuery('name', 'IN', 'SGO-Dynatrace,SGO-Dynatrace SaaS');
     sos.addQuery('id', 'CONTAINS', entityId);
     if (targetTable) {
       sos.addQuery('target_table', targetTable);
@@ -1349,8 +1363,8 @@ ResolveApplicationService.prototype = {
   applyEntityBinding: function (gr) {
     var result = { bound: false, kind: 'none', note: '', asSysId: '' };
 
-    if (!gr || gr.source.toString() !== 'SGO-Dynatrace') {
-      result.note = 'applyEntityBinding: skipped (source is not SGO-Dynatrace)';
+    if (!this.isBrooksLabRecord(gr)) {
+      result.note = 'applyEntityBinding: skipped (not from the brooks-lab connector)';
       this.appendProcessingNote(gr, result.note);
       return result;
     }
@@ -1719,7 +1733,7 @@ ResolveApplicationService.prototype = {
    *      k8s-pod-name / k8s-cronjob-name / k8s-job-name.
    */
   enrichSgoRecord: function (gr) {
-    if (!gr || String(gr.source) !== 'SGO-Dynatrace') {
+    if (!this.isBrooksLabRecord(gr)) {
       return false;
     }
 
@@ -1995,7 +2009,7 @@ ResolveApplicationService.prototype = {
    * once parent is set here, and no duplicate incident gets created.
    */
   applyOpenIncidentJoin: function (gr) {
-    if (!gr || String(gr.source) !== 'SGO-Dynatrace') {
+    if (!this.isBrooksLabRecord(gr)) {
       return false;
     }
     if (!this.isL2iCriticalLogAlert(gr)) {
@@ -2014,7 +2028,7 @@ ResolveApplicationService.prototype = {
     var openPrimary = new GlideRecord('em_alert');
     openPrimary.addQuery('cmdb_ci', ci);
     openPrimary.addQuery('metric_name', metric);
-    openPrimary.addQuery('source', 'SGO-Dynatrace');
+    openPrimary.addQuery('event_class', this.connector.eventClass);
     openPrimary.addNotNullQuery('incident');
     openPrimary.addQuery('incident.active', true);
     openPrimary.orderByDesc('sys_created_on');

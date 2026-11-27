@@ -6,13 +6,13 @@ kind: Deployment
 metadata:
   name: loadgen
   namespace: {{ eshop_namespace }}
-  labels: {app: loadgen, app.kubernetes.io/part-of: eshop}
+  labels: {app: loadgen, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['loadgen'] }}}
 spec:
   replicas: 1
   selector: {matchLabels: {app: loadgen}}
   template:
     metadata:
-      labels: {app: loadgen, app.kubernetes.io/part-of: eshop}
+      labels: {app: loadgen, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['loadgen'] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_app_node }}}
       containers:

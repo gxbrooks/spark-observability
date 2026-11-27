@@ -1,0 +1,90 @@
+---
+# Test the SGC for Dynatrace SaaS on the active instance: the connection reports Success,
+# the root imports are active and hourly, and the connector has written CIs for the
+# brooks-lab cluster (Kubernetes cluster + eShop and Spark deployments) recently.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml \
+#          playbooks/servicenow/sgc/sources/dynatrace-saas/test.yml
+
+- import_playbook: ../../../tasks/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace-saas/test.yml
+    sn_target_mode: active
+
+- name: Test the SGC for Dynatrace SaaS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  vars:
+    sgc_saas_fresh_hours: 3
+    # The SaaS connector's source records (sys_object_source, name "SGO-Dynatrace SaaS") are
+    # refreshed on every import. discovery_source is not: ServiceNow sets it only when a CI is
+    # created, so CIs first created by the legacy connector keep "SGO-Dynatrace".
+    sgc_saas_expected:
+      - {label: "Kubernetes cluster", table: cmdb_ci_kubernetes_cluster, name_query: "name=brooks-lab"}
+      - {label: "eShop deployments", table: cmdb_ci_kubernetes_deployment, name_query: "nameINordering-api,catalog-api,rabbitmq"}
+      - {label: "Spark deployments", table: cmdb_ci_kubernetes_deployment, name_query: "nameLIKEspark-worker"}
+  tasks:
+    - name: Read SaaS connector state
+      ansible.builtin.include_tasks: tasks/read-saas-state.yml
+
+    - name: Find the expected CIs
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/{{ item.table }}?sysparm_query={{ item.name_query | urlencode
+          }}&sysparm_fields=sys_id,name&sysparm_limit=20
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+      register: sgc_saas_cis
+      no_log: true
+      loop: "{{ sgc_saas_expected }}"
+      loop_control:
+        label: "{{ item.label }}"
+
+    - name: Find which of them the SaaS connector refreshed recently
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/table/sys_object_source?sysparm_query=name={{ sgc_saas_discovery_source | urlencode
+          }}^target_sys_idIN{{ item.json.result | map(attribute='sys_id') | join(',') | default('none', true)
+          }}^sys_updated_on>javascript:gs.hoursAgoStart({{ sgc_saas_fresh_hours }})&sysparm_fields=target_sys_id&sysparm_limit=50
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+      register: sgc_saas_found
+      no_log: true
+      loop: "{{ sgc_saas_cis.results }}"
+      loop_control:
+        label: "{{ item.item.label }}"
+
+    - name: Assert the SaaS connector is live
+      ansible.builtin.assert:
+        that:
+          # The status comes from ServiceNow's scheduled connection check (last_check_on). A check
+          # that predates the last change to the HTTP connection describes the old settings.
+          - >-
+            sgc_saas_sg.status | default('') == 'Success'
+            or (sgc_saas_sg.last_check_on | default('')) < (sgc_saas_http.sys_updated_on | default(''))
+          - sgc_saas_roots | selectattr('active', 'equalto', 'true') | list | length == sgc_saas_root_imports | length
+          - sgc_saas_found.results | rejectattr('json.result') | list | length == 0
+        fail_msg: >-
+          connection status={{ sgc_saas_sg.status | default('-') }} (checked {{ sgc_saas_sg.last_check_on | default('-') }} UTC:
+          {{ sgc_saas_sg.message | default('') }});
+          active roots={{ sgc_saas_roots | selectattr('active', 'equalto', 'true') | map(attribute='name') | list }};
+          kinds not refreshed by the SaaS connector in {{ sgc_saas_fresh_hours }} h={{
+          sgc_saas_found.results | rejectattr('json.result') | map(attribute='item.item.label') | list }}
+        success_msg: >-
+          SaaS connector live (connection status {{ sgc_saas_sg.status }}{{ '' if sgc_saas_sg.status == 'Success'
+          else ', from a check at ' ~ sgc_saas_sg.last_check_on ~ ' UTC that predates the connection change; awaiting the next scheduled check' }}); refreshed: {{ sgc_saas_found.results | map(attribute='item.item.label')
+          | zip(sgc_saas_found.results | map(attribute='json.result') | map('length')) | list }}

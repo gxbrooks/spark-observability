@@ -1,0 +1,75 @@
+---
+# Read the brooks-lab state of the SGC for Dynatrace SaaS on the target instance.
+# Sets: sgc_saas_app (sys_scope row or {}), sgc_saas_alias, sgc_saas_http (http_connection),
+#       sgc_saas_sg (service graph connection), sgc_saas_props (property -> {sys_id, value}),
+#       sgc_saas_roots (list of root scheduled_import_set rows).
+
+- name: Read the SaaS connector application
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_scope
+    sn_rest_query: "sysparm_query=scope={{ sgc_saas_app_scope }}&sysparm_fields=sys_id,name,version,active&sysparm_limit=1"
+
+- name: Record the SaaS connector application
+  ansible.builtin.set_fact:
+    sgc_saas_app: "{{ sn_rest_json.result | default([]) | first | default({}) }}"
+
+- name: Read the default SaaS connection alias
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sys_alias
+    sn_rest_query: "sysparm_query=id={{ sgc_saas_connection_alias_id }}&sysparm_fields=sys_id,name,id&sysparm_limit=1"
+
+- name: Record the connection alias
+  ansible.builtin.set_fact:
+    sgc_saas_alias: "{{ sn_rest_json.result | default([]) | first | default({}) }}"
+
+- name: Read the HTTP connection and the service graph connection of the alias
+  when: sgc_saas_alias.sys_id is defined
+  block:
+    - name: Read the HTTP connection
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: http_connection
+        sn_rest_query: "sysparm_query=connection_alias={{ sgc_saas_alias.sys_id }}&sysparm_fields=sys_id,name,active,connection_url,credential,use_mid,sys_updated_on&sysparm_limit=1"
+
+    - name: Record the HTTP connection
+      ansible.builtin.set_fact:
+        sgc_saas_http: "{{ sn_rest_json.result | default([]) | first | default({}) }}"
+
+    - name: Read the service graph connection
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: sn_cmdb_int_util_service_graph_connection
+        sn_rest_query: "sysparm_query=connection_alias={{ sgc_saas_alias.sys_id }}&sysparm_fields=sys_id,name,active,status,message,last_check_on&sysparm_limit=1"
+
+    - name: Record the service graph connection
+      ansible.builtin.set_fact:
+        sgc_saas_sg: "{{ sn_rest_json.result | default([]) | first | default({}) }}"
+
+    - name: Read the connection properties
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: sn_cmdb_int_util_service_graph_connection_property
+        sn_rest_query: "sysparm_query=sn_cmdb_int_util_service_graph_connection={{ sgc_saas_sg.sys_id | default('none') }}&sysparm_fields=sys_id,property,value&sysparm_limit=100"
+
+    - name: Record the connection properties
+      ansible.builtin.set_fact:
+        sgc_saas_props: >-
+          {{ dict(sn_rest_json.result | default([]) | map(attribute='property')
+                  | zip(sn_rest_json.result | default([]))) }}
+
+- name: Read the root scheduled imports
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: scheduled_import_set
+    sn_rest_query: >-
+      sysparm_query=nameIN{{ sgc_saas_root_imports | join(',') | urlencode }}&sysparm_fields=sys_id,name,active,run_type,run_period,data_source&sysparm_limit=20
+
+- name: Record the root scheduled imports
+  ansible.builtin.set_fact:
+    sgc_saas_roots: "{{ sn_rest_json.result | default([]) }}"
+    sgc_saas_alias: "{{ sgc_saas_alias | default({}) }}"
+    sgc_saas_http: "{{ sgc_saas_http | default({}) }}"
+    sgc_saas_sg: "{{ sgc_saas_sg | default({}) }}"
+    sgc_saas_props: "{{ sgc_saas_props | default({}) }}"

@@ -29,6 +29,22 @@
     - name: Ensure L2I Dynatrace Grail enrichment sys_properties
       ansible.builtin.include_tasks: tasks/ensure-l2i-dt-sys-properties.yml
 
+    - name: Ensure brooks-lab connector identity and FindService properties
+      ansible.builtin.include_tasks: tasks/ensure-brooks-lab-connector-properties.yml
+
+    # Used by ResolveApplicationService and every enrichment rule: deploy it first.
+    - name: Ensure BrooksLabConnector Script Include (which events/alerts are brooks-lab's)
+      ansible.builtin.include_tasks: tasks/upsert-record-by-name.yml
+      vars:
+        sn_upsert_table: sys_script_include
+        sn_upsert_extra_query: "^sys_scope=global"
+        sn_upsert_body:
+          name: BrooksLabConnector
+          api_name: global.BrooksLabConnector
+          active: "true"
+          access: public
+          script: "{{ lookup('file', sn_incident_integrations_dir + '/BrooksLabConnector.si.js') }}"
+
     - name: Ensure ResolveApplicationService Script Include
       ansible.builtin.include_tasks: tasks/ensure-resolve-application-service-si.yml
 
@@ -40,6 +56,26 @@
 
     - name: Ensure SGO-Dynatrace enrich BRs (sn-impact/sn-urgency + K8s dash-key CI)
       ansible.builtin.include_tasks: tasks/ensure-em-enrich-sgo-br.yml
+
+    - name: Ensure FindService Script Include (CI -> service instance/DCG -> offering -> service)
+      ansible.builtin.include_tasks: tasks/upsert-record-by-name.yml
+      vars:
+        sn_upsert_table: sys_script_include
+        sn_upsert_extra_query: "^sys_scope=global"
+        sn_upsert_body:
+          name: FindService
+          api_name: global.FindService
+          active: "true"
+          access: public
+          script: "{{ lookup('file', sn_incident_integrations_dir + '/FindService.si.js') }}"
+
+    - name: Ensure em-alert-find-service BR (sets incident service offering and service)
+      ansible.builtin.include_tasks: tasks/upsert-record-by-name.yml
+      vars:
+        sn_upsert_table: sys_script
+        sn_upsert_body: >-
+          {{ lookup('file', sn_incident_integrations_dir + '/sys_script_em_alert_find_service.json') | from_json
+             | combine({'script': lookup('file', sn_incident_integrations_dir + '/em_alert_find_service.br.js')}) }}
 
     - name: Try L2IProcessPendingAlerts scheduled job (optional; often ACL-blocked)
       ansible.builtin.include_tasks: tasks/ensure-l2i-process-pending-job.yml

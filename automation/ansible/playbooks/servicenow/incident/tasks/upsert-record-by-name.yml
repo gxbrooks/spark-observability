@@ -1,0 +1,42 @@
+---
+# Create or update one record found by name (script include, business rule, ...), writing only
+# when it differs from its representation.
+# Expects: sn_upsert_table, sn_upsert_body (must contain 'name'), optional sn_upsert_extra_query.
+
+- name: "Look up {{ sn_upsert_table }} '{{ sn_upsert_body.name }}'"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: "{{ sn_upsert_table }}"
+    sn_rest_query: "sysparm_query=name={{ sn_upsert_body.name | urlencode }}{{ sn_upsert_extra_query | default('') }}&sysparm_limit=1"
+
+- name: "Record {{ sn_upsert_body.name }} state"
+  ansible.builtin.set_fact:
+    sn_upsert_exists: "{{ (sn_rest_json.result | default([]) | length) > 0 }}"
+    sn_upsert_sys_id: "{{ sn_rest_json.result[0].sys_id | default('') }}"
+    sn_upsert_live: "{{ sn_rest_json.result[0] | default({}) }}"
+
+- name: "Compare {{ sn_upsert_body.name }} with its representation"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir | dirname | dirname }}/tasks/record-drift.yml"
+  vars:
+    sn_drift_wanted: "{{ sn_upsert_body }}"
+    sn_drift_live: "{{ sn_upsert_live }}"
+  when: sn_upsert_exists | bool
+
+- name: "Update {{ sn_upsert_body.name }}"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: patch
+    sn_rest_table: "{{ sn_upsert_table }}"
+    sn_rest_sys_id: "{{ sn_upsert_sys_id }}"
+    sn_rest_body: "{{ sn_upsert_body }}"
+  when:
+    - sn_upsert_exists | bool
+    - sn_drift_fields | length > 0
+
+- name: "Create {{ sn_upsert_body.name }}"
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-mutate.yml"
+  vars:
+    sn_rest_method: post
+    sn_rest_table: "{{ sn_upsert_table }}"
+    sn_rest_body: "{{ sn_upsert_body }}"
+  when: not sn_upsert_exists | bool

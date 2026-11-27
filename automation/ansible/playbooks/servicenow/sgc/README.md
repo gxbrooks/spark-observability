@@ -16,6 +16,8 @@ Automates installation of the ServiceNow Store applications required for the
 | `sources/dynatrace/` | All Dynatrace-specific configuration for the SGC and events |
 | `sources/dynatrace/deploy.yml` | Automated SGC topology configuration (MZ scoping, scoped properties, schedule activation) |
 | `sources/dynatrace/start.yml` | Queue Execute Now on SGO-Dynatrace Hosts and monitor import cascade |
+| `sources/dynatrace/stop.yml` | Disable the legacy SGC topology imports (Hosts, Kubernetes Cluster roots); the event listener stays |
+| `sources/dynatrace-saas/` | SGC for Dynatrace SaaS (`sn_dynatrace_saas`): deploy / start / test / diagnose — see its README |
 | `sources/dynatrace/docs/deploy.md` | Manual deployment steps (connection_admin grant, UI fallbacks) |
 | `sources/dynatrace/events/` | Dynatrace → ServiceNow event playbooks (deploy / diagnose / test) |
 | `sources/dynatrace/tasks/` | Dynatrace task fragments |

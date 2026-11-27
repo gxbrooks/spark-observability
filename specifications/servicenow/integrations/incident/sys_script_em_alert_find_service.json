@@ -1,0 +1,12 @@
+{
+  "name": "em-alert-find-service",
+  "active": "true",
+  "collection": "em_alert",
+  "advanced": "true",
+  "when": "async",
+  "action_insert": "true",
+  "action_update": "true",
+  "order": "200",
+  "filter_condition": "incidentISNOTEMPTY^incidentVALCHANGES",
+  "description": "brooks-lab: when an alert from the brooks-lab connector gets its incident, resolve CI -> service instance / dynamic CI group -> offering -> service (FindService) and set the incident's service_offering and business_service. Log: one work note on the alert and the incident."
+}

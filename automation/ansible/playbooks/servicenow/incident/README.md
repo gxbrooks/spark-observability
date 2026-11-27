@@ -160,3 +160,43 @@ cd automation/ansible
 ansible-playbook -i inventory.yml playbooks/servicenow/incident/deploy.yml -e @../vars/secrets.yaml -e target=demo1
 ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml -e @../vars/secrets.yaml
 ```
+
+## brooks-lab connector marker and service resolution (2026-11-26)
+
+**Connector marker.** Demo1 is shared, and alert `source` does not identify brooks-lab: some
+SGO-Dynatrace events open alerts whose source reads `Dynatrace`, the source other teams' Dynatrace
+connectors use. Root cause not found; no event rule, mapping rule or alert script sets it.
+`BrooksLabConnector` therefore identifies brooks-lab at the event: an event on the SGO-Dynatrace
+receiver carrying one of our SGC connection ids as `ConnectionId` gets
+`event_class = brooks-lab` (properties `brooks_lab.connector.*`, set from `common/vars.yml`). Every
+brooks-lab rule filters on that class:
+
+- the SGO-Dynatrace alert management rule and the Create Incident for Primary Alert rule (group
+  alerts get the class when one of our alerts joins them);
+- both TBAC definitions, the same-CI correlation rule, and the reserved log-incident rule;
+- the enrichment business rules and `ResolveApplicationService`.
+
+Other teams' rules are tied to their own connector's class the same way. For example, Katie's
+Dynatrace rules filter on `event_class=Optimiz - Demo`.
+
+**Service resolution.** `FindService` (script include) implements the design's findService
+pipeline. When a brooks-lab alert gets its incident, business rule `em-alert-find-service` (async)
+runs:
+
+    service = findService(alert, incident,
+      findServiceOffering(alert, incident,
+        findServiceInstance(alert, ci) || findDynamicCIGroup(alert, ci)))
+
+It sets the incident's `service_offering` and `business_service`, and writes the decision trail as
+one work note on the alert and on the incident. Verified paths:
+
+| Alert CI | Resolution |
+|---|---|
+| Deployment | service instance → business offering → business service |
+| RabbitMQ queue | Dynamic CI Group → technical offering (RabbitMQ) |
+| Cluster | Dynamic CI Group → Kubernetes Platform |
+| Service instance itself | business offering → business service |
+| No CSDM home | `snow_service_offering` / `snow_business_service` alert tags |
+
+Service instances that belong to no offering (Dynatrace-generated calculated services such as
+"My web application") are skipped and logged, so they cannot block the Dynamic CI Group path.

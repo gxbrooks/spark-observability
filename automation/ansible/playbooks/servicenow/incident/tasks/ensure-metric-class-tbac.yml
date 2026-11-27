@@ -21,7 +21,7 @@
 
 - name: Load metric_class TBAC definition representation
   ansible.builtin.set_fact:
-    sn_l2i_tbac_def_body: "{{ lookup('file', sn_incident_integrations_dir + '/sn_em_tbac_metric_class_definition.json') | from_json }}"
+    sn_l2i_tbac_def_body: "{{ lookup('tf_template', sn_incident_integrations_dir + '/sn_em_tbac_metric_class_definition.json.j2', sn_connector_event_class=sn_connector_event_class) | from_json }}"
 
 - name: Look up metric_class TBAC definition
   ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"

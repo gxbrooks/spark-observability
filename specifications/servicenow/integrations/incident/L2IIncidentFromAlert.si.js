@@ -19,7 +19,7 @@ L2IIncidentFromAlert.process = function (alert, opts) {
     return null;
   }
   try {
-    if (String(alert.source) !== 'SGO-Dynatrace') {
+    if (!new BrooksLabConnector().isOurRecord(alert)) {
       return null;
     }
     if (!alert.incident.nil()) {
@@ -44,7 +44,7 @@ L2IIncidentFromAlert.process = function (alert, opts) {
  */
 L2IIncidentFromAlert.processPending = function () {
   var gr = new GlideRecord('em_alert');
-  gr.addQuery('source', 'SGO-Dynatrace');
+  gr.addQuery('event_class', new BrooksLabConnector().eventClass);
   gr.addNullQuery('incident');
   gr.addQuery('description', 'CONTAINS', 'CRITICAL_LOG_EVENT');
   gr.addQuery('correlation_group', '!=', 'Secondary');

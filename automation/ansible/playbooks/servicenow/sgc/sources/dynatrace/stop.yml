@@ -1,0 +1,57 @@
+---
+# Stop the legacy SGC for Observability - Dynatrace (sn_dynatrace_integ) topology imports:
+# deactivate its root scheduled imports (SGO-Dynatrace Hosts, Kubernetes Cluster); every
+# other legacy import runs after one of them, so nothing imports any more. The app stays
+# installed: its push listener "Dynatrace Observability" (source SGO-Dynatrace) still
+# receives Dynatrace problem events, and its CIs and sys_object_source rows stay in place.
+# Undo with sources/dynatrace/deploy.yml (re-activates the Hosts and K8s Cluster imports).
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml \
+#          playbooks/servicenow/sgc/sources/dynatrace/stop.yml [-e target=demo1]
+
+- import_playbook: ../../../tasks/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace/stop.yml
+    sn_target_mode: any
+
+- name: Stop the legacy Dynatrace SGC topology imports
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Read the legacy root scheduled imports
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: scheduled_import_set
+        sn_rest_query: >-
+          sysparm_query=nameIN{{ sgc_legacy_root_imports | join(',') | urlencode }}&sysparm_fields=sys_id,name,active
+
+    - name: Deactivate the active legacy root imports
+      ansible.builtin.uri:
+        url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ item.sys_id }}"
+        method: PATCH
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        body_format: json
+        body:
+          active: "false"
+        status_code: [200]
+      no_log: true
+      changed_when: true
+      loop: "{{ sn_rest_json.result | default([]) | selectattr('active', 'equalto', 'true') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          Legacy SGC topology imports inactive on {{ sn_url }}:
+          {{ sn_rest_json.result | default([]) | map(attribute='name') | list }}.
+          Event listener "Dynatrace Observability" untouched.

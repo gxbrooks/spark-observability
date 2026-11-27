@@ -1,0 +1,45 @@
+---
+# Prove the SaaS connector's platform token works before it goes into ServiceNow:
+# run the connector's own test query (smartscapeNodes HOST) against the tenant.
+# Sets: sgc_saas_token (the token), sgc_saas_token_ok (bool), sgc_saas_token_error.
+
+- name: Load the SaaS connector platform token
+  ansible.builtin.set_fact:
+    sgc_saas_token: "{{ (dynatrace | default({}))[sgc_saas_token_secret_key] | default('') }}"
+  no_log: true
+
+- name: Run the connector test query with the token
+  ansible.builtin.uri:
+    url: "{{ sgc_saas_tenant_url }}/platform/storage/query/v1/query:execute"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ sgc_saas_token }}"
+      Accept: application/json
+    body_format: json
+    body:
+      query: "smartscapeNodes HOST | fields id | limit 1"
+      requestTimeoutMilliseconds: 30000
+    status_code: [200, 202, 400, 401, 403]
+    return_content: true
+    timeout: 60
+  register: sgc_saas_token_probe
+  no_log: true
+  when: sgc_saas_token | length > 0
+
+- name: Record the token check
+  ansible.builtin.set_fact:
+    sgc_saas_token_ok: >-
+      {{ sgc_saas_token | length > 0
+         and sgc_saas_token_probe.status | default(0) in [200, 202] }}
+    sgc_saas_token_error: >-
+      {{ ('vars/secrets.yaml has no dynatrace.' ~ sgc_saas_token_secret_key)
+         if sgc_saas_token | length == 0 else
+         ('HTTP ' ~ sgc_saas_token_probe.status | string ~ ': '
+          ~ (sgc_saas_token_probe.json.error.details.errorMessage
+             | default(sgc_saas_token_probe.json.error.message | default('')))[:200]) }}
+
+- name: Report the token check
+  ansible.builtin.debug:
+    msg: >-
+      SaaS connector platform token: {{ 'OK (smartscapeNodes HOST readable)' if sgc_saas_token_ok | bool
+      else 'NOT USABLE - ' ~ sgc_saas_token_error }}

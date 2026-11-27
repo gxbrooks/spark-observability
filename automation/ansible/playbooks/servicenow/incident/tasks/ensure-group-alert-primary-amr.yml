@@ -1,10 +1,10 @@
 ---
 # Virtual Automated/Tag/CMDB groups use source=Group Alert. The SGO AMR
 # does not match those rows. Payload:
-# specifications/servicenow/integrations/incident/em_alert_management_rule_primary_alert.json
+# specifications/servicenow/integrations/incident/em_alert_management_rule_primary_alert.json.j2
 - name: Load Primary Alert AMR representation
   ansible.builtin.set_fact:
-    sn_l2i_primary_amr_body: "{{ lookup('file', sn_incident_integrations_dir + '/em_alert_management_rule_primary_alert.json') | from_json }}"
+    sn_l2i_primary_amr_body: "{{ lookup('tf_template', sn_incident_integrations_dir + '/em_alert_management_rule_primary_alert.json.j2', sn_connector_event_class=sn_connector_event_class) | from_json }}"
 
 - name: Look up Create Incident for Primary Alert AMRs
   ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"

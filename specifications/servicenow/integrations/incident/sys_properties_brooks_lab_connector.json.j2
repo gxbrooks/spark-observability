@@ -1,0 +1,17 @@
+[
+  {
+    "name": "brooks_lab.connector.event_class",
+    "value": "${sn_connector_event_class}",
+    "description": "Event class stamped on events from the brooks-lab Dynatrace connector (BrooksLabConnector); brooks-lab alert rules, correlation definitions and business rules filter on it."
+  },
+  {
+    "name": "brooks_lab.connector.sgc_connection_ids",
+    "value": "${sn_connector_connection_ids}",
+    "description": "Comma-separated SGC connection alias sys_ids (legacy SGC and SGC SaaS) whose ConnectionId marks an SGO-Dynatrace event as brooks-lab's."
+  },
+  {
+    "name": "brooks_lab.find_service.default_service_instance",
+    "value": "${sn_find_service_default_service_instance}",
+    "description": "FindService: service instance (name or sys_id) used when an alert's CI maps to no modelled service instance. Empty = none."
+  }
+]

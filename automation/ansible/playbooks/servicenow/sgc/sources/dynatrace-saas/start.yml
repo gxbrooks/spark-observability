@@ -1,0 +1,35 @@
+---
+# Start the SGC for Dynatrace SaaS imports now: Execute Now on the root imports
+# (SaaS Host, SaaS K8s Cluster; every other SaaS import runs after its parent), wait
+# for each import set to be processed, then restore the hourly cadence.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml \
+#          playbooks/servicenow/sgc/sources/dynatrace-saas/start.yml [-e target=demo1]
+
+- import_playbook: ../../../tasks/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace-saas/start.yml
+    sn_target_mode: switch
+
+- name: Start the SGC for Dynatrace SaaS imports
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Read SaaS connector state
+      ansible.builtin.include_tasks: tasks/read-saas-state.yml
+
+    - name: Stop when the connection is not deployed
+      ansible.builtin.assert:
+        that:
+          - sgc_saas_http.connection_url | default('') == sgc_saas_tenant_url
+          - sgc_saas_roots | length == sgc_saas_root_imports | length
+        fail_msg: Run sources/dynatrace-saas/deploy.yml first.
+
+    - name: Execute the root imports and wait
+      ansible.builtin.include_tasks: tasks/execute-saas-imports.yml

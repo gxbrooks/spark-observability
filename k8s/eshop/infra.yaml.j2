@@ -26,14 +26,14 @@ kind: Deployment
 metadata:
   name: postgres
   namespace: {{ eshop_namespace }}
-  labels: {app: postgres, app.kubernetes.io/part-of: eshop}
+  labels: {app: postgres, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['postgres'] }}}
 spec:
   replicas: 1
   strategy: {type: Recreate}
   selector: {matchLabels: {app: postgres}}
   template:
     metadata:
-      labels: {app: postgres, app.kubernetes.io/part-of: eshop}
+      labels: {app: postgres, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['postgres'] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_data_node }}}
       containers:
@@ -75,13 +75,13 @@ kind: Deployment
 metadata:
   name: redis
   namespace: {{ eshop_namespace }}
-  labels: {app: redis, app.kubernetes.io/part-of: eshop}
+  labels: {app: redis, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['redis'] }}}
 spec:
   replicas: 1
   selector: {matchLabels: {app: redis}}
   template:
     metadata:
-      labels: {app: redis, app.kubernetes.io/part-of: eshop}
+      labels: {app: redis, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['redis'] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_data_node }}}
       containers:
@@ -109,14 +109,14 @@ kind: Deployment
 metadata:
   name: rabbitmq
   namespace: {{ eshop_namespace }}
-  labels: {app: rabbitmq, app.kubernetes.io/part-of: eshop}
+  labels: {app: rabbitmq, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['rabbitmq'] }}}
 spec:
   replicas: 1
   strategy: {type: Recreate}
   selector: {matchLabels: {app: rabbitmq}}
   template:
     metadata:
-      labels: {app: rabbitmq, app.kubernetes.io/part-of: eshop}
+      labels: {app: rabbitmq, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['rabbitmq'] }}}
       # Dynatrace "Monitor annotated Prometheus exporters" scrapes RabbitMQ's built-in exporter.
       # /metrics/per-object carries per-queue series (rabbitmq_queue_messages_ready/_unacked,
       # rabbitmq_queue_consumers, labels vhost+queue); plain /metrics is aggregated only.

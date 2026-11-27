@@ -1,0 +1,90 @@
+---
+# Execute Now on each SaaS root import, wait for its import set, restore the cadence.
+# ServiceNow has no REST verb for Execute Now; setting run_type=once with a run_start
+# a few seconds ahead is the scheduler path the UI button uses (see the legacy
+# sources/dynatrace/tasks/execute-hosts-scheduled-import.yml). Table API times are UTC.
+# Expects: read-saas-state.yml has run (sgc_saas_roots).
+
+- name: Compute run_start
+  ansible.builtin.set_fact:
+    sgc_saas_run_start: >-
+      {{ '%Y-%m-%d %H:%M:%S' | strftime((ansible_date_time.epoch | int) + 30, utc=True) }}
+    sgc_saas_trigger_epoch: "{{ ansible_date_time.epoch | int }}"
+
+- name: Queue Execute Now on the root imports
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      active: "true"
+      run_type: once
+      run_start: "{{ sgc_saas_run_start }}"
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  loop: "{{ sgc_saas_roots }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Wait for each root import set to finish loading and transforming
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sys_import_set?sysparm_query=data_source={{ item.data_source.value
+      }}^sys_created_on>javascript:gs.minutesAgoStart({{ 2 + ((now(utc=true).timestamp() | int) - (sgc_saas_trigger_epoch | int)) // 60 }})^ORDERBYDESCsys_created_on&sysparm_fields=number,state,sys_created_on&sysparm_limit=1
+    method: GET
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    status_code: [200]
+  register: sgc_saas_import_wait
+  no_log: true
+  loop: "{{ sgc_saas_roots }}"
+  loop_control:
+    label: "{{ item.name }}"
+  until: >-
+    sgc_saas_import_wait.json.result | length > 0
+    and sgc_saas_import_wait.json.result[0].state in ['processed', 'cancelled']
+  retries: "{{ (sgc_saas_import_wait_seconds | int) // 30 }}"
+  delay: 30
+  ignore_errors: true
+
+- name: Restore the hourly cadence on the root imports
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/scheduled_import_set/{{ item.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      run_type: "{{ sgc_saas_import_run_type }}"
+      run_period: "{{ sgc_saas_import_run_period }}"
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  loop: "{{ sgc_saas_roots }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Report the root imports
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.name }}: {{ (item.json.result | default([{}]) | first).number | default('no import set seen') }}
+      state={{ (item.json.result | default([{}]) | first).state | default('timed out') }}
+  loop: "{{ sgc_saas_import_wait.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Fail when a root import did not finish
+  ansible.builtin.fail:
+    msg: >-
+      A SaaS root import did not reach 'processed' within {{ sgc_saas_import_wait_seconds }} s.
+      Check the CMDB Integrations Dashboard and the connection status (diagnose.yml).
+  when: sgc_saas_import_wait.results | selectattr('failed', 'equalto', true) | list | length > 0

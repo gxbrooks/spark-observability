@@ -23,6 +23,24 @@ eshop_kubeconfig: "{{ lookup('env', 'HOME') }}/.kube/config"
 eshop_manifest_dir: "{{ project_root }}/k8s/eshop"
 eshop_render_dir: "{{ project_root }}/tmp/eshop-manifests"
 
+# Workload -> ServiceNow service instance (pod and workload label servicenow.com/service-instance).
+# Values are the CSDM service instance names with spaces as hyphens
+# (specifications/servicenow/regions/brooks-lab/eshop.csdm.yaml); tag-based Service Mapping
+# and the Dynatrace log pipeline (sn-service-instance) both key on them.
+eshop_service_instances:
+  webapp: eShop-WebApp
+  basket-api: eShop-Basket-API
+  identity-api: eShop-Identity-API
+  catalog-api: eShop-Catalog-API
+  ordering-api: eShop-Ordering-API
+  order-processor: eShop-Order-Processor
+  payment-processor: eShop-Payment-Processor
+  webhooks-api: eShop-Webhooks-API
+  postgres: eShop-PostgreSQL
+  redis: eShop-Redis
+  rabbitmq: eShop-RabbitMQ
+  loadgen: eShop-Load-Generator
+
 # .NET projects built into images: image name -> project path under eshop_src_dir.
 eshop_projects:
   identity-api: src/Identity.API/Identity.API.csproj

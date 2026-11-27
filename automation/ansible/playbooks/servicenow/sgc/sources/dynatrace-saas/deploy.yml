@@ -1,0 +1,65 @@
+---
+# Deploy the SGC for Observability - Dynatrace SaaS (sn_dynatrace_saas) for brooks-lab.
+# Converges the app's default connection ("Dynatrace SaaS") onto the brooks-lab tenant:
+# HTTP connection URL, platform-token credential, connection properties, and the
+# root scheduled imports (hourly). Connections other people created in SGC Central
+# (their own aliases and schedule sets) are left alone.
+#
+# Prerequisites:
+#   - sn_dynatrace_saas installed on the instance (SGC Central; Store app).
+#   - vars/secrets.yaml dynatrace.DT_PLATFORM_TOKEN_SGC_SAAS: a Dynatrace platform token
+#     with scope storage:smartscape:read. The play fails before any write without it.
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml \
+#          playbooks/servicenow/sgc/sources/dynatrace-saas/deploy.yml [-e target=demo1]
+# Then: start.yml (Execute Now + wait), test.yml, and sources/dynatrace/stop.yml
+# (disables the legacy SGC topology imports).
+
+- import_playbook: ../../../tasks/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace-saas/deploy.yml
+    sn_target_mode: switch
+
+- name: Deploy the SGC for Dynatrace SaaS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Read SaaS connector state
+      ansible.builtin.include_tasks: tasks/read-saas-state.yml
+
+    - name: Stop when the SaaS connector or its default connection is missing
+      ansible.builtin.assert:
+        that:
+          - sgc_saas_app.sys_id is defined
+          - sgc_saas_app.active | default('false') == 'true'
+          - sgc_saas_http.sys_id is defined
+          - sgc_saas_sg.sys_id is defined
+          - sgc_saas_roots | length == sgc_saas_root_imports | length
+        fail_msg: >-
+          {{ sn_url }}: {{ sgc_saas_app_scope }} is not installed and active, or its default
+          connection ({{ sgc_saas_connection_alias_id }}) / root imports are missing.
+          Install the app from SGC Central (Service Graph Workspace), then re-run.
+
+    - name: Check the platform token
+      ansible.builtin.include_tasks: tasks/check-saas-token.yml
+
+    - name: Stop before any write when the token cannot read Smartscape
+      ansible.builtin.fail:
+        msg: |
+          The SaaS connector token is not usable: {{ sgc_saas_token_error }}
+          Create a Dynatrace platform token (Account Management or tenant Settings >
+          Access tokens > Platform tokens) with scope storage:smartscape:read, store it as
+          dynatrace.{{ sgc_saas_token_secret_key }} in vars/secrets.yaml, and re-run.
+      when: not sgc_saas_token_ok | bool
+
+    - name: Apply the SaaS connector configuration
+      ansible.builtin.include_tasks: tasks/apply-saas-config.yml
+
+    - name: Deactivate SaaS connections brooks-lab does not use
+      ansible.builtin.include_tasks: tasks/deactivate-unused-connections.yml

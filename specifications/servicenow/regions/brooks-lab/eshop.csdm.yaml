@@ -1,0 +1,329 @@
+---
+# eShop (dotnet/eShop on brooks-lab, namespace eshop) — CSDM specification
+# Runtime labels: automation/ansible/playbooks/eshop/k8s/eshop/*.yaml.j2 (single source of truth:
+# servicenow.com/service-instance on every pod template = sanitized service instance name).
+#
+# Modelling choices (see specifications/servicenow/docs/eShop_CSDM.md):
+#   - Each major functional component is its own Business Service, as in a larger
+#     organization, each with a "- Production" Business Service Offering.
+#   - Shared platforms are Technology Management Services: PostgreSQL, RabbitMQ and the
+#     Kubernetes Platform (shared with Spark). Their offerings hold the platform service
+#     instances and Dynamic CI Groups, so infrastructure alerts land on a TMO.
+#   - No depends_on: the dependencies are left for the SGC for Dynatrace SaaS to bring in.
+
+business_applications:
+  - name: eShop
+    identifier: eshop
+    short_description: Reference online store (dotnet/eShop) — event-driven .NET microservices
+    operational_status: "1"
+    active: "true"
+    business_owner: gbrooks
+    it_application_owner: gbrooks
+
+business_services:
+  - name: eShop Storefront
+    identifier: eshop-storefront
+    short_description: Shopper web front end and shopping basket
+    operational_status: "1"
+    parent_business_application: eShop
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Identity
+    identifier: eshop-identity
+    short_description: Shopper and service sign-in (OpenID Connect / OAuth 2.0)
+    operational_status: "1"
+    parent_business_application: eShop
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Catalog
+    identifier: eshop-catalog
+    short_description: Product catalog, pricing and stock
+    operational_status: "1"
+    parent_business_application: eShop
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Ordering
+    identifier: eshop-ordering
+    short_description: Order capture and the order process (grace period, stock, payment states)
+    operational_status: "1"
+    parent_business_application: eShop
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Payment Processing
+    identifier: eshop-payment-processing
+    short_description: Payment authorisation for stock-confirmed orders
+    operational_status: "1"
+    parent_business_application: eShop
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Partner Notifications
+    identifier: eshop-partner-notifications
+    short_description: Webhooks to partners for paid and shipped orders and price changes
+    operational_status: "1"
+    parent_business_application: eShop
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+business_service_offerings:
+  - name: eShop Storefront - Production
+    identifier: eshop-storefront-production
+    short_description: Production offering of eShop Storefront
+    operational_status: "1"
+    parent_business_service: eShop Storefront
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Identity - Production
+    identifier: eshop-identity-production
+    short_description: Production offering of eShop Identity
+    operational_status: "1"
+    parent_business_service: eShop Identity
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Catalog - Production
+    identifier: eshop-catalog-production
+    short_description: Production offering of eShop Catalog
+    operational_status: "1"
+    parent_business_service: eShop Catalog
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Ordering - Production
+    identifier: eshop-ordering-production
+    short_description: Production offering of eShop Ordering
+    operational_status: "1"
+    parent_business_service: eShop Ordering
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Payment Processing - Production
+    identifier: eshop-payment-processing-production
+    short_description: Production offering of eShop Payment Processing
+    operational_status: "1"
+    parent_business_service: eShop Payment Processing
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: eShop Partner Notifications - Production
+    identifier: eshop-partner-notifications-production
+    short_description: Production offering of eShop Partner Notifications
+    operational_status: "1"
+    parent_business_service: eShop Partner Notifications
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+technical_management_services:
+  - name: PostgreSQL
+    identifier: postgresql
+    short_description: Relational database platform (PostgreSQL)
+    operational_status: "1"
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: RabbitMQ
+    identifier: rabbitmq
+    short_description: Message broker platform (RabbitMQ) — exchanges, queues and consumers
+    operational_status: "1"
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: Kubernetes Platform
+    identifier: kubernetes-platform
+    short_description: Shared Kubernetes container platform (eShop, Spark and lab services)
+    operational_status: "1"
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+technical_management_service_offerings:
+  - name: PostgreSQL - Production
+    identifier: postgresql-production
+    short_description: Production PostgreSQL databases
+    operational_status: "1"
+    parent_technical_management_service: PostgreSQL
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: RabbitMQ - Production
+    identifier: rabbitmq-production
+    short_description: Production RabbitMQ brokers and queues
+    operational_status: "1"
+    parent_technical_management_service: RabbitMQ
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+  - name: Kubernetes Platform - Production
+    identifier: kubernetes-platform-production
+    short_description: Production Kubernetes clusters
+    operational_status: "1"
+    parent_technical_management_service: Kubernetes Platform
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+dynamic_ci_groups:
+  - name: RabbitMQ Queues (brooks-lab)
+    identifier: rabbitmq-queues-brooks-lab
+    short_description: RabbitMQ queue CIs maintained by RabbitMQ discovery (source RabbitMQ-API)
+    operational_status: "1"
+    owned_by: gbrooks
+    table: cmdb_ci_appl_rabbitmq_queue
+    condition: discovery_source=RabbitMQ-API^install_status!=7
+    service_offering: RabbitMQ - Production
+  - name: Kubernetes Clusters (brooks-lab)
+    identifier: kubernetes-clusters-brooks-lab
+    short_description: The brooks-lab Kubernetes cluster CI (shared by eShop and Spark)
+    operational_status: "1"
+    owned_by: gbrooks
+    table: cmdb_ci_kubernetes_cluster
+    condition: name=brooks-lab
+    service_offering: Kubernetes Platform - Production
+
+# Service instances: one per Kubernetes workload; tag-based Service Mapping on the pod
+# label servicenow.com/service-instance (value = name with spaces as hyphens).
+service_instances:
+  - name: eShop WebApp
+    identifier: eshop-webapp
+    short_description: Blazor web front end — Kubernetes Deployment webapp
+    operational_status: "1"
+    service_offering: eShop Storefront - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Basket API
+    identifier: eshop-basket-api
+    short_description: Basket gRPC API — Kubernetes Deployment basket-api
+    operational_status: "1"
+    service_offering: eShop Storefront - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Redis
+    identifier: eshop-redis
+    short_description: Basket store (Valkey, Redis-compatible) — Kubernetes Deployment redis
+    operational_status: "1"
+    service_offering: eShop Storefront - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Identity API
+    identifier: eshop-identity-api
+    short_description: Duende IdentityServer — Kubernetes Deployment identity-api
+    operational_status: "1"
+    service_offering: eShop Identity - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Catalog API
+    identifier: eshop-catalog-api
+    short_description: Catalog HTTP API and stock validation — Kubernetes Deployment catalog-api
+    operational_status: "1"
+    service_offering: eShop Catalog - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Ordering API
+    identifier: eshop-ordering-api
+    short_description: Ordering HTTP API and order process hub — Kubernetes Deployment ordering-api
+    operational_status: "1"
+    service_offering: eShop Ordering - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Order Processor
+    identifier: eshop-order-processor
+    short_description: Grace-period worker (polls orderingdb) — Kubernetes Deployment order-processor
+    operational_status: "1"
+    service_offering: eShop Ordering - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Payment Processor
+    identifier: eshop-payment-processor
+    short_description: Payment worker — Kubernetes Deployment payment-processor
+    operational_status: "1"
+    service_offering: eShop Payment Processing - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Webhooks API
+    identifier: eshop-webhooks-api
+    short_description: Webhook subscriptions and delivery — Kubernetes Deployment webhooks-api
+    operational_status: "1"
+    service_offering: eShop Partner Notifications - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"
+
+  - name: eShop PostgreSQL
+    identifier: eshop-postgresql
+    short_description: PostgreSQL 17 server (catalogdb, identitydb, orderingdb, webhooksdb) — Kubernetes Deployment postgres
+    operational_status: "1"
+    service_offering: PostgreSQL - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop RabbitMQ
+    identifier: eshop-rabbitmq
+    short_description: RabbitMQ 4.1 broker (exchange eshop_event_bus) — Kubernetes Deployment rabbitmq
+    operational_status: "1"
+    service_offering: RabbitMQ - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "3 - less critical"
+
+  - name: eShop Load Generator
+    identifier: eshop-load-generator
+    short_description: Synthetic order traffic (lab test harness, not part of the product) — Kubernetes Deployment loadgen
+    operational_status: "1"
+    service_offering: Kubernetes Platform - Production
+    platform: kubernetes
+    service_mapping: tags
+    discover: false
+    environment: on-prem
+    location: brooks-lab
+    owned_by: gbrooks
+    business_criticality: "4 - not critical"

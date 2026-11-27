@@ -1,0 +1,12 @@
+{
+  "name": "em-alert-enrich-sgo",
+  "active": "true",
+  "collection": "em_alert",
+  "advanced": "true",
+  "when": "before",
+  "action_insert": "true",
+  "action_update": "true",
+  "order": "90",
+  "filter_condition": "event_class=${sn_connector_event_class}",
+  "description": "brooks-lab connector alerts (event_class). Stamp sn-impact/sn-urgency. Log alerts bind the service instance; infra alerts bind K8s dash-key CIs. Durable logs stay Open/Major. Runs before create shim (5020)."
+}

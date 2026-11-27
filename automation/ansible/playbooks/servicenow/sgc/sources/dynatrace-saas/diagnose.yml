@@ -1,0 +1,64 @@
+---
+# Diagnose the SGC for Dynatrace SaaS on the target instance (read-only): app version,
+# default connection, token usability, root schedules, recent imports, and CI counts
+# for discovery source "SGO-Dynatrace SaaS" next to the legacy "SGO-Dynatrace".
+#
+# Usage: cd automation/ansible && ansible-playbook -i inventory.yml \
+#          playbooks/servicenow/sgc/sources/dynatrace-saas/diagnose.yml [-e target=demo1]
+
+- import_playbook: ../../../tasks/target.yml
+  vars:
+    sn_target_playbook: sgc/sources/dynatrace-saas/diagnose.yml
+    sn_target_mode: any
+
+- name: Diagnose the SGC for Dynatrace SaaS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/servicenow_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/contexts/dynatrace_ansible_vars.yml"
+    - "{{ playbook_dir | regex_replace('^(.*/sgc)(/.*)?$', '\\1') }}/common/vars.yml"
+    - "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/vars/secrets.yaml"
+  tasks:
+    - name: Read SaaS connector state
+      ansible.builtin.include_tasks: tasks/read-saas-state.yml
+
+    - name: Check the platform token
+      ansible.builtin.include_tasks: tasks/check-saas-token.yml
+
+    - name: Count CIs by discovery source
+      ansible.builtin.uri:
+        url: >-
+          {{ sn_url }}/api/now/stats/cmdb_ci?sysparm_count=true&sysparm_query=discovery_source={{ item | urlencode }}
+        method: GET
+        user: "{{ sn_user }}"
+        password: "{{ sn_password }}"
+        force_basic_auth: true
+        headers: "{{ sn_api_headers }}"
+        status_code: [200]
+      register: sgc_saas_ci_counts
+      no_log: true
+      loop:
+        - "{{ sgc_saas_discovery_source }}"
+        - "{{ sn_sgc_discovery_source }}"
+
+    - name: Read the legacy root scheduled imports
+      ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+      vars:
+        sn_rest_table: scheduled_import_set
+        sn_rest_query: >-
+          sysparm_query=nameIN{{ sgc_legacy_root_imports | join(',') | urlencode }}&sysparm_fields=name,active,run_type
+
+    - name: Report SaaS connector state
+      ansible.builtin.debug:
+        msg:
+          - "Instance: {{ sn_url }}"
+          - "App {{ sgc_saas_app_scope }}: {{ sgc_saas_app.version | default('NOT INSTALLED') }} active={{ sgc_saas_app.active | default('-') }}"
+          - "Connection URL: {{ sgc_saas_http.connection_url | default('-') }} (want {{ sgc_saas_tenant_url }})"
+          - "Service graph connection: active={{ sgc_saas_sg.active | default('-') }} status={{ sgc_saas_sg.status | default('-') }}"
+          - "Platform token: {{ 'OK' if sgc_saas_token_ok | bool else sgc_saas_token_error }}"
+          - "Properties: {{ sgc_saas_props | dict2items | map(attribute='key') | zip(sgc_saas_props | dict2items | map(attribute='value') | map(attribute='value')) | map('join', '=') | list }}"
+          - "SaaS root imports: {{ sgc_saas_roots | map(attribute='name') | zip(sgc_saas_roots | map(attribute='active'), sgc_saas_roots | map(attribute='run_type')) | map('join', ' / ') | list }}"
+          - "Legacy root imports: {{ sn_rest_json.result | default([]) | map(attribute='name') | zip(sn_rest_json.result | default([]) | map(attribute='active')) | map('join', ' active=') | list }}"
+          - "CIs {{ sgc_saas_discovery_source }}: {{ sgc_saas_ci_counts.results[0].json.result.stats.count }}; {{ sn_sgc_discovery_source }}: {{ sgc_saas_ci_counts.results[1].json.result.stats.count }}"

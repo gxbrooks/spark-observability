@@ -42,3 +42,16 @@ sn_ootb_ci_in_change_window_rule_name: CI in Change Window
 # Product-generated TBAC correlation rule name (lookup only).
 sn_l2i_tbac_correlation_rule_name: "[Tag Based] L2I short Log4j2 SI + signature"
 sn_metric_class_tbac_correlation_rule_name: "[Tag Based] L2I metric_class CPU cluster"
+
+# brooks-lab connector identity (BrooksLabConnector script include). Events that arrive on the
+# SGO-Dynatrace receiver carrying one of these SGC connection aliases' sys_ids as ConnectionId are
+# stamped event_class = sn_connector_event_class; every brooks-lab event/alert rule, correlation
+# definition and business rule filters on that class (alert source is not a reliable marker here).
+sn_connector_event_class: brooks-lab
+sn_connector_alias_ids:
+  - sn_dynatrace_integ.Dynatrace_Connection   # legacy SGC (the ConnectionId Dynatrace sends today)
+  - sn_dynatrace_saas.Dynatrace_SaaS          # SGC for Dynatrace SaaS (brooks-lab's default connection)
+
+# FindService: service instance used when an alert's CI maps to no modelled service instance
+# (name or sys_id; empty = none, the pipeline falls through to dynamic CI groups and alert tags).
+sn_find_service_default_service_instance: ""

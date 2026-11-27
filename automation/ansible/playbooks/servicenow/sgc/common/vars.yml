@@ -171,3 +171,47 @@ dt_l2i_routing_description_legacy:
   - "Spark Lab log alerts (ERROR/WARN)"
   - "Spark Lab Client log alerts (/mnt/spark/client-logs)"
   - "Spark Lab Cluster log alerts (Container Output ns=spark)"
+
+# ---------------------------------------------------------------------------
+# SGC for Observability - Dynatrace SaaS (sn_dynatrace_saas; sources/dynatrace-saas/)
+# Reads the Dynatrace 3rd-gen platform (Smartscape on Grail) with DQL through a
+# platform token. brooks-lab owns the app's default connection ("Dynatrace SaaS");
+# connections other people added in SGC Central (their own aliases) are not touched.
+# ---------------------------------------------------------------------------
+sgc_saas_app_scope: sn_dynatrace_saas
+sgc_saas_discovery_source: SGO-Dynatrace SaaS
+sgc_saas_connection_alias_id: sn_dynatrace_saas.Dynatrace_SaaS
+sgc_saas_tenant_url: "{{ DT_TENANT_URL | regex_replace('/+$', '') }}"
+# Secret (vars/secrets.yaml): dynatrace.DT_PLATFORM_TOKEN_SGC_SAAS — a platform token
+# with storage:smartscape:read (the connector only runs smartscapeNodes/Edges DQL).
+sgc_saas_token_secret_key: DT_PLATFORM_TOKEN_SGC_SAAS
+# Write the token into the connection credential even when the connection reports Success.
+sgc_saas_rotate_credential: false
+# Root scheduled imports of the default connection; every other SaaS import runs after a parent.
+sgc_saas_root_imports:
+  - SGO-Dynatrace SaaS Host
+  - SGO-Dynatrace SaaS K8s Cluster
+sgc_saas_import_run_type: periodically
+sgc_saas_import_run_period: "1970-01-01 01:00:00"
+# Connection properties (sn_cmdb_int_util_service_graph_connection_property). segment_id
+# empty = the whole tenant (no brooks-lab Dynatrace segment exists yet).
+sgc_saas_connection_properties:
+  segment_id: ""
+  append_tenant_id_to_service_name: "false"
+  service_to_service_relationships_enabled: "true"
+# start.yml monitor: wait up to this many seconds for each root import to finish.
+sgc_saas_import_wait_seconds: 1800
+
+# Legacy SGC (sn_dynatrace_integ) topology imports that sources/dynatrace/stop.yml disables.
+# The legacy app stays installed: its push listener "Dynatrace Observability"
+# (source SGO-Dynatrace) still receives Dynatrace problem events.
+sgc_legacy_root_imports:
+  - SGO-Dynatrace Hosts
+  - SGO-Dynatrace Kubernetes Cluster
+
+# Other people's SGC for Dynatrace SaaS connections that import the brooks-lab tenant and are not
+# used by brooks-lab. sources/dynatrace-saas/deploy.yml deactivates each one: the service graph
+# connection and every scheduled import named "<connection> - ..." (its cloned schedule set).
+# Reversible: set active=true again on those records (SGC Central or the Table API).
+sgc_saas_deactivate_connections:
+  - Dynatrace - Katie
