@@ -13,8 +13,8 @@ Incident **create** is OOTB AMR **SGO-Dynatrace** (log and metric).
 | Layer | Who | Creates? | Filter guidance |
 | ----- | --- | -------- | --------------- |
 | Ingest | SGO webhook | **`em_event`** insert/update (`message_key` = ProblemID) | n/a |
-| Event rule (manual EM UI) | EM | Does **not** create the event. Marks events **Ready** | `source=SGO-Dynatrace` only — include Warning (4) and OK/clear (5) so *metric* alerts open and close. Log Clear/OK is rewritten to Major by enrich (durable incidents). |
-| Alert rule (manual EM UI) | EM | **Creates/updates `em_alert`**; closes on clear updates | `source=SGO-Dynatrace` (log alerts stay Open; enrich strips Closing) |
+| Event rule (manual EM UI) | EM | Does **not** create the event. Marks events **Ready** | `source=SGO-Dynatrace` only — include Warning (4) and OK/clear (5) so alerts open and close. |
+| Alert rule (manual EM UI) | EM | **Creates/updates `em_alert`**; closes on clear updates | `source=SGO-Dynatrace` (legacy receiver; the brooks-lab push connector creates alerts itself) |
 | Create AMR `SGO-Dynatrace` | L2I | **Creates/correlates `incident`** | `severity<=3`, not Secondary, not maintenance, CI bound |
 
 Do **not** put `severity<=3` on the Event → Ready rule. That blocks RESOLVED/OK clears from reaching alert processing and also prevents Warning infra events from becoming alerts. `severity<=3` is the **incident promotion** gate only (AMR `SGO-Dynatrace`).
@@ -68,7 +68,7 @@ Lab convention for Dynatrace custom event properties that ServiceNow reads:
 | `ResolveApplicationService` | SI resolve helpers (`sn-service-instance`, `k8s-workload-name`, …); `enrichSgoRecord` |
 | `EvtMgmtCustomIncidentPopulator` | L2I: incident CI = SI; correlate by SI + `sn-log-signature` |
 | `L2IIncidentFromAlert` | Helper → `EvtMgmtIncidentHandler` (job / reprocess) |
-| BR `em-event-enrich-sgo` / `em-alert-enrich-sgo` | Before insert/update: stamp `sn-impact`/`sn-urgency`; log CI = service instance; else K8s dash-key CI; **durable log**: rewrite Clear/OK to Major so DT RESOLVED does not close the event/alert |
+| BR `em-event-enrich-sgo` / `em-alert-enrich-sgo` | Before insert/update: stamp `sn-impact`/`sn-urgency`; log CI = service instance; queue CI = RabbitMQ queue; else K8s dash-key CI; custom alerts (logs, queues) take severity from `sn-impact`/`sn-urgency` while open (both connectors map CUSTOM_ALERT to OK/Info) |
 | BR `em-alert-create-log-incident` | **Retired, not managed by deploy** (inactive). Replaced by AMR `SGO-Dynatrace` |
 | TBAC `L2I short Log4j2 SI + signature` | **Inactive.** Log grouping is Automated `metric_name` + `cmdb_ci` |
 | AMR `L2I Create Incident CRITICAL_LOG_EVENT` | **Inactive** (reserved) |
@@ -200,3 +200,40 @@ one work note on the alert and on the incident. Verified paths:
 
 Service instances that belong to no offering (Dynatrace-generated calculated services such as
 "My web application") are skipped and logged, so they cannot block the Dynamic CI Group path.
+
+## Log alert lifecycle, severity, joins and duplicates (2026-11-28)
+
+**Log alerts open and close with their lines.** Each log pipeline sets
+`dt.davis.timeout: 60` (minutes; `dt.davis.event_timeout`, used before, is not read by Davis and left every log event on the 15-minute default): a matching line opens the Davis event (and problem), every repeat
+within the hour keeps it open, and it closes one hour after the last line. The alert closes with
+it; the incident stays open for the assignee. Before this change enrich rewrote every close to
+Major/Open ("durable log"), so log alerts never closed.
+
+**Severity from `sn-impact`/`sn-urgency`.** Both Dynatrace connectors map the CUSTOM_ALERT
+category (log alerts, eShop queue metric events) to OK/Info (5), below the incident gate
+(`severity<=3`). `applySeverityFromSnTags` sets the alert severity to min(`sn-impact`,
+`sn-urgency`) (1 Critical, 2 Major, 3 Minor) while the problem is open; a closing update is left
+alone. A queue backlog alone now opens an incident.
+
+**Service instance from the workload.** Spark and eShop pod templates carry
+`metadata.dynatrace.com/sn-service-instance` (mirror of the `servicenow.com/service-instance`
+label); Dynatrace copies it onto every log record as `sn-service-instance`, and the log pipelines
+use it before their pod-name/workload fallback.
+
+**Joining an open incident fills its service.** When a repeat log signature joins an open
+incident (`EvtMgmtCustomIncidentPopulator`), FindService runs on that incident too, so an incident
+opened without a service offering gets one. (The handler saves the alert without business rules,
+so `em-alert-find-service` never saw these joins.) `applyOpenIncidentJoin` never picks the alert
+itself as the open primary.
+
+**No second incident for a group.** When a ticketed alert joins an Automated group,
+`BrooksLabConnector.stampGroupOf` attaches the group alert to the member's incident in the same
+update that gives the group our class, so **Create Incident for Primary Alert**
+(`incidentISEMPTY`) skips it.
+
+**Event path.** Besides the legacy SGO-Dynatrace receiver, events from the brooks-lab push
+connector instance (source `Dynatrace`, event_class `brooks-lab`, payload `sn_source=dynatrace`)
+are brooks-lab's. They come from the Dynatrace workflow (see
+`../sgc/sources/dynatrace-saas/README.md`); its payload is flat (`flattened.davis_problem.*`) with
+the problem's Davis event properties (`sn-*`, `k8s-*`) as top-level keys, which the enrichment
+reads in place of `ProblemDetailsJSON.rankedEvents[0].customProperties`.

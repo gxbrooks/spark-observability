@@ -51,7 +51,7 @@ truth) via the generated `vars/contexts/servicenow_ansible_vars.yml` and
 a missing variable fails the play. Secrets: `vars/secrets.yaml` → `servicenow:`.
 
 Key context variables: `SN_INSTANCES` (per instance: `url`, `secrets_suffix`,
-`dt_problem_notification_name`, `dt_sgc_api_token_name`), `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
+`dt_problem_notification_name`, `dt_sgc_api_token_name`), `DT_API_URL`, `DT_AUTOMATION_TOKEN`, `DT_MANAGEMENT_ZONE`. The Store app manifest
 (`sn_store_apps`) is `specifications/servicenow/integrations/sgc/store_apps.yml`.
 
 Webhook credentials for the SGO-Dynatrace cutover live in `vars/secrets.yaml`

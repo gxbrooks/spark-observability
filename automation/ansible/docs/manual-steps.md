@@ -23,7 +23,7 @@ Setup map) as a sanity check.
 
 ## Manual fallback — configure the connection via Guided Setup
 
-Only needed when `DT_TOKEN_ADMIN_TOKEN` or the `connection_admin` role grant above is
+Only needed when `DT_AUTOMATION_TOKEN` or the `connection_admin` role grant above is
 unavailable. Use the **Basic** card (**Get Started**) in **Dynatrace Observability → Setup**. If
 a form complains "…but Global is the current application", switch the application picker to the
 connector app.

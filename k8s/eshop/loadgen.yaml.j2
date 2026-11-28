@@ -13,6 +13,7 @@ spec:
   template:
     metadata:
       labels: {app: loadgen, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['loadgen'] }}}
+      annotations: {metadata.dynatrace.com/sn-service-instance: {{ eshop_service_instances['loadgen'] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_app_node }}}
       containers:

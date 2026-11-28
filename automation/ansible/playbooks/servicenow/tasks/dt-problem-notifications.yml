@@ -1,7 +1,12 @@
 ---
-# Detect / switch the brooks-lab Dynatrace problem notifications (one per
-# SN_INSTANCES entry, by dt_problem_notification_name). Other teams'
-# notifications on the tenant are never read for change or modified.
+# Detect / switch the brooks-lab Dynatrace event path of each SN_INSTANCES entry. Other teams'
+# notifications and workflows on the tenant are never read for change or modified.
+#   dt_event_path notification: the classic problem notification dt_problem_notification_name
+#                               (its `enabled` flag);
+#   dt_event_path workflow:     the workflow dt_problem_workflow_name (its trigger's isActive),
+#                               created by sgc/sources/dynatrace-saas/deploy.yml. The instance's
+#                               classic notification is kept disabled.
+# An instance is active when its flag is on.
 #
 # sn_dt_notification_action:
 #   detect             report only
@@ -18,40 +23,88 @@
     url: "{{ DT_API_URL }}/v2/settings/objects?schemaIds=builtin:problem.notifications&fields=objectId,value&pageSize=100"
     method: GET
     headers:
-      Authorization: "Api-Token {{ DT_API_TOKEN }}"
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
     status_code: [200]
   register: sn_dt_notif_list
   no_log: true
 
-- name: Select the brooks-lab notification of each instance
+- name: List Dynatrace workflows
+  ansible.builtin.uri:
+    url: "{{ DT_TENANT_URL | regex_replace('/+$', '') }}/platform/automation/v1/workflows?limit=500"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ DT_AUTOMATION_PLATFORM_TOKEN }}"
+    status_code: [200]
+  register: sn_dt_workflow_list
+  no_log: true
+  when: SN_INSTANCES | selectattr('dt_event_path', 'defined') | selectattr('dt_event_path', 'equalto', 'workflow') | list | length > 0
+
+- name: Select the brooks-lab event path of each instance
   ansible.builtin.set_fact:
     sn_dt_brooks_notifications: >-
       {%- set out = [] -%}
       {%- for inst in SN_INSTANCES -%}
         {%- set m = sn_dt_notif_list.json['items'] | default([])
                     | selectattr('value.displayName', 'equalto', inst.dt_problem_notification_name) | list -%}
-        {%- set _ = out.append({
-              'id': inst.id,
-              'name': inst.dt_problem_notification_name,
-              'object_id': (m[0].objectId if m else ''),
-              'enabled': ((m[0].value.enabled | default(false)) if m else false),
-              'value': (m[0].value if m else {})}) -%}
+        {%- if inst.dt_event_path | default('notification') == 'workflow' -%}
+          {%- set w = (sn_dt_workflow_list.json | default({})).results | default([])
+                      | selectattr('title', 'equalto', inst.dt_problem_workflow_name) | list -%}
+          {%- set _ = out.append({
+                'id': inst.id,
+                'kind': 'workflow',
+                'name': inst.dt_problem_workflow_name,
+                'object_id': (w[0].id if w else ''),
+                'enabled': ((w[0].trigger.eventTrigger.isActive | default(false)) if w else false),
+                'value': (w[0].trigger if w else {}),
+                'classic_object_id': (m[0].objectId if m else ''),
+                'classic_enabled': ((m[0].value.enabled | default(false)) if m else false),
+                'classic_value': (m[0].value if m else {})}) -%}
+        {%- else -%}
+          {%- set _ = out.append({
+                'id': inst.id,
+                'kind': 'notification',
+                'name': inst.dt_problem_notification_name,
+                'object_id': (m[0].objectId if m else ''),
+                'enabled': ((m[0].value.enabled | default(false)) if m else false),
+                'value': (m[0].value if m else {})}) -%}
+        {%- endif -%}
       {%- endfor -%}
       {{ out }}
   no_log: true
+
+# A workflow instance's classic notification would send every problem twice (legacy receiver too).
+- name: Keep the classic notification of workflow instances disabled
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects/{{ item.classic_object_id }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      value: "{{ item.classic_value | combine({'enabled': false}) }}"
+    status_code: [200, 204]
+  loop: "{{ sn_dt_brooks_notifications | selectattr('kind', 'equalto', 'workflow') | selectattr('classic_enabled') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true
+  when: sn_dt_notification_action != 'detect'
 
 - name: Disable other instances' brooks-lab notifications
   ansible.builtin.uri:
     url: "{{ DT_API_URL }}/v2/settings/objects/{{ item.object_id }}"
     method: PUT
     headers:
-      Authorization: "Api-Token {{ DT_API_TOKEN }}"
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
       Content-Type: application/json
     body_format: json
     body:
       value: "{{ item.value | combine({'enabled': false}) }}"
     status_code: [200, 204]
-  loop: "{{ sn_dt_brooks_notifications | rejectattr('id', 'equalto', sn_target_resolved) | selectattr('enabled') | list }}"
+  loop: >-
+    {{ sn_dt_brooks_notifications | selectattr('kind', 'equalto', 'notification')
+       | rejectattr('id', 'equalto', sn_target_resolved) | selectattr('enabled') | list }}
   loop_control:
     label: "{{ item.name }}"
   register: sn_dt_disable_others
@@ -64,7 +117,7 @@
     url: "{{ DT_API_URL }}/v2/settings/objects/{{ item.object_id }}"
     method: PUT
     headers:
-      Authorization: "Api-Token {{ DT_API_TOKEN }}"
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
       Content-Type: application/json
     body_format: json
     body:
@@ -72,6 +125,53 @@
     status_code: [200, 204]
   loop: >-
     {{ sn_dt_brooks_notifications
+       | selectattr('kind', 'equalto', 'notification')
+       | selectattr('id', 'equalto', sn_target_resolved)
+       | selectattr('object_id', 'ne', '')
+       | selectattr('enabled', 'ne', sn_dt_notification_action == 'enable_target')
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true
+  when: sn_dt_notification_action in ['enable_target', 'disable_target']
+
+- name: Deactivate other instances' workflows
+  ansible.builtin.uri:
+    url: "{{ DT_TENANT_URL | regex_replace('/+$', '') }}/platform/automation/v1/workflows/{{ item.object_id }}"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ DT_AUTOMATION_PLATFORM_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      trigger: "{{ item.value | combine({'eventTrigger': {'isActive': false}}, recursive=True) }}"
+    status_code: [200]
+  loop: >-
+    {{ sn_dt_brooks_notifications | selectattr('kind', 'equalto', 'workflow')
+       | rejectattr('id', 'equalto', sn_target_resolved) | selectattr('enabled') | list }}
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+  no_log: true
+  when: sn_dt_notification_action == 'deactivate_others'
+
+- name: Activate or deactivate the target instance's workflow
+  ansible.builtin.uri:
+    url: "{{ DT_TENANT_URL | regex_replace('/+$', '') }}/platform/automation/v1/workflows/{{ item.object_id }}"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ DT_AUTOMATION_PLATFORM_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      trigger: >-
+        {{ item.value | combine({'eventTrigger': {'isActive': sn_dt_notification_action == 'enable_target'}},
+                                recursive=True) }}
+    status_code: [200]
+  loop: >-
+    {{ sn_dt_brooks_notifications
+       | selectattr('kind', 'equalto', 'workflow')
        | selectattr('id', 'equalto', sn_target_resolved)
        | selectattr('object_id', 'ne', '')
        | selectattr('enabled', 'ne', sn_dt_notification_action == 'enable_target')
@@ -91,6 +191,6 @@
         {%- if sn_dt_notification_action == 'deactivate_others' and n.id != sn_target_resolved -%}{%- set now_enabled = false -%}{%- endif -%}
         {%- if sn_dt_notification_action == 'enable_target' and n.id == sn_target_resolved and n.object_id -%}{%- set now_enabled = true -%}{%- endif -%}
         {%- if sn_dt_notification_action == 'disable_target' and n.id == sn_target_resolved -%}{%- set now_enabled = false -%}{%- endif -%}
-        {%- set _ = lines.append(n.id ~ ': ' ~ n.name ~ ' — ' ~ ('MISSING (created by sgc/sources/dynatrace/events/deploy.yml)' if not n.object_id else ('enabled' if now_enabled else 'disabled'))) -%}
+        {%- set _ = lines.append(n.id ~ ': ' ~ n.name ~ ' — ' ~ ('MISSING (created by ' ~ ('sgc/sources/dynatrace-saas/deploy.yml' if n.kind == 'workflow' else 'sgc/sources/dynatrace/events/deploy.yml') ~ ')' if not n.object_id else ('enabled' if now_enabled else 'disabled'))) -%}
       {%- endfor -%}
       {{ lines }}

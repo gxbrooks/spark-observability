@@ -75,7 +75,7 @@ ServiceNow then ran **`K8sLogPodCiBind.applyPodBinding()`**, which skipped `Spar
 
 Client Davis events must **not** remain on the OneAgent HOST. They bind to **`CUSTOM_DEVICE-…`** so Davis does not merge them with service-side HOST/pod events on Lab3.
 
-Deploy: `ansible/playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml` (requires `entities.write` on `DT_API_TOKEN`).
+Deploy: `ansible/playbooks/servicenow/sgc/sources/dynatrace/events/deploy.yml` (requires `entities.write` on `DT_AUTOMATION_TOKEN`).
 
 ### ServiceNow — bind alerts/incidents to Spark Client AS
 

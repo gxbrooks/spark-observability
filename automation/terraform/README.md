@@ -206,7 +206,7 @@ generate-contexts --vars-dir ../../vars dynatrace-terraform -f
 
 That writes `../../vars/contexts/dynatrace_terraform.auto.tfvars.json`
 (gitignored, like every other generated context file -- it carries
-DT_API_TOKEN in plaintext, same as `dynatrace_ansible_vars.yml` already
+DT_AUTOMATION_TOKEN in plaintext, same as `dynatrace_ansible_vars.yml` already
 does). The `terraform_vars` writer that produces it lives in the sibling
 `context-variables` project (`context_variables.generate.write_terraform_vars`),
 alongside `ansible_vars`, `shell_env`, etc.

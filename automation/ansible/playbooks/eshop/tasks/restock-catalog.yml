@@ -1,0 +1,31 @@
+---
+# Restock the eShop catalog. eShop only decrements AvailableStock (OrderStockConfirmed) and never
+# replenishes it, so continuous load drains the catalog and catalog-api then rejects orders
+# (OrderStockRejected -> Cancelled), which hides the saga paths tests and stress runs exercise.
+# Products below eshop_restock_below are set back to their MaxStockThreshold; others are untouched,
+# so reruns change nothing while stock is healthy.
+# Expects common/vars.yml and KUBECONFIG in the play environment.
+
+- name: Restock catalog products below {{ eshop_restock_below }}
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - -n
+      - "{{ eshop_namespace }}"
+      - exec
+      - deploy/postgres
+      - -c
+      - postgres
+      - --
+      - psql
+      - -U
+      - postgres
+      - -d
+      - catalogdb
+      - -Atc
+      - >-
+        UPDATE "Catalog" SET "AvailableStock" = "MaxStockThreshold"
+        WHERE "AvailableStock" < {{ eshop_restock_below | int }} AND "MaxStockThreshold" > "AvailableStock"
+  register: eshop_restock
+  # psql prints the command tag, e.g. "UPDATE 89".
+  changed_when: (eshop_restock.stdout | regex_replace('^.*UPDATE\s+(\d+).*$', '\1') | int) > 0

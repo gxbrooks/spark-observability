@@ -7,7 +7,7 @@
 #
 # Prerequisites:
 #   - sn_dynatrace_saas installed on the instance (SGC Central; Store app).
-#   - vars/secrets.yaml dynatrace.DT_PLATFORM_TOKEN_SGC_SAAS: a Dynatrace platform token
+#   - vars/secrets.yaml dynatrace.DT_SERVICENOW_TOKEN: a Dynatrace platform token
 #     with scope storage:smartscape:read. The play fails before any write without it.
 #
 # Usage: cd automation/ansible && ansible-playbook -i inventory.yml \
@@ -61,5 +61,15 @@
     - name: Apply the SaaS connector configuration
       ansible.builtin.include_tasks: tasks/apply-saas-config.yml
 
+    - name: Ensure the brooks-lab push connector paired with the SaaS connection
+      ansible.builtin.include_tasks: tasks/ensure-push-connector.yml
+
+    - name: Ensure the Dynatrace workflow that feeds the push connector
+      ansible.builtin.include_tasks: tasks/ensure-dt-problem-workflow.yml
+      when: sn_instance_cfg.dt_event_path | default('notification') == 'workflow'
+
     - name: Deactivate SaaS connections brooks-lab does not use
       ansible.builtin.include_tasks: tasks/deactivate-unused-connections.yml
+
+    - name: Disable other connectors' Dynatrace problem notifications to this instance
+      ansible.builtin.include_tasks: tasks/disable-unused-dt-notifications.yml

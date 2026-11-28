@@ -11,8 +11,7 @@
          | trim
          | regex_replace('/$', '') }}
     sn_l2i_dt_platform_token: >-
-      {{ dynatrace.DT_PLATFORM_TOKEN_GRAIL
-         | default(dynatrace.DT_PLATFORM_TOKEN | default('')) }}
+      {{ dynatrace.DT_SERVICENOW_TOKEN | default('') }}
   no_log: true
 
 - name: Load L2I Dynatrace sys_properties representation
@@ -36,7 +35,7 @@
       Skipping L2I Grail enrichment sys_properties
       (apps_url={{ sn_l2i_dt_apps_url | length > 0 }},
       token={{ sn_l2i_dt_platform_token | length > 0 }}).
-      Set DT_TENANT_URL and dynatrace.DT_PLATFORM_TOKEN_GRAIL in secrets.
+      Set DT_TENANT_URL and dynatrace.DT_SERVICENOW_TOKEN in secrets.
   when: >-
     (sn_l2i_dt_apps_url | length == 0)
     or (sn_l2i_dt_platform_token | length == 0)

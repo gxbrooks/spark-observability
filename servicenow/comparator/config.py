@@ -102,9 +102,9 @@ def load_config(
         raise ValueError(f"SN_USER{suffix} and SN_PASSWORD{suffix} must be set in vars/secrets.yaml (servicenow section)")
 
     dt_api_url = str(_unwrap(dt_vars.get("DT_API_URL") or "")).strip()
-    dt_api_token = str(_unwrap(dt_vars.get("DT_API_TOKEN") or "")).strip()
+    dt_api_token = str(_unwrap(dt_vars.get("DT_AUTOMATION_TOKEN") or "")).strip()
     if not dt_api_url or not dt_api_token:
-        raise ValueError("DT_API_URL and DT_API_TOKEN must be set in dynatrace_ansible_vars.yml")
+        raise ValueError("DT_API_URL and DT_AUTOMATION_TOKEN must be set in dynatrace_ansible_vars.yml")
 
     return CompareConfig(
         repo_root=root,

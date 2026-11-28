@@ -7,7 +7,7 @@
 # New Dashboards are managed via the Dynatrace Document API:
 #   GET/PATCH  /platform/document/v1/documents/{id}
 #   POST       /platform/document/v1/documents
-# Token required: DT_PLATFORM_TOKEN (dt0s16.*) with document:write scope.
+# Token required: DT_AUTOMATION_PLATFORM_TOKEN (dt0s16.*) with document:write scope.
 #
 # GPU metrics: system.gpu.*  (REST ingest → Grail, Lab1+Lab2 only — no GPU on Lab3)
 # Host metrics: dt.host.*  (Grail-native, DynaKube OneAgent emits for all Kubernetes nodes)
@@ -19,7 +19,7 @@
 
 - name: Resolve Dynatrace token values for New Dashboard
   ansible.builtin.set_fact:
-    dt_platform_token_resolved: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN | default('') }}"
+    dt_platform_token_resolved: "{{ (dynatrace | default({})).DT_AUTOMATION_PLATFORM_TOKEN | default('') }}"
     dt_tenant_url_resolved: "{{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL) else DT_TENANT_URL) | default('') }}"
   delegate_to: localhost
   run_once: true
@@ -158,5 +158,5 @@
       New Dashboard create/update failed.
       PATCH rc={{ spark_new_dashboard_patch.rc | default('skipped') }},
       POST rc={{ spark_new_dashboard_post.rc | default('skipped') }}.
-      Verify DT_PLATFORM_TOKEN has document:write scope.
+      Verify DT_AUTOMATION_PLATFORM_TOKEN has document:write scope.
   run_once: true

@@ -63,6 +63,10 @@ FindService.prototype = {
       if (!rec) {
         continue;
       }
+      if (rec.isNewRecord()) {
+        rec.work_notes = note; // saved with the incident insert
+        continue;
+      }
       var gr = new GlideRecord(targets[i][0]);
       if (gr.get(rec.getUniqueValue())) {
         gr.work_notes = note;
@@ -144,6 +148,15 @@ FindService.prototype = {
 
   updateIncident: function (incident, fields) {
     if (!incident) {
+      return;
+    }
+    if (incident.isNewRecord()) {
+      // Called from the incident populator before insert: set the fields, the insert saves them.
+      for (var k in fields) {
+        if (fields.hasOwnProperty(k)) {
+          incident.setValue(k, fields[k]);
+        }
+      }
       return;
     }
     var changed = false;

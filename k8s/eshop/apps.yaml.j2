@@ -39,6 +39,7 @@ spec:
   template:
     metadata:
       labels: {app: {{ name }}, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances[name] }}}
+      annotations: {metadata.dynatrace.com/sn-service-instance: {{ eshop_service_instances[name] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ svc.node }}}
       containers:

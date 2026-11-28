@@ -31,7 +31,7 @@ terraform {
 
 provider "dynatrace" {
   dt_env_url   = var.DT_API_URL
-  dt_api_token = var.DT_API_TOKEN
+  dt_api_token = var.DT_AUTOMATION_TOKEN
 }
 
 # All three K8s-facing providers point at the same kubeconfig -- the

@@ -1066,7 +1066,7 @@ ansible-playbook -i inventory.yml playbooks/servicenow/sgc/sources/dynatrace/eve
 | Variable                                           | Where                                               | Purpose                                                                          |
 | -------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `SN_INSTANCES` (`url`, `short_name`, …)            | `vars/variables.yaml` (service-now)                 | Instance identity per target; `SN_URL` is Demo1's URL (the non-Ansible tools derive the active instance instead) |
-| `DT_API_URL`, `DT_API_TOKEN`, `DT_MANAGEMENT_ZONE` | `vars/variables.yaml` (dynatrace-ansible) / secrets | Dynatrace side                                                                   |
+| `DT_API_URL`, `DT_AUTOMATION_TOKEN`, `DT_MANAGEMENT_ZONE` | `vars/variables.yaml` (dynatrace-ansible) / secrets | Dynatrace side                                                                   |
 | `sn_store_apps`                                    | `specifications/servicenow/integrations/sgc/store_apps.yml` (sgc-local)             | App/plugin manifest: scopes, install order, pinned versions                      |
 
 

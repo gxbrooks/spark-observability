@@ -1,0 +1,133 @@
+---
+# Ensure the brooks-lab Dynatrace push connector instance, paired with the SGC for Dynatrace SaaS.
+#
+# Event path that pairs with the SaaS connector: a Dynatrace Workflow (Dynatrace "ServiceNow" app,
+# action "Send problem as ITOM event", dynatrace.servicenow:snow-send-event) posts each problem to
+# this instance's URL on the "Dynatrace Monitor Push Connector" listener (Event Management
+# Connectors). The listener sets:
+#   - source = "Dynatrace", event_class = this instance's name (brooks-lab rules filter on it);
+#   - additional_info.sn_object_source_id = <connection_sys_id>|||<smartscape_entity_id>, which the
+#     stock mapping rule "Dynatrace - ci mapping from object source" looks up in sys_object_source,
+#     the keys the SaaS connector writes. That is the pairing: alerts bind to SaaS-imported CIs.
+# connection_sys_id is the sys_id of the SaaS connection alias (sgc_saas_alias, read-saas-state.yml).
+#
+# Sets sgc_saas_push_instance (sys_id, name, url, active).
+
+- name: Read the Dynatrace push connector listener
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_connector_listener
+    sn_rest_query: >-
+      sysparm_query=name={{ sgc_saas_push_listener_name | urlencode }}&sysparm_fields=sys_id,name,active,source&sysparm_limit=1
+
+- name: Stop when the listener is missing or inactive
+  ansible.builtin.assert:
+    that:
+      - (sn_rest_json.result | default([]) | length) == 1
+      - sn_rest_json.result[0].active == 'true'
+    fail_msg: >-
+      {{ sn_url }}: push connector listener "{{ sgc_saas_push_listener_name }}" (Event Management
+      Connectors) is missing or inactive. Update Event Management Connectors from the Store.
+
+- name: Record the listener
+  ansible.builtin.set_fact:
+    sgc_saas_push_listener: "{{ sn_rest_json.result[0] }}"
+
+- name: Read the brooks-lab push connector instance
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_connector_push_instance
+    sn_rest_query: >-
+      sysparm_query=name={{ sgc_saas_push_connector_name | urlencode
+      }}^push_connector_definition={{ sgc_saas_push_listener.sys_id }}&sysparm_fields=sys_id,name,active,url&sysparm_limit=2
+
+- name: Create the push connector instance
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_em_connector_push_instance"
+    method: POST
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      name: "{{ sgc_saas_push_connector_name }}"
+      push_connector_definition: "{{ sgc_saas_push_listener.sys_id }}"
+      active: "true"
+      description: >-
+        brooks-lab Dynatrace problems (Dynatrace Workflow, ServiceNow app "Send problem as ITOM event"),
+        paired with SGC for Dynatrace SaaS connection {{ sgc_saas_alias.name }}. Managed by
+        playbooks/servicenow/sgc/sources/dynatrace-saas/deploy.yml.
+    status_code: [201]
+  register: sgc_saas_push_created
+  no_log: true
+  changed_when: true
+  when: (sn_rest_json.result | default([]) | length) == 0
+
+- name: Record the push connector instance
+  ansible.builtin.set_fact:
+    sgc_saas_push_instance: >-
+      {{ sgc_saas_push_created.json.result if (sgc_saas_push_created is changed)
+         else sn_rest_json.result[0] }}
+
+- name: Activate the push connector instance
+  ansible.builtin.uri:
+    url: "{{ sn_url }}/api/now/table/sn_em_connector_push_instance/{{ sgc_saas_push_instance.sys_id }}"
+    method: PATCH
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body: {active: "true"}
+    status_code: [200]
+  no_log: true
+  changed_when: true
+  when: sgc_saas_push_instance.active | string != 'true'
+
+- name: Read the instance's connection_sys_id parameter
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_connector_push_instance_config_param
+    sn_rest_query: >-
+      sysparm_query=push_connector_instance={{ sgc_saas_push_instance.sys_id
+      }}^name=connection_sys_id&sysparm_fields=sys_id,name,value&sysparm_limit=2
+
+- name: Pair the instance with the SaaS connection (connection_sys_id)
+  ansible.builtin.uri:
+    url: >-
+      {{ sn_url }}/api/now/table/sn_em_connector_push_instance_config_param{{
+         ('/' ~ sn_rest_json.result[0].sys_id) if (sn_rest_json.result | default([]) | length) > 0 else '' }}
+    method: "{{ 'PATCH' if (sn_rest_json.result | default([]) | length) > 0 else 'POST' }}"
+    user: "{{ sn_user }}"
+    password: "{{ sn_password }}"
+    force_basic_auth: true
+    headers: "{{ sn_api_headers }}"
+    body_format: json
+    body:
+      push_connector_instance: "{{ sgc_saas_push_instance.sys_id }}"
+      name: connection_sys_id
+      value: "{{ sgc_saas_alias.sys_id }}"
+    status_code: [200, 201]
+  no_log: true
+  changed_when: true
+  when: >-
+    (sn_rest_json.result | default([]) | length) == 0
+    or sn_rest_json.result[0].value != sgc_saas_alias.sys_id
+
+- name: Read back the push connector URL
+  ansible.builtin.include_tasks: "{{ sn_discovery_tasks_dir }}/sn-rest-get.yml"
+  vars:
+    sn_rest_table: sn_em_connector_push_instance
+    sn_rest_query: "sysparm_query=sys_id={{ sgc_saas_push_instance.sys_id }}&sysparm_fields=sys_id,name,active,url&sysparm_limit=1"
+
+- name: Record the push connector instance
+  ansible.builtin.set_fact:
+    sgc_saas_push_instance: "{{ sn_rest_json.result[0] }}"
+
+- name: Report the push connector
+  ansible.builtin.debug:
+    msg: >-
+      Push connector "{{ sgc_saas_push_instance.name }}" active={{ sgc_saas_push_instance.active }},
+      paired with {{ sgc_saas_alias.name }} ({{ sgc_saas_alias.sys_id }}); Dynatrace posts to
+      {{ sgc_saas_push_instance.url }}

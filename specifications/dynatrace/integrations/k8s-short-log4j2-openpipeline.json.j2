@@ -42,10 +42,10 @@
           "id": "derive-sn-service-instance-from-pod",
           "type": "dql",
           "enabled": true,
-          "description": "Map k8s.pod.name prefix to sn-service-instance (Spark-*)",
+          "description": "sn-service-instance = the pod's sn-service-instance attribute (pod annotation metadata.dynatrace.com/sn-service-instance, mirror of the servicenow.com/service-instance label); else map the k8s.pod.name prefix (Spark-*)",
           "matcher": "isNotNull(k8s.pod.name)",
           "dql": {
-            "script": "fieldsAdd `sn-service-instance` = if(startsWith(toString(k8s.pod.name), \"spark-master\"), \"Spark-Master\", else: if(startsWith(toString(k8s.pod.name), \"spark-worker\"), \"Spark-Worker\", else: if(startsWith(toString(k8s.pod.name), \"spark-history\"), \"Spark-History-Server\", else: \"\")))"
+            "script": "fieldsAdd `sn-service-instance` = coalesce(if(toString(`sn-service-instance`) != \"\", toString(`sn-service-instance`)), if(startsWith(toString(k8s.pod.name), \"spark-master\"), \"Spark-Master\", else: if(startsWith(toString(k8s.pod.name), \"spark-worker\"), \"Spark-Worker\", else: if(startsWith(toString(k8s.pod.name), \"spark-history\"), \"Spark-History-Server\", else: \"\"))))"
           }
         },
         {
@@ -93,7 +93,7 @@
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
               { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" },
+              { "key": "dt.davis.timeout", "value": "60" },
               { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-log-class", "value": "{sn-log-class}" },
               { "key": "sn-log-line", "value": "{sn-log-line}" },
@@ -130,7 +130,7 @@
               { "key": "dt.davis.is_merging_allowed", "value": "false" },
               { "key": "dt.source_entity", "value": "{sn-alert-entity}" },
               { "key": "dt.davis.is_entity_remapping_allowed", "value": "false" },
-              { "key": "dt.davis.event_timeout", "value": "15m" },
+              { "key": "dt.davis.timeout", "value": "60" },
               { "key": "sn-event-kind", "value": "CRITICAL_LOG_EVENT" },
               { "key": "sn-environment", "value": "{sn-environment}" },
               { "key": "sn-pipeline", "value": "{sn-pipeline}" },

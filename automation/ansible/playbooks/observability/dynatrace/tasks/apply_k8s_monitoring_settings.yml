@@ -7,7 +7,7 @@
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
-    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+    dt_api_token_resolved: "{{ ((DT_AUTOMATION_TOKEN.value if (DT_AUTOMATION_TOKEN is mapping and 'value' in DT_AUTOMATION_TOKEN) else DT_AUTOMATION_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_AUTOMATION_TOKEN | default(''), true) }}"
     dt_k8s_mon_mode: "{{ dt_k8s_mon_mode | default('enabled') }}"
     dt_k8s_mon_integrations_dir: "{{ playbook_dir | regex_replace('/automation/ansible/playbooks/.*$', '') }}/specifications/dynatrace/integrations/k8s-monitoring"
   delegate_to: localhost

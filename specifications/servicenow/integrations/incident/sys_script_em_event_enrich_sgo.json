@@ -7,6 +7,6 @@
   "action_insert": "true",
   "action_update": "true",
   "order": "100",
-  "filter_condition": "source=SGO-Dynatrace",
-  "description": "Stamp sn-impact/sn-urgency (DT or ProblemSeverity mapping). Log events bind the service instance; infra events bind K8s dash-key CIs. Durable logs: rewrite Clear/OK/Closing to Major so DT RESOLVED does not close the event."
+  "filter_condition": "source=SGO-Dynatrace^ORsource=Dynatrace",
+  "description": "brooks-lab events (brooks-lab push connector, or legacy SGO-Dynatrace receiver with our SGC ConnectionId): stamp sn-impact/sn-urgency (DT or problem category mapping). Log events bind the service instance; queue events the RabbitMQ queue; infra events K8s dash-key CIs. Custom alerts take severity from sn-impact/sn-urgency while open."
 }

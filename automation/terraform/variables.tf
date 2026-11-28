@@ -14,7 +14,7 @@ variable "DT_API_URL" {
   type        = string
 }
 
-variable "DT_API_TOKEN" {
+variable "DT_AUTOMATION_TOKEN" {
   description = "Dynatrace API token (settings.read, settings.write scopes)"
   type        = string
   sensitive   = true

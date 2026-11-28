@@ -1,7 +1,7 @@
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:
     dt_base_url_resolved: "{{ ((DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('')) | regex_replace('/api/?$', '') }}"
-    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+    dt_api_token_resolved: "{{ ((DT_AUTOMATION_TOKEN.value if (DT_AUTOMATION_TOKEN is mapping and 'value' in DT_AUTOMATION_TOKEN) else DT_AUTOMATION_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_AUTOMATION_TOKEN | default(''), true) }}"
   delegate_to: localhost
   run_once: true
 
@@ -23,7 +23,7 @@
       - dt_dashboards.status | default(0) == 200
     fail_msg: >-
       Cannot list Dynatrace dashboards (HTTP {{ dt_dashboards.status | default('unknown') }}).
-      DT_API_TOKEN requires ReadConfig.
+      DT_AUTOMATION_TOKEN requires ReadConfig.
   run_once: true
 
 - name: Resolve existing Spark System Metrics dashboard

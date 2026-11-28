@@ -192,7 +192,7 @@ determined, never the ephemeral Process Group Instance or Pod (per
 | `dt.source_entity` | `{sn-alert-entity}` = `coalesce(dt.entity.process_group, dt.entity.host)` | `{sn-alert-entity}` = `coalesce(dt.entity.cloud_application, dt.entity.process_group, dt.entity.host)` |
 | `dt.davis.is_entity_remapping_allowed` | `false` | `false` |
 | `dt.davis.is_merging_allowed` | `false` | `false` |
-| `dt.davis.event_timeout` | `15m` | `15m` |
+| `dt.davis.timeout` (minutes) | `60` | `60` |
 
 Each pipeline also has a fail-visible processor (`standalone-short-log4j2-missing-service-instance-davis`,
 `k8s-short-log4j2-missing-pod-name-davis`) that fires when the enrichment the main processor depends on
@@ -223,7 +223,7 @@ Legacy (inactive for routed logs): `spark-error-log-event.json.j2` → `builtin:
 
 ### What happens
 
-The first matching Davis event opens a **problem** in management zone **Spark Observability**. The alerting profile forwards **CUSTOM_ALERT** severity (and other configured severities) immediately to the ServiceNow webhook. **`davisMerge`** is not used on the log path — each qualifying log line can contribute to problem lifecycle within the `15m` event timeout window.
+The first matching Davis event opens a **problem** in management zone **Spark Observability**. The alerting profile forwards **CUSTOM_ALERT** severity (and other configured severities) immediately to the ServiceNow webhook. **`davisMerge`** is not used on the log path — each qualifying log line can contribute to problem lifecycle within the `60m` event timeout window: the problem (and its ServiceNow alert) stays open while the line recurs within an hour and closes one hour after the last one.
 
 ### Configurations
 
@@ -418,7 +418,7 @@ Parallel chapter runs exercise **client-side** driver logs and **service-side** 
 
 1. **Emit** — Run chapter drivers with distinct `SPARK_DRIVER_INSTANCE` values so parallel JVMs write to `/mnt/spark/client-logs/<instance>/`.
 2. **Ingest** — OneAgent custom log source paths `/mnt/spark/client-logs/*/spark-app*.log`; restart OneAgent after deploy if paths were added recently.
-3. **Detect** — OpenPipeline `standalone-short-log4j2-warn-error-davis` processor; Davis **`event.name`** = `Critical {loglevel} at {sn-log-class}:{sn-log-line}`; timeout **15m**.
+3. **Detect** — OpenPipeline `standalone-short-log4j2-warn-error-davis` processor; Davis **`event.name`** = `Critical {loglevel} at {sn-log-class}:{sn-log-line}`; timeout **60m**.
 4. **Notify** — Problem webhook → `em_alert` with the Process Group CI (or Host, if no Process Group is found); description includes full log path.
 5. **Incident** — `em-alert-create-k8s-log-incident` BR: path `/client-logs/` → service instance **Spark Client** ([detail](Log_to_Incident.adoc#step-5-spark-client-path)).
 

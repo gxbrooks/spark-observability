@@ -10,7 +10,7 @@
 # every time the provider version bumps (a lock file update), which would
 # silently break a permission rule written against today's version number.
 #
-# Usage: DYNATRACE_ENV_URL=... DT_API_TOKEN=... DYNATRACE_TARGET_FOLDER=... \
+# Usage: DYNATRACE_ENV_URL=... DT_AUTOMATION_TOKEN=... DYNATRACE_TARGET_FOLDER=... \
 #        terraform/scripts/dt-export.sh -export -ref -id -flat [-import-state] <resource-type>...
 set -euo pipefail
 

@@ -101,50 +101,40 @@
       (sn_grouping_check_events | selectattr('metric_name', 'defined') | selectattr('metric_name', 'equalto', 'builtin:host.cpu.usage') | list | length > 0)
       or (sn_grouping_check_events | selectattr('metric_name', 'defined') | selectattr('metric_name', 'match', '^DT-ProblemType:CPU') | list | length > 0)
 
-- name: Query recent durable log em_alert rows (req 5 durability check)
+# Log alerts follow their Dynatrace problem: open while the line recurs within an hour, closed one
+# hour after the last one (dt.davis.timeout 60 minutes). While open they must be at incident
+# severity: both connectors map Dynatrace CUSTOM_ALERT to OK/Info (5), and
+# ResolveApplicationService.si.js#applySeverityFromSnTags raises it from sn-impact/sn-urgency.
+- name: Query recent log em_alert rows (severity check)
   ansible.builtin.include_tasks: "{{ playbook_dir | dirname }}/discovery/tasks/sn-rest-get.yml"
   vars:
     sn_rest_table: em_alert
-    sn_rest_query: "sysparm_query=source={{ sn_sgc_event_source }}^metric_nameSTARTSWITHLog-Error:^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,state,severity,resolution_state,incident,incident.active,cmdb_ci,metric_name,correlation_group&sysparm_limit=200"
+    sn_rest_query: "sysparm_query=event_class={{ sn_connector_event_class | default('brooks-lab') }}^metric_nameSTARTSWITHLog-Error:^sys_created_on>javascript:gs.hoursAgo(2)^ORDERBYDESCsys_created_on&sysparm_fields=number,state,severity,resolution_state,incident,incident.active,cmdb_ci,metric_name,correlation_group&sysparm_limit=200"
 
-- name: Save durable log alert results
+- name: Save log alert results
   ansible.builtin.set_fact:
     sn_durable_log_alerts: "{{ sn_rest_json.result | default([]) }}"
   when: sn_rest_status | default(0) == 200
 
-- name: Find log alerts closed while their incident is still active (req 5 violation)
-  # Note: sn-rest-get.yml's dot-walked field (incident.active) comes back from
-  # ServiceNow's Table API as a flat key literally named "incident.active", not
-  # a nested attribute — Jinja's dotted attribute/selectattr syntax would try
-  # (and fail) to walk item.incident.active as nested lookups, so this uses
-  # explicit bracket subscript access instead. state is matched against both
-  # the numeric choice value and display value, mirroring the same defensive
-  # check already used in ResolveApplicationService.si.js#keepDurableLogSignal.
+- name: Find open log alerts below incident severity
   ansible.builtin.set_fact:
-    sn_durable_log_violations: >-
-      {{ (sn_durable_log_violations | default([]))
-         + ([item.number] if ((item['incident.active'] | default('') in ['true', 'True', true, '1', 1])
-                               and ((item.state | default('')) in ['4', 'Closed', 'closed']))
-            else []) }}
-  loop: "{{ sn_durable_log_alerts | default([]) }}"
-  loop_control:
-    label: "{{ item.number | default('') }}"
-  when:
-    - sn_rest_status | default(0) == 200
-    - sn_durable_log_alerts | length > 0
+    sn_log_severity_violations: >-
+      {{ sn_durable_log_alerts | default([])
+         | rejectattr('state', 'in', ['4', 'Closed', 'closed'])
+         | selectattr('severity', 'in', ['4', '5'])
+         | map(attribute='number') | list }}
+  when: sn_rest_status | default(0) == 200
 
-- name: Assert durable log alerts stay open while their incident is active (req 5)
+- name: Assert open log alerts carry incident severity (Minor or worse)
   ansible.builtin.assert:
     that:
-      - (sn_durable_log_violations | default([]) | length) == 0
+      - (sn_log_severity_violations | default([]) | length) == 0
     fail_msg: >-
-      Log alert(s) {{ sn_durable_log_violations | default([]) }} are Closed
-      while their linked incident is still active — a Dynatrace
-      Clear/OK/RESOLVED must not close a durable log alert; only closing the
-      incident should. See keepDurableLogSignal in ResolveApplicationService.si.js.
+      Open log alert(s) {{ sn_log_severity_violations | default([]) }} are Warning/OK, below the
+      incident gate (severity<=3): sn-impact/sn-urgency were not applied. See
+      applySeverityFromSnTags in ResolveApplicationService.si.js.
     success_msg: >-
-      {{ sn_durable_log_alerts | length }} recent log alert(s) checked; none
-      closed while their incident is still active.
+      {{ sn_durable_log_alerts | length }} recent log alert(s) checked; every open one is Minor or worse.
   when:
     - sn_rest_status | default(0) == 200
     - sn_durable_log_alerts | length > 0

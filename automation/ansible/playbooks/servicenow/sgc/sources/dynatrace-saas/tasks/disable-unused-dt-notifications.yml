@@ -1,0 +1,52 @@
+---
+# Disable Dynatrace problem notifications listed in sgc_saas_disable_dt_notifications (by display
+# name): other connectors' webhooks that send brooks-lab problems to the same ServiceNow instance.
+# Their events update the same alerts as ours (same problem, same message key) and the last event
+# wins the alert's source and event_class, so brooks-lab rules lose the alert.
+#
+# Only `enabled` is changed; Dynatrace masks the stored Authorization header on read and keeps the
+# secret when the masked value is sent back. Already-disabled notifications are left alone.
+# Reversible: set enabled=true in Settings > Integrations > Problem notifications.
+
+- name: List Dynatrace problem notifications
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects?schemaIds=builtin:problem.notifications&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
+    status_code: [200]
+  register: sgc_saas_dt_notifs
+  no_log: true
+
+- name: Select the notifications to disable
+  ansible.builtin.set_fact:
+    sgc_saas_dt_notifs_to_disable: >-
+      {{ sgc_saas_dt_notifs.json['items'] | default([])
+         | selectattr('value.displayName', 'in', sgc_saas_disable_dt_notifications)
+         | selectattr('value.enabled') | list }}
+  no_log: true
+
+- name: Disable them
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects/{{ item.objectId }}"
+    method: PUT
+    headers:
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      value: "{{ item.value | combine({'enabled': false}) }}"
+    status_code: [200, 204]
+  loop: "{{ sgc_saas_dt_notifs_to_disable }}"
+  loop_control:
+    label: "{{ item.value.displayName }}"
+  changed_when: true
+  no_log: true
+
+- name: Report Dynatrace notifications
+  ansible.builtin.debug:
+    msg: >-
+      disabled now: {{ sgc_saas_dt_notifs_to_disable | map(attribute='value.displayName') | list }};
+      listed: {{ sgc_saas_disable_dt_notifications }};
+      found on tenant: {{ sgc_saas_dt_notifs.json['items'] | default([]) | map(attribute='value.displayName')
+                          | select('in', sgc_saas_disable_dt_notifications) | list }}

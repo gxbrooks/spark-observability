@@ -19,7 +19,7 @@
         {{
           lookup('file', sn_incident_integrations_dir + '/ResolveApplicationService.si.js')
           | replace('@@DT_TENANT_URL@@', (DT_TENANT_URL | default(dynatrace.DT_TENANT_URL | default('https://pdt20158.apps.dynatrace.com')) | trim | regex_replace('/$', '')))
-          | replace('@@DT_PLATFORM_TOKEN_GRAIL@@', (dynatrace.DT_PLATFORM_TOKEN_GRAIL | default(dynatrace.DT_PLATFORM_TOKEN | default(''))))
+          | replace('@@DT_SERVICENOW_TOKEN@@', (dynatrace.DT_SERVICENOW_TOKEN | default('')))
         }}
 
 - name: Look up ResolveApplicationService script include

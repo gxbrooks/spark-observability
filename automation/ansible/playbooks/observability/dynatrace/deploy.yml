@@ -11,7 +11,7 @@
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/tenant_check.yml"
       tags: [tenant_check]
 
-    - name: Ensure DT_API_TOKEN has required scopes
+    - name: Ensure DT_AUTOMATION_TOKEN has required scopes
       ansible.builtin.include_tasks:
         file: "{{ playbook_dir }}/tasks/ensure_api_token_scopes.yml"
         apply:

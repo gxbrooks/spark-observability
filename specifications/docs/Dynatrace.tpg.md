@@ -152,9 +152,10 @@ Author rather than silently working around it downstream.
 3.2. Every custom Davis event **should** set `dt.davis.is_merging_allowed` to `false` unless the monitor
    is specifically intended to merge into unrelated Problems already open on the same entity.
 
-3.3. Every custom Davis event **must** set an explicit `dt.davis.event_timeout` rather than rely on
-   Dynatrace's default, so a Problem does not stay open long after the condition that opened it has
-   cleared.
+3.3. Every custom Davis event **must** set an explicit `dt.davis.timeout` (minutes) rather than rely on
+   Dynatrace's 15-minute default, so a Problem lives as long as the signal warrants. The OpenPipeline
+   Davis processor reads `dt.davis.timeout`; a property named `dt.davis.event_timeout` is stored on
+   the event but ignored (check the effective `dt.davis.timeout` on `fetch dt.davis.events`).
 
 3.4. A log- or metric-based monitor that depends on upstream enrichment (for example, a
    `service_instance` tag or a pod-name field set earlier in the pipeline) **should** be paired with a

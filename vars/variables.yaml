@@ -406,20 +406,6 @@ DT_L2I_STANDALONE_LOG_PATH_PATTERN_ROTATED:
   value: "/mnt/spark/client-logs/*/spark-app-*.log"
   contexts: [dynatrace-ansible, dynatrace-terraform]
 
-DT_TOKEN_ADMIN_TOKEN:
-  section: Dynatrace API tokens
-  value: ""
-  contexts: [dynatrace-ansible, devops]
-  secret: true
-  required: false
-
-DT_PAAS_TOKEN:
-  section: Dynatrace API tokens
-  value: ""
-  contexts: [dynatrace-ansible, devops]
-  secret: true
-  required: false
-
 DT_OPERATOR_TOKEN:
   section: Dynatrace API tokens
   value: ""
@@ -427,10 +413,20 @@ DT_OPERATOR_TOKEN:
   secret: true
   required: false
 
-DT_API_TOKEN:
+# Classes and scopes of every Dynatrace token: vars/docs/secrets.md
+DT_AUTOMATION_TOKEN:
   section: Dynatrace API tokens
   value: ""
   contexts: [dynatrace-ansible, devops, dynatrace-terraform]
+  secret: true
+  required: false
+
+# Platform token (Workflows, documents, Grail): the brooks-lab problem workflow and its switch
+# (servicenow/tasks/dt-problem-notifications.yml, servicenow/sn_active_instance.py).
+DT_AUTOMATION_PLATFORM_TOKEN:
+  section: Dynatrace API tokens
+  value: ""
+  contexts: [dynatrace-ansible, devops]
   secret: true
   required: false
 
@@ -758,6 +754,15 @@ SN_INSTANCES:
       dt_problem_notification_name: ServiceNow brooks-lab - Spark Observability
       # Dynatrace API token SGC uses to pull topology (sgc/sources/dynatrace).
       dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration
+      # How Dynatrace sends brooks-lab problems to this instance:
+      #   workflow     - Dynatrace workflow dt_problem_workflow_name → ITOM event connection
+      #                  dt_itom_connection_name → the brooks-lab push connector paired with the SGC
+      #                  for Dynatrace SaaS (sgc/sources/dynatrace-saas/deploy.yml). The classic
+      #                  notification dt_problem_notification_name stays disabled.
+      #   notification - classic problem notification → SGO-Dynatrace receiver (legacy SGC).
+      dt_event_path: workflow
+      dt_problem_workflow_name: ServiceNow brooks-lab - Spark Observability (demo1)
+      dt_itom_connection_name: brooks-lab (demo1)
     - id: demo3
       url: https://optimizincdemo3.service-now.com
       short_name: optimizincdemo3
@@ -768,6 +773,8 @@ SN_INSTANCES:
       mid_installer_deb_url: https://install.service-now.com/glide/distribution/builds/package/app-signed/mid-linux-installer/2026/11/18/mid-linux-installer.australia-02-11-2026__patch5bw47-11-13-2026_11-18-2026_1916.linux.x86-64.deb
       dt_problem_notification_name: ServiceNow brooks-lab (demo3) - Spark Observability
       dt_sgc_api_token_name: dynatrace-servicenow-sgc-integration-demo3
+      # No SGC for Dynatrace SaaS on Demo3: classic notification to the SGO-Dynatrace receiver.
+      dt_event_path: notification
   contexts: [service-now]
 
 

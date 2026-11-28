@@ -28,6 +28,11 @@ spec:
         app.kubernetes.io/managed-by: ansible
         # Value = ServiceNow service instance display name (K8s label charset).
         servicenow.com/service-instance: Spark-History-Server
+      # Dynatrace copies metadata.dynatrace.com/<key> pod annotations onto the pod's logs,
+      # metrics and spans as attribute <key>: the log-to-incident pipelines read the
+      # service instance from sn-service-instance (mirror of the label above).
+      annotations:
+        metadata.dynatrace.com/sn-service-instance: Spark-History-Server
     spec:
       serviceAccountName: spark
       securityContext:

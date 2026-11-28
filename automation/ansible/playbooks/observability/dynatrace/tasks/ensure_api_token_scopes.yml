@@ -1,100 +1,47 @@
-- name: Resolve API and token-admin tokens from flat or nested secrets
+# Check that DT_AUTOMATION_TOKEN (classic access token, class 1 in vars/docs/secrets.md) has every
+# scope the automation uses. The token looks itself up; nothing is created or rotated here.
+- name: Resolve the API URL and automation token
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
-    dt_token_admin_token_resolved: "{{ ((DT_TOKEN_ADMIN_TOKEN.value if (DT_TOKEN_ADMIN_TOKEN is mapping and 'value' in DT_TOKEN_ADMIN_TOKEN) else DT_TOKEN_ADMIN_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_TOKEN_ADMIN_TOKEN | default(''), true) }}"
-    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+    dt_api_token_resolved: "{{ ((DT_AUTOMATION_TOKEN.value if (DT_AUTOMATION_TOKEN is mapping and 'value' in DT_AUTOMATION_TOKEN) else DT_AUTOMATION_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_AUTOMATION_TOKEN | default(''), true) }}"
+  no_log: true
 
-- name: Define required API token scopes for dashboard and metric workflows
+- name: Define the scopes DT_AUTOMATION_TOKEN needs
   ansible.builtin.set_fact:
     dt_api_required_scopes:
-      - entities.read
-      - entities.write
       - settings.read
       - settings.write
+      - entities.read
+      - entities.write
       - metrics.read
       - problems.read
+      - logs.read
       - ReadConfig
       - WriteConfig
+      - apiTokens.read
+      - apiTokens.write
+      - InstallerDownload
 
-- name: Lookup current DT_API_TOKEN metadata
+- name: Lookup DT_AUTOMATION_TOKEN metadata
   ansible.builtin.uri:
     url: "{{ dt_api_url_resolved }}/v2/apiTokens/lookup"
     method: POST
     headers:
-      Authorization: "Api-Token {{ dt_token_admin_token_resolved }}"
+      Authorization: "Api-Token {{ dt_api_token_resolved }}"
       Content-Type: "application/json"
     body_format: json
     body:
       token: "{{ dt_api_token_resolved }}"
-    status_code: [200, 400, 401, 403, 404]
+    status_code: [200]
   register: dt_api_token_lookup
-  failed_when: false
   no_log: true
 
-- name: Resolve missing DT_API_TOKEN scopes
-  ansible.builtin.set_fact:
-    dt_api_current_scopes: "{{ dt_api_token_lookup.json.scopes | default([]) }}"
-    dt_api_missing_scopes: "{{ dt_api_required_scopes | difference(dt_api_token_lookup.json.scopes | default([])) }}"
-  no_log: true
-
-- name: Create replacement DT_API_TOKEN when scopes are missing
-  ansible.builtin.uri:
-    url: "{{ dt_api_url_resolved }}/v2/apiTokens"
-    method: POST
-    headers:
-      Authorization: "Api-Token {{ dt_token_admin_token_resolved }}"
-      Content-Type: "application/json"
-    body_format: json
-    body:
-      name: "spark-observability-api"
-      personalAccessToken: false
-      scopes: "{{ (dt_api_current_scopes + dt_api_required_scopes) | unique }}"
-    status_code: [201, 400, 401, 403, 409]
-  register: dt_api_token_create
-  failed_when: false
-  when: (dt_api_missing_scopes | length) > 0
-  no_log: true
-
-- name: Assert replacement DT_API_TOKEN creation succeeded
+- name: Assert DT_AUTOMATION_TOKEN has the required scopes
   ansible.builtin.assert:
     that:
-      - dt_api_token_create.status | default(0) == 201
+      - (dt_api_required_scopes | difference(dt_api_token_lookup.json.scopes | default([]))) | length == 0
     fail_msg: >-
-      DT_API_TOKEN is missing required scopes {{ dt_api_missing_scopes }} and auto-rotation failed.
-      Ensure DT_TOKEN_ADMIN_TOKEN has apiTokens.write and retry.
-  when: (dt_api_missing_scopes | length) > 0
-  no_log: true
-
-- name: Persist replacement API token in local secrets file
-  ansible.builtin.lineinfile:
-    path: "{{ project_root }}/vars/secrets.yaml"
-    regexp: '^(\s*)DT_API_TOKEN:'
-    line: "  DT_API_TOKEN: \"{{ dt_api_token_create.json.token }}\""
-    backrefs: false
-  when: (dt_api_missing_scopes | length) > 0
-  delegate_to: localhost
-  run_once: true
-  no_log: true
-
-- name: Sync replacement API token into dynatrace-ansible context
-  ansible.builtin.lineinfile:
-    path: "{{ project_root }}/vars/contexts/dynatrace_ansible_vars.yml"
-    regexp: '^DT_API_TOKEN:'
-    line: "DT_API_TOKEN: \"{{ dt_api_token_create.json.token }}\""
-  when: (dt_api_missing_scopes | length) > 0
-  delegate_to: localhost
-  run_once: true
-  no_log: true
-
-- name: Switch runtime API token to replacement token
-  ansible.builtin.set_fact:
-    dt_api_token_resolved: "{{ dt_api_token_create.json.token }}"
-  when: (dt_api_missing_scopes | length) > 0
-  no_log: true
-
-- name: Report API token rotation result
-  ansible.builtin.debug:
-    msg: >-
-      Rotated DT_API_TOKEN due to missing scopes {{ dt_api_missing_scopes }} and updated
-      vars/secrets.yaml plus vars/contexts/dynatrace_ansible_vars.yml.
-  when: (dt_api_missing_scopes | length) > 0
+      DT_AUTOMATION_TOKEN is missing scopes
+      {{ dt_api_required_scopes | difference(dt_api_token_lookup.json.scopes | default([])) }}.
+      Create a replacement access token with the scopes in vars/docs/secrets.md.
+    quiet: true

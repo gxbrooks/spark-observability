@@ -1,0 +1,151 @@
+---
+# Dynatrace side of the brooks-lab event path paired with the SGC for Dynatrace SaaS
+# (instances with SN_INSTANCES[].dt_event_path == 'workflow'):
+#   1. a Dynatrace ServiceNow app ITOM event connection (app:dynatrace.servicenow:itom-event.connection)
+#      to this instance's brooks-lab push connector URL (sgc_saas_push_instance.url, set by
+#      ensure-push-connector.yml), authenticated as the SN_DT_WEBHOOK_* ServiceNow account
+#      (Dynatrace token class 4, vars/docs/secrets.md);
+#   2. the workflow that sends every brooks-lab problem through that connection
+#      (representation specifications/dynatrace/integrations/sn-problem-workflow.json.j2).
+# The workflow runs as its actor (the owner of DT_AUTOMATION_PLATFORM_TOKEN). That user must have
+# granted the Workflows app its permissions once (Workflows > Settings > Authorization settings);
+# otherwise every run fails with "Please ensure Authorization Settings are configured for this user".
+#
+# The workflow trigger is active while this instance is the active one; tasks/target.yml switches it
+# (dt-problem-notifications.yml) together with the classic notifications of other instances.
+
+- name: Resolve the ServiceNow account Dynatrace posts events with
+  ansible.builtin.set_fact:
+    sgc_dt_itom_user: >-
+      {{ (servicenow | default({}))['SN_DT_WEBHOOK_USER' ~ sn_secret_suffix] | default(sn_user, true) }}
+    sgc_dt_itom_password: >-
+      {{ (servicenow | default({}))['SN_DT_WEBHOOK_PASSWORD' ~ sn_secret_suffix] | default(sn_password, true) }}
+    sgc_dt_platform_token: "{{ dynatrace.DT_AUTOMATION_PLATFORM_TOKEN }}"
+  no_log: true
+
+- name: List the Dynatrace ITOM event connections
+  ansible.builtin.uri:
+    url: "{{ DT_API_URL }}/v2/settings/objects?schemaIds=app:dynatrace.servicenow:itom-event.connection&fields=objectId,value&pageSize=100"
+    method: GET
+    headers:
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
+    status_code: [200]
+  register: sgc_dt_itom_list
+  no_log: true
+
+- name: Select the brooks-lab ITOM event connection
+  ansible.builtin.set_fact:
+    sgc_dt_itom_existing: >-
+      {{ sgc_dt_itom_list.json['items'] | default([])
+         | selectattr('value.name', 'equalto', sn_instance_cfg.dt_itom_connection_name) | list }}
+    sgc_dt_itom_wanted:
+      name: "{{ sn_instance_cfg.dt_itom_connection_name }}"
+      url: "{{ sgc_saas_push_instance.url }}"
+      type: basic
+      user: "{{ sgc_dt_itom_user }}"
+      password: "{{ sgc_dt_itom_password }}"
+  no_log: true
+
+# Dynatrace never returns the password, so a connection whose name, URL, type and user match is left
+# alone; -e sgc_saas_rotate_credential=true writes the password again.
+- name: Create or update the ITOM event connection
+  ansible.builtin.uri:
+    url: >-
+      {{ DT_API_URL }}/v2/settings/objects{{ ('/' ~ sgc_dt_itom_existing[0].objectId) if sgc_dt_itom_existing else '' }}
+    method: "{{ 'PUT' if sgc_dt_itom_existing else 'POST' }}"
+    headers:
+      Authorization: "Api-Token {{ DT_AUTOMATION_TOKEN }}"
+      Content-Type: application/json
+    body_format: json
+    body: >-
+      {{ {'value': sgc_dt_itom_wanted} if sgc_dt_itom_existing else
+         [{'schemaId': 'app:dynatrace.servicenow:itom-event.connection', 'scope': 'environment',
+           'value': sgc_dt_itom_wanted}] }}
+    status_code: [200, 204]
+  register: sgc_dt_itom_write
+  changed_when: true
+  no_log: true
+  when: >-
+    not sgc_dt_itom_existing
+    or (sgc_saas_rotate_credential | bool)
+    or sgc_dt_itom_existing[0].value.url != sgc_dt_itom_wanted.url
+    or sgc_dt_itom_existing[0].value.user | default('') != sgc_dt_itom_wanted.user
+    or sgc_dt_itom_existing[0].value.type | default('') != 'basic'
+
+- name: Record the ITOM event connection id
+  ansible.builtin.set_fact:
+    sgc_dt_itom_connection_id: >-
+      {{ sgc_dt_itom_existing[0].objectId if sgc_dt_itom_existing else sgc_dt_itom_write.json[0].objectId }}
+
+- name: Render the brooks-lab problem workflow
+  ansible.builtin.set_fact:
+    sgc_dt_workflow_doc: >-
+      {{ lookup('tf_template', sn_repo_root ~ '/specifications/dynatrace/integrations/sn-problem-workflow.json.j2',
+                dt_problem_workflow_name=sn_instance_cfg.dt_problem_workflow_name,
+                dt_problem_workflow_active=true,
+                dt_sn_alerting_profile_name=DT_SN_ALERTING_PROFILE_NAME,
+                dt_itom_connection_id=sgc_dt_itom_connection_id)
+         | from_json }}
+
+- name: List Dynatrace workflows
+  ansible.builtin.uri:
+    url: "{{ DT_TENANT_URL | regex_replace('/+$', '') }}/platform/automation/v1/workflows?limit=500"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ sgc_dt_platform_token }}"
+    status_code: [200]
+  register: sgc_dt_workflows
+  no_log: true
+
+- name: Select the brooks-lab problem workflow
+  ansible.builtin.set_fact:
+    sgc_dt_workflow_existing: >-
+      {{ sgc_dt_workflows.json.results | default([])
+         | selectattr('title', 'equalto', sn_instance_cfg.dt_problem_workflow_name) | list }}
+
+# Whole-document comparison on the fields the representation sets.
+- name: Determine whether the workflow needs writing
+  ansible.builtin.set_fact:
+    sgc_dt_workflow_change: >-
+      {{ not sgc_dt_workflow_existing
+         or (sgc_dt_workflow_existing[0].description | default('')) != sgc_dt_workflow_doc.description
+         or (sgc_dt_workflow_existing[0].isPrivate | default(true)) != sgc_dt_workflow_doc.isPrivate
+         or (sgc_dt_workflow_existing[0].trigger | default({})) != sgc_dt_workflow_doc.trigger
+         or (sgc_dt_workflow_existing[0].tasks | default({}) | dict2items
+             | map(attribute='value') | map('dict2items')
+             | map('selectattr', 'key', 'in', ['name', 'description', 'action', 'input', 'predecessors', 'conditions'])
+             | map('items2dict') | list)
+            != (sgc_dt_workflow_doc.tasks | dict2items
+             | map(attribute='value') | map('dict2items')
+             | map('selectattr', 'key', 'in', ['name', 'description', 'action', 'input', 'predecessors', 'conditions'])
+             | map('items2dict') | list) }}
+
+- name: Create or update the brooks-lab problem workflow
+  ansible.builtin.uri:
+    url: >-
+      {{ DT_TENANT_URL | regex_replace('/+$', '') }}/platform/automation/v1/workflows{{
+         ('/' ~ sgc_dt_workflow_existing[0].id) if sgc_dt_workflow_existing else '' }}
+    method: "{{ 'PUT' if sgc_dt_workflow_existing else 'POST' }}"
+    headers:
+      Authorization: "Bearer {{ sgc_dt_platform_token }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ sgc_dt_workflow_doc }}"
+    status_code: [200, 201]
+  register: sgc_dt_workflow_write
+  changed_when: true
+  no_log: true
+  when: sgc_dt_workflow_change | bool
+
+- name: Record the workflow
+  ansible.builtin.set_fact:
+    sgc_dt_workflow_id: >-
+      {{ sgc_dt_workflow_write.json.id if (sgc_dt_workflow_write is changed) else sgc_dt_workflow_existing[0].id }}
+
+- name: Report the Dynatrace side of the event path
+  ansible.builtin.debug:
+    msg: >-
+      ITOM connection "{{ sn_instance_cfg.dt_itom_connection_name }}" → {{ sgc_saas_push_instance.url }}
+      (user {{ sgc_dt_itom_user }}); workflow "{{ sn_instance_cfg.dt_problem_workflow_name }}"
+      ({{ sgc_dt_workflow_id }}) {{ 'written' if sgc_dt_workflow_change | bool else 'unchanged' }},
+      trigger active; scope: alerting profile "{{ DT_SN_ALERTING_PROFILE_NAME }}".

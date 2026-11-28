@@ -1,14 +1,14 @@
 - name: Resolve Dynatrace API token from flat or nested secrets
   ansible.builtin.set_fact:
     dt_api_url_resolved: "{{ (DT_API_URL.value if (DT_API_URL is mapping and 'value' in DT_API_URL) else DT_API_URL) | default('') }}"
-    dt_api_token_resolved: "{{ ((DT_API_TOKEN.value if (DT_API_TOKEN is mapping and 'value' in DT_API_TOKEN) else DT_API_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_API_TOKEN | default(''), true) }}"
+    dt_api_token_resolved: "{{ ((DT_AUTOMATION_TOKEN.value if (DT_AUTOMATION_TOKEN is mapping and 'value' in DT_AUTOMATION_TOKEN) else DT_AUTOMATION_TOKEN) | default('', true)) | default((dynatrace | default({})).DT_AUTOMATION_TOKEN | default(''), true) }}"
 
 - name: Assert Dynatrace API configuration is present
   ansible.builtin.assert:
     that:
       - (dt_api_url_resolved | default('') | trim) != ''
       - (dt_api_token_resolved | default('') | trim) != ''
-    fail_msg: "DT_API_URL and DT_API_TOKEN are required for tenant/API checks."
+    fail_msg: "DT_API_URL and DT_AUTOMATION_TOKEN are required for tenant/API checks."
 
 - name: Verify Dynatrace API token can query entities
   ansible.builtin.uri:

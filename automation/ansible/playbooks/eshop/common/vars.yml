@@ -4,8 +4,12 @@
 # Dynatrace and ServiceNow model queues. Placement rule: Lab3 hosts no load-bearing components.
 
 # Upstream source, pinned for repeatable builds. Lab3 is the dev server; repos live in ~/repos.
+# Pinned to the last upstream commit on .NET 10 (parent of 38950a1 "Update to .NET 11", 2026-11-16):
+# Dynatrace OneAgent supports .NET 10 (from 1.325) but not yet .NET 11, which leaves the services
+# untraced (processes detected, no services, no RabbitMQ publish/consume spans).
+# Keep eshop_sdk_image on the same major version as the pinned global.json.
 eshop_repo_url: https://github.com/dotnet/eShop.git
-eshop_repo_version: 3c6e531a6063676ece317644f72172fb42a935b3
+eshop_repo_version: 311cb04a86d5c95f2fd0c48e285d5da8b518774f
 eshop_src_dir: "{{ lookup('env', 'HOME') }}/repos/eShop"
 
 # Lab changes applied on top of upstream (see eshop/patches/*.patch commentary in eshop/README.md).
@@ -16,7 +20,7 @@ eshop_patch_dir: "{{ project_root }}/eshop/patches"
 eshop_registry: Lab3.lan:5000
 eshop_image_tag: >-
   {{ eshop_repo_version[:12] }}-{{ lookup('pipe', 'cat ' ~ eshop_patch_dir ~ '/*.patch | sha1sum')[:8] }}
-eshop_sdk_image: mcr.microsoft.com/dotnet/sdk:11.0
+eshop_sdk_image: mcr.microsoft.com/dotnet/sdk:10.0
 
 eshop_namespace: eshop
 eshop_kubeconfig: "{{ lookup('env', 'HOME') }}/.kube/config"
@@ -71,6 +75,9 @@ eshop_webapp_url: "http://{{ eshop_public_host }}:{{ eshop_webapp_nodeport }}"
 # eShop sleeps 10 s in SetStockConfirmed/SetStockRejected/SetPaid handlers (2 per order). Above
 # ~3/min the Ordering queue backlog grows without bound (a deliberate saturation scenario).
 eshop_loadgen_orders_per_minute: 2
+
+# tasks/restock-catalog.yml (run by test.yml): products below this stock go back to MaxStockThreshold.
+eshop_restock_below: 20
 
 # Deployments in start order (data first, then producers/consumers, then UI and load).
 eshop_infra_deployments: [postgres, redis, rabbitmq]

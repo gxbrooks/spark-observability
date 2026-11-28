@@ -102,7 +102,13 @@ def place_order():
         "state": "QC",
         "country": "Canada",
         "zipCode": "H2X 1Y4",
-        "paymentToken": f"lab-{request_id}",
+        # eShop is pinned to its last .NET 10 commit, whose order contract still takes card fields
+        # (.NET 11 replaced them with paymentToken). Same test card the eShop WebApp sends.
+        "cardNumber": "1111222233334444",
+        "cardHolderName": "TESTUSER",
+        "cardExpiration": f"{time.gmtime().tm_year + 1}-12-31T00:00:00Z",
+        "cardSecurityNumber": "111",
+        "cardTypeId": 1,
         "buyer": USERNAME,
         "items": items,
     })

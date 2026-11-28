@@ -27,6 +27,33 @@
         force: true
       when: eshop_head.stdout != eshop_repo_version
 
+    # eShop builds into one shared artifacts/ tree (bin, obj, image archives). Outputs left by a
+    # different commit break the next build (e.g. .NET 11 tools loaded by a .NET 10 build), so
+    # artifacts/ is cleared whenever the commit it was built from differs from the pin.
+    - name: Read the commit artifacts/ was built from
+      ansible.builtin.slurp:
+        src: "{{ eshop_src_dir }}/artifacts/.lab-build-commit"
+      register: eshop_artifacts_commit
+      failed_when: false
+
+    - name: Clear artifacts/ built from another commit
+      ansible.builtin.file:
+        path: "{{ eshop_src_dir }}/artifacts"
+        state: absent
+      when: (eshop_artifacts_commit.content | default('') | b64decode | trim) != eshop_repo_version
+
+    - name: Ensure artifacts/ exists
+      ansible.builtin.file:
+        path: "{{ eshop_src_dir }}/artifacts"
+        state: directory
+        mode: "0755"
+
+    - name: Record the commit artifacts/ is built from
+      ansible.builtin.copy:
+        dest: "{{ eshop_src_dir }}/artifacts/.lab-build-commit"
+        content: "{{ eshop_repo_version }}\n"
+        mode: "0644"
+
     - name: Ensure the NuGet cache shared by SDK containers exists
       ansible.builtin.file:
         path: "{{ lookup('env', 'HOME') }}/.cache/eshop-nuget"

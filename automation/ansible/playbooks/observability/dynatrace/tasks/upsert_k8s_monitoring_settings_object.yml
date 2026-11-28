@@ -27,7 +27,7 @@
     fail_msg: >-
       Cannot list {{ dt_k8s_mon_spec.schemaId }}
       (HTTP {{ dt_k8s_mon_list.status | default('unknown') }}).
-      DT_API_TOKEN needs settings.read and settings.write.
+      DT_AUTOMATION_TOKEN needs settings.read and settings.write.
   run_once: true
 
 - name: Select environment-scoped object for {{ dt_k8s_mon_spec.schemaId }}

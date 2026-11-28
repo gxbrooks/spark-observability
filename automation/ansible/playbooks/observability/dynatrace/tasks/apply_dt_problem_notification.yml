@@ -60,7 +60,9 @@
 
 # Representation: specifications/dynatrace/integrations/sgc-problem-notification.json.j2
 # (commentary: sgc-problem-notification.md). This run targets the active
-# instance, so its notification is enabled; tasks/target.yml disables the others.
+# instance, so its notification is enabled, unless the instance's event path is
+# the Dynatrace workflow (SN_INSTANCES[].dt_event_path == 'workflow'): then the
+# notification is kept disabled. tasks/target.yml disables the others.
 # Every template variable is passed as a keyword argument: the lookup reads
 # play variables RAW, so a variable defined as a template (the name comes from
 # sn_instance_cfg) would be rendered as its literal "{{ ... }}" text.
@@ -68,7 +70,7 @@
   ansible.builtin.set_fact:
     dt_problem_notification_doc: >-
       {{ lookup('tf_template', dt_integrations_dir + '/sgc-problem-notification.json.j2',
-                dt_problem_notification_enabled=true,
+                dt_problem_notification_enabled=((sn_instance_cfg.dt_event_path | default('notification')) != 'workflow'),
                 dt_sn_problem_notification_name=dt_sn_problem_notification_name,
                 dt_alerting_profile_object_id=dt_alerting_profile_object_id,
                 sn_dt_webhook_authorization=sn_dt_webhook_authorization,

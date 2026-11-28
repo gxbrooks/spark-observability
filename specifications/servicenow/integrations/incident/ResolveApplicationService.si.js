@@ -565,7 +565,40 @@ ResolveApplicationService.prototype = {
     }
   },
 
+  /**
+   * True for the Dynatrace workflow payload (ServiceNow app action "Send ITOM event", posted to the
+   * brooks-lab push connector): flat additional_info with sn_source = "dynatrace" and
+   * flattened.davis_problem.* keys. The brooks-lab workflow adds the problem's first Davis event
+   * properties (sn-*, k8s-*) as top-level keys, so they are read from the root object.
+   */
+  isWorkflowPayload: function (info) {
+    if (!info || typeof info !== 'object' || info.ProblemDetailsJSON) {
+      return false;
+    }
+    if (String(info.sn_source || '') === 'dynatrace') {
+      return true;
+    }
+    for (var k in info) {
+      if (k.indexOf('flattened.davis_problem.') === 0) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  /** Davis problem field of a workflow payload (flattened.davis_problem.<field>), or ''. */
+  workflowProblemField: function (info, field) {
+    if (!this.isWorkflowPayload(info)) {
+      return '';
+    }
+    var v = info['flattened.davis_problem.' + field];
+    return v === undefined || v === null ? '' : String(v);
+  },
+
   readRankedCustomProperties: function (info) {
+    if (this.isWorkflowPayload(info)) {
+      return info;
+    }
     if (!info || !info.ProblemDetailsJSON || typeof info.ProblemDetailsJSON !== 'object') {
       return null;
     }
@@ -583,6 +616,9 @@ ResolveApplicationService.prototype = {
   ensureRankedCustomProperties: function (info) {
     if (!info) {
       return null;
+    }
+    if (this.isWorkflowPayload(info)) {
+      return info;
     }
     if (!info.ProblemDetailsJSON || typeof info.ProblemDetailsJSON !== 'object') {
       info.ProblemDetailsJSON = {};
@@ -1012,6 +1048,10 @@ ResolveApplicationService.prototype = {
   },
 
   extractProblemSeverity: function (gr) {
+    var category = this.workflowProblemField(this.parseAdditionalInfo(gr), 'event.category');
+    if (category) {
+      return category.toUpperCase();
+    }
     var blob = this.collectSparkLookupBlob(gr);
     var m = blob.match(/["']ProblemSeverity["']\s*:\s*["']([^"']+)["']/i);
     if (!m) {
@@ -1290,6 +1330,9 @@ ResolveApplicationService.prototype = {
     }
     if (gr.isValidField('metric_name') &&
         String(gr.metric_name || '').indexOf('Log-Error:') === 0) {
+      return true;
+    }
+    if (String(this.getCustomProperty(gr, ['sn-event-kind']) || '') === 'CRITICAL_LOG_EVENT') {
       return true;
     }
     var blob = this.collectSparkLookupBlob(gr);
@@ -1803,7 +1846,7 @@ ResolveApplicationService.prototype = {
     this.applyLogMetricName(gr);
     this.applyOpenIncidentJoin(gr);
     this.applyMetricClassAndFallbackMetricName(gr);
-    this.keepDurableLogSignal(gr);
+    this.applySeverityFromSnTags(gr);
 
     var ciNote = 'cmdb_ci empty';
     if (gr.isValidField('cmdb_ci') && !gr.cmdb_ci.nil()) {
@@ -1900,65 +1943,65 @@ ResolveApplicationService.prototype = {
   },
 
   /**
-   * Log problems are durable ITSM work: Dynatrace may time out and POST
-   * RESOLVED, but EM must not close the event/alert (or resolve the
-   * incident). Rewrite Clear/OK/Closing on log records to Major + New.
-   * Also remaps SGO's CUSTOM_ALERT → OK (5) so AMR severity<=3 can ticket.
+   * True when this event/alert update closes the Dynatrace problem: Clear severity or Closing
+   * resolution state (both connectors), "State": "RESOLVED" (legacy SGO-Dynatrace webhook), or
+   * event.status CLOSED (workflow payload).
    */
-  isDurableLogRecord: function (gr) {
-    if (this.isL2iCriticalLogAlert(gr)) {
-      return true;
-    }
+  isClosingSignal: function (gr) {
     if (!gr) {
       return false;
     }
-    if (String(gr.type || '') !== 'CUSTOM_ALERT') {
-      return false;
+    if (gr.isValidField('resolution_state') && String(gr.resolution_state) === 'Closing') {
+      return true;
+    }
+    var sev = gr.isValidField('severity') ? String(gr.severity) : '';
+    if (sev === '0' || sev === 'Clear' || sev === 'clear') {
+      return true;
+    }
+    var info = this.parseAdditionalInfo(gr);
+    if (this.workflowProblemField(info, 'event.status') === 'CLOSED') {
+      return true;
     }
     var blob = this.collectSparkLookupBlob(gr);
-    return blob.indexOf('CRITICAL_LOG_EVENT') !== -1 ||
-      blob.indexOf('Critical WARN') !== -1 ||
-      blob.indexOf('Critical ERROR') !== -1 ||
-      blob.indexOf('sn-log-signature') !== -1;
-  },
-
-  keepDurableLogSignal: function (gr) {
-    if (!this.isDurableLogRecord(gr)) {
-      return false;
-    }
-    var sev = '';
-    if (gr.isValidField('severity') && !gr.severity.nil()) {
-      sev = String(gr.severity);
-    }
-    var blob = this.collectSparkLookupBlob(gr);
-    var resolved =
-      /["']State["']\s*:\s*["']RESOLVED["']/i.test(blob) ||
+    return /["']State["']\s*:\s*["']RESOLVED["']/i.test(blob) ||
       blob.indexOf('RESOLVED Custom Alert') !== -1 ||
       blob.indexOf('RESOLVED Problem') !== -1;
-    var closing = false;
-    if (gr.isValidField('resolution_state') && !gr.resolution_state.nil()) {
-      closing = String(gr.resolution_state) === 'Closing';
-    }
-    var isClear = sev === '0' || sev === 'Clear' || sev === 'clear';
-    var isOk = sev === '5' || sev === 'OK' || sev === 'Ok';
-    if (!(isClear || isOk || closing || resolved)) {
+  },
+
+  /**
+   * Custom alerts (brooks-lab log alerts, eShop queue metric events) carry their ServiceNow
+   * weight in sn-impact / sn-urgency, but both connectors map Dynatrace's CUSTOM_ALERT category to
+   * OK/Info (5), below the incident gate (severity<=3). While the problem is open, set the alert
+   * severity from the stamps: min(sn-impact, sn-urgency) 1 → Critical, 2 → Major, 3 → Minor.
+   * A closing update is left alone, so the alert closes with its Dynatrace problem (log alerts
+   * close one hour after their last matching line: dt.davis.timeout 60 minutes).
+   */
+  applySeverityFromSnTags: function (gr) {
+    if (!gr || !gr.isValidField('severity')) {
       return false;
     }
-    if (gr.isValidField('resolution_state')) {
-      gr.resolution_state = 'New';
+    var category = this.extractProblemSeverity(gr) || String(gr.type || '');
+    if (category !== 'CUSTOM_ALERT' && !this.isL2iCriticalLogAlert(gr)) {
+      return false;
     }
-    if (gr.isValidField('severity')) {
-      gr.severity = '2';
+    var impact = this.extractSnChoice(gr, 'sn-impact');
+    var urgency = this.extractSnChoice(gr, 'sn-urgency');
+    if (!impact && !urgency) {
+      return false;
     }
-    if (gr.isValidField('state')) {
-      var st = String(gr.state);
-      if (st === '4' || st === 'Closed' || st === 'closed') {
-        gr.state = '1';
-      }
+    if (this.isClosingSignal(gr)) {
+      return false;
     }
+    var target = this.moreSevereChoice(impact || urgency, urgency || impact);
+    var current = parseInt(String(gr.severity), 10);
+    if (!isNaN(current) && current >= 1 && current <= parseInt(target, 10)) {
+      return false; // already at least as severe
+    }
+    gr.severity = target;
     this.appendProcessingNote(
       gr,
-      'sgo-enrich: durable log — kept Open/Major (Dynatrace close ignored)'
+      'sgo-enrich: severity ' + (isNaN(current) ? '(empty)' : current) + ' → ' + target +
+        ' from sn-impact=' + (impact || '-') + ' sn-urgency=' + (urgency || '-')
     );
     return true;
   },
@@ -2029,8 +2072,10 @@ ResolveApplicationService.prototype = {
     openPrimary.addQuery('cmdb_ci', ci);
     openPrimary.addQuery('metric_name', metric);
     openPrimary.addQuery('event_class', this.connector.eventClass);
+    openPrimary.addQuery('sys_id', '!=', gr.getUniqueValue());
     openPrimary.addNotNullQuery('incident');
     openPrimary.addQuery('incident.active', true);
+    openPrimary.addQuery('incident.state', '<', 6); // not Resolved/Closed/Canceled
     openPrimary.orderByDesc('sys_created_on');
     openPrimary.setLimit(1);
     openPrimary.query();

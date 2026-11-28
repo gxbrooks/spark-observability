@@ -1,0 +1,61 @@
+{
+  "title": "${dt_problem_workflow_name}",
+  "description": "brooks-lab: sends every problem of alerting profile '${dt_sn_alerting_profile_name}' (open and close) to the ServiceNow push connector instance paired with the SGC for Dynatrace SaaS. Adds the problem's Davis event properties (sn-*, k8s-*) to additional_info for the brooks-lab enrichment. Managed by playbooks/servicenow/sgc/sources/dynatrace-saas/deploy.yml; representation specifications/dynatrace/integrations/sn-problem-workflow.json.j2.",
+  "isPrivate": false,
+  "trigger": {
+    "eventTrigger": {
+      "isActive": ${dt_problem_workflow_active},
+      "triggerConfiguration": {
+        "type": "davis-problem",
+        "value": {
+          "categories": {
+            "monitoringUnavailable": true,
+            "availability": true,
+            "error": true,
+            "slowdown": true,
+            "resource": true,
+            "custom": true,
+            "info": true
+          },
+          "entityTags": {},
+          "entityTagsMatch": "all",
+          "onProblemClose": true,
+          "customFilter": "matchesValue(labels.alerting_profile, \"${dt_sn_alerting_profile_name}\")"
+        }
+      }
+    }
+  },
+  "tasks": {
+    "event_properties": {
+      "name": "event_properties",
+      "description": "The problem's most recent Davis event record, sn-* and k8s-* properties only (OpenPipeline and metric-event stamps the ServiceNow enrichment reads).",
+      "action": "dynatrace.automations:execute-dql-query",
+      "input": {
+        "query": "fetch dt.davis.events, from: now()-7d\n| filter in(event.id, array({% for id in event()['dt.davis.event_ids'] %}\"{{ id }}\"{% if not loop.last %}, {% endif %}{% endfor %}))\n| sort timestamp desc\n| limit 1\n| fieldsKeep \"sn-*\", \"k8s-*\""
+      },
+      "position": { "x": 0, "y": 1 },
+      "predecessors": []
+    },
+    "send_event": {
+      "name": "send_event",
+      "description": "Send the problem as an ITOM event to the brooks-lab push connector instance.",
+      "action": "dynatrace.servicenow:snow-send-event",
+      "input": {
+        "connectionId": "${dt_itom_connection_id}",
+        "node": "{% set ev = event() %}{% set aid = ev['affected_entity_ids'] if 'affected_entity_ids' in ev and ev['affected_entity_ids'] else [] %}{% set anm = ev['affected_entity_names'] if 'affected_entity_names' in ev and ev['affected_entity_names'] else [] %}{% set aty = ev['affected_entity_types'] if 'affected_entity_types' in ev and ev['affected_entity_types'] else [] %}{% set eid = ev['root_cause_entity_id'] if 'root_cause_entity_id' in ev and ev['root_cause_entity_id'] else (aid[0] if aid else '') %}{% set enm = ev['root_cause_entity_name'] if 'root_cause_entity_name' in ev and ev['root_cause_entity_name'] else (anm[0] if anm else '') %}{% set ety = (eid.split('-')[0] if eid else ((aty[0] | replace('dt.entity.', '') | upper) if aty else '')) %}{{ enm if ety == 'HOST' else '' }}",
+        "type": "{{ event()['event.category'] }}",
+        "resource": "",
+        "message_key": "brooks-lab {{ event()['display_id'] }}",
+        "severity": "{% set c = event()['event.category'] %}{% if event()['event.status'] == 'CLOSED' %}0{% elif c == 'AVAILABILITY' %}1{% elif c in ['ERROR', 'MONITORING_UNAVAILABLE'] %}2{% elif c == 'SLOWDOWN' %}3{% elif c == 'RESOURCE_CONTENTION' %}4{% else %}5{% endif %}",
+        "resolution_state": "{{ 'Closing' if event()['event.status'] == 'CLOSED' else 'New' }}",
+        "time_of_event": "{{ ((event()['event.end'] if event()['event.status'] == 'CLOSED' and event()['event.end'] else event()['event.start']) or event()['timestamp'])[:19] | replace('T', ' ') }}",
+        "metric_name": "{{ event()['event.name'] }}",
+        "description": "{{ event()['event.description'] if 'event.description' in event() else event()['event.name'] }}",
+        "additional_info": "{% set ev = event() %}{% set aid = ev['affected_entity_ids'] if 'affected_entity_ids' in ev and ev['affected_entity_ids'] else [] %}{% set anm = ev['affected_entity_names'] if 'affected_entity_names' in ev and ev['affected_entity_names'] else [] %}{% set aty = ev['affected_entity_types'] if 'affected_entity_types' in ev and ev['affected_entity_types'] else [] %}{% set eid = ev['root_cause_entity_id'] if 'root_cause_entity_id' in ev and ev['root_cause_entity_id'] else (aid[0] if aid else '') %}{% set enm = ev['root_cause_entity_name'] if 'root_cause_entity_name' in ev and ev['root_cause_entity_name'] else (anm[0] if anm else '') %}{% set ety = (eid.split('-')[0] if eid else ((aty[0] | replace('dt.entity.', '') | upper) if aty else '')) %}{% set recs = result('event_properties').records %}{% set props = recs[0] if recs else {} %}{ {% for k, v in props.items() %}{{ k | to_json }}: {{ v | to_json }}, {% endfor %}\"smartscape_entity_id\": {{ eid | to_json }}, \"smartscape_entity_type\": {{ ety | to_json }}, \"smartscape_entity_name\": {{ enm | to_json }}, \"problem_url\": {{ problem_link() | to_json }}, \"workflow_link\": {{ execution()['workflow']['link'] | to_json }}, \"davis_problem\": {{ event() | to_json }} }"
+      },
+      "position": { "x": 0, "y": 2 },
+      "predecessors": ["event_properties"],
+      "conditions": { "states": { "event_properties": "OK" } }
+    }
+  }
+}

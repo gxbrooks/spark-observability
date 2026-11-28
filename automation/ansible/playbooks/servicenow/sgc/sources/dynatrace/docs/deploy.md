@@ -28,8 +28,8 @@ Dynatrace credential this project holds, their scopes, and which are shared with
 
 | Token (name in Dynatrace) | Held in | Purpose |
 | ------------------------- | ------- | ------- |
-| `DT_TOKEN_ADMIN_TOKEN` | `vars/secrets.yaml` (`dynatrace:` block) | Mints/rotates other tokens; used by this `deploy.yml` and by `specifications/dynatrace` token rotation |
-| `spark-observability-api` (variable `DT_API_TOKEN`) | `vars/secrets.yaml` | Ansible automation against the Dynatrace settings/entities/problems APIs; needs **no** SGC or apiTokens scopes |
+| `DT_AUTOMATION_TOKEN` | `vars/secrets.yaml` (`dynatrace:` block) | Mints/rotates other tokens; used by this `deploy.yml` and by `specifications/dynatrace` token rotation |
+| `spark-observability-api` (variable `DT_AUTOMATION_TOKEN`) | `vars/secrets.yaml` | Ansible automation against the Dynatrace settings/entities/problems APIs; needs **no** SGC or apiTokens scopes |
 | `dynatrace-servicenow-sgc-integration` | **ServiceNow** (the *Dynatrace API Key* credential) | The SGC connection; minted and pushed by `deploy.yml` (`tasks/ensure-sgc-credential.yml`), never written to `vars/secrets.yaml` |
 
 `deploy.yml` mints the SGC token on first run. On-needed: when the token

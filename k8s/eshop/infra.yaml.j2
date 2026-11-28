@@ -34,6 +34,7 @@ spec:
   template:
     metadata:
       labels: {app: postgres, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['postgres'] }}}
+      annotations: {metadata.dynatrace.com/sn-service-instance: {{ eshop_service_instances['postgres'] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_data_node }}}
       containers:
@@ -82,6 +83,7 @@ spec:
   template:
     metadata:
       labels: {app: redis, app.kubernetes.io/part-of: eshop, servicenow.com/service-instance: {{ eshop_service_instances['redis'] }}}
+      annotations: {metadata.dynatrace.com/sn-service-instance: {{ eshop_service_instances['redis'] }}}
     spec:
       nodeSelector: {kubernetes.io/hostname: {{ eshop_data_node }}}
       containers:
@@ -121,6 +123,7 @@ spec:
       # /metrics/per-object carries per-queue series (rabbitmq_queue_messages_ready/_unacked,
       # rabbitmq_queue_consumers, labels vhost+queue); plain /metrics is aggregated only.
       annotations:
+        metadata.dynatrace.com/sn-service-instance: {{ eshop_service_instances['rabbitmq'] }}
         metrics.dynatrace.com/scrape: "true"
         metrics.dynatrace.com/port: "15692"
         metrics.dynatrace.com/path: /metrics/per-object

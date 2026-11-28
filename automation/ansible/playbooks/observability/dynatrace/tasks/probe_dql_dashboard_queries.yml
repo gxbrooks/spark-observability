@@ -9,14 +9,14 @@
 #   known DQL anti-patterns: backticks in query strings, SQL-style `in` lists,
 #   `| fields` after `timeseries`, and custom lookup prefixes.
 #
-# Stage 2 — Live DQL execute (runs only when DT_PLATFORM_TOKEN_GRAIL is set):
+# Stage 2 — Live DQL execute (runs only when DT_AUTOMATION_PLATFORM_TOKEN is set):
 #   POSTs each tile query to /platform/storage/query/v1/query:execute and
 #   reports state + row count or error message.
 #   Requires a platform token with scopes: storage:metrics:read, storage:entities:read
 #   Create one at: Settings → Access Tokens → Generate new token
 #   Then add to vars/secrets.yaml:
 #     dynatrace:
-#       DT_PLATFORM_TOKEN_GRAIL: "dt0s16...."
+#       DT_AUTOMATION_PLATFORM_TOKEN: "dt0s16...."
 #
 # Usage:
 #   ansible-playbook deploy.yml -i ansible/inventory.yml -e @vars/secrets.yaml --tags probe_dql
@@ -26,7 +26,7 @@
 
 - name: Resolve tokens for DQL probe
   ansible.builtin.set_fact:
-    dql_grail_token: "{{ (dynatrace | default({})).DT_PLATFORM_TOKEN_GRAIL | default('') }}"
+    dql_grail_token: "{{ (dynatrace | default({})).DT_AUTOMATION_PLATFORM_TOKEN | default('') }}"
     dt_tenant_url_resolved: >-
       {{ (DT_TENANT_URL.value if (DT_TENANT_URL is mapping and 'value' in DT_TENANT_URL)
           else DT_TENANT_URL) | default('') }}
@@ -101,12 +101,12 @@
   run_once: true
 
 # ── Stage 2: Live DQL execute (optional, needs storage:metrics:read scope) ───
-- name: Skip live DQL probe (DT_PLATFORM_TOKEN_GRAIL not set)
+- name: Skip live DQL probe (DT_AUTOMATION_PLATFORM_TOKEN not set)
   ansible.builtin.debug:
     msg: >-
-      Live DQL probe skipped — DT_PLATFORM_TOKEN_GRAIL not set.
+      Live DQL probe skipped — DT_AUTOMATION_PLATFORM_TOKEN not set.
       To enable: create a platform token with storage:metrics:read + storage:entities:read
-      scopes and add it to vars/secrets.yaml under dynatrace.DT_PLATFORM_TOKEN_GRAIL.
+      scopes and add it to vars/secrets.yaml under dynatrace.DT_AUTOMATION_PLATFORM_TOKEN.
   when: dql_grail_token | length == 0
   run_once: true
 

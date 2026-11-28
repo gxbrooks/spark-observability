@@ -31,6 +31,7 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
       if (siOther && siOther.sysId) {
         task.cmdb_ci = siOther.sysId;
       }
+      EvtMgmtCustomIncidentPopulator.resolveService(alert, task);
       return true;
     }
 
@@ -59,6 +60,8 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
     var openInc = new GlideRecord('incident');
     openInc.addQuery('cmdb_ci', si.sysId);
     openInc.addQuery('active', true);
+    // Resolved (6) incidents stay active=true until Closed: never join them.
+    openInc.addQuery('state', '<', 6);
     openInc.addQuery('short_description', shortDesc);
     openInc.setLimit(1);
     openInc.query();
@@ -75,6 +78,14 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
         ' sn-urgency=' +
         (openInc.urgency || '');
       openInc.update();
+      // The alert joins an incident that may predate service resolution (or was opened without a
+      // CSDM home): resolve its service offering and service now. The em-alert-find-service BR
+      // does not see this link (the handler saves the alert without running business rules).
+      try {
+        new FindService().resolveServiceForAlert(alert, openInc);
+      } catch (eFs) {
+        gs.error('EvtMgmtCustomIncidentPopulator: FindService on join: ' + eFs);
+      }
       gs.info(
         'EvtMgmtCustomIncidentPopulator: linked ' +
           alert.number +
@@ -106,11 +117,25 @@ EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert = function (
         ' via ' +
         si.how
     );
+    EvtMgmtCustomIncidentPopulator.resolveService(alert, task);
     return true;
   } catch (e) {
     gs.error(
       'EvtMgmtCustomIncidentPopulator.populateFieldsFromAlert: ' + e
     );
     return true;
+  }
+};
+
+/**
+ * Fill the new incident's service_offering and business_service before it is inserted
+ * (FindService works on the unsaved task). The em-alert-find-service BR cannot be relied on for
+ * this: the incident handler links the alert to its incident without running business rules.
+ */
+EvtMgmtCustomIncidentPopulator.resolveService = function (alert, task) {
+  try {
+    new FindService().resolveServiceForAlert(alert, task);
+  } catch (e) {
+    gs.error('EvtMgmtCustomIncidentPopulator.resolveService: ' + e);
   }
 };

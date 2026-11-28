@@ -81,11 +81,11 @@ journalctl -u gpu-metrics-dt.service --since '5 min ago'
 
 # Grail metrics catalog
 curl "https://pdt20158.live.dynatrace.com/api/v2/metrics?metricSelector=system.gpu.*" \
-  -H "Authorization: Api-Token $DT_API_TOKEN"
+  -H "Authorization: Api-Token $DT_AUTOMATION_TOKEN"
 
 # Live data (last 30 min, 5-min resolution)
 curl "https://pdt20158.live.dynatrace.com/api/v2/metrics/query?metricSelector=system.gpu.utilization.core_percent:splitBy(gpu.card,host.name):avg&resolution=5m&from=now-30m" \
-  -H "Authorization: Api-Token $DT_API_TOKEN"
+  -H "Authorization: Api-Token $DT_AUTOMATION_TOKEN"
 ```
 
 ## DQL queries (New Dashboard)

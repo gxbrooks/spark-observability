@@ -5,7 +5,8 @@ Brooks-lab's topology feed from the Dynatrace 3rd-generation platform. The conne
 **SGO-Dynatrace SaaS**. It replaces the legacy SGC's topology imports (`sources/dynatrace/`).
 
 The legacy app (`sn_dynatrace_integ`) stays installed for two reasons:
-- Its push listener "Dynatrace Observability" (source SGO-Dynatrace) still receives Dynatrace problem events.
+- Its push listener "Dynatrace Observability" (source SGO-Dynatrace) still receives Dynatrace problem events
+  for instances on the classic notification path (see "Event path" below).
 - `sources/dynatrace/stop.yml` only deactivates its root imports.
 
 | Playbook | Verb | What it does |
@@ -17,11 +18,37 @@ The legacy app (`sn_dynatrace_integ`) stays installed for two reasons:
 
 Order: `deploy.yml` → `start.yml` → `test.yml` → `../dynatrace/stop.yml`, which disables the legacy topology imports.
 
+## Event path: Dynatrace workflow → brooks-lab push connector
+
+The event path paired with this connector replaces the classic problem notification to the legacy
+SGO-Dynatrace receiver. It is used for instances with `SN_INSTANCES[].dt_event_path: workflow`
+(`vars/variables.yaml`); `deploy.yml` then also creates:
+
+| Where | Record | Representation / task |
+| --- | --- | --- |
+| ServiceNow | push connector instance `brooks-lab` on the "Dynatrace Monitor Push Connector" listener, `connection_sys_id` = the SaaS connection, so alerts bind to SaaS-imported CIs | `tasks/ensure-push-connector.yml` |
+| Dynatrace | ITOM event connection `dt_itom_connection_name` (Dynatrace ServiceNow app) to that instance's URL, as the `SN_DT_WEBHOOK_*` account | `tasks/ensure-dt-problem-workflow.yml` |
+| Dynatrace | workflow `dt_problem_workflow_name`: every problem of the brooks-lab alerting profile, open and close → DQL for the problem's Davis event properties (`sn-*`, `k8s-*`) → "Send ITOM event" (`dynatrace.servicenow:snow-send-event`) | `specifications/dynatrace/integrations/sn-problem-workflow.json.j2` |
+
+The instance's classic notification stays disabled, and `servicenow/tasks/target.yml` switches the
+workflow trigger (`isActive`) when the active instance changes; `servicenow/sn_active_instance.py`
+reads it too.
+
+**One manual step.** A workflow runs as its actor, the Dynatrace user who owns
+`DT_AUTOMATION_PLATFORM_TOKEN`. That user must grant the Workflows app its permissions once:
+Workflows → Settings → **Authorization settings** (at least `app-engine:apps:run`,
+`storage:events:read`, `storage:buckets:read`, `app-settings:objects:read`). Until then every run
+fails with "Please ensure Authorization Settings are configured for this user".
+
+Cut-over (per instance): grant the authorization, set `dt_event_path: workflow`, run `deploy.yml`,
+verify a problem reaches an incident, then deactivate the legacy SGC's connections.
+
 Prerequisites:
 
 - `sn_dynatrace_saas` installed and active. Demo1 has 1.2.0. Demo3's install is broken; ServiceNow is investigating.
-- `vars/secrets.yaml` → `dynatrace.DT_PLATFORM_TOKEN_SGC_SAAS`: a Dynatrace platform token with scope
-  `storage:smartscape:read`. The existing `DT_PLATFORM_TOKEN` cannot read Smartscape (DQL returns `NOT_AUTHORIZED_FOR_TABLE`).
+- `vars/secrets.yaml` → `dynatrace.DT_SERVICENOW_TOKEN`: the read-only platform token ServiceNow holds
+  (class 3 in [`vars/docs/secrets.md`](../../../../../../../vars/docs/secrets.md)); the connector needs
+  `storage:smartscape:read`.
   Platform tokens are created in the Dynatrace UI (Account Management, or the tenant's Settings > Access tokens > Platform tokens).
   No API in this repo can mint them.
 

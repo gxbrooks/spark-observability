@@ -31,6 +31,11 @@ spec:
         # Value = ServiceNow service instance display name (K8s label charset:
         # spaces → '-'; tag-based Service Mapping populate rule uses the same value).
         servicenow.com/service-instance: Spark-Master
+      # Dynatrace copies metadata.dynatrace.com/<key> pod annotations onto the pod's logs,
+      # metrics and spans as attribute <key>: the log-to-incident pipelines read the
+      # service instance from sn-service-instance (mirror of the label above).
+      annotations:
+        metadata.dynatrace.com/sn-service-instance: Spark-Master
     spec:
       serviceAccountName: spark
       securityContext:

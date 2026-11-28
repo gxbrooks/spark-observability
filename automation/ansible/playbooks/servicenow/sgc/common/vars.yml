@@ -62,7 +62,7 @@ dt_management_zone_resolved: "{{ DT_MANAGEMENT_ZONE }}"
 dt_management_zone_object_id: ""
 
 # Dedicated Dynatrace token for the SGC connection (minted by
-# sources/dynatrace/tasks/ensure-sgc-credential.yml via DT_TOKEN_ADMIN_TOKEN)
+# sources/dynatrace/tasks/ensure-sgc-credential.yml via DT_AUTOMATION_TOKEN)
 # One token per ServiceNow instance: a shared name would make a second instance
 # skip minting (token "exists") and a rotation on one delete the other's token.
 # The default instance keeps the original name.
@@ -182,15 +182,20 @@ sgc_saas_app_scope: sn_dynatrace_saas
 sgc_saas_discovery_source: SGO-Dynatrace SaaS
 sgc_saas_connection_alias_id: sn_dynatrace_saas.Dynatrace_SaaS
 sgc_saas_tenant_url: "{{ DT_TENANT_URL | regex_replace('/+$', '') }}"
-# Secret (vars/secrets.yaml): dynatrace.DT_PLATFORM_TOKEN_SGC_SAAS — a platform token
+# Secret (vars/secrets.yaml): dynatrace.DT_SERVICENOW_TOKEN — a platform token
 # with storage:smartscape:read (the connector only runs smartscapeNodes/Edges DQL).
-sgc_saas_token_secret_key: DT_PLATFORM_TOKEN_SGC_SAAS
+sgc_saas_token_secret_key: DT_SERVICENOW_TOKEN
 # Write the token into the connection credential even when the connection reports Success.
 sgc_saas_rotate_credential: false
 # Root scheduled imports of the default connection; every other SaaS import runs after a parent.
 sgc_saas_root_imports:
   - SGO-Dynatrace SaaS Host
   - SGO-Dynatrace SaaS K8s Cluster
+# brooks-lab event path paired with the SaaS connector (sources/dynatrace-saas/tasks/ensure-push-connector.yml):
+# a "Dynatrace Monitor Push Connector" instance. Its name becomes the events' event_class, so it must
+# equal the incident pipeline's connector class (brooks_lab.connector.event_class, "brooks-lab").
+sgc_saas_push_listener_name: Dynatrace Monitor Push Connector
+sgc_saas_push_connector_name: brooks-lab
 sgc_saas_import_run_type: periodically
 sgc_saas_import_run_period: "1970-01-01 01:00:00"
 # Connection properties (sn_cmdb_int_util_service_graph_connection_property). segment_id
@@ -215,3 +220,10 @@ sgc_legacy_root_imports:
 # Reversible: set active=true again on those records (SGC Central or the Table API).
 sgc_saas_deactivate_connections:
   - Dynatrace - Katie
+
+# Other people's Dynatrace problem notifications (display names) that send brooks-lab problems to the
+# brooks-lab ServiceNow instance. sources/dynatrace-saas/deploy.yml disables each one in Dynatrace:
+# their events update the same alerts as ours and take them over (see the incident README).
+# "ServiceNow Demo 1 - Optimiz" is Katie's connector (alerting profile with no management zone).
+sgc_saas_disable_dt_notifications:
+  - ServiceNow Demo 1 - Optimiz
